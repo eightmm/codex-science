@@ -1,6 +1,6 @@
 # Reproducibility
 
-The upstream catalog is pinned by Git submodule commit and `catalog/source.json`. Python tooling is pinned by `uv.lock`. The generated inventory contains no timestamp, so identical source and policy produce identical bytes.
+Each skill source is pinned in `catalog/sources.json` (repository, commit, kind). K-Dense is a pinned Git submodule; DeepMind is a pinned vendored copy; `authored-skills/` is in-repo. Python tooling is pinned by `uv.lock`. The generated inventory contains no timestamp, so identical sources and policy produce identical bytes.
 
 ```bash
 git submodule update --init --recursive
