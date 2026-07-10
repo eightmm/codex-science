@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Protocolsio Integration"
+  short_description: "Audited scientific workflow for kdense-protocolsio-integration"
+  default_prompt: "Use $kdense-protocolsio-integration for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

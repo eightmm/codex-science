@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Hypothesis Generation"
+  short_description: "Use the audited kdense-hypothesis-generation scientific workflow"
+  default_prompt: "Use $kdense-hypothesis-generation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

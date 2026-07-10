@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Arbor"
+  short_description: "Use the audited kdense-arbor scientific workflow"
+  default_prompt: "Use $kdense-arbor for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

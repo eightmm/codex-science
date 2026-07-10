@@ -1,6 +1,0 @@
-interface:
-  display_name: "Paperzilla"
-  short_description: "Use the audited paperzilla scientific workflow"
-  default_prompt: "Use $paperzilla for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

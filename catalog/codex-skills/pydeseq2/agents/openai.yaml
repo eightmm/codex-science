@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pydeseq2"
-  short_description: "Use the audited pydeseq2 scientific workflow"
-  default_prompt: "Use $pydeseq2 for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Research Lookup"
-  short_description: "Use the audited research-lookup scientific workflow"
-  default_prompt: "Use $research-lookup for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

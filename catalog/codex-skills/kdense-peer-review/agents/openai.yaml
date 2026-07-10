@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Peer Review"
+  short_description: "Use the audited kdense-peer-review scientific workflow"
+  default_prompt: "Use $kdense-peer-review for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

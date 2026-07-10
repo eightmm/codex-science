@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Networkx"
+  short_description: "Use the audited kdense-networkx scientific workflow"
+  default_prompt: "Use $kdense-networkx for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Ginkgo Cloud Lab"
+  short_description: "Use the audited kdense-ginkgo-cloud-lab scientific workflow"
+  default_prompt: "Use $kdense-ginkgo-cloud-lab for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

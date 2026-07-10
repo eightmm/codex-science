@@ -119,12 +119,17 @@ def _executable_files(skill_dir: Path) -> list[Path]:
     return sorted(files, key=lambda item: item.as_posix())
 
 
-def audit_skill(skill_dir: Path, policy: CatalogPolicy) -> dict[str, Any]:
+def audit_skill(
+    skill_dir: Path,
+    policy: CatalogPolicy,
+    *,
+    default_license: str | None = None,
+) -> dict[str, Any]:
     skill_file = skill_dir / "SKILL.md"
     metadata = parse_frontmatter(skill_file)
     name = metadata.get("name", "").strip() or skill_dir.name
     description = metadata.get("description", "").strip()
-    license_name = metadata.get("license") or None
+    license_name = metadata.get("license") or default_license or None
     text = skill_file.read_text(encoding="utf-8", errors="replace")
     executables = _executable_files(skill_dir)
     reasons: list[str] = []
@@ -156,24 +161,99 @@ def audit_skill(skill_dir: Path, policy: CatalogPolicy) -> dict[str, Any]:
     }
 
 
+def _audit_records(
+    catalog_root: Path,
+    policy: CatalogPolicy,
+    *,
+    path_prefix: str = "",
+    name_prefix: str = "",
+    source_key: str = "",
+    default_license: str | None = None,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for skill_file in sorted(catalog_root.glob("*/SKILL.md"), key=lambda item: item.parent.name):
+        record = audit_skill(skill_file.parent, policy, default_license=default_license)
+        folder = skill_file.parent.name
+        record["path"] = str(Path(path_prefix) / folder) if path_prefix else folder
+        if name_prefix:
+            record["name"] = f"{name_prefix}-{record['name']}"
+        if source_key:
+            record["source"] = source_key
+        records.append(record)
+    return records
+
+
 def audit_catalog(
     catalog_root: Path,
     source_commit: str,
     policy: CatalogPolicy,
     *,
     path_prefix: str = "",
+    name_prefix: str = "",
+    source_key: str = "",
+    default_license: str | None = None,
 ) -> dict[str, Any]:
-    records: list[dict[str, Any]] = []
-    for skill_file in sorted(catalog_root.glob("*/SKILL.md"), key=lambda item: item.parent.name):
-        record = audit_skill(skill_file.parent, policy)
-        record["path"] = str(Path(path_prefix) / skill_file.parent.name) if path_prefix else skill_file.parent.name
-        records.append(record)
+    records = _audit_records(
+        catalog_root,
+        policy,
+        path_prefix=path_prefix,
+        name_prefix=name_prefix,
+        source_key=source_key,
+        default_license=default_license,
+    )
     active = sum(record["status"] == "active" for record in records)
     return {
         "schema_version": 1,
         "source": {"commit": source_commit},
         "summary": {"total": len(records), "active": active, "inactive": len(records) - active},
         "skills": records,
+    }
+
+
+def audit_sources(
+    sources: list[dict[str, Any]],
+    root: Path,
+    policy: CatalogPolicy,
+) -> dict[str, Any]:
+    """Audit multiple catalogs into one deterministic schema-2 inventory."""
+    all_records: list[dict[str, Any]] = []
+    source_meta: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in sources:
+        key = str(source["key"])
+        catalog_path = str(source["catalog_path"])
+        catalog_root = (root / catalog_path).resolve()
+        if not catalog_root.is_dir():
+            raise ValueError(f"Catalog directory not found: {catalog_root}")
+        records = _audit_records(
+            catalog_root,
+            policy,
+            path_prefix=catalog_path,
+            name_prefix=str(source.get("name_prefix", key)),
+            source_key=key,
+            default_license=source.get("default_license"),
+        )
+        for record in records:
+            if record["name"] in seen:
+                raise ValueError(f"Duplicate skill name across sources: {record['name']}")
+            seen.add(record["name"])
+        all_records.extend(records)
+        source_meta.append(
+            {
+                "key": key,
+                "repository": str(source.get("repository", "")),
+                "commit": str(source.get("commit", "")),
+                "catalog_path": catalog_path,
+                "kind": str(source.get("kind", "")),
+            }
+        )
+    all_records.sort(key=lambda item: str(item["name"]))
+    active = sum(record["status"] == "active" for record in all_records)
+    return {
+        "schema_version": 2,
+        "sources": sorted(source_meta, key=lambda item: item["key"]),
+        "summary": {"total": len(all_records), "active": active, "inactive": len(all_records) - active},
+        "skills": all_records,
     }
 
 
@@ -184,7 +264,7 @@ def write_inventory(inventory: dict[str, Any], path: Path) -> None:
 
 def load_inventory(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != 1 or not isinstance(payload.get("skills"), list):
+    if payload.get("schema_version") not in (1, 2) or not isinstance(payload.get("skills"), list):
         raise ValueError(f"Unsupported inventory: {path}")
     return payload
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Research Lookup"
+  short_description: "Use the audited kdense-research-lookup scientific workflow"
+  default_prompt: "Use $kdense-research-lookup for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

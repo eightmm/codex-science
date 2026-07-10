@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Scikit Survival"
+  short_description: "Use the audited kdense-scikit-survival scientific workflow"
+  default_prompt: "Use $kdense-scikit-survival for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Iso 13485 Certification"
-  short_description: "Use the audited iso-13485-certification scientific workflow"
-  default_prompt: "Use $iso-13485-certification for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

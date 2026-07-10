@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Umap Learn"
+  short_description: "Use the audited kdense-umap-learn scientific workflow"
+  default_prompt: "Use $kdense-umap-learn for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

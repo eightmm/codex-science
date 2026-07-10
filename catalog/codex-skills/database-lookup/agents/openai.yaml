@@ -1,6 +1,0 @@
-interface:
-  display_name: "Database Lookup"
-  short_description: "Use the audited database-lookup scientific workflow"
-  default_prompt: "Use $database-lookup for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Scvelo"
+  short_description: "Use the audited kdense-scvelo scientific workflow"
+  default_prompt: "Use $kdense-scvelo for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

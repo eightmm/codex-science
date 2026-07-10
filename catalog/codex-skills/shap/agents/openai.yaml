@@ -1,6 +1,0 @@
-interface:
-  display_name: "Shap"
-  short_description: "Use the audited shap scientific workflow"
-  default_prompt: "Use $shap for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

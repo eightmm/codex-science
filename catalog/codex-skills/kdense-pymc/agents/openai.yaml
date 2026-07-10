@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Pymc"
+  short_description: "Use the audited kdense-pymc scientific workflow"
+  default_prompt: "Use $kdense-pymc for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Clinical Decision Support"
+  short_description: "Audited scientific workflow for kdense-clinical-decision-support"
+  default_prompt: "Use $kdense-clinical-decision-support for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

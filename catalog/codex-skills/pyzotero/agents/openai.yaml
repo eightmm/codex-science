@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pyzotero"
-  short_description: "Use the audited pyzotero scientific workflow"
-  default_prompt: "Use $pyzotero for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

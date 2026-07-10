@@ -2,12 +2,25 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-expected="$(python3 -c 'import json; print(json.load(open("catalog/source.json"))["commit"])')"
-actual="$(git -C vendor/scientific-agent-skills rev-parse HEAD)"
-if [ "$actual" != "$expected" ]; then
-  echo "doctor: upstream commit mismatch: expected $expected, got $actual" >&2
-  exit 1
-fi
+python3 - <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+
+sources = json.loads(Path("catalog/sources.json").read_text())["sources"]
+for src in sources:
+    key, kind, path = src["key"], src.get("kind", ""), src["catalog_path"]
+    root = Path(path).parent
+    if kind == "submodule":
+        actual = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        if actual != src["commit"]:
+            sys.exit(f"doctor: {key} commit mismatch: expected {src['commit']}, got {actual}")
+    elif not Path(path).is_dir():
+        sys.exit(f"doctor: {key} vendored catalog missing at {path}")
+print(f"source check: ok ({len(sources)} sources)")
+PY
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT

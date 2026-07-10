@@ -1,6 +1,0 @@
-interface:
-  display_name: "Seaborn"
-  short_description: "Use the audited seaborn scientific workflow"
-  default_prompt: "Use $seaborn for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

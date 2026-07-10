@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pennylane"
-  short_description: "Use the audited pennylane scientific workflow"
-  default_prompt: "Use $pennylane for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

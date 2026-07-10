@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Open Notebook"
+  short_description: "Use the audited kdense-open-notebook scientific workflow"
+  default_prompt: "Use $kdense-open-notebook for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "sources": [
+    {
+      "key": "kdense",
+      "name_prefix": "kdense",
+      "repository": "https://github.com/K-Dense-AI/scientific-agent-skills.git",
+      "commit": "4d97e293dc6f604fb6b63dcd49b9028df413d65b",
+      "catalog_path": "vendor/scientific-agent-skills/skills",
+      "kind": "submodule"
+    },
+    {
+      "key": "gdm",
+      "name_prefix": "gdm",
+      "repository": "https://github.com/google-deepmind/science-skills",
+      "commit": "0b42509800f49e6eb7809505d96e20a890ef99bd",
+      "catalog_path": "vendor/gdm-science-skills/skills",
+      "kind": "vendored",
+      "default_license": "Apache-2.0"
+    }
+  ]
+}

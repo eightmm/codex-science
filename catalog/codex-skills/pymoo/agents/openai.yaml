@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pymoo"
-  short_description: "Use the audited pymoo scientific workflow"
-  default_prompt: "Use $pymoo for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

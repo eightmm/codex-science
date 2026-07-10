@@ -1,6 +1,0 @@
-interface:
-  display_name: "Torch Geometric"
-  short_description: "Use the audited torch-geometric scientific workflow"
-  default_prompt: "Use $torch-geometric for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

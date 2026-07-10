@@ -1,6 +1,0 @@
-interface:
-  display_name: "Scientific Brainstorming"
-  short_description: "Use the audited scientific-brainstorming scientific workflow"
-  default_prompt: "Use $scientific-brainstorming for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

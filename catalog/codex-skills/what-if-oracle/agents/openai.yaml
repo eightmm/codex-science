@@ -1,6 +1,0 @@
-interface:
-  display_name: "What If Oracle"
-  short_description: "Use the audited what-if-oracle scientific workflow"
-  default_prompt: "Use $what-if-oracle for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

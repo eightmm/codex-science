@@ -1,6 +1,0 @@
-interface:
-  display_name: "Open Notebook"
-  short_description: "Use the audited open-notebook scientific workflow"
-  default_prompt: "Use $open-notebook for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

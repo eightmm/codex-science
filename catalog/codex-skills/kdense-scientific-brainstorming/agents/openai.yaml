@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Scientific Brainstorming"
+  short_description: "Audited scientific workflow for kdense-scientific-brainstorming"
+  default_prompt: "Use $kdense-scientific-brainstorming for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

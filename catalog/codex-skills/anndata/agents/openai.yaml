@@ -1,6 +1,0 @@
-interface:
-  display_name: "Anndata"
-  short_description: "Use the audited anndata scientific workflow"
-  default_prompt: "Use $anndata for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

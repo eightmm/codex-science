@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Aeon"
+  short_description: "Use the audited kdense-aeon scientific workflow"
+  default_prompt: "Use $kdense-aeon for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

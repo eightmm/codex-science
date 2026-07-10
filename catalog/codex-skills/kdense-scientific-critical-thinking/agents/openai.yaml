@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Scientific Critical Thinking"
+  short_description: "Audited scientific workflow for kdense-scientific-critical-think"
+  default_prompt: "Use $kdense-scientific-critical-thinking for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

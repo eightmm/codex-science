@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pathml"
-  short_description: "Use the audited pathml scientific workflow"
-  default_prompt: "Use $pathml for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

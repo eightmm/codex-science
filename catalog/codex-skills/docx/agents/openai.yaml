@@ -1,6 +1,0 @@
-interface:
-  display_name: "Docx"
-  short_description: "Use the audited docx scientific workflow"
-  default_prompt: "Use $docx for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

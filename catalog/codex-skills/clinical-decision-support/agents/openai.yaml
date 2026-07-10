@@ -1,6 +1,0 @@
-interface:
-  display_name: "Clinical Decision Support"
-  short_description: "Use the audited clinical-decision-support scientific workflow"
-  default_prompt: "Use $clinical-decision-support for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

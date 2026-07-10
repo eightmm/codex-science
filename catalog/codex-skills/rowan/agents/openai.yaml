@@ -1,6 +1,0 @@
-interface:
-  display_name: "Rowan"
-  short_description: "Use the audited rowan scientific workflow"
-  default_prompt: "Use $rowan for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Pydicom"
+  short_description: "Use the audited kdense-pydicom scientific workflow"
+  default_prompt: "Use $kdense-pydicom for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

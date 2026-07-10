@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Statsmodels"
+  short_description: "Use the audited kdense-statsmodels scientific workflow"
+  default_prompt: "Use $kdense-statsmodels for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

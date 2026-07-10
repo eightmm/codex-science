@@ -1,6 +1,0 @@
-interface:
-  display_name: "Fluidsim"
-  short_description: "Use the audited fluidsim scientific workflow"
-  default_prompt: "Use $fluidsim for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

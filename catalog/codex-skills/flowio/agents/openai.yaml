@@ -1,6 +1,0 @@
-interface:
-  display_name: "Flowio"
-  short_description: "Use the audited flowio scientific workflow"
-  default_prompt: "Use $flowio for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

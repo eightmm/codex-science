@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Geniml"
+  short_description: "Use the audited kdense-geniml scientific workflow"
+  default_prompt: "Use $kdense-geniml for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

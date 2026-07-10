@@ -1,6 +1,0 @@
-interface:
-  display_name: "Scikit Learn"
-  short_description: "Use the audited scikit-learn scientific workflow"
-  default_prompt: "Use $scikit-learn for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

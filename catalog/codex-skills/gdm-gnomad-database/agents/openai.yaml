@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gdm Gnomad Database"
+  short_description: "Use the audited gdm-gnomad-database scientific workflow"
+  default_prompt: "Use $gdm-gnomad-database for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

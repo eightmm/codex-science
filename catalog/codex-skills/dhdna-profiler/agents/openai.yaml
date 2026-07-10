@@ -1,6 +1,0 @@
-interface:
-  display_name: "Dhdna Profiler"
-  short_description: "Use the audited dhdna-profiler scientific workflow"
-  default_prompt: "Use $dhdna-profiler for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

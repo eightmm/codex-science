@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Usfiscaldata"
+  short_description: "Use the audited kdense-usfiscaldata scientific workflow"
+  default_prompt: "Use $kdense-usfiscaldata for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

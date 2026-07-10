@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pathway Enrichment"
-  short_description: "Use the audited pathway-enrichment scientific workflow"
-  default_prompt: "Use $pathway-enrichment for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

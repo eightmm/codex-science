@@ -1,6 +1,0 @@
-interface:
-  display_name: "Dask"
-  short_description: "Use the audited dask scientific workflow"
-  default_prompt: "Use $dask for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

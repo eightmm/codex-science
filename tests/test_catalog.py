@@ -7,6 +7,7 @@ from codex_science.catalog import (
     CatalogPolicy,
     audit_catalog,
     audit_skill,
+    audit_sources,
     load_inventory,
     search_inventory,
     write_inventory,
@@ -108,6 +109,69 @@ class CatalogAuditTests(unittest.TestCase):
         self.assertEqual(2, loaded["summary"]["total"])
         self.assertEqual(1, loaded["summary"]["active"])
         json.loads(first.read_text(encoding="utf-8"))
+
+    def test_default_license_activates_skill_without_frontmatter_license(self) -> None:
+        skill = make_skill(self.root, "gdm-style", license_name=None)
+
+        without_default = audit_skill(skill, self.policy)
+        with_default = audit_skill(skill, self.policy, default_license="Apache-2.0")
+
+        self.assertEqual("inactive", without_default["status"])
+        self.assertEqual("active", with_default["status"])
+        self.assertEqual("Apache-2.0", with_default["license"])
+
+    def test_audit_sources_merges_prefixes_and_rejects_duplicates(self) -> None:
+        src_a = self.root / "a" / "skills"
+        src_b = self.root / "b" / "skills"
+        src_a.mkdir(parents=True)
+        src_b.mkdir(parents=True)
+        make_skill(src_a, "uniprot", license_name="MIT")
+        make_skill(src_b, "uniprot", license_name=None)  # no license -> default
+
+        inventory = audit_sources(
+            [
+                {"key": "kdense", "name_prefix": "kdense", "catalog_path": "a/skills"},
+                {
+                    "key": "gdm",
+                    "name_prefix": "gdm",
+                    "catalog_path": "b/skills",
+                    "default_license": "Apache-2.0",
+                },
+            ],
+            self.root,
+            self.policy,
+        )
+
+        self.assertEqual(2, inventory["schema_version"])
+        names = {item["name"] for item in inventory["skills"]}
+        self.assertEqual({"kdense-uniprot", "gdm-uniprot"}, names)
+        self.assertEqual(2, inventory["summary"]["total"])
+        # Both name-prefixed the same folder differently -> no collision error.
+        gdm = next(item for item in inventory["skills"] if item["name"] == "gdm-uniprot")
+        self.assertEqual("gdm", gdm["source"])
+        self.assertEqual("b/skills/uniprot", gdm["path"])
+        # v2 inventory round-trips through the loader.
+        out = self.root / "inv.json"
+        write_inventory(inventory, out)
+        self.assertEqual(2, load_inventory(out)["schema_version"])
+
+    def test_audit_sources_detects_cross_source_name_collision(self) -> None:
+        src_a = self.root / "a" / "skills"
+        src_b = self.root / "b" / "skills"
+        src_a.mkdir(parents=True)
+        src_b.mkdir(parents=True)
+        make_skill(src_a, "shared", license_name="MIT")
+        make_skill(src_b, "shared", license_name="MIT")
+
+        with self.assertRaises(ValueError):
+            audit_sources(
+                [
+                    {"key": "x", "name_prefix": "same", "catalog_path": "a/skills"},
+                    {"key": "y", "name_prefix": "same", "catalog_path": "b/skills"},
+                ],
+                self.root,
+                self.policy,
+            )
 
 
 if __name__ == "__main__":

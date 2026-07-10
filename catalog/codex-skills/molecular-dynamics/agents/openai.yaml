@@ -1,6 +1,0 @@
-interface:
-  display_name: "Molecular Dynamics"
-  short_description: "Use the audited molecular-dynamics scientific workflow"
-  default_prompt: "Use $molecular-dynamics for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

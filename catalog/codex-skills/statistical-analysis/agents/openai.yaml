@@ -1,6 +1,0 @@
-interface:
-  display_name: "Statistical Analysis"
-  short_description: "Use the audited statistical-analysis scientific workflow"
-  default_prompt: "Use $statistical-analysis for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

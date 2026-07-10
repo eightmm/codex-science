@@ -1,6 +1,0 @@
-interface:
-  display_name: "Markitdown"
-  short_description: "Use the audited markitdown scientific workflow"
-  default_prompt: "Use $markitdown for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Qiskit"
-  short_description: "Use the audited qiskit scientific workflow"
-  default_prompt: "Use $qiskit for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

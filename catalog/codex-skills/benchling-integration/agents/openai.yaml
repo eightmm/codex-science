@@ -1,6 +1,0 @@
-interface:
-  display_name: "Benchling Integration"
-  short_description: "Use the audited benchling-integration scientific workflow"
-  default_prompt: "Use $benchling-integration for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Zarr Python"
-  short_description: "Use the audited zarr-python scientific workflow"
-  default_prompt: "Use $zarr-python for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Esm"
+  short_description: "Use the audited kdense-esm scientific workflow"
+  default_prompt: "Use $kdense-esm for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

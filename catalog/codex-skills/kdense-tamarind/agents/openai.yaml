@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Tamarind"
+  short_description: "Use the audited kdense-tamarind scientific workflow"
+  default_prompt: "Use $kdense-tamarind for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

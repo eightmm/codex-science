@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gdm Clinical Trials Database"
+  short_description: "Use the audited gdm-clinical-trials-database scientific workflow"
+  default_prompt: "Use $gdm-clinical-trials-database for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

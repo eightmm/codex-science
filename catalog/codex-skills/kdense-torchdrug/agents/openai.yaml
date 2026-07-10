@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Torchdrug"
+  short_description: "Use the audited kdense-torchdrug scientific workflow"
+  default_prompt: "Use $kdense-torchdrug for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

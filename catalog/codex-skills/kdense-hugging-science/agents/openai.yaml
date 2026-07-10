@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Hugging Science"
+  short_description: "Use the audited kdense-hugging-science scientific workflow"
+  default_prompt: "Use $kdense-hugging-science for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

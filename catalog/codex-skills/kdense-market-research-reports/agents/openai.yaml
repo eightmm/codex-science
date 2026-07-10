@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Market Research Reports"
+  short_description: "Audited scientific workflow for kdense-market-research-reports"
+  default_prompt: "Use $kdense-market-research-reports for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

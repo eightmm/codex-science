@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gdm Workflow Skill Creator"
+  short_description: "Use the audited gdm-workflow-skill-creator scientific workflow"
+  default_prompt: "Use $gdm-workflow-skill-creator for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

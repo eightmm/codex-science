@@ -1,6 +1,0 @@
-interface:
-  display_name: "Biopython"
-  short_description: "Use the audited biopython scientific workflow"
-  default_prompt: "Use $biopython for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

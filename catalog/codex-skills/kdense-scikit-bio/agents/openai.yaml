@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Scikit Bio"
+  short_description: "Use the audited kdense-scikit-bio scientific workflow"
+  default_prompt: "Use $kdense-scikit-bio for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

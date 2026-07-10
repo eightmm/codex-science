@@ -1,6 +1,0 @@
-interface:
-  display_name: "Scientific Slides"
-  short_description: "Use the audited scientific-slides scientific workflow"
-  default_prompt: "Use $scientific-slides for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

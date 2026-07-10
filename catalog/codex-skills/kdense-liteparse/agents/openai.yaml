@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Liteparse"
+  short_description: "Use the audited kdense-liteparse scientific workflow"
+  default_prompt: "Use $kdense-liteparse for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Scikit Bio"
-  short_description: "Use the audited scikit-bio scientific workflow"
-  default_prompt: "Use $scikit-bio for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

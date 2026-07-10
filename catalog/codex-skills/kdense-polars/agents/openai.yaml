@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Polars"
+  short_description: "Use the audited kdense-polars scientific workflow"
+  default_prompt: "Use $kdense-polars for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

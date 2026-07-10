@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Shap"
+  short_description: "Use the audited kdense-shap scientific workflow"
+  default_prompt: "Use $kdense-shap for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

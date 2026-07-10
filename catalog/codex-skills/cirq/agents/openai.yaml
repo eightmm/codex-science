@@ -1,6 +1,0 @@
-interface:
-  display_name: "Cirq"
-  short_description: "Use the audited cirq scientific workflow"
-  default_prompt: "Use $cirq for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Paper Lookup"
-  short_description: "Use the audited paper-lookup scientific workflow"
-  default_prompt: "Use $paper-lookup for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

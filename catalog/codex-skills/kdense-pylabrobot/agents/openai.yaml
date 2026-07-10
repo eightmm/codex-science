@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Pylabrobot"
+  short_description: "Use the audited kdense-pylabrobot scientific workflow"
+  default_prompt: "Use $kdense-pylabrobot for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

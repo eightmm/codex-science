@@ -1,6 +1,0 @@
-interface:
-  display_name: "Datamol"
-  short_description: "Use the audited datamol scientific workflow"
-  default_prompt: "Use $datamol for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

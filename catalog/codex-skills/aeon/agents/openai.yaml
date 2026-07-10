@@ -1,6 +1,0 @@
-interface:
-  display_name: "Aeon"
-  short_description: "Use the audited aeon scientific workflow"
-  default_prompt: "Use $aeon for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

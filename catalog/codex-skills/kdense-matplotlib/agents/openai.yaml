@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Matplotlib"
+  short_description: "Use the audited kdense-matplotlib scientific workflow"
+  default_prompt: "Use $kdense-matplotlib for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

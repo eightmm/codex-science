@@ -1,6 +1,0 @@
-interface:
-  display_name: "Geomaster"
-  short_description: "Use the audited geomaster scientific workflow"
-  default_prompt: "Use $geomaster for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kdense Pathml"
+  short_description: "Use the audited kdense-pathml scientific workflow"
+  default_prompt: "Use $kdense-pathml for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

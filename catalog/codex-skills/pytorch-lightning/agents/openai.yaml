@@ -1,6 +1,0 @@
-interface:
-  display_name: "Pytorch Lightning"
-  short_description: "Use the audited pytorch-lightning scientific workflow"
-  default_prompt: "Use $pytorch-lightning for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false
