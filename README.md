@@ -125,3 +125,7 @@ tests/                         Unit and integration tests
 ## Upstream and attribution
 
 Imported skill content remains in the pinned Git submodule and retains its upstream attribution and licensing. Repository-level files do not override per-skill or dependency licenses.
+
+## License
+
+Codex Science's original code is released under the [MIT License](LICENSE). Imported skills and third-party dependencies retain their own licenses.
