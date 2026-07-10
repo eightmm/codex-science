@@ -12,21 +12,47 @@ audit and wrapper generation as every other skill. When an authored skill
 supersedes an upstream one, the upstream folder is listed in that source's
 `exclude` so the two do not both appear.
 
-The `cx` tier (37 skills) covers **every DeepMind science skill** (35 skills);
+The `cx` tier (101 skills) covers **every DeepMind science skill** (35 skills);
 only the three infrastructure entries (`credentials`, `uv`,
 `workflow_skill_creator`) remain as `gdm` pointers. Each superseded upstream
 folder is listed in the `gdm` source's `exclude`, so each capability appears
 once.
 
-Two of the 37 are original **execution** skills (no upstream): `cx-compute-environment`
+Sixty-six of the 101 are original **execution/modeling and synthesis** skills (no upstream): `cx-compute-environment`
 builds an isolated `uv` environment and runs code; `cx-boltz-structure-prediction`
-installs and runs the Boltz structure-prediction model. Both use an "ask once,
-then run to completion" gate for install/download/compute.
+installs and runs the Boltz structure-prediction model; ten more cover molecular
+input preparation, AutoDock Vina, GNINA, DiffDock, docking validation, OpenFF,
+OpenMM, GROMACS, MDAnalysis, and PLIP. All use an "ask once, then run to
+completion" gate for install/download/compute. The expanded set also covers the
+publicly documented Claude Science featured workflows for indication dossiers,
+AlphaFold2, Chai-1, public ESMFold, OpenFold3 preview, ProteinMPNN variants,
+ESM-2, Evo 2, Borzoi, scGPT, and scvi-tools.
+Current additions include Biohub ESMFold2 and ESMC, AlphaFold3 with its
+restricted asset gate, Protenix-v2, SimpleFold, RoseTTAFold All-Atom,
+RFdiffusion, BindCraft, and a concrete-problem executor that drives approved
+work through downstream analysis and review.
+
+Twenty-eight textbook-grounded mathematics and physics skills cover rigorous
+proof/refutation, core mathematical methods and physical theories, experimental
+uncertainty, computational validation, inverse problems, nonlinear dynamics, and an
+end-to-end mathematical problem runner. The downloaded books stay in a Git-ignored
+local cache; [`docs/TEXTBOOK_SOURCES.md`](../docs/TEXTBOOK_SOURCES.md) records URLs,
+editions, licenses, hashes, consulted web references, and explicit exclusions.
+
+Six analytical-chemistry conductors add optical spectroscopy, NMR, mass
+spectrometry, X-ray diffraction/scattering, chromatography quantification, and
+evidence-integrated structure elucidation. They compose the existing EDA,
+matchms, pyOpenMS, and pymatgen tools while enforcing acquisition provenance,
+artifact checks, calibration, identification confidence, alternatives, and
+uncertainty. [`docs/ANALYTICAL_SOURCES.md`](../docs/ANALYTICAL_SOURCES.md)
+records official standards and the capability-overlap audit.
 
 By access method:
 
-- **Built-in MCP tools** — `cx-arxiv-search`, `cx-pubmed-search`,
-  `cx-uniprot-search` wire to this plugin's read-only MCP (`science_search_*`).
+- **Built-in MCP tools** — 15 public sources wire to this plugin's read-only MCP
+  (`science_search_*`): PubMed, arXiv, UniProt, PDB, ChEMBL, PubChem, Europe PMC,
+  OpenAlex, ClinicalTrials.gov, InterPro, QuickGO, OLS, Reactome, STRING, and
+  AlphaFold DB.
 - **Public REST/GraphQL APIs** (no key) — structures/chem: `cx-pdb-search`,
   `cx-chembl-search`, `cx-pubchem-search`, `cx-alphafold-structure-analysis`,
   `cx-foldseek-structural-search`; literature: `cx-biorxiv-search`,

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chai-1 Structure Prediction"
+  short_description: "Run pinned Chai-1 inference"
+  default_prompt: "Use $chai1-structure-prediction to predict this biomolecular complex with Chai-1."

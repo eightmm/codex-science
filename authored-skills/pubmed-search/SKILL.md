@@ -1,6 +1,6 @@
 ---
 name: pubmed-search
-description: Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references. Uses the plugin's built-in read-only PubMed MCP tool for discovery — no credential or install needed.
+description: "Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references. Uses the plugin's built-in read-only PubMed MCP tool for discovery — no credential or install needed."
 license: Apache-2.0
 ---
 

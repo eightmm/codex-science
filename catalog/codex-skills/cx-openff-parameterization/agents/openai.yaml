@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Openff Parameterization"
+  short_description: "Use the audited cx-openff-parameterization scientific workflow"
+  default_prompt: "Use $cx-openff-parameterization for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

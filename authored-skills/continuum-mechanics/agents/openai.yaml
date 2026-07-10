@@ -1,0 +1,4 @@
+interface:
+  display_name: "Continuum Mechanics"
+  short_description: "Model and verify solid and fluid continua"
+  default_prompt: "Use $continuum-mechanics to formulate, solve, and verify this problem."

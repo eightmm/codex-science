@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Molecular Input Preparation"
+  short_description: "Audited scientific workflow for cx-molecular-input-preparation"
+  default_prompt: "Use $cx-molecular-input-preparation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

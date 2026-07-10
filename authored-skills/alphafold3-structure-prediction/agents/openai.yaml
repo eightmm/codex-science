@@ -1,0 +1,4 @@
+interface:
+  display_name: "AlphaFold3 Structure Prediction"
+  short_description: "Run licensed AlphaFold3 inference"
+  default_prompt: "Use $alphafold3-structure-prediction to run this approved AlphaFold3 structure prediction with compliant parameters and weights."

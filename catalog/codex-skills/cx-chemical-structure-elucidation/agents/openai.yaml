@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Chemical Structure Elucidation"
+  short_description: "Audited scientific workflow for cx-chemical-structure-elucidatio"
+  default_prompt: "Use $cx-chemical-structure-elucidation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

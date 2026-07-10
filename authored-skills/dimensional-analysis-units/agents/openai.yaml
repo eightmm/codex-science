@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dimensional Analysis and Units"
+  short_description: "Check dimensions, units, scales, and limiting cases"
+  default_prompt: "Use $dimensional-analysis-units to audit the dimensions, units, and scales in this problem."

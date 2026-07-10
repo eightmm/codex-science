@@ -1,6 +1,6 @@
 ---
 name: dbsnp-search
-description: Look up and map short human variants (SNPs, indels) in NCBI dbSNP: resolve between rsIDs, GRCh38 coordinates, and HGVS, and get variant type, gene, clinical significance, and allele frequencies. Public NCBI API, no credential needed.
+description: "Look up and map short human variants (SNPs, indels) in NCBI dbSNP: resolve between rsIDs, GRCh38 coordinates, and HGVS, and get variant type, gene, clinical significance, and allele frequencies. Public NCBI API, no credential needed."
 license: Apache-2.0
 ---
 

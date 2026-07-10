@@ -1,0 +1,4 @@
+interface:
+  display_name: "ProteinMPNN Sequence Design"
+  short_description: "Design sequences for a fixed structure"
+  default_prompt: "Use $proteinmpnn-sequence-design to design and rank sequences for this backbone or ligand-bound complex."

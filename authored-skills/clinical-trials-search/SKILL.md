@@ -1,6 +1,6 @@
 ---
 name: clinical-trials-search
-description: Search ClinicalTrials.gov (API v2) for trials by condition, intervention, status, phase, location, or sponsor; fetch a trial by NCT ID; check eligibility; and count trials. Use for trial discovery, pipeline/portfolio analysis, or patient-matching context. Public API, no credential needed.
+description: "Search ClinicalTrials.gov (API v2) for trials by condition, intervention, status, phase, location, or sponsor; fetch a trial by NCT ID; check eligibility; and count trials. Use for trial discovery, pipeline/portfolio analysis, or patient-matching context. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -18,6 +18,9 @@ Uses the public ClinicalTrials.gov REST API v2 directly.
   you write helper code, run it via `uv run`, never bare `python3`.
 
 ## Workflow
+
+Search first with `science_search_clinical_trials`; use API v2 directly for
+structured filters, pagination, field selection, and full records.
 
 1. **Endpoint**: `https://clinicaltrials.gov/api/v2/studies` with query params —
    `query.cond` (condition), `query.intr` (intervention), `query.term`,

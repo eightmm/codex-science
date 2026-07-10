@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Nuclear Particle Physics"
+  short_description: "Use the audited cx-nuclear-particle-physics scientific workflow"
+  default_prompt: "Use $cx-nuclear-particle-physics for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

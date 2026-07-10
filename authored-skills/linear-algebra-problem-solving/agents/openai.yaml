@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Algebra Problem Solving"
+  short_description: "Solve and verify linear algebra problems"
+  default_prompt: "Use $linear-algebra-problem-solving to solve and verify this linear algebra problem."

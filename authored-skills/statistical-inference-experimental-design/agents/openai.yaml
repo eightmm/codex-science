@@ -1,0 +1,4 @@
+interface:
+  display_name: "Statistical Inference and Design"
+  short_description: "Design experiments and perform defensible inference"
+  default_prompt: "Use $statistical-inference-experimental-design to formulate, solve, and verify this problem."

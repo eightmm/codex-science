@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chromatography Quantification"
+  short_description: "Quantify chromatographic analytes with QC"
+  default_prompt: "Use $chromatography-quantification to quantify these chromatograms with validation checks."

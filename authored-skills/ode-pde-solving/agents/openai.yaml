@@ -1,0 +1,4 @@
+interface:
+  display_name: "ODE and PDE Solving"
+  short_description: "Classify, solve, and verify differential equations"
+  default_prompt: "Use $ode-pde-solving to classify, solve, and verify this differential equation."

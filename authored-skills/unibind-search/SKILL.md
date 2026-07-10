@@ -1,6 +1,6 @@
 ---
 name: unibind-search
-description: Query UniBind for experimentally validated transcription-factor binding sites: retrieve TF-DNA datasets, download binding-site coordinates (BED/FASTA), and list datasets by species, cell line, or TF. Public API, no credential needed.
+description: "Query UniBind for experimentally validated transcription-factor binding sites: retrieve TF-DNA datasets, download binding-site coordinates (BED/FASTA), and list datasets by species, cell line, or TF. Public API, no credential needed."
 license: Apache-2.0
 ---
 

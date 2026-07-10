@@ -1,6 +1,6 @@
 ---
 name: opentargets-search
-description: Query the Open Targets Platform for target-disease associations, tractability/safety, genetic/omics evidence, and known drugs, for therapeutic target identification. Public GraphQL API, no credential needed.
+description: "Query the Open Targets Platform for target-disease associations, tractability/safety, genetic/omics evidence, and known drugs, for therapeutic target identification. Public GraphQL API, no credential needed."
 license: Apache-2.0
 ---
 

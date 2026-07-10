@@ -71,6 +71,24 @@ def render_skill_wrapper(record: dict[str, Any]) -> str:
             "Read the upstream instructions only after confirming this record is still active in the "
             "current inventory."
         )
+    physical_lab_section = ""
+    if record.get("physical_lab"):
+        physical_lab_section = """
+## Physical-experiment and remote-lab safety (mandatory)
+
+This skill can drive real laboratory hardware or submit paid remote-lab work.
+Beyond the general gates, before any physical or remote action:
+
+- Get explicit user approval to operate real devices or submit an order; never
+  actuate hardware or send a job on your own initiative.
+- Simulate or dry-run first and show the user the exact planned steps.
+- Confirm samples, reagents, and the biosafety/containment level; refuse
+  out-of-scope, hazardous, or dual-use protocols.
+- Verify instrument state and the emergency-stop/abort path before starting, and
+  stop immediately on any anomaly.
+- For cloud/remote labs, surface the cost and get billing approval before
+  submitting.
+"""
     return f"""---
 name: {name}
 description: {_quoted(_codex_description(_sanitize_description(description)))}
@@ -99,7 +117,7 @@ Use this Codex adapter for the pinned upstream scientific skill.
 5. Treat tools named for another agent runtime as capability requests. Map them to an available Codex tool only when the behavior is equivalent; otherwise report the unavailable capability.
 6. Ask before credentials, package installation, new network hosts, remote compute, writes, paid services, destructive actions, or imported executable code.
 7. Use `$science-provenance` for produced scientific outputs and `$science-review` before presenting scientific claims.
-
+{physical_lab_section}
 ## Boundaries
 
 - This wrapper does not grant credentials, network access, package installation, or script execution.

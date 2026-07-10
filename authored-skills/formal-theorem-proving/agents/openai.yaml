@@ -1,0 +1,4 @@
+interface:
+  display_name: "Formal Theorem Proving"
+  short_description: "Formalize and kernel-check mathematical proofs"
+  default_prompt: "Use $formal-theorem-proving to formulate, solve, and verify this problem."

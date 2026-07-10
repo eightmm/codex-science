@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Numerical Analysis Error Control"
+  short_description: "Audited scientific workflow for cx-numerical-analysis-error-cont"
+  default_prompt: "Use $cx-numerical-analysis-error-control for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

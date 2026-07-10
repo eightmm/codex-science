@@ -1,6 +1,6 @@
 ---
 name: arxiv-search
-description: Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics. Uses the plugin's built-in read-only arXiv MCP tool — no credential or install needed.
+description: "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics. Uses the plugin's built-in read-only arXiv MCP tool — no credential or install needed."
 license: Apache-2.0
 ---
 

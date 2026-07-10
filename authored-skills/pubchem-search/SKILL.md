@@ -1,6 +1,6 @@
 ---
 name: pubchem-search
-description: Query PubChem by name, CID, or SMILES; retrieve properties; run similarity/substructure searches; and get bioactivity. Use for cheminformatics on a specific chemical, drug, or molecule. Public PUG-REST API, no credential needed.
+description: "Query PubChem by name, CID, or SMILES; retrieve properties; run similarity/substructure searches; and get bioactivity. Use for cheminformatics on a specific chemical, drug, or molecule. Public PUG-REST API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -23,6 +23,9 @@ Uses the public API directly through Codex's own tools.
 - PubChem PUG-REST `https://pubchem.ncbi.nlm.nih.gov/rest/pug`
 
 ## Workflow
+
+Resolve compound names and common properties first with
+`science_search_pubchem`; use PUG REST directly for structure search and assays.
 
 1. Resolve name/SMILES to a CID (`/compound/name/<name>/cids/JSON`), then fetch properties (`/compound/cid/<cid>/property/<props>/JSON`).
 2. For similarity/substructure, use the `/compound/fastsimilarity_2d` or `/fastsubstructure` endpoints.

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Chai1 Structure Prediction"
+  short_description: "Audited scientific workflow for cx-chai1-structure-prediction"
+  default_prompt: "Use $cx-chai1-structure-prediction for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

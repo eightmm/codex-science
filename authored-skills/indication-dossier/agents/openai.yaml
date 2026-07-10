@@ -1,0 +1,4 @@
+interface:
+  display_name: "Indication Dossier"
+  short_description: "Build an evidence-traceable indication dossier"
+  default_prompt: "Use $indication-dossier to assemble an evidence dossier for this disease, target, or therapeutic hypothesis."

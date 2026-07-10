@@ -1,6 +1,6 @@
 ---
 name: boltz-structure-prediction
-description: Predict 3D biomolecular structures and binding affinity with the open-source Boltz model — proteins, complexes, nucleic acids, and protein-ligand systems from sequence. Use when the user wants a predicted structure or affinity from sequence (not an experimental structure or a database lookup). Downloads and installs Boltz into an isolated uv environment and runs it.
+description: "Predict 3D biomolecular structures and binding affinity with the open-source Boltz model — proteins, complexes, nucleic acids, and protein-ligand systems from sequence. Use when the user wants a predicted structure or affinity from sequence (not an experimental structure or a database lookup). Downloads and installs Boltz into an isolated uv environment and runs it."
 license: MIT
 ---
 

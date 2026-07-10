@@ -1,0 +1,4 @@
+interface:
+  display_name: "Protenix Structure Prediction"
+  short_description: "Run Protenix v2 structure prediction"
+  default_prompt: "Use $protenix-structure-prediction to predict this biomolecular complex with a pinned Protenix model."

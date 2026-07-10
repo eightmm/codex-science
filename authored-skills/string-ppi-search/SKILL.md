@@ -1,6 +1,6 @@
 ---
 name: string-ppi-search
-description: Query STRING for protein-protein interactions, interaction confidence/evidence, interaction partners, and functional enrichment. Use for PPI networks and enrichment of a protein set. Public API, no credential needed.
+description: "Query STRING for protein-protein interactions, interaction confidence/evidence, interaction partners, and functional enrichment. Use for PPI networks and enrichment of a protein set. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -23,6 +23,9 @@ Uses the public API directly through Codex's own tools.
 - STRING API `https://string-db.org/api` (e.g. `json/network`, `json/interaction_partners`, `json/enrichment`)
 
 ## Workflow
+
+Resolve a protein first with `science_search_string`; use STRING directly for
+species-constrained networks, partners, enrichment, and multi-protein queries.
 
 1. Map identifiers first (`/json/get_string_ids`), then request the network/partners with a `species` id and a `required_score` threshold.
 2. For enrichment, POST the identifier set to `/json/enrichment`.

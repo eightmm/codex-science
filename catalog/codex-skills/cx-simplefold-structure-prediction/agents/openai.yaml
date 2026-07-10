@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Simplefold Structure Prediction"
+  short_description: "Audited scientific workflow for cx-simplefold-structure-predicti"
+  default_prompt: "Use $cx-simplefold-structure-prediction for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

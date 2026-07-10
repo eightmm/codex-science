@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Probability Stochastic Processes"
+  short_description: "Audited scientific workflow for cx-probability-stochastic-proces"
+  default_prompt: "Use $cx-probability-stochastic-processes for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

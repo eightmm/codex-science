@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chaos and Nonlinear Dynamics"
+  short_description: "Diagnose bifurcations and deterministic chaos"
+  default_prompt: "Use $chaos-nonlinear-dynamics to formulate, solve, and verify this problem."

@@ -1,6 +1,6 @@
 ---
 name: chembl-search
-description: Query the ChEMBL database for bioactive molecules, drug targets, bioactivity measurements (IC50/Ki/EC50), approved drugs, and mechanisms. Use when the user asks about compounds, targets, potency values, or drug mechanisms. Public REST API, no credential needed.
+description: "Query the ChEMBL database for bioactive molecules, drug targets, bioactivity measurements (IC50/Ki/EC50), approved drugs, and mechanisms. Use when the user asks about compounds, targets, potency values, or drug mechanisms. Public REST API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -21,6 +21,9 @@ Uses the public ChEMBL REST API directly through Codex's own tools.
   `uv run`, never bare `python3`.
 
 ## Workflow
+
+Search molecules first with `science_search_chembl`; use the direct API below
+for target, activity, mechanism, and indication records.
 
 1. **Choose the endpoint** on `https://www.ebi.ac.uk/chembl/api/data/` (append
    `?format=json`):

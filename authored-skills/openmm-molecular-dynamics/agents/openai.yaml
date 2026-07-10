@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenMM Molecular Dynamics"
+  short_description: "Build and run reproducible OpenMM MD"
+  default_prompt: "Use $openmm-molecular-dynamics to prepare and run a staged molecular dynamics simulation."

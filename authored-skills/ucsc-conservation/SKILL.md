@@ -1,6 +1,6 @@
 ---
 name: ucsc-conservation
-description: Fetch evolutionary conservation scores (phyloP, phastCons) and transcription-factor binding sites (ENCODE, JASPAR, ReMap) from the UCSC Genome Browser. Use to assess whether variants/regions are conserved or TF-bound. Public API, no credential needed.
+description: "Fetch evolutionary conservation scores (phyloP, phastCons) and transcription-factor binding sites (ENCODE, JASPAR, ReMap) from the UCSC Genome Browser. Use to assess whether variants/regions are conserved or TF-bound. Public API, no credential needed."
 license: Apache-2.0
 ---
 

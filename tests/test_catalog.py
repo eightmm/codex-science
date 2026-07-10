@@ -110,6 +110,28 @@ class CatalogAuditTests(unittest.TestCase):
         self.assertEqual(1, loaded["summary"]["active"])
         json.loads(first.read_text(encoding="utf-8"))
 
+    def test_search_matches_words_inside_hyphenated_names(self) -> None:
+        make_skill(self.root, "clinvar-search", license_name="MIT")
+        make_skill(self.root, "unrelated-tool", license_name="MIT")
+
+        inventory = audit_catalog(self.root, "abc123", self.policy)
+        results = search_inventory(inventory, "clinvar")
+
+        self.assertEqual(["clinvar-search"], [item["name"] for item in results])
+
+    def test_physical_lab_flag_is_precise(self) -> None:
+        robot = make_skill(
+            self.root, "pylabrobot", license_name="MIT",
+            body="Control liquid-handling robots and pumps.",
+        )
+        physics = make_skill(
+            self.root, "classical-mechanics", license_name="MIT",
+            body="Derive equations of motion with the Hamiltonian and Lagrangian.",
+        )
+
+        self.assertTrue(audit_skill(robot, self.policy)["physical_lab"])
+        self.assertFalse(audit_skill(physics, self.policy)["physical_lab"])
+
     def test_default_license_activates_skill_without_frontmatter_license(self) -> None:
         skill = make_skill(self.root, "gdm-style", license_name=None)
 

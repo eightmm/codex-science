@@ -1,0 +1,4 @@
+interface:
+  display_name: "AlphaFold2 Structure Prediction"
+  short_description: "Run pinned AlphaFold2 inference"
+  default_prompt: "Use $alphafold2-structure-prediction to predict this protein or complex with a reproducible AlphaFold2 workflow."

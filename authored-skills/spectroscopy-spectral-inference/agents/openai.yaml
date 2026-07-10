@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spectroscopy and Spectral Inference"
+  short_description: "Analyze spectra with calibrated uncertainty"
+  default_prompt: "Use $spectroscopy-spectral-inference to analyze and verify these experimental spectra."

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Rosettafold All Atom"
+  short_description: "Use the audited cx-rosettafold-all-atom scientific workflow"
+  default_prompt: "Use $cx-rosettafold-all-atom for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

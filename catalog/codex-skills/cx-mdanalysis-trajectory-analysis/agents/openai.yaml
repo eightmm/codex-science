@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Mdanalysis Trajectory Analysis"
+  short_description: "Audited scientific workflow for cx-mdanalysis-trajectory-analysi"
+  default_prompt: "Use $cx-mdanalysis-trajectory-analysis for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

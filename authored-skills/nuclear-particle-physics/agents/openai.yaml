@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nuclear and Particle Physics"
+  short_description: "Analyze reactions, decays, and particle processes"
+  default_prompt: "Use $nuclear-particle-physics to formulate, solve, and verify this problem."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ESMC Protein Modeling"
+  short_description: "Extract ESMC protein representations"
+  default_prompt: "Use $esmc-protein-modeling to extract, score, or analyze protein representations with a pinned ESMC checkpoint."

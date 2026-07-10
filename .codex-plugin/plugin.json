@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Codex Science",
     "shortDescription": "Run reproducible scientific research in Codex.",
-    "longDescription": "Coordinate scientific work with an audited 149-skill catalog, read-only public data tools, structured provenance, and independent evidence review.",
+    "longDescription": "Coordinate scientific work with an audited multi-source skill catalog, read-only public data tools, real uv-based execution, structured provenance, and independent evidence review.",
     "developerName": "eightmm",
     "category": "Productivity",
     "capabilities": [

@@ -1,6 +1,6 @@
 ---
 name: hpa-search
-description: Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein. Public API, no credential needed.
+description: "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein. Public API, no credential needed."
 license: Apache-2.0
 ---
 

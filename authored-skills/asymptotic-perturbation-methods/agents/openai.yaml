@@ -1,0 +1,4 @@
+interface:
+  display_name: "Asymptotic and Perturbation Methods"
+  short_description: "Build and validate asymptotic approximations"
+  default_prompt: "Use $asymptotic-perturbation-methods to formulate, solve, and verify this problem."

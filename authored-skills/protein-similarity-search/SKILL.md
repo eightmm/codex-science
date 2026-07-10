@@ -1,6 +1,6 @@
 ---
 name: protein-similarity-search
-description: Find homologous protein sequences with MMseqs2 (fast, default) or BLAST (comprehensive fallback) from a sequence or FASTA. Use to find sequence homologs or infer function by sequence similarity — not by structural similarity. Public APIs, no credential needed.
+description: "Find homologous protein sequences with MMseqs2 (fast, default) or BLAST (comprehensive fallback) from a sequence or FASTA. Use to find sequence homologs or infer function by sequence similarity — not by structural similarity. Public APIs, no credential needed."
 license: Apache-2.0
 ---
 

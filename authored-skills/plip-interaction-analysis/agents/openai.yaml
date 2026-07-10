@@ -1,0 +1,4 @@
+interface:
+  display_name: "PLIP Interaction Analysis"
+  short_description: "Profile protein-ligand interactions"
+  default_prompt: "Use $plip-interaction-analysis to profile interactions in these experimental or modeled complexes."

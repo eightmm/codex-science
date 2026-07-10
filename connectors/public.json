@@ -15,9 +15,9 @@
       "sources": [
         {"name": "MyGene", "status": "cataloged"},
         {"name": "UniProt", "status": "mcp-tool", "tool": "science_search_uniprot"},
-        {"name": "GO", "status": "cataloged"},
-        {"name": "Reactome", "status": "cataloged"},
-        {"name": "OLS", "status": "cataloged"}
+        {"name": "GO", "status": "mcp-tool", "tool": "science_search_quickgo"},
+        {"name": "Reactome", "status": "mcp-tool", "tool": "science_search_reactome"},
+        {"name": "OLS", "status": "mcp-tool", "tool": "science_search_ols"}
       ]
     },
     {
@@ -62,17 +62,17 @@
     {
       "name": "Protein Annotation",
       "sources": [
-        {"name": "InterPro", "status": "cataloged"},
+        {"name": "InterPro", "status": "mcp-tool", "tool": "science_search_interpro"},
         {"name": "Pfam", "status": "cataloged"},
         {"name": "Human Protein Atlas", "status": "cataloged"},
-        {"name": "STRING", "status": "cataloged"}
+        {"name": "STRING", "status": "mcp-tool", "tool": "science_search_string"}
       ]
     },
     {
       "name": "Structures and Interactions",
       "sources": [
-        {"name": "PDB", "status": "cataloged"},
-        {"name": "AlphaFold", "status": "cataloged"},
+        {"name": "PDB", "status": "mcp-tool", "tool": "science_search_pdb"},
+        {"name": "AlphaFold", "status": "mcp-tool", "tool": "science_search_alphafold"},
         {"name": "EMDB", "status": "cataloged"},
         {"name": "Complex Portal", "status": "cataloged"},
         {"name": "IntAct", "status": "cataloged"}
@@ -103,7 +103,7 @@
     {
       "name": "Chemistry",
       "sources": [
-        {"name": "PubChem", "status": "cataloged"},
+        {"name": "PubChem", "status": "mcp-tool", "tool": "science_search_pubchem"},
         {"name": "ChEBI", "status": "cataloged"},
         {"name": "Rhea", "status": "cataloged"},
         {"name": "BindingDB", "status": "cataloged"}
@@ -119,7 +119,7 @@
     {
       "name": "Literature Graph",
       "sources": [
-        {"name": "OpenAlex", "status": "cataloged"},
+        {"name": "OpenAlex", "status": "mcp-tool", "tool": "science_search_openalex"},
         {"name": "arXiv", "status": "mcp-tool", "tool": "science_search_arxiv"}
       ]
     },
@@ -143,8 +143,9 @@
       "name": "Directory",
       "sources": [
         {"name": "PubMed", "status": "mcp-tool", "tool": "science_search_pubmed"},
-        {"name": "Clinical Trials", "status": "cataloged"},
-        {"name": "ChEMBL", "status": "cataloged"},
+        {"name": "Europe PMC", "status": "mcp-tool", "tool": "science_search_europepmc"},
+        {"name": "Clinical Trials", "status": "mcp-tool", "tool": "science_search_clinical_trials"},
+        {"name": "ChEMBL", "status": "mcp-tool", "tool": "science_search_chembl"},
         {"name": "bioRxiv", "status": "cataloged"}
       ]
     }

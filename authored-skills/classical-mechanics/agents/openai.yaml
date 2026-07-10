@@ -1,0 +1,4 @@
+interface:
+  display_name: "Classical Mechanics"
+  short_description: "Model and verify mechanics problems"
+  default_prompt: "Use $classical-mechanics to formulate, solve, and verify this mechanics problem."

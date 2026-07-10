@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체의 [Codex-native 저작본](authored-skills/)과 실제 실행 능력(`uv` 환경을 만들어 [Boltz](https://github.com/jwohlwend/boltz) 같은 모델링을 직접 실행)을 더한 **189개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅하고, 읽기 전용 공개 데이터 도구를 더하며, 재현 가능한 artifact와 독립 근거 검토를 기록합니다.
+Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 실험 분광·분석화학, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **253개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다.
 
 Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러그인이며, 비공개 구현과의 동등성을 주장하지 않습니다.
 
@@ -66,7 +66,7 @@ Stop Codex Science
 Codex Science 종료
 ```
 
-새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 189개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
+새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 253개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
 
 > 카탈로그에 있다고 실행 권한이 생기는 것은 아닙니다. 비활성 스킬은 audit 사유를 표시하고, upstream 지침을 열람하기 전에 확인을 요구합니다. 검증·설정·경계는 [docs/](docs/) 참고.
 
@@ -75,7 +75,7 @@ Codex Science 종료
 모든 스킬은 하나의 결정적·감사된 inventory(`catalog/inventory.json`)로 병합되며, 세 티어로 구성됩니다:
 
 - **K-Dense-AI — 149** · pinned upstream(Git 서브모듈); 얇은 Codex wrapper가 고정된 지침을 가리킴.
-- **Codex-native 저작 — 37** · Google DeepMind 과학 스킬 전체를 [1급 Codex 스킬로 재작성](authored-skills/)(Codex 도구·plugin read-only MCP `science_search_*`·공개 REST/GraphQL API에 매핑) + 실행 스킬(`cx-compute-environment`, `cx-boltz-structure-prediction`)로 `uv` 환경을 만들어 모델링을 직접 실행.
+- **Codex-native 저작 — 101** · Google DeepMind 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 분광·NMR·MS·XRD/산란·크로마토그래피·통합 구조규명 워크플로 6개, 최신 구조·단백질/유전체·도킹·설계·MD·single-cell 모델을 [격리·승인형 실행 스킬](authored-skills/)로 제공. 실제 문제가 주어지면 전용 runner가 풀이·독립 검증·provenance·review까지 이어서 수행. 공개 소스 15개는 plugin read-only MCP(`science_search_*`)로 직접 호출.
 - **DeepMind 인프라 — 3** · `credentials`, `uv`, `workflow_skill_creator`는 포인터로 유지.
 
 보수적 audit이 각 스킬을 **active/inactive**로 표시합니다(라이선스·실행 코드·인증정보·안전성 기준). 비활성 스킬은 카탈로그에 남되 사용 전 명시적 확인을 요구합니다.
@@ -88,5 +88,7 @@ Codex Science의 원본 코드는 [MIT License](LICENSE)로 배포됩니다.
 
 - **K-Dense-AI/scientific-agent-skills** — 고정된 Git 서브모듈; 라이선스는 각 `SKILL.md`에 개별 명시.
 - **Google DeepMind/science-skills** — Apache-2.0 + CC-BY-4.0. 과학 스킬은 `authored-skills/`에서 Codex-native로 각색(각 `SKILL.md`에 attribution 명시); `vendor/gdm-science-skills/`의 pinned 원본 복사본은 `LICENSE`·`SKILL_LICENSES.md`·`PROVENANCE.md`를 그대로 보존.
+- **공개 수학·물리 교재** — 출처 URL, 내려받은 파일의 정확한 해시, 라이선스, 제외 기준과 PDF 비커밋 정책을 [`docs/TEXTBOOK_SOURCES.md`](docs/TEXTBOOK_SOURCES.md)에 기록. 스킬은 교재 복사본이 아니라 독립적으로 작성한 문제 해결 절차임.
+- **분석화학 표준·도구** — 공식 출처, 기존 도구와의 역할 경계, modality별 증거 규칙을 [`docs/ANALYTICAL_SOURCES.md`](docs/ANALYTICAL_SOURCES.md)에 기록.
 
 저장소 수준 파일은 개별 스킬이나 의존성의 라이선스를 덮어쓰지 않습니다.

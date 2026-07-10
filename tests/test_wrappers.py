@@ -148,5 +148,235 @@ class SessionContractTests(unittest.TestCase):
             self.assertIn("allow_implicit_invocation: false", agent)
 
 
+class FeaturedScienceSkillCoverageTests(unittest.TestCase):
+    def test_analytical_chemistry_skills_are_active_sourced_and_composable(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
+        records = {item["name"]: item for item in inventory["skills"]}
+        expected = {
+            "cx-spectroscopy-spectral-inference",
+            "cx-nmr-structure-analysis",
+            "cx-mass-spectrometry-identification",
+            "cx-xray-diffraction-scattering",
+            "cx-chromatography-quantification",
+            "cx-chemical-structure-elucidation",
+        }
+
+        self.assertTrue(expected <= records.keys())
+        self.assertTrue(all(records[name]["status"] == "active" for name in expected))
+        for name in expected:
+            source = repository_root / records[name]["path"] / "SKILL.md"
+            text = source.read_text(encoding="utf-8").lower()
+            self.assertIn("source basis", text)
+            self.assertIn("verify", text)
+            self.assertIn("$cx-experimental-uncertainty-propagation", text)
+
+        spectroscopy = repository_root / "authored-skills" / "spectroscopy-spectral-inference"
+        self.assertTrue((spectroscopy / "references" / "modalities.md").is_file())
+        mass_spec = (repository_root / records["cx-mass-spectrometry-identification"]["path"] / "SKILL.md").read_text()
+        self.assertIn("$kdense-matchms", mass_spec)
+        self.assertIn("$kdense-pyopenms", mass_spec)
+        diffraction = (repository_root / records["cx-xray-diffraction-scattering"]["path"] / "SKILL.md").read_text()
+        self.assertIn("$kdense-pymatgen", diffraction)
+
+        sources = (repository_root / "docs" / "ANALYTICAL_SOURCES.md").read_text()
+        for name in expected:
+            self.assertIn(name.removeprefix("cx-"), sources)
+
+        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        self.assertIn("experimental spectrum or analytical chemistry dataset", coordinator)
+        self.assertIn("$cx-chemical-structure-elucidation", coordinator)
+
+    def test_extended_math_physics_skills_are_active_and_sourced(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
+        records = {item["name"]: item for item in inventory["skills"]}
+        expected = {
+            "cx-probability-stochastic-processes",
+            "cx-statistical-inference-experimental-design",
+            "cx-optimization-variational-methods",
+            "cx-asymptotic-perturbation-methods",
+            "cx-complex-fourier-analysis",
+            "cx-experimental-uncertainty-propagation",
+            "cx-continuum-mechanics",
+            "cx-relativity-spacetime",
+            "cx-computational-physics-validation",
+            "cx-control-dynamical-systems",
+            "cx-geometry-topology",
+            "cx-formal-theorem-proving",
+            "cx-optics-wave-physics",
+            "cx-condensed-matter-solid-state",
+            "cx-nuclear-particle-physics",
+            "cx-inverse-problems-regularization",
+            "cx-chaos-nonlinear-dynamics",
+            "cx-tensor-calculus-differential-geometry",
+        }
+
+        self.assertTrue(expected <= records.keys())
+        self.assertTrue(all(records[name]["status"] == "active" for name in expected))
+        for name in expected:
+            source = repository_root / records[name]["path"] / "SKILL.md"
+            text = source.read_text(encoding="utf-8").lower()
+            self.assertIn("source basis", text)
+            self.assertIn("verify", text)
+
+        sources = (repository_root / "docs" / "TEXTBOOK_SOURCES.md").read_text()
+        self.assertIn("probability-stochastic-processes", sources)
+        self.assertIn("tensor-calculus-differential-geometry", sources)
+
+    def test_textbook_grounded_math_physics_skills_are_active_and_routed(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
+        records = {item["name"]: item for item in inventory["skills"]}
+        expected = {
+            "cx-mathematical-problem-execution",
+            "cx-proof-and-counterexample",
+            "cx-linear-algebra-problem-solving",
+            "cx-ode-pde-solving",
+            "cx-numerical-analysis-error-control",
+            "cx-dimensional-analysis-units",
+            "cx-classical-mechanics",
+            "cx-electromagnetism",
+            "cx-thermodynamics-statistical-mechanics",
+            "cx-quantum-mechanics",
+        }
+
+        self.assertTrue(expected <= records.keys())
+        self.assertTrue(all(records[name]["status"] == "active" for name in expected))
+        for name in expected:
+            source = repository_root / records[name]["path"] / "SKILL.md"
+            self.assertIn("source basis", source.read_text(encoding="utf-8").lower())
+
+        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        self.assertIn("$cx-mathematical-problem-execution", coordinator)
+        self.assertIn("concrete mathematics or physics problem", coordinator)
+        self.assertIn(".cache/textbooks/", (repository_root / ".gitignore").read_text())
+
+    def test_claude_featured_model_workflows_have_active_native_skills(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
+        records = {item["name"]: item for item in inventory["skills"]}
+        expected = {
+            "cx-alphafold3-structure-prediction",
+            "cx-alphafold2-structure-prediction",
+            "cx-bindcraft-binder-design",
+            "cx-borzoi-regulatory-prediction",
+            "cx-chai1-structure-prediction",
+            "cx-esm2-protein-embeddings",
+            "cx-esmc-protein-modeling",
+            "cx-esmfold-structure-prediction",
+            "cx-esmfold2-structure-prediction",
+            "cx-evo2-genome-modeling",
+            "cx-indication-dossier",
+            "cx-modeling-problem-execution",
+            "cx-openfold3-structure-prediction",
+            "cx-protenix-structure-prediction",
+            "cx-proteinmpnn-sequence-design",
+            "cx-rfdiffusion-protein-design",
+            "cx-rosettafold-all-atom",
+            "cx-scgpt-single-cell",
+            "cx-scvi-tools-analysis",
+            "cx-simplefold-structure-prediction",
+        }
+
+        self.assertTrue(expected <= records.keys())
+        self.assertTrue(all(records[name]["status"] == "active" for name in expected))
+
+    def test_new_compute_skills_keep_execution_and_provenance_gates(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        compute_skills = (
+            "alphafold2-structure-prediction",
+            "alphafold3-structure-prediction",
+            "bindcraft-binder-design",
+            "borzoi-regulatory-prediction",
+            "chai1-structure-prediction",
+            "esm2-protein-embeddings",
+            "esmc-protein-modeling",
+            "esmfold-structure-prediction",
+            "esmfold2-structure-prediction",
+            "evo2-genome-modeling",
+            "openfold3-structure-prediction",
+            "protenix-structure-prediction",
+            "proteinmpnn-sequence-design",
+            "rfdiffusion-protein-design",
+            "rosettafold-all-atom",
+            "scgpt-single-cell",
+            "scvi-tools-analysis",
+            "simplefold-structure-prediction",
+        )
+
+        for name in compute_skills:
+            with self.subTest(name=name):
+                text = (repository_root / "authored-skills" / name / "SKILL.md").read_text().lower()
+                self.assertIn("ask once", text)
+                self.assertIn("pin", text)
+                self.assertIn("artifacts/<run-id>/", text)
+                self.assertIn("$science-provenance", text)
+
+    def test_scvi_skill_protects_treatment_from_batch_correction(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        text = (
+            repository_root / "authored-skills" / "scvi-tools-analysis" / "SKILL.md"
+        ).read_text().lower()
+
+        self.assertIn("confounded", text)
+        self.assertIn("nuisance covariate", text)
+
+    def test_concrete_modeling_problem_continues_to_reviewed_execution(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        runner = (
+            repository_root / "authored-skills" / "modeling-problem-execution" / "SKILL.md"
+        ).read_text().lower()
+        coordinator = (
+            repository_root / "skills" / "codex-science" / "SKILL.md"
+        ).read_text().lower()
+
+        for marker in (
+            "concrete problem",
+            "smallest falsifying",
+            "ask once",
+            "continue through execution",
+            "retry",
+            "downstream",
+            "artifacts/<run-id>/",
+            "$science-review",
+        ):
+            self.assertIn(marker, runner)
+        self.assertIn("$cx-modeling-problem-execution", coordinator)
+        self.assertIn("concrete modeling", coordinator)
+
+    def test_execution_runner_chains_docking_without_affinity_overclaim(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        runner = (
+            repository_root / "authored-skills" / "modeling-problem-execution" / "SKILL.md"
+        ).read_text().lower()
+
+        for marker in (
+            "$cx-molecular-input-preparation",
+            "$cx-docking-validation",
+            "$cx-plip-interaction-analysis",
+            "intended bound ligand",
+            "highest-priority predicted",
+            "exploratory",
+        ):
+            self.assertIn(marker, runner)
+
+    def test_esmfold2_has_authoritative_runtime_and_downstream_contract(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        text = (
+            repository_root / "authored-skills" / "esmfold2-structure-prediction" / "SKILL.md"
+        ).read_text().lower()
+
+        for marker in (
+            "https://github.com/biohub/esm",
+            "biohub/esmfold2",
+            "mg",
+            "$cx-pymol-visualize",
+            "$cx-plip-interaction-analysis",
+            "$cx-protenix-structure-prediction",
+        ):
+            self.assertIn(marker, text)
+
+
 if __name__ == "__main__":
     unittest.main()

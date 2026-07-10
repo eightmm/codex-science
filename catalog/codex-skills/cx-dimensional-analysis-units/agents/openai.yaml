@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Dimensional Analysis Units"
+  short_description: "Audited scientific workflow for cx-dimensional-analysis-units"
+  default_prompt: "Use $cx-dimensional-analysis-units for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

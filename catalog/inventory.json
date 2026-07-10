@@ -7,6 +7,29 @@
       "license": "Apache-2.0",
       "name": "cx-alphafold-structure-analysis",
       "path": "authored-skills/alphafold-structure-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run reproducible AlphaFold2 monomer or multimer inference with pinned code, parameters, sequence databases, template cutoff, and seeds. Use when a local AlphaFold2 installation or approved container/database setup is available; use AlphaFold DB lookup instead for an existing canonical model.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-alphafold2-structure-prediction",
+      "path": "authored-skills/alphafold2-structure-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run the official AlphaFold3 inference pipeline for approved theoretical modeling of proteins, nucleic acids, ligands, modifications, and covalent complexes. Use only when the user has legitimately obtained model parameters and accepts the source, weight, output, and non-commercial terms.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-alphafold3-structure-prediction",
+      "path": "authored-skills/alphafold3-structure-prediction",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -17,6 +40,7 @@
       "license": "Apache-2.0",
       "name": "cx-alphagenome-variant-analysis",
       "path": "authored-skills/alphagenome-variant-analysis",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -29,6 +53,40 @@
       "license": "Apache-2.0",
       "name": "cx-arxiv-search",
       "path": "authored-skills/arxiv-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Construct and validate asymptotic and perturbative approximations. Use for dominant balance, regular or singular perturbations, boundary layers, matched expansions, multiple scales, WKB, Laplace methods, and stationary phase.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-asymptotic-perturbation-methods",
+      "path": "authored-skills/asymptotic-perturbation-methods",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run reproducible local protein-ligand docking with AutoDock Vina and Meeko. Use for pose generation, redocking, or small virtual screens when a receptor and a justified binding pocket are available; do not use a Vina score as experimental affinity.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-autodock-vina-docking",
+      "path": "authored-skills/autodock-vina-docking",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run a pinned BindCraft campaign for de novo protein binders using AlphaFold2 optimization, ProteinMPNN, PyRosetta, and configurable filters. Use only when the target structure, hotspot strategy, candidate budget, dependency licenses, and experimental handoff are explicit.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-bindcraft-binder-design",
+      "path": "authored-skills/bindcraft-binder-design",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -39,6 +97,7 @@
       "license": "Apache-2.0",
       "name": "cx-biorxiv-search",
       "path": "authored-skills/biorxiv-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -49,6 +108,40 @@
       "license": "MIT",
       "name": "cx-boltz-structure-prediction",
       "path": "authored-skills/boltz-structure-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned Borzoi models to predict RNA-seq and regulatory tracks from long DNA sequence and compare reference versus alternate alleles. Use for regulatory variant hypotheses with explicit genome assembly, sequence-window, tissue, and track provenance.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-borzoi-regulatory-prediction",
+      "path": "authored-skills/borzoi-regulatory-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned Chai-1 inference for proteins, complexes, nucleic acids, ligands, covalent bonds, templates, or restraints. Use when multimolecular structure prediction needs Chai-1-specific inputs and confidence outputs.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-chai1-structure-prediction",
+      "path": "authored-skills/chai1-structure-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Analyze nonlinear dynamical systems, bifurcations, and deterministic chaos. Use for flows and maps, phase portraits, fixed points, limit cycles, Lyapunov exponents, Poincare sections, attractors, continuation, and distinguishing chaos from noise or numerical artifacts.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-chaos-nonlinear-dynamics",
+      "path": "authored-skills/chaos-nonlinear-dynamics",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -59,6 +152,40 @@
       "license": "Apache-2.0",
       "name": "cx-chembl-search",
       "path": "authored-skills/chembl-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Integrate molecular formula, NMR, MS, IR, Raman, UV-Vis, chromatography, and diffraction evidence into ranked chemical structures with explicit contradictions and confidence. Use for unknown identification, structure confirmation, isomer discrimination, impurity analysis, and planning the smallest discriminating analytical experiment.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-chemical-structure-elucidation",
+      "path": "authored-skills/chemical-structure-elucidation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Quantify analytes from chromatographic data with validated integration, calibration, quality controls, and uncertainty. Use for HPLC, UHPLC, GC, LC-MS, GC-MS, UV or fluorescence detection, targeted assays, purity estimates, retention data, and batch acceptance.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-chromatography-quantification",
+      "path": "authored-skills/chromatography-quantification",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate, solve, simulate, and verify classical mechanics problems using Newtonian, Lagrangian, Hamiltonian, conservation-law, oscillation, rotation, and central-force methods. Use for particles, rigid bodies, constrained systems, collisions, orbital motion, and small oscillations.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-classical-mechanics",
+      "path": "authored-skills/classical-mechanics",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -69,6 +196,7 @@
       "license": "Apache-2.0",
       "name": "cx-clinical-trials-search",
       "path": "authored-skills/clinical-trials-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -79,6 +207,29 @@
       "license": "Apache-2.0",
       "name": "cx-clinvar-search",
       "path": "authored-skills/clinvar-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Solve and verify complex-variable and Fourier-analysis problems. Use for analytic functions, contour integrals, residues, branch cuts, Fourier series and transforms, convolution, spectral methods, sampling, and dispersion relations.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-complex-fourier-analysis",
+      "path": "authored-skills/complex-fourier-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Verify computational physics software, quantify numerical uncertainty, and validate models against experiments. Use for convergence studies, manufactured solutions, conservation audits, code-to-code comparisons, calibration, uncertainty quantification, and simulation credibility.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-computational-physics-validation",
+      "path": "authored-skills/computational-physics-validation",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -89,6 +240,40 @@
       "license": "Apache-2.0",
       "name": "cx-compute-environment",
       "path": "authored-skills/compute-environment",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Analyze condensed-matter and solid-state models and computations. Use for crystal symmetry, reciprocal space, electronic bands, density of states, Fermi surfaces, phonons, transport, magnetism, superconductivity, defects, and phase behavior.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-condensed-matter-solid-state",
+      "path": "authored-skills/condensed-matter-solid-state",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate, solve, and verify continuum models for solids and fluids. Use for deformation, stress, strain, conservation laws, constitutive equations, elasticity, viscosity, boundary conditions, weak forms, and finite-element or finite-volume analysis.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-continuum-mechanics",
+      "path": "authored-skills/continuum-mechanics",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Model dynamical systems, analyze stability, and design or verify feedback controllers. Use for state-space and transfer-function models, controllability, observability, PID, state feedback, estimation, optimal control, robustness, discretization, and nonlinear control.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-control-dynamical-systems",
+      "path": "authored-skills/control-dynamical-systems",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -99,6 +284,51 @@
       "license": "Apache-2.0",
       "name": "cx-dbsnp-search",
       "path": "authored-skills/dbsnp-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run a pinned DiffDock release for diffusion-based protein-ligand pose prediction. Use for candidate pose generation from receptor coordinates and ligand structures, especially without a fixed pocket; do not interpret DiffDock confidence as affinity.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-diffdock-docking",
+      "path": "authored-skills/diffdock-docking",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Audit and simplify mathematical or physical models using dimensions, units, characteristic scales, nondimensionalization, and limiting cases. Use when equations mix physical quantities, unit conversions, empirical correlations, scaling laws, similarity parameters, or order-of-magnitude estimates.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-dimensional-analysis-units",
+      "path": "authored-skills/dimensional-analysis-units",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Validate docking, pose-prediction, rescoring, and virtual-screening workflows with leakage-aware controls and prespecified metrics. Use before interpreting AutoDock Vina, GNINA, DiffDock, or related docking outputs.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-docking-validation",
+      "path": "authored-skills/docking-validation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate, solve, simulate, and verify electrostatics, magnetostatics, circuits, induction, electromagnetic waves, and boundary-value problems using Maxwell's equations, potentials, constitutive relations, and conservation laws.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-electromagnetism",
+      "path": "authored-skills/electromagnetism",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -109,6 +339,7 @@
       "license": "Apache-2.0",
       "name": "cx-encode-ccres-search",
       "path": "authored-skills/encode-ccres-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -119,6 +350,51 @@
       "license": "Apache-2.0",
       "name": "cx-ensembl-search",
       "path": "authored-skills/ensembl-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Extract reproducible ESM-2 protein embeddings, residue representations, likelihoods, or zero-shot mutation scores. Use when a frozen protein language model is needed as a feature extractor or baseline.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-esm2-protein-embeddings",
+      "path": "authored-skills/esm2-protein-embeddings",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run released Biohub ESMC protein language models for representations, masked likelihoods, sequence scoring, mutation analysis, or sparse-autoencoder features. Use as the current ESMC alternative to ESM-2 when model scale, revision, and inference boundaries are explicit.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-esmc-protein-modeling",
+      "path": "authored-skills/esmc-protein-modeling",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run the legacy public ESMFold v1 single-sequence structure model reproducibly for proteins or simple multimers. Use for the 2022 ESM-2-based model; use the separate ESMFold2 skill for Biohub's 2026 diffusion/all-atom model.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-esmfold-structure-prediction",
+      "path": "authored-skills/esmfold-structure-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run Biohub ESMFold2 locally from the released Hugging Face weights or through the approved Biohub Platform. Use for all-atom prediction of proteins, complexes, DNA, modifications, and ligands with optional MSA input and diffusion sampling; distinct from the legacy ESMFold v1 model.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-esmfold2-structure-prediction",
+      "path": "authored-skills/esmfold2-structure-prediction",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -129,6 +405,29 @@
       "license": "Apache-2.0",
       "name": "cx-europepmc-search",
       "path": "authored-skills/europepmc-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned Evo 2 DNA sequence scoring, embeddings, variant scoring, or controlled generation. Use for long-context genomic foundation-model analyses when compatible local GPU hardware and explicit genome/strand provenance are available.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-evo2-genome-modeling",
+      "path": "authored-skills/evo2-genome-modeling",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Quantify and report experimental measurement uncertainty. Use for measurand definitions, calibration, Type A and Type B components, covariance, nonlinear propagation, Monte Carlo uncertainty, coverage intervals, and traceable result reporting.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-experimental-uncertainty-propagation",
+      "path": "authored-skills/experimental-uncertainty-propagation",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -139,6 +438,40 @@
       "license": "Apache-2.0",
       "name": "cx-foldseek-structural-search",
       "path": "authored-skills/foldseek-structural-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formalize mathematical statements and produce kernel-checked proofs. Use for Lean 4 theorem proving, proof repair, definition design, tactic or term proofs, dependency minimization, theorem-statement audits, and correspondence checks between formal and informal claims.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-formal-theorem-proving",
+      "path": "authored-skills/formal-theorem-proving",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate and verify geometry and topology arguments. Use for metric and topological spaces, continuity, compactness, connectedness, manifolds, curves and surfaces, homotopy, covering spaces, Euler characteristic, and geometric invariants.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-geometry-topology",
+      "path": "authored-skills/geometry-topology",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run reproducible local GNINA docking or CNN rescoring on protein-ligand systems. Use when GPU-assisted pose generation, refinement, or CNN reranking is wanted; keep CNN pose score, predicted affinity, and experimental affinity as distinct quantities.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-gnina-docking",
+      "path": "authored-skills/gnina-docking",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -149,6 +482,18 @@
       "license": "Apache-2.0",
       "name": "cx-gnomad-search",
       "path": "authored-skills/gnomad-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Prepare and run staged, checkpointed molecular dynamics with a pinned GROMACS build. Use when GROMACS workflows, HPC execution, established .mdp protocols, or interoperability with GROMACS topology/trajectory formats is required.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-gromacs-molecular-dynamics",
+      "path": "authored-skills/gromacs-molecular-dynamics",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -159,6 +504,7 @@
       "license": "Apache-2.0",
       "name": "cx-gtex-search",
       "path": "authored-skills/gtex-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -169,6 +515,18 @@
       "license": "Apache-2.0",
       "name": "cx-hpa-search",
       "path": "authored-skills/hpa-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Build an evidence-traceable indication dossier for a disease, target, mechanism, drug, biomarker, or therapeutic hypothesis. Use for landscape assessment, target-indication rationale, clinical pipeline review, translational gaps, and evidence-backed go/no-go questions; not for patient-specific advice.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-indication-dossier",
+      "path": "authored-skills/indication-dossier",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -179,6 +537,18 @@
       "license": "Apache-2.0",
       "name": "cx-interpro-search",
       "path": "authored-skills/interpro-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate and solve inverse problems with stable regularization and calibrated uncertainty. Use for parameter or field recovery, deconvolution, tomography, system identification, data assimilation, Bayesian inversion, and learned inverse models.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-inverse-problems-regularization",
+      "path": "authored-skills/inverse-problems-regularization",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -189,6 +559,73 @@
       "license": "Apache-2.0",
       "name": "cx-jaspar-search",
       "path": "authored-skills/jaspar-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Solve exact and numerical linear algebra problems with explicit field, dimensions, bases, rank structure, conditioning, and residual checks. Use for linear systems, vector spaces, linear maps, eigenproblems, least squares, SVD, quadratic forms, and matrix factorizations.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-linear-algebra-problem-solving",
+      "path": "authored-skills/linear-algebra-problem-solving",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Identify and quantify support for analytes from mass spectrometry with explicit acquisition context, calibration, false-discovery control, and isomer-aware evidence. Use for GC-MS, LC-MS, MS/MS, accurate mass, isotope patterns, adducts, fragments, library searching, proteomics, metabolomics, and unknown identification.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-mass-spectrometry-identification",
+      "path": "authored-skills/mass-spectrometry-identification",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Drive a concrete mathematics problem from precise statement through method selection, derivation or proof, symbolic and numerical checks, edge cases, and a verified final result. Use for multi-step pure or applied mathematics problems where the user expects an actual solution rather than a formula lookup.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-mathematical-problem-execution",
+      "path": "authored-skills/mathematical-problem-execution",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Analyze OpenMM, GROMACS, and other molecular dynamics trajectories with MDAnalysis using topology-aware selections, periodic-boundary handling, prespecified observables, convergence checks, and uncertainty estimates.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-mdanalysis-trajectory-analysis",
+      "path": "authored-skills/mdanalysis-trajectory-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Drive a concrete scientific modeling problem from supplied inputs through model selection, falsifiable plan, one-time approval, environment setup, smoke test, full execution, downstream analysis, provenance, and review. Use when the user provides sequences, structures, molecules, omics data, trajectories, or a specific modeling objective and expects an actual result rather than instructions.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-modeling-problem-execution",
+      "path": "authored-skills/modeling-problem-execution",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Prepare receptors and small molecules for docking or simulation with explicit stereochemistry, protonation, tautomer, charge, conformer, cofactor, water, and pocket provenance. Use before AutoDock Vina, GNINA, DiffDock, OpenMM, GROMACS, or any protein-ligand modeling run.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-molecular-input-preparation",
+      "path": "authored-skills/molecular-input-preparation",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -199,6 +636,51 @@
       "license": "Apache-2.0",
       "name": "cx-ncbi-sequence-fetch",
       "path": "authored-skills/ncbi-sequence-fetch",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Process, assign, and verify molecular NMR evidence. Use for 1D or 2D solution NMR, FID processing, chemical shifts, multiplicities, couplings, integrations, COSY, HSQC, HMBC, NOE or ROE evidence, mixture assessment, and molecular structure or stereochemical analysis.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-nmr-structure-analysis",
+      "path": "authored-skills/nmr-structure-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate and verify nuclear and particle physics calculations. Use for reactions, decays, relativistic kinematics, conservation laws, cross sections, lifetimes, quantum numbers, detector yields, backgrounds, and statistical significance.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-nuclear-particle-physics",
+      "path": "authored-skills/nuclear-particle-physics",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Design and audit numerical computations by separating problem conditioning from algorithmic stability and quantifying discretization, truncation, iteration, floating-point, and sampling errors. Use for root finding, interpolation, quadrature, numerical linear algebra, ODE/PDE solvers, optimization, and any result sensitive to tolerances or precision.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-numerical-analysis-error-control",
+      "path": "authored-skills/numerical-analysis-error-control",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Classify, solve, approximate, and verify ordinary and partial differential equations with explicit domains, initial or boundary data, well-posedness, residuals, and convergence checks. Use for IVPs, BVPs, dynamical systems, eigenvalue problems, Fourier methods, diffusion, waves, Laplace or Poisson equations, and nonlinear differential equations.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-ode-pde-solving",
+      "path": "authored-skills/ode-pde-solving",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -209,6 +691,7 @@
       "license": "Apache-2.0",
       "name": "cx-ols-search",
       "path": "authored-skills/ols-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -219,6 +702,7 @@
       "license": "Apache-2.0",
       "name": "cx-openalex-search",
       "path": "authored-skills/openalex-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -229,6 +713,40 @@
       "license": "Apache-2.0",
       "name": "cx-openfda-search",
       "path": "authored-skills/openfda-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Parameterize drug-like small molecules for molecular simulation with pinned OpenFF Toolkit/force fields and explicit charge, stereochemistry, and coverage checks. Use before OpenMM or GROMACS when ligands or nonstandard organic molecules need parameters.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-openff-parameterization",
+      "path": "authored-skills/openff-parameterization",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned OpenFold3 preview inference for proteins, nucleic acids, noncanonical residues, and small-molecule complexes. Use when an open AlphaFold3-style workflow is wanted and preview-status limitations are acceptable.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-openfold3-structure-prediction",
+      "path": "authored-skills/openfold3-structure-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Build, equilibrate, run, checkpoint, and analyze reproducible molecular dynamics with OpenMM. Use for proteins, nucleic acids, solvated complexes, or parameterized protein-ligand systems when local CPU/GPU simulation is requested.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-openmm-molecular-dynamics",
+      "path": "authored-skills/openmm-molecular-dynamics",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -239,6 +757,29 @@
       "license": "Apache-2.0",
       "name": "cx-opentargets-search",
       "path": "authored-skills/opentargets-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Model and verify optical and wave phenomena. Use for ray optics, wave propagation, polarization, interference, diffraction, coherence, resonators, dispersion, scattering, imaging, and electromagnetic boundary problems.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-optics-wave-physics",
+      "path": "authored-skills/optics-wave-physics",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate, solve, and verify finite-dimensional optimization and calculus-of-variations problems. Use for convex programs, constrained extrema, KKT systems, duality, optimal control, Euler-Lagrange equations, and numerical optimization.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-optimization-variational-methods",
+      "path": "authored-skills/optimization-variational-methods",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -249,6 +790,18 @@
       "license": "Apache-2.0",
       "name": "cx-pdb-search",
       "path": "authored-skills/pdb-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Profile noncovalent protein-ligand interactions with a pinned PLIP release and compare interaction fingerprints across experimental structures, docking poses, or trajectory representatives. Use after structure preparation or pose generation.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-plip-interaction-analysis",
+      "path": "authored-skills/plip-interaction-analysis",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -259,6 +812,29 @@
       "license": "Apache-2.0",
       "name": "cx-predicting-the-past",
       "path": "authored-skills/predicting-the-past",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate, solve, simulate, and verify probability and stochastic-process problems. Use for conditional probability, random variables, limit theorems, Markov chains, Poisson processes, martingales, stochastic simulation, and uncertainty in random systems.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-probability-stochastic-processes",
+      "path": "authored-skills/probability-stochastic-processes",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Prove, disprove, or repair mathematical statements by normalizing quantifiers and hypotheses, selecting a proof strategy, constructing counterexamples, and auditing every logical dependency. Use for theorem proving, proof critique, missing-assumption diagnosis, and universal or existential claims.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-proof-and-counterexample",
+      "path": "authored-skills/proof-and-counterexample",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -269,6 +845,7 @@
       "license": "Apache-2.0",
       "name": "cx-protein-msa",
       "path": "authored-skills/protein-msa",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -279,6 +856,29 @@
       "license": "Apache-2.0",
       "name": "cx-protein-similarity-search",
       "path": "authored-skills/protein-similarity-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Design or score protein sequences for fixed backbones with ProteinMPNN, LigandMPNN, or SolubleMPNN. Use for backbone-conditioned design, ligand-context design, soluble-protein design, residue constraints, or side-chain packing.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-proteinmpnn-sequence-design",
+      "path": "authored-skills/proteinmpnn-sequence-design",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned Protenix structure prediction for protein, nucleic-acid, ligand, antibody-antigen, template, MSA, or constrained complexes. Use Protenix-v2 or another explicitly selected released model with a recorded training-data cutoff and inference budget.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-protenix-structure-prediction",
+      "path": "authored-skills/protenix-structure-prediction",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -289,6 +889,7 @@
       "license": "Apache-2.0",
       "name": "cx-pubchem-search",
       "path": "authored-skills/pubchem-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -299,6 +900,7 @@
       "license": "Apache-2.0",
       "name": "cx-pubmed-search",
       "path": "authored-skills/pubmed-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -309,6 +911,18 @@
       "license": "Apache-2.0",
       "name": "cx-pymol-visualize",
       "path": "authored-skills/pymol-visualize",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate, solve, simulate, and verify nonrelativistic quantum mechanics problems using states, operators, boundary conditions, symmetries, stationary and time-dependent evolution, approximation methods, measurement, and open-system dynamics.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-quantum-mechanics",
+      "path": "authored-skills/quantum-mechanics",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -319,6 +933,7 @@
       "license": "Apache-2.0",
       "name": "cx-quickgo-search",
       "path": "authored-skills/quickgo-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -329,6 +944,95 @@
       "license": "Apache-2.0",
       "name": "cx-reactome-search",
       "path": "authored-skills/reactome-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Formulate and verify special- and general-relativity problems. Use for Lorentz transformations, four-vectors, relativistic kinematics, metrics, geodesics, curvature, gravitational fields, horizons, and stress-energy dynamics.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-relativity-spacetime",
+      "path": "authored-skills/relativity-spacetime",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned RFdiffusion for unconditional generation, motif scaffolding, binder backbones, symmetric assemblies, partial diffusion, or macrocyclic peptide design. Use when structural conditioning and a downstream sequence/refolding validation funnel are defined.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-rfdiffusion-protein-design",
+      "path": "authored-skills/rfdiffusion-protein-design",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run RoseTTAFold All-Atom for proteins, nucleic acids, small molecules, metals, covalent modifications, and higher-order assemblies. Use when its Hydra input model and confidence metrics fit the problem and licensed dependencies are available.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-rosettafold-all-atom",
+      "path": "authored-skills/rosettafold-all-atom",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run pinned scGPT checkpoints for single-cell embeddings, cell-type annotation, reference mapping, perturbation modeling, or fine-tuning. Use when a pretrained single-cell transformer is requested and donor/batch/feature provenance can be preserved.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-scgpt-single-cell",
+      "path": "authored-skills/scgpt-single-cell",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Build and evaluate reproducible scvi-tools workflows for single-cell RNA, protein, chromatin, spatial, or multimodal data using scVI, scANVI, totalVI, MultiVI, PeakVI, DestVI, or related models.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-scvi-tools-analysis",
+      "path": "authored-skills/scvi-tools-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run Apple's released SimpleFold flow-matching protein structure models with PyTorch or MLX. Use for single-protein folding, conformer ensembles, or Apple-silicon inference when model-size and model-license constraints are acceptable.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-simplefold-structure-prediction",
+      "path": "authored-skills/simplefold-structure-prediction",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Analyze experimental spectra with traceable preprocessing, calibration, peak or band inference, uncertainty, and alternative-model checks. Use for UV-Vis, fluorescence, IR, Raman, absorbance, emission, reflectance, and related one-dimensional spectral datasets or instrument exports.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-spectroscopy-spectral-inference",
+      "path": "authored-skills/spectroscopy-spectral-inference",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Design experiments and perform defensible statistical inference. Use for estimands, randomization, blocking, sample-size planning, regression, hypothesis tests, intervals, multiple comparisons, missing data, diagnostics, and reproducible analysis plans.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-statistical-inference-experimental-design",
+      "path": "authored-skills/statistical-inference-experimental-design",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -339,6 +1043,29 @@
       "license": "Apache-2.0",
       "name": "cx-string-ppi-search",
       "path": "authored-skills/string-ppi-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Compute and verify tensor-calculus and differential-geometry results. Use for coordinate transformations, metrics, differential forms, covariant derivatives, connections, geodesics, curvature, Lie derivatives, and coordinate-independent geometric identities.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-tensor-calculus-differential-geometry",
+      "path": "authored-skills/tensor-calculus-differential-geometry",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Solve and verify equilibrium thermodynamics and statistical mechanics problems using explicit systems, sign conventions, equations of state, thermodynamic potentials, ensembles, partition functions, fluctuations, and phase-equilibrium conditions.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-thermodynamics-statistical-mechanics",
+      "path": "authored-skills/thermodynamics-statistical-mechanics",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -349,6 +1076,7 @@
       "license": "Apache-2.0",
       "name": "cx-ucsc-conservation",
       "path": "authored-skills/ucsc-conservation",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -359,6 +1087,7 @@
       "license": "Apache-2.0",
       "name": "cx-unibind-search",
       "path": "authored-skills/unibind-search",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -369,6 +1098,18 @@
       "license": "Apache-2.0",
       "name": "cx-uniprot-search",
       "path": "authored-skills/uniprot-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Analyze and verify X-ray diffraction and scattering data. Use for powder XRD, phase identification, indexing, lattice parameters, Rietveld refinement, crystallite size or strain, texture, amorphous content, SAXS, WAXS, pair distributions, and comparison with calculated patterns.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-xray-diffraction-scattering",
+      "path": "authored-skills/xray-diffraction-scattering",
+      "physical_lab": false,
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -379,6 +1120,7 @@
       "license": "Apache-2.0",
       "name": "gdm-credentials",
       "path": "vendor/gdm-science-skills/skills/credentials",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -391,6 +1133,7 @@
       "license": "Apache-2.0",
       "name": "gdm-uv",
       "path": "vendor/gdm-science-skills/skills/uv",
+      "physical_lab": false,
       "reasons": [
         "unsafe-instruction"
       ],
@@ -403,6 +1146,7 @@
       "license": "Apache-2.0",
       "name": "gdm-workflow-skill-creator",
       "path": "vendor/gdm-science-skills/skills/workflow_skill_creator",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -415,6 +1159,7 @@
       "license": "MIT",
       "name": "kdense-adaptyv",
       "path": "vendor/scientific-agent-skills/skills/adaptyv",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -427,6 +1172,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-aeon",
       "path": "vendor/scientific-agent-skills/skills/aeon",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -437,6 +1183,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-anndata",
       "path": "vendor/scientific-agent-skills/skills/anndata",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -447,6 +1194,7 @@
       "license": "MIT license",
       "name": "kdense-arbor",
       "path": "vendor/scientific-agent-skills/skills/arbor",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -459,6 +1207,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-arboreto",
       "path": "vendor/scientific-agent-skills/skills/arboreto",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -471,6 +1220,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-astropy",
       "path": "vendor/scientific-agent-skills/skills/astropy",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -481,6 +1231,7 @@
       "license": "MIT license",
       "name": "kdense-autoskill",
       "path": "vendor/scientific-agent-skills/skills/autoskill",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -494,6 +1245,7 @@
       "license": "MIT",
       "name": "kdense-benchling-integration",
       "path": "vendor/scientific-agent-skills/skills/benchling-integration",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -506,6 +1258,7 @@
       "license": "MIT",
       "name": "kdense-bgpt-paper-search",
       "path": "vendor/scientific-agent-skills/skills/bgpt-paper-search",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -518,6 +1271,7 @@
       "license": "https://creativecommons.org/licenses/by/4.0/",
       "name": "kdense-bids",
       "path": "vendor/scientific-agent-skills/skills/bids",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -530,6 +1284,7 @@
       "license": "Biopython License Agreement",
       "name": "kdense-biopython",
       "path": "vendor/scientific-agent-skills/skills/biopython",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -542,6 +1297,7 @@
       "license": "GPLv3 license",
       "name": "kdense-bioservices",
       "path": "vendor/scientific-agent-skills/skills/bioservices",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "restricted-license"
@@ -555,6 +1311,7 @@
       "license": "MIT",
       "name": "kdense-bulk-rnaseq",
       "path": "vendor/scientific-agent-skills/skills/bulk-rnaseq",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -567,6 +1324,7 @@
       "license": "MIT",
       "name": "kdense-cellxgene-census",
       "path": "vendor/scientific-agent-skills/skills/cellxgene-census",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -577,6 +1335,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-cirq",
       "path": "vendor/scientific-agent-skills/skills/cirq",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -589,6 +1348,7 @@
       "license": "MIT License",
       "name": "kdense-citation-management",
       "path": "vendor/scientific-agent-skills/skills/citation-management",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -602,6 +1362,7 @@
       "license": "MIT License",
       "name": "kdense-clinical-decision-support",
       "path": "vendor/scientific-agent-skills/skills/clinical-decision-support",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -616,6 +1377,7 @@
       "license": "MIT License",
       "name": "kdense-clinical-reports",
       "path": "vendor/scientific-agent-skills/skills/clinical-reports",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -630,6 +1392,7 @@
       "license": "GPL-2.0 license",
       "name": "kdense-cobrapy",
       "path": "vendor/scientific-agent-skills/skills/cobrapy",
+      "physical_lab": false,
       "reasons": [
         "restricted-license"
       ],
@@ -642,6 +1405,7 @@
       "license": "MIT license",
       "name": "kdense-consciousness-council",
       "path": "vendor/scientific-agent-skills/skills/consciousness-council",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -652,6 +1416,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-dask",
       "path": "vendor/scientific-agent-skills/skills/dask",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -662,6 +1427,7 @@
       "license": "MIT",
       "name": "kdense-database-lookup",
       "path": "vendor/scientific-agent-skills/skills/database-lookup",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -674,6 +1440,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-datamol",
       "path": "vendor/scientific-agent-skills/skills/datamol",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -686,6 +1453,7 @@
       "license": "MIT license",
       "name": "kdense-deepchem",
       "path": "vendor/scientific-agent-skills/skills/deepchem",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -698,6 +1466,7 @@
       "license": "BSD license",
       "name": "kdense-deeptools",
       "path": "vendor/scientific-agent-skills/skills/deeptools",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -710,6 +1479,7 @@
       "license": "CC-BY-4.0",
       "name": "kdense-depmap",
       "path": "vendor/scientific-agent-skills/skills/depmap",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -720,6 +1490,7 @@
       "license": "MIT license",
       "name": "kdense-dhdna-profiler",
       "path": "vendor/scientific-agent-skills/skills/dhdna-profiler",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -730,6 +1501,7 @@
       "license": "MIT license",
       "name": "kdense-diffdock",
       "path": "vendor/scientific-agent-skills/skills/diffdock",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -742,6 +1514,7 @@
       "license": "Unknown",
       "name": "kdense-dnanexus-integration",
       "path": "vendor/scientific-agent-skills/skills/dnanexus-integration",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -754,6 +1527,7 @@
       "license": "Proprietary. LICENSE.txt has complete terms",
       "name": "kdense-docx",
       "path": "vendor/scientific-agent-skills/skills/docx",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "restricted-license"
@@ -767,6 +1541,7 @@
       "license": "MIT license",
       "name": "kdense-esm",
       "path": "vendor/scientific-agent-skills/skills/esm",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -779,6 +1554,7 @@
       "license": "GPL-3.0 license",
       "name": "kdense-etetoolkit",
       "path": "vendor/scientific-agent-skills/skills/etetoolkit",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "restricted-license"
@@ -792,6 +1568,7 @@
       "license": "MIT",
       "name": "kdense-exa-search",
       "path": "vendor/scientific-agent-skills/skills/exa-search",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -805,6 +1582,7 @@
       "license": "MIT license",
       "name": "kdense-experimental-design",
       "path": "vendor/scientific-agent-skills/skills/experimental-design",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -817,6 +1595,7 @@
       "license": "MIT license",
       "name": "kdense-exploratory-data-analysis",
       "path": "vendor/scientific-agent-skills/skills/exploratory-data-analysis",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -829,6 +1608,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-flowio",
       "path": "vendor/scientific-agent-skills/skills/flowio",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -839,6 +1619,7 @@
       "license": "CeCILL FREE SOFTWARE LICENSE AGREEMENT",
       "name": "kdense-fluidsim",
       "path": "vendor/scientific-agent-skills/skills/fluidsim",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -849,6 +1630,7 @@
       "license": "MIT license",
       "name": "kdense-generate-image",
       "path": "vendor/scientific-agent-skills/skills/generate-image",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -862,6 +1644,7 @@
       "license": "BSD-2-Clause license",
       "name": "kdense-geniml",
       "path": "vendor/scientific-agent-skills/skills/geniml",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -872,6 +1655,7 @@
       "license": "MIT License",
       "name": "kdense-geomaster",
       "path": "vendor/scientific-agent-skills/skills/geomaster",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -884,6 +1668,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-geopandas",
       "path": "vendor/scientific-agent-skills/skills/geopandas",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -894,6 +1679,7 @@
       "license": "MIT license",
       "name": "kdense-get-available-resources",
       "path": "vendor/scientific-agent-skills/skills/get-available-resources",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -906,6 +1692,7 @@
       "license": "BSD-2-Clause license",
       "name": "kdense-gget",
       "path": "vendor/scientific-agent-skills/skills/gget",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -919,6 +1706,7 @@
       "license": "MIT license",
       "name": "kdense-ginkgo-cloud-lab",
       "path": "vendor/scientific-agent-skills/skills/ginkgo-cloud-lab",
+      "physical_lab": true,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -929,6 +1717,7 @@
       "license": "Unknown",
       "name": "kdense-glycoengineering",
       "path": "vendor/scientific-agent-skills/skills/glycoengineering",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -941,6 +1730,7 @@
       "license": "Unknown",
       "name": "kdense-gtars",
       "path": "vendor/scientific-agent-skills/skills/gtars",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -953,6 +1743,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-histolab",
       "path": "vendor/scientific-agent-skills/skills/histolab",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -963,6 +1754,7 @@
       "license": "Unknown",
       "name": "kdense-hugging-science",
       "path": "vendor/scientific-agent-skills/skills/hugging-science",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "unknown-license"
@@ -976,6 +1768,7 @@
       "license": "MIT license",
       "name": "kdense-hypogenic",
       "path": "vendor/scientific-agent-skills/skills/hypogenic",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -986,6 +1779,7 @@
       "license": "MIT license",
       "name": "kdense-hypothesis-generation",
       "path": "vendor/scientific-agent-skills/skills/hypothesis-generation",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -999,6 +1793,7 @@
       "license": "This skill is provided under the MIT License. IDC data itself has individual licensing (mostly CC-BY, some CC-NC) that must be respected when using the data.",
       "name": "kdense-imaging-data-commons",
       "path": "vendor/scientific-agent-skills/skills/imaging-data-commons",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1009,6 +1804,7 @@
       "license": "Unknown",
       "name": "kdense-infographics",
       "path": "vendor/scientific-agent-skills/skills/infographics",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -1023,6 +1819,7 @@
       "license": "MIT license",
       "name": "kdense-iso-13485-certification",
       "path": "vendor/scientific-agent-skills/skills/iso-13485-certification",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1035,6 +1832,7 @@
       "license": "Unknown",
       "name": "kdense-labarchive-integration",
       "path": "vendor/scientific-agent-skills/skills/labarchive-integration",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -1049,6 +1847,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-lamindb",
       "path": "vendor/scientific-agent-skills/skills/lamindb",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1061,6 +1860,7 @@
       "license": "Unknown",
       "name": "kdense-latchbio-integration",
       "path": "vendor/scientific-agent-skills/skills/latchbio-integration",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -1073,6 +1873,7 @@
       "license": "Unknown",
       "name": "kdense-latex-posters",
       "path": "vendor/scientific-agent-skills/skills/latex-posters",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -1087,6 +1888,7 @@
       "license": "Apache-2.0",
       "name": "kdense-liteparse",
       "path": "vendor/scientific-agent-skills/skills/liteparse",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1099,6 +1901,7 @@
       "license": "MIT license",
       "name": "kdense-literature-review",
       "path": "vendor/scientific-agent-skills/skills/literature-review",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -1113,6 +1916,7 @@
       "license": "Apache-2.0",
       "name": "kdense-markdown-mermaid-writing",
       "path": "vendor/scientific-agent-skills/skills/markdown-mermaid-writing",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1123,6 +1927,7 @@
       "license": "MIT license",
       "name": "kdense-market-research-reports",
       "path": "vendor/scientific-agent-skills/skills/market-research-reports",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1135,6 +1940,7 @@
       "license": "MIT license",
       "name": "kdense-markitdown",
       "path": "vendor/scientific-agent-skills/skills/markitdown",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1148,6 +1954,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-matchms",
       "path": "vendor/scientific-agent-skills/skills/matchms",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1158,6 +1965,7 @@
       "license": "For MATLAB (https://www.mathworks.com/pricing-licensing.html) and for Octave (GNU General Public License version 3)",
       "name": "kdense-matlab",
       "path": "vendor/scientific-agent-skills/skills/matlab",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -1170,6 +1978,7 @@
       "license": "https://github.com/matplotlib/matplotlib/tree/main/LICENSE",
       "name": "kdense-matplotlib",
       "path": "vendor/scientific-agent-skills/skills/matplotlib",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1182,6 +1991,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-medchem",
       "path": "vendor/scientific-agent-skills/skills/medchem",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1194,6 +2004,7 @@
       "license": "Apache-2.0",
       "name": "kdense-modal",
       "path": "vendor/scientific-agent-skills/skills/modal",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1206,6 +2017,7 @@
       "license": "MIT",
       "name": "kdense-molecular-dynamics",
       "path": "vendor/scientific-agent-skills/skills/molecular-dynamics",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1216,6 +2028,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-molfeat",
       "path": "vendor/scientific-agent-skills/skills/molfeat",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1226,6 +2039,7 @@
       "license": "3-clause BSD license",
       "name": "kdense-networkx",
       "path": "vendor/scientific-agent-skills/skills/networkx",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1236,6 +2050,7 @@
       "license": "MIT license",
       "name": "kdense-neurokit2",
       "path": "vendor/scientific-agent-skills/skills/neurokit2",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1246,6 +2061,7 @@
       "license": "MIT license",
       "name": "kdense-neuropixels-analysis",
       "path": "vendor/scientific-agent-skills/skills/neuropixels-analysis",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1259,6 +2075,7 @@
       "license": "Apache-2.0",
       "name": "kdense-nextflow",
       "path": "vendor/scientific-agent-skills/skills/nextflow",
+      "physical_lab": false,
       "reasons": [
         "unsafe-instruction"
       ],
@@ -1271,6 +2088,7 @@
       "license": "Unknown",
       "name": "kdense-omero-integration",
       "path": "vendor/scientific-agent-skills/skills/omero-integration",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -1283,6 +2101,7 @@
       "license": "MIT",
       "name": "kdense-onekgpd",
       "path": "vendor/scientific-agent-skills/skills/onekgpd",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1296,6 +2115,7 @@
       "license": "MIT",
       "name": "kdense-open-notebook",
       "path": "vendor/scientific-agent-skills/skills/open-notebook",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1309,6 +2129,7 @@
       "license": "Unknown",
       "name": "kdense-opentrons-integration",
       "path": "vendor/scientific-agent-skills/skills/opentrons-integration",
+      "physical_lab": true,
       "reasons": [
         "executable-content",
         "unknown-license"
@@ -1322,6 +2143,7 @@
       "license": "Unknown",
       "name": "kdense-optimize-for-gpu",
       "path": "vendor/scientific-agent-skills/skills/optimize-for-gpu",
+      "physical_lab": false,
       "reasons": [
         "unknown-license"
       ],
@@ -1334,6 +2156,7 @@
       "license": "MIT",
       "name": "kdense-pacsomatic",
       "path": "vendor/scientific-agent-skills/skills/pacsomatic",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1346,6 +2169,7 @@
       "license": "MIT",
       "name": "kdense-paper-lookup",
       "path": "vendor/scientific-agent-skills/skills/paper-lookup",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1358,6 +2182,7 @@
       "license": "MIT",
       "name": "kdense-paperzilla",
       "path": "vendor/scientific-agent-skills/skills/paperzilla",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1368,6 +2193,7 @@
       "license": "Unknown",
       "name": "kdense-parallel-web",
       "path": "vendor/scientific-agent-skills/skills/parallel-web",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "unknown-license",
@@ -1382,6 +2208,7 @@
       "license": "GPL-2.0 license",
       "name": "kdense-pathml",
       "path": "vendor/scientific-agent-skills/skills/pathml",
+      "physical_lab": false,
       "reasons": [
         "restricted-license"
       ],
@@ -1394,6 +2221,7 @@
       "license": "MIT",
       "name": "kdense-pathway-enrichment",
       "path": "vendor/scientific-agent-skills/skills/pathway-enrichment",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1406,6 +2234,7 @@
       "license": "Proprietary. LICENSE.txt has complete terms",
       "name": "kdense-pdf",
       "path": "vendor/scientific-agent-skills/skills/pdf",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "restricted-license"
@@ -1419,6 +2248,7 @@
       "license": "MIT license",
       "name": "kdense-peer-review",
       "path": "vendor/scientific-agent-skills/skills/peer-review",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1432,6 +2262,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-pennylane",
       "path": "vendor/scientific-agent-skills/skills/pennylane",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1442,6 +2273,7 @@
       "license": "Unknown",
       "name": "kdense-phylogenetics",
       "path": "vendor/scientific-agent-skills/skills/phylogenetics",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "unknown-license"
@@ -1455,6 +2287,7 @@
       "license": "MIT",
       "name": "kdense-pi-agent",
       "path": "vendor/scientific-agent-skills/skills/pi-agent",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1465,6 +2298,7 @@
       "license": "https://github.com/pola-rs/polars/blob/main/LICENSE",
       "name": "kdense-polars",
       "path": "vendor/scientific-agent-skills/skills/polars",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1475,6 +2309,7 @@
       "license": "Apache-2.0",
       "name": "kdense-polars-bio",
       "path": "vendor/scientific-agent-skills/skills/polars-bio",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1487,6 +2322,7 @@
       "license": "Proprietary. LICENSE.txt has complete terms",
       "name": "kdense-pptx",
       "path": "vendor/scientific-agent-skills/skills/pptx",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "restricted-license"
@@ -1500,6 +2336,7 @@
       "license": "MIT license",
       "name": "kdense-pptx-posters",
       "path": "vendor/scientific-agent-skills/skills/pptx-posters",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1513,6 +2350,7 @@
       "license": "Unknown",
       "name": "kdense-primekg",
       "path": "vendor/scientific-agent-skills/skills/primekg",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "unknown-license"
@@ -1526,6 +2364,7 @@
       "license": "Unknown",
       "name": "kdense-protocolsio-integration",
       "path": "vendor/scientific-agent-skills/skills/protocolsio-integration",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "unknown-license"
@@ -1539,6 +2378,7 @@
       "license": "MIT license",
       "name": "kdense-pufferlib",
       "path": "vendor/scientific-agent-skills/skills/pufferlib",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1551,6 +2391,7 @@
       "license": "MIT license",
       "name": "kdense-pydeseq2",
       "path": "vendor/scientific-agent-skills/skills/pydeseq2",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1563,6 +2404,7 @@
       "license": "https://github.com/pydicom/pydicom/blob/main/LICENSE",
       "name": "kdense-pydicom",
       "path": "vendor/scientific-agent-skills/skills/pydicom",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1575,6 +2417,7 @@
       "license": "Unknown",
       "name": "kdense-pyhealth",
       "path": "vendor/scientific-agent-skills/skills/pyhealth",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "unknown-license"
@@ -1588,6 +2431,7 @@
       "license": "MIT license",
       "name": "kdense-pylabrobot",
       "path": "vendor/scientific-agent-skills/skills/pylabrobot",
+      "physical_lab": true,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1598,6 +2442,7 @@
       "license": "MIT license",
       "name": "kdense-pymatgen",
       "path": "vendor/scientific-agent-skills/skills/pymatgen",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1611,6 +2456,7 @@
       "license": "Apache License, Version 2.0",
       "name": "kdense-pymc",
       "path": "vendor/scientific-agent-skills/skills/pymc",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1623,6 +2469,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-pymoo",
       "path": "vendor/scientific-agent-skills/skills/pymoo",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1635,6 +2482,7 @@
       "license": "3 clause BSD license",
       "name": "kdense-pyopenms",
       "path": "vendor/scientific-agent-skills/skills/pyopenms",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1647,6 +2495,7 @@
       "license": "MIT license",
       "name": "kdense-pysam",
       "path": "vendor/scientific-agent-skills/skills/pysam",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1657,6 +2506,7 @@
       "license": "MIT license",
       "name": "kdense-pytdc",
       "path": "vendor/scientific-agent-skills/skills/pytdc",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1669,6 +2519,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-pytorch-lightning",
       "path": "vendor/scientific-agent-skills/skills/pytorch-lightning",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1681,6 +2532,7 @@
       "license": "MIT License",
       "name": "kdense-pyzotero",
       "path": "vendor/scientific-agent-skills/skills/pyzotero",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1693,6 +2545,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-qiskit",
       "path": "vendor/scientific-agent-skills/skills/qiskit",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1703,6 +2556,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-qutip",
       "path": "vendor/scientific-agent-skills/skills/qutip",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1713,6 +2567,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-rdkit",
       "path": "vendor/scientific-agent-skills/skills/rdkit",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1725,6 +2580,7 @@
       "license": "MIT license",
       "name": "kdense-research-grants",
       "path": "vendor/scientific-agent-skills/skills/research-grants",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1737,6 +2593,7 @@
       "license": "MIT license",
       "name": "kdense-research-lookup",
       "path": "vendor/scientific-agent-skills/skills/research-lookup",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -1751,6 +2608,7 @@
       "license": "Proprietary (API key required)",
       "name": "kdense-rowan",
       "path": "vendor/scientific-agent-skills/skills/rowan",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "restricted-license"
@@ -1764,6 +2622,7 @@
       "license": "BSD-3-Clause",
       "name": "kdense-scanpy",
       "path": "vendor/scientific-agent-skills/skills/scanpy",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1776,6 +2635,7 @@
       "license": "MIT license",
       "name": "kdense-scholar-evaluation",
       "path": "vendor/scientific-agent-skills/skills/scholar-evaluation",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1789,6 +2649,7 @@
       "license": "MIT license",
       "name": "kdense-scientific-brainstorming",
       "path": "vendor/scientific-agent-skills/skills/scientific-brainstorming",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1799,6 +2660,7 @@
       "license": "MIT license",
       "name": "kdense-scientific-critical-thinking",
       "path": "vendor/scientific-agent-skills/skills/scientific-critical-thinking",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1811,6 +2673,7 @@
       "license": "MIT license",
       "name": "kdense-scientific-schematics",
       "path": "vendor/scientific-agent-skills/skills/scientific-schematics",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1824,6 +2687,7 @@
       "license": "MIT license",
       "name": "kdense-scientific-slides",
       "path": "vendor/scientific-agent-skills/skills/scientific-slides",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1837,6 +2701,7 @@
       "license": "MIT license",
       "name": "kdense-scientific-visualization",
       "path": "vendor/scientific-agent-skills/skills/scientific-visualization",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1849,6 +2714,7 @@
       "license": "MIT license",
       "name": "kdense-scientific-writing",
       "path": "vendor/scientific-agent-skills/skills/scientific-writing",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -1862,6 +2728,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-scikit-bio",
       "path": "vendor/scientific-agent-skills/skills/scikit-bio",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1872,6 +2739,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-scikit-learn",
       "path": "vendor/scientific-agent-skills/skills/scikit-learn",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1884,6 +2752,7 @@
       "license": "GPL-3.0 license",
       "name": "kdense-scikit-survival",
       "path": "vendor/scientific-agent-skills/skills/scikit-survival",
+      "physical_lab": false,
       "reasons": [
         "restricted-license"
       ],
@@ -1896,6 +2765,7 @@
       "license": "BSD-3-Clause",
       "name": "kdense-scvelo",
       "path": "vendor/scientific-agent-skills/skills/scvelo",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1908,6 +2778,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-scvi-tools",
       "path": "vendor/scientific-agent-skills/skills/scvi-tools",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -1920,6 +2791,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-seaborn",
       "path": "vendor/scientific-agent-skills/skills/seaborn",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1930,6 +2802,7 @@
       "license": "MIT license",
       "name": "kdense-shap",
       "path": "vendor/scientific-agent-skills/skills/shap",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1940,6 +2813,7 @@
       "license": "MIT license",
       "name": "kdense-simpy",
       "path": "vendor/scientific-agent-skills/skills/simpy",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1952,6 +2826,7 @@
       "license": "MIT license",
       "name": "kdense-stable-baselines3",
       "path": "vendor/scientific-agent-skills/skills/stable-baselines3",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1964,6 +2839,7 @@
       "license": "MIT license",
       "name": "kdense-statistical-analysis",
       "path": "vendor/scientific-agent-skills/skills/statistical-analysis",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1976,6 +2852,7 @@
       "license": "MIT license",
       "name": "kdense-statistical-power",
       "path": "vendor/scientific-agent-skills/skills/statistical-power",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -1988,6 +2865,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-statsmodels",
       "path": "vendor/scientific-agent-skills/skills/statsmodels",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -1998,6 +2876,7 @@
       "license": "https://github.com/sympy/sympy/blob/master/LICENSE",
       "name": "kdense-sympy",
       "path": "vendor/scientific-agent-skills/skills/sympy",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -2008,6 +2887,7 @@
       "license": "MIT",
       "name": "kdense-tamarind",
       "path": "vendor/scientific-agent-skills/skills/tamarind",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -2020,6 +2900,7 @@
       "license": "MIT license",
       "name": "kdense-tiledbvcf",
       "path": "vendor/scientific-agent-skills/skills/tiledbvcf",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -2032,6 +2913,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-timesfm-forecasting",
       "path": "vendor/scientific-agent-skills/skills/timesfm-forecasting",
+      "physical_lab": false,
       "reasons": [
         "executable-content"
       ],
@@ -2044,6 +2926,7 @@
       "license": "MIT license",
       "name": "kdense-torch-geometric",
       "path": "vendor/scientific-agent-skills/skills/torch-geometric",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -2054,6 +2937,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-torchdrug",
       "path": "vendor/scientific-agent-skills/skills/torchdrug",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -2064,6 +2948,7 @@
       "license": "Apache-2.0 license",
       "name": "kdense-transformers",
       "path": "vendor/scientific-agent-skills/skills/transformers",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "unsafe-instruction"
@@ -2077,6 +2962,7 @@
       "license": "MIT license",
       "name": "kdense-treatment-plans",
       "path": "vendor/scientific-agent-skills/skills/treatment-plans",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content",
@@ -2091,6 +2977,7 @@
       "license": "BSD-3-Clause license",
       "name": "kdense-umap-learn",
       "path": "vendor/scientific-agent-skills/skills/umap-learn",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -2101,6 +2988,7 @@
       "license": "MIT",
       "name": "kdense-usfiscaldata",
       "path": "vendor/scientific-agent-skills/skills/usfiscaldata",
+      "physical_lab": false,
       "reasons": [
         "credentials-required"
       ],
@@ -2113,6 +3001,7 @@
       "license": "MIT license",
       "name": "kdense-vaex",
       "path": "vendor/scientific-agent-skills/skills/vaex",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -2123,6 +3012,7 @@
       "license": "MIT license",
       "name": "kdense-venue-templates",
       "path": "vendor/scientific-agent-skills/skills/venue-templates",
+      "physical_lab": false,
       "reasons": [
         "credentials-required",
         "executable-content"
@@ -2136,6 +3026,7 @@
       "license": "CC BY-NC-SA 4.0",
       "name": "kdense-what-if-oracle",
       "path": "vendor/scientific-agent-skills/skills/what-if-oracle",
+      "physical_lab": false,
       "reasons": [
         "restricted-license"
       ],
@@ -2148,6 +3039,7 @@
       "license": "Proprietary. LICENSE.txt has complete terms",
       "name": "kdense-xlsx",
       "path": "vendor/scientific-agent-skills/skills/xlsx",
+      "physical_lab": false,
       "reasons": [
         "executable-content",
         "restricted-license"
@@ -2161,6 +3053,7 @@
       "license": "MIT license",
       "name": "kdense-zarr-python",
       "path": "vendor/scientific-agent-skills/skills/zarr-python",
+      "physical_lab": false,
       "reasons": [],
       "source": "kdense",
       "status": "active"
@@ -2190,8 +3083,8 @@
     }
   ],
   "summary": {
-    "active": 77,
+    "active": 141,
     "inactive": 112,
-    "total": 189
+    "total": 253
   }
 }

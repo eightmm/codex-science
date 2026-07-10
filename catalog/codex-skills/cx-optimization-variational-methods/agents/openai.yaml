@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Optimization Variational Methods"
+  short_description: "Audited scientific workflow for cx-optimization-variational-meth"
+  default_prompt: "Use $cx-optimization-variational-methods for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

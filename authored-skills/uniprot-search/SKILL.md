@@ -1,6 +1,6 @@
 ---
 name: uniprot-search
-description: Search UniProtKB for proteins by name, gene, organism, or keyword and retrieve accessions plus functional annotation. Use when the user wants protein metadata, function, sequence, or identifier mapping. Uses the plugin's built-in read-only UniProt MCP tool for discovery — no credential or install needed.
+description: "Search UniProtKB for proteins by name, gene, organism, or keyword and retrieve accessions plus functional annotation. Use when the user wants protein metadata, function, sequence, or identifier mapping. Uses the plugin's built-in read-only UniProt MCP tool for discovery — no credential or install needed."
 license: Apache-2.0
 ---
 

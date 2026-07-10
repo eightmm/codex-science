@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optimization and Variational Methods"
+  short_description: "Solve constrained and variational optimization problems"
+  default_prompt: "Use $optimization-variational-methods to formulate, solve, and verify this problem."

@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **189 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set and real compute (build a `uv` environment and run modeling such as [Boltz](https://github.com/jwohlwend/boltz)) — adds read-only public data tools, and records reproducible artifacts with independent evidence review.
+Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **253 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, experimental spectroscopy and analytical chemistry, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 15 read-only public data connectors, and records reproducible artifacts with independent evidence review.
 
 This is an independent Codex plugin inspired by the public workflow of Claude Science. It does not claim parity with any private implementation.
 
@@ -66,7 +66,7 @@ Stop Codex Science
 Codex Science 종료
 ```
 
-An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 189 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
+An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 253 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
 
 > Catalog presence is not execution permission. Inactive skills show their audit reasons and require acknowledgement before their upstream instructions can be inspected. See [docs/](docs/) for verification, configuration, and boundaries.
 
@@ -75,7 +75,7 @@ An ordinary scientific question in a fresh task does **not** activate the mode. 
 All skills merge into one deterministic, audited inventory (`catalog/inventory.json`) from three tiers:
 
 - **K-Dense-AI — 149** · pinned upstream (Git submodule); thin Codex wrappers point at the pinned instructions.
-- **Codex-native authored — 37** · the entire Google DeepMind science set [rewritten as first-class Codex skills](authored-skills/) that map onto Codex tools and the plugin's read-only MCP (`science_search_*`) or public REST/GraphQL APIs, plus execution skills (`cx-compute-environment`, `cx-boltz-structure-prediction`) that build a `uv` environment and actually run modeling.
+- **Codex-native authored — 101** · the entire Google DeepMind science set [rewritten as first-class Codex skills](authored-skills/), 28 textbook-grounded mathematics/physics workflows, six spectroscopy and analytical-chemistry workflows, and isolated, gated execution workflows for current structure, protein/genome, docking, design, MD, and single-cell models. Analytical workflows cover optical spectra, NMR, MS, XRD/scattering, chromatography, and evidence-integrated structure elucidation. Concrete-problem runners continue through solution, independent checks, provenance, and review. Fifteen public sources are callable through the plugin's read-only MCP (`science_search_*`).
 - **DeepMind infra — 3** · `credentials`, `uv`, `workflow_skill_creator`, kept as pointers.
 
 A conservative audit marks each skill **active** or **inactive** (by license, executable content, credential need, and safety). Inactive skills stay in the catalog but require explicit acknowledgement before use.
@@ -88,5 +88,7 @@ Imported and adapted skills retain their upstream licenses:
 
 - **K-Dense-AI/scientific-agent-skills** — pinned Git submodule; per-skill licenses in each `SKILL.md`.
 - **Google DeepMind/science-skills** — Apache-2.0 + CC-BY-4.0. The science skills are adapted into Codex-native form under `authored-skills/` (attribution in each `SKILL.md`); the pinned upstream copy under `vendor/gdm-science-skills/` keeps the original `LICENSE`, `SKILL_LICENSES.md`, and `PROVENANCE.md`.
+- **Open mathematics and physics texts** — source URLs, exact cached-file hashes, licenses, exclusions, and the no-PDF-in-Git policy are recorded in [`docs/TEXTBOOK_SOURCES.md`](docs/TEXTBOOK_SOURCES.md). The resulting skills are independently written procedural syntheses, not textbook copies.
+- **Analytical chemistry standards and tools** — official sources, overlap boundaries, and modality-specific evidence rules are recorded in [`docs/ANALYTICAL_SOURCES.md`](docs/ANALYTICAL_SOURCES.md).
 
 Repository-level files do not override per-skill or dependency licenses.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ESM-2 Protein Embeddings"
+  short_description: "Extract reproducible protein embeddings"
+  default_prompt: "Use $esm2-protein-embeddings to extract pinned layer embeddings for these protein sequences."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Control and Dynamical Systems"
+  short_description: "Analyze stability and design robust controls"
+  default_prompt: "Use $control-dynamical-systems to formulate, solve, and verify this problem."

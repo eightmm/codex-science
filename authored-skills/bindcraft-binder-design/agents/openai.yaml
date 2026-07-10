@@ -1,0 +1,4 @@
+interface:
+  display_name: "BindCraft Binder Design"
+  short_description: "Run an end-to-end binder campaign"
+  default_prompt: "Use $bindcraft-binder-design to design and filter binders against this target and hotspot definition."

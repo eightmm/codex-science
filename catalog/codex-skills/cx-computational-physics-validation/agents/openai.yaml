@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Computational Physics Validation"
+  short_description: "Audited scientific workflow for cx-computational-physics-validat"
+  default_prompt: "Use $cx-computational-physics-validation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

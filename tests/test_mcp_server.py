@@ -41,7 +41,24 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual("2025-06-18", initialized["result"]["protocolVersion"])
         names = {tool["name"] for tool in listed["result"]["tools"]}
         self.assertEqual(
-            {"science_search_skills", "science_search_pubmed", "science_search_arxiv", "science_search_uniprot"},
+            {
+                "science_search_alphafold",
+                "science_search_arxiv",
+                "science_search_chembl",
+                "science_search_clinical_trials",
+                "science_search_europepmc",
+                "science_search_interpro",
+                "science_search_ols",
+                "science_search_openalex",
+                "science_search_pdb",
+                "science_search_pubchem",
+                "science_search_pubmed",
+                "science_search_quickgo",
+                "science_search_reactome",
+                "science_search_skills",
+                "science_search_string",
+                "science_search_uniprot",
+            },
             names,
         )
 
@@ -70,6 +87,26 @@ class MCPServerTests(unittest.TestCase):
         )
 
         self.assertEqual(-32602, response["error"]["code"])
+
+    def test_tool_arguments_are_validated_at_runtime(self) -> None:
+        cases = (
+            {"query": "x", "unexpected": True},
+            {"query": 123},
+            {"query": "x", "limit": True},
+            {"query": "x", "limit": 11},
+        )
+
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                response = self.server.handle(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 5,
+                        "method": "tools/call",
+                        "params": {"name": "science_search_skills", "arguments": arguments},
+                    }
+                )
+                self.assertEqual(-32602, response["error"]["code"])
 
 
 if __name__ == "__main__":

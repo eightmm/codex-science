@@ -1,6 +1,6 @@
 ---
 name: interpro-search
-description: Identify protein domains, families, and sites; find proteins sharing a domain/family; explore species distribution; and get domain architectures via InterPro (integrating Pfam, CDD, and more). Public API, no credential needed.
+description: "Identify protein domains, families, and sites; find proteins sharing a domain/family; explore species distribution; and get domain architectures via InterPro (integrating Pfam, CDD, and more). Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -23,6 +23,9 @@ Uses the public API directly through Codex's own tools.
 - InterPro API `https://www.ebi.ac.uk/interpro/api/`
 
 ## Workflow
+
+Search InterPro entries first with `science_search_interpro`; use the direct API
+for protein/structure/taxonomy joins and pagination.
 
 1. Look up an entry (`/entry/interpro/<IPR>`) or the domains of a protein (`/entry/all/protein/uniprot/<ACC>`).
 2. Find members of a family or proteins with a domain via the entry->protein relationship endpoints.

@@ -1,6 +1,6 @@
 ---
 name: jaspar-search
-description: Retrieve transcription-factor binding profiles (PFMs/PWMs) from JASPAR, resolve gene symbols to JASPAR matrix IDs, and get TF metadata in multiple formats (MEME, TRANSFAC, PFM, JASPAR). Public API, no credential needed.
+description: "Retrieve transcription-factor binding profiles (PFMs/PWMs) from JASPAR, resolve gene symbols to JASPAR matrix IDs, and get TF metadata in multiple formats (MEME, TRANSFAC, PFM, JASPAR). Public API, no credential needed."
 license: Apache-2.0
 ---
 

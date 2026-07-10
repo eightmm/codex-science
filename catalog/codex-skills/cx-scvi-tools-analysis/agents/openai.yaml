@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Scvi Tools Analysis"
+  short_description: "Use the audited cx-scvi-tools-analysis scientific workflow"
+  default_prompt: "Use $cx-scvi-tools-analysis for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

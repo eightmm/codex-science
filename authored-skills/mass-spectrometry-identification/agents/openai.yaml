@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mass Spectrometry Identification"
+  short_description: "Identify analytes from defensible MS evidence"
+  default_prompt: "Use $mass-spectrometry-identification to analyze these spectra and rank supported identities."

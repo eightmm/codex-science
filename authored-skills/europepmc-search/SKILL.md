@@ -1,6 +1,6 @@
 ---
 name: europepmc-search
-description: Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed.
+description: "Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -19,6 +19,9 @@ Uses the public Europe PMC REST API directly.
   write helper code, run it via `uv run`, never bare `python3`.
 
 ## Workflow
+
+Search first with `science_search_europepmc`; use the direct API for cursor
+pagination, citations, annotations, or open-access full text.
 
 1. **Search**:
    `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=<terms>&format=json&pageSize=<n>`.

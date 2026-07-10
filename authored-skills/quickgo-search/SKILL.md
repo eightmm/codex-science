@@ -1,6 +1,6 @@
 ---
 name: quickgo-search
-description: Query QuickGO and the Evidence & Conclusion Ontology (ECO): map genes to GO biological processes, molecular functions, and cellular components; find genes for a GO term; and explore the GO hierarchy. Public API, no credential needed.
+description: "Query QuickGO and the Evidence & Conclusion Ontology (ECO): map genes to GO biological processes, molecular functions, and cellular components; find genes for a GO term; and explore the GO hierarchy. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -23,6 +23,9 @@ Uses the public API directly through Codex's own tools.
 - QuickGO API `https://www.ebi.ac.uk/QuickGO/api`
 
 ## Workflow
+
+Search GO terms first with `science_search_quickgo`; use QuickGO directly for
+annotations, evidence filters, and ontology traversal.
 
 1. Look up GO annotations for a gene/protein (`/annotation/search?geneProductId=<ACC>`) or a GO term (`/ontology/go/terms/<GO_ID>`).
 2. Navigate ancestors/descendants via the ontology relationship endpoints.

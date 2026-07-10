@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modeling Problem Execution"
+  short_description: "Drive concrete modeling work end to end"
+  default_prompt: "Use $modeling-problem-execution to take this concrete scientific modeling input through a reviewed reproducible run."

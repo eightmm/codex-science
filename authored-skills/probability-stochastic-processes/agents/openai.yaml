@@ -1,0 +1,4 @@
+interface:
+  display_name: "Probability and Stochastic Processes"
+  short_description: "Analyze probability models and stochastic processes"
+  default_prompt: "Use $probability-stochastic-processes to formulate, solve, and verify this problem."

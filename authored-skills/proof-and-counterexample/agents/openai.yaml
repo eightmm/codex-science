@@ -1,0 +1,4 @@
+interface:
+  display_name: "Proof and Counterexample"
+  short_description: "Construct proofs or decisive counterexamples"
+  default_prompt: "Use $proof-and-counterexample to prove or refute this statement rigorously."

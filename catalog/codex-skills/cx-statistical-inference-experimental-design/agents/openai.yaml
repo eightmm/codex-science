@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Statistical Inference Experimental Design"
+  short_description: "Audited scientific workflow for cx-statistical-inference-experim"
+  default_prompt: "Use $cx-statistical-inference-experimental-design for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

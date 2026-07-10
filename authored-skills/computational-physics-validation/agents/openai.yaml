@@ -1,0 +1,4 @@
+interface:
+  display_name: "Computational Physics Validation"
+  short_description: "Verify simulations and validate physical models"
+  default_prompt: "Use $computational-physics-validation to formulate, solve, and verify this problem."

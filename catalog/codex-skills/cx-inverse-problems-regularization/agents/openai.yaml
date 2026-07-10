@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Inverse Problems Regularization"
+  short_description: "Audited scientific workflow for cx-inverse-problems-regularizati"
+  default_prompt: "Use $cx-inverse-problems-regularization for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

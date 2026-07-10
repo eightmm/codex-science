@@ -1,6 +1,6 @@
 ---
 name: ncbi-sequence-fetch
-description: Retrieve protein and nucleotide sequences from NCBI via E-utilities: by accession, CDS translation, gene+organism search, locus lookup, PubMed-linked sequences, or patent proteins. Use to fetch biological sequences. Public NCBI API, no credential needed.
+description: "Retrieve protein and nucleotide sequences from NCBI via E-utilities: by accession, CDS translation, gene+organism search, locus lookup, PubMed-linked sequences, or patent proteins. Use to fetch biological sequences. Public NCBI API, no credential needed."
 license: Apache-2.0
 ---
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "NMR Structure Analysis"
+  short_description: "Interpret and verify molecular NMR evidence"
+  default_prompt: "Use $nmr-structure-analysis to interpret this NMR dataset and verify the assignments."

@@ -1,6 +1,6 @@
 ---
 name: reactome-search
-description: Query Reactome Content and Analysis Services: pathway enrichment of a gene list, identifier mapping, reaction participants, pathway hierarchy, and knowledgebase search. Use for pathway analysis and enrichment. Public API, no credential needed.
+description: "Query Reactome Content and Analysis Services: pathway enrichment of a gene list, identifier mapping, reaction participants, pathway hierarchy, and knowledgebase search. Use for pathway analysis and enrichment. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -24,6 +24,9 @@ Uses the public API directly through Codex's own tools.
 - Reactome AnalysisService `https://reactome.org/AnalysisService`
 
 ## Workflow
+
+Search pathways and reactions first with `science_search_reactome`; use the
+services directly for details, participants, and enrichment.
 
 1. For enrichment, POST the identifier list to `/AnalysisService/identifiers/` and read results by token.
 2. For content, query pathways/reactions/participants via the ContentService endpoints.

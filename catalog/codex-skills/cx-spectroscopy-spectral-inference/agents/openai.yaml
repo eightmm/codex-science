@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Spectroscopy Spectral Inference"
+  short_description: "Audited scientific workflow for cx-spectroscopy-spectral-inferen"
+  default_prompt: "Use $cx-spectroscopy-spectral-inference for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

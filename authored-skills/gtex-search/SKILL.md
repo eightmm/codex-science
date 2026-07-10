@@ -1,6 +1,6 @@
 ---
 name: gtex-search
-description: Retrieve quantitative RNA expression and variant eQTL data from GTEx across 54 non-diseased tissue sites. Use for tissue expression profiles or eQTL lookups. Public API, no credential needed.
+description: "Retrieve quantitative RNA expression and variant eQTL data from GTEx across 54 non-diseased tissue sites. Use for tissue expression profiles or eQTL lookups. Public API, no credential needed."
 license: Apache-2.0
 ---
 

@@ -10,7 +10,9 @@ from typing import Any
 
 
 FIELD_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*):(?:\s*(.*))?$")
-TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9+_.-]*")
+# Split on any non-alphanumeric so hyphenated/underscored skill names
+# (e.g. "cx-clinvar-search") tokenize into their words and match natural queries.
+TOKEN_RE = re.compile(r"[a-z0-9]+")
 CREDENTIAL_RE = re.compile(
     r"\b[A-Z][A-Z0-9_]{2,}_(?:API_)?(?:KEY|TOKEN|SECRET)\b|"
     r"\b(?:api key|credentials?) (?:is |are )?required\b|\brequires? an api key\b",
@@ -30,6 +32,7 @@ EXECUTABLE_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1"}
 class CatalogPolicy:
     permissive_license_markers: tuple[str, ...]
     high_stakes_name_markers: tuple[str, ...]
+    physical_lab_markers: tuple[str, ...] = ()
 
     @classmethod
     def default(cls) -> "CatalogPolicy":
@@ -54,6 +57,20 @@ class CatalogPolicy:
                 "clinical-decision",
                 "clinical-reports",
                 "treatment-plan",
+            ),
+            physical_lab_markers=(
+                "pylabrobot",
+                "opentrons",
+                "cloud-lab",
+                "cloud lab",
+                "ginkgo",
+                "emerald-cloud",
+                "strateos",
+                "tecan",
+                "liquid-handling",
+                "liquid handler",
+                "lab automation",
+                "laboratory automation",
             ),
         )
 
@@ -149,6 +166,9 @@ def audit_skill(
     if not description:
         reasons.append("missing-description")
 
+    lowered_haystack = f"{lowered_name} {description.lower()}"
+    physical_lab = any(marker in lowered_haystack for marker in policy.physical_lab_markers)
+
     unique_reasons = sorted(set(reasons))
     return {
         "name": name,
@@ -158,6 +178,7 @@ def audit_skill(
         "executable_count": len(executables),
         "status": "inactive" if unique_reasons else "active",
         "reasons": unique_reasons,
+        "physical_lab": physical_lab,
     }
 
 

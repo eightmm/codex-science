@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Proteinmpnn Sequence Design"
+  short_description: "Audited scientific workflow for cx-proteinmpnn-sequence-design"
+  default_prompt: "Use $cx-proteinmpnn-sequence-design for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,6 +1,6 @@
 ---
 name: openalex-search
-description: Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed.
+description: "Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -21,6 +21,9 @@ Uses the public OpenAlex API directly. No credential needed — join the free
   `uv run`, never bare `python3`.
 
 ## Workflow
+
+Search works first with `science_search_openalex`; use the direct API for entity
+resolution, filters, grouping, and pagination.
 
 1. **Resolve before you filter.** Never filter by a raw name. First resolve a
    name to an OpenAlex ID:

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ESMFold2 Structure Prediction"
+  short_description: "Run Biohub ESMFold2 inference"
+  default_prompt: "Use $esmfold2-structure-prediction to predict this all-atom biomolecular structure locally or through the approved Biohub service."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "X-ray Diffraction and Scattering"
+  short_description: "Analyze XRD and scattering data rigorously"
+  default_prompt: "Use $xray-diffraction-scattering to analyze and validate this diffraction dataset."

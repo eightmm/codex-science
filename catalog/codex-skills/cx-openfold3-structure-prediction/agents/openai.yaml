@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Openfold3 Structure Prediction"
+  short_description: "Audited scientific workflow for cx-openfold3-structure-predictio"
+  default_prompt: "Use $cx-openfold3-structure-prediction for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

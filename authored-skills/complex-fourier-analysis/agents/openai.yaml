@@ -1,0 +1,4 @@
+interface:
+  display_name: "Complex and Fourier Analysis"
+  short_description: "Solve complex-variable and Fourier analysis problems"
+  default_prompt: "Use $complex-fourier-analysis to formulate, solve, and verify this problem."

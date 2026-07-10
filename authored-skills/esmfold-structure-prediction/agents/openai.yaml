@@ -1,0 +1,4 @@
+interface:
+  display_name: "ESMFold Structure Prediction"
+  short_description: "Run single-sequence ESMFold inference"
+  default_prompt: "Use $esmfold-structure-prediction to predict these protein structures without an MSA."

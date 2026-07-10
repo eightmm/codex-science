@@ -1,6 +1,6 @@
 ---
 name: gnomad-search
-description: Query gnomAD for variant allele frequency/rarity, gene constraint metrics (pLI, LOEUF), variants in a region or gene, and structural variants. Use to assess variant rarity or loss-of-function intolerance. Not for individual patient genomes or somatic cancer variants. Public GraphQL API, no credential needed.
+description: "Query gnomAD for variant allele frequency/rarity, gene constraint metrics (pLI, LOEUF), variants in a region or gene, and structural variants. Use to assess variant rarity or loss-of-function intolerance. Not for individual patient genomes or somatic cancer variants. Public GraphQL API, no credential needed."
 license: Apache-2.0
 ---
 

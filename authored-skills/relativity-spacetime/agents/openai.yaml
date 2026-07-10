@@ -1,0 +1,4 @@
+interface:
+  display_name: "Relativity and Spacetime"
+  short_description: "Analyze special and general relativistic systems"
+  default_prompt: "Use $relativity-spacetime to formulate, solve, and verify this problem."

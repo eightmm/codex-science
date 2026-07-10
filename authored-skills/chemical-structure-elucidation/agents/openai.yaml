@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chemical Structure Elucidation"
+  short_description: "Integrate analytical evidence into structures"
+  default_prompt: "Use $chemical-structure-elucidation to rank structures supported by these analytical data."

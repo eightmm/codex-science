@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optics and Wave Physics"
+  short_description: "Model and verify optical and wave phenomena"
+  default_prompt: "Use $optics-wave-physics to formulate, solve, and verify this problem."

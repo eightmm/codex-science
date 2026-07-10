@@ -1,6 +1,6 @@
 ---
 name: compute-environment
-description: Build an isolated, reproducible compute environment with uv and actually run scientific code in it — install pinned packages, run analysis or modeling, and execute a tool end-to-end (not just query data). Use whenever a task needs to install packages or run code. Records the exact environment for reproducibility.
+description: "Build an isolated, reproducible compute environment with uv and actually run scientific code in it — install pinned packages, run analysis or modeling, and execute a tool end-to-end (not just query data). Use whenever a task needs to install packages or run code. Records the exact environment for reproducibility."
 license: Apache-2.0
 ---
 

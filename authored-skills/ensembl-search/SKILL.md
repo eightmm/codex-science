@@ -1,6 +1,6 @@
 ---
 name: ensembl-search
-description: Resolve gene/transcript/protein IDs, fetch genomic or protein sequences, retrieve gene structure (exons), and predict variant consequences (VEP) via the Ensembl REST API. Use as an ID translator, sequence source, and variant-effect tool. Public API, no credential needed.
+description: "Resolve gene/transcript/protein IDs, fetch genomic or protein sequences, retrieve gene structure (exons), and predict variant consequences (VEP) via the Ensembl REST API. Use as an ID translator, sequence source, and variant-effect tool. Public API, no credential needed."
 license: Apache-2.0
 ---
 

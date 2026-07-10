@@ -1,6 +1,6 @@
 ---
 name: ols-search
-description: Search EMBL-EBI Ontology Lookup Service (OLS) for biomedical ontology terms, definitions, and hierarchies across 250+ ontologies (GO, DOID, HP, UBERON, CL). Use for term search, term details, or navigating parents/children/ancestors. Public API, no credential needed.
+description: "Search EMBL-EBI Ontology Lookup Service (OLS) for biomedical ontology terms, definitions, and hierarchies across 250+ ontologies (GO, DOID, HP, UBERON, CL). Use for term search, term details, or navigating parents/children/ancestors. Public API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -23,6 +23,9 @@ Uses the public API directly through Codex's own tools.
 - OLS4 API `https://www.ebi.ac.uk/ols4/api` (docs at `/ols4/api-docs`)
 
 ## Workflow
+
+Search across ontologies first with `science_search_ols`; use OLS4 directly for
+ontology scoping and hierarchy traversal.
 
 1. Search a term with `/ols4/api/search?q=<term>` (optionally scope by `ontology=`).
 2. Fetch details and navigate the hierarchy (parents, children, ancestors) via the term IRI endpoints.

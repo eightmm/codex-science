@@ -1,0 +1,4 @@
+interface:
+  display_name: "RFdiffusion Protein Design"
+  short_description: "Generate constrained protein backbones"
+  default_prompt: "Use $rfdiffusion-protein-design to generate and validate protein backbones for this motif, target, or topology."

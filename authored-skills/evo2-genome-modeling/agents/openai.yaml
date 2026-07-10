@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evo 2 Genome Modeling"
+  short_description: "Score or generate genomic sequences"
+  default_prompt: "Use $evo2-genome-modeling to score, embed, or generate DNA with a pinned Evo 2 checkpoint."

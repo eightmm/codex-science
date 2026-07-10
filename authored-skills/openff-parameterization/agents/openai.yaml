@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenFF Parameterization"
+  short_description: "Parameterize small molecules safely"
+  default_prompt: "Use $openff-parameterization to assign and validate ligand parameters for simulation."

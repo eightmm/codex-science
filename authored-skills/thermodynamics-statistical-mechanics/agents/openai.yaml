@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thermodynamics and Statistical Mechanics"
+  short_description: "Solve thermodynamic and ensemble problems"
+  default_prompt: "Use $thermodynamics-statistical-mechanics to solve and verify this thermodynamics problem."

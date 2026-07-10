@@ -1,6 +1,6 @@
 ---
 name: pdb-search
-description: Search and retrieve experimentally-determined 3D biomolecular structures from the RCSB Protein Data Bank by sequence, structure, ligand, or attribute, and fetch entry metadata or coordinate files. Use when the user wants experimental structures (X-ray, cryo-EM, NMR), not predicted models. Public REST API, no credential needed.
+description: "Search and retrieve experimentally-determined 3D biomolecular structures from the RCSB Protein Data Bank by sequence, structure, ligand, or attribute, and fetch entry metadata or coordinate files. Use when the user wants experimental structures (X-ray, cryo-EM, NMR), not predicted models. Public REST API, no credential needed."
 license: Apache-2.0
 ---
 
@@ -30,6 +30,9 @@ Uses the public RCSB APIs directly through Codex's own tools.
   downloads.
 
 ## Workflow
+
+Search first with `science_search_pdb`; use the direct APIs below for advanced
+attribute/sequence/structure queries or coordinate retrieval.
 
 1. **Pick the right endpoint**:
    - Search API: `https://search.rcsb.org/rcsbsearch/v2/query` (POST a JSON

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Numerical Analysis Error Control"
+  short_description: "Control conditioning, stability, and numerical error"
+  default_prompt: "Use $numerical-analysis-error-control to design and verify this numerical computation."

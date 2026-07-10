@@ -1,0 +1,4 @@
+interface:
+  display_name: "DiffDock Docking"
+  short_description: "Run diffusion-based pose prediction"
+  default_prompt: "Use $diffdock-docking to predict ligand poses and retain model confidence separately from affinity."

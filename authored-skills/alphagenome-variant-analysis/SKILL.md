@@ -1,6 +1,6 @@
 ---
 name: alphagenome-variant-analysis
-description: Analyze how a single non-coding genetic variant affects gene expression, chromatin accessibility, histone marks, transcription factors, and splicing using the AlphaGenome API. Use when the user gives a variant in chr:pos:ref/alt form and asks about regulatory or splicing effects, tissue-specific impact, or pathogenicity of a non-coding change. Requires an AlphaGenome API key.
+description: "Analyze how a single non-coding genetic variant affects gene expression, chromatin accessibility, histone marks, transcription factors, and splicing using the AlphaGenome API. Use when the user gives a variant in chr:pos:ref/alt form and asks about regulatory or splicing effects, tissue-specific impact, or pathogenicity of a non-coding change. Requires an AlphaGenome API key."
 license: Apache-2.0
 ---
 

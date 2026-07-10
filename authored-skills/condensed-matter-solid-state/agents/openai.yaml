@@ -1,0 +1,4 @@
+interface:
+  display_name: "Condensed Matter and Solid State"
+  short_description: "Analyze solids, bands, phonons, and phases"
+  default_prompt: "Use $condensed-matter-solid-state to formulate, solve, and verify this problem."

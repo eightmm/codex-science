@@ -1,0 +1,4 @@
+interface:
+  display_name: "MDAnalysis Trajectory Analysis"
+  short_description: "Analyze molecular dynamics trajectories"
+  default_prompt: "Use $mdanalysis-trajectory-analysis to compute prespecified trajectory observables and uncertainty."

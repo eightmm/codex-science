@@ -1,6 +1,6 @@
 ---
 name: biorxiv-search
-description: Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category — not for open-ended keyword discovery. Public API, no credential needed.
+description: "Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category — not for open-ended keyword discovery. Public API, no credential needed."
 license: Apache-2.0
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: clinvar-search
-description: Look up clinical significance and pathogenicity classifications (Pathogenic, Benign, VUS) and supporting evidence for human genomic variants in NCBI ClinVar. Use for variant clinical interpretation or benchmark controls. Public NCBI API, no credential needed.
+description: "Look up clinical significance and pathogenicity classifications (Pathogenic, Benign, VUS) and supporting evidence for human genomic variants in NCBI ClinVar. Use for variant clinical interpretation or benchmark controls. Public NCBI API, no credential needed."
 license: Apache-2.0
 ---
 

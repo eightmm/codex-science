@@ -1,0 +1,4 @@
+interface:
+  display_name: "Inverse Problems and Regularization"
+  short_description: "Recover parameters with stable regularized inference"
+  default_prompt: "Use $inverse-problems-regularization to formulate, solve, and verify this problem."

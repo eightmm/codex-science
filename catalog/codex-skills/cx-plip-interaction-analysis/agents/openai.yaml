@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Plip Interaction Analysis"
+  short_description: "Use the audited cx-plip-interaction-analysis scientific workflow"
+  default_prompt: "Use $cx-plip-interaction-analysis for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -8,7 +8,23 @@ from pathlib import Path
 from typing import Any
 
 from codex_science.catalog import load_inventory, search_inventory
-from codex_science.connectors import ArxivConnector, PubMedConnector, UniProtConnector
+from codex_science.connectors import (
+    AlphaFoldConnector,
+    ArxivConnector,
+    ChEMBLConnector,
+    ClinicalTrialsConnector,
+    EuropePMCConnector,
+    InterProConnector,
+    OLSConnector,
+    OpenAlexConnector,
+    PDBConnector,
+    PubChemConnector,
+    PubMedConnector,
+    QuickGOConnector,
+    ReactomeConnector,
+    STRINGConnector,
+    UniProtConnector,
+)
 
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -36,6 +52,18 @@ TOOLS = (
     _tool("science_search_pubmed", "Search PubMed through the public NCBI API."),
     _tool("science_search_arxiv", "Search arXiv through its public Atom API."),
     _tool("science_search_uniprot", "Search UniProtKB through its public REST API."),
+    _tool("science_search_pdb", "Search experimental structures through the RCSB PDB Search API."),
+    _tool("science_search_chembl", "Search ChEMBL molecules through its public REST API."),
+    _tool("science_search_pubchem", "Resolve compounds and properties through PubChem PUG REST."),
+    _tool("science_search_europepmc", "Search life-science literature through Europe PMC."),
+    _tool("science_search_openalex", "Search scholarly works through OpenAlex."),
+    _tool("science_search_clinical_trials", "Search studies through ClinicalTrials.gov API v2."),
+    _tool("science_search_interpro", "Search protein families and domains through InterPro."),
+    _tool("science_search_quickgo", "Search Gene Ontology terms through QuickGO."),
+    _tool("science_search_ols", "Search biomedical ontologies through EMBL-EBI OLS."),
+    _tool("science_search_reactome", "Search pathways and reactions through Reactome ContentService."),
+    _tool("science_search_string", "Resolve proteins through the STRING API."),
+    _tool("science_search_alphafold", "Fetch AlphaFold DB model metadata by UniProt accession."),
 )
 
 
@@ -46,6 +74,18 @@ class CodexScienceMCP:
             "science_search_pubmed": PubMedConnector(),
             "science_search_arxiv": ArxivConnector(),
             "science_search_uniprot": UniProtConnector(),
+            "science_search_pdb": PDBConnector(),
+            "science_search_chembl": ChEMBLConnector(),
+            "science_search_pubchem": PubChemConnector(),
+            "science_search_europepmc": EuropePMCConnector(),
+            "science_search_openalex": OpenAlexConnector(),
+            "science_search_clinical_trials": ClinicalTrialsConnector(),
+            "science_search_interpro": InterProConnector(),
+            "science_search_quickgo": QuickGOConnector(),
+            "science_search_ols": OLSConnector(),
+            "science_search_reactome": ReactomeConnector(),
+            "science_search_string": STRINGConnector(),
+            "science_search_alphafold": AlphaFoldConnector(),
         }
 
     @staticmethod
@@ -88,8 +128,19 @@ class CodexScienceMCP:
         if name not in {tool["name"] for tool in TOOLS} or not isinstance(arguments, dict):
             return self._error(request_id, -32602, f"Unknown or invalid tool: {name}")
         try:
+            extra = set(arguments) - {"query", "limit"}
+            if extra:
+                raise ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}")
             query = arguments.get("query", "")
             limit = arguments.get("limit", 5)
+            if not isinstance(query, str):
+                raise TypeError("Query must be a string")
+            if not query.strip() or len(query) > 500:
+                raise ValueError("Query must contain 1 to 500 characters")
+            if isinstance(limit, bool) or not isinstance(limit, int):
+                raise TypeError("Limit must be an integer")
+            if not 1 <= limit <= 10:
+                raise ValueError("Limit must be between 1 and 10")
             if name == "science_search_skills":
                 payload = search_inventory(load_inventory(self.inventory_path), query, limit=limit)
             else:

@@ -1,6 +1,6 @@
 ---
 name: alphafold-structure-analysis
-description: Retrieve an AlphaFold predicted structure from the AlphaFold Database for a given UniProt accession and analyze its confidence (pLDDT), intrinsically disordered regions, and rigid domain boundaries (PAE). Use when the user has a UniProt ID and wants structural confidence, disorder assessment, or domain layout. Public data, no credential needed.
+description: "Retrieve an AlphaFold predicted structure from the AlphaFold Database for a given UniProt accession and analyze its confidence (pLDDT), intrinsically disordered regions, and rigid domain boundaries (PAE). Use when the user has a UniProt ID and wants structural confidence, disorder assessment, or domain layout. Public data, no credential needed."
 license: Apache-2.0
 ---
 
@@ -30,6 +30,10 @@ Codex-native adaptation of Google DeepMind's
   installing any analysis package; run Python via `uv run`, not bare `python3`.
 
 ## Workflow
+
+Fetch current model metadata first with `science_search_alphafold` using a
+canonical UniProt accession. Prefer its returned versioned URLs over guessing a
+model version.
 
 1. **Fetch the structure** for the UniProt ID from the AlphaFold Database:
    the mmCIF model, the Predicted Aligned Error (PAE) JSON, and the entry

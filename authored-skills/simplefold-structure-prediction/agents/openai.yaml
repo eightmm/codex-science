@@ -1,0 +1,4 @@
+interface:
+  display_name: "SimpleFold Structure Prediction"
+  short_description: "Run flow-matching protein folding"
+  default_prompt: "Use $simplefold-structure-prediction to generate and compare protein conformers with a pinned SimpleFold model."

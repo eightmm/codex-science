@@ -1,0 +1,4 @@
+interface:
+  display_name: "scGPT Single-Cell Analysis"
+  short_description: "Run pretrained scGPT workflows"
+  default_prompt: "Use $scgpt-single-cell to embed or transfer-label this single-cell dataset with a pinned checkpoint."

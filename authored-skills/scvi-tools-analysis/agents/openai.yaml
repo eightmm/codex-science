@@ -1,0 +1,4 @@
+interface:
+  display_name: "scvi-tools Analysis"
+  short_description: "Model single-cell omics reproducibly"
+  default_prompt: "Use $scvi-tools-analysis to integrate and analyze this single-cell dataset with an appropriate scvi-tools model."

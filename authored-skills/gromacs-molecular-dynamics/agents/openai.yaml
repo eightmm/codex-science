@@ -1,0 +1,4 @@
+interface:
+  display_name: "GROMACS Molecular Dynamics"
+  short_description: "Build and run reproducible GROMACS MD"
+  default_prompt: "Use $gromacs-molecular-dynamics to prepare and run this simulation with checkpointed stages."

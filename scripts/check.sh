@@ -20,7 +20,7 @@ run_fast() {
   if [ -f "$validate_plugin" ] && [ -f "$quick_validate" ]; then
     python3 "$validate_plugin" .
     skill_count=0
-    for skill in skills/* catalog/codex-skills/*; do
+    for skill in skills/* authored-skills/* catalog/codex-skills/*; do
       [ -d "$skill" ] || continue
       if ! output="$(python3 "$quick_validate" "$skill")"; then
         echo "$skill: $output" >&2

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Borzoi Regulatory Prediction"
+  short_description: "Predict RNA-seq tracks from sequence"
+  default_prompt: "Use $borzoi-regulatory-prediction to compare reference and alternate sequence regulatory predictions."

@@ -1,6 +1,6 @@
 ---
 name: predicting-the-past
-description: Restore, attribute, date, and contextualize ancient inscriptions with DeepMind's Aeneas (Latin) and Ithaca (Ancient Greek) models. Use for epigraphic text restoration, geographic attribution, or dating of ancient texts.
+description: "Restore, attribute, date, and contextualize ancient inscriptions with DeepMind's Aeneas (Latin) and Ithaca (Ancient Greek) models. Use for epigraphic text restoration, geographic attribution, or dating of ancient texts."
 license: Apache-2.0
 ---
 

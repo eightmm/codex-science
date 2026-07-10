@@ -1,0 +1,4 @@
+interface:
+  display_name: "Docking Validation"
+  short_description: "Validate docking and screening workflows"
+  default_prompt: "Use $docking-validation to redock the reference ligand and assess pose and ranking performance."

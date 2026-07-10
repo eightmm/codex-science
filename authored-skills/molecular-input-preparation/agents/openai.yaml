@@ -1,0 +1,4 @@
+interface:
+  display_name: "Molecular Input Preparation"
+  short_description: "Prepare validated molecular inputs"
+  default_prompt: "Use $molecular-input-preparation to prepare receptor and ligand states for a reproducible modeling run."

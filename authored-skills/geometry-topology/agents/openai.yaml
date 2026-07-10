@@ -1,0 +1,4 @@
+interface:
+  display_name: "Geometry and Topology"
+  short_description: "Reason with geometric and topological invariants"
+  default_prompt: "Use $geometry-topology to formulate, solve, and verify this problem."

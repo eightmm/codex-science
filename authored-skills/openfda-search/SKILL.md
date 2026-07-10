@@ -1,6 +1,6 @@
 ---
 name: openfda-search
-description: Query the openFDA API for drugs, devices, foods, and more: adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, and NDC lookups. Use for FDA safety/regulatory data. Public API, no credential needed.
+description: "Query the openFDA API for drugs, devices, foods, and more: adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, and NDC lookups. Use for FDA safety/regulatory data. Public API, no credential needed."
 license: Apache-2.0
 ---
 

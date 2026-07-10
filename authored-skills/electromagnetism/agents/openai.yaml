@@ -1,0 +1,4 @@
+interface:
+  display_name: "Electromagnetism"
+  short_description: "Solve electrostatics, circuits, and field problems"
+  default_prompt: "Use $electromagnetism to formulate, solve, and verify this electromagnetic problem."

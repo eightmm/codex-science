@@ -1,6 +1,6 @@
 ---
 name: encode-ccres-search
-description: Query the ENCODE Registry of candidate cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, and ENCODE experiments/files via the ENCODE Portal REST API, across human cell types. Public APIs, no credential needed.
+description: "Query the ENCODE Registry of candidate cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, and ENCODE experiments/files via the ENCODE Portal REST API, across human cell types. Public APIs, no credential needed."
 license: Apache-2.0
 ---
 

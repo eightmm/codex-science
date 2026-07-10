@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quantum Mechanics"
+  short_description: "Solve and verify quantum mechanics problems"
+  default_prompt: "Use $quantum-mechanics to formulate, solve, and verify this quantum problem."

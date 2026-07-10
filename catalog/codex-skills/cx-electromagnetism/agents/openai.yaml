@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Electromagnetism"
+  short_description: "Use the audited cx-electromagnetism scientific workflow"
+  default_prompt: "Use $cx-electromagnetism for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

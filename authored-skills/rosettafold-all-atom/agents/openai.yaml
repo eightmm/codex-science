@@ -1,0 +1,4 @@
+interface:
+  display_name: "RoseTTAFold All-Atom"
+  short_description: "Predict all-atom biomolecular complexes"
+  default_prompt: "Use $rosettafold-all-atom to predict this protein, nucleic-acid, ligand, or covalently modified complex."

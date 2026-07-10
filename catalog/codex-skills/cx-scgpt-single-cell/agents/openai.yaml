@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Scgpt Single Cell"
+  short_description: "Use the audited cx-scgpt-single-cell scientific workflow"
+  default_prompt: "Use $cx-scgpt-single-cell for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

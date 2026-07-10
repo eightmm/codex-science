@@ -1,0 +1,4 @@
+interface:
+  display_name: "AutoDock Vina Docking"
+  short_description: "Run reproducible Vina docking"
+  default_prompt: "Use $autodock-vina-docking to dock these ligands into the specified receptor pocket."

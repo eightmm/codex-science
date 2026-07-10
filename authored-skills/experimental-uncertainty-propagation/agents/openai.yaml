@@ -1,0 +1,4 @@
+interface:
+  display_name: "Experimental Uncertainty Propagation"
+  short_description: "Quantify and report measurement uncertainty"
+  default_prompt: "Use $experimental-uncertainty-propagation to formulate, solve, and verify this problem."

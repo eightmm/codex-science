@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tensor Calculus and Differential Geometry"
+  short_description: "Compute tensors and verify geometric invariants"
+  default_prompt: "Use $tensor-calculus-differential-geometry to formulate, solve, and verify this problem."

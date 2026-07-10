@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenFold3 Structure Prediction"
+  short_description: "Run pinned OpenFold3 preview inference"
+  default_prompt: "Use $openfold3-structure-prediction to predict this multimolecular structure with OpenFold3."

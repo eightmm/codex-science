@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mathematical Problem Execution"
+  short_description: "Drive mathematical problems through verified solutions"
+  default_prompt: "Use $mathematical-problem-execution to solve and verify this mathematical problem."

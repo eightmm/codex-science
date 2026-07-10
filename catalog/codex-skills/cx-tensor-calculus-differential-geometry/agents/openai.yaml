@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Tensor Calculus Differential Geometry"
+  short_description: "Audited scientific workflow for cx-tensor-calculus-differential-"
+  default_prompt: "Use $cx-tensor-calculus-differential-geometry for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,4 @@
+interface:
+  display_name: "GNINA Docking"
+  short_description: "Run CNN-scored molecular docking"
+  default_prompt: "Use $gnina-docking to dock and rescore these ligands with a pinned GNINA release."

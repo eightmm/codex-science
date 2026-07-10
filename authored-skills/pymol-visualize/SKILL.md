@@ -1,6 +1,6 @@
 ---
 name: pymol-visualize
-description: Visualize, analyze, and render protein/molecular structures with PyMOL: images, structural alignment/superposition, distance/contact measurement, binding-site highlighting, and coloring by B-factor/pLDDT. Not for docking, MD, or sequence-only analysis. Local tool.
+description: "Visualize, analyze, and render protein/molecular structures with PyMOL: images, structural alignment/superposition, distance/contact measurement, binding-site highlighting, and coloring by B-factor/pLDDT. Not for docking, MD, or sequence-only analysis. Local tool."
 license: Apache-2.0
 ---
 

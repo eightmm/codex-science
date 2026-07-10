@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+- Audit fixes. **P0 search routing**: the skill-search tokenizer now splits on any non-alphanumeric, so hyphenated names (e.g. `cx-clinvar-search`) match natural queries — `clinvar`, `sympy`, `pylabrobot`, `docking`, `gromacs` now resolve to the right skill instead of returning nothing. **P1 authored validity**: quoted the `description:` frontmatter in all authored skills (colons no longer break YAML), and `doctor.sh`/`check.sh` now validate `authored-skills/*` originals (not just generated wrappers). **P1 physical-experiment safety**: an audit `physical_lab` flag (pylabrobot, opentrons, cloud labs) injects a mandatory device/biosafety/dry-run/e-stop/billing gate into those wrappers. **P2 metadata**: `plugin.json` no longer hardcodes a stale skill count. Added regression tests for hyphen-name search and the physical-lab flag.
+- Added six Codex-native analytical chemistry skills: spectroscopy and spectral
+  inference, NMR structure analysis, mass-spectrometry identification, X-ray
+  diffraction/scattering, chromatography quantification, and evidence-integrated
+  chemical structure elucidation. The skills compose existing matchms, pyOpenMS,
+  pymatgen, EDA, Fourier, and measurement-uncertainty capabilities while adding
+  modality-specific provenance, artifact, calibration, identification-confidence,
+  and alternative-hypothesis checks. Catalog: 253 (149 kdense + 3 gdm + 101 cx;
+  141 active).
+- Added eighteen Codex-native mathematics and physics skills spanning probability,
+  statistical design, optimization, asymptotics, complex/Fourier analysis,
+  measurement uncertainty, continuum mechanics, relativity, computational
+  validation, control, geometry/topology, Lean theorem proving, optics, condensed
+  matter, nuclear/particle physics, inverse problems, chaos, and tensor geometry.
+  Each workflow includes explicit assumptions, method selection, verification, and
+  source basis. Catalog: 247 (149 kdense + 3 gdm + 95 cx; 135 active).
+- Added ten Codex-native, textbook-grounded mathematics and physics skills:
+  mathematical problem execution, proof/counterexample, linear algebra, ODE/PDE,
+  numerical error control, dimensional analysis, classical mechanics,
+  electromagnetism, thermodynamics/statistical mechanics, and quantum mechanics.
+  Seven openly licensed textbooks were downloaded to a Git-ignored local cache and
+  recorded by URL, edition, license, and SHA-256 in `docs/TEXTBOOK_SOURCES.md`.
+  Catalog: 229 (149 kdense + 3 gdm + 77 cx).
+- Added verified current model workflows for Biohub ESMFold2 and ESMC,
+  AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and
+  BindCraft. Added `cx-modeling-problem-execution`: when concrete inputs are
+  supplied, Codex Science now continues after one approval through preflight,
+  a smallest falsifying smoke run, full execution, downstream analysis,
+  provenance, and review. Catalog: 219 (149 kdense + 3 gdm + 67 cx).
+- Added eleven Codex-native workflows from Claude Science's publicly documented
+  featured skill set: indication dossier, AlphaFold2, Chai-1, public ESMFold,
+  OpenFold3 preview, ProteinMPNN/LigandMPNN/SolubleMPNN, ESM-2, Evo 2, Borzoi,
+  scGPT, and scvi-tools. Each compute skill pins code/weights/configuration,
+  gates downloads/GPU/remote sequence transfer, and records artifacts and
+  scientific evaluation boundaries. Catalog: 210 (149 kdense + 3 gdm + 58 cx).
+- Expanded the read-only MCP from 3 to 15 public sources: PubMed, arXiv, UniProt,
+  RCSB PDB, ChEMBL, PubChem, Europe PMC, OpenAlex, ClinicalTrials.gov v2,
+  InterPro, QuickGO, OLS, Reactome, STRING, and AlphaFold DB. Added ten
+  Codex-native modeling workflows for molecular input preparation, AutoDock
+  Vina, GNINA, DiffDock, docking validation, OpenFF, OpenMM, GROMACS, MDAnalysis,
+  and PLIP. The audited catalog is now 199 skills (149 kdense + 3 gdm + 47 cx).
 - Added real execution capability (Codex-native, `uv`-based): `cx-compute-environment` builds an isolated `uv` environment and runs code end-to-end, and `cx-boltz-structure-prediction` installs and runs the open-source Boltz model to predict structures/affinity from sequence. Both use an "ask once, then run to completion" gate for install/download/compute. The coordinator now routes modeling work to them. Catalog is 189 (149 kdense + 3 gdm + 37 cx).
 - `scripts/install.sh` now runs a runtime self-check after registering: it drives the MCP server with a real `initialize` + `tools/list` handshake and fails loudly if the machine's `python3` cannot run it — so a successful `curl … | bash` means the plugin is ready to use, with no package install or `uv`.
 - Completed the Codex-native tier: authored the remaining 23 DeepMind science skills (genomics, regulatory/TF, proteins, ontologies, pathways, chem/drug, and more) over their public APIs. The `cx` tier now covers all 35 DeepMind science skills; only the 3 infrastructure entries (`credentials`, `uv`, `workflow_skill_creator`) remain as `gdm` pointers. Catalog stays 187 (149 kdense + 3 gdm + 35 cx); 34 of 35 cx skills are active (only `cx-alphagenome-variant-analysis` needs a key).
