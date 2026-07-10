@@ -23,7 +23,9 @@
         "foldseek_structural_search",
         "literature_search_arxiv",
         "pubmed_database",
-        "uniprot_database"
+        "uniprot_database",
+        "pdb_database",
+        "chembl_database"
       ]
     },
     {

@@ -20,10 +20,14 @@ supersedes an upstream one, the upstream folder is listed in that source's
 | `cx-arxiv-search` | `gdm/literature_search_arxiv` | active |
 | `cx-pubmed-search` | `gdm/pubmed_database` | active |
 | `cx-uniprot-search` | `gdm/uniprot_database` | active |
+| `cx-pdb-search` | `gdm/pdb_database` | active |
+| `cx-chembl-search` | `gdm/chembl_database` | active |
 
 The `cx-arxiv-search`, `cx-pubmed-search`, and `cx-uniprot-search` skills wire
 directly to this plugin's built-in read-only MCP tools (`science_search_arxiv`,
-`science_search_pubmed`, `science_search_uniprot`).
+`science_search_pubmed`, `science_search_uniprot`). `cx-pdb-search` and
+`cx-chembl-search` use the public RCSB and ChEMBL REST APIs directly (no built-in
+MCP tool exists for them).
 
 Content is adapted from
 [google-deepmind/science-skills](https://github.com/google-deepmind/science-skills)
