@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Unibind Search"
+  short_description: "Use the audited cx-unibind-search scientific workflow"
+  default_prompt: "Use $cx-unibind-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

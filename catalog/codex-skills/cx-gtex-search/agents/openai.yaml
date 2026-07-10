@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Gtex Search"
+  short_description: "Use the audited cx-gtex-search scientific workflow"
+  default_prompt: "Use $cx-gtex-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

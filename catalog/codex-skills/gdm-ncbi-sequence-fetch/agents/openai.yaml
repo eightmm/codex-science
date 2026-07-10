@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Ncbi Sequence Fetch"
-  short_description: "Use the audited gdm-ncbi-sequence-fetch scientific workflow"
-  default_prompt: "Use $gdm-ncbi-sequence-fetch for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

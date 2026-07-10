@@ -12,26 +12,29 @@ audit and wrapper generation as every other skill. When an authored skill
 supersedes an upstream one, the upstream folder is listed in that source's
 `exclude` so the two do not both appear.
 
-| Authored skill | Supersedes (excluded upstream) | Default status |
-| --- | --- | --- |
-| `cx-alphagenome-variant-analysis` | `gdm/alphagenome_single_variant_analysis` | inactive (needs API key) |
-| `cx-alphafold-structure-analysis` | `gdm/alphafold_database_fetch_and_analyze` | active |
-| `cx-foldseek-structural-search` | `gdm/foldseek_structural_search` | active |
-| `cx-arxiv-search` | `gdm/literature_search_arxiv` | active |
-| `cx-pubmed-search` | `gdm/pubmed_database` | active |
-| `cx-uniprot-search` | `gdm/uniprot_database` | active |
-| `cx-pdb-search` | `gdm/pdb_database` | active |
-| `cx-chembl-search` | `gdm/chembl_database` | active |
-| `cx-biorxiv-search` | `gdm/literature_search_biorxiv` | active |
-| `cx-europepmc-search` | `gdm/literature_search_europepmc` | active |
-| `cx-openalex-search` | `gdm/literature_search_openalex` | active |
-| `cx-clinical-trials-search` | `gdm/clinical_trials_database` | active |
+The `cx` tier now covers **every DeepMind science skill** (35 skills); only the
+three infrastructure entries (`credentials`, `uv`, `workflow_skill_creator`)
+remain as `gdm` pointers. Each superseded upstream folder is listed in the `gdm`
+source's `exclude`, so each capability appears once.
 
-The `cx-arxiv-search`, `cx-pubmed-search`, and `cx-uniprot-search` skills wire
-directly to this plugin's built-in read-only MCP tools (`science_search_arxiv`,
-`science_search_pubmed`, `science_search_uniprot`). The rest use their source's
-public REST API directly (RCSB, ChEMBL, bioRxiv, Europe PMC, OpenAlex,
-ClinicalTrials.gov) — no built-in MCP tool exists for them.
+By access method:
+
+- **Built-in MCP tools** — `cx-arxiv-search`, `cx-pubmed-search`,
+  `cx-uniprot-search` wire to this plugin's read-only MCP (`science_search_*`).
+- **Public REST/GraphQL APIs** (no key) — structures/chem: `cx-pdb-search`,
+  `cx-chembl-search`, `cx-pubchem-search`, `cx-alphafold-structure-analysis`,
+  `cx-foldseek-structural-search`; literature: `cx-biorxiv-search`,
+  `cx-europepmc-search`, `cx-openalex-search`; genomics/variants:
+  `cx-clinvar-search`, `cx-dbsnp-search`, `cx-ensembl-search`, `cx-gnomad-search`,
+  `cx-gtex-search`, `cx-ucsc-conservation`; regulatory/TF: `cx-encode-ccres-search`,
+  `cx-jaspar-search`, `cx-unibind-search`; proteins/ontologies/pathways:
+  `cx-interpro-search`, `cx-hpa-search`, `cx-quickgo-search`, `cx-reactome-search`,
+  `cx-string-ppi-search`, `cx-ols-search`, `cx-protein-msa`,
+  `cx-protein-similarity-search`, `cx-ncbi-sequence-fetch`; drugs/targets/clinical:
+  `cx-openfda-search`, `cx-opentargets-search`, `cx-clinical-trials-search`;
+  other: `cx-predicting-the-past`.
+- **Local tool / credentialed** — `cx-pymol-visualize` (local PyMOL);
+  `cx-alphagenome-variant-analysis` is the only inactive one (needs an API key).
 
 Content is adapted from
 [google-deepmind/science-skills](https://github.com/google-deepmind/science-skills)

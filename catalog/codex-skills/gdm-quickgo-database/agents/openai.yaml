@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Quickgo Database"
-  short_description: "Use the audited gdm-quickgo-database scientific workflow"
-  default_prompt: "Use $gdm-quickgo-database for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)와 [Google DeepMind](https://github.com/google-deepmind/science-skills)에서 pin한 스킬에 고가치 스킬의 [Codex-native 저작본](authored-skills/)을 더한 **187개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅하고, 읽기 전용 공개 데이터 도구를 더하며, 재현 가능한 artifact와 독립 근거 검토를 기록합니다.
+Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체의 [Codex-native 저작본](authored-skills/)을 더한 **187개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅하고, 읽기 전용 공개 데이터 도구를 더하며, 재현 가능한 artifact와 독립 근거 검토를 기록합니다.
 
 Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러그인이며, 비공개 구현과의 동등성을 주장하지 않습니다.
 

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Human Protein Atlas Database"
-  short_description: "Audited scientific workflow for gdm-human-protein-atlas-database"
-  default_prompt: "Use $gdm-human-protein-atlas-database for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

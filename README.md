@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **187 agent skills** — pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills) and [Google DeepMind](https://github.com/google-deepmind/science-skills), plus a few [Codex-native adaptations](authored-skills/) of high-value skills — adds read-only public data tools, and records reproducible artifacts with independent evidence review.
+Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **187 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native adaptations](authored-skills/) of the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set — adds read-only public data tools, and records reproducible artifacts with independent evidence review.
 
 This is an independent Codex plugin inspired by the public workflow of Claude Science. It does not claim parity with any private implementation.
 

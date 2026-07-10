@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Gtex Database"
-  short_description: "Use the audited gdm-gtex-database scientific workflow"
-  default_prompt: "Use $gdm-gtex-database for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

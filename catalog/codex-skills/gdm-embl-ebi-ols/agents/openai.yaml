@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Embl Ebi Ols"
-  short_description: "Use the audited gdm-embl-ebi-ols scientific workflow"
-  default_prompt: "Use $gdm-embl-ebi-ols for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

@@ -64,6 +64,46 @@
       "status": "active"
     },
     {
+      "description": "Look up clinical significance and pathogenicity classifications (Pathogenic, Benign, VUS) and supporting evidence for human genomic variants in NCBI ClinVar. Use for variant clinical interpretation or benchmark controls. Public NCBI API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-clinvar-search",
+      "path": "authored-skills/clinvar-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Look up and map short human variants (SNPs, indels) in NCBI dbSNP: resolve between rsIDs, GRCh38 coordinates, and HGVS, and get variant type, gene, clinical significance, and allele frequencies. Public NCBI API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-dbsnp-search",
+      "path": "authored-skills/dbsnp-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query the ENCODE Registry of candidate cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, and ENCODE experiments/files via the ENCODE Portal REST API, across human cell types. Public APIs, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-encode-ccres-search",
+      "path": "authored-skills/encode-ccres-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Resolve gene/transcript/protein IDs, fetch genomic or protein sequences, retrieve gene structure (exons), and predict variant consequences (VEP) via the Ensembl REST API. Use as an ID translator, sequence source, and variant-effect tool. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-ensembl-search",
+      "path": "authored-skills/ensembl-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
@@ -84,11 +124,101 @@
       "status": "active"
     },
     {
+      "description": "Query gnomAD for variant allele frequency/rarity, gene constraint metrics (pLI, LOEUF), variants in a region or gene, and structural variants. Use to assess variant rarity or loss-of-function intolerance. Not for individual patient genomes or somatic cancer variants. Public GraphQL API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-gnomad-search",
+      "path": "authored-skills/gnomad-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Retrieve quantitative RNA expression and variant eQTL data from GTEx across 54 non-diseased tissue sites. Use for tissue expression profiles or eQTL lookups. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-gtex-search",
+      "path": "authored-skills/gtex-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-hpa-search",
+      "path": "authored-skills/hpa-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Identify protein domains, families, and sites; find proteins sharing a domain/family; explore species distribution; and get domain architectures via InterPro (integrating Pfam, CDD, and more). Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-interpro-search",
+      "path": "authored-skills/interpro-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Retrieve transcription-factor binding profiles (PFMs/PWMs) from JASPAR, resolve gene symbols to JASPAR matrix IDs, and get TF metadata in multiple formats (MEME, TRANSFAC, PFM, JASPAR). Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-jaspar-search",
+      "path": "authored-skills/jaspar-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Retrieve protein and nucleotide sequences from NCBI via E-utilities: by accession, CDS translation, gene+organism search, locus lookup, PubMed-linked sequences, or patent proteins. Use to fetch biological sequences. Public NCBI API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-ncbi-sequence-fetch",
+      "path": "authored-skills/ncbi-sequence-fetch",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Search EMBL-EBI Ontology Lookup Service (OLS) for biomedical ontology terms, definitions, and hierarchies across 250+ ontologies (GO, DOID, HP, UBERON, CL). Use for term search, term details, or navigating parents/children/ancestors. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-ols-search",
+      "path": "authored-skills/ols-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
       "name": "cx-openalex-search",
       "path": "authored-skills/openalex-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query the openFDA API for drugs, devices, foods, and more: adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, and NDC lookups. Use for FDA safety/regulatory data. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-openfda-search",
+      "path": "authored-skills/openfda-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query the Open Targets Platform for target-disease associations, tractability/safety, genetic/omics evidence, and known drugs, for therapeutic target identification. Public GraphQL API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-opentargets-search",
+      "path": "authored-skills/opentargets-search",
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -104,11 +234,111 @@
       "status": "active"
     },
     {
+      "description": "Restore, attribute, date, and contextualize ancient inscriptions with DeepMind's Aeneas (Latin) and Ithaca (Ancient Greek) models. Use for epigraphic text restoration, geographic attribution, or dating of ancient texts.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-predicting-the-past",
+      "path": "authored-skills/predicting-the-past",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Align multiple protein sequences with EBI Clustal Omega to assess similarity and residue/domain conservation (up to 4000 sequences, 4 MB). Not for homolog search, non-protein sequences, structural alignment, or a single sequence. Public EBI API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-protein-msa",
+      "path": "authored-skills/protein-msa",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Find homologous protein sequences with MMseqs2 (fast, default) or BLAST (comprehensive fallback) from a sequence or FASTA. Use to find sequence homologs or infer function by sequence similarity \u2014 not by structural similarity. Public APIs, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-protein-similarity-search",
+      "path": "authored-skills/protein-similarity-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query PubChem by name, CID, or SMILES; retrieve properties; run similarity/substructure searches; and get bioactivity. Use for cheminformatics on a specific chemical, drug, or molecule. Public PUG-REST API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-pubchem-search",
+      "path": "authored-skills/pubchem-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references. Uses the plugin's built-in read-only PubMed MCP tool for discovery \u2014 no credential or install needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
       "name": "cx-pubmed-search",
       "path": "authored-skills/pubmed-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Visualize, analyze, and render protein/molecular structures with PyMOL: images, structural alignment/superposition, distance/contact measurement, binding-site highlighting, and coloring by B-factor/pLDDT. Not for docking, MD, or sequence-only analysis. Local tool.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-pymol-visualize",
+      "path": "authored-skills/pymol-visualize",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query QuickGO and the Evidence & Conclusion Ontology (ECO): map genes to GO biological processes, molecular functions, and cellular components; find genes for a GO term; and explore the GO hierarchy. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-quickgo-search",
+      "path": "authored-skills/quickgo-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query Reactome Content and Analysis Services: pathway enrichment of a gene list, identifier mapping, reaction participants, pathway hierarchy, and knowledgebase search. Use for pathway analysis and enrichment. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-reactome-search",
+      "path": "authored-skills/reactome-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query STRING for protein-protein interactions, interaction confidence/evidence, interaction partners, and functional enrichment. Use for PPI networks and enrichment of a protein set. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-string-ppi-search",
+      "path": "authored-skills/string-ppi-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Fetch evolutionary conservation scores (phyloP, phastCons) and transcription-factor binding sites (ENCODE, JASPAR, ReMap) from the UCSC Genome Browser. Use to assess whether variants/regions are conserved or TF-bound. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-ucsc-conservation",
+      "path": "authored-skills/ucsc-conservation",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query UniBind for experimentally validated transcription-factor binding sites: retrieve TF-DNA datasets, download binding-site coordinates (BED/FASTA), and list datasets by species, cell line, or TF. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-unibind-search",
+      "path": "authored-skills/unibind-search",
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -124,19 +354,6 @@
       "status": "active"
     },
     {
-      "description": "Use when needing clinical significance, pathogenicity classifications (e.g., Pathogenic, Benign, VUS), clinical evidence rationales, or finding \"hard positive\" benchmark controls for human genomic variants.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-clinvar-database",
-      "path": "vendor/gdm-science-skills/skills/clinvar_database",
-      "reasons": [
-        "credentials-required",
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
       "description": "Instructions for handling API keys and credentials safely, verifying their presence, and prompting the user to add them if missing using a safe protocol.",
       "executable_count": 0,
       "license": "Apache-2.0",
@@ -144,271 +361,6 @@
       "path": "vendor/gdm-science-skills/skills/credentials",
       "reasons": [
         "credentials-required"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Use when you want to look up, map, and search for short genetic variants (SNPs, indels) in NCBI's dbSNP database. Resolves between rsIDs, genomic coordinates in VCF format, and HGVS strings. For an rsID, returns variant type, gene associations, clinical significance, allele frequencies, and genomic coordinates (GRCh38).",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-dbsnp-database",
-      "path": "vendor/gdm-science-skills/skills/dbsnp_database",
-      "reasons": [
-        "credentials-required",
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query and search the EMBL-EBI Ontology Lookup Service (OLS) for biomedical ontology terms, definitions, and hierarchies across 250+ ontologies (e.g., GO, DOID, HP). Use when the user asks to search for terms, retrieve details, navigate hierarchies (parents, children, ancestors), look up properties and individuals, get autocomplete suggestions, or access ontology metadata and statistics.",
-      "executable_count": 8,
-      "license": "Apache-2.0",
-      "name": "gdm-embl-ebi-ols",
-      "path": "vendor/gdm-science-skills/skills/embl_ebi_ols",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the ENCODE Registry of cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, or make custom queries to the ENCODE Portal REST API for experiments and files (ChIP-seq peaks, etc.). Use when you want to query regulatory annotations or raw experimental data across human cell types.",
-      "executable_count": 2,
-      "license": "Apache-2.0",
-      "name": "gdm-encode-ccres-database",
-      "path": "vendor/gdm-science-skills/skills/encode_ccres_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the Ensembl database to resolve gene, transcript, and protein IDs, fetch genomic or protein sequences, retrieve gene structures (exons), and get variant consequence and effect predictions (VEP). Use this skill as a primary ID translator, genomic sequence database and variant effect prediction tool.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-ensembl-database",
-      "path": "vendor/gdm-science-skills/skills/ensembl_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the Genome Aggregation Database (gnomAD). Use when determining the rarity or allele frequency of specific genetic variants, retrieving gene constraint metrics (pLI, LOEUF) to assess loss-of-function intolerance, finding variants in a genomic region or gene, or querying structural variants. Don't use for analyzing individual patient genomes, tracking somatic mutations in cancer (use COSMIC), or requesting raw sequencing reads (use ENA).",
-      "executable_count": 3,
-      "license": "Apache-2.0",
-      "name": "gdm-gnomad-database",
-      "path": "vendor/gdm-science-skills/skills/gnomad_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Use when you want to retrieve quantitative RNA expression data and variant eQTL information from the GTEx (Genotype-Tissue Expression) Project across 54 non-diseased tissue sites.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-gtex-database",
-      "path": "vendor/gdm-science-skills/skills/gtex_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Use when you want to retrieve semi-quantitative protein expression and spatial localisation data from the Human Protein Atlas (HPA).",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-human-protein-atlas-database",
-      "path": "vendor/gdm-science-skills/skills/human_protein_atlas_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Identify domains, families, and sites in proteins; find all proteins in a family or sharing a domain; explore species distribution for a domain; annotate genomes with protein families and GO terms. InterPro combines 14 databases (e.g., Pfam, CDD) into one searchable resource. InterPro-N significantly expands annotation and sequence coverage with deep learning. Includes domain architecture (IDA) search.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-interpro-database",
-      "path": "vendor/gdm-science-skills/skills/interpro_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the JASPAR database for Transcription Factor (TF) binding profiles. Use when retrieving Position Frequency Matrices (PFMs) or Position Weight Matrices (PWMs) for specific TFs, resolving gene symbols to JASPAR Matrix IDs, or getting TF metadata. Supports multiple output formats (MEME, TRANSFAC, PFM, JASPAR, YAML).",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-jaspar-database",
-      "path": "vendor/gdm-science-skills/skills/jaspar_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Retrieve protein and nucleotide sequences from NCBI databases using E-utilities. Supports direct accession lookup, CDS translation, gene+organism search, locus lookup, PubMed-linked sequences, patent protein extraction, and organism+length fallback search. Use when you need to fetch biological sequences by accession, gene name, locus tag, PubMed ID, or patent number.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-ncbi-sequence-fetch",
-      "path": "vendor/gdm-science-skills/skills/ncbi_sequence_fetch",
-      "reasons": [
-        "credentials-required",
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query, search, and download data from the openFDA API for drugs, devices, foods, tobacco, cosmetics, animal and veterinary products, substances, and transparency data. Use for FDA adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, NDC lookups, and any FDA safety or regulatory data query across all 28 API endpoints.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-openfda-database",
-      "path": "vendor/gdm-science-skills/skills/openfda_database",
-      "reasons": [
-        "credentials-required",
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query Open Targets Platform for target-disease associations, drug target discovery, tractability/safety data, genetics/omics evidence, known drugs, for therapeutic target identification.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-opentargets-database",
-      "path": "vendor/gdm-science-skills/skills/opentargets_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Ancient text restoration, attribution, dating, contextualization, and embedding via Aeneas (Latin) / Ithaca (Ancient Greek). Use when asked to \"restore\", \"attribute\", \"date\", \"contextualize\", \"find parallels\", \"where was it written\", \"when was it written\", \"embed\", or \"analyze\" an ancient text, inscription, or epigraphic document, or when the user mentions \"Aeneas\", or \"Ithaca\".",
-      "executable_count": 3,
-      "license": "Apache-2.0",
-      "name": "gdm-predictingthepast",
-      "path": "vendor/gdm-science-skills/skills/predictingthepast",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Performs multiple sequence alignment of proteins with EBI Clustal Omega. Use when you need to align multiple sequences to assess similarity, domain conservation, or key residue conservation. Supports up to 4000 sequences and a maximum file size of 4 MB. Do not use to search for homologous proteins in a database (use MMseqs2, BLAST), align non-protein sequences (DNA, RNA), perform structural alignment (use Foldseek, PyMOL), or if you only have a single sequence.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-protein-sequence-msa",
-      "path": "vendor/gdm-science-skills/skills/protein_sequence_msa",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Searches for homologous protein sequences using MMseqs2 (fast, default) or BLAST (comprehensive, fallback). Trigger this whenever the user provides a protein sequence or FASTA file and asks to find homologues, sequence matches, or wants to infer protein function based on sequence similarity, but not when the user wants to infer protein function based on structural similarity.",
-      "executable_count": 2,
-      "license": "Apache-2.0",
-      "name": "gdm-protein-sequence-similarity-search",
-      "path": "vendor/gdm-science-skills/skills/protein_sequence_similarity_search",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query PubChem, search by name/CID/SMILES, retrieve properties, similarity/substructure searches, bioactivity, for cheminformatics. Use when a user asks about a specific chemical, drug, or molecule.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-pubchem-database",
-      "path": "vendor/gdm-science-skills/skills/pubchem_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Visualize, analyze, and render protein and molecular structures using PyMOL. Use when the user wants to create images of protein structures, perform structural alignments or superposition, measure distances or contacts, highlight binding sites or active site residues, color by B-factor/pLDDT, or analyze protein-ligand interactions. Do not use for docking, molecular dynamics, or sequence-only analysis.",
-      "executable_count": 0,
-      "license": "Apache-2.0",
-      "name": "gdm-pymol",
-      "path": "vendor/gdm-science-skills/skills/pymol",
-      "reasons": [],
-      "source": "gdm",
-      "status": "active"
-    },
-    {
-      "description": "Query the QuickGO and Evidence & Conclusion Ontology (ECO) REST API. Use this when you need to map genes to biological processes, molecular functions, or cellular components, find genes associated with a specific pathway/GO term, or explore the Gene Ontology hierarchy. Do not use for querying drug targets (use OpenTargets) or mechanistic signaling pathway diagrams (use KEGG).",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-quickgo-database",
-      "path": "vendor/gdm-science-skills/skills/quickgo_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the Reactome database (Analysis and Content Services). Use when the user asks about pathway analysis, gene list enrichment, retrieving results by token, finding unmapped or not-found identifiers, mapping identifiers, reaction participants (inputs, outputs), pathway hierarchy (including top-level pathways), diagram export, cross-reference mapping, or searching the knowledgebase.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-reactome-database",
-      "path": "vendor/gdm-science-skills/skills/reactome_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the STRING database for protein-protein interactions (PPIs), functional enrichment, and homology. Use when the user asks about interactions between specific proteins, interaction evidence, confidence scores, protein interaction partners, or pathway enrichments.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-string-database",
-      "path": "vendor/gdm-science-skills/skills/string_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Fetch Evolutionary Conservation scores (phyloP, phastCons) and Transcription Factor Binding Sites (TFBS) from the UCSC Genome Browser. Use when analyzing whether genomic variants or regions are evolutionarily conserved, functionally important, or bounded by TF regulators across major projects (ENCODE, JASPAR, ReMap).",
-      "executable_count": 3,
-      "license": "Apache-2.0",
-      "name": "gdm-ucsc-conservation-and-tfbs",
-      "path": "vendor/gdm-science-skills/skills/ucsc_conservation_and_tfbs",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Queries the UniBind database for experimentally validated transcription factor (TF) binding sites. Use when retrieving direct TF-DNA interaction datasets, downloading binding site coordinates (BED/FASTA) for local analysis, or listing available datasets by species, cell line, or TF name. Don't use to query specific intervals, locations, genes, motif models or expression data.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-unibind-database",
-      "path": "vendor/gdm-science-skills/skills/unibind_database",
-      "reasons": [
-        "executable-content"
       ],
       "source": "gdm",
       "status": "inactive"
@@ -2218,8 +2170,8 @@
     }
   ],
   "summary": {
-    "active": 53,
-    "inactive": 134,
+    "active": 75,
+    "inactive": 112,
     "total": 187
   }
 }

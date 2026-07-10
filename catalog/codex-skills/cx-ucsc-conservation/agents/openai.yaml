@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Ucsc Conservation"
+  short_description: "Use the audited cx-ucsc-conservation scientific workflow"
+  default_prompt: "Use $cx-ucsc-conservation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

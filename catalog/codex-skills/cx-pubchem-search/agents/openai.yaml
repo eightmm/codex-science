@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Pubchem Search"
+  short_description: "Use the audited cx-pubchem-search scientific workflow"
+  default_prompt: "Use $cx-pubchem-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -2,7 +2,7 @@
 
 ## Acceptance
 
-- 187 skills (149 K-Dense + 35 DeepMind + 3 Codex-native authored) appear in the deterministic inventory.
+- 187 skills (149 K-Dense + 3 DeepMind infra pointers + 35 Codex-native authored) appear in the deterministic inventory.
 - All 187 skills have deterministic, source-prefixed Codex-compatible wrappers.
 - Inactive skills cannot be returned by default search.
 - Only the three task-scoped core skills are registered with the plugin.
