@@ -8,7 +8,19 @@
 
 The runtime is pure Python standard library — no packages to install. `uv` is only needed for the development checks below.
 
-## Install
+## Install (recommended)
+
+Install once; it registers globally with Codex and applies to every project:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
+```
+
+The installer clones into `~/.codex-science` (override with `CODEX_SCIENCE_HOME`), runs the light bootstrap, and registers the plugin. Re-run it any time to update.
+
+Then start a new Codex task in any project and say `Start Codex Science` or `Codex Science 시작`. You do not install per project — the plugin is user-global in `~/.codex`.
+
+## Install (manual / development)
 
 ```bash
 git clone https://github.com/eightmm/codex-science.git
@@ -18,7 +30,7 @@ codex plugin marketplace add "$PWD"
 codex plugin add codex-science@codex-science
 ```
 
-`bootstrap.sh` verifies the Python version and shallow-fetches the pinned upstream skills submodule; `--recurse-submodules` at clone time is not required. Start a new Codex task after installation. Say `Start Codex Science` or `Codex Science 시작` once to activate it for that task. The plugin cache is refreshed only on install or reinstall.
+`bootstrap.sh` verifies the Python version and shallow-fetches the pinned upstream skills submodule; `--recurse-submodules` at clone time is not required.
 
 ## Verify
 

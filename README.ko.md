@@ -14,7 +14,18 @@ Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러
 
 ## 설치
 
-플러그인을 지원하는 Codex 앱/CLI, Git, Python 3.11+ 가 필요합니다. 런타임은 순수 Python 표준 라이브러리라 설치할 패키지가 없습니다.
+**한 번만** 설치하면 Codex에 전역 등록되어 이후 모든 프로젝트에서 쓸 수 있습니다:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
+```
+
+Codex CLI, Git, Python 3.11+ 가 필요합니다(런타임은 순수 Python 표준 라이브러리). 설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록하며, 업데이트하려면 다시 실행하면 됩니다.
+
+그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `Start Codex Science`(또는 `Codex Science 시작`)라고 하세요. 프로젝트마다 재설치하지 않습니다.
+
+<details>
+<summary>수동 / 개발용 설치</summary>
 
 ```bash
 git clone https://github.com/eightmm/codex-science.git
@@ -24,7 +35,7 @@ codex plugin marketplace add "$PWD"
 codex plugin add codex-science@codex-science
 ```
 
-`bootstrap.sh`가 Python을 확인하고 고정된 upstream 스킬 서브모듈을 얕게 받아옵니다. 설치 후 플러그인과 MCP 서버가 로드되도록 **새** Codex 작업을 시작하세요.
+</details>
 
 ## 사용법
 

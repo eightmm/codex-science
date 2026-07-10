@@ -14,7 +14,18 @@ This is an independent Codex plugin inspired by the public workflow of Claude Sc
 
 ## Install
 
-Requires a Codex app/CLI with plugin support, Git, and Python 3.11+. The runtime is pure Python standard library — nothing to install.
+Install **once** — it registers globally with Codex and works in every project afterward:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
+```
+
+Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library). The installer clones into `~/.codex-science`, registers the plugin globally, and is safe to re-run to update.
+
+Then in **any** project, start a new Codex task and say `Start Codex Science`. You do not re-install per project.
+
+<details>
+<summary>Manual / development install</summary>
 
 ```bash
 git clone https://github.com/eightmm/codex-science.git
@@ -24,7 +35,7 @@ codex plugin marketplace add "$PWD"
 codex plugin add codex-science@codex-science
 ```
 
-`bootstrap.sh` checks Python and shallow-fetches the pinned upstream skills submodule. Start a **new** Codex task afterward so the plugin and MCP server load.
+</details>
 
 ## Usage
 
