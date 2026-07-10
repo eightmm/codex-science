@@ -169,11 +169,14 @@ def _audit_records(
     name_prefix: str = "",
     source_key: str = "",
     default_license: str | None = None,
+    exclude: frozenset[str] = frozenset(),
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for skill_file in sorted(catalog_root.glob("*/SKILL.md"), key=lambda item: item.parent.name):
-        record = audit_skill(skill_file.parent, policy, default_license=default_license)
         folder = skill_file.parent.name
+        if folder in exclude:
+            continue
+        record = audit_skill(skill_file.parent, policy, default_license=default_license)
         record["path"] = str(Path(path_prefix) / folder) if path_prefix else folder
         if name_prefix:
             record["name"] = f"{name_prefix}-{record['name']}"
@@ -232,6 +235,7 @@ def audit_sources(
             name_prefix=str(source.get("name_prefix", key)),
             source_key=key,
             default_license=source.get("default_license"),
+            exclude=frozenset(source.get("exclude", [])),
         )
         for record in records:
             if record["name"] in seen:

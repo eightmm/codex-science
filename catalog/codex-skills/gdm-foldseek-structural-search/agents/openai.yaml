@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Foldseek Structural Search"
-  short_description: "Audited scientific workflow for gdm-foldseek-structural-search"
-  default_prompt: "Use $gdm-foldseek-structural-search for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false

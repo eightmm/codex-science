@@ -2,29 +2,36 @@
   "schema_version": 2,
   "skills": [
     {
-      "description": "Retrieve and analyze AlphaFold predicted structures for a protein. Use when the user provides a specific UniProt Accession ID and wants structural confidence metrics (pLDDT), domain boundary analysis, or disorder assessment. Do not use if the user only has a protein name, gene name, or amino acid sequence \u2014 ask for a UniProt ID first.",
-      "executable_count": 3,
+      "description": "Retrieve an AlphaFold predicted structure from the AlphaFold Database for a given UniProt accession and analyze its confidence (pLDDT), intrinsically disordered regions, and rigid domain boundaries (PAE). Use when the user has a UniProt ID and wants structural confidence, disorder assessment, or domain layout. Public data, no credential needed.",
+      "executable_count": 0,
       "license": "Apache-2.0",
-      "name": "gdm-alphafold-database-fetch-and-analyze",
-      "path": "vendor/gdm-science-skills/skills/alphafold_database_fetch_and_analyze",
+      "name": "cx-alphafold-structure-analysis",
+      "path": "authored-skills/alphafold-structure-analysis",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Analyze how a single non-coding genetic variant affects gene expression, chromatin accessibility, histone marks, transcription factors, and splicing using the AlphaGenome API. Use when the user gives a variant in chr:pos:ref/alt form and asks about regulatory or splicing effects, tissue-specific impact, or pathogenicity of a non-coding change. Requires an AlphaGenome API key.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-alphagenome-variant-analysis",
+      "path": "authored-skills/alphagenome-variant-analysis",
       "reasons": [
-        "executable-content"
+        "credentials-required"
       ],
-      "source": "gdm",
+      "source": "cx",
       "status": "inactive"
     },
     {
-      "description": "Analyzes genetic variant effects on gene expression (RNA-seq), chromatin accessibility (DNASE), histone marks (ChIP), and transcription factors using the AlphaGenome API. Use when the user asks about non-coding variant effects, pathogenicity, clinical significance, disease associations, functional effects, gene expression changes, splicing disruption, or regulatory effects in promoters and enhancers. Also use for resolving biological terms to tissue/cell-type ontologies (UBERON/CL) or analyzing variants in chr:pos:ref>alt format.",
-      "executable_count": 7,
+      "description": "Find structurally similar proteins by submitting a 3D coordinate file (.pdb, .cif, or .mmcif) to the Foldseek web API and search databases such as PDB, AlphaFold, CATH, and MGnify. Use ONLY when the user provides a physical structure file and wants structural homologs. Public data, no credential needed.",
+      "executable_count": 0,
       "license": "Apache-2.0",
-      "name": "gdm-alphagenome-single-variant-analysis",
-      "path": "vendor/gdm-science-skills/skills/alphagenome_single_variant_analysis",
-      "reasons": [
-        "credentials-required",
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
+      "name": "cx-foldseek-structural-search",
+      "path": "authored-skills/foldseek-structural-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
     },
     {
       "description": "Query the ChEMBL database for bioactive molecules, drug targets, bioactivity data, approved drugs, and chemical structures. Use when the user asks about compounds, targets, IC50/Ki values, drug mechanisms, or structure searches.",
@@ -118,18 +125,6 @@
       "license": "Apache-2.0",
       "name": "gdm-ensembl-database",
       "path": "vendor/gdm-science-skills/skills/ensembl_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Performs 3D structural searches of proteins against various databases (PDB, AlphaFold, CATH, MGnify, etc.) using the Foldseek API. Use ONLY when the user provides a physical 3D coordinate file (.cif, .mmcif, or .pdb) and wants to find structurally similar proteins. Do NOT use if the user only provides a protein sequence, gene name, or UniProt ID.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-foldseek-structural-search",
-      "path": "vendor/gdm-science-skills/skills/foldseek_structural_search",
       "reasons": [
         "executable-content"
       ],
@@ -2221,6 +2216,13 @@
   ],
   "sources": [
     {
+      "catalog_path": "authored-skills",
+      "commit": "",
+      "key": "cx",
+      "kind": "authored",
+      "repository": "https://github.com/eightmm/codex-science"
+    },
+    {
       "catalog_path": "vendor/gdm-science-skills/skills",
       "commit": "0b42509800f49e6eb7809505d96e20a890ef99bd",
       "key": "gdm",
@@ -2236,8 +2238,8 @@
     }
   ],
   "summary": {
-    "active": 42,
-    "inactive": 145,
+    "active": 44,
+    "inactive": 143,
     "total": 187
   }
 }

@@ -16,6 +16,20 @@
       "commit": "0b42509800f49e6eb7809505d96e20a890ef99bd",
       "catalog_path": "vendor/gdm-science-skills/skills",
       "kind": "vendored",
+      "default_license": "Apache-2.0",
+      "exclude": [
+        "alphagenome_single_variant_analysis",
+        "alphafold_database_fetch_and_analyze",
+        "foldseek_structural_search"
+      ]
+    },
+    {
+      "key": "cx",
+      "name_prefix": "cx",
+      "repository": "https://github.com/eightmm/codex-science",
+      "commit": "",
+      "catalog_path": "authored-skills",
+      "kind": "authored",
       "default_license": "Apache-2.0"
     }
   ]

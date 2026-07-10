@@ -155,6 +155,32 @@ class CatalogAuditTests(unittest.TestCase):
         write_inventory(inventory, out)
         self.assertEqual(2, load_inventory(out)["schema_version"])
 
+    def test_audit_sources_excludes_superseded_folders(self) -> None:
+        upstream = self.root / "up" / "skills"
+        authored = self.root / "authored"
+        upstream.mkdir(parents=True)
+        authored.mkdir(parents=True)
+        make_skill(upstream, "foldseek", license_name="MIT")
+        make_skill(upstream, "pdb", license_name="MIT")
+        make_skill(authored, "foldseek", license_name="MIT")
+
+        inventory = audit_sources(
+            [
+                {
+                    "key": "gdm",
+                    "name_prefix": "gdm",
+                    "catalog_path": "up/skills",
+                    "exclude": ["foldseek"],
+                },
+                {"key": "cx", "name_prefix": "cx", "catalog_path": "authored"},
+            ],
+            self.root,
+            self.policy,
+        )
+
+        names = {item["name"] for item in inventory["skills"]}
+        self.assertEqual({"gdm-pdb", "cx-foldseek"}, names)
+
     def test_audit_sources_detects_cross_source_name_collision(self) -> None:
         src_a = self.root / "a" / "skills"
         src_b = self.root / "b" / "skills"

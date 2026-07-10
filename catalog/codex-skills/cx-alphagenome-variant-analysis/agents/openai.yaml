@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Alphagenome Variant Analysis"
+  short_description: "Audited scientific workflow for cx-alphagenome-variant-analysis"
+  default_prompt: "Use $cx-alphagenome-variant-analysis for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
