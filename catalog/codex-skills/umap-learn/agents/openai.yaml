@@ -1,0 +1,6 @@
+interface:
+  display_name: "Umap Learn"
+  short_description: "Use the audited umap-learn scientific workflow"
+  default_prompt: "Use $umap-learn for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

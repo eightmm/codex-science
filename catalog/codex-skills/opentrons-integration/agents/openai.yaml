@@ -1,0 +1,6 @@
+interface:
+  display_name: "Opentrons Integration"
+  short_description: "Use the audited opentrons-integration scientific workflow"
+  default_prompt: "Use $opentrons-integration for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

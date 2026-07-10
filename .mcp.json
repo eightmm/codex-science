@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "codex-science": {
+      "command": "python3",
+      "args": [
+        "./scripts/science_mcp.py",
+        "--inventory",
+        "./catalog/inventory.json"
+      ]
+    }
+  }
+}

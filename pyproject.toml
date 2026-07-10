@@ -1,0 +1,14 @@
+[project]
+name = "codex-science"
+version = "0.1.0"
+description = "Audited scientific research workflows and public-source tools for Codex"
+readme = "README.md"
+authors = [
+    { name = "eightmm", email = "sjm0775@naver.com" }
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.10.3,<0.11.0"]
+build-backend = "uv_build"

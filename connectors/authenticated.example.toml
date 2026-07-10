@@ -1,0 +1,19 @@
+# Templates only. Never put secret values in this file.
+
+[services.benchling]
+enabled = false
+token_env = "BENCHLING_API_TOKEN"
+base_url_env = "BENCHLING_BASE_URL"
+
+[services.dnanexus]
+enabled = false
+token_env = "DX_API_TOKEN"
+
+[services.modal]
+enabled = false
+token_id_env = "MODAL_TOKEN_ID"
+token_secret_env = "MODAL_TOKEN_SECRET"
+
+[services.latchbio]
+enabled = false
+token_env = "LATCH_SDK_TOKEN"

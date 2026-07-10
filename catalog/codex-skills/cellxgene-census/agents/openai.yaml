@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cellxgene Census"
+  short_description: "Use the audited cellxgene-census scientific workflow"
+  default_prompt: "Use $cellxgene-census for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

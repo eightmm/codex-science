@@ -1,0 +1,6 @@
+interface:
+  display_name: "Treatment Plans"
+  short_description: "Use the audited treatment-plans scientific workflow"
+  default_prompt: "Use $treatment-plans for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

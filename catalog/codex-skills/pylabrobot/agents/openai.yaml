@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pylabrobot"
+  short_description: "Use the audited pylabrobot scientific workflow"
+  default_prompt: "Use $pylabrobot for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

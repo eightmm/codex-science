@@ -1,0 +1,6 @@
+interface:
+  display_name: "Consciousness Council"
+  short_description: "Use the audited consciousness-council scientific workflow"
+  default_prompt: "Use $consciousness-council for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

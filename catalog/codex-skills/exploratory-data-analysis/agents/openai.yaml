@@ -1,0 +1,6 @@
+interface:
+  display_name: "Exploratory Data Analysis"
+  short_description: "Use the audited exploratory-data-analysis scientific workflow"
+  default_prompt: "Use $exploratory-data-analysis for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Onekgpd"
+  short_description: "Use the audited onekgpd scientific workflow"
+  default_prompt: "Use $onekgpd for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Adaptyv"
+  short_description: "Use the audited adaptyv scientific workflow"
+  default_prompt: "Use $adaptyv for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Networkx"
+  short_description: "Use the audited networkx scientific workflow"
+  default_prompt: "Use $networkx for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+{
+  "expected_mean_square": 11.0,
+  "matches_formula": true,
+  "n": 5,
+  "observed_mean_square": 11.0
+}

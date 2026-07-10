@@ -1,0 +1,6 @@
+interface:
+  display_name: "Science Review"
+  short_description: "Check claims against recorded evidence"
+  default_prompt: "Use $science-review to independently check this run and its claims."
+policy:
+  allow_implicit_invocation: false

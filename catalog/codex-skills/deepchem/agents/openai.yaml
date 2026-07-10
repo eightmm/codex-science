@@ -1,0 +1,6 @@
+interface:
+  display_name: "Deepchem"
+  short_description: "Use the audited deepchem scientific workflow"
+  default_prompt: "Use $deepchem for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

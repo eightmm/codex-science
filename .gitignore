@@ -1,0 +1,17 @@
+data/
+outputs/
+checkpoints/
+wandb/
+runs/
+.venv/
+__pycache__/
+*.py[cod]
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.oms/
+artifacts/
+.env
+.env.*
+!*.example.*

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "run_id": "demo-squares-001",
+  "question": "Does the observed mean of the first five square numbers equal the closed-form expectation?",
+  "plan": [
+    {
+      "id": "step-1",
+      "description": "Compute the observed mean and closed-form expectation independently.",
+      "status": "completed"
+    },
+    {
+      "id": "step-2",
+      "description": "Compare the values and save a structured result.",
+      "status": "completed"
+    }
+  ],
+  "inputs": [
+    {
+      "type": "parameter",
+      "name": "n",
+      "value": 5
+    }
+  ],
+  "code": [
+    {
+      "path": "analysis.py",
+      "sha256": "fa4fc3fe744116ff22f305c92589ab7fa3e0fa0c2144cf9550363d57ea8eeae0"
+    }
+  ],
+  "executions": [
+    {
+      "command": "uv run python examples/reviewed-run/analysis.py",
+      "exit_code": 0,
+      "log": "execution.log"
+    }
+  ],
+  "environment": {
+    "python": "3.11.15",
+    "packages": [
+      "codex-science==0.1.0"
+    ],
+    "source_revision": null,
+    "working_tree": "uncommitted initial implementation"
+  },
+  "artifacts": [
+    {
+      "path": "result.json",
+      "kind": "table",
+      "sha256": "82e5a0348557f3c115513c42d762f926ca91c50bbb37391a6e4fefd730267651"
+    },
+    {
+      "path": "execution.log",
+      "kind": "execution-log",
+      "sha256": "84b8b70e92861704cf14aa58fb94ded053ea0ba6355705fe204a5fc3ed6dce59"
+    },
+    {
+      "path": "review.json",
+      "kind": "review",
+      "sha256": "901c63d7d00aa05be77f85b488662475ee888b1ce79414f4d60f515898faa0df"
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-1",
+      "text": "For n=5, the observed mean square is 11.0 and matches the closed-form expectation 11.0.",
+      "evidence": [
+        "result.json"
+      ]
+    }
+  ],
+  "review": {
+    "status": "passed",
+    "findings": []
+  }
+}

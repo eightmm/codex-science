@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "source": "https://claude.com/docs/claude-science/connectors-and-skills",
+  "policy": "Read-only. Catalog presence does not grant network or license permission.",
+  "categories": [
+    {
+      "name": "Genomes",
+      "sources": [
+        {"name": "Ensembl (including VEP)", "status": "cataloged"},
+        {"name": "UCSC", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Genes and Ontologies",
+      "sources": [
+        {"name": "MyGene", "status": "cataloged"},
+        {"name": "UniProt", "status": "mcp-tool", "tool": "science_search_uniprot"},
+        {"name": "GO", "status": "cataloged"},
+        {"name": "Reactome", "status": "cataloged"},
+        {"name": "OLS", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Variants",
+      "sources": [
+        {"name": "gnomAD", "status": "cataloged"},
+        {"name": "ClinVar", "status": "cataloged"},
+        {"name": "dbSNP", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Human Genetics",
+      "sources": [
+        {"name": "GWAS Catalog", "status": "cataloged"},
+        {"name": "eQTL Catalogue", "status": "cataloged"},
+        {"name": "FinnGen", "status": "cataloged"},
+        {"name": "BioBank Japan", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Clinical Genomics",
+      "sources": [
+        {"name": "ClinGen", "status": "cataloged"},
+        {"name": "CIViC", "status": "cataloged"},
+        {"name": "Open Targets", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Expression",
+      "sources": [
+        {"name": "GTEx", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Regulation",
+      "sources": [
+        {"name": "ENCODE", "status": "cataloged"},
+        {"name": "JASPAR", "status": "cataloged"},
+        {"name": "UniBind", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Protein Annotation",
+      "sources": [
+        {"name": "InterPro", "status": "cataloged"},
+        {"name": "Pfam", "status": "cataloged"},
+        {"name": "Human Protein Atlas", "status": "cataloged"},
+        {"name": "STRING", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Structures and Interactions",
+      "sources": [
+        {"name": "PDB", "status": "cataloged"},
+        {"name": "AlphaFold", "status": "cataloged"},
+        {"name": "EMDB", "status": "cataloged"},
+        {"name": "Complex Portal", "status": "cataloged"},
+        {"name": "IntAct", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "RNA",
+      "sources": [
+        {"name": "Rfam", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Omics Archives",
+      "sources": [
+        {"name": "GEO", "status": "cataloged"},
+        {"name": "ArrayExpress", "status": "cataloged"},
+        {"name": "PRIDE", "status": "cataloged"},
+        {"name": "MGnify", "status": "cataloged"},
+        {"name": "MetaboLights", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Cancer Models",
+      "sources": [
+        {"name": "cBioPortal", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Chemistry",
+      "sources": [
+        {"name": "PubChem", "status": "cataloged"},
+        {"name": "ChEBI", "status": "cataloged"},
+        {"name": "Rhea", "status": "cataloged"},
+        {"name": "BindingDB", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Drug Regulatory",
+      "sources": [
+        {"name": "FDA drug data", "status": "cataloged"},
+        {"name": "openFDA", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Literature Graph",
+      "sources": [
+        {"name": "OpenAlex", "status": "cataloged"},
+        {"name": "arXiv", "status": "mcp-tool", "tool": "science_search_arxiv"}
+      ]
+    },
+    {
+      "name": "Research Resources",
+      "sources": [
+        {"name": "Grants.gov", "status": "cataloged"},
+        {"name": "Antibody Registry", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Additional Featured",
+      "sources": [
+        {"name": "BioMart", "status": "cataloged"},
+        {"name": "CellGuide", "status": "cataloged"},
+        {"name": "ZINC", "status": "cataloged"},
+        {"name": "Ketcher Chemistry", "status": "cataloged"}
+      ]
+    },
+    {
+      "name": "Directory",
+      "sources": [
+        {"name": "PubMed", "status": "mcp-tool", "tool": "science_search_pubmed"},
+        {"name": "Clinical Trials", "status": "cataloged"},
+        {"name": "ChEMBL", "status": "cataloged"},
+        {"name": "bioRxiv", "status": "cataloged"}
+      ]
+    }
+  ]
+}

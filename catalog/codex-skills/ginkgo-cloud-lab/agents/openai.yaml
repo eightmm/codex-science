@@ -1,0 +1,6 @@
+interface:
+  display_name: "Ginkgo Cloud Lab"
+  short_description: "Use the audited ginkgo-cloud-lab scientific workflow"
+  default_prompt: "Use $ginkgo-cloud-lab for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

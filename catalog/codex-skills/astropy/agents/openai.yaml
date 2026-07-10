@@ -1,0 +1,6 @@
+interface:
+  display_name: "Astropy"
+  short_description: "Use the audited astropy scientific workflow"
+  default_prompt: "Use $astropy for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

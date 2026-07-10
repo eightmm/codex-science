@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bulk Rnaseq"
+  short_description: "Use the audited bulk-rnaseq scientific workflow"
+  default_prompt: "Use $bulk-rnaseq for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Generate Image"
+  short_description: "Use the audited generate-image scientific workflow"
+  default_prompt: "Use $generate-image for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

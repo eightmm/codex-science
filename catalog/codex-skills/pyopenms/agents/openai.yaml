@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pyopenms"
+  short_description: "Use the audited pyopenms scientific workflow"
+  default_prompt: "Use $pyopenms for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

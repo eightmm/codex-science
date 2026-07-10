@@ -1,0 +1,6 @@
+interface:
+  display_name: "Codex Science"
+  short_description: "Start a task-scoped science workbench"
+  default_prompt: "Use $codex-science to start a science session for this task and keep it active until I end it."
+policy:
+  allow_implicit_invocation: true

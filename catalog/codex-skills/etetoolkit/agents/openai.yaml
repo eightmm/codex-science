@@ -1,0 +1,6 @@
+interface:
+  display_name: "Etetoolkit"
+  short_description: "Use the audited etetoolkit scientific workflow"
+  default_prompt: "Use $etetoolkit for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

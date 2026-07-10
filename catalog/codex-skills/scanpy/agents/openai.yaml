@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scanpy"
+  short_description: "Use the audited scanpy scientific workflow"
+  default_prompt: "Use $scanpy for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Timesfm Forecasting"
+  short_description: "Use the audited timesfm-forecasting scientific workflow"
+  default_prompt: "Use $timesfm-forecasting for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

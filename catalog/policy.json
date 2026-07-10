@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "default_activation": "inactive",
+  "active_requires": [
+    "recognized permissive license",
+    "non-empty description",
+    "no executable content",
+    "no credential requirement",
+    "no unsafe instruction pattern",
+    "not a high-stakes clinical workflow"
+  ],
+  "inactive_is_present_but_not_authorized": true
+}

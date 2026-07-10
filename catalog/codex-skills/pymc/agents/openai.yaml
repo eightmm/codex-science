@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pymc"
+  short_description: "Use the audited pymc scientific workflow"
+  default_prompt: "Use $pymc for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

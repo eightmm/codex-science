@@ -1,0 +1,6 @@
+interface:
+  display_name: "Molfeat"
+  short_description: "Use the audited molfeat scientific workflow"
+  default_prompt: "Use $molfeat for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

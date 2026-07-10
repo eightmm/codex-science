@@ -1,0 +1,6 @@
+interface:
+  display_name: "Optimize For Gpu"
+  short_description: "Use the audited optimize-for-gpu scientific workflow"
+  default_prompt: "Use $optimize-for-gpu for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

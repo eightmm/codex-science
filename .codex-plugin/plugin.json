@@ -1,0 +1,28 @@
+{
+  "name": "codex-science",
+  "version": "0.1.0+codex.20260710043551",
+  "description": "Audited scientific skills, public-source tools, reproducible artifacts, and evidence review for Codex.",
+  "author": {
+    "name": "eightmm"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Science",
+    "shortDescription": "Run reproducible scientific research in Codex.",
+    "longDescription": "Coordinate scientific work with an audited 149-skill catalog, read-only public data tools, structured provenance, and independent evidence review.",
+    "developerName": "eightmm",
+    "category": "Productivity",
+    "capabilities": [
+      "Scientific research",
+      "Read-only public data",
+      "Reproducible artifacts",
+      "Evidence review"
+    ],
+    "defaultPrompt": [
+      "Investigate this question with an auditable research plan.",
+      "Find the right scientific skills for this analysis.",
+      "Review this result against its code and evidence."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

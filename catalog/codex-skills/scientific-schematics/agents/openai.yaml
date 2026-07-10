@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scientific Schematics"
+  short_description: "Use the audited scientific-schematics scientific workflow"
+  default_prompt: "Use $scientific-schematics for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

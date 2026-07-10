@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "run_id": "",
+  "question": "",
+  "plan": [],
+  "inputs": [],
+  "code": [],
+  "executions": [],
+  "environment": {},
+  "artifacts": [],
+  "claims": [],
+  "review": {
+    "status": "pending",
+    "findings": []
+  }
+}

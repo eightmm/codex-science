@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pptx Posters"
+  short_description: "Use the audited pptx-posters scientific workflow"
+  default_prompt: "Use $pptx-posters for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

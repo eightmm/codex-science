@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pufferlib"
+  short_description: "Use the audited pufferlib scientific workflow"
+  default_prompt: "Use $pufferlib for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

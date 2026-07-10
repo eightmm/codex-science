@@ -1,0 +1,6 @@
+interface:
+  display_name: "Arboreto"
+  short_description: "Use the audited arboreto scientific workflow"
+  default_prompt: "Use $arboreto for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

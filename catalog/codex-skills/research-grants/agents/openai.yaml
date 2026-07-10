@@ -1,0 +1,6 @@
+interface:
+  display_name: "Research Grants"
+  short_description: "Use the audited research-grants scientific workflow"
+  default_prompt: "Use $research-grants for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
