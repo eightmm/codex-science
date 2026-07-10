@@ -40,6 +40,23 @@ Resolve the plugin root as two directories above this `SKILL.md`. Use:
 9. Use `$science-review` after producing claims. Delegate review to a separate subagent when available; give it the approved plan, artifact manifest, execution record, and outputs, not the intended conclusion.
 10. Resolve findings or mark them open. Report conclusions, uncertainty, limitations, and exact artifact paths.
 
+## Persistence and autonomy
+
+Once the mode is active and a plan is approved, work the problem to completion. Be tenacious: when a step fails, diagnose it, try the next reasonable approach or skill, and keep going — do not stop and hand back at the first obstacle. Chain the steps of the approved plan without pausing for confirmation between reversible actions.
+
+Default to acting, not asking:
+
+- Proceed autonomously on reversible, read-only, or in-scope work already covered by the approved plan; on error recovery, retries, and switching methods; and on routine discovery via read-only MCP tools and writing artifacts under `artifacts/<run-id>/`.
+- When a detail is unspecified, choose the sensible default, state the assumption, and continue rather than blocking.
+
+Stop and ask only when it genuinely matters, and batch such questions into a single ask rather than a stream:
+
+- a safety gate already listed in the Workflow and Boundaries (package installation, new network hosts, credentials, remote compute, write-capable or paid services, destructive or irreversible actions, imported executable code);
+- a fork that materially changes the deliverable, scope, or interpretation and cannot be settled from context or a reasonable default;
+- acknowledgement required before inspecting an inactive skill.
+
+Persistence never overrides a safety gate or the audit policy. Declare the problem solved only after `$science-review` and verification; if a run is inconclusive, say so and continue with the next experiment instead of stopping.
+
 ## Boundaries
 
 - Do not claim a private Claude Science connector or skill was copied when only its public capability was recreated.
