@@ -1,0 +1,4 @@
+interface:
+  display_name: "Protein Similarity Search"
+  short_description: "Help with Protein Similarity Search tasks"
+  default_prompt: "Use $protein-similarity-search to run the requested scientific workflow with its documented safeguards."

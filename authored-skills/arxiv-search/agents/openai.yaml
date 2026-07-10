@@ -1,0 +1,4 @@
+interface:
+  display_name: "Arxiv Search"
+  short_description: "Help with Arxiv Search tasks"
+  default_prompt: "Use $arxiv-search to run the requested scientific workflow with its documented safeguards."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Compute Environment"
+  short_description: "Help with Compute Environment tasks"
+  default_prompt: "Use $compute-environment to run the requested scientific workflow with its documented safeguards."

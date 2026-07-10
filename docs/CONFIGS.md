@@ -2,7 +2,7 @@
 
 - `.codex-plugin/plugin.json`: plugin manifest.
 - `.mcp.json`: bundled read-only MCP server.
-- `catalog/sources.json`: skill sources — repository, pinned commit, name prefix, kind (submodule/vendored/authored), and optional per-source `exclude`.
+- `catalog/sources.json`: skill sources — repository, pinned commit, name prefix, kind, vendored `content_sha256`, and optional per-source `exclude`.
 - `authored-skills/`: Codex-native skills authored in this repo (the `cx` source).
 - `catalog/policy.json`: default activation requirements.
 - `catalog/inventory.json`: generated deterministic audit result (merged across sources).

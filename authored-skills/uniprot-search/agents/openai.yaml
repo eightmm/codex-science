@@ -1,0 +1,4 @@
+interface:
+  display_name: "Uniprot Search"
+  short_description: "Help with Uniprot Search tasks"
+  default_prompt: "Use $uniprot-search to run the requested scientific workflow with its documented safeguards."

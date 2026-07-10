@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alphafold Structure Analysis"
+  short_description: "Help with Alphafold Structure Analysis tasks"
+  default_prompt: "Use $alphafold-structure-analysis to run the requested scientific workflow with its documented safeguards."

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from hashlib import sha256
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,26 @@ FIELD_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*):(?:\s*(.*))?$")
 # Split on any non-alphanumeric so hyphenated/underscored skill names
 # (e.g. "cx-clinvar-search") tokenize into their words and match natural queries.
 TOKEN_RE = re.compile(r"[a-z0-9]+")
+SEARCH_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "for",
+        "in",
+        "my",
+        "of",
+        "on",
+        "or",
+        "the",
+        "this",
+        "to",
+        "use",
+        "using",
+        "with",
+    }
+)
+NAME_TOKEN_WEIGHT = 12
 CREDENTIAL_RE = re.compile(
     r"\b[A-Z][A-Z0-9_]{2,}_(?:API_)?(?:KEY|TOKEN|SECRET)\b|"
     r"\b(?:api key|credentials?) (?:is |are )?required\b|\brequires? an api key\b",
@@ -26,6 +47,7 @@ UNSAFE_PATTERNS = (
     re.compile(r"\b(?:upload|send|exfiltrate)\b[^\n]{0,60}\b(?:secret|credential|token|key)s?\b", re.IGNORECASE),
 )
 EXECUTABLE_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1"}
+SOURCE_DIGEST_EXCLUDES = frozenset({".git", ".omc", "__pycache__"})
 
 
 @dataclass(frozen=True)
@@ -136,6 +158,24 @@ def _executable_files(skill_dir: Path) -> list[Path]:
     return sorted(files, key=lambda item: item.as_posix())
 
 
+def source_content_digest(source_root: Path) -> str:
+    """Hash a vendored source tree by relative path and file content."""
+    digest = sha256()
+    files = (
+        path
+        for path in source_root.rglob("*")
+        if path.is_file()
+        and not any(part in SOURCE_DIGEST_EXCLUDES for part in path.relative_to(source_root).parts)
+    )
+    for path in sorted(files, key=lambda item: item.relative_to(source_root).as_posix()):
+        relative = path.relative_to(source_root).as_posix().encode("utf-8")
+        digest.update(relative)
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def audit_skill(
     skill_dir: Path,
     policy: CatalogPolicy,
@@ -176,6 +216,7 @@ def audit_skill(
         "license": license_name or "Unknown",
         "path": skill_dir.name,
         "executable_count": len(executables),
+        "instruction_line_count": len(text.splitlines()),
         "status": "inactive" if unique_reasons else "active",
         "reasons": unique_reasons,
         "physical_lab": physical_lab,
@@ -270,6 +311,11 @@ def audit_sources(
                 "commit": str(source.get("commit", "")),
                 "catalog_path": catalog_path,
                 "kind": str(source.get("kind", "")),
+                **(
+                    {"content_sha256": str(source["content_sha256"])}
+                    if source.get("content_sha256")
+                    else {}
+                ),
             }
         )
     all_records.sort(key=lambda item: str(item["name"]))
@@ -301,7 +347,7 @@ def search_inventory(
     include_inactive: bool = False,
     limit: int = 5,
 ) -> list[dict[str, Any]]:
-    terms = set(TOKEN_RE.findall(query.lower()))
+    terms = set(TOKEN_RE.findall(query.lower())) - SEARCH_STOPWORDS
     if not terms:
         raise ValueError("Query must contain a searchable term")
     if not 1 <= limit <= 20:
@@ -311,9 +357,11 @@ def search_inventory(
     for skill in inventory["skills"]:
         if skill.get("status") != "active" and not include_inactive:
             continue
-        name_tokens = set(TOKEN_RE.findall(str(skill.get("name", "")).lower()))
-        description_tokens = set(TOKEN_RE.findall(str(skill.get("description", "")).lower()))
-        score = 3 * len(terms & name_tokens) + len(terms & description_tokens)
+        name_tokens = set(TOKEN_RE.findall(str(skill.get("name", "")).lower())) - SEARCH_STOPWORDS
+        description_tokens = (
+            set(TOKEN_RE.findall(str(skill.get("description", "")).lower())) - SEARCH_STOPWORDS
+        )
+        score = NAME_TOKEN_WEIGHT * len(terms & name_tokens) + len(terms & description_tokens)
         if score:
             ranked.append((score, str(skill.get("name", "")), skill))
     ranked.sort(key=lambda item: (-item[0], item[1]))

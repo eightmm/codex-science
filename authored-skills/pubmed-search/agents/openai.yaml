@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pubmed Search"
+  short_description: "Help with Pubmed Search tasks"
+  default_prompt: "Use $pubmed-search to run the requested scientific workflow with its documented safeguards."

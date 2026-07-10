@@ -1,0 +1,4 @@
+interface:
+  display_name: "Biorxiv Search"
+  short_description: "Help with Biorxiv Search tasks"
+  default_prompt: "Use $biorxiv-search to run the requested scientific workflow with its documented safeguards."

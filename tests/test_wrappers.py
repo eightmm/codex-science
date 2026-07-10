@@ -16,6 +16,8 @@ def make_record(
     *,
     status: str = "active",
     reasons: list[str] | None = None,
+    physical_lab: bool = False,
+    instruction_line_count: int = 10,
 ) -> dict[str, object]:
     return {
         "name": name,
@@ -24,6 +26,8 @@ def make_record(
         "path": f"vendor/scientific-agent-skills/skills/{name}",
         "status": status,
         "reasons": reasons or [],
+        "physical_lab": physical_lab,
+        "instruction_line_count": instruction_line_count,
     }
 
 
@@ -67,6 +71,24 @@ class WrapperRenderingTests(unittest.TestCase):
 
         self.assertLessEqual(len(description), 1024)
         self.assertTrue(description.endswith("…"))
+
+    def test_physical_lab_wrapper_requires_device_and_biosafety_approval(self) -> None:
+        wrapper = render_skill_wrapper(make_record("pylabrobot", physical_lab=True))
+
+        self.assertIn("real laboratory hardware", wrapper)
+        self.assertIn("explicit user approval", wrapper)
+        self.assertIn("Simulate or dry-run first", wrapper)
+        self.assertIn("biosafety/containment level", wrapper)
+        self.assertIn("emergency-stop/abort path", wrapper)
+
+    def test_oversized_upstream_skill_uses_progressive_loading(self) -> None:
+        wrapper = render_skill_wrapper(
+            make_record("large-skill", instruction_line_count=501)
+        )
+
+        self.assertIn("501 lines", wrapper)
+        self.assertIn("Inspect its headings first", wrapper)
+        self.assertIn("only the sections relevant", wrapper)
 
 
 class WrapperGenerationTests(unittest.TestCase):
@@ -129,6 +151,17 @@ class SessionContractTests(unittest.TestCase):
             {"codex-science", "science-provenance", "science-review"},
             registered,
         )
+
+    def test_every_authored_skill_has_ui_metadata(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        missing = [
+            path.name
+            for path in sorted((repository_root / "authored-skills").iterdir())
+            if (path / "SKILL.md").is_file()
+            and not (path / "agents" / "openai.yaml").is_file()
+        ]
+
+        self.assertEqual([], missing)
 
     def test_coordinator_has_narrow_opt_in_and_stays_active_in_its_task(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]

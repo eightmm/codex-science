@@ -1,0 +1,4 @@
+interface:
+  display_name: "Opentargets Search"
+  short_description: "Help with Opentargets Search tasks"
+  default_prompt: "Use $opentargets-search to run the requested scientific workflow with its documented safeguards."

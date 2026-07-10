@@ -28,6 +28,12 @@ Use this Codex adapter for the pinned upstream scientific skill.
 6. Ask before credentials, package installation, new network hosts, remote compute, writes, paid services, destructive actions, or imported executable code.
 7. Use `$science-provenance` for produced scientific outputs and `$science-review` before presenting scientific claims.
 
+## Progressive loading
+
+The upstream `SKILL.md` is 657 lines. Inspect its headings first, then
+read only the sections relevant to the current request. Load linked references only when
+the selected workflow requires them; do not load the entire upstream tree by default.
+
 ## Boundaries
 
 - This wrapper does not grant credentials, network access, package installation, or script execution.

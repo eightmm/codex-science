@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ncbi Sequence Fetch"
+  short_description: "Help with Ncbi Sequence Fetch tasks"
+  default_prompt: "Use $ncbi-sequence-fetch to run the requested scientific workflow with its documented safeguards."

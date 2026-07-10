@@ -1,0 +1,4 @@
+interface:
+  display_name: "Boltz Structure Prediction"
+  short_description: "Help with Boltz Structure Prediction tasks"
+  default_prompt: "Use $boltz-structure-prediction to run the requested scientific workflow with its documented safeguards."

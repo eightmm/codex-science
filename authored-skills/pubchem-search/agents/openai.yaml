@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pubchem Search"
+  short_description: "Help with Pubchem Search tasks"
+  default_prompt: "Use $pubchem-search to run the requested scientific workflow with its documented safeguards."

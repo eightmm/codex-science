@@ -1,0 +1,4 @@
+interface:
+  display_name: "Clinvar Search"
+  short_description: "Help with Clinvar Search tasks"
+  default_prompt: "Use $clinvar-search to run the requested scientific workflow with its documented safeguards."

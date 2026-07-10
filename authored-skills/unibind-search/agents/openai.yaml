@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unibind Search"
+  short_description: "Help with Unibind Search tasks"
+  default_prompt: "Use $unibind-search to run the requested scientific workflow with its documented safeguards."

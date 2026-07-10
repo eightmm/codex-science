@@ -10,6 +10,7 @@ from codex_science.catalog import (
     audit_sources,
     load_inventory,
     search_inventory,
+    source_content_digest,
     write_inventory,
 )
 
@@ -119,6 +120,55 @@ class CatalogAuditTests(unittest.TestCase):
 
         self.assertEqual(["clinvar-search"], [item["name"] for item in results])
 
+    def test_every_active_repository_skill_is_found_by_its_natural_name(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = load_inventory(repository_root / "catalog" / "inventory.json")
+
+        for record in inventory["skills"]:
+            if record["status"] != "active":
+                continue
+            query = " ".join(record["name"].split("-")[1:])
+            matches = search_inventory(inventory, query, limit=5)
+            names = [item["name"] for item in matches]
+            with self.subTest(skill=record["name"], query=query):
+                self.assertIn(record["name"], names)
+
+    def test_explicit_skill_name_outranks_generic_prompt_words(self) -> None:
+        inventory = {
+            "skills": [
+                {
+                    "name": "kdense-consciousness-council",
+                    "description": "Use this workflow to run a real protocol and review results.",
+                    "status": "active",
+                },
+                {
+                    "name": "kdense-pylabrobot",
+                    "description": "Vendor-agnostic laboratory automation framework.",
+                    "status": "active",
+                },
+            ]
+        }
+
+        matches = search_inventory(
+            inventory,
+            "Use PyLabRobot to run this protocol on my real liquid handler",
+        )
+
+        self.assertEqual("kdense-pylabrobot", matches[0]["name"])
+
+    def test_representative_repository_prompts_rank_named_skill_first(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = load_inventory(repository_root / "catalog" / "inventory.json")
+        cases = {
+            "Use SymPy to solve and verify a symbolic integral": "kdense-sympy",
+            "Use PyLabRobot to run this protocol on my real liquid handler": "kdense-pylabrobot",
+            "Use statsmodels for a regression diagnostics workflow": "kdense-statsmodels",
+        }
+
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                self.assertEqual(expected, search_inventory(inventory, query)[0]["name"])
+
     def test_physical_lab_flag_is_precise(self) -> None:
         robot = make_skill(
             self.root, "pylabrobot", license_name="MIT",
@@ -176,6 +226,51 @@ class CatalogAuditTests(unittest.TestCase):
         out = self.root / "inv.json"
         write_inventory(inventory, out)
         self.assertEqual(2, load_inventory(out)["schema_version"])
+
+    def test_vendored_source_digest_is_deterministic_and_preserved(self) -> None:
+        vendor = self.root / "vendor"
+        skills = vendor / "skills"
+        skills.mkdir(parents=True)
+        make_skill(skills, "sympy", license_name="MIT")
+        (vendor / "PROVENANCE.md").write_text("pinned\n", encoding="utf-8")
+
+        first = source_content_digest(vendor)
+        second = source_content_digest(vendor)
+        self.assertEqual(first, second)
+
+        inventory = audit_sources(
+            [
+                {
+                    "key": "vendor",
+                    "name_prefix": "vendor",
+                    "catalog_path": "vendor/skills",
+                    "kind": "vendored",
+                    "content_sha256": first,
+                }
+            ],
+            self.root,
+            self.policy,
+        )
+        self.assertEqual(first, inventory["sources"][0]["content_sha256"])
+
+        (vendor / "PROVENANCE.md").write_text("changed\n", encoding="utf-8")
+        self.assertNotEqual(first, source_content_digest(vendor))
+
+    def test_repository_vendored_source_digest_matches_lock(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        sources = json.loads((repository_root / "catalog" / "sources.json").read_text())[
+            "sources"
+        ]
+
+        for source in sources:
+            if source.get("kind") != "vendored":
+                continue
+            source_root = (repository_root / source["catalog_path"]).parent
+            with self.subTest(source=source["key"]):
+                self.assertEqual(
+                    source["content_sha256"],
+                    source_content_digest(source_root),
+                )
 
     def test_audit_sources_excludes_superseded_folders(self) -> None:
         upstream = self.root / "up" / "skills"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jaspar Search"
+  short_description: "Help with Jaspar Search tasks"
+  default_prompt: "Use $jaspar-search to run the requested scientific workflow with its documented safeguards."

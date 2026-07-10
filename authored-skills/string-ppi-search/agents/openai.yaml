@@ -1,0 +1,4 @@
+interface:
+  display_name: "String Ppi Search"
+  short_description: "Help with String Ppi Search tasks"
+  default_prompt: "Use $string-ppi-search to run the requested scientific workflow with its documented safeguards."

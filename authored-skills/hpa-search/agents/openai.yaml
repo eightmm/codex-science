@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hpa Search"
+  short_description: "Help with Hpa Search tasks"
+  default_prompt: "Use $hpa-search to run the requested scientific workflow with its documented safeguards."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Openalex Search"
+  short_description: "Help with Openalex Search tasks"
+  default_prompt: "Use $openalex-search to run the requested scientific workflow with its documented safeguards."

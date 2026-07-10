@@ -1,0 +1,4 @@
+interface:
+  display_name: "Clinical Trials Search"
+  short_description: "Help with Clinical Trials Search tasks"
+  default_prompt: "Use $clinical-trials-search to run the requested scientific workflow with its documented safeguards."

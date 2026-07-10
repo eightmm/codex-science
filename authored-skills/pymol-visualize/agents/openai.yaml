@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pymol Visualize"
+  short_description: "Help with Pymol Visualize tasks"
+  default_prompt: "Use $pymol-visualize to run the requested scientific workflow with its documented safeguards."

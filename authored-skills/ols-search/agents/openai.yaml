@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ols Search"
+  short_description: "Help with Ols Search tasks"
+  default_prompt: "Use $ols-search to run the requested scientific workflow with its documented safeguards."

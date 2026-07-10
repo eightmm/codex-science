@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dbsnp Search"
+  short_description: "Help with Dbsnp Search tasks"
+  default_prompt: "Use $dbsnp-search to run the requested scientific workflow with its documented safeguards."

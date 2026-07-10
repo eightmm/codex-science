@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interpro Search"
+  short_description: "Help with Interpro Search tasks"
+  default_prompt: "Use $interpro-search to run the requested scientific workflow with its documented safeguards."

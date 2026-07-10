@@ -2,9 +2,11 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-python3 - <<'PY'
+uv run python - <<'PY'
 import json, subprocess, sys
 from pathlib import Path
+
+from codex_science.catalog import source_content_digest
 
 sources = json.loads(Path("catalog/sources.json").read_text())["sources"]
 for src in sources:
@@ -17,8 +19,17 @@ for src in sources:
         ).stdout.strip()
         if actual != src["commit"]:
             sys.exit(f"doctor: {key} commit mismatch: expected {src['commit']}, got {actual}")
+    elif kind == "vendored":
+        if not Path(path).is_dir():
+            sys.exit(f"doctor: {key} vendored catalog missing at {path}")
+        expected = src.get("content_sha256")
+        if not expected:
+            sys.exit(f"doctor: {key} vendored source has no content_sha256")
+        actual = source_content_digest(root)
+        if actual != expected:
+            sys.exit(f"doctor: {key} content mismatch: expected {expected}, got {actual}")
     elif not Path(path).is_dir():
-        sys.exit(f"doctor: {key} vendored catalog missing at {path}")
+        sys.exit(f"doctor: {key} authored catalog missing at {path}")
 print(f"source check: ok ({len(sources)} sources)")
 PY
 

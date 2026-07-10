@@ -43,6 +43,12 @@ Beyond the general gates, before any physical or remote action:
 - For cloud/remote labs, surface the cost and get billing approval before
   submitting.
 
+## Progressive loading
+
+The upstream `SKILL.md` is 570 lines. Inspect its headings first, then
+read only the sections relevant to the current request. Load linked references only when
+the selected workflow requires them; do not load the entire upstream tree by default.
+
 ## Boundaries
 
 - This wrapper does not grant credentials, network access, package installation, or script execution.

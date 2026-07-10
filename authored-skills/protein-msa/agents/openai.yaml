@@ -1,0 +1,4 @@
+interface:
+  display_name: "Protein Msa"
+  short_description: "Help with Protein Msa tasks"
+  default_prompt: "Use $protein-msa to run the requested scientific workflow with its documented safeguards."

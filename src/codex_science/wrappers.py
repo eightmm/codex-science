@@ -89,6 +89,23 @@ Beyond the general gates, before any physical or remote action:
 - For cloud/remote labs, surface the cost and get billing approval before
   submitting.
 """
+    instruction_line_count = record.get("instruction_line_count", 0)
+    if (
+        not isinstance(instruction_line_count, int)
+        or isinstance(instruction_line_count, bool)
+        or instruction_line_count < 0
+    ):
+        raise ValueError(f"Skill record {name} has invalid instruction line count")
+    progressive_loading = ""
+    if instruction_line_count > 500:
+        progressive_loading = f"""
+## Progressive loading
+
+The upstream `SKILL.md` is {instruction_line_count} lines. Inspect its headings first, then
+read only the sections relevant to the current request. Load linked references only when
+the selected workflow requires them; do not load the entire upstream tree by default.
+"""
+    extra_sections = physical_lab_section + progressive_loading
     return f"""---
 name: {name}
 description: {_quoted(_codex_description(_sanitize_description(description)))}
@@ -117,7 +134,7 @@ Use this Codex adapter for the pinned upstream scientific skill.
 5. Treat tools named for another agent runtime as capability requests. Map them to an available Codex tool only when the behavior is equivalent; otherwise report the unavailable capability.
 6. Ask before credentials, package installation, new network hosts, remote compute, writes, paid services, destructive actions, or imported executable code.
 7. Use `$science-provenance` for produced scientific outputs and `$science-review` before presenting scientific claims.
-{physical_lab_section}
+{extra_sections}
 ## Boundaries
 
 - This wrapper does not grant credentials, network access, package installation, or script execution.

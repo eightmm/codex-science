@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gnomad Search"
+  short_description: "Help with Gnomad Search tasks"
+  default_prompt: "Use $gnomad-search to run the requested scientific workflow with its documented safeguards."

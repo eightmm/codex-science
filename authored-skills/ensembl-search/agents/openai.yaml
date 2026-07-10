@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ensembl Search"
+  short_description: "Help with Ensembl Search tasks"
+  default_prompt: "Use $ensembl-search to run the requested scientific workflow with its documented safeguards."

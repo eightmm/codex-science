@@ -1,0 +1,4 @@
+interface:
+  display_name: "Europepmc Search"
+  short_description: "Help with Europepmc Search tasks"
+  default_prompt: "Use $europepmc-search to run the requested scientific workflow with its documented safeguards."

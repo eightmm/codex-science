@@ -80,6 +80,8 @@ Codex Science 종료
 
 보수적 audit이 각 스킬을 **active/inactive**로 표시합니다(라이선스·실행 코드·인증정보·안전성 기준). 비활성 스킬은 카탈로그에 남되 사용 전 명시적 확인을 요구합니다.
 
+`doctor.sh`는 모든 Codex-native 원본과 생성 wrapper를 검증하고, 고정된 source의 무결성과 자연어 스킬 이름 검색을 확인합니다. 500줄을 넘는 upstream 지침의 wrapper는 전체 source tree를 기본 로드하지 않고 heading-first progressive loading을 사용합니다.
+
 ## 라이선스
 
 Codex Science의 원본 코드는 [MIT License](LICENSE)로 배포됩니다.

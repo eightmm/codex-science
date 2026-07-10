@@ -1,0 +1,4 @@
+interface:
+  display_name: "Openfda Search"
+  short_description: "Help with Openfda Search tasks"
+  default_prompt: "Use $openfda-search to run the requested scientific workflow with its documented safeguards."

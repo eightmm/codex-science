@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reactome Search"
+  short_description: "Help with Reactome Search tasks"
+  default_prompt: "Use $reactome-search to run the requested scientific workflow with its documented safeguards."

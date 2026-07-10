@@ -80,6 +80,8 @@ All skills merge into one deterministic, audited inventory (`catalog/inventory.j
 
 A conservative audit marks each skill **active** or **inactive** (by license, executable content, credential need, and safety). Inactive skills stay in the catalog but require explicit acknowledgement before use.
 
+`doctor.sh` validates every Codex-native source and generated wrapper, verifies pinned source integrity, and checks that natural skill names remain discoverable. Wrappers for upstream instructions over 500 lines use heading-first progressive loading instead of loading the whole source tree by default.
+
 ## License
 
 Codex Science's original code is released under the [MIT License](LICENSE).

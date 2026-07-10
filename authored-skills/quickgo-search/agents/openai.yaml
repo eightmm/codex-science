@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quickgo Search"
+  short_description: "Help with Quickgo Search tasks"
+  default_prompt: "Use $quickgo-search to run the requested scientific workflow with its documented safeguards."

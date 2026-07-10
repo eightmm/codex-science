@@ -14,6 +14,7 @@
       "name_prefix": "gdm",
       "repository": "https://github.com/google-deepmind/science-skills",
       "commit": "0b42509800f49e6eb7809505d96e20a890ef99bd",
+      "content_sha256": "74444bcb6ef6ea163f6c1cc55c1be3dd7936b46ccdebab88fbcb902e3899f947",
       "catalog_path": "vendor/gdm-science-skills/skills",
       "kind": "vendored",
       "default_license": "Apache-2.0",

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ucsc Conservation"
+  short_description: "Help with Ucsc Conservation tasks"
+  default_prompt: "Use $ucsc-conservation to run the requested scientific workflow with its documented safeguards."

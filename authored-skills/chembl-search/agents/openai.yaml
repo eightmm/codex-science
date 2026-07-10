@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chembl Search"
+  short_description: "Help with Chembl Search tasks"
+  default_prompt: "Use $chembl-search to run the requested scientific workflow with its documented safeguards."

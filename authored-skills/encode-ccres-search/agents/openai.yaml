@@ -1,0 +1,4 @@
+interface:
+  display_name: "Encode Ccres Search"
+  short_description: "Help with Encode Ccres Search tasks"
+  default_prompt: "Use $encode-ccres-search to run the requested scientific workflow with its documented safeguards."

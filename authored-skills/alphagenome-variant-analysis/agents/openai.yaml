@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alphagenome Variant Analysis"
+  short_description: "Help with Alphagenome Variant Analysis tasks"
+  default_prompt: "Use $alphagenome-variant-analysis to run the requested scientific workflow with its documented safeguards."

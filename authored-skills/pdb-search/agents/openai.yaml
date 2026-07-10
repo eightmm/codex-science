@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pdb Search"
+  short_description: "Help with Pdb Search tasks"
+  default_prompt: "Use $pdb-search to run the requested scientific workflow with its documented safeguards."
