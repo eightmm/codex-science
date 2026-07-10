@@ -20,7 +20,10 @@
       "exclude": [
         "alphagenome_single_variant_analysis",
         "alphafold_database_fetch_and_analyze",
-        "foldseek_structural_search"
+        "foldseek_structural_search",
+        "literature_search_arxiv",
+        "pubmed_database",
+        "uniprot_database"
       ]
     },
     {

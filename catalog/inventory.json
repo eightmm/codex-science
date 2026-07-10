@@ -24,11 +24,41 @@
       "status": "inactive"
     },
     {
+      "description": "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics. Uses the plugin's built-in read-only arXiv MCP tool \u2014 no credential or install needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-arxiv-search",
+      "path": "authored-skills/arxiv-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Find structurally similar proteins by submitting a 3D coordinate file (.pdb, .cif, or .mmcif) to the Foldseek web API and search databases such as PDB, AlphaFold, CATH, and MGnify. Use ONLY when the user provides a physical structure file and wants structural homologs. Public data, no credential needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
       "name": "cx-foldseek-structural-search",
       "path": "authored-skills/foldseek-structural-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references. Uses the plugin's built-in read-only PubMed MCP tool for discovery \u2014 no credential or install needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-pubmed-search",
+      "path": "authored-skills/pubmed-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Search UniProtKB for proteins by name, gene, organism, or keyword and retrieve accessions plus functional annotation. Use when the user wants protein metadata, function, sequence, or identifier mapping. Uses the plugin's built-in read-only UniProt MCP tool for discovery \u2014 no credential or install needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-uniprot-search",
+      "path": "authored-skills/uniprot-search",
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -192,18 +222,6 @@
       "status": "inactive"
     },
     {
-      "description": "Search for scientific papers, preprints, and publications on arXiv. Extract metadata, abstracts, and download full-text PDFs or HTML versions of papers. Use when the user asks to find research papers, literature, or specific arXiv IDs.",
-      "executable_count": 3,
-      "license": "Apache-2.0",
-      "name": "gdm-literature-search-arxiv",
-      "path": "vendor/gdm-science-skills/skills/literature_search_arxiv",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
       "description": "Browse, filter, and download life sciences, biology, and medical preprints from bioRxiv and medRxiv. Supports fetching paper metadata by DOI, and browsing by date range with category and keyword filters. Keyword filtering is local, so date ranges MUST be narrow (1-4 weeks) with a category to prevent timeouts.",
       "executable_count": 2,
       "license": "Apache-2.0",
@@ -339,19 +357,6 @@
       "status": "inactive"
     },
     {
-      "description": "Search PubMed for scientific literature, including published clinical trials. Fetch abstracts and full text. Link published research to biological databases (gene, protein, nucleotide, PubChem) to discover associations between papers and specific compounds or genes. Verify medical spelling, match raw citations, and cache result sets for bulk processing. Interfaces NCBI E-utilities and PMC BioC APIs.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-pubmed-database",
-      "path": "vendor/gdm-science-skills/skills/pubmed_database",
-      "reasons": [
-        "credentials-required",
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
       "description": "Visualize, analyze, and render protein and molecular structures using PyMOL. Use when the user wants to create images of protein structures, perform structural alignments or superposition, measure distances or contacts, highlight binding sites or active site residues, color by B-factor/pLDDT, or analyze protein-ligand interactions. Do not use for docking, molecular dynamics, or sequence-only analysis.",
       "executable_count": 0,
       "license": "Apache-2.0",
@@ -415,18 +420,6 @@
       "license": "Apache-2.0",
       "name": "gdm-unibind-database",
       "path": "vendor/gdm-science-skills/skills/unibind_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Access protein metadata, function, taxonomy, and sequences across UniProtKB, UniParc, and UniRef. Use when searching for proteins, mapping identifiers, or retrieving functional annotations and publications. Don't use for sequence alignment, protein folding, or sequence similarity search (use specialized skills for those tasks).",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-uniprot-database",
-      "path": "vendor/gdm-science-skills/skills/uniprot_database",
       "reasons": [
         "executable-content"
       ],
@@ -2238,8 +2231,8 @@
     }
   ],
   "summary": {
-    "active": 44,
-    "inactive": 143,
+    "active": 47,
+    "inactive": 140,
     "total": 187
   }
 }

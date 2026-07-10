@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Uniprot Search"
+  short_description: "Use the audited cx-uniprot-search scientific workflow"
+  default_prompt: "Use $cx-uniprot-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
