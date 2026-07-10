@@ -36,21 +36,22 @@ Catalog presence is not execution permission. Inactive skills show their audit r
 ## Requirements
 
 - Codex app or Codex CLI with plugin support
-- Git with submodule support
+- Git
 - Python 3.11 or later
-- [`uv`](https://docs.astral.sh/uv/)
+
+The runtime is pure Python standard library — no packages to install. [`uv`](https://docs.astral.sh/uv/) is only needed for development checks.
 
 ## Install from a clone
 
 ```bash
-git clone --recurse-submodules https://github.com/eightmm/codex-science.git
+git clone https://github.com/eightmm/codex-science.git
 cd codex-science
 ./scripts/bootstrap.sh
 codex plugin marketplace add "$PWD"
 codex plugin add codex-science@codex-science
 ```
 
-Start a new Codex task after installation so the plugin and MCP server are loaded.
+`bootstrap.sh` checks your Python version and shallow-fetches the pinned upstream skills submodule (no `--recurse-submodules` needed at clone time). Start a new Codex task after installation so the plugin and MCP server are loaded.
 
 ## Use
 
@@ -87,7 +88,7 @@ An ordinary scientific question in a new task does not activate Codex Science.
 
 ## Verification
 
-Run deterministic checks:
+Development checks use [`uv`](https://docs.astral.sh/uv/). Run deterministic checks:
 
 ```bash
 ./scripts/check.sh fast

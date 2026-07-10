@@ -15,15 +15,23 @@ uv run python scripts/audit_skills.py --output "$tmp" >/dev/null
 cmp catalog/inventory.json "$tmp"
 uv run python scripts/generate_wrappers.py --check
 uv run python -m unittest discover -s tests
-python3 /home/jaemin/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .
-skill_count=0
-for skill in skills/* catalog/codex-skills/*; do
-  [ -d "$skill" ] || continue
-  if ! output="$(python3 /home/jaemin/.codex/skills/.system/skill-creator/scripts/quick_validate.py "$skill")"; then
-    echo "$skill: $output" >&2
-    exit 1
-  fi
-  skill_count=$((skill_count + 1))
-done
-echo "skill validation: ok ($skill_count skills)"
+
+sys_skills="${CODEX_HOME:-$HOME/.codex}/skills/.system"
+validate_plugin="$sys_skills/plugin-creator/scripts/validate_plugin.py"
+quick_validate="$sys_skills/skill-creator/scripts/quick_validate.py"
+if [ -f "$validate_plugin" ] && [ -f "$quick_validate" ]; then
+  python3 "$validate_plugin" .
+  skill_count=0
+  for skill in skills/* catalog/codex-skills/*; do
+    [ -d "$skill" ] || continue
+    if ! output="$(python3 "$quick_validate" "$skill")"; then
+      echo "$skill: $output" >&2
+      exit 1
+    fi
+    skill_count=$((skill_count + 1))
+  done
+  echo "skill validation: ok ($skill_count skills)"
+else
+  echo "doctor: skipping Codex skill validation (system skills not found at $sys_skills)"
+fi
 echo "doctor: ok"

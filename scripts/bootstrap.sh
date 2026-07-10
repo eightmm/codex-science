@@ -2,8 +2,29 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-git submodule update --init --recursive
-uv sync
-uv run python scripts/audit_skills.py
-uv run python scripts/generate_wrappers.py
-bash scripts/doctor.sh
+# Light installer: the catalog, wrappers, and inventory are committed, and the
+# runtime is pure Python stdlib, so installing only needs a compatible
+# interpreter plus the pinned upstream instructions (shallow submodule).
+# For development verification (regeneration, tests, doctor) use scripts/check.sh.
+
+python3 - <<'PY'
+import sys
+if sys.version_info < (3, 11):
+    sys.exit(f"error: Python 3.11+ required, found {sys.version.split()[0]}")
+print(f"python {sys.version.split()[0]} ok")
+PY
+
+# Upstream skill instructions live in a pinned submodule. Shallow-fetch it so
+# selected skills can show their upstream text without downloading full history.
+git submodule update --init --recursive --depth 1 vendor/scientific-agent-skills
+
+cat <<'EOF'
+bootstrap: ok
+
+Register the plugin with Codex:
+  codex plugin marketplace add "$PWD"
+  codex plugin add codex-science@codex-science
+
+Then start a new Codex task and say "Start Codex Science".
+Developers can verify the checkout with: ./scripts/check.sh fast
+EOF
