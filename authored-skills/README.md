@@ -12,10 +12,16 @@ audit and wrapper generation as every other skill. When an authored skill
 supersedes an upstream one, the upstream folder is listed in that source's
 `exclude` so the two do not both appear.
 
-The `cx` tier now covers **every DeepMind science skill** (35 skills); only the
-three infrastructure entries (`credentials`, `uv`, `workflow_skill_creator`)
-remain as `gdm` pointers. Each superseded upstream folder is listed in the `gdm`
-source's `exclude`, so each capability appears once.
+The `cx` tier (37 skills) covers **every DeepMind science skill** (35 skills);
+only the three infrastructure entries (`credentials`, `uv`,
+`workflow_skill_creator`) remain as `gdm` pointers. Each superseded upstream
+folder is listed in the `gdm` source's `exclude`, so each capability appears
+once.
+
+Two of the 37 are original **execution** skills (no upstream): `cx-compute-environment`
+builds an isolated `uv` environment and runs code; `cx-boltz-structure-prediction`
+installs and runs the Boltz structure-prediction model. Both use an "ask once,
+then run to completion" gate for install/download/compute.
 
 By access method:
 

@@ -44,6 +44,16 @@
       "status": "active"
     },
     {
+      "description": "Predict 3D biomolecular structures and binding affinity with the open-source Boltz model \u2014 proteins, complexes, nucleic acids, and protein-ligand systems from sequence. Use when the user wants a predicted structure or affinity from sequence (not an experimental structure or a database lookup). Downloads and installs Boltz into an isolated uv environment and runs it.",
+      "executable_count": 0,
+      "license": "MIT",
+      "name": "cx-boltz-structure-prediction",
+      "path": "authored-skills/boltz-structure-prediction",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Query the ChEMBL database for bioactive molecules, drug targets, bioactivity measurements (IC50/Ki/EC50), approved drugs, and mechanisms. Use when the user asks about compounds, targets, potency values, or drug mechanisms. Public REST API, no credential needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
@@ -69,6 +79,16 @@
       "license": "Apache-2.0",
       "name": "cx-clinvar-search",
       "path": "authored-skills/clinvar-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Build an isolated, reproducible compute environment with uv and actually run scientific code in it \u2014 install pinned packages, run analysis or modeling, and execute a tool end-to-end (not just query data). Use whenever a task needs to install packages or run code. Records the exact environment for reproducibility.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-compute-environment",
+      "path": "authored-skills/compute-environment",
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -2170,8 +2190,8 @@
     }
   ],
   "summary": {
-    "active": 75,
+    "active": 77,
     "inactive": 112,
-    "total": 187
+    "total": 189
   }
 }

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Boltz Structure Prediction"
+  short_description: "Audited scientific workflow for cx-boltz-structure-prediction"
+  default_prompt: "Use $cx-boltz-structure-prediction for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
