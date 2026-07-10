@@ -25,7 +25,11 @@
         "pubmed_database",
         "uniprot_database",
         "pdb_database",
-        "chembl_database"
+        "chembl_database",
+        "literature_search_biorxiv",
+        "literature_search_europepmc",
+        "literature_search_openalex",
+        "clinical_trials_database"
       ]
     },
     {

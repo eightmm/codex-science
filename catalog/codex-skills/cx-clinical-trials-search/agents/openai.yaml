@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Clinical Trials Search"
+  short_description: "Use the audited cx-clinical-trials-search scientific workflow"
+  default_prompt: "Use $cx-clinical-trials-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

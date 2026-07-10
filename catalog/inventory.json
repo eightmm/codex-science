@@ -34,6 +34,16 @@
       "status": "active"
     },
     {
+      "description": "Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category \u2014 not for open-ended keyword discovery. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-biorxiv-search",
+      "path": "authored-skills/biorxiv-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Query the ChEMBL database for bioactive molecules, drug targets, bioactivity measurements (IC50/Ki/EC50), approved drugs, and mechanisms. Use when the user asks about compounds, targets, potency values, or drug mechanisms. Public REST API, no credential needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
@@ -44,11 +54,41 @@
       "status": "active"
     },
     {
+      "description": "Search ClinicalTrials.gov (API v2) for trials by condition, intervention, status, phase, location, or sponsor; fetch a trial by NCT ID; check eligibility; and count trials. Use for trial discovery, pipeline/portfolio analysis, or patient-matching context. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-clinical-trials-search",
+      "path": "authored-skills/clinical-trials-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-europepmc-search",
+      "path": "authored-skills/europepmc-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Find structurally similar proteins by submitting a 3D coordinate file (.pdb, .cif, or .mmcif) to the Foldseek web API and search databases such as PDB, AlphaFold, CATH, and MGnify. Use ONLY when the user provides a physical structure file and wants structural homologs. Public data, no credential needed.",
       "executable_count": 0,
       "license": "Apache-2.0",
       "name": "cx-foldseek-structural-search",
       "path": "authored-skills/foldseek-structural-search",
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed.",
+      "executable_count": 0,
+      "license": "Apache-2.0",
+      "name": "cx-openalex-search",
+      "path": "authored-skills/openalex-search",
       "reasons": [],
       "source": "cx",
       "status": "active"
@@ -82,18 +122,6 @@
       "reasons": [],
       "source": "cx",
       "status": "active"
-    },
-    {
-      "description": "Query ClinicalTrials.gov via APIv2. Use when you want to search for trials by condition, drug, location, status, or phase; retrieve trial details by NCT ID; check eligibility/inclusion criteria; count trials across conditions or time periods; identify a sponsor's trial portfolio; find recruiting trials for patient matching.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-clinical-trials-database",
-      "path": "vendor/gdm-science-skills/skills/clinical_trials_database",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
     },
     {
       "description": "Use when needing clinical significance, pathogenicity classifications (e.g., Pathogenic, Benign, VUS), clinical evidence rationales, or finding \"hard positive\" benchmark controls for human genomic variants.",
@@ -224,43 +252,6 @@
       "name": "gdm-jaspar-database",
       "path": "vendor/gdm-science-skills/skills/jaspar_database",
       "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Browse, filter, and download life sciences, biology, and medical preprints from bioRxiv and medRxiv. Supports fetching paper metadata by DOI, and browsing by date range with category and keyword filters. Keyword filtering is local, so date ranges MUST be narrow (1-4 weeks) with a category to prevent timeouts.",
-      "executable_count": 2,
-      "license": "Apache-2.0",
-      "name": "gdm-literature-search-biorxiv",
-      "path": "vendor/gdm-science-skills/skills/literature_search_biorxiv",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Search Europe PMC for scientific literature and download open-access full texts and PDFs. Retrieve full-text XML/plain text by PMCID, get citation lists and bibliography.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-literature-search-europepmc",
-      "path": "vendor/gdm-science-skills/skills/literature_search_europepmc",
-      "reasons": [
-        "executable-content"
-      ],
-      "source": "gdm",
-      "status": "inactive"
-    },
-    {
-      "description": "Query the OpenAlex scholarly database for research papers, authors, institutions, topics, sources, publishers, funders, geo-locations, and keywords. Use when searching academic papers, resolving DOIs, downloading open-access PDFs, finding an author's publications, aggregating bibliometric data (citation counts, h-index, impact factor), exploring the research taxonomies, or performing DOI lookups.",
-      "executable_count": 1,
-      "license": "Apache-2.0",
-      "name": "gdm-literature-search-openalex",
-      "path": "vendor/gdm-science-skills/skills/literature_search_openalex",
-      "reasons": [
-        "credentials-required",
         "executable-content"
       ],
       "source": "gdm",
@@ -2227,8 +2218,8 @@
     }
   ],
   "summary": {
-    "active": 49,
-    "inactive": 138,
+    "active": 53,
+    "inactive": 134,
     "total": 187
   }
 }

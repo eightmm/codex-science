@@ -1,6 +1,0 @@
-interface:
-  display_name: "Gdm Literature Search Openalex"
-  short_description: "Audited scientific workflow for gdm-literature-search-openalex"
-  default_prompt: "Use $gdm-literature-search-openalex for this scientific task with catalog safeguards."
-policy:
-  allow_implicit_invocation: false
