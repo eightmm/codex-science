@@ -24,7 +24,7 @@ Install **once** — it registers globally with Codex and works in every project
 curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
 ```
 
-Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library). The installer clones into `~/.codex-science`, registers the plugin globally, and is safe to re-run to update.
+Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library — no packages, virtualenv, or `uv` needed to run). The installer clones into `~/.codex-science`, registers the plugin globally, runs a runtime self-check, and is safe to re-run to update.
 
 Then in **any** project, start a new Codex task and say `Start Codex Science`. You do not re-install per project.
 

@@ -24,7 +24,7 @@ Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러
 curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
 ```
 
-Codex CLI, Git, Python 3.11+ 가 필요합니다(런타임은 순수 Python 표준 라이브러리). 설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록하며, 업데이트하려면 다시 실행하면 됩니다.
+Codex CLI, Git, Python 3.11+ 가 필요합니다(런타임은 순수 Python 표준 라이브러리 — 패키지·가상환경·`uv` 없이 실행). 설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임 self-check까지 수행하며, 업데이트하려면 다시 실행하면 됩니다.
 
 그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `Start Codex Science`(또는 `Codex Science 시작`)라고 하세요. 프로젝트마다 재설치하지 않습니다.
 

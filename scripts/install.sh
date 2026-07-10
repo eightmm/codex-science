@@ -39,6 +39,20 @@ info "Registering Codex plugin"
 codex plugin marketplace add "$INSTALL_DIR" >/dev/null 2>&1 || true
 codex plugin add codex-science@codex-science >/dev/null 2>&1 || true
 
+# 4. Runtime self-check: the MCP server is pure stdlib, so a working python3 is
+#    all it needs. Confirm it actually responds on this machine.
+info "Verifying runtime"
+if printf '%s\n%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    | python3 "$INSTALL_DIR/scripts/science_mcp.py" --inventory "$INSTALL_DIR/catalog/inventory.json" 2>/dev/null \
+    | grep -q science_search_skills; then
+  info "Runtime self-check passed"
+else
+  err "runtime self-check failed — the MCP server did not respond; check python3 (3.11+)"
+  exit 1
+fi
+
 cat <<EOF
 
 Codex Science is installed at: $INSTALL_DIR
