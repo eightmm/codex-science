@@ -70,13 +70,23 @@ An ordinary scientific question in a fresh task does **not** activate the mode. 
 
 > Catalog presence is not execution permission. Inactive skills show their audit reasons and require acknowledgement before their upstream instructions can be inspected. See [docs/](docs/) for verification, configuration, and boundaries.
 
+## Catalog
+
+All skills merge into one deterministic, audited inventory (`catalog/inventory.json`) from three tiers:
+
+- **K-Dense-AI — 149** · pinned upstream (Git submodule); thin Codex wrappers point at the pinned instructions.
+- **Codex-native authored — 35** · the entire Google DeepMind science set, [rewritten as first-class Codex skills](authored-skills/) that map onto Codex tools and the plugin's read-only MCP (`science_search_*`) or public REST/GraphQL APIs.
+- **DeepMind infra — 3** · `credentials`, `uv`, `workflow_skill_creator`, kept as pointers.
+
+A conservative audit marks each skill **active** or **inactive** (by license, executable content, credential need, and safety). Inactive skills stay in the catalog but require explicit acknowledgement before use.
+
 ## License
 
 Codex Science's original code is released under the [MIT License](LICENSE).
 
-Imported skills retain their upstream licenses:
+Imported and adapted skills retain their upstream licenses:
 
 - **K-Dense-AI/scientific-agent-skills** — pinned Git submodule; per-skill licenses in each `SKILL.md`.
-- **Google DeepMind/science-skills** — vendored under `vendor/gdm-science-skills/`; Apache-2.0 (code) + CC-BY-4.0, with per-source data terms in `SKILL_LICENSES.md` and provenance in `PROVENANCE.md`.
+- **Google DeepMind/science-skills** — Apache-2.0 + CC-BY-4.0. The science skills are adapted into Codex-native form under `authored-skills/` (attribution in each `SKILL.md`); the pinned upstream copy under `vendor/gdm-science-skills/` keeps the original `LICENSE`, `SKILL_LICENSES.md`, and `PROVENANCE.md`.
 
 Repository-level files do not override per-skill or dependency licenses.

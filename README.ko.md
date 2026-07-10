@@ -70,13 +70,23 @@ Codex Science 종료
 
 > 카탈로그에 있다고 실행 권한이 생기는 것은 아닙니다. 비활성 스킬은 audit 사유를 표시하고, upstream 지침을 열람하기 전에 확인을 요구합니다. 검증·설정·경계는 [docs/](docs/) 참고.
 
+## 카탈로그
+
+모든 스킬은 하나의 결정적·감사된 inventory(`catalog/inventory.json`)로 병합되며, 세 티어로 구성됩니다:
+
+- **K-Dense-AI — 149** · pinned upstream(Git 서브모듈); 얇은 Codex wrapper가 고정된 지침을 가리킴.
+- **Codex-native 저작 — 35** · Google DeepMind 과학 스킬 전체를 [1급 Codex 스킬로 재작성](authored-skills/) — Codex 도구와 플러그인 read-only MCP(`science_search_*`) 또는 공개 REST/GraphQL API에 매핑.
+- **DeepMind 인프라 — 3** · `credentials`, `uv`, `workflow_skill_creator`는 포인터로 유지.
+
+보수적 audit이 각 스킬을 **active/inactive**로 표시합니다(라이선스·실행 코드·인증정보·안전성 기준). 비활성 스킬은 카탈로그에 남되 사용 전 명시적 확인을 요구합니다.
+
 ## 라이선스
 
 Codex Science의 원본 코드는 [MIT License](LICENSE)로 배포됩니다.
 
-가져온 스킬은 각자의 upstream 라이선스를 유지합니다:
+가져오거나 각색한 스킬은 각자의 upstream 라이선스를 유지합니다:
 
 - **K-Dense-AI/scientific-agent-skills** — 고정된 Git 서브모듈; 라이선스는 각 `SKILL.md`에 개별 명시.
-- **Google DeepMind/science-skills** — `vendor/gdm-science-skills/`에 vendoring; Apache-2.0(코드) + CC-BY-4.0, 데이터 출처 약관은 `SKILL_LICENSES.md`, 출처는 `PROVENANCE.md`.
+- **Google DeepMind/science-skills** — Apache-2.0 + CC-BY-4.0. 과학 스킬은 `authored-skills/`에서 Codex-native로 각색(각 `SKILL.md`에 attribution 명시); `vendor/gdm-science-skills/`의 pinned 원본 복사본은 `LICENSE`·`SKILL_LICENSES.md`·`PROVENANCE.md`를 그대로 보존.
 
 저장소 수준 파일은 개별 스킬이나 의존성의 라이선스를 덮어쓰지 않습니다.
