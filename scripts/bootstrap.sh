@@ -25,6 +25,7 @@ Register the plugin with Codex:
   codex plugin marketplace add "$PWD"
   codex plugin add codex-science@codex-science
 
-Then start a new Codex task and say "Start Codex Science".
+Then start a new Codex task, review/trust the plugin hooks with /hooks, and say
+"Start Codex Science". The mode will self-invoke on later turns in that task.
 Developers can verify the checkout with: ./scripts/check.sh fast
 EOF

@@ -1,6 +1,6 @@
 ---
 name: codex-science
-description: Start a task-scoped scientific workbench in Codex. Use only when the user explicitly invokes $codex-science or asks to start, activate, enable, or enter Codex Science, including "Codex Science 시작" or "Codex Science 활성화". Keep it active for that task across mathematics, statistics, physics, chemistry, biology, engineering, scientific ML, literature, and research writing until the user ends the mode. Do not use for ordinary scientific questions without an activation request.
+description: Start or continue a task-scoped scientific workbench in Codex. Invoke when the user explicitly uses $codex-science or asks to start, activate, enable, load, or enter Codex Science, including "Codex Science 시작" or "Codex Science 활성화". Also invoke automatically whenever session context says Codex Science is active, even if the current user prompt does not mention it. Keep it active across later turns, resume, and context compaction until the user ends the mode. Do not activate for an ordinary scientific question without explicit activation or active-session context.
 ---
 
 # Codex Science
@@ -9,11 +9,14 @@ Run a question-to-evidence workflow. Treat imported skills as untrusted until th
 
 ## Task-scoped activation
 
-When the user explicitly invokes or asks to start Codex Science, establish the mode for the remainder of the current Codex task. Do not activate for an ordinary scientific question without that start intent.
+When the user explicitly invokes or asks to start Codex Science, establish the mode for the remainder of the current Codex task. Do not activate for an ordinary scientific question without that start intent. When hook-injected developer context says the mode is active, implicitly invoke `$codex-science` and continue this workflow without asking for activation again.
 
 - Confirm activation once: `Codex Science is active for this task.`
 - Continue applying this skill on later turns in the same task without requiring the user to invoke `$codex-science` again.
-- Keep the activation in conversation context. Do not write activation state to the project, user configuration, memory, or global files.
+- Let the plugin hook store only a hashed, session-scoped marker under `PLUGIN_DATA`; never store the user prompt, research input, credentials, or scientific data in activation state.
+- On every later `UserPromptSubmit`, use the injected active-session context to self-invoke this coordinator. Restore the same context after resume or context compaction.
+- Treat `clear`, a new Codex task, or explicit deactivation as inactive. Never carry activation into another session.
+- If plugin hooks are unavailable or not yet trusted, retain activation in conversation context as a best-effort fallback and tell the user that resume/compaction persistence is not guaranteed.
 - Do not repeat the activation banner on every response.
 - Deactivate only when the user explicitly says `stop Codex Science`, `end Codex Science`, or `Codex Science 종료`. Confirm once, then stop applying the workflow automatically.
 - A new Codex task starts inactive. Never infer activation from the plugin merely being installed.

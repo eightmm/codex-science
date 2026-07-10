@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 
 Codex CLI, Git, Python 3.11+ 가 필요합니다(런타임은 순수 Python 표준 라이브러리 — 패키지·가상환경·`uv` 없이 실행). 설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임 self-check까지 수행하며, 업데이트하려면 다시 실행하면 됩니다.
 
-그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `Start Codex Science`(또는 `Codex Science 시작`)라고 하세요. 프로젝트마다 재설치하지 않습니다.
+그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `/hooks`를 열어 Codex Science의 `SessionStart`·`UserPromptSubmit` hook을 한 번 신뢰 처리하세요. `Start Codex Science`(또는 `Codex Science 시작`)라고 하면 이후 턴에서는 coordinator가 스스로 재호출됩니다. 프로젝트마다 재설치하지 않습니다.
 
 <details>
 <summary>수동 / 개발용 설치</summary>
@@ -58,6 +58,8 @@ Codex Science 시작
 이 결과를 분석하고 재현 가능한 artifact로 기록해줘.
 최종 주장을 실행 기록과 대조해 검토해줘.
 ```
+
+활성 상태는 Codex의 `session_id`에 연결됩니다. Hook은 plugin writable data directory에 해시된 marker만 저장하며 prompt나 연구 데이터는 저장하지 않습니다. 이후 매 턴과 resume/context compaction 뒤에 coordinator context를 다시 주입합니다. `clear`, 새 작업, 명시적 종료에서는 marker를 제거하거나 무시하며, 방치된 marker는 180일 동안 사용되지 않으면 만료됩니다. Hook을 아직 신뢰하지 않았다면 같은 작업의 대화 문맥을 통한 best-effort 지속만 가능하며 resume/compaction 보존은 보장되지 않습니다.
 
 명시적으로 종료합니다:
 

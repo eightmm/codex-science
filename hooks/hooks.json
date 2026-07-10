@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/science_session_hook.py\"",
+            "timeout": 5,
+            "statusMessage": "Restoring Codex Science session state"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/science_session_hook.py\"",
+            "timeout": 5,
+            "statusMessage": "Checking Codex Science session state"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -18,7 +18,9 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 
 The installer clones into `~/.codex-science` (override with `CODEX_SCIENCE_HOME`), runs the light bootstrap, and registers the plugin. Re-run it any time to update.
 
-Then start a new Codex task in any project and say `Start Codex Science` or `Codex Science 시작`. You do not install per project — the plugin is user-global in `~/.codex`.
+Then start a new Codex task in any project, open `/hooks`, and trust the Codex Science `SessionStart` and `UserPromptSubmit` hooks. Say `Start Codex Science` or `Codex Science 시작`. You do not install per project — the plugin is user-global in `~/.codex`.
+
+The hooks persist only a SHA-256 hash of Codex's `session_id` as an activation marker under `PLUGIN_DATA`. They do not store prompts, research inputs, credentials, or results. This keeps the coordinator active across later turns, resume, and context compaction; explicit stop, `clear`, and new tasks remain inactive. Abandoned markers expire after 180 days of inactivity.
 
 ## Install (manual / development)
 

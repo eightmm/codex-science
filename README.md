@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 
 Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library — no packages, virtualenv, or `uv` needed to run). The installer clones into `~/.codex-science`, registers the plugin globally, runs a runtime self-check, and is safe to re-run to update.
 
-Then in **any** project, start a new Codex task and say `Start Codex Science`. You do not re-install per project.
+Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart` and `UserPromptSubmit` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
 
 <details>
 <summary>Manual / development install</summary>
@@ -58,6 +58,8 @@ Design the smallest experiment that could disprove it.
 Analyze these results and record reproducible artifacts.
 Review the final claims against the execution record.
 ```
+
+Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
 
 Stop it explicitly:
 

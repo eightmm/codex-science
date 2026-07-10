@@ -39,8 +39,7 @@ info "Registering Codex plugin"
 codex plugin marketplace add "$INSTALL_DIR" >/dev/null 2>&1 || true
 codex plugin add codex-science@codex-science >/dev/null 2>&1 || true
 
-# 4. Runtime self-check: the MCP server is pure stdlib, so a working python3 is
-#    all it needs. Confirm it actually responds on this machine.
+# 4. Runtime self-check: confirm both the MCP server and session hook respond.
 info "Verifying runtime"
 if printf '%s\n%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
@@ -53,12 +52,30 @@ else
   exit 1
 fi
 
+HOOK_DATA="$(mktemp -d)"
+trap 'rm -rf "$HOOK_DATA"' EXIT
+if printf '%s\n' \
+    '{"cwd":".","hook_event_name":"UserPromptSubmit","model":"self-check","permission_mode":"default","prompt":"Start Codex Science","session_id":"install-self-check","transcript_path":null,"turn_id":"turn-1"}' \
+    | PLUGIN_DATA="$HOOK_DATA" python3 "$INSTALL_DIR/scripts/science_session_hook.py" 2>/dev/null \
+    | grep -q 'Codex Science is active'; then
+  info "Session persistence self-check passed"
+else
+  err "session persistence self-check failed"
+  exit 1
+fi
+rm -rf "$HOOK_DATA"
+trap - EXIT
+
 cat <<EOF
 
 Codex Science is installed at: $INSTALL_DIR
 
 Use it in ANY project — start a new Codex task and say:
   Start Codex Science   (or: Codex Science 시작)
+
+On first use, open /hooks and trust the Codex Science SessionStart and
+UserPromptSubmit hooks. They store only a hashed session marker under the
+plugin data directory; prompts and research data are never stored.
 
 Re-run this installer any time to update.
 EOF

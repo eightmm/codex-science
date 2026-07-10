@@ -171,7 +171,9 @@ class SessionContractTests(unittest.TestCase):
         ).read_text()
 
         self.assertIn("remainder of the current Codex task", skill)
-        self.assertIn("Do not write activation state to the project", skill)
+        self.assertIn("session-scoped marker", skill)
+        self.assertIn("implicitly invoke `$codex-science`", skill)
+        self.assertIn("resume or context compaction", skill)
         self.assertIn("Codex Science 종료", skill)
         self.assertIn("catalog/codex-skills/<name>/SKILL.md", skill)
         self.assertIn("Do not activate for an ordinary scientific question", skill)
@@ -179,6 +181,16 @@ class SessionContractTests(unittest.TestCase):
         for name in ("science-provenance", "science-review"):
             agent = (repository_root / "skills" / name / "agents" / "openai.yaml").read_text()
             self.assertIn("allow_implicit_invocation: false", agent)
+
+    def test_plugin_starter_prompts_explicitly_activate_science_mode(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        manifest = json.loads(
+            (repository_root / ".codex-plugin" / "plugin.json").read_text()
+        )
+
+        prompts = manifest["interface"]["defaultPrompt"]
+        self.assertTrue(prompts)
+        self.assertTrue(all("Start Codex Science" in prompt for prompt in prompts))
 
 
 class FeaturedScienceSkillCoverageTests(unittest.TestCase):
