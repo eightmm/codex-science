@@ -15,7 +15,8 @@ schemas or review procedure are needed.
 
 ## Preflight
 
-1. Inspect relevant input files and storage needs without copying sensitive data.
+1. Resolve the project root from the current workspace or nearest version-control
+   root. Inspect relevant inputs and storage needs without copying sensitive data.
 2. Run `python3 <plugin-root>/scripts/compute_probe.py`
    for a read-only capability report. Save it under the run directory with
    `--output artifacts/<run-id>/compute-environment.json` once a run exists.
@@ -26,6 +27,22 @@ schemas or review procedure are needed.
    - a digest-pinned container for system dependencies or stronger isolation;
    - a GPU only when the method benefits materially and its memory need fits.
 4. State inputs, outputs, expected runtime/disk, and the smallest smoke test.
+
+## Project environment
+
+Reuse a project's existing environment contract before creating anything:
+
+- Python: honor `pyproject.toml`, `uv.lock`, and an existing project `.venv`;
+  use `uv run --locked` when a lock exists, otherwise create an isolated run
+  environment without changing global Python.
+- R: honor `renv.lock` and the project library; record `sessionInfo()`.
+- Julia: honor `Project.toml` and `Manifest.toml`; run with the matching project.
+- Jupyter: bind the Jupyter kernel to the selected project environment and record
+  the kernel/runtime identity with the executed notebook.
+- Containers: honor a reviewed project container definition and pinned digest.
+
+Do not silently rewrite a lockfile or mix environments from another project.
+Request approval before adding dependencies or changing a project lock.
 
 Read-only inspection and a small CPU calculation in an existing environment need
 no extra gate. Any GPU workload beyond capability/version inspection requires the

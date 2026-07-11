@@ -212,6 +212,8 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
         self.assertIn("approval packet", local)
         self.assertIn("cancellation", local)
         self.assertIn("two directories above", local)
+        for project_marker in ("pyproject.toml", "renv.lock", "Project.toml", "Jupyter kernel"):
+            self.assertIn(project_marker, local)
 
         remote = (
             repository_root
@@ -243,6 +245,20 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
             self.assertIn("Slurm", text)
             self.assertIn("Julia", text)
             self.assertIn("GPU", text)
+
+    def test_provenance_renders_and_surfaces_visual_results(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        provenance = (repository_root / "skills" / "science-provenance" / "SKILL.md").read_text()
+
+        self.assertIn("render_artifact_index.py", provenance)
+        self.assertIn("index.md", provenance)
+        self.assertIn("index.html", provenance)
+        self.assertIn("absolute local path", provenance)
+        self.assertIn("display", provenance)
+        self.assertIn("claim evidence", provenance)
+        self.assertIn("data-derived", provenance)
+        self.assertIn("units", provenance)
+        self.assertIn("Do not invent", provenance)
 
 
 class FeaturedScienceSkillCoverageTests(unittest.TestCase):

@@ -258,7 +258,7 @@
     {
       "description": "Inspect and use the local computer as a reproducible scientific workbench across shell, Python, R, Julia, Jupyter, containers, CPUs, and GPUs. Use when a scientific task needs local files, code execution, package or environment setup, data conversion, visualization, notebooks, simulation, model inference, or hardware-aware execution rather than instructions alone, including a Julia notebook on a local GPU.",
       "executable_count": 0,
-      "instruction_line_count": 77,
+      "instruction_line_count": 94,
       "license": "Apache-2.0",
       "name": "cx-compute-environment",
       "path": "authored-skills/compute-environment",

@@ -90,6 +90,11 @@ repeated prompts. Commands, environments, job IDs, logs, exit status, costs, and
 output hashes are recorded under `artifacts/<run-id>/`; credentials are never
 stored there. See [Scientific compute](docs/COMPUTE.md) for the complete boundary.
 
+Each completed run also gets a local `index.md` and, when requested, an offline
+`index.html`. Primary PNG/JPEG/WebP/GIF results are displayed directly in the
+Codex conversation; reports, tables, notebooks, logs, and secondary figures are
+returned as clickable absolute-path links. No web deployment is required.
+
 An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 254 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
 
 > Catalog presence is not execution permission. Inactive skills show their audit reasons and require acknowledgement before their upstream instructions can be inspected. See [docs/](docs/) for verification, configuration, and boundaries.

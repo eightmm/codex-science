@@ -16,6 +16,8 @@
 - Vendored DeepMind content is checked against its pinned SHA-256 tree digest.
 - Upstream `SKILL.md` files over 500 lines use heading-first progressive loading in their wrappers.
 - Artifact manifests reject path traversal and missing fields.
+- Artifact indexes reject missing or hash-mismatched files, escape manifest text,
+  embed local raster figures, and contain no hosted resources.
 - Reviewer flags failed execution, missing evidence, and incomplete plans.
 - All 15 read-only public MCP connectors return a result in the explicit live smoke check.
 

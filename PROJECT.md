@@ -41,6 +41,8 @@
 - Explicit entry skill: a Codex Science coordinator skill.
 - Default behavior: propose a plan before new resources, package installation, remote compute, or write-capable external actions.
 - Outputs: project-local artifact bundles with stable metadata and links suitable for inspection in Codex.
+  Each completed run includes a generated Markdown index, optional offline HTML,
+  and direct Codex display of primary raster results.
 
 ## Artifact Contract
 

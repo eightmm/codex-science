@@ -12,6 +12,8 @@ task. Desktop GUI and browser automation are out of scope.
   configuration, credentials, or dataset contents.
 - Keep code, logs, environment metadata, failures, and output hashes under
   `artifacts/<run-id>/`.
+- Reuse the current project's Python lock/venv, R `renv`, Julia project, Jupyter
+  kernel, or reviewed container contract. Never mix another project's environment.
 
 ## Remote
 
@@ -33,3 +35,13 @@ data, resource envelope, time/cost cap, outputs, and cancellation plan.
 
 Approval does not extend to a different host, new data boundary, higher cost,
 larger resource request, destructive cleanup, or interpretation-changing method.
+
+## Local result view
+
+After manifest validation, generate `index.md` from the manifest. Generate
+offline `index.html` only when requested. The views verify artifact existence and
+hashes, escape untrusted text, use no hosted assets, and remain derived navigation
+files rather than evidence. Display primary raster figures in the Codex response
+and link all other artifacts by absolute local path. Generate a static figure
+only when it is a data-derived, labeled view that improves interpretation; never
+fabricate an illustrative image and present it as scientific evidence.
