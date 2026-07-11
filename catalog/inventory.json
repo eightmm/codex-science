@@ -256,9 +256,9 @@
       "status": "active"
     },
     {
-      "description": "Build an isolated, reproducible compute environment with uv and actually run scientific code in it \u2014 install pinned packages, run analysis or modeling, and execute a tool end-to-end (not just query data). Use whenever a task needs to install packages or run code. Records the exact environment for reproducibility.",
+      "description": "Inspect and use the local computer as a reproducible scientific workbench across shell, Python, R, Julia, Jupyter, containers, CPUs, and GPUs. Use when a scientific task needs local files, code execution, package or environment setup, data conversion, visualization, notebooks, simulation, model inference, or hardware-aware execution rather than instructions alone, including a Julia notebook on a local GPU.",
       "executable_count": 0,
-      "instruction_line_count": 60,
+      "instruction_line_count": 77,
       "license": "Apache-2.0",
       "name": "cx-compute-environment",
       "path": "authored-skills/compute-environment",
@@ -1042,6 +1042,18 @@
       "license": "MIT",
       "name": "cx-relativity-spacetime",
       "path": "authored-skills/relativity-spacetime",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run reproducible scientific workloads through an existing SSH host, Slurm/HPC cluster, cloud GPU provider, or remote object storage. Use for remote execution, job submission and monitoring, checkpointed long runs, GPU allocation, data staging, result retrieval, queue diagnosis, or resuming work that can outlive the current Codex task.",
+      "executable_count": 0,
+      "instruction_line_count": 70,
+      "license": "Apache-2.0",
+      "name": "cx-remote-scientific-compute",
+      "path": "authored-skills/remote-scientific-compute",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3337,8 +3349,8 @@
     }
   ],
   "summary": {
-    "active": 141,
+    "active": 142,
     "inactive": 112,
-    "total": 253
+    "total": 254
   }
 }

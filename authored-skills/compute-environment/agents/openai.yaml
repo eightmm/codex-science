@@ -1,4 +1,4 @@
 interface:
-  display_name: "Compute Environment"
-  short_description: "Help with Compute Environment tasks"
-  default_prompt: "Use $compute-environment to run the requested scientific workflow with its documented safeguards."
+  display_name: "Local Scientific Compute"
+  short_description: "Run reproducible science on the local computer"
+  default_prompt: "Use $compute-environment to run this scientific workload locally and record reproducible outputs."

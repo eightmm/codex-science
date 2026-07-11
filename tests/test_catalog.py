@@ -163,6 +163,8 @@ class CatalogAuditTests(unittest.TestCase):
             "Use SymPy to solve and verify a symbolic integral": "kdense-sympy",
             "Use PyLabRobot to run this protocol on my real liquid handler": "kdense-pylabrobot",
             "Use statsmodels for a regression diagnostics workflow": "kdense-statsmodels",
+            "Run a Julia notebook on the local GPU": "cx-compute-environment",
+            "Submit a scientific job to a Slurm HPC cluster": "cx-remote-scientific-compute",
         }
 
         for query, expected in cases.items():

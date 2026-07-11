@@ -193,6 +193,58 @@ class SessionContractTests(unittest.TestCase):
         self.assertTrue(all("Start Codex Science" in prompt for prompt in prompts))
 
 
+class ScientificComputerUseCoverageTests(unittest.TestCase):
+    def test_local_and_remote_compute_skills_are_active_and_routed(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
+        records = {item["name"]: item for item in inventory["skills"]}
+        expected = {"cx-compute-environment", "cx-remote-scientific-compute"}
+
+        self.assertTrue(expected <= records.keys())
+        self.assertTrue(all(records[name]["status"] == "active" for name in expected))
+
+        local = (
+            repository_root / "authored-skills" / "compute-environment" / "SKILL.md"
+        ).read_text()
+        for capability in ("Python", "R", "Julia", "Jupyter", "container", "GPU"):
+            self.assertIn(capability, local)
+        self.assertIn("scripts/compute_probe.py", local)
+        self.assertIn("approval packet", local)
+        self.assertIn("cancellation", local)
+        self.assertIn("two directories above", local)
+
+        remote = (
+            repository_root
+            / "authored-skills"
+            / "remote-scientific-compute"
+            / "SKILL.md"
+        ).read_text()
+        for capability in ("SSH", "Slurm", "cloud GPU", "object storage"):
+            self.assertIn(capability, remote)
+        self.assertIn("login node", remote)
+        self.assertIn("explicit approval", remote)
+        self.assertIn("Never persist credentials", remote)
+        self.assertIn("host fingerprint", remote)
+        self.assertIn("monitoring cadence", remote)
+
+        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        self.assertIn("$cx-compute-environment", coordinator)
+        self.assertIn("$cx-remote-scientific-compute", coordinator)
+
+    def test_readme_documents_human_trust_and_compute_boundaries(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        english = (repository_root / "README.md").read_text()
+        korean = (repository_root / "README.ko.md").read_text()
+
+        for text in (english, korean):
+            self.assertIn("/hooks", text)
+            self.assertIn("Start Codex Science", text)
+            self.assertIn("SSH", text)
+            self.assertIn("Slurm", text)
+            self.assertIn("Julia", text)
+            self.assertIn("GPU", text)
+
+
 class FeaturedScienceSkillCoverageTests(unittest.TestCase):
     def test_analytical_chemistry_skills_are_active_sourced_and_composable(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]

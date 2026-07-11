@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remote Scientific Compute"
+  short_description: "Run science safely on clusters and cloud GPUs"
+  default_prompt: "Use $remote-scientific-compute to run this workload on approved remote compute."

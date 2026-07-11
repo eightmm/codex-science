@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 실험 분광·분석화학, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **253개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다.
+Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 실험 분광·분석화학, 로컬·원격 과학 컴퓨팅, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **254개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다.
 
 Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러그인이며, 비공개 구현과의 동등성을 주장하지 않습니다.
 
@@ -27,6 +27,12 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 Codex CLI, Git, Python 3.11+ 가 필요합니다(런타임은 순수 Python 표준 라이브러리 — 패키지·가상환경·`uv` 없이 실행). 설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임 self-check까지 수행하며, 업데이트하려면 다시 실행하면 됩니다.
 
 그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `/hooks`를 열어 Codex Science의 `SessionStart`·`UserPromptSubmit` hook을 한 번 신뢰 처리하세요. `Start Codex Science`(또는 `Codex Science 시작`)라고 하면 이후 턴에서는 coordinator가 스스로 재호출됩니다. 프로젝트마다 재설치하지 않습니다.
+
+`/hooks`는 사람이 확인하는 보안 경계입니다. Plugin command를 승인할 뿐
+science mode를 시작하지는 않으므로, 이 승인은 사용자가 직접 처리하는 것이
+맞습니다. 신뢰 처리 뒤에는 평문 시작 문구로 mode가 활성화됩니다. Codex에게
+hook script를 직접 실행하라고 요청할 필요가 없으며, 직접 실행은 hook 신뢰를
+대체하지도 않습니다.
 
 <details>
 <summary>수동 / 개발용 설치</summary>
@@ -68,7 +74,23 @@ Stop Codex Science
 Codex Science 종료
 ```
 
-새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 253개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
+## 과학 컴퓨터 활용
+
+활성 작업 안에서 Codex Science는 로컬 shell, Python, R, Julia, Jupyter,
+container, CPU, GPU 환경을 탐지하고 실제 과학 계산에 사용할 수 있습니다.
+필요하면 사용자가 이미 보유한 SSH host, Slurm/HPC cluster, cloud GPU 계정,
+private object storage도 사용합니다. GUI/browser desktop 자동화는 의도적으로
+이 워크플로에서 제외합니다.
+
+읽기 전용 점검과 기존 환경의 작은 계산은 바로 진행합니다. Package 설치,
+새 host 접속, private data 전송, 원격 job 제출, 유료 자원 할당 전에는 target,
+data movement, 자원, 시간·비용 상한, output path, 취소 계획을 하나의 승인
+packet으로 제시합니다. 승인된 reversible 단계는 반복 확인 없이 이어서
+진행합니다. 명령, 환경, job ID, log, exit status, 비용, output hash는
+`artifacts/<run-id>/`에 기록하며 credential은 기록하지 않습니다. 전체 경계는
+[과학 컴퓨팅](docs/COMPUTE.md)을 참고하세요.
+
+새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 254개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
 
 > 카탈로그에 있다고 실행 권한이 생기는 것은 아닙니다. 비활성 스킬은 audit 사유를 표시하고, upstream 지침을 열람하기 전에 확인을 요구합니다. 검증·설정·경계는 [docs/](docs/) 참고.
 
@@ -77,7 +99,7 @@ Codex Science 종료
 모든 스킬은 하나의 결정적·감사된 inventory(`catalog/inventory.json`)로 병합되며, 세 티어로 구성됩니다:
 
 - **K-Dense-AI — 149** · pinned upstream(Git 서브모듈); 얇은 Codex wrapper가 고정된 지침을 가리킴.
-- **Codex-native 저작 — 101** · Google DeepMind 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 분광·NMR·MS·XRD/산란·크로마토그래피·통합 구조규명 워크플로 6개, 최신 구조·단백질/유전체·도킹·설계·MD·single-cell 모델을 [격리·승인형 실행 스킬](authored-skills/)로 제공. 실제 문제가 주어지면 전용 runner가 풀이·독립 검증·provenance·review까지 이어서 수행. 공개 소스 15개는 plugin read-only MCP(`science_search_*`)로 직접 호출.
+- **Codex-native 저작 — 102** · Google DeepMind 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 분광·NMR·MS·XRD/산란·크로마토그래피·통합 구조규명 워크플로 6개, 로컬·원격 과학 컴퓨팅, 최신 구조·단백질/유전체·도킹·설계·MD·single-cell 모델을 [격리·승인형 실행 스킬](authored-skills/)로 제공. 실제 문제가 주어지면 전용 runner가 풀이·독립 검증·provenance·review까지 이어서 수행. 공개 소스 15개는 plugin read-only MCP(`science_search_*`)로 직접 호출.
 - **DeepMind 인프라 — 3** · `credentials`, `uv`, `workflow_skill_creator`는 포인터로 유지.
 
 보수적 audit이 각 스킬을 **active/inactive**로 표시합니다(라이선스·실행 코드·인증정보·안전성 기준). 비활성 스킬은 카탈로그에 남되 사용 전 명시적 확인을 요구합니다.

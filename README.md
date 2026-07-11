@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **253 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, experimental spectroscopy and analytical chemistry, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 15 read-only public data connectors, and records reproducible artifacts with independent evidence review.
+Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **254 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, experimental spectroscopy and analytical chemistry, local and remote scientific compute, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 15 read-only public data connectors, and records reproducible artifacts with independent evidence review.
 
 This is an independent Codex plugin inspired by the public workflow of Claude Science. It does not claim parity with any private implementation.
 
@@ -27,6 +27,11 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library — no packages, virtualenv, or `uv` needed to run). The installer clones into `~/.codex-science`, registers the plugin globally, runs a runtime self-check, and is safe to re-run to update.
 
 Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart` and `UserPromptSubmit` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
+
+`/hooks` is the human security boundary: it approves the plugin command but does
+not start the science mode. Keep that approval as a deliberate user action. Once
+trusted, the plain-language start phrase activates the mode; asking Codex to run
+the hook script manually is neither required nor a substitute for hook trust.
 
 <details>
 <summary>Manual / development install</summary>
@@ -68,7 +73,24 @@ Stop Codex Science
 Codex Science 종료
 ```
 
-An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 253 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
+## Scientific computer use
+
+Inside an active task, Codex Science can inspect and use the available computer
+for local shell, Python, R, Julia, Jupyter, containers, CPU, and GPU workflows.
+It can also use an existing SSH host, Slurm/HPC cluster, cloud GPU account, or
+private object store when the task requires remote compute. GUI/browser desktop
+automation is intentionally outside this workflow.
+
+Read-only inspection and small work in an existing environment can proceed
+directly. Before installing packages, contacting a new host, transferring private
+data, submitting a remote job, or allocating paid resources, Codex presents one
+approval packet with the target, data movement, resources, time/cost cap, output
+path, and cancellation plan. Approved reversible steps then continue without
+repeated prompts. Commands, environments, job IDs, logs, exit status, costs, and
+output hashes are recorded under `artifacts/<run-id>/`; credentials are never
+stored there. See [Scientific compute](docs/COMPUTE.md) for the complete boundary.
+
+An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 254 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
 
 > Catalog presence is not execution permission. Inactive skills show their audit reasons and require acknowledgement before their upstream instructions can be inspected. See [docs/](docs/) for verification, configuration, and boundaries.
 
@@ -77,7 +99,7 @@ An ordinary scientific question in a fresh task does **not** activate the mode. 
 All skills merge into one deterministic, audited inventory (`catalog/inventory.json`) from three tiers:
 
 - **K-Dense-AI — 149** · pinned upstream (Git submodule); thin Codex wrappers point at the pinned instructions.
-- **Codex-native authored — 101** · the entire Google DeepMind science set [rewritten as first-class Codex skills](authored-skills/), 28 textbook-grounded mathematics/physics workflows, six spectroscopy and analytical-chemistry workflows, and isolated, gated execution workflows for current structure, protein/genome, docking, design, MD, and single-cell models. Analytical workflows cover optical spectra, NMR, MS, XRD/scattering, chromatography, and evidence-integrated structure elucidation. Concrete-problem runners continue through solution, independent checks, provenance, and review. Fifteen public sources are callable through the plugin's read-only MCP (`science_search_*`).
+- **Codex-native authored — 102** · the entire Google DeepMind science set [rewritten as first-class Codex skills](authored-skills/), 28 textbook-grounded mathematics/physics workflows, six spectroscopy and analytical-chemistry workflows, local/remote scientific computing, and isolated, gated execution workflows for current structure, protein/genome, docking, design, MD, and single-cell models. Analytical workflows cover optical spectra, NMR, MS, XRD/scattering, chromatography, and evidence-integrated structure elucidation. Concrete-problem runners continue through solution, independent checks, provenance, and review. Fifteen public sources are callable through the plugin's read-only MCP (`science_search_*`).
 - **DeepMind infra — 3** · `credentials`, `uv`, `workflow_skill_creator`, kept as pointers.
 
 A conservative audit marks each skill **active** or **inactive** (by license, executable content, credential need, and safety). Inactive skills stay in the catalog but require explicit acknowledgement before use.

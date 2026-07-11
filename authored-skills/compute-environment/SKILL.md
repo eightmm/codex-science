@@ -1,60 +1,77 @@
 ---
 name: compute-environment
-description: "Build an isolated, reproducible compute environment with uv and actually run scientific code in it — install pinned packages, run analysis or modeling, and execute a tool end-to-end (not just query data). Use whenever a task needs to install packages or run code. Records the exact environment for reproducibility."
+description: "Inspect and use the local computer as a reproducible scientific workbench across shell, Python, R, Julia, Jupyter, containers, CPUs, and GPUs. Use when a scientific task needs local files, code execution, package or environment setup, data conversion, visualization, notebooks, simulation, model inference, or hardware-aware execution rather than instructions alone, including a Julia notebook on a local GPU."
 license: Apache-2.0
 ---
 
-# Compute Environment and Execution (Codex-native)
+# Local Scientific Compute
 
-Give the workflow a real, isolated environment and run work in it — the missing
-step between "found the right method" and "produced the result". Standardized on
-**`uv`**: fast, isolated, reproducible, and no global/system pollution.
+Use the existing computer to produce a result, not merely a tutorial. Keep work
+isolated, inspectable, and reproducible.
 
-## Gates — ask once, then run to completion
+Resolve `<plugin-root>` as two directories above this `SKILL.md`. Load the
+plugin's `$science-provenance` and `$science-review` core skills when their
+schemas or review procedure are needed.
 
-Building an environment and executing code crosses the project's safety gates.
-Ask the user **once**, up front, with the concrete plan (which tool, expected
-download size, whether a GPU is needed, and any network host), then proceed
-autonomously through the rest — do not re-ask between steps.
+## Preflight
 
-- **Install / download**: package installation and model-weight downloads (often
-  multiple GB) need approval once.
-- **Compute**: long or GPU/remote compute needs approval once; state the rough
-  cost/time.
-- **Network**: name any host contacted (package index, weight host, MSA server).
-- **Data**: never send proprietary or sensitive input to a public/third-party
-  service without explicit approval.
+1. Inspect relevant input files and storage needs without copying sensitive data.
+2. Run `python3 <plugin-root>/scripts/compute_probe.py`
+   for a read-only capability report. Save it under the run directory with
+   `--output artifacts/<run-id>/compute-environment.json` once a run exists.
+3. Select the smallest adequate backend:
+   - shell or an existing executable for simple transformations;
+   - an isolated Python, R, or Julia project for analysis;
+   - Jupyter only when an inspectable notebook is a required deliverable;
+   - a digest-pinned container for system dependencies or stronger isolation;
+   - a GPU only when the method benefits materially and its memory need fits.
+4. State inputs, outputs, expected runtime/disk, and the smallest smoke test.
 
-## Workflow (uv)
+Read-only inspection and a small CPU calculation in an existing environment need
+no extra gate. Any GPU workload beyond capability/version inspection requires the
+approval packet below, as does package installation, a new network host or
+container image, a large download, privileged container flags, heavy CPU work,
+or sensitive-data movement. After approval, continue through reversible steps.
 
-1. Confirm the tool, exact version, and hardware need; get the one-time gate
-   approval above.
-2. Create an isolated environment scoped to the run:
-   ```bash
-   uv venv "<run_dir>/.venv"
-   uv pip install --python "<run_dir>/.venv" "<package>==<version>"
-   ```
-   Always **pin versions**. Never `pip install` into or modify the system/global
-   Python; never run bare `python3` for the work — use `uv run`.
-3. Smoke-test first: run the tool `--help` or a tiny input via
-   `uv run --python "<run_dir>/.venv" <cmd>` to confirm the env works.
-4. Execute the real job with `uv run`; capture stdout/stderr, exit code, and
-   outputs under `artifacts/<run-id>/`. Prefer a CPU-safe path; use GPU only if
-   available and needed.
-5. **Capture the environment** for reproducibility:
-   `uv pip freeze --python "<run_dir>/.venv"` plus tool version, hardware, seeds,
-   and key env vars — save it with `$science-provenance`.
-6. On failure, diagnose and retry within the approved plan (persistence); only
-   return to the user for a new gate or a genuine fork.
-7. Review results with `$science-review` before presenting.
+## One-time approval packet
+
+Before gated work, present one approval packet containing the local target and
+GPU selection; code/notebook path and hash; inputs and sensitivity; pinned
+environment or image; smoke and full commands; package/download/network changes;
+CPU/GPU/memory/time/disk envelope; output path; validation criterion; and the
+cancellation and checkpoint plan. Approval applies only to that envelope.
+
+For cancellation, identify the process launched by this run, request graceful
+checkpoint/interrupt first, and never kill unrelated processes. Ask again when
+the data boundary, environment, resource envelope, or method changes.
+
+## Execute
+
+1. Create `artifacts/<run-id>/`; hash inputs or record approved external paths.
+2. Preserve the user's base environment:
+   - Python: use a run-scoped `uv` environment and pin packages.
+   - R: use a project library and record `sessionInfo()`; use `renv` when present.
+   - Julia: activate a run-scoped project and preserve `Project.toml` and
+     `Manifest.toml`.
+   - Shell: save non-trivial commands in a script with `set -euo pipefail`.
+   - Jupyter: save the notebook plus an exported script or executed cell log.
+   - Container: pin the image by digest, mount only required paths, avoid
+     privileged mode, and record the full invocation.
+3. Run the smallest falsifying or representative smoke input first. Then run the
+   full workload within the approved resource envelope.
+4. Capture commands, exit codes, stdout/stderr paths, package/runtime versions,
+   CPU/GPU details, seeds, wall time, peak resource use when available, and all
+   output hashes with `$science-provenance`.
+5. Validate outputs against a baseline, invariant, or independent implementation.
+   Preserve failed and inconclusive attempts. Finish with `$science-review`.
 
 ## Boundaries
 
-- `uv` only. Do not modify the user's global/base environment or system
-  packages; keep everything in the run's `.venv`.
-- Pin versions and record them; an unpinned "latest" is not reproducible.
-- A genuinely conda-only tool (system/bioconda deps with no PyPI wheel) is an
-  exception — surface it and let the user decide rather than silently reaching
-  for conda.
-- Report hardware (CPU/GPU), wall-clock, and any nondeterminism (seeds). Do not
-  upload private data to public services without explicit approval.
+- Do not modify system packages, the global Python/R/Julia environment, shell
+  startup files, or unrelated user files.
+- Do not expose environment variables, credential files, SSH keys, tokens, or
+  private dataset contents in logs or artifacts.
+- Do not use a GPU merely because one exists; report CPU and GPU assumptions.
+- Do not run untrusted repository scripts or container entrypoints before review.
+- Route SSH, Slurm, cloud GPU, or remote object storage work to
+  `$cx-remote-scientific-compute`.

@@ -26,7 +26,7 @@
   - Add a coordinating research workflow, artifact/provenance contract, and independent reviewer workflow.
   - Provide public read-only connector coverage for the documented Claude Science source categories where a legal public API or maintained public implementation is available.
   - Provide configuration templates, with no secrets, for authenticated services such as Benchling, DNAnexus, Modal, and similar integrations.
-  - Support Python, R, and shell-oriented research workflows through the local Codex environment. Install task-specific scientific packages only when a selected workflow requires them.
+  - Support local Python, R, Julia, Jupyter, shell, container, CPU, and GPU execution plus approved existing SSH, Slurm/HPC, cloud GPU, and private object-storage workflows. Install task-specific scientific packages only when a selected workflow requires them.
 - Non-goals:
   - Build a standalone web or desktop application.
   - Copy or claim parity with proprietary Claude Science source code, private skills, private connectors, native viewers, or unpublished behavior.
@@ -83,6 +83,7 @@
 - Unknown, non-commercial, proprietary, credentialed, write-capable, or suspicious skills are inactive by default.
 - Secrets are referenced only by environment-variable name and are never written to tracked files, logs, manifests, or examples.
 - Network and remote-compute access requires the existing Codex permission model and explicit approval where applicable.
+- Remote writes or allocation require one approval packet naming the target, transferred data, resource/time/cost cap, outputs, and cancellation plan; GUI automation is out of scope.
 - Imported scripts are treated as untrusted until audited; catalog presence does not imply execution permission.
 
 ## Verification
