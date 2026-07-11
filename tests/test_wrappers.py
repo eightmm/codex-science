@@ -246,6 +246,17 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
             self.assertIn("Julia", text)
             self.assertIn("GPU", text)
 
+    def test_readme_documents_safe_update_modes_and_examples(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        for name in ("README.md", "README.ko.md"):
+            text = (repository_root / name).read_text()
+            self.assertIn("CODEX_SCIENCE_AUTO_UPDATE=notify", text)
+            self.assertIn("CODEX_SCIENCE_AUTO_UPDATE=off", text)
+            self.assertNotIn("CODEX_SCIENCE_AUTO_UPDATE=apply", text)
+            self.assertIn("Codex Science 업데이트", text)
+            self.assertIn("24", text)
+            self.assertIn("new Codex task", text)
+
     def test_provenance_renders_and_surfaces_visual_results(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         provenance = (repository_root / "skills" / "science-provenance" / "SKILL.md").read_text()

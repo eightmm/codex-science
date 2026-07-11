@@ -60,6 +60,14 @@ Stop and ask only when it genuinely matters, and batch such questions into a sin
 
 Persistence never overrides a safety gate or the audit policy. Declare the problem solved only after `$science-review` and verification; if a run is inconclusive, say so and continue with the next experiment instead of stopping.
 
+## Plugin updates
+
+Keep each research task pinned to the plugin version loaded at task start. When
+hook context reports an available update, notify the user without interrupting an
+active run. Treat `Codex Science 업데이트` as explicit approval for the managed
+updater; never update the user's research-project worktree. After a successful
+update, tell the user to open a new Codex task to load it.
+
 ## Boundaries
 
 - Do not claim a private Claude Science connector or skill was copied when only its public capability was recreated.

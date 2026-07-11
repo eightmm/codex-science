@@ -25,6 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 ```
 
 Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library — no packages, virtualenv, or `uv` needed to run). The installer clones into `~/.codex-science`, registers the plugin globally, runs a runtime self-check, and is safe to re-run to update.
+Fresh installs are validated in staging before activation; installer reruns use the same locked, transactional updater as the hook.
 
 Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart` and `UserPromptSubmit` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
 
@@ -71,6 +72,48 @@ Stop it explicitly:
 ```text
 Stop Codex Science
 Codex Science 종료
+```
+
+## Updates
+
+The default `notify` mode checks the official GitHub `main` branch at most once
+every 24 hours when a new Codex Science task starts. If an update exists, install
+it with plain language:
+
+```text
+Codex Science 업데이트
+Update Codex Science
+```
+
+The managed `~/.codex-science` checkout must be clean and point to the official
+`eightmm/codex-science` repository. The updater clones the exact commit that was
+shown to the user, verifies fast-forward ancestry and runtime behavior in staging,
+then atomically replaces the managed checkout and verifies the installed plugin
+cache. Failure rolls back to the previous checkout. The current task's loaded
+cache is preserved; start a new Codex task to use the update.
+If there is no fresh update notice, the first update request checks and advertises
+the exact commit; repeat the request once to approve that advertised commit.
+
+Advanced modes are process environment variables set before launching Codex:
+
+```bash
+CODEX_SCIENCE_AUTO_UPDATE=notify  # default: check and ask
+CODEX_SCIENCE_AUTO_UPDATE=off     # no automatic check
+```
+
+There is no unattended apply mode. Updating always requires the explicit plain-
+language request above. Updates refuse dirty checkouts, forks, custom remotes,
+branch movement after approval, non-fast-forward changes, unchanged cachebuster,
+failed staging checks, and failed plugin-cache verification. A development
+checkout is never silently overwritten.
+
+Example workflow:
+
+```text
+Start Codex Science
+Analyze this dataset with the current pinned plugin and save the run provenance.
+Codex Science 업데이트
+# Open a new Codex task, then continue with the newly loaded version.
 ```
 
 ## Scientific computer use

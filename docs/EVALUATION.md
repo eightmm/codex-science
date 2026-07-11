@@ -9,6 +9,8 @@
 - Only the three task-scoped core skills are registered with the plugin.
 - One explicit activation self-invokes the coordinator on later turns and survives resume/context compaction for the same session.
 - Explicit stop, `clear`, and a different session remain inactive; hook state never stores prompt text.
+- Update checks default to notify, cache only public commit IDs for 24 hours, and
+  require an explicit prompt before staging an exact commit for a transactional update.
 - Plugin, three registered skills, and all 254 internal wrapper schemas validate.
 - All 102 Codex-native source skills validate and include `agents/openai.yaml` UI metadata.
 - Local compute probing is read-only and excludes hostnames, environment variables, and credentials.

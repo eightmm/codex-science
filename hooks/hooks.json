@@ -9,6 +9,12 @@
             "command": "python3 \"$PLUGIN_ROOT/scripts/science_session_hook.py\"",
             "timeout": 5,
             "statusMessage": "Restoring Codex Science session state"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/science_update_hook.py\"",
+            "timeout": 360,
+            "statusMessage": "Checking Codex Science updates"
           }
         ]
       }
@@ -21,6 +27,12 @@
             "command": "python3 \"$PLUGIN_ROOT/scripts/science_session_hook.py\"",
             "timeout": 5,
             "statusMessage": "Checking Codex Science session state"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/science_update_hook.py\"",
+            "timeout": 360,
+            "statusMessage": "Updating Codex Science when explicitly requested"
           }
         ]
       }

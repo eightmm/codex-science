@@ -25,6 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 ```
 
 Codex CLI, Git, Python 3.11+ 가 필요합니다(런타임은 순수 Python 표준 라이브러리 — 패키지·가상환경·`uv` 없이 실행). 설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임 self-check까지 수행하며, 업데이트하려면 다시 실행하면 됩니다.
+최초 설치는 staging에서 검증한 뒤 활성화하며, 설치 스크립트를 다시 실행할 때도 hook과 같은 잠금·transactional updater를 사용합니다.
 
 그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `/hooks`를 열어 Codex Science의 `SessionStart`·`UserPromptSubmit` hook을 한 번 신뢰 처리하세요. `Start Codex Science`(또는 `Codex Science 시작`)라고 하면 이후 턴에서는 coordinator가 스스로 재호출됩니다. 프로젝트마다 재설치하지 않습니다.
 
@@ -72,6 +73,48 @@ Codex Science 시작
 ```text
 Stop Codex Science
 Codex Science 종료
+```
+
+## 자동 업데이트
+
+기본 `notify` mode는 새 Codex Science 작업을 시작할 때 공식 GitHub `main`
+branch를 최대 24시간에 한 번 확인합니다. 새 버전이 있으면 평문으로
+설치합니다:
+
+```text
+Codex Science 업데이트
+Update Codex Science
+```
+
+관리 대상 `~/.codex-science` checkout은 변경사항이 없어야 하며 공식
+`eightmm/codex-science` repository를 가리켜야 합니다. Updater가 사용자에게
+표시한 정확한 commit을 staging에 clone하고 fast-forward ancestry와 runtime을
+검증한 뒤 관리 checkout을 원자적으로 교체하고 설치 cache를 확인합니다.
+실패하면 이전 checkout으로 rollback합니다. 현재 작업의 load된 cache는
+보존되며, 업데이트 적용본은 new Codex task를 열어 사용합니다.
+최근 update 알림이 없다면 첫 요청은 정확한 commit을 확인해 표시만 합니다.
+같은 요청을 한 번 더 보내야 표시된 commit 설치를 승인합니다.
+
+고급 mode는 Codex를 실행하기 전에 process environment로 설정합니다:
+
+```bash
+CODEX_SCIENCE_AUTO_UPDATE=notify  # 기본값: 확인 후 알림
+CODEX_SCIENCE_AUTO_UPDATE=off     # 자동 확인 중지
+```
+
+무인 apply mode는 없습니다. Update는 위 평문 요청으로 매번 명시적으로
+승인해야 합니다. Dirty checkout, fork, custom remote, 승인 후 branch 이동,
+non-fast-forward 변경, 동일 cachebuster, staging self-check 실패, plugin cache
+검증 실패에서는 업데이트를 거부합니다. 개발용 checkout을 자동으로
+덮어쓰지 않습니다.
+
+사용 예시:
+
+```text
+Codex Science 시작
+현재 고정된 plugin으로 이 데이터를 분석하고 run provenance를 저장해줘.
+Codex Science 업데이트
+# 새 Codex 작업을 열고 업데이트된 버전으로 계속 진행
 ```
 
 ## 과학 컴퓨터 활용
