@@ -48,6 +48,18 @@ class ScienceUpdateHookTests(unittest.TestCase):
             remote_url="https://github.com/eightmm/codex-science.git",
         )
 
+    def installer_environment(self, target: Path) -> dict[str, str]:
+        fake_bin = self.root / "installer-bin"
+        fake_bin.mkdir(exist_ok=True)
+        codex = fake_bin / "codex"
+        codex.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        codex.chmod(0o755)
+        return {
+            **os.environ,
+            "CODEX_SCIENCE_HOME": str(target),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        }
+
     def test_update_prompt_patterns_are_narrow(self) -> None:
         positives = (
             "Codex Science 업데이트",
@@ -557,7 +569,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
-            env={**os.environ, "CODEX_SCIENCE_HOME": str(target)},
+            env=self.installer_environment(target),
         )
 
         self.assertNotEqual(0, result.returncode)
@@ -575,7 +587,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
-                env={**os.environ, "CODEX_SCIENCE_HOME": str(target)},
+                env=self.installer_environment(target),
             )
 
         self.assertNotEqual(0, result.returncode)
@@ -594,7 +606,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
-            env={**os.environ, "CODEX_SCIENCE_HOME": str(target)},
+            env=self.installer_environment(target),
         )
 
         self.assertNotEqual(0, result.returncode)
