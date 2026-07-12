@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gene Burden Evidence"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $gene-burden-evidence to complete this bounded research task with provenance."

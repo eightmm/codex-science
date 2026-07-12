@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import html
+import math
 import re
 import urllib.parse
 import urllib.request
@@ -349,6 +350,10 @@ def _plain_text(value: Any) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", str(value or ""))).strip()
 
 
+def _value_text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
 class ReactomeConnector:
     def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
         self._fetch_json = fetch_json
@@ -412,3 +417,492 @@ class AlphaFoldConnector:
             for item in payload[:limit]
             if item.get("modelEntityId")
         ]
+
+
+class MyGeneConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"q": query, "size": limit})
+        payload = self._fetch_json(f"https://mygene.info/v3/query?{params}")
+        return [
+            {
+                "id": str(item.get("_id") or item.get("entrezgene") or ""),
+                "title": str(item.get("symbol") or item.get("name") or item.get("_id") or ""),
+                "description": str(item.get("name") or ""),
+                "species_taxid": str(item.get("taxid") or ""),
+                "url": f"https://www.ncbi.nlm.nih.gov/gene/{item.get('_id', '')}",
+            }
+            for item in payload.get("hits", [])[:limit]
+            if item.get("_id") or item.get("entrezgene")
+        ]
+
+
+class EnsemblConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        symbol = urllib.parse.quote(query, safe="")
+        payload = self._fetch_json(
+            f"https://rest.ensembl.org/xrefs/symbol/homo_sapiens/{symbol}?external_db=HGNC"
+        )
+        return [
+            {
+                "id": str(item.get("id") or ""),
+                "title": query,
+                "type": str(item.get("type") or ""),
+                "species": "homo_sapiens",
+                "url": f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={item.get('id', '')}",
+            }
+            for item in payload[:limit]
+            if item.get("id")
+        ]
+
+
+class NCBIGeneConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode(
+            {"db": "gene", "term": f"{query} AND human[orgn]", "retmode": "json", "retmax": limit}
+        )
+        payload = self._fetch_json(
+            f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}"
+        )
+        return [
+            {
+                "id": str(identifier),
+                "title": query,
+                "url": f"https://www.ncbi.nlm.nih.gov/gene/{identifier}",
+            }
+            for identifier in payload.get("esearchresult", {}).get("idlist", [])[:limit]
+        ]
+
+
+class GWASCatalogConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"efo_trait": query, "page_size": limit})
+        payload = self._fetch_json(
+            f"https://www.ebi.ac.uk/gwas/rest/api/v2/efo-traits?{params}"
+        )
+        traits = payload.get("_embedded", {}).get("efo_traits", [])
+        return [
+            {
+                "id": str(item.get("efo_id") or ""),
+                "title": str(item.get("efo_trait") or item.get("efo_id") or ""),
+                "ontology_uri": str(item.get("uri") or ""),
+                "url": f"https://www.ebi.ac.uk/gwas/efotraits/{item.get('efo_id', '')}",
+            }
+            for item in traits[:limit]
+            if item.get("efo_id")
+        ]
+
+
+class OpenTargetsConnector:
+    def __init__(self, *, post_json: Callable[[str, dict[str, Any]], Any] = post_json) -> None:
+        self._post_json = post_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        graphql = """
+        query Search($queryString: String!, $page: Pagination) {
+          search(queryString: $queryString, page: $page) {
+            hits { id name entity description }
+          }
+        }
+        """
+        payload = self._post_json(
+            "https://api.platform.opentargets.org/api/v4/graphql",
+            {"query": graphql, "variables": {"queryString": query, "page": {"index": 0, "size": limit}}},
+        )
+        hits = payload.get("data", {}).get("search", {}).get("hits", [])
+        return [
+            {
+                "id": str(item.get("id") or ""),
+                "title": str(item.get("name") or item.get("id") or ""),
+                "entity": str(item.get("entity") or ""),
+                "description": str(item.get("description") or ""),
+                "url": f"https://platform.opentargets.org/{item.get('entity', 'target')}/{item.get('id', '')}",
+            }
+            for item in hits[:limit]
+            if item.get("id")
+        ]
+
+
+class GTExConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"geneId": query, "pageSize": limit})
+        payload = self._fetch_json(f"https://gtexportal.org/api/v2/reference/gene?{params}")
+        return [
+            {
+                "id": str(item.get("gencodeId") or ""),
+                "title": str(item.get("geneSymbol") or item.get("gencodeId") or ""),
+                "description": str(item.get("description") or ""),
+                "genome_build": str(item.get("genomeBuild") or ""),
+                "url": f"https://gtexportal.org/home/gene/{item.get('gencodeId', '')}",
+            }
+            for item in payload.get("data", [])[:limit]
+            if item.get("gencodeId")
+        ]
+
+
+class HumanProteinAtlasConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        encoded = urllib.parse.quote(query, safe="")
+        payload = self._fetch_json(f"https://www.proteinatlas.org/search/{encoded}?format=json")
+        return [
+            {
+                "id": str(item.get("Ensembl") or item.get("Gene") or ""),
+                "title": str(item.get("Gene") or item.get("Ensembl") or ""),
+                "description": str(item.get("Gene description") or ""),
+                "url": f"https://www.proteinatlas.org/{item.get('Ensembl', '')}",
+            }
+            for item in payload[:limit]
+            if item.get("Ensembl") or item.get("Gene")
+        ]
+
+
+class BgeeConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode(
+            {"page": "gene", "action": "search", "query": query, "species_id": 9606}
+        )
+        payload = self._fetch_json(f"https://www.bgee.org/api/?{params}")
+        matches = payload.get("data", {}).get("result", {}).get("geneMatches", [])
+        results: list[dict[str, str]] = []
+        for match in matches[:limit]:
+            item = match.get("gene", {})
+            identifier = str(item.get("geneId") or "")
+            if identifier:
+                results.append(
+                    {
+                        "id": identifier,
+                        "title": str(item.get("name") or identifier),
+                        "description": str(item.get("description") or ""),
+                        "url": f"https://www.bgee.org/gene/{identifier}",
+                    }
+                )
+        return results
+
+
+class BioStudiesConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"query": query, "pageSize": limit})
+        payload = self._fetch_json(f"https://www.ebi.ac.uk/biostudies/api/v1/search?{params}")
+        return [
+            {
+                "id": str(item.get("accession") or ""),
+                "title": str(item.get("title") or item.get("accession") or ""),
+                "type": str(item.get("type") or ""),
+                "release_date": str(item.get("release_date") or ""),
+                "url": f"https://www.ebi.ac.uk/biostudies/studies/{item.get('accession', '')}",
+            }
+            for item in payload.get("hits", [])[:limit]
+            if item.get("accession")
+        ]
+
+
+class CBioPortalConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"keyword": query, "pageSize": limit})
+        payload = self._fetch_json(f"https://www.cbioportal.org/api/genes?{params}")
+        return [
+            {
+                "id": str(item.get("entrezGeneId") or ""),
+                "title": str(item.get("hugoGeneSymbol") or item.get("entrezGeneId") or ""),
+                "type": str(item.get("type") or ""),
+                "url": f"https://www.cbioportal.org/results/oncoprint?gene_list={item.get('hugoGeneSymbol', '')}",
+            }
+            for item in payload[:limit]
+            if item.get("entrezGeneId")
+        ]
+
+
+class ChEBIConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"term": query, "size": limit})
+        payload = self._fetch_json(
+            f"https://www.ebi.ac.uk/chebi/backend/api/public/es_search/?{params}"
+        )
+        results: list[dict[str, str]] = []
+        for hit in payload.get("results", [])[:limit]:
+            item = hit.get("_source", hit)
+            identifier = str(item.get("chebi_accession") or "")
+            if identifier:
+                results.append(
+                    {
+                        "id": identifier,
+                        "title": str(item.get("name") or identifier),
+                        "formula": str(item.get("formula") or ""),
+                        "smiles": str(item.get("smiles") or ""),
+                        "url": f"https://www.ebi.ac.uk/chebi/searchId.do?chebiId={identifier}",
+                    }
+                )
+        return results
+
+
+class RheaConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"query": query, "format": "json", "limit": limit})
+        payload = self._fetch_json(f"https://www.rhea-db.org/rhea/?{params}")
+        return [
+            {
+                "id": str(item.get("id") or ""),
+                "title": _plain_text(item.get("equation")),
+                "status": str(item.get("status") or ""),
+                "url": f"https://www.rhea-db.org/rhea/{item.get('id', '')}",
+            }
+            for item in payload.get("results", [])[:limit]
+            if item.get("id")
+        ]
+
+
+class PRIDEConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"keyword": query, "pageSize": limit})
+        payload = self._fetch_json(
+            f"https://www.ebi.ac.uk/pride/ws/archive/v3/search/projects?{params}"
+        )
+        items = payload if isinstance(payload, list) else payload.get("_embedded", {}).get("projects", [])
+        return [
+            {
+                "id": str(item.get("accession") or ""),
+                "title": str(item.get("title") or item.get("accession") or ""),
+                "publication_date": str(item.get("publicationDate") or ""),
+                "url": f"https://www.ebi.ac.uk/pride/archive/projects/{item.get('accession', '')}",
+            }
+            for item in items[:limit]
+            if item.get("accession")
+        ]
+
+
+class ProteomeXchangeConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        accession = query.upper()
+        if re.fullmatch(r"PXD\d{6,}", accession) is None:
+            raise ValueError("ProteomeXchange query must be a PXD accession")
+        payload = self._fetch_json(
+            "https://proteomecentral.proteomexchange.org/api/proxi/v0.1/datasets/"
+            f"{urllib.parse.quote(accession)}"
+        )
+        if not isinstance(payload, dict):
+            return []
+
+        identifiers = payload.get("identifiers", [])
+        returned_accessions = {
+            str(term.get("value") or "").upper()
+            for term in identifiers
+            if isinstance(term, dict)
+            and term.get("name") == "ProteomeXchange accession number"
+        }
+        if accession not in returned_accessions:
+            raise ValueError("ProteomeXchange response accession did not match query")
+
+        species = []
+        for group in payload.get("species", []):
+            for term in group.get("terms", []) if isinstance(group, dict) else []:
+                if term.get("name") == "taxonomy: scientific name" and term.get("value"):
+                    species.append(str(term["value"]))
+        return [
+            {
+                "id": accession,
+                "title": str(payload.get("title") or accession),
+                "repository": "ProteomeXchange",
+                "species": "; ".join(species),
+                "url": f"https://proteomecentral.proteomexchange.org/cgi/GetDataset?ID={accession}",
+            }
+        ][:limit]
+
+
+class MGnifyConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"search": query, "page_size": limit})
+        payload = self._fetch_json(f"https://www.ebi.ac.uk/metagenomics/api/v1/studies?{params}")
+        results: list[dict[str, str]] = []
+        for item in payload.get("data", [])[:limit]:
+            attributes = item.get("attributes", {})
+            identifier = str(item.get("id") or attributes.get("accession") or "")
+            if identifier:
+                results.append(
+                    {
+                        "id": identifier,
+                        "title": str(attributes.get("study-name") or identifier),
+                        "bioproject": str(attributes.get("bioproject") or ""),
+                        "url": f"https://www.ebi.ac.uk/metagenomics/studies/{identifier}",
+                    }
+                )
+        return results
+
+
+class RNACentralConnector:
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        params = urllib.parse.urlencode({"description": query, "page_size": limit})
+        payload = self._fetch_json(f"https://rnacentral.org/api/v1/rna/?{params}")
+        return [
+            {
+                "id": str(item.get("rnacentral_id") or ""),
+                "title": str(item.get("description") or item.get("rnacentral_id") or ""),
+                "rna_type": str(item.get("rna_type") or ""),
+                "length": str(item.get("length") or ""),
+                "url": f"https://rnacentral.org/rna/{item.get('rnacentral_id', '')}",
+            }
+            for item in payload.get("results", [])[:limit]
+            if item.get("rnacentral_id")
+        ]
+
+
+VARIANT_RE = re.compile(r"^(?:chr)?([0-9XYM]+):(\d+)[-:]([ACGT]+)[-:]([ACGT]+)$", re.IGNORECASE)
+
+
+class _PheWASConnector:
+    base_url = ""
+    result_key = "phenos"
+
+    def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None:
+        self._fetch_json = fetch_json
+
+    def _response_variant(self, payload: dict[str, Any]) -> tuple[str, str, str, str] | None:
+        try:
+            raw_position = payload["pos"]
+            if isinstance(raw_position, bool):
+                return None
+            if isinstance(raw_position, int):
+                position = str(raw_position)
+            elif isinstance(raw_position, str) and raw_position.isdigit():
+                position = str(int(raw_position))
+            else:
+                return None
+            return (
+                str(payload["chrom"]).upper().removeprefix("CHR"),
+                position,
+                str(payload["ref"]).upper(),
+                str(payload["alt"]).upper(),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        query, limit = _validate(query, limit)
+        match = VARIANT_RE.fullmatch(query)
+        if match is None:
+            raise ValueError("Variant must use CHR:POS-REF-ALT on the source's declared genome build")
+        chromosome = match.group(1).upper()
+        position = str(int(match.group(2)))
+        reference = match.group(3).upper()
+        alternate = match.group(4).upper()
+        canonical = f"{chromosome}:{position}-{reference}-{alternate}"
+        payload = self._fetch_json(
+            f"{self.base_url}/api/variant/{urllib.parse.quote(canonical, safe=':-')}"
+        )
+        if not isinstance(payload, dict):
+            return []
+        expected = (chromosome, position, reference, alternate)
+        if self._response_variant(payload) != expected:
+            raise ValueError("PheWAS response variant did not match normalized query")
+        associations = payload.get(self.result_key, []) if isinstance(payload, dict) else []
+
+        def p_value(item: dict[str, Any]) -> float | None:
+            try:
+                if isinstance(item["pval"], bool):
+                    return None
+                value = float(item["pval"])
+            except (KeyError, TypeError, ValueError):
+                return None
+            return value if math.isfinite(value) and 0 <= value <= 1 else None
+
+        results = []
+        ranked = [
+            (value, item)
+            for item in associations
+            if isinstance(item, dict) and (value := p_value(item)) is not None
+        ]
+        for _, item in sorted(ranked, key=lambda pair: pair[0])[:limit]:
+            identifier = str(item.get("phenocode") or item.get("trait") or "")
+            if identifier:
+                results.append(
+                    {
+                        "id": identifier,
+                        "title": str(item.get("phenostring") or item.get("trait") or identifier),
+                        "p_value": _value_text(item.get("pval")),
+                        "beta": _value_text(item.get("beta")),
+                        "sample_size": _value_text(item.get("num_samples")),
+                        "variant": canonical,
+                        "url": f"{self.base_url}/variant/{canonical}",
+                    }
+                )
+        return results
+
+
+class FinnGenConnector(_PheWASConnector):
+    base_url = "https://r12.finngen.fi"
+    result_key = "results"
+
+    def _response_variant(self, payload: dict[str, Any]) -> tuple[str, str, str, str] | None:
+        variant = payload.get("variant")
+        if not isinstance(variant, dict):
+            return None
+        normalized = dict(variant)
+        normalized["chrom"] = normalized.get("chr")
+        return super()._response_variant(normalized)
+
+
+class BioBankJapanConnector(_PheWASConnector):
+    base_url = "https://pheweb.jp"
+
+
+class UKBTopMedConnector(_PheWASConnector):
+    base_url = "https://pheweb.org/UKB-TOPMed"

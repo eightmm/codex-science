@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expression Cell Context"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $expression-cell-context to complete this bounded research task with provenance."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Locus To Gene Prioritization"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $locus-to-gene-prioritization to complete this bounded research task with provenance."

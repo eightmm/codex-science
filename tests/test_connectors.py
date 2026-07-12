@@ -1,22 +1,42 @@
 import json
+import math
 import unittest
 from pathlib import Path
 
 from codex_science.connectors import (
     AlphaFoldConnector,
     ArxivConnector,
+    BgeeConnector,
+    BioBankJapanConnector,
+    BioStudiesConnector,
+    CBioPortalConnector,
+    ChEBIConnector,
     ChEMBLConnector,
     ClinicalTrialsConnector,
+    EnsemblConnector,
     EuropePMCConnector,
+    FinnGenConnector,
+    GTExConnector,
+    GWASCatalogConnector,
+    HumanProteinAtlasConnector,
     InterProConnector,
+    MGnifyConnector,
+    MyGeneConnector,
+    NCBIGeneConnector,
     OLSConnector,
     OpenAlexConnector,
+    OpenTargetsConnector,
     PDBConnector,
+    PRIDEConnector,
+    ProteomeXchangeConnector,
     PubChemConnector,
     PubMedConnector,
     QuickGOConnector,
+    RNACentralConnector,
     ReactomeConnector,
+    RheaConnector,
     STRINGConnector,
+    UKBTopMedConnector,
     UniProtConnector,
 )
 
@@ -27,25 +47,44 @@ class ConnectorTests(unittest.TestCase):
         payload = json.loads(path.read_text(encoding="utf-8"))
         sources = [source for category in payload["categories"] for source in category["sources"]]
 
-        self.assertEqual(56, len(sources))
+        self.assertEqual(62, len(sources))
         implemented = {source["name"] for source in sources if source["status"] == "mcp-tool"}
         self.assertEqual(
             {
                 "AlphaFold",
+                "Bgee",
+                "BioBank Japan",
+                "BioStudies",
+                "ChEBI",
                 "ChEMBL",
                 "Clinical Trials",
                 "Europe PMC",
+                "Ensembl (including VEP)",
+                "FinnGen",
+                "GTEx",
+                "GWAS Catalog",
+                "Human Protein Atlas",
                 "InterPro",
+                "MGnify",
+                "MyGene",
+                "NCBI Gene",
                 "OLS",
                 "OpenAlex",
+                "Open Targets",
                 "PDB",
+                "PRIDE",
+                "ProteomeXchange",
                 "PubChem",
                 "PubMed",
                 "GO",
+                "RNAcentral",
                 "Reactome",
+                "Rhea",
                 "STRING",
+                "UKB/TOPMed",
                 "UniProt",
                 "arXiv",
+                "cBioPortal",
             },
             implemented,
         )
@@ -206,6 +245,205 @@ class ConnectorTests(unittest.TestCase):
 
         self.assertEqual("AF-P69905-F1", results[0]["id"])
         self.assertEqual("98.06", results[0]["global_plddt"])
+
+    def test_gene_and_genome_connectors_parse_results(self) -> None:
+        mygene = MyGeneConnector(
+            fetch_json=lambda _url: {
+                "hits": [{"_id": "7157", "symbol": "TP53", "name": "tumor protein p53", "taxid": 9606}]
+            }
+        ).search("TP53", limit=1)
+        ensembl = EnsemblConnector(
+            fetch_json=lambda _url: [{"id": "ENSG00000141510", "type": "gene"}]
+        ).search("TP53", limit=1)
+        ncbi = NCBIGeneConnector(
+            fetch_json=lambda _url: {"esearchresult": {"idlist": ["7157"]}}
+        ).search("TP53", limit=1)
+
+        self.assertEqual("7157", mygene[0]["id"])
+        self.assertEqual("ENSG00000141510", ensembl[0]["id"])
+        self.assertEqual("7157", ncbi[0]["id"])
+
+    def test_human_genetics_connectors_parse_results(self) -> None:
+        gwas = GWASCatalogConnector(
+            fetch_json=lambda _url: {
+                "_embedded": {
+                    "efo_traits": [{"efo_id": "EFO_1", "efo_trait": "asthma", "uri": "https://example/EFO_1"}]
+                }
+            }
+        ).search("asthma", limit=1)
+        gtex = GTExConnector(
+            fetch_json=lambda _url: {
+                "data": [{"gencodeId": "ENSG1.1", "geneSymbol": "TP53", "description": "tumor protein", "genomeBuild": "GRCh38"}]
+            }
+        ).search("TP53", limit=1)
+        open_targets = OpenTargetsConnector(
+            post_json=lambda _url, _payload: {
+                "data": {"search": {"hits": [{"id": "ENSG1", "name": "TP53", "entity": "target", "description": "tumor protein"}]}}
+            }
+        ).search("TP53", limit=1)
+
+        self.assertEqual("EFO_1", gwas[0]["id"])
+        self.assertEqual("ENSG1.1", gtex[0]["id"])
+        self.assertEqual("ENSG1", open_targets[0]["id"])
+
+    def test_expression_and_study_connectors_parse_results(self) -> None:
+        hpa = HumanProteinAtlasConnector(
+            fetch_json=lambda _url: [{"Gene": "TP53", "Ensembl": "ENSG1", "Gene description": "tumor protein"}]
+        ).search("TP53", limit=1)
+        bgee = BgeeConnector(
+            fetch_json=lambda _url: {
+                "data": {"result": {"geneMatches": [{"gene": {"geneId": "ENSG1", "name": "TP53", "description": "tumor protein"}}]}}
+            }
+        ).search("TP53", limit=1)
+        studies = BioStudiesConnector(
+            fetch_json=lambda _url: {"hits": [{"accession": "S-EPMC1", "title": "Study", "type": "study"}]}
+        ).search("TP53", limit=1)
+
+        self.assertEqual("ENSG1", hpa[0]["id"])
+        self.assertEqual("ENSG1", bgee[0]["id"])
+        self.assertEqual("S-EPMC1", studies[0]["id"])
+
+    def test_cancer_chemistry_and_reaction_connectors_parse_results(self) -> None:
+        cancer = CBioPortalConnector(
+            fetch_json=lambda _url: [{"entrezGeneId": 7157, "hugoGeneSymbol": "TP53", "type": "protein-coding"}]
+        ).search("TP53", limit=1)
+        chebi_urls = []
+
+        def fetch_chebi(url: str) -> dict:
+            chebi_urls.append(url)
+            return {
+                "results": [{"_source": {"chebi_accession": "CHEBI:15365", "name": "aspirin", "formula": "C9H8O4"}}]
+            }
+
+        chebi = ChEBIConnector(fetch_json=fetch_chebi).search("aspirin", limit=1)
+        rhea = RheaConnector(
+            fetch_json=lambda _url: {"results": [{"id": "14293", "equation": "A = B", "status": "approved"}]}
+        ).search("glucose", limit=1)
+
+        self.assertEqual("7157", cancer[0]["id"])
+        self.assertEqual("CHEBI:15365", chebi[0]["id"])
+        self.assertIn("term=aspirin", chebi_urls[0])
+        self.assertEqual("14293", rhea[0]["id"])
+
+    def test_omics_archive_connectors_parse_results(self) -> None:
+        pride = PRIDEConnector(
+            fetch_json=lambda _url: [{"accession": "PXD1", "title": "Proteomics study"}]
+        ).search("TP53", limit=1)
+        px = ProteomeXchangeConnector(
+            fetch_json=lambda _url: {
+                "identifiers": [
+                    {"name": "ProteomeXchange accession number", "value": "PXD000002"}
+                ],
+                "title": "Dataset title",
+                "species": [{"terms": [{"name": "taxonomy: scientific name", "value": "Homo sapiens"}]}],
+            }
+        ).search("PXD000002", limit=1)
+        mgnify = MGnifyConnector(
+            fetch_json=lambda _url: {
+                "data": [{"id": "MGYS1", "attributes": {"study-name": "Gut study", "bioproject": "PRJ1"}}]
+            }
+        ).search("gut", limit=1)
+        rna = RNACentralConnector(
+            fetch_json=lambda _url: {
+                "results": [{"rnacentral_id": "URS1", "description": "RNA", "rna_type": "lncRNA", "length": 100}]
+            }
+        ).search("RNA", limit=1)
+
+        self.assertEqual("PXD1", pride[0]["id"])
+        self.assertEqual("PXD000002", px[0]["id"])
+        self.assertEqual("Homo sapiens", px[0]["species"])
+        self.assertEqual("MGYS1", mgnify[0]["id"])
+        self.assertEqual("URS1", rna[0]["id"])
+
+    def test_phewas_connectors_bound_and_sort_associations(self) -> None:
+        payload = {
+            "chrom": "10",
+            "pos": 112998590,
+            "ref": "C",
+            "alt": "T",
+            "phenos": [
+                {"phenocode": "B", "phenostring": "weak", "pval": 0.2, "beta": 0.1},
+                {"phenocode": "A", "phenostring": "strong", "pval": 1e-8, "beta": -0.2},
+            ],
+        }
+        for connector in (
+            FinnGenConnector(
+                fetch_json=lambda _url: {
+                    "variant": {"chr": "10", "pos": 112998590, "ref": "C", "alt": "T"},
+                    "results": payload["phenos"],
+                }
+            ),
+            BioBankJapanConnector(fetch_json=lambda _url: payload),
+            UKBTopMedConnector(fetch_json=lambda _url: payload),
+        ):
+            results = connector.search("10:112998590-C-T", limit=1)
+            self.assertEqual("A", results[0]["id"])
+            self.assertEqual("1e-08", results[0]["p_value"])
+
+    def test_phewas_connector_filters_invalid_p_values_and_preserves_zeroes(self) -> None:
+        payload = {
+            "chrom": "10",
+            "pos": 112998590,
+            "ref": "C",
+            "alt": "T",
+            "phenos": [
+                {"phenocode": "NAN", "pval": math.nan},
+                {"phenocode": "BOOLEAN", "pval": True},
+                {"phenocode": "NEGATIVE", "pval": -0.1},
+                {"phenocode": "TOO_LARGE", "pval": 1.1},
+                {"phenocode": "ZERO", "pval": 0.0, "beta": 0.0, "num_samples": 0},
+                {"phenocode": "VALID", "pval": 0.05},
+            ],
+        }
+
+        results = BioBankJapanConnector(fetch_json=lambda _url: payload).search(
+            "chr10:112998590-C-T", limit=5
+        )
+
+        self.assertEqual(["ZERO", "VALID"], [item["id"] for item in results])
+        self.assertEqual("0.0", results[0]["p_value"])
+        self.assertEqual("0.0", results[0]["beta"])
+        self.assertEqual("0", results[0]["sample_size"])
+        self.assertEqual("10:112998590-C-T", results[0]["variant"])
+
+    def test_phewas_connector_rejects_mismatched_response_variant(self) -> None:
+        connector = BioBankJapanConnector(
+            fetch_json=lambda _url: {
+                "chrom": "10",
+                "pos": 112998590,
+                "ref": "G",
+                "alt": "A",
+                "phenos": [{"phenocode": "T2D", "pval": 1e-8}],
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "did not match"):
+            connector.search("10:112998590-C-T")
+
+    def test_phewas_connector_rejects_non_integral_response_position(self) -> None:
+        connector = BioBankJapanConnector(
+            fetch_json=lambda _url: {
+                "chrom": "10",
+                "pos": 112998590.9,
+                "ref": "C",
+                "alt": "T",
+                "phenos": [{"phenocode": "T2D", "pval": 1e-8}],
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "did not match"):
+            connector.search("10:112998590-C-T")
+
+    def test_proteomexchange_requires_and_verifies_accession(self) -> None:
+        connector = ProteomeXchangeConnector(
+            fetch_json=lambda _url: {
+                "identifiers": [
+                    {"name": "ProteomeXchange accession number", "value": "PXD000999"}
+                ]
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "must be a PXD accession"):
+            connector.search("TP53")
+        with self.assertRaisesRegex(ValueError, "did not match"):
+            connector.search("PXD000001")
 
 
 if __name__ == "__main__":

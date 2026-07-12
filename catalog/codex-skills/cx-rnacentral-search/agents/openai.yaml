@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Rnacentral Search"
+  short_description: "Use the audited cx-rnacentral-search scientific workflow"
+  default_prompt: "Use $cx-rnacentral-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

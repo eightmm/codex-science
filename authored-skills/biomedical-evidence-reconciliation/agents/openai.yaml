@@ -1,0 +1,4 @@
+interface:
+  display_name: "Biomedical Evidence Reconciliation"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $biomedical-evidence-reconciliation to complete this bounded research task with provenance."

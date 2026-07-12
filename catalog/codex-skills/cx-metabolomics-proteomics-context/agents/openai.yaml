@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Metabolomics Proteomics Context"
+  short_description: "Audited scientific workflow for cx-metabolomics-proteomics-conte"
+  default_prompt: "Use $cx-metabolomics-proteomics-context for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

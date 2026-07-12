@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Gwas Catalog Search"
+  short_description: "Use the audited cx-gwas-catalog-search scientific workflow"
+  default_prompt: "Use $cx-gwas-catalog-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

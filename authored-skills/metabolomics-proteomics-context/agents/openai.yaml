@@ -1,0 +1,4 @@
+interface:
+  display_name: "Metabolomics Proteomics Context"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $metabolomics-proteomics-context to complete this bounded research task with provenance."

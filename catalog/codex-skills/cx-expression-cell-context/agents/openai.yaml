@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Expression Cell Context"
+  short_description: "Use the audited cx-expression-cell-context scientific workflow"
+  default_prompt: "Use $cx-expression-cell-context for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

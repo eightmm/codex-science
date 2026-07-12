@@ -12,13 +12,13 @@ audit and wrapper generation as every other skill. When an authored skill
 supersedes an upstream one, the upstream folder is listed in that source's
 `exclude` so the two do not both appear.
 
-The `cx` tier (101 skills) covers **every DeepMind science skill** (35 skills);
+The `cx` tier (127 skills) covers **every DeepMind science skill** (35 skills);
 only the three infrastructure entries (`credentials`, `uv`,
 `workflow_skill_creator`) remain as `gdm` pointers. Each superseded upstream
 folder is listed in the `gdm` source's `exclude`, so each capability appears
 once.
 
-Sixty-six of the 101 are original **execution/modeling and synthesis** skills (no upstream): `cx-compute-environment`
+Ninety-two of the 127 are original **execution/modeling and synthesis** skills (no upstream): `cx-compute-environment`
 builds an isolated `uv` environment and runs code; `cx-boltz-structure-prediction`
 installs and runs the Boltz structure-prediction model; ten more cover molecular
 input preparation, AutoDock Vina, GNINA, DiffDock, docking validation, OpenFF,
@@ -53,6 +53,11 @@ By access method:
   (`science_search_*`): PubMed, arXiv, UniProt, PDB, ChEMBL, PubChem, Europe PMC,
   OpenAlex, ClinicalTrials.gov, InterPro, QuickGO, OLS, Reactome, STRING, and
   AlphaFold DB.
+- **Agentic life-science research** — 19 additional public APIs plus a local
+  planner support entity normalization, PheWAS replication, locus-to-gene,
+  expression/cell context, omics dataset discovery, pharmacology, cancer
+  genomics, and conflict reconciliation. See
+  [`docs/LIFE_SCIENCE_RESEARCH_SOURCES.md`](../docs/LIFE_SCIENCE_RESEARCH_SOURCES.md).
 - **Public REST/GraphQL APIs** (no key) — structures/chem: `cx-pdb-search`,
   `cx-chembl-search`, `cx-pubchem-search`, `cx-alphafold-structure-analysis`,
   `cx-foldseek-structural-search`; literature: `cx-biorxiv-search`,

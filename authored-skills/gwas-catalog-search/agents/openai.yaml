@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gwas Catalog Search"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $gwas-catalog-search to complete this bounded research task with provenance."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Phewas Replication Analysis"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $phewas-replication-analysis to complete this bounded research task with provenance."

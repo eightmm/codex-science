@@ -6,14 +6,15 @@
     {
       "name": "Genomes",
       "sources": [
-        {"name": "Ensembl (including VEP)", "status": "cataloged"},
+        {"name": "Ensembl (including VEP)", "status": "mcp-tool", "tool": "science_search_ensembl"},
         {"name": "UCSC", "status": "cataloged"}
       ]
     },
     {
       "name": "Genes and Ontologies",
       "sources": [
-        {"name": "MyGene", "status": "cataloged"},
+        {"name": "MyGene", "status": "mcp-tool", "tool": "science_search_mygene"},
+        {"name": "NCBI Gene", "status": "mcp-tool", "tool": "science_search_ncbi_gene"},
         {"name": "UniProt", "status": "mcp-tool", "tool": "science_search_uniprot"},
         {"name": "GO", "status": "mcp-tool", "tool": "science_search_quickgo"},
         {"name": "Reactome", "status": "mcp-tool", "tool": "science_search_reactome"},
@@ -31,10 +32,11 @@
     {
       "name": "Human Genetics",
       "sources": [
-        {"name": "GWAS Catalog", "status": "cataloged"},
+        {"name": "GWAS Catalog", "status": "mcp-tool", "tool": "science_search_gwas_catalog"},
         {"name": "eQTL Catalogue", "status": "cataloged"},
-        {"name": "FinnGen", "status": "cataloged"},
-        {"name": "BioBank Japan", "status": "cataloged"}
+        {"name": "FinnGen", "status": "mcp-tool", "tool": "science_search_finngen"},
+        {"name": "BioBank Japan", "status": "mcp-tool", "tool": "science_search_biobank_japan"},
+        {"name": "UKB/TOPMed", "status": "mcp-tool", "tool": "science_search_ukb_topmed"}
       ]
     },
     {
@@ -42,13 +44,14 @@
       "sources": [
         {"name": "ClinGen", "status": "cataloged"},
         {"name": "CIViC", "status": "cataloged"},
-        {"name": "Open Targets", "status": "cataloged"}
+        {"name": "Open Targets", "status": "mcp-tool", "tool": "science_search_opentargets"}
       ]
     },
     {
       "name": "Expression",
       "sources": [
-        {"name": "GTEx", "status": "cataloged"}
+        {"name": "GTEx", "status": "mcp-tool", "tool": "science_search_gtex"},
+        {"name": "Bgee", "status": "mcp-tool", "tool": "science_search_bgee"}
       ]
     },
     {
@@ -64,7 +67,7 @@
       "sources": [
         {"name": "InterPro", "status": "mcp-tool", "tool": "science_search_interpro"},
         {"name": "Pfam", "status": "cataloged"},
-        {"name": "Human Protein Atlas", "status": "cataloged"},
+        {"name": "Human Protein Atlas", "status": "mcp-tool", "tool": "science_search_hpa"},
         {"name": "STRING", "status": "mcp-tool", "tool": "science_search_string"}
       ]
     },
@@ -81,7 +84,8 @@
     {
       "name": "RNA",
       "sources": [
-        {"name": "Rfam", "status": "cataloged"}
+        {"name": "Rfam", "status": "cataloged"},
+        {"name": "RNAcentral", "status": "mcp-tool", "tool": "science_search_rnacentral"}
       ]
     },
     {
@@ -89,23 +93,25 @@
       "sources": [
         {"name": "GEO", "status": "cataloged"},
         {"name": "ArrayExpress", "status": "cataloged"},
-        {"name": "PRIDE", "status": "cataloged"},
-        {"name": "MGnify", "status": "cataloged"},
+        {"name": "BioStudies", "status": "mcp-tool", "tool": "science_search_biostudies"},
+        {"name": "PRIDE", "status": "mcp-tool", "tool": "science_search_pride"},
+        {"name": "ProteomeXchange", "status": "mcp-tool", "tool": "science_search_proteomexchange"},
+        {"name": "MGnify", "status": "mcp-tool", "tool": "science_search_mgnify"},
         {"name": "MetaboLights", "status": "cataloged"}
       ]
     },
     {
       "name": "Cancer Models",
       "sources": [
-        {"name": "cBioPortal", "status": "cataloged"}
+        {"name": "cBioPortal", "status": "mcp-tool", "tool": "science_search_cbioportal"}
       ]
     },
     {
       "name": "Chemistry",
       "sources": [
         {"name": "PubChem", "status": "mcp-tool", "tool": "science_search_pubchem"},
-        {"name": "ChEBI", "status": "cataloged"},
-        {"name": "Rhea", "status": "cataloged"},
+        {"name": "ChEBI", "status": "mcp-tool", "tool": "science_search_chebi"},
+        {"name": "Rhea", "status": "mcp-tool", "tool": "science_search_rhea"},
         {"name": "BindingDB", "status": "cataloged"}
       ]
     },

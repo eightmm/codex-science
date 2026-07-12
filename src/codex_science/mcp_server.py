@@ -11,20 +11,40 @@ from codex_science.catalog import load_inventory, search_inventory
 from codex_science.connectors import (
     AlphaFoldConnector,
     ArxivConnector,
+    BgeeConnector,
+    BioBankJapanConnector,
+    BioStudiesConnector,
+    CBioPortalConnector,
+    ChEBIConnector,
     ChEMBLConnector,
     ClinicalTrialsConnector,
+    EnsemblConnector,
     EuropePMCConnector,
+    FinnGenConnector,
+    GTExConnector,
+    GWASCatalogConnector,
+    HumanProteinAtlasConnector,
     InterProConnector,
+    MGnifyConnector,
+    MyGeneConnector,
+    NCBIGeneConnector,
     OLSConnector,
     OpenAlexConnector,
+    OpenTargetsConnector,
     PDBConnector,
+    PRIDEConnector,
+    ProteomeXchangeConnector,
     PubChemConnector,
     PubMedConnector,
     QuickGOConnector,
+    RNACentralConnector,
     ReactomeConnector,
+    RheaConnector,
     STRINGConnector,
+    UKBTopMedConnector,
     UniProtConnector,
 )
+from codex_science.life_science import plan_life_science_research
 
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -64,6 +84,29 @@ TOOLS = (
     _tool("science_search_reactome", "Search pathways and reactions through Reactome ContentService."),
     _tool("science_search_string", "Resolve proteins through the STRING API."),
     _tool("science_search_alphafold", "Fetch AlphaFold DB model metadata by UniProt accession."),
+    _tool("science_search_mygene", "Normalize human gene identifiers through MyGene.info."),
+    _tool("science_search_ensembl", "Resolve human gene symbols through Ensembl REST."),
+    _tool("science_search_ncbi_gene", "Resolve human genes through NCBI Entrez Gene."),
+    _tool("science_search_gwas_catalog", "Resolve traits through GWAS Catalog REST API v2."),
+    _tool("science_search_opentargets", "Search Open Targets entities through its public GraphQL API."),
+    _tool("science_search_gtex", "Resolve GTEx genes and genome-build metadata."),
+    _tool("science_search_hpa", "Search Human Protein Atlas gene records."),
+    _tool("science_search_bgee", "Search healthy wild-type expression genes through Bgee."),
+    _tool("science_search_biostudies", "Discover public studies through BioStudies."),
+    _tool("science_search_cbioportal", "Resolve cancer genes through cBioPortal."),
+    _tool("science_search_chebi", "Search chemical entities through ChEBI."),
+    _tool("science_search_rhea", "Search curated biochemical reactions through Rhea."),
+    _tool("science_search_pride", "Discover public proteomics projects through PRIDE."),
+    _tool("science_search_proteomexchange", "Fetch a ProteomeXchange dataset by PXD accession."),
+    _tool("science_search_mgnify", "Discover public microbiome studies through MGnify."),
+    _tool("science_search_rnacentral", "Search non-coding RNA records through RNAcentral."),
+    _tool("science_search_finngen", "Search FinnGen PheWAS by normalized GRCh38 variant."),
+    _tool("science_search_biobank_japan", "Search BioBank Japan PheWAS by normalized variant."),
+    _tool("science_search_ukb_topmed", "Search UKB/TOPMed PheWAS by normalized variant."),
+    _tool(
+        "science_plan_life_science_research",
+        "Plan bounded entity normalization, evidence lanes, provenance, and synthesis for a life-science question.",
+    ),
 )
 
 
@@ -86,6 +129,25 @@ class CodexScienceMCP:
             "science_search_reactome": ReactomeConnector(),
             "science_search_string": STRINGConnector(),
             "science_search_alphafold": AlphaFoldConnector(),
+            "science_search_mygene": MyGeneConnector(),
+            "science_search_ensembl": EnsemblConnector(),
+            "science_search_ncbi_gene": NCBIGeneConnector(),
+            "science_search_gwas_catalog": GWASCatalogConnector(),
+            "science_search_opentargets": OpenTargetsConnector(),
+            "science_search_gtex": GTExConnector(),
+            "science_search_hpa": HumanProteinAtlasConnector(),
+            "science_search_bgee": BgeeConnector(),
+            "science_search_biostudies": BioStudiesConnector(),
+            "science_search_cbioportal": CBioPortalConnector(),
+            "science_search_chebi": ChEBIConnector(),
+            "science_search_rhea": RheaConnector(),
+            "science_search_pride": PRIDEConnector(),
+            "science_search_proteomexchange": ProteomeXchangeConnector(),
+            "science_search_mgnify": MGnifyConnector(),
+            "science_search_rnacentral": RNACentralConnector(),
+            "science_search_finngen": FinnGenConnector(),
+            "science_search_biobank_japan": BioBankJapanConnector(),
+            "science_search_ukb_topmed": UKBTopMedConnector(),
         }
 
     @staticmethod
@@ -96,9 +158,13 @@ class CodexScienceMCP:
     def _error(request_id: Any, code: int, message: str) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
-    def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
+    def handle(self, request: Any) -> dict[str, Any] | None:
+        if not isinstance(request, dict):
+            return self._error(None, -32600, "Invalid Request")
         request_id = request.get("id")
         method = request.get("method")
+        if not isinstance(method, str):
+            return self._error(request_id, -32600, "Invalid Request")
         if request_id is None and method and method.startswith("notifications/"):
             return None
         if method == "initialize":
@@ -122,7 +188,9 @@ class CodexScienceMCP:
             return self._call_tool(request_id, request.get("params", {}))
         return self._error(request_id, -32601, f"Unknown method: {method}")
 
-    def _call_tool(self, request_id: Any, params: dict[str, Any]) -> dict[str, Any]:
+    def _call_tool(self, request_id: Any, params: Any) -> dict[str, Any]:
+        if not isinstance(params, dict):
+            return self._error(request_id, -32602, "Invalid tool parameters")
         name = params.get("name")
         arguments = params.get("arguments", {})
         if name not in {tool["name"] for tool in TOOLS} or not isinstance(arguments, dict):
@@ -143,6 +211,8 @@ class CodexScienceMCP:
                 raise ValueError("Limit must be between 1 and 10")
             if name == "science_search_skills":
                 payload = search_inventory(load_inventory(self.inventory_path), query, limit=limit)
+            elif name == "science_plan_life_science_research":
+                payload = plan_life_science_research(query)
             else:
                 payload = self.connectors[name].search(query, limit=limit)
         except (KeyError, TypeError, ValueError) as exc:

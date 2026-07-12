@@ -1,0 +1,4 @@
+interface:
+  display_name: "Life Science Research Routing"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $life-science-research-routing to complete this bounded research task with provenance."

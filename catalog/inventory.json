@@ -88,6 +88,18 @@
       "status": "active"
     },
     {
+      "description": "Find ontology-aware healthy wild-type gene expression context with Bgee. Use for cross-species, anatomical, developmental-stage, or baseline-expression questions.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-bgee-expression-search",
+      "path": "authored-skills/bgee-expression-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Run a pinned BindCraft campaign for de novo protein binders using AlphaFold2 optimization, ProteinMPNN, PyRosetta, and configurable filters. Use only when the target structure, hotspot strategy, candidate budget, dependency licenses, and experimental handoff are explicit.",
       "executable_count": 0,
       "instruction_line_count": 38,
@@ -100,12 +112,48 @@
       "status": "active"
     },
     {
+      "description": "Normalize genes, proteins, variants, diseases, phenotypes, compounds, reactions, tissues, cell types, organisms, studies, and accessions before multi-source biomedical research. Use whenever aliases, assemblies, releases, or identifier namespaces could change retrieval.",
+      "executable_count": 0,
+      "instruction_line_count": 19,
+      "license": "MIT",
+      "name": "cx-biomedical-entity-normalization",
+      "path": "authored-skills/biomedical-entity-normalization",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Reconcile conflicting multi-source biomedical evidence with explicit entity, release, cohort, assay, independence, and claim semantics. Use before final conclusions from multiple databases or evidence lanes.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-biomedical-evidence-reconciliation",
+      "path": "authored-skills/biomedical-evidence-reconciliation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category \u2014 not for open-ended keyword discovery. Public API, no credential needed.",
       "executable_count": 0,
       "instruction_line_count": 53,
       "license": "Apache-2.0",
       "name": "cx-biorxiv-search",
       "path": "authored-skills/biorxiv-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Discover public life-science studies and associated archive records through EMBL-EBI BioStudies. Use for ArrayExpress, supplementary-data, accession, and public dataset discovery.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-biostudies-search",
+      "path": "authored-skills/biostudies-search",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -136,6 +184,30 @@
       "status": "active"
     },
     {
+      "description": "Synthesize public cancer genomic alterations across genes, cohorts, molecular profiles, clinical annotations, and literature. Use for somatic landscape, biomarker, resistance, or translational oncology research.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-cancer-genomics-evidence",
+      "path": "authored-skills/cancer-genomics-evidence",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Resolve cancer genes and plan public cBioPortal cohort queries. Use for somatic alteration, cancer cohort, co-alteration, survival, or translational oncology evidence.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-cbioportal-search",
+      "path": "authored-skills/cbioportal-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Run pinned Chai-1 inference for proteins, complexes, nucleic acids, ligands, covalent bonds, templates, or restraints. Use when multimolecular structure prediction needs Chai-1-specific inputs and confidence outputs.",
       "executable_count": 0,
       "instruction_line_count": 35,
@@ -154,6 +226,18 @@
       "license": "MIT",
       "name": "cx-chaos-nonlinear-dynamics",
       "path": "authored-skills/chaos-nonlinear-dynamics",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Resolve chemical entities, ontology identifiers, formulae, and structures through ChEBI. Use before chemistry, metabolite, reaction, or pharmacology workflows when names or identifiers are ambiguous.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-chebi-search",
+      "path": "authored-skills/chebi-search",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -472,6 +556,18 @@
       "status": "active"
     },
     {
+      "description": "Reconcile gene expression across GTEx, Human Protein Atlas, Bgee, cell atlases, and disease datasets. Use for tissue, cell-type, developmental, baseline-versus-disease, or target-expression questions.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-expression-cell-context",
+      "path": "authored-skills/expression-cell-context",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Find structurally similar proteins by submitting a 3D coordinate file (.pdb, .cif, or .mmcif) to the Foldseek web API and search databases such as PDB, AlphaFold, CATH, and MGnify. Use ONLY when the user provides a physical structure file and wants structural homologs. Public data, no credential needed.",
       "executable_count": 0,
       "instruction_line_count": 61,
@@ -490,6 +586,18 @@
       "license": "MIT",
       "name": "cx-formal-theorem-proving",
       "path": "authored-skills/formal-theorem-proving",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Assess rare-variant gene burden evidence with explicit cohort, ancestry, mask, frequency threshold, model, phenotype, and multiple-testing semantics. Use for gene-level human genetic support and locus-to-gene follow-up.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-gene-burden-evidence",
+      "path": "authored-skills/gene-burden-evidence",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -556,6 +664,18 @@
       "status": "active"
     },
     {
+      "description": "Resolve traits and discover curated human genetic association evidence with GWAS Catalog REST API v2. Use for trait, locus, variant, ancestry, study, and locus-to-gene research.",
+      "executable_count": 0,
+      "instruction_line_count": 19,
+      "license": "MIT",
+      "name": "cx-gwas-catalog-search",
+      "path": "authored-skills/gwas-catalog-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein. Public API, no credential needed.",
       "executable_count": 0,
       "instruction_line_count": 36,
@@ -616,12 +736,36 @@
       "status": "active"
     },
     {
+      "description": "Route broad or multi-step life-science questions into normalized entities, the smallest independent evidence lanes, reproducible retrieval, conflict reconciliation, and review. Use for target, variant, disease, omics, structure, pharmacology, clinical, or public-dataset research requiring synthesis.",
+      "executable_count": 0,
+      "instruction_line_count": 19,
+      "license": "MIT",
+      "name": "cx-life-science-research-routing",
+      "path": "authored-skills/life-science-research-routing",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Solve exact and numerical linear algebra problems with explicit field, dimensions, bases, rank structure, conditioning, and residual checks. Use for linear systems, vector spaces, linear maps, eigenproblems, least squares, SVD, quadratic forms, and matrix factorizations.",
       "executable_count": 0,
       "instruction_line_count": 56,
       "license": "MIT",
       "name": "cx-linear-algebra-problem-solving",
       "path": "authored-skills/linear-algebra-problem-solving",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Prioritize candidate genes at human genetic loci using curated association, credible-set/L2G, colocalization, eQTL, coding, burden, expression, and pathway evidence. Use for GWAS follow-up and target prioritization.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-locus-to-gene-prioritization",
+      "path": "authored-skills/locus-to-gene-prioritization",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -664,6 +808,30 @@
       "status": "active"
     },
     {
+      "description": "Integrate public metabolite, reaction, protein, proteomics, and study evidence. Use for pathway mechanism, biomarker context, multi-omics follow-up, or dataset selection.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-metabolomics-proteomics-context",
+      "path": "authored-skills/metabolomics-proteomics-context",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Discover public microbiome and metagenomics studies through MGnify. Use for biome, sample, assembly, taxonomic, functional, or public microbiome dataset questions.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-mgnify-search",
+      "path": "authored-skills/mgnify-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Drive a concrete scientific modeling problem from supplied inputs through model selection, falsifiable plan, one-time approval, environment setup, smoke test, full execution, downstream analysis, provenance, and review. Use when the user provides sequences, structures, molecules, omics data, trajectories, or a specific modeling objective and expects an actual result rather than instructions.",
       "executable_count": 0,
       "instruction_line_count": 69,
@@ -682,6 +850,42 @@
       "license": "MIT",
       "name": "cx-molecular-input-preparation",
       "path": "authored-skills/molecular-input-preparation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Normalize human gene symbols and aliases to Entrez, Ensembl, and taxonomic identifiers with MyGene.info. Use before cross-database gene, target, expression, or variant research when identifiers are incomplete or inconsistent.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-mygene-search",
+      "path": "authored-skills/mygene-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Resolve human genes through NCBI Entrez Gene and preserve links to sequence, literature, variation, and GEO resources. Use for NCBI-centered gene and identifier research.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-ncbi-gene-search",
+      "path": "authored-skills/ncbi-gene-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Run bounded NCBI-centered research across Gene, PubMed/PMC, sequence, variation, and GEO-linked records. Use when a gene, accession, sequence, or literature question requires traceable NCBI cross-links.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-ncbi-integrated-research",
+      "path": "authored-skills/ncbi-integrated-research",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -868,6 +1072,18 @@
       "status": "active"
     },
     {
+      "description": "Compare one normalized variant across FinnGen, BioBank Japan, and UKB/TOPMed PheWAS evidence. Use for phenotype-wide replication, ancestry heterogeneity, pleiotropy screening, or cohort comparison.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-phewas-replication-analysis",
+      "path": "authored-skills/phewas-replication-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Profile noncovalent protein-ligand interactions with a pinned PLIP release and compare interaction fingerprints across experimental structures, docking poses, or trajectory representatives. Use after structure preparation or pose generation.",
       "executable_count": 0,
       "instruction_line_count": 32,
@@ -886,6 +1102,18 @@
       "license": "Apache-2.0",
       "name": "cx-predicting-the-past",
       "path": "authored-skills/predicting-the-past",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Discover public proteomics projects through PRIDE Archive. Use for mass-spectrometry datasets, reanalysis candidates, protein evidence, or public-study discovery.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-pride-search",
+      "path": "authored-skills/pride-search",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -964,12 +1192,36 @@
       "status": "active"
     },
     {
+      "description": "Resolve a known PXD accession through ProteomeXchange. Use for cross-repository accession verification and proteomics reanalysis planning; use PRIDE for keyword discovery.",
+      "executable_count": 0,
+      "instruction_line_count": 19,
+      "license": "MIT",
+      "name": "cx-proteomexchange-search",
+      "path": "authored-skills/proteomexchange-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Query PubChem by name, CID, or SMILES; retrieve properties; run similarity/substructure searches; and get bioactivity. Use for cheminformatics on a specific chemical, drug, or molecule. Public PUG-REST API, no credential needed.",
       "executable_count": 0,
       "instruction_line_count": 38,
       "license": "Apache-2.0",
       "name": "cx-pubchem-search",
       "path": "authored-skills/pubchem-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Discover and triage reusable public transcriptomics, proteomics, metabolomics, microbiome, and supplementary-study datasets. Use when a research question needs external data rather than only literature.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-public-omics-dataset-discovery",
+      "path": "authored-skills/public-omics-dataset-discovery",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1066,6 +1318,30 @@
       "license": "MIT",
       "name": "cx-rfdiffusion-protein-design",
       "path": "authored-skills/rfdiffusion-protein-design",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Search curated biochemical reactions and participants through Rhea. Use for enzyme, pathway, metabolite, reaction-direction, or mechanism context.",
+      "executable_count": 0,
+      "instruction_line_count": 16,
+      "license": "MIT",
+      "name": "cx-rhea-search",
+      "path": "authored-skills/rhea-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Resolve non-coding RNA identifiers, sequences, types, and cross-references through RNAcentral. Use for RNA annotation, accession normalization, ncRNA, or sequence-context research.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-rnacentral-search",
+      "path": "authored-skills/rnacentral-search",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1180,6 +1456,18 @@
       "status": "active"
     },
     {
+      "description": "Synthesize target, ligand, mechanism, exposure, safety, pharmacogenomic, trial, and regulatory evidence for translational pharmacology questions. Use for target-drug-indication landscapes, not prescribing.",
+      "executable_count": 0,
+      "instruction_line_count": 17,
+      "license": "MIT",
+      "name": "cx-translational-pharmacology-evidence",
+      "path": "authored-skills/translational-pharmacology-evidence",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Fetch evolutionary conservation scores (phyloP, phastCons) and transcription-factor binding sites (ENCODE, JASPAR, ReMap) from the UCSC Genome Browser. Use to assess whether variants/regions are conserved or TF-bound. Public API, no credential needed.",
       "executable_count": 0,
       "instruction_line_count": 35,
@@ -1210,6 +1498,18 @@
       "license": "Apache-2.0",
       "name": "cx-uniprot-search",
       "path": "authored-skills/uniprot-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Synthesize population, clinical, functional, regulatory, expression, and cohort evidence for a genomic variant. Use for research interpretation of rsIDs or genomic alleles, not patient-specific diagnosis or treatment.",
+      "executable_count": 0,
+      "instruction_line_count": 18,
+      "license": "MIT",
+      "name": "cx-variant-evidence-synthesis",
+      "path": "authored-skills/variant-evidence-synthesis",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3349,8 +3649,8 @@
     }
   ],
   "summary": {
-    "active": 142,
+    "active": 167,
     "inactive": 112,
-    "total": 254
+    "total": 279
   }
 }

@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **254 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, experimental spectroscopy and analytical chemistry, local and remote scientific compute, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 15 read-only public data connectors, and records reproducible artifacts with independent evidence review.
+Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **279 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, agentic life-science evidence synthesis, experimental spectroscopy and analytical chemistry, local and remote scientific compute, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 34 read-only public data connectors plus local catalog search and research planning, and records reproducible artifacts with independent evidence review.
 
 This is an independent Codex plugin inspired by the public workflow of Claude Science. It does not claim parity with any private implementation.
 
@@ -64,6 +64,18 @@ Design the smallest experiment that could disprove it.
 Analyze these results and record reproducible artifacts.
 Review the final claims against the execution record.
 ```
+
+Agentic life-science examples:
+
+```text
+Interpret rs7903146 for type 2 diabetes across FinnGen, BioBank Japan, and UKB/TOPMed.
+Prioritize genes at this asthma locus using genetics, eQTL, expression, and pathway evidence.
+Find reusable public proteomics and microbiome datasets for this hypothesis, then rank them by study-design fitness.
+```
+
+Codex Science normalizes identifiers first, retrieves only the required evidence
+lanes, records source releases and exact queries, reconciles conflicts, and runs
+independent review. See [agentic life-science source coverage](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md).
 
 Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
 
@@ -138,7 +150,7 @@ Each completed run also gets a local `index.md` and, when requested, an offline
 Codex conversation; reports, tables, notebooks, logs, and secondary figures are
 returned as clickable absolute-path links. No web deployment is required.
 
-An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 254 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
+An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 279 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
 
 > Catalog presence is not execution permission. Inactive skills show their audit reasons and require acknowledgement before their upstream instructions can be inspected. See [docs/](docs/) for verification, configuration, and boundaries.
 
@@ -147,7 +159,7 @@ An ordinary scientific question in a fresh task does **not** activate the mode. 
 All skills merge into one deterministic, audited inventory (`catalog/inventory.json`) from three tiers:
 
 - **K-Dense-AI — 149** · pinned upstream (Git submodule); thin Codex wrappers point at the pinned instructions.
-- **Codex-native authored — 102** · the entire Google DeepMind science set [rewritten as first-class Codex skills](authored-skills/), 28 textbook-grounded mathematics/physics workflows, six spectroscopy and analytical-chemistry workflows, local/remote scientific computing, and isolated, gated execution workflows for current structure, protein/genome, docking, design, MD, and single-cell models. Analytical workflows cover optical spectra, NMR, MS, XRD/scattering, chromatography, and evidence-integrated structure elucidation. Concrete-problem runners continue through solution, independent checks, provenance, and review. Fifteen public sources are callable through the plugin's read-only MCP (`science_search_*`).
+- **Codex-native authored — 127** · the entire Google DeepMind science set [rewritten as first-class Codex skills](authored-skills/), 28 textbook-grounded mathematics/physics workflows, 25 agentic life-science source and synthesis workflows, six spectroscopy and analytical-chemistry workflows, local/remote scientific computing, and isolated, gated execution workflows for current structure, protein/genome, docking, design, MD, and single-cell models. Concrete-problem runners continue through solution, independent checks, provenance, and review. Thirty-four public sources plus local catalog search and life-science planning are callable through the plugin's read-only MCP (`science_search_*`, `science_plan_*`). See [life-science source coverage](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md).
 - **DeepMind infra — 3** · `credentials`, `uv`, `workflow_skill_creator`, kept as pointers.
 
 A conservative audit marks each skill **active** or **inactive** (by license, executable content, credential need, and safety). Inactive skills stay in the catalog but require explicit acknowledgement before use.

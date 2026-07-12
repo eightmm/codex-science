@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Cbioportal Search"
+  short_description: "Use the audited cx-cbioportal-search scientific workflow"
+  default_prompt: "Use $cx-cbioportal-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

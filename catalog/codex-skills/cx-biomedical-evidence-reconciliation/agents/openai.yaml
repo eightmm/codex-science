@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Biomedical Evidence Reconciliation"
+  short_description: "Audited scientific workflow for cx-biomedical-evidence-reconcili"
+  default_prompt: "Use $cx-biomedical-evidence-reconciliation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Chebi Search"
+  short_description: "Use the audited cx-chebi-search scientific workflow"
+  default_prompt: "Use $cx-chebi-search for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

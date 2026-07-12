@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Locus To Gene Prioritization"
+  short_description: "Audited scientific workflow for cx-locus-to-gene-prioritization"
+  default_prompt: "Use $cx-locus-to-gene-prioritization for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

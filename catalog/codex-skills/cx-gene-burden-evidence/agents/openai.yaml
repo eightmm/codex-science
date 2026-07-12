@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Gene Burden Evidence"
+  short_description: "Use the audited cx-gene-burden-evidence scientific workflow"
+  default_prompt: "Use $cx-gene-burden-evidence for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bgee Expression Search"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $bgee-expression-search to complete this bounded research task with provenance."

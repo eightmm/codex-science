@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ncbi Integrated Research"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $ncbi-integrated-research to complete this bounded research task with provenance."

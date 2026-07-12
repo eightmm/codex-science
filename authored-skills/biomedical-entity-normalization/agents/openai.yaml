@@ -1,0 +1,4 @@
+interface:
+  display_name: "Biomedical Entity Normalization"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $biomedical-entity-normalization to complete this bounded research task with provenance."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mygene Search"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $mygene-search to complete this bounded research task with provenance."

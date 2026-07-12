@@ -1,0 +1,4 @@
+interface:
+  display_name: "Variant Evidence Synthesis"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $variant-evidence-synthesis to complete this bounded research task with provenance."

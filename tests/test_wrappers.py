@@ -273,6 +273,59 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
 
 
 class FeaturedScienceSkillCoverageTests(unittest.TestCase):
+    def test_agentic_life_science_skills_are_active_and_composable(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
+        records = {item["name"]: item for item in inventory["skills"]}
+        expected = {
+            "cx-biomedical-entity-normalization",
+            "cx-biomedical-evidence-reconciliation",
+            "cx-cancer-genomics-evidence",
+            "cx-expression-cell-context",
+            "cx-gene-burden-evidence",
+            "cx-life-science-research-routing",
+            "cx-locus-to-gene-prioritization",
+            "cx-metabolomics-proteomics-context",
+            "cx-ncbi-integrated-research",
+            "cx-phewas-replication-analysis",
+            "cx-public-omics-dataset-discovery",
+            "cx-translational-pharmacology-evidence",
+            "cx-variant-evidence-synthesis",
+        }
+
+        self.assertTrue(expected <= records.keys())
+        self.assertTrue(all(records[name]["status"] == "active" for name in expected))
+        for name in expected:
+            text = (repository_root / records[name]["path"] / "SKILL.md").read_text().lower()
+            self.assertIn("provenance", text)
+            self.assertTrue("review" in text or "$science-review" in text)
+
+        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        self.assertIn("$cx-life-science-research-routing", coordinator)
+        self.assertIn("science_plan_life_science_research", coordinator)
+
+    def test_new_life_science_source_skills_use_bundled_read_only_tools(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        expected = {
+            "mygene-search": "science_search_mygene",
+            "gwas-catalog-search": "science_search_gwas_catalog",
+            "bgee-expression-search": "science_search_bgee",
+            "biostudies-search": "science_search_biostudies",
+            "cbioportal-search": "science_search_cbioportal",
+            "chebi-search": "science_search_chebi",
+            "rhea-search": "science_search_rhea",
+            "pride-search": "science_search_pride",
+            "proteomexchange-search": "science_search_proteomexchange",
+            "mgnify-search": "science_search_mgnify",
+            "rnacentral-search": "science_search_rnacentral",
+            "ncbi-gene-search": "science_search_ncbi_gene",
+        }
+
+        for folder, tool in expected.items():
+            text = (repository_root / "authored-skills" / folder / "SKILL.md").read_text()
+            self.assertIn(tool, text)
+            self.assertIn("$science-provenance", text)
+
     def test_analytical_chemistry_skills_are_active_sourced_and_composable(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())

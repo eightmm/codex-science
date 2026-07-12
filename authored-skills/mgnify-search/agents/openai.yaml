@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mgnify Search"
+  short_description: "Agentic evidence-backed life-science research"
+  default_prompt: "Use $mgnify-search to complete this bounded research task with provenance."
