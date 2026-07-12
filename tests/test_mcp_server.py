@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_science.mcp_server import CodexScienceMCP, run_stdio
+from codex_science.mcp_server import CONNECTOR_SPECS, TOOLS, CodexScienceMCP, run_stdio
 
 
 class MCPServerTests(unittest.TestCase):
@@ -83,6 +83,15 @@ class MCPServerTests(unittest.TestCase):
             },
             names,
         )
+
+    def test_connector_registry_is_the_single_source_of_truth(self) -> None:
+        connector_names = [name for name, _, _ in CONNECTOR_SPECS]
+        listed_names = [tool["name"] for tool in TOOLS if tool["name"] in self.server.connectors]
+
+        self.assertEqual(34, len(connector_names))
+        self.assertEqual(len(connector_names), len(set(connector_names)))
+        self.assertEqual(connector_names, list(self.server.connectors))
+        self.assertEqual(connector_names, listed_names)
 
     def test_life_science_planner_is_exposed_as_read_only_tool(self) -> None:
         response = self.server.handle(

@@ -94,6 +94,21 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             run_checks((("other", Connector(403), "x"),), {"reactome"})
 
+    def test_public_smoke_retries_one_transient_timeout(self) -> None:
+        class Connector:
+            calls = 0
+
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                self.calls += 1
+                if self.calls == 1:
+                    raise TimeoutError("temporary timeout")
+                return [{"id": "ok"}]
+
+        connector = Connector()
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(1, run_checks((("example", connector, "x"),)))
+        self.assertEqual(2, connector.calls)
+
     def test_local_omc_state_is_ignored(self) -> None:
         ignored = (self.root / ".gitignore").read_text(encoding="utf-8").splitlines()
 

@@ -723,7 +723,7 @@ class ProteomeXchangeConnector:
         self._fetch_json = fetch_json
 
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
-        query, limit = _validate(query, limit)
+        query, _ = _validate(query, limit)
         accession = query.upper()
         if re.fullmatch(r"PXD\d{6,}", accession) is None:
             raise ValueError("ProteomeXchange query must be a PXD accession")
@@ -757,7 +757,7 @@ class ProteomeXchangeConnector:
                 "species": "; ".join(species),
                 "url": f"https://proteomecentral.proteomexchange.org/cgi/GetDataset?ID={accession}",
             }
-        ][:limit]
+        ]
 
 
 class MGnifyConnector:
@@ -853,7 +853,7 @@ class _PheWASConnector:
         expected = (chromosome, position, reference, alternate)
         if self._response_variant(payload) != expected:
             raise ValueError("PheWAS response variant did not match normalized query")
-        associations = payload.get(self.result_key, []) if isinstance(payload, dict) else []
+        associations = payload.get(self.result_key, [])
 
         def p_value(item: dict[str, Any]) -> float | None:
             try:

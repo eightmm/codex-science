@@ -89,7 +89,10 @@ def run_checks(
     processed = 0
     for name, connector, query in checks:
         try:
-            results = connector.search(query, limit=1)
+            try:
+                results = connector.search(query, limit=1)
+            except TimeoutError:
+                results = connector.search(query, limit=1)
         except urllib.error.HTTPError as error:
             if error.code == 403 and name in allowed_http_403:
                 print(f"{name}: environment-blocked (HTTP 403; explicitly allowed)")

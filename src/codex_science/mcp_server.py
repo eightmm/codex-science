@@ -67,88 +67,58 @@ def _tool(name: str, description: str) -> dict[str, Any]:
     }
 
 
+CONNECTOR_SPECS = (
+    ("science_search_pubmed", "Search PubMed through the public NCBI API.", PubMedConnector),
+    ("science_search_arxiv", "Search arXiv through its public Atom API.", ArxivConnector),
+    ("science_search_uniprot", "Search UniProtKB through its public REST API.", UniProtConnector),
+    ("science_search_pdb", "Search experimental structures through the RCSB PDB Search API.", PDBConnector),
+    ("science_search_chembl", "Search ChEMBL molecules through its public REST API.", ChEMBLConnector),
+    ("science_search_pubchem", "Resolve compounds and properties through PubChem PUG REST.", PubChemConnector),
+    ("science_search_europepmc", "Search life-science literature through Europe PMC.", EuropePMCConnector),
+    ("science_search_openalex", "Search scholarly works through OpenAlex.", OpenAlexConnector),
+    ("science_search_clinical_trials", "Search studies through ClinicalTrials.gov API v2.", ClinicalTrialsConnector),
+    ("science_search_interpro", "Search protein families and domains through InterPro.", InterProConnector),
+    ("science_search_quickgo", "Search Gene Ontology terms through QuickGO.", QuickGOConnector),
+    ("science_search_ols", "Search biomedical ontologies through EMBL-EBI OLS.", OLSConnector),
+    ("science_search_reactome", "Search pathways and reactions through Reactome ContentService.", ReactomeConnector),
+    ("science_search_string", "Resolve proteins through the STRING API.", STRINGConnector),
+    ("science_search_alphafold", "Fetch AlphaFold DB model metadata by UniProt accession.", AlphaFoldConnector),
+    ("science_search_mygene", "Normalize human gene identifiers through MyGene.info.", MyGeneConnector),
+    ("science_search_ensembl", "Resolve human gene symbols through Ensembl REST.", EnsemblConnector),
+    ("science_search_ncbi_gene", "Resolve human genes through NCBI Entrez Gene.", NCBIGeneConnector),
+    ("science_search_gwas_catalog", "Resolve traits through GWAS Catalog REST API v2.", GWASCatalogConnector),
+    ("science_search_opentargets", "Search Open Targets entities through its public GraphQL API.", OpenTargetsConnector),
+    ("science_search_gtex", "Resolve GTEx genes and genome-build metadata.", GTExConnector),
+    ("science_search_hpa", "Search Human Protein Atlas gene records.", HumanProteinAtlasConnector),
+    ("science_search_bgee", "Search healthy wild-type expression genes through Bgee.", BgeeConnector),
+    ("science_search_biostudies", "Discover public studies through BioStudies.", BioStudiesConnector),
+    ("science_search_cbioportal", "Resolve cancer genes through cBioPortal.", CBioPortalConnector),
+    ("science_search_chebi", "Search chemical entities through ChEBI.", ChEBIConnector),
+    ("science_search_rhea", "Search curated biochemical reactions through Rhea.", RheaConnector),
+    ("science_search_pride", "Discover public proteomics projects through PRIDE.", PRIDEConnector),
+    ("science_search_proteomexchange", "Fetch a ProteomeXchange dataset by PXD accession.", ProteomeXchangeConnector),
+    ("science_search_mgnify", "Discover public microbiome studies through MGnify.", MGnifyConnector),
+    ("science_search_rnacentral", "Search non-coding RNA records through RNAcentral.", RNACentralConnector),
+    ("science_search_finngen", "Search FinnGen PheWAS by normalized GRCh38 variant.", FinnGenConnector),
+    ("science_search_biobank_japan", "Search BioBank Japan PheWAS by normalized variant.", BioBankJapanConnector),
+    ("science_search_ukb_topmed", "Search UKB/TOPMed PheWAS by normalized variant.", UKBTopMedConnector),
+)
+
 TOOLS = (
     _tool("science_search_skills", "Search the audited local scientific skill catalog."),
-    _tool("science_search_pubmed", "Search PubMed through the public NCBI API."),
-    _tool("science_search_arxiv", "Search arXiv through its public Atom API."),
-    _tool("science_search_uniprot", "Search UniProtKB through its public REST API."),
-    _tool("science_search_pdb", "Search experimental structures through the RCSB PDB Search API."),
-    _tool("science_search_chembl", "Search ChEMBL molecules through its public REST API."),
-    _tool("science_search_pubchem", "Resolve compounds and properties through PubChem PUG REST."),
-    _tool("science_search_europepmc", "Search life-science literature through Europe PMC."),
-    _tool("science_search_openalex", "Search scholarly works through OpenAlex."),
-    _tool("science_search_clinical_trials", "Search studies through ClinicalTrials.gov API v2."),
-    _tool("science_search_interpro", "Search protein families and domains through InterPro."),
-    _tool("science_search_quickgo", "Search Gene Ontology terms through QuickGO."),
-    _tool("science_search_ols", "Search biomedical ontologies through EMBL-EBI OLS."),
-    _tool("science_search_reactome", "Search pathways and reactions through Reactome ContentService."),
-    _tool("science_search_string", "Resolve proteins through the STRING API."),
-    _tool("science_search_alphafold", "Fetch AlphaFold DB model metadata by UniProt accession."),
-    _tool("science_search_mygene", "Normalize human gene identifiers through MyGene.info."),
-    _tool("science_search_ensembl", "Resolve human gene symbols through Ensembl REST."),
-    _tool("science_search_ncbi_gene", "Resolve human genes through NCBI Entrez Gene."),
-    _tool("science_search_gwas_catalog", "Resolve traits through GWAS Catalog REST API v2."),
-    _tool("science_search_opentargets", "Search Open Targets entities through its public GraphQL API."),
-    _tool("science_search_gtex", "Resolve GTEx genes and genome-build metadata."),
-    _tool("science_search_hpa", "Search Human Protein Atlas gene records."),
-    _tool("science_search_bgee", "Search healthy wild-type expression genes through Bgee."),
-    _tool("science_search_biostudies", "Discover public studies through BioStudies."),
-    _tool("science_search_cbioportal", "Resolve cancer genes through cBioPortal."),
-    _tool("science_search_chebi", "Search chemical entities through ChEBI."),
-    _tool("science_search_rhea", "Search curated biochemical reactions through Rhea."),
-    _tool("science_search_pride", "Discover public proteomics projects through PRIDE."),
-    _tool("science_search_proteomexchange", "Fetch a ProteomeXchange dataset by PXD accession."),
-    _tool("science_search_mgnify", "Discover public microbiome studies through MGnify."),
-    _tool("science_search_rnacentral", "Search non-coding RNA records through RNAcentral."),
-    _tool("science_search_finngen", "Search FinnGen PheWAS by normalized GRCh38 variant."),
-    _tool("science_search_biobank_japan", "Search BioBank Japan PheWAS by normalized variant."),
-    _tool("science_search_ukb_topmed", "Search UKB/TOPMed PheWAS by normalized variant."),
+    *(_tool(name, description) for name, description, _ in CONNECTOR_SPECS),
     _tool(
         "science_plan_life_science_research",
         "Plan bounded entity normalization, evidence lanes, provenance, and synthesis for a life-science question.",
     ),
 )
+TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
 
 
 class CodexScienceMCP:
     def __init__(self, inventory_path: Path) -> None:
         self.inventory_path = inventory_path
-        self.connectors = {
-            "science_search_pubmed": PubMedConnector(),
-            "science_search_arxiv": ArxivConnector(),
-            "science_search_uniprot": UniProtConnector(),
-            "science_search_pdb": PDBConnector(),
-            "science_search_chembl": ChEMBLConnector(),
-            "science_search_pubchem": PubChemConnector(),
-            "science_search_europepmc": EuropePMCConnector(),
-            "science_search_openalex": OpenAlexConnector(),
-            "science_search_clinical_trials": ClinicalTrialsConnector(),
-            "science_search_interpro": InterProConnector(),
-            "science_search_quickgo": QuickGOConnector(),
-            "science_search_ols": OLSConnector(),
-            "science_search_reactome": ReactomeConnector(),
-            "science_search_string": STRINGConnector(),
-            "science_search_alphafold": AlphaFoldConnector(),
-            "science_search_mygene": MyGeneConnector(),
-            "science_search_ensembl": EnsemblConnector(),
-            "science_search_ncbi_gene": NCBIGeneConnector(),
-            "science_search_gwas_catalog": GWASCatalogConnector(),
-            "science_search_opentargets": OpenTargetsConnector(),
-            "science_search_gtex": GTExConnector(),
-            "science_search_hpa": HumanProteinAtlasConnector(),
-            "science_search_bgee": BgeeConnector(),
-            "science_search_biostudies": BioStudiesConnector(),
-            "science_search_cbioportal": CBioPortalConnector(),
-            "science_search_chebi": ChEBIConnector(),
-            "science_search_rhea": RheaConnector(),
-            "science_search_pride": PRIDEConnector(),
-            "science_search_proteomexchange": ProteomeXchangeConnector(),
-            "science_search_mgnify": MGnifyConnector(),
-            "science_search_rnacentral": RNACentralConnector(),
-            "science_search_finngen": FinnGenConnector(),
-            "science_search_biobank_japan": BioBankJapanConnector(),
-            "science_search_ukb_topmed": UKBTopMedConnector(),
-        }
+        self.connectors = {name: connector() for name, _, connector in CONNECTOR_SPECS}
 
     @staticmethod
     def _result(request_id: Any, result: dict[str, Any]) -> dict[str, Any]:
@@ -165,7 +135,7 @@ class CodexScienceMCP:
         method = request.get("method")
         if not isinstance(method, str):
             return self._error(request_id, -32600, "Invalid Request")
-        if request_id is None and method and method.startswith("notifications/"):
+        if request_id is None and method.startswith("notifications/"):
             return None
         if method == "initialize":
             return self._result(
@@ -193,7 +163,7 @@ class CodexScienceMCP:
             return self._error(request_id, -32602, "Invalid tool parameters")
         name = params.get("name")
         arguments = params.get("arguments", {})
-        if name not in {tool["name"] for tool in TOOLS} or not isinstance(arguments, dict):
+        if name not in TOOL_NAMES or not isinstance(arguments, dict):
             return self._error(request_id, -32602, f"Unknown or invalid tool: {name}")
         try:
             extra = set(arguments) - {"query", "limit"}
