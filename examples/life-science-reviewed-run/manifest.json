@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "run_id": "phewas-replication-20260712",
+  "question": "Do FinnGen, BioBank Japan, and UKB/TOPMed provide sufficient comparable PheWAS evidence to establish directional diabetes replication for 10:112998590-C-T?",
+  "plan": [
+    {
+      "id": "normalize",
+      "description": "Use one explicit variant query and verify every returned response identity.",
+      "status": "completed"
+    },
+    {
+      "id": "retrieve",
+      "description": "Retrieve at most ten associations from each public PheWAS source.",
+      "status": "completed"
+    },
+    {
+      "id": "compare",
+      "description": "Count only build-verified, positive, significant diabetes phenotypes as comparable replication evidence.",
+      "status": "completed"
+    },
+    {
+      "id": "review",
+      "description": "Independently reject variant, p-value, missingness, and genome-build overclaims.",
+      "status": "completed"
+    }
+  ],
+  "inputs": [
+    {
+      "type": "entity",
+      "name": "normalized variant query",
+      "value": "10:112998590-C-T"
+    },
+    {
+      "type": "hypothesis",
+      "name": "three-source directional replication",
+      "value": "All three sources provide build-comparable, positive, diabetes-related associations at p <= 5e-8."
+    },
+    {
+      "type": "prediction",
+      "name": "expected outcome",
+      "value": "The hypothesis will not be supported because source build metadata and phenotype coverage are incomplete."
+    },
+    {
+      "type": "baseline",
+      "name": "null evidence count",
+      "value": 0
+    },
+    {
+      "type": "metric",
+      "name": "comparable significant source count",
+      "value": "Require 3 of 3 sources; count only verified builds with positive diabetes associations at p <= 5e-8."
+    }
+  ],
+  "code": [
+    {
+      "path": "retrieve.py",
+      "sha256": "8d8ccaff70dabed3d9b444143e398578ce9585e294ab964361c6b427b1bf6f41"
+    },
+    {
+      "path": "analysis.py",
+      "sha256": "4308b5c51e20dcfa0a5f251e788abe70860c659b53fec85b210d450f95703b73"
+    },
+    {
+      "path": "review.py",
+      "sha256": "bc62c21d1cae09dc53eb41001fdfe85d6832ea75df4e566acea1376db7a157f7"
+    }
+  ],
+  "executions": [
+    {
+      "command": "uv run python examples/life-science-reviewed-run/retrieve.py --retrieved-at 2026-07-12T05:16:14Z",
+      "exit_code": 0,
+      "log": "execution.log"
+    },
+    {
+      "command": "uv run python examples/life-science-reviewed-run/analysis.py",
+      "exit_code": 0,
+      "log": "execution.log"
+    },
+    {
+      "command": "uv run python examples/life-science-reviewed-run/review.py",
+      "exit_code": 0,
+      "log": "execution.log"
+    }
+  ],
+  "environment": {
+    "python": "3.11.15",
+    "packages": [
+      "codex-science==0.1.0"
+    ],
+    "source_revision": "04cae615aaaddc2a05acf35565269b0a5064fc55",
+    "working_tree": "acceptance-run implementation in progress"
+  },
+  "artifacts": [
+    {
+      "path": "evidence.json",
+      "kind": "source-snapshot",
+      "sha256": "497c6a795b47f749671b100b9a783c1a5bcd1b0ac21f03a3a095b767f8174235"
+    },
+    {
+      "path": "result.json",
+      "kind": "analysis-result",
+      "sha256": "e9733a805bcde2b4e8f75ad07bb524c3d94cab7d4023f5c2f2ca9aff514fe55f"
+    },
+    {
+      "path": "execution.log",
+      "kind": "execution-log",
+      "sha256": "72795d894ae6f8ca7b60a426b2e043e4f8332475200136d2263fc55b115a1c7c"
+    },
+    {
+      "path": "review.json",
+      "kind": "review",
+      "sha256": "901c63d7d00aa05be77f85b488662475ee888b1ce79414f4d60f515898faa0df"
+    }
+  ],
+  "claims": [
+    {
+      "id": "descriptive-signal",
+      "text": "The snapshot contains positive significant diabetes-related associations in FinnGen and UKB/TOPMed.",
+      "evidence": [
+        "evidence.json",
+        "result.json"
+      ]
+    },
+    {
+      "id": "replication-boundary",
+      "text": "Three-source directional replication is not established because only FinnGen has a verified build in this retrieval contract and BioBank Japan returned no comparable diabetes phenotype.",
+      "evidence": [
+        "evidence.json",
+        "result.json"
+      ]
+    }
+  ],
+  "review": {
+    "status": "passed",
+    "findings": []
+  }
+}

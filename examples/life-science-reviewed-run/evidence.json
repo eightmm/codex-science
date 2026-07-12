@@ -1,0 +1,225 @@
+{
+  "entity": {
+    "kind": "genomic_variant",
+    "normalized_query": "10:112998590-C-T"
+  },
+  "schema_version": 1,
+  "sources": [
+    {
+      "genome_build": "GRCh38",
+      "query": "10:112998590-C-T",
+      "results": [
+        {
+          "beta": "0.256178",
+          "id": "T2D",
+          "p_value": "1.0543868963913185e-282",
+          "sample_size": "",
+          "title": "Type 2 diabetes, definitions combined",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.257155",
+          "id": "KELA_DIAB_INSUL_EXMORE",
+          "p_value": "2.4717241450159725e-274",
+          "sample_size": "",
+          "title": "Diabetes, insulin treatment (Kela reimbursement) (more control exclusions)",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.258416",
+          "id": "T2D_WIDE",
+          "p_value": "5.915616341754622e-204",
+          "sample_size": "",
+          "title": "Type 2 diabetes, wide definition",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.152559",
+          "id": "GEST_DIABETES",
+          "p_value": "8.287050779069795e-30",
+          "sample_size": "",
+          "title": "Gestational diabetes (for exclusion)",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.056176",
+          "id": "RX_STATIN",
+          "p_value": "6.14752070319309e-20",
+          "sample_size": "",
+          "title": "Statin medication",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "-0.0194589",
+          "id": "WEIGHT_IRN",
+          "p_value": "2.7758756035343455e-14",
+          "sample_size": "",
+          "title": "Weight, inverse-rank normalized",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "-0.0201675",
+          "id": "BMI_IRN",
+          "p_value": "1.8586602026885377e-13",
+          "sample_size": "",
+          "title": "Body-mass index, inverse-rank normalized",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.0632935",
+          "id": "O15_PREG_OTHER_MAT_DISORD",
+          "p_value": "1.4381361395680746e-11",
+          "sample_size": "",
+          "title": "Other maternal disorders predominantly related to pregnancy",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.0746655",
+          "id": "I9_ATHSCLE",
+          "p_value": "1.6682072334852777e-08",
+          "sample_size": "",
+          "title": "Atherosclerosis, excluding cerebral and coronary sclerosis",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.0487891",
+          "id": "H7_CHOROIDRETINA",
+          "p_value": "5.3532804994425426e-08",
+          "sample_size": "",
+          "title": "Disorders of choroid and retina",
+          "url": "https://r12.finngen.fi/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        }
+      ],
+      "retrieved_at": "2026-07-12T05:16:14Z",
+      "source": "FinnGen",
+      "source_release": "R12"
+    },
+    {
+      "genome_build": "unverified",
+      "query": "10:112998590-C-T",
+      "results": [
+        {
+          "beta": "-0.042",
+          "id": "MMD",
+          "p_value": "0.82",
+          "sample_size": "47656",
+          "title": "Moyamoya disease",
+          "url": "https://pheweb.jp/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        }
+      ],
+      "retrieved_at": "2026-07-12T05:16:14Z",
+      "source": "BioBank Japan",
+      "source_release": "public PheWeb snapshot"
+    },
+    {
+      "genome_build": "unverified",
+      "query": "10:112998590-C-T",
+      "results": [
+        {
+          "beta": "0.31",
+          "id": "250",
+          "p_value": "4.7e-137",
+          "sample_size": "407189",
+          "title": "Diabetes mellitus",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.32",
+          "id": "250.2",
+          "p_value": "1.1e-134",
+          "sample_size": "405192",
+          "title": "Type 2 diabetes",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.4",
+          "id": "250.23",
+          "p_value": "7.5e-15",
+          "sample_size": "388068",
+          "title": "Type 2 diabetes with ophthalmic manifestations",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.22",
+          "id": "250.1",
+          "p_value": "3.5e-13",
+          "sample_size": "389843",
+          "title": "Type 1 diabetes",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.27",
+          "id": "250.7",
+          "p_value": "6.7e-10",
+          "sample_size": "396485",
+          "title": "Diabetic retinopathy",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.044",
+          "id": "272.1",
+          "p_value": "1.7e-06",
+          "sample_size": "407092",
+          "title": "Hyperlipidemia",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.045",
+          "id": "272.11",
+          "p_value": "2.6e-06",
+          "sample_size": "404523",
+          "title": "Hypercholesterolemia",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.043",
+          "id": "272",
+          "p_value": "2.6e-06",
+          "sample_size": "407166",
+          "title": "Disorders of lipoid metabolism",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.24",
+          "id": "447.1",
+          "p_value": "5.4e-06",
+          "sample_size": "399572",
+          "title": "Stricture of artery",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        },
+        {
+          "beta": "0.028",
+          "id": "401",
+          "p_value": "7e-05",
+          "sample_size": "406510",
+          "title": "Hypertension",
+          "url": "https://pheweb.org/UKB-TOPMed/variant/10:112998590-C-T",
+          "variant": "10:112998590-C-T"
+        }
+      ],
+      "retrieved_at": "2026-07-12T05:16:14Z",
+      "source": "UKB/TOPMed",
+      "source_release": "public PheWeb snapshot"
+    }
+  ]
+}

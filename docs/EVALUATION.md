@@ -24,7 +24,10 @@
 - Artifact indexes reject missing or hash-mismatched files, escape manifest text,
   embed local raster figures, and contain no hosted resources.
 - Reviewer flags failed execution, missing evidence, and incomplete plans.
-- All 15 read-only public MCP connectors return a result in the explicit live smoke check.
+- The checked-in life-science acceptance run has hash-complete code and outputs,
+  deterministic snapshot analysis, explicit build/missingness limits, and a passed review.
+- All 34 read-only public MCP connectors return a result in the explicit live smoke check.
+- Public API drift runs weekly and by manual dispatch, isolated from push and pull-request CI.
 
 ## Commands
 

@@ -1,0 +1,49 @@
+{
+  "comparable_significant_sources": [
+    "FinnGen"
+  ],
+  "conclusion": "Three-source directional replication is not established by this snapshot.",
+  "descriptive_significant_sources": [
+    "FinnGen",
+    "UKB/TOPMed"
+  ],
+  "hypothesis_supported": false,
+  "limitations": [
+    "missing evidence is not negative evidence",
+    "identical query text does not establish genome-build equivalence",
+    "PheWAS association does not establish causality or patient-level effect"
+  ],
+  "metric": "sources with build-verified, positive, diabetes-related PheWAS p <= 5e-8",
+  "required_sources": 3,
+  "source_assessments": [
+    {
+      "build_verified": true,
+      "diabetes_significant_positive_phenotypes": [
+        "T2D",
+        "KELA_DIAB_INSUL_EXMORE",
+        "T2D_WIDE",
+        "GEST_DIABETES"
+      ],
+      "interpretation": "comparable positive evidence",
+      "source": "FinnGen"
+    },
+    {
+      "build_verified": false,
+      "diabetes_significant_positive_phenotypes": [],
+      "interpretation": "no comparable diabetes phenotype in the returned snapshot",
+      "source": "BioBank Japan"
+    },
+    {
+      "build_verified": false,
+      "diabetes_significant_positive_phenotypes": [
+        "250",
+        "250.2",
+        "250.23",
+        "250.1"
+      ],
+      "interpretation": "descriptive only; build not verified",
+      "source": "UKB/TOPMed"
+    }
+  ],
+  "variant_query": "10:112998590-C-T"
+}

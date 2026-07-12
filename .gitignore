@@ -12,6 +12,7 @@ __pycache__/
 .ruff_cache/
 .cache/textbooks/
 .oms/
+.omc/
 artifacts/
 .env
 .env.*

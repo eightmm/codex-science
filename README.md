@@ -76,6 +76,11 @@ Find reusable public proteomics and microbiome datasets for this hypothesis, the
 Codex Science normalizes identifiers first, retrieves only the required evidence
 lanes, records source releases and exact queries, reconciles conflicts, and runs
 independent review. See [agentic life-science source coverage](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md).
+The checked-in [PheWAS acceptance run](examples/life-science-reviewed-run/)
+demonstrates bounded live retrieval, a pinned evidence snapshot, conservative
+genome-build handling, deterministic analysis, artifact hashes, and review.
+Public API drift runs weekly and on manual dispatch in a separate workflow, so
+temporary upstream outages do not block pull-request CI.
 
 Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
 
