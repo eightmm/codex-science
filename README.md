@@ -81,6 +81,9 @@ demonstrates bounded live retrieval, a pinned evidence snapshot, conservative
 genome-build handling, deterministic analysis, artifact hashes, and review.
 Public API drift runs weekly and on manual dispatch in a separate workflow, so
 temporary upstream outages do not block pull-request CI.
+Reactome currently rejects GitHub-hosted runner IPs with HTTP 403; that single
+environment block is reported explicitly in scheduled runs, while every other
+source/status failure remains fatal. Local `scripts/check.sh public` stays strict.
 
 Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
 

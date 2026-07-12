@@ -21,4 +21,4 @@ jobs:
         with:
           python-version: "3.11"
       - name: Check public API schemas and representative queries
-        run: bash scripts/check.sh public
+        run: uv run python scripts/public_smoke.py --allow-http-403 reactome

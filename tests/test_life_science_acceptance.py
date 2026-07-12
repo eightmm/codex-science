@@ -1,14 +1,18 @@
+from contextlib import redirect_stdout
 import hashlib
+import io
 import json
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 
 from codex_science.artifacts import validate_manifest
 from codex_science.review import review_manifest
+from scripts.public_smoke import run_checks
 
 
 class LifeScienceAcceptanceTests(unittest.TestCase):
@@ -69,11 +73,26 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
 
         self.assertIn("schedule:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
-        self.assertIn("bash scripts/check.sh public", workflow)
+        self.assertIn("--allow-http-403 reactome", workflow)
         self.assertIn("timeout-minutes:", workflow)
         self.assertIn("contents: read", workflow)
         self.assertNotIn("pull_request:", workflow)
         self.assertNotIn("push:", workflow)
+
+    def test_environment_block_allowlist_is_source_and_status_specific(self) -> None:
+        class Connector:
+            def __init__(self, status: int) -> None:
+                self.status = status
+
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                raise urllib.error.HTTPError("https://example.test", self.status, "blocked", {}, None)
+
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(1, run_checks((("reactome", Connector(403), "x"),), {"reactome"}))
+        with self.assertRaises(urllib.error.HTTPError):
+            run_checks((("reactome", Connector(500), "x"),), {"reactome"})
+        with self.assertRaises(urllib.error.HTTPError):
+            run_checks((("other", Connector(403), "x"),), {"reactome"})
 
     def test_local_omc_state_is_ignored(self) -> None:
         ignored = (self.root / ".gitignore").read_text(encoding="utf-8").splitlines()
