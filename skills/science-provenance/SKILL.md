@@ -7,6 +7,8 @@ description: Package a scientific analysis as a reproducible artifact bundle con
 
 Create `artifacts/<run-id>/manifest.json` in the user's current research project. Copy [assets/manifest.template.json](assets/manifest.template.json) and fill every required field, or generate the same schema programmatically.
 
+For a non-trivial active run, keep `checkpoint.json` beside the manifest as mutable control state. It records the goal, done criteria, current step, next action, bounded failed attempts, and any approval gate or blocker. Update it with `<plugin-root>/scripts/science_checkpoint.py`; do not cite it as scientific evidence or add it to the manifest while it is mutable.
+
 ## Record
 
 1. Use a stable run ID. Keep revisions inside the same run directory only when they answer the same question.

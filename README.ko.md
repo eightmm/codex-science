@@ -66,6 +66,13 @@ Codex Science 시작
 최종 주장을 실행 기록과 대조해 검토해줘.
 ```
 
+비단순 작업은 목표를 한 번 요청하면 충분합니다. Codex Science가
+`artifacts/<run-id>/checkpoint.json`을 만들고 discovery, 실행, 분석, provenance,
+review를 완료할 때까지 이어갑니다. 진짜 blocker나 승인 gate에서만 멈추며,
+진행에 영향이 없는 선호는 합리적인 기본값을 선택하고 필요한 결정은 한 번에
+묶어 질문합니다. Checkpoint에는 복원용 control metadata만 저장하며 prompt,
+credential, private data, conclusion은 저장하지 않습니다.
+
 에이전틱 생명과학 사용 예시:
 
 ```text
@@ -85,7 +92,7 @@ Reactome은 현재 GitHub-hosted runner IP에 HTTP 403을 반환하므로 schedu
 해당 environment block만 명시적으로 보고합니다. 다른 source/status 실패는 그대로
 실패하며, 로컬 `scripts/check.sh public`은 모든 source에 대해 엄격하게 동작합니다.
 
-활성 상태는 Codex의 `session_id`에 연결됩니다. Hook은 plugin writable data directory에 해시된 marker만 저장하며 prompt나 연구 데이터는 저장하지 않습니다. 이후 매 턴과 resume/context compaction 뒤에 coordinator context를 다시 주입합니다. `clear`, 새 작업, 명시적 종료에서는 marker를 제거하거나 무시하며, 방치된 marker는 180일 동안 사용되지 않으면 만료됩니다. Hook을 아직 신뢰하지 않았다면 같은 작업의 대화 문맥을 통한 best-effort 지속만 가능하며 resume/compaction 보존은 보장되지 않습니다.
+활성 상태는 Codex의 `session_id`에 연결됩니다. Hook은 plugin writable data directory에 해시된 marker만 저장하며 prompt나 연구 데이터는 저장하지 않습니다. 이후 매 턴과 resume/context compaction 뒤에 coordinator context를 다시 주입하고, coordinator는 행동 전에 활성 run checkpoint를 다시 읽습니다. `clear`, 새 작업, 명시적 종료에서는 marker를 제거하거나 무시하며, 방치된 marker는 180일 동안 사용되지 않으면 만료됩니다. Hook을 아직 신뢰하지 않았다면 같은 작업의 대화 문맥을 통한 best-effort 지속만 가능하며 resume/compaction 보존은 보장되지 않습니다.
 
 명시적으로 종료합니다:
 

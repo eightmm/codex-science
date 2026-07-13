@@ -17,8 +17,9 @@ from typing import Any
 ACTIVE_CONTEXT = (
     "Codex Science is active for this Codex task. On this turn, implicitly invoke "
     "$codex-science and apply its coordinator workflow even when the user does not mention it. "
-    "Do not require the user to activate it again. Keep all approval, audit, provenance, and "
-    "review gates in force."
+    "Do not require the user to activate it again. Continue working until completion, a genuine "
+    "blocker, or an approval gate; do not stop at setup or a progress update, and do not ask for "
+    "non-blocking preferences. Keep all approval, audit, provenance, and review gates in force."
 )
 INACTIVE_CONTEXT = (
     "Codex Science is inactive for this Codex task. Do not invoke $codex-science unless a later "

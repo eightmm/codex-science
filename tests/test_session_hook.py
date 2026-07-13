@@ -97,7 +97,8 @@ class ScienceSessionHookTests(unittest.TestCase):
             with self.subTest(source=source):
                 result, output = self.run_hook("SessionStart", source=source)
                 self.assertEqual(0, result.returncode, result.stderr)
-                self.assertIn("Codex Science is active", self.additional_context(output))
+            self.assertIn("Codex Science is active", self.additional_context(output))
+            self.assertIn("completion, a genuine blocker, or an approval gate", self.additional_context(output))
 
     def test_stop_and_clear_remove_activation(self) -> None:
         self.run_hook("UserPromptSubmit", prompt="Codex Science 한 번 활성화")

@@ -65,6 +65,15 @@ Analyze these results and record reproducible artifacts.
 Review the final claims against the execution record.
 ```
 
+One goal-oriented request is enough for a non-trivial run. Codex Science creates
+`artifacts/<run-id>/checkpoint.json`, then continues through discovery, execution,
+analysis, provenance, and review until the work is complete, genuinely blocked,
+or reaches an approval gate. It chooses reasonable defaults for non-blocking
+preferences and batches all currently known decisions into one question. The
+checkpoint contains control metadata only and is safe to inspect or resume after
+context compaction; prompts, credentials, private data, and conclusions are not
+stored in it.
+
 Agentic life-science examples:
 
 ```text
@@ -85,7 +94,7 @@ Reactome currently rejects GitHub-hosted runner IPs with HTTP 403; that single
 environment block is reported explicitly in scheduled runs, while every other
 source/status failure remains fatal. Local `scripts/check.sh public` stays strict.
 
-Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
+Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction; the coordinator then reloads the active run checkpoint before acting. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
 
 Stop it explicitly:
 

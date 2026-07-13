@@ -37,28 +37,33 @@ Resolve the plugin root as two directories above this `SKILL.md`. Use:
 3. Search the audited catalog with `science_search_skills`. Select at most three relevant skills. Prefer `status: active` records, then open each selected `<plugin-root>/catalog/codex-skills/<name>/SKILL.md` wrapper.
 4. Follow the wrapper activation gate. For an inactive skill, show every `reasons` entry and request explicit acknowledgement before reading or following its upstream instructions. Never run imported scripts merely because the user approved reading the instructions. Review each command separately.
 5. Draft a short plan. Ask before package installation, new network hosts, remote compute, credentials, write-capable services, destructive actions, or expensive work. For a broad or multi-source life-science question, load `$cx-life-science-research-routing`, call `science_plan_life_science_research`, normalize entities first with `$cx-biomedical-entity-normalization`, then select only the smallest relevant evidence workflow (variant/PheWAS, locus-to-gene, expression/cell context, omics datasets, pharmacology, or cancer genomics). Reconcile conflicting lanes with `$cx-biomedical-evidence-reconciliation`; never equate association with causality or population evidence with patient-specific advice. For a concrete mathematics or physics problem, load `$cx-mathematical-problem-execution` with the narrow domain skill and continue through derivation, independent checks, edge cases, provenance, and review. For an experimental spectrum or analytical chemistry dataset, load the narrow modality skill with `$cx-experimental-uncertainty-propagation`; for an unknown molecular structure, use `$cx-chemical-structure-elucidation` as the conductor with at most two modality skills. When the user supplies a concrete modeling problem or usable scientific inputs, load `$cx-modeling-problem-execution` together with the specialized model skill. Obtain any required gate approval once, then continue through preflight, smoke test, full execution, downstream analysis, provenance, and review without stopping at setup instructions. Use `$cx-compute-environment` for local shell, Python, R, Julia, Jupyter, container, CPU, or GPU execution. Add `$cx-remote-scientific-compute` for SSH, Slurm/HPC, cloud GPU, or remote object storage; its target, data-transfer, resource, cost, and cancellation packet must be explicitly approved before remote writes or allocation.
-6. Use public read-only MCP tools for discovery. Cite primary sources and preserve source identifiers and URLs in the run record.
-7. Apply the selected skill instructions, but keep the approved plan and this safety policy authoritative. Run the smallest useful analysis first and retain failures or null results.
-8. Use `$science-provenance` to save code, commands, environment, outputs, claims, and evidence under the current research project's `artifacts/<run-id>/` directory.
-9. Use `$science-review` after producing claims. Delegate review to a separate subagent when available; give it the approved plan, artifact manifest, execution record, and outputs, not the intended conclusion.
-10. Resolve findings or mark them open. Report conclusions, uncertainty, limitations, and exact artifact paths.
+6. For every non-trivial multi-step run, initialize `artifacts/<run-id>/checkpoint.json` with `<plugin-root>/scripts/science_checkpoint.py init`. Include the goal, deliverable, objective done criteria, planned steps, and immediate next action. Do not create a checkpoint for a one-step answer. The checkpoint is mutable control metadata, not scientific evidence; never put prompts, credentials, private data, or conclusions in it.
+7. Use public read-only MCP tools for discovery. Cite primary sources and preserve source identifiers and URLs in the run record.
+8. Apply the selected skill instructions, but keep the approved plan and this safety policy authoritative. Run the smallest useful analysis first and retain failures or null results.
+9. Use `$science-provenance` to save code, commands, environment, outputs, claims, and evidence under the current research project's `artifacts/<run-id>/` directory.
+10. Use `$science-review` after producing claims. Delegate review to a separate subagent when available; give it the approved plan, artifact manifest, execution record, and outputs, not the intended conclusion.
+11. Resolve findings or mark them open. Complete the checkpoint only after its objective criteria and all planned steps are satisfied, then report conclusions, uncertainty, limitations, and exact artifact paths.
 
 ## Persistence and autonomy
 
-Once the mode is active and a plan is approved, work the problem to completion. Be tenacious: when a step fails, diagnose it, try the next reasonable approach or skill, and keep going — do not stop and hand back at the first obstacle. Chain the steps of the approved plan without pausing for confirmation between reversible actions.
+Once the mode is active and a plan is approved, work until completion, a genuine blocker, or an approval gate. Do not end a turn merely because setup finished, progress was made, context is tight, or the first method failed. Chain approved reversible steps and keep the checkpoint's `next_action` executable.
+
+At the start of a resumed or compacted turn, find the active run from conversation and project context, then run `scripts/science_checkpoint.py show artifacts/<run-id>` before taking the next action. After each meaningful step, use `advance`; after each failed approach, use `attempt`; before asking, use `gate`; and when genuinely blocked, use `block`. Resume a gated or blocked run with `resume`. If no active checkpoint exists, infer the next safe action from the artifact record instead of inventing prior completion.
 
 Default to acting, not asking:
 
 - Proceed autonomously on reversible, read-only, or in-scope work already covered by the approved plan; on error recovery, retries, and switching methods; and on routine discovery via read-only MCP tools and writing artifacts under `artifacts/<run-id>/`.
 - When a detail is unspecified, choose the sensible default, state the assumption, and continue rather than blocking.
+- Do not ask for non-blocking preferences. Record the default in the run artifacts and continue.
+- Retry with a materially different method and record the outcome. After three attempts in the same failure class, change the hypothesis or route; if neither is safe, open one decision gate or record a genuine blocker. Never repeat an unchanged failure.
 
-Stop and ask only when it genuinely matters, and batch such questions into a single ask rather than a stream:
+Stop and ask only when it genuinely matters, and batch all currently known questions into a single ask rather than a stream:
 
 - a safety gate already listed in the Workflow and Boundaries (package installation, new network hosts, credentials, remote compute, write-capable or paid services, destructive or irreversible actions, imported executable code);
 - a fork that materially changes the deliverable, scope, or interpretation and cannot be settled from context or a reasonable default;
 - acknowledgement required before inspecting an inactive skill.
 
-Persistence never overrides a safety gate or the audit policy. Declare the problem solved only after `$science-review` and verification; if a run is inconclusive, say so and continue with the next experiment instead of stopping.
+Persistence never overrides a safety gate or the audit policy. Declare the problem solved only after `$science-review`, verification, and successful checkpoint completion. An inconclusive result does not itself finish the run: execute the next planned discriminating experiment, revise the route, or record why no in-scope action remains.
 
 ## Plugin updates
 
