@@ -9,6 +9,7 @@ import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
+from unittest.mock import patch
 
 from codex_science.artifacts import validate_manifest
 from codex_science.review import review_manifest
@@ -74,6 +75,7 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("schedule:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("--allow-http-403 reactome", workflow)
+        self.assertIn("--allow-unavailable all", workflow)
         self.assertIn("timeout-minutes:", workflow)
         self.assertIn("contents: read", workflow)
         self.assertNotIn("pull_request:", workflow)
@@ -89,9 +91,9 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
 
         with redirect_stdout(io.StringIO()):
             self.assertEqual(1, run_checks((("reactome", Connector(403), "x"),), {"reactome"}))
-        with self.assertRaises(urllib.error.HTTPError):
+        with self.assertRaisesRegex(SystemExit, "reactome: HTTP 500"):
             run_checks((("reactome", Connector(500), "x"),), {"reactome"})
-        with self.assertRaises(urllib.error.HTTPError):
+        with self.assertRaisesRegex(SystemExit, "other: HTTP 403"):
             run_checks((("other", Connector(403), "x"),), {"reactome"})
 
     def test_public_smoke_retries_one_transient_timeout(self) -> None:
@@ -108,6 +110,97 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(1, run_checks((("example", connector, "x"),)))
         self.assertEqual(2, connector.calls)
+
+    def test_public_smoke_collects_failures_and_continues(self) -> None:
+        class TimeoutConnector:
+            calls = 0
+
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                self.calls += 1
+                raise TimeoutError("temporary timeout")
+
+        class SuccessConnector:
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                return [{"id": "ok"}]
+
+        timeout = TimeoutConnector()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), self.assertRaisesRegex(
+            SystemExit, "first: timeout after 2 attempts"
+        ):
+            run_checks((("first", timeout, "x"), ("second", SuccessConnector(), "x")))
+
+        self.assertEqual(2, timeout.calls)
+        self.assertIn("second: ok (ok)", stdout.getvalue())
+
+    def test_public_smoke_allows_only_named_unavailable_sources(self) -> None:
+        class Connector:
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                raise TimeoutError("temporary timeout")
+
+        stdout = io.StringIO()
+        with patch.dict("os.environ", {"GITHUB_ACTIONS": "true"}), redirect_stdout(stdout):
+            self.assertEqual(
+                1,
+                run_checks(
+                    (("ensembl", Connector(), "x"),),
+                    allowed_unavailable={"ensembl"},
+                ),
+            )
+        self.assertIn("::warning title=Public API unavailable::ensembl", stdout.getvalue())
+
+    def test_public_smoke_can_soft_fail_all_unavailable_sources(self) -> None:
+        class Connector:
+            def __init__(self, failure: Exception) -> None:
+                self.failure = failure
+
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                raise self.failure
+
+        with redirect_stdout(io.StringIO()):
+            processed = run_checks(
+                (
+                    ("ensembl", Connector(TimeoutError("temporary timeout")), "x"),
+                    (
+                        "chembl",
+                        Connector(
+                            urllib.error.HTTPError(
+                                "https://example.test", 500, "upstream error", {}, None
+                            )
+                        ),
+                        "x",
+                    ),
+                ),
+                allowed_unavailable={"all"},
+            )
+        self.assertEqual(2, processed)
+
+    def test_github_automation_is_pinned_and_minimally_privileged(self) -> None:
+        ci = (self.root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        public = (self.root / ".github" / "workflows" / "public-smoke.yml").read_text(
+            encoding="utf-8"
+        )
+        codeql = (self.root / ".github" / "workflows" / "codeql.yml").read_text(
+            encoding="utf-8"
+        )
+        dependabot = (self.root / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+
+        for workflow in (ci, public, codeql):
+            self.assertRegex(workflow, r"actions/checkout@[0-9a-f]{40}")
+            self.assertIn("contents: read", workflow)
+        for workflow in (ci, public):
+            self.assertRegex(workflow, r"astral-sh/setup-uv@[0-9a-f]{40}")
+        self.assertRegex(codeql, r"github/codeql-action/init@[0-9a-f]{40}")
+        self.assertRegex(codeql, r"github/codeql-action/analyze@[0-9a-f]{40}")
+        self.assertIn("security-events: write", codeql)
+        self.assertIn('language: "python"', codeql)
+        self.assertIn('package-ecosystem: "github-actions"', dependabot)
+        self.assertIn('package-ecosystem: "uv"', dependabot)
+
+    def test_uv_build_constraint_accepts_ci_uv_minor(self) -> None:
+        pyproject = (self.root / "pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn('uv_build>=0.10.3,<0.12.0', pyproject)
 
     def test_local_omc_state_is_ignored(self) -> None:
         ignored = (self.root / ".gitignore").read_text(encoding="utf-8").splitlines()
