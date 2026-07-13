@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 import urllib.error
 from pathlib import Path
@@ -183,6 +184,9 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
         codeql = (self.root / ".github" / "workflows" / "codeql.yml").read_text(
             encoding="utf-8"
         )
+        codeql_config = (
+            self.root / ".github" / "codeql" / "codeql-config.yml"
+        ).read_text(encoding="utf-8")
         dependabot = (self.root / ".github" / "dependabot.yml").read_text(encoding="utf-8")
 
         for workflow in (ci, public, codeql):
@@ -194,13 +198,24 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
         self.assertRegex(codeql, r"github/codeql-action/analyze@[0-9a-f]{40}")
         self.assertIn("security-events: write", codeql)
         self.assertIn('language: "python"', codeql)
+        self.assertIn("config-file: ./.github/codeql/codeql-config.yml", codeql)
+        self.assertIn("- src/", codeql_config)
+        self.assertIn("- scripts/", codeql_config)
+        self.assertIn("- examples/", codeql_config)
+        self.assertNotIn("vendor/", codeql_config)
         self.assertIn('package-ecosystem: "github-actions"', dependabot)
         self.assertIn('package-ecosystem: "uv"', dependabot)
 
     def test_uv_build_constraint_accepts_ci_uv_minor(self) -> None:
-        pyproject = (self.root / "pyproject.toml").read_text(encoding="utf-8")
+        pyproject = tomllib.loads((self.root / "pyproject.toml").read_text(encoding="utf-8"))
+        uv_build = next(
+            requirement
+            for requirement in pyproject["build-system"]["requires"]
+            if requirement.startswith("uv_build")
+        )
 
-        self.assertIn('uv_build>=0.10.3,<0.12.0', pyproject)
+        self.assertIn("<0.12.0", uv_build)
+        self.assertNotIn("<0.11.0", uv_build)
 
     def test_local_omc_state_is_ignored(self) -> None:
         ignored = (self.root / ".gitignore").read_text(encoding="utf-8").splitlines()

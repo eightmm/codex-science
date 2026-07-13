@@ -1,0 +1,8 @@
+name: Maintained Python code
+
+# Pinned third-party catalogs are gated by the inventory policy and are not
+# part of the first-party CodeQL release gate.
+paths:
+  - src/
+  - scripts/
+  - examples/
