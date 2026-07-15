@@ -50,7 +50,7 @@ git clone https://github.com/eightmm/codex-science.git
 cd codex-science
 ./scripts/bootstrap.sh
 codex plugin marketplace add "$PWD"
-codex plugin add codex-science@codex-science
+python3 scripts/science_update_hook.py --register-plugin "$PWD"
 ```
 
 </details>
@@ -179,7 +179,8 @@ Update Codex Science
 표시한 정확한 commit을 staging에 clone하고 fast-forward ancestry와 runtime을
 검증한 뒤 관리 checkout을 원자적으로 교체하고 설치 cache를 확인합니다.
 실패하면 이전 checkout으로 rollback합니다. 현재 작업의 load된 cache는
-보존되며, 업데이트 적용본은 new Codex task를 열어 사용합니다.
+물론 기존 version cache도 모두 보존하므로 이미 열린 작업의 고정된 hook path가
+유지됩니다. 업데이트 적용본은 new Codex task를 열어 사용합니다.
 최근 update 알림이 없다면 첫 요청은 정확한 commit을 확인해 표시만 합니다.
 같은 요청을 한 번 더 보내야 표시된 commit 설치를 승인합니다.
 

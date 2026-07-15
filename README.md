@@ -49,7 +49,7 @@ git clone https://github.com/eightmm/codex-science.git
 cd codex-science
 ./scripts/bootstrap.sh
 codex plugin marketplace add "$PWD"
-codex plugin add codex-science@codex-science
+python3 scripts/science_update_hook.py --register-plugin "$PWD"
 ```
 
 </details>
@@ -182,7 +182,8 @@ The managed `~/.codex-science` checkout must be clean and point to the official
 shown to the user, verifies fast-forward ancestry and runtime behavior in staging,
 then atomically replaces the managed checkout and verifies the installed plugin
 cache. Failure rolls back to the previous checkout. The current task's loaded
-cache is preserved; start a new Codex task to use the update.
+cache and every older version cache are preserved so already-open tasks keep
+their pinned hook paths; start a new Codex task to use the update.
 If there is no fresh update notice, the first update request checks and advertises
 the exact commit; repeat the request once to approve that advertised commit.
 

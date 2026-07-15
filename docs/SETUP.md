@@ -69,7 +69,8 @@ hook checks the official GitHub `main` branch at most once per 24 hours and stor
 only the check time and public commit IDs under `PLUGIN_DATA`. Say
 `Codex Science 업데이트` to stage and apply the exact advertised commit. There
 is no unattended apply mode. Updates affect only a new task; the current task's
-loaded cache is preserved. Set the mode to `off` to disable checks.
+loaded cache and older version caches are preserved so open tasks retain their
+pinned hook paths. Set the mode to `off` to disable checks.
 Without a fresh notice, the first explicit request advertises the exact commit;
 repeat it once to approve that commit.
 
@@ -80,7 +81,7 @@ git clone https://github.com/eightmm/codex-science.git
 cd codex-science
 ./scripts/bootstrap.sh
 codex plugin marketplace add "$PWD"
-codex plugin add codex-science@codex-science
+python3 scripts/science_update_hook.py --register-plugin "$PWD"
 ```
 
 `bootstrap.sh` verifies the Python version and shallow-fetches the pinned upstream skills submodule; `--recurse-submodules` at clone time is not required. The one-command installer additionally exercises the MCP server, generation-derived activation key, a temporary schema-v4 checkpoint, active-run Stop rejection, external-wait Stop allowance, and the update lifecycle before reporting success.

@@ -93,26 +93,13 @@ fi
 info "Running bootstrap"
 "$INSTALL_DIR/scripts/bootstrap.sh"
 
-# 3. Register the plugin globally with Codex and fail if the cache is stale.
+# 3. Register globally without deleting versions pinned by existing Codex tasks.
 info "Registering Codex plugin"
 codex plugin marketplace add "$INSTALL_DIR" >/dev/null
-codex plugin add codex-science@codex-science >/dev/null
-if python3 - "$INSTALL_DIR" <<'PY'
-import importlib.util
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-script = root / "scripts" / "science_update_hook.py"
-spec = importlib.util.spec_from_file_location("science_update_hook", script)
-if spec is None or spec.loader is None:
-    raise SystemExit(1)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-raise SystemExit(0 if module._installed_cache_matches(root) else 1)
-PY
+if python3 "$INSTALL_DIR/scripts/science_update_hook.py" \
+  --register-plugin "$INSTALL_DIR" >/dev/null
 then
-  info "Installed plugin cache verified"
+  info "Installed plugin cache verified; prior task caches preserved"
 else
   err "installed plugin cache verification failed"
   exit 1

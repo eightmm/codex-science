@@ -270,6 +270,7 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
             self.assertIn("/goal", text)
             self.assertIn("codex plugin list", text)
             self.assertIn("science_checkpoint.py", text)
+            self.assertIn("--register-plugin", text)
         self.assertIn("does **not** run in the background", english)
         self.assertIn("백그라운드에서 실행되지", korean)
 
