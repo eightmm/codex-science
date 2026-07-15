@@ -1,4 +1,5 @@
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -15,10 +16,12 @@ from codex_science.checkpoints import (
     find_active_checkpoint,
     heartbeat_checkpoint,
     load_checkpoint,
+    record_review,
     record_attempt,
     request_continuation,
     request_decision,
     resume_checkpoint,
+    verify_criterion,
 )
 
 
@@ -43,16 +46,42 @@ class CheckpointTests(unittest.TestCase):
             session_key=self.session_key,
         )
 
+    def satisfy_completion_contract(self) -> None:
+        evidence = self.run_dir / "verification.json"
+        evidence.write_text('{"status": "passed"}\n', encoding="utf-8")
+        review = self.run_dir / "review.json"
+        review.write_text(
+            '{"status": "passed", "reviewer": "independent-test-reviewer", '
+            '"independent": true, "findings": []}\n',
+            encoding="utf-8",
+        )
+        checkpoint = load_checkpoint(self.run_dir)
+        for criterion in checkpoint["done_criteria"]:
+            verify_criterion(self.run_dir, criterion["id"], ["verification.json"])
+        record_review(self.run_dir, artifact_ref="review.json")
+
     def test_create_writes_private_atomic_checkpoint(self) -> None:
         checkpoint = self.create()
         path = self.run_dir / "checkpoint.json"
 
         self.assertEqual("active", checkpoint["state"])
-        self.assertEqual(2, checkpoint["schema_version"])
+        self.assertEqual(4, checkpoint["schema_version"])
         self.assertEqual(self.session_key, checkpoint["session_key"])
         self.assertEqual("orient", checkpoint["current_step"])
         self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
         self.assertEqual(checkpoint, json.loads(path.read_text(encoding="utf-8")))
+
+    def test_atomic_checkpoint_write_never_follows_a_precreated_temp_symlink(self) -> None:
+        self.run_dir.mkdir(parents=True)
+        victim = Path(self.tempdir.name) / "victim"
+        victim.write_text("protected", encoding="utf-8")
+        temporary = self.run_dir / f".checkpoint.json.{os.getpid()}.tmp"
+        temporary.symlink_to(victim)
+
+        with self.assertRaises(FileExistsError):
+            self.create()
+
+        self.assertEqual("protected", victim.read_text(encoding="utf-8"))
 
     def test_advance_marks_one_step_complete_and_starts_the_next(self) -> None:
         self.create()
@@ -127,9 +156,12 @@ class CheckpointTests(unittest.TestCase):
         self.assertTrue(first["continue"])
         self.assertTrue(second["continue"])
         self.assertFalse(exhausted["continue"])
+        progress = self.run_dir / "progress.json"
+        progress.write_text('{"step": 2}\n', encoding="utf-8")
         heartbeat = heartbeat_checkpoint(
             self.run_dir,
             next_action="Inspect the second evidence source",
+            progress_ref="progress.json",
         )
         self.assertEqual(0, heartbeat["idle_continuations"])
         resumed = request_continuation(self.run_dir, session_key=self.session_key, idle_limit=2)
@@ -155,7 +187,18 @@ class CheckpointTests(unittest.TestCase):
     def test_legacy_checkpoint_can_be_claimed_without_losing_progress(self) -> None:
         checkpoint = self.create()
         checkpoint["schema_version"] = 1
-        for field in ("session_key", "continuation_count", "idle_continuations"):
+        checkpoint["done_criteria"] = [item["text"] for item in checkpoint["done_criteria"]]
+        for field in (
+            "session_key",
+            "continuation_count",
+            "idle_continuations",
+            "continuation_budget",
+            "outer_goal",
+            "review_receipt",
+            "wait",
+            "termination_reason",
+            "revision",
+        ):
             checkpoint.pop(field)
         (self.run_dir / "checkpoint.json").write_text(
             json.dumps(checkpoint),
@@ -164,8 +207,36 @@ class CheckpointTests(unittest.TestCase):
 
         claimed = claim_checkpoint(self.run_dir, session_key=self.session_key)
 
-        self.assertEqual(2, claimed["schema_version"])
+        self.assertEqual(4, claimed["schema_version"])
         self.assertEqual("orient", claimed["current_step"])
+        self.assertEqual(self.session_key, claimed["session_key"])
+
+    def test_schema_v2_owner_rotation_requires_explicit_previous_key(self) -> None:
+        checkpoint = self.create()
+        old_key = "b" * 64
+        checkpoint["schema_version"] = 2
+        checkpoint["session_key"] = old_key
+        checkpoint["done_criteria"] = [item["text"] for item in checkpoint["done_criteria"]]
+        for field in (
+            "continuation_budget",
+            "outer_goal",
+            "review_receipt",
+            "wait",
+            "termination_reason",
+            "revision",
+        ):
+            checkpoint.pop(field)
+        (self.run_dir / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "another Codex task"):
+            claim_checkpoint(self.run_dir, session_key=self.session_key)
+
+        claimed = claim_checkpoint(
+            self.run_dir,
+            session_key=self.session_key,
+            previous_session_key=old_key,
+        )
+        self.assertEqual(4, claimed["schema_version"])
         self.assertEqual(self.session_key, claimed["session_key"])
 
     def test_active_checkpoint_discovery_is_session_scoped_and_ignores_symlinks(self) -> None:
@@ -211,6 +282,7 @@ class CheckpointTests(unittest.TestCase):
             next_step=None,
             next_action="Finalize the checkpoint",
         )
+        self.satisfy_completion_contract()
         completed = complete_checkpoint(self.run_dir)
 
         self.assertEqual("complete", completed["state"])
@@ -283,6 +355,8 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(0, shown.returncode, shown.stderr)
         self.assertEqual("Question", json.loads(shown.stdout)["goal"])
 
+        (self.run_dir / "progress.json").write_text('{"step": 2}\n', encoding="utf-8")
+
         heartbeat = subprocess.run(
             [
                 sys.executable,
@@ -291,6 +365,8 @@ class CheckpointTests(unittest.TestCase):
                 str(self.run_dir),
                 "--next-action",
                 "Continue analysis",
+                "--progress-ref",
+                "progress.json",
             ],
             capture_output=True,
             text=True,

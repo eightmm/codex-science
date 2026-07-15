@@ -27,6 +27,12 @@ class ScienceUpdateHookTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
+        self.codex_home = self.root / "codex-home"
+        self.environment_patch = mock.patch.dict(
+            os.environ,
+            {"CODEX_HOME": str(self.codex_home)},
+        )
+        self.environment_patch.start()
         self.plugin_data = self.root / "plugin-data"
         self.home = self.root / "managed-checkout"
         self.home.mkdir()
@@ -37,6 +43,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
         }
 
     def tearDown(self) -> None:
+        self.environment_patch.stop()
         self.tempdir.cleanup()
 
     def status(self, *, available: bool = True):
@@ -515,6 +522,53 @@ class ScienceUpdateHookTests(unittest.TestCase):
         self.assertTrue(self.module._restore_tree(backup, loaded))
         self.assertEqual(self.module._directory_manifest(backup), self.module._directory_manifest(loaded))
 
+    def test_registration_restores_every_previous_version_after_codex_prunes_cache(self) -> None:
+        cache_root = (
+            self.codex_home / "plugins/cache/codex-science/codex-science"
+        )
+        old_cache = cache_root / "old-version"
+        (old_cache / ".codex-plugin").mkdir(parents=True)
+        (old_cache / ".codex-plugin" / "plugin.json").write_text(
+            '{"version":"old-version"}', encoding="utf-8"
+        )
+        (old_cache / "scripts").mkdir()
+        (old_cache / "scripts" / "science_stop_hook.py").write_text(
+            "old hook", encoding="utf-8"
+        )
+        source = self.root / "new-source"
+        (source / ".codex-plugin").mkdir(parents=True)
+        (source / ".codex-plugin" / "plugin.json").write_text(
+            '{"version":"new-version"}', encoding="utf-8"
+        )
+        (source / "scripts").mkdir()
+        (source / "scripts" / "science_stop_hook.py").write_text(
+            "new hook", encoding="utf-8"
+        )
+
+        def run(command, **kwargs):
+            self.assertEqual(["codex", "plugin", "add", "codex-science@codex-science"], command)
+            shutil.rmtree(cache_root)
+            shutil.copytree(source, cache_root / "new-version")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with (
+            mock.patch.object(self.module, "_run", side_effect=run),
+            mock.patch.object(self.module, "_installed_cache_matches", return_value=True),
+        ):
+            success, reason = self.module.register_plugin_preserving_caches(source)
+
+        self.assertTrue(success, reason)
+        self.assertEqual(
+            "old hook",
+            (old_cache / "scripts" / "science_stop_hook.py").read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            "new hook",
+            (cache_root / "new-version" / "scripts" / "science_stop_hook.py").read_text(
+                encoding="utf-8"
+            ),
+        )
+
     def test_installer_self_check_exercises_update_primitives(self) -> None:
         result = subprocess.run(
             [sys.executable, str(self.script), "--self-check"],
@@ -557,7 +611,9 @@ class ScienceUpdateHookTests(unittest.TestCase):
 
         self.assertIn("--manual-update", installer)
         self.assertIn("--candidate-check", installer)
+        self.assertIn("--register-plugin", installer)
         self.assertNotIn("git -C \"$INSTALL_DIR\" pull", installer)
+        self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null", installer)
         self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null 2>&1 || true", installer)
 
     def test_fresh_installer_rejects_existing_non_git_target(self) -> None:
@@ -632,7 +688,43 @@ class ScienceUpdateHookTests(unittest.TestCase):
             "print('science_search_skills')\n", encoding="utf-8"
         )
         (scripts / "science_session_hook.py").write_text(
-            "print('Codex Science is active')\n", encoding="utf-8"
+            "import hashlib, json, os, pathlib, sys\n"
+            "payload = json.load(sys.stdin)\n"
+            "session_id = payload['session_id']\n"
+            "generation = 'b' * 64\n"
+            "owner = hashlib.sha256((session_id + '\\0' + generation).encode()).hexdigest()\n"
+            "goal_key = hashlib.sha256(session_id.encode()).hexdigest()\n"
+            "marker = pathlib.Path(os.environ['PLUGIN_DATA']) / 'science-sessions' / hashlib.sha256(session_id.encode()).hexdigest()\n"
+            "marker.parent.mkdir(parents=True, exist_ok=True)\n"
+            "marker.write_text(json.dumps({'generation': generation}))\n"
+            "context = 'Codex Science is active --session-key ' + owner + ' --goal-task-key ' + goal_key\n"
+            "print(json.dumps({'hookSpecificOutput': {'additionalContext': context}}))\n",
+            encoding="utf-8",
+        )
+        (scripts / "science_checkpoint.py").write_text(
+            "import json, pathlib, sys\n"
+            "command, run_dir = sys.argv[1], pathlib.Path(sys.argv[2])\n"
+            "path = run_dir / 'checkpoint.json'\n"
+            "if command == 'init':\n"
+            "    run_dir.mkdir(parents=True, exist_ok=True)\n"
+            "    goal_key = sys.argv[sys.argv.index('--goal-task-key') + 1]\n"
+            "    value = {'state': 'active', 'schema_version': 4, 'outer_goal': {'task_key': goal_key}}\n"
+            "elif command == 'wait':\n"
+            "    value = json.loads(path.read_text())\n"
+            "    value['state'] = 'waiting_external'\n"
+            "else:\n"
+            "    raise SystemExit(2)\n"
+            "path.write_text(json.dumps(value))\n"
+            "print(json.dumps(value))\n",
+            encoding="utf-8",
+        )
+        (scripts / "science_stop_hook.py").write_text(
+            "import json, pathlib, sys\n"
+            "payload = json.load(sys.stdin)\n"
+            "paths = list((pathlib.Path(payload['cwd']) / 'artifacts').glob('*/checkpoint.json'))\n"
+            "if paths and json.loads(paths[0].read_text()).get('state') == 'active':\n"
+            "    print(json.dumps({'decision': 'block'}))\n",
+            encoding="utf-8",
         )
         for path in scripts.iterdir():
             path.chmod(0o755)

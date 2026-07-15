@@ -181,6 +181,12 @@ class SessionContractTests(unittest.TestCase):
         self.assertIn("Stop guard", skill)
         self.assertIn("heartbeat", skill)
         self.assertIn("native Goal mode", skill)
+        self.assertIn("get_goal", skill)
+        self.assertIn("--outer-goal native", skill)
+        self.assertIn("completion_pending", skill)
+        self.assertIn("update_goal", skill)
+        self.assertIn("confirm-goal-complete", skill)
+        self.assertIn("generic Stop-loop", skill)
         self.assertIn("Codex Science 종료", skill)
         self.assertIn("catalog/codex-skills/<name>/SKILL.md", skill)
         self.assertIn("Do not activate for an ordinary scientific question", skill)
@@ -261,6 +267,12 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
             self.assertIn("Slurm", text)
             self.assertIn("Julia", text)
             self.assertIn("GPU", text)
+            self.assertIn("/goal", text)
+            self.assertIn("codex plugin list", text)
+            self.assertIn("science_checkpoint.py", text)
+            self.assertIn("--register-plugin", text)
+        self.assertIn("does **not** run in the background", english)
+        self.assertIn("백그라운드에서 실행되지", korean)
 
     def test_readme_documents_safe_update_modes_and_examples(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]

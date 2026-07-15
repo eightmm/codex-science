@@ -21,12 +21,15 @@ Require the approved plan, artifact manifest, execution log, outputs, and cited 
 6. Check every approved plan step. Mark incomplete or blocked steps explicitly.
 7. Emit findings with severity, claim, evidence, and required correction. Do not silently edit the producer's record.
 8. Re-review after corrections and preserve both the original finding and its resolution.
+9. Save the final machine-readable receipt under the run directory with `status`, `reviewer`, `independent`, and `findings`. Set `independent: true` only for a genuinely separate reviewer. After every finding is resolved and `status` is `passed`, let the coordinator attach it with `science_checkpoint.py review --artifact-ref <path>`; do not self-attest independence.
 
 Use [references/review-checklist.md](references/review-checklist.md) for the compact finding taxonomy.
 
 ## Independence
 
 Use a separate subagent when available. Provide raw run artifacts and the approved plan without the intended answer or suspected bug. If no separate agent is available, state that the review was a second pass rather than an independent review.
+
+The checkpoint validates and hashes the receipt's independence statement but cannot authenticate the reviewer's platform identity. Preserve reviewer provenance in the receipt and treat separation as a procedural control, not a cryptographic claim.
 
 ## Boundary
 

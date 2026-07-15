@@ -19,6 +19,7 @@ from typing import Any, Mapping, NamedTuple
 
 
 CHECK_TTL_SECONDS = 24 * 60 * 60
+MAX_PRESERVED_CACHE_VERSIONS = 32
 DEFAULT_HOME = Path.home() / ".codex-science"
 OFFICIAL_HTTPS_REMOTE = "https://github.com/eightmm/codex-science.git"
 OFFICIAL_REMOTES = frozenset(
@@ -385,6 +386,72 @@ def _installed_cache_matches(source: Path) -> bool:
     return True
 
 
+def register_plugin_preserving_caches(source: Path) -> tuple[bool, str]:
+    """Register one version while preserving caches pinned by existing Codex tasks."""
+    source = Path(source).expanduser().resolve()
+    source_version = _plugin_version(source)
+    if source_version is None:
+        return False, "plugin source has no valid version"
+    codex_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser()
+    cache_root = codex_home / "plugins" / "cache" / "codex-science" / "codex-science"
+    try:
+        candidates = tuple(cache_root.iterdir())
+    except FileNotFoundError:
+        candidates = ()
+    except OSError as error:
+        return False, f"could not inspect existing plugin caches: {error}"
+    preserved = [
+        path
+        for path in candidates
+        if not path.is_symlink()
+        and path.is_dir()
+        and path.name != source_version
+        and _plugin_version(path) == path.name
+    ]
+    if len(preserved) > MAX_PRESERVED_CACHE_VERSIONS:
+        return False, "too many existing plugin cache versions to preserve safely"
+
+    backup_root = Path(tempfile.mkdtemp(prefix=".codex-science-cache-preserve-"))
+    backups: dict[Path, tuple[Path, dict[str, str]]] = {}
+    registration_ok = False
+    reason = "plugin registration failed"
+    restore_errors: list[str] = []
+    try:
+        for cache in preserved:
+            manifest = _directory_manifest(cache)
+            if manifest is None:
+                raise OSError(f"could not read existing plugin cache: {cache}")
+            backup = backup_root / cache.name
+            shutil.copytree(cache, backup, symlinks=True)
+            if _directory_manifest(backup) != manifest:
+                raise OSError(f"plugin cache backup verification failed: {cache}")
+            backups[cache] = (backup, manifest)
+
+        registration = _run(
+            ["codex", "plugin", "add", "codex-science@codex-science"], timeout=60
+        )
+        if registration.returncode != 0:
+            reason = registration.stderr.strip() or "plugin registration command failed"
+        elif not _installed_cache_matches(source):
+            reason = "installed plugin cache verification failed"
+        else:
+            registration_ok = True
+            reason = "registered"
+    except (OSError, subprocess.TimeoutExpired) as error:
+        reason = str(error)
+    finally:
+        for destination, (backup, manifest) in backups.items():
+            if _directory_manifest(destination) == manifest:
+                continue
+            if not _restore_tree(backup, destination):
+                restore_errors.append(str(destination))
+        shutil.rmtree(backup_root, ignore_errors=True)
+
+    if restore_errors:
+        return False, "failed to restore pinned plugin caches: " + ", ".join(restore_errors)
+    return registration_ok, reason
+
+
 def install_update(
     home: Path,
     branch: str,
@@ -468,11 +535,9 @@ def install_update(
         home.rename(previous)
         previous_moved = True
         candidate.rename(home)
-        registration = _run(
-            ["codex", "plugin", "add", "codex-science@codex-science"], timeout=60
-        )
-        if registration.returncode != 0 or not _installed_cache_matches(home):
-            raise RuntimeError("plugin registration verification failed")
+        registered, registration_reason = register_plugin_preserving_caches(home)
+        if not registered:
+            raise RuntimeError(f"plugin registration failed: {registration_reason}")
         if current_plugin_root is not None and (
             _directory_manifest(current_plugin_root) != _directory_manifest(cache_backup)
         ):
@@ -484,11 +549,12 @@ def install_update(
         if previous_moved:
             restored = _restore_previous(home, previous, failed)
             if restored:
-                registration = _run(
-                    ["codex", "plugin", "add", "codex-science@codex-science"], timeout=60
-                )
-                if registration.returncode != 0 or not _installed_cache_matches(home):
-                    error = RuntimeError(f"{error}; previous plugin registration could not be verified")
+                registered, registration_reason = register_plugin_preserving_caches(home)
+                if not registered:
+                    error = RuntimeError(
+                        f"{error}; previous plugin registration could not be verified: "
+                        f"{registration_reason}"
+                    )
         if cache_copied and current_plugin_root is not None and cache_backup.is_dir():
             if _directory_manifest(current_plugin_root) != _directory_manifest(cache_backup):
                 if not _restore_tree(cache_backup, current_plugin_root):
@@ -643,6 +709,11 @@ def main() -> int:
         return self_check()
     if len(sys.argv) == 3 and sys.argv[1] == "--candidate-check":
         return 0 if _candidate_self_check(Path(sys.argv[2]).resolve()) else 1
+    if len(sys.argv) == 3 and sys.argv[1] == "--register-plugin":
+        success, reason = register_plugin_preserving_caches(Path(sys.argv[2]))
+        stream = sys.stdout if success else sys.stderr
+        print(reason, file=stream)
+        return 0 if success else 1
     if len(sys.argv) == 4 and sys.argv[1] == "--manual-update":
         return manual_update(Path(sys.argv[2]).expanduser().resolve(), sys.argv[3])
     try:

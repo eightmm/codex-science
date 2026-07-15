@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,7 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.checkpoints import find_active_checkpoint, request_continuation  # noqa: E402
-from codex_science.sessions import activation_path, session_key  # noqa: E402
+from codex_science.sessions import (  # noqa: E402
+    activation_path,
+    read_activation_generation,
+    session_key,
+)
 
 
 DEFAULT_IDLE_LIMIT = 3
@@ -28,13 +31,6 @@ def _load_input() -> dict[str, Any] | None:
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
-
-
-def _active_marker(path: Path) -> bool:
-    try:
-        return stat.S_ISREG(path.lstat().st_mode) and not path.is_symlink()
-    except (FileNotFoundError, PermissionError, OSError):
-        return False
 
 
 def _idle_limit() -> int:
@@ -72,9 +68,13 @@ def main() -> int:
     ):
         return 0
 
-    key = session_key(session_id)
-    if not _active_marker(activation_path(Path(plugin_data_value), session_id)):
+    generation = read_activation_generation(
+        activation_path(Path(plugin_data_value), session_id),
+        refresh=True,
+    )
+    if generation is None:
         return 0
+    key = session_key(session_id, generation)
     try:
         run_dir = find_active_checkpoint(Path(cwd), key)
         if run_dir is None:
@@ -91,18 +91,23 @@ def main() -> int:
         return 0
     checkpoint = result["checkpoint"]
     if not result["continue"]:
+        reason = result.get("reason", "continuation_stopped")
         _emit(
             {
                 "systemMessage": (
-                    "Codex Science auto-continue safety limit reached without a checkpoint "
-                    "heartbeat. The run remains active; inspect it before the next continuation."
+                    f"Codex Science auto-continue safety limit stopped: {reason}. "
+                    "The run remains non-complete; "
+                    "inspect the checkpoint before the next continuation."
                 )
             }
         )
         return 0
 
     checkpoint_path = run_dir / "checkpoint.json"
-    criteria = "; ".join(_bounded(item, 300) for item in checkpoint["done_criteria"][:5])
+    criteria = "; ".join(
+        _bounded(item.get("text", item), 300) if isinstance(item, dict) else _bounded(item, 300)
+        for item in checkpoint["done_criteria"][:5]
+    )
     reason = (
         "Continue the active Codex Science run instead of returning a progress-only answer. "
         f"Reload {_bounded(checkpoint_path, 1500)} with science_checkpoint.py show. "

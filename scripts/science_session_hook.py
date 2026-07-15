@@ -16,7 +16,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.sessions import activation_path, session_key  # noqa: E402
+from codex_science.checkpoints import abandon_checkpoint, find_nonterminal_checkpoint  # noqa: E402
+from codex_science.sessions import (  # noqa: E402
+    activation_path,
+    new_activation_generation,
+    read_activation_generation,
+    session_key,
+    write_activation_generation,
+)
 
 INACTIVE_CONTEXT = (
     "Codex Science is inactive for this Codex task. Do not invoke $codex-science unless a later "
@@ -67,8 +74,9 @@ def _matches(prompt: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
     return any(pattern.search(prompt) for pattern in patterns)
 
 
-def _active_context(session_id: str) -> str:
-    key = session_key(session_id)
+def _active_context(session_id: str, generation: str) -> str:
+    key = session_key(session_id, generation)
+    goal_key = session_key(session_id)
     return (
         "Codex Science is active for this Codex task. On this turn, implicitly invoke "
         "$codex-science and apply its coordinator workflow even when the user does not mention it. "
@@ -76,16 +84,22 @@ def _active_context(session_id: str) -> str:
         "blocker, or an approval gate; do not stop at setup or a progress update, and do not ask for "
         "non-blocking preferences. For each non-trivial run, pass --session-key "
         f"{key} to science_checkpoint.py init or claim so the Stop guard can safely auto-continue "
-        "this task only. Keep all approval, audit, provenance, and review gates in force."
+        "this activation generation only. When native Goal mode is explicitly requested, call "
+        f"get_goal at each automatic continuation, use --outer-goal native --goal-task-key {goal_key}, "
+        "and do not mark the "
+        "Goal complete before the checkpoint reaches completion_pending. Keep all approval, audit, "
+        "provenance, and review gates in force. Only when migrating a pre-generation schema-v2/v3 "
+        f"run owned by this same task, pass --previous-session-key {goal_key}; never infer another key."
     )
 
 
-def _activate(path: Path) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    temporary.write_text("active\n", encoding="utf-8")
-    temporary.chmod(0o600)
-    temporary.replace(path)
+def _activate(path: Path) -> str:
+    generation = read_activation_generation(path, refresh=True)
+    if generation is not None:
+        return generation
+    generation = new_activation_generation()
+    write_activation_generation(path, generation)
+    return generation
 
 
 def _deactivate(path: Path) -> None:
@@ -114,16 +128,20 @@ def _prune_expired(state_dir: Path) -> None:
             continue
 
 
-def _active(path: Path) -> bool:
-    """Return whether a regular marker exists and refresh its inactivity TTL."""
+def _active(path: Path) -> str | None:
+    """Return the active generation and refresh its inactivity TTL."""
+    return read_activation_generation(path, refresh=True)
+
+
+def _abandon_owned_run(cwd: object, key: str, reason: str) -> None:
+    if not isinstance(cwd, str) or not cwd:
+        return
     try:
-        metadata = path.lstat()
-        if not stat.S_ISREG(metadata.st_mode):
-            return False
-        os.utime(path, None, follow_symlinks=False)
-        return True
-    except (FileNotFoundError, PermissionError):
-        return False
+        run_dir = find_nonterminal_checkpoint(Path(cwd), key)
+        if run_dir is not None:
+            abandon_checkpoint(run_dir, reason=reason)
+    except (FileNotFoundError, PermissionError, OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        return
 
 
 def _emit(event_name: str, context: str) -> None:
@@ -172,21 +190,37 @@ def main() -> int:
         if not isinstance(prompt, str):
             return 0
         if _matches(prompt, DEACTIVATION_PATTERNS):
+            generation = _active(state_path)
+            if generation is not None:
+                _abandon_owned_run(
+                    payload.get("cwd"),
+                    session_key(session_id, generation),
+                    "Codex Science explicitly deactivated",
+                )
             _deactivate(state_path)
             _emit(event_name, INACTIVE_CONTEXT)
         elif _matches(prompt, ACTIVATION_PATTERNS):
-            _activate(state_path)
-            _emit(event_name, _active_context(session_id))
-        elif _active(state_path):
-            _emit(event_name, _active_context(session_id))
+            generation = _activate(state_path)
+            _emit(event_name, _active_context(session_id, generation))
+        elif (generation := _active(state_path)) is not None:
+            _emit(event_name, _active_context(session_id, generation))
         return 0
 
     source = payload.get("source")
     if source == "clear":
+        generation = _active(state_path)
+        if generation is not None:
+            _abandon_owned_run(
+                payload.get("cwd"),
+                session_key(session_id, generation),
+                "Codex task context cleared",
+            )
         _deactivate(state_path)
         _emit(event_name, INACTIVE_CONTEXT)
-    elif source in {"resume", "compact", "startup"} and _active(state_path):
-        _emit(event_name, _active_context(session_id))
+    elif source in {"resume", "compact", "startup"}:
+        generation = _active(state_path)
+        if generation is not None:
+            _emit(event_name, _active_context(session_id, generation))
     return 0
 
 
