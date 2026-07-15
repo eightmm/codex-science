@@ -12,6 +12,7 @@ REPO_URL="${CODEX_SCIENCE_REPO:-https://github.com/eightmm/codex-science.git}"
 INSTALL_DIR="${CODEX_SCIENCE_HOME:-$HOME/.codex-science}"
 BRANCH="${CODEX_SCIENCE_REF:-main}"
 OFFICIAL_REPO="https://github.com/eightmm/codex-science.git"
+RUNNING_INSTALLER="${BASH_SOURCE[0]:-}"
 
 info() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; }
@@ -87,6 +88,22 @@ PY
   mv -T "$STAGING/candidate" "$INSTALL_DIR"
   rm -rf "$STAGING"
   STAGING=""
+fi
+
+# A streamed or older downloaded installer may have updated the checkout to a
+# newer implementation. Continue with that implementation before taking any
+# registration action, and use a marker to prevent recursive handoffs.
+if [ "${CODEX_SCIENCE_INSTALLER_HANDOFF:-0}" != "1" ] \
+  && [ -f "$INSTALL_DIR/scripts/install.sh" ] \
+  && { [ -z "$RUNNING_INSTALLER" ] \
+    || [ ! -f "$RUNNING_INSTALLER" ] \
+    || ! cmp -s "$RUNNING_INSTALLER" "$INSTALL_DIR/scripts/install.sh"; }
+then
+  info "Continuing with the installer from $INSTALL_DIR"
+  cleanup
+  trap - EXIT
+  export CODEX_SCIENCE_INSTALLER_HANDOFF=1
+  exec bash "$INSTALL_DIR/scripts/install.sh"
 fi
 
 # 2. Verify interpreter and fetch the pinned upstream skills (light bootstrap).

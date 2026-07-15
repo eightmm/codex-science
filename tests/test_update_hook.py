@@ -776,6 +776,39 @@ class ScienceUpdateHookTests(unittest.TestCase):
         self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null", installer)
         self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null 2>&1 || true", installer)
 
+    def test_streamed_installer_hands_off_to_managed_checkout(self) -> None:
+        target = self.root / "installed"
+        scripts = target / "scripts"
+        scripts.mkdir(parents=True)
+        (target / ".git").mkdir()
+        (scripts / "science_update_hook.py").write_text(
+            "raise SystemExit(0)\n", encoding="utf-8"
+        )
+        record = self.root / "handoff"
+        (scripts / "install.sh").write_text(
+            "#!/bin/sh\n"
+            "printf '%s' \"$CODEX_SCIENCE_INSTALLER_HANDOFF\" > \"$HANDOFF_RECORD\"\n",
+            encoding="utf-8",
+        )
+        installer = (self.repository_root / "scripts" / "install.sh").read_text(
+            encoding="utf-8"
+        )
+
+        result = subprocess.run(
+            ["bash"],
+            input=installer,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **self.installer_environment(target),
+                "HANDOFF_RECORD": str(record),
+            },
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("1", record.read_text(encoding="utf-8"))
+
     def test_fresh_installer_rejects_existing_non_git_target(self) -> None:
         target = self.root / "existing-target"
         target.mkdir()
