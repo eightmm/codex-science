@@ -15,8 +15,10 @@ sys.path.insert(0, str(ROOT / "src"))
 from codex_science.checkpoints import (  # noqa: E402
     advance_checkpoint,
     block_checkpoint,
+    claim_checkpoint,
     complete_checkpoint,
     create_checkpoint,
+    heartbeat_checkpoint,
     load_checkpoint,
     record_attempt,
     request_decision,
@@ -42,9 +44,18 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--done", action="append", required=True, dest="done_criteria")
     init.add_argument("--step", action="append", required=True, type=_step, dest="steps")
     init.add_argument("--next-action", required=True)
+    init.add_argument("--session-key", required=True)
+
+    claim = commands.add_parser("claim", help="attach a legacy run to this Codex task")
+    claim.add_argument("run_dir", type=Path)
+    claim.add_argument("--session-key", required=True)
 
     show = commands.add_parser("show", help="show a validated checkpoint")
     show.add_argument("run_dir", type=Path)
+
+    heartbeat = commands.add_parser("heartbeat", help="record same-step progress")
+    heartbeat.add_argument("run_dir", type=Path)
+    heartbeat.add_argument("--next-action", required=True)
 
     advance = commands.add_parser("advance", help="complete the current step")
     advance.add_argument("run_dir", type=Path)
@@ -90,9 +101,14 @@ def main() -> int:
                 done_criteria=args.done_criteria,
                 steps=args.steps,
                 next_action=args.next_action,
+                session_key=args.session_key,
             )
+        elif args.command == "claim":
+            result = claim_checkpoint(args.run_dir, session_key=args.session_key)
         elif args.command == "show":
             result = load_checkpoint(args.run_dir)
+        elif args.command == "heartbeat":
+            result = heartbeat_checkpoint(args.run_dir, next_action=args.next_action)
         elif args.command == "advance":
             result = advance_checkpoint(
                 args.run_dir,

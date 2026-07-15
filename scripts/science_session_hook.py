@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -14,13 +13,11 @@ from pathlib import Path
 from typing import Any
 
 
-ACTIVE_CONTEXT = (
-    "Codex Science is active for this Codex task. On this turn, implicitly invoke "
-    "$codex-science and apply its coordinator workflow even when the user does not mention it. "
-    "Do not require the user to activate it again. Continue working until completion, a genuine "
-    "blocker, or an approval gate; do not stop at setup or a progress update, and do not ask for "
-    "non-blocking preferences. Keep all approval, audit, provenance, and review gates in force."
-)
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from codex_science.sessions import activation_path, session_key  # noqa: E402
+
 INACTIVE_CONTEXT = (
     "Codex Science is inactive for this Codex task. Do not invoke $codex-science unless a later "
     "user prompt explicitly activates it."
@@ -70,9 +67,17 @@ def _matches(prompt: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
     return any(pattern.search(prompt) for pattern in patterns)
 
 
-def _state_path(plugin_data: Path, session_id: str) -> Path:
-    session_hash = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
-    return plugin_data / "science-sessions" / session_hash
+def _active_context(session_id: str) -> str:
+    key = session_key(session_id)
+    return (
+        "Codex Science is active for this Codex task. On this turn, implicitly invoke "
+        "$codex-science and apply its coordinator workflow even when the user does not mention it. "
+        "Do not require the user to activate it again. Continue working until completion, a genuine "
+        "blocker, or an approval gate; do not stop at setup or a progress update, and do not ask for "
+        "non-blocking preferences. For each non-trivial run, pass --session-key "
+        f"{key} to science_checkpoint.py init or claim so the Stop guard can safely auto-continue "
+        "this task only. Keep all approval, audit, provenance, and review gates in force."
+    )
 
 
 def _activate(path: Path) -> None:
@@ -159,7 +164,7 @@ def main() -> int:
     ):
         return 0
 
-    state_path = _state_path(Path(plugin_data_value), session_id)
+    state_path = activation_path(Path(plugin_data_value), session_id)
     _prune_expired(state_path.parent)
 
     if event_name == "UserPromptSubmit":
@@ -171,9 +176,9 @@ def main() -> int:
             _emit(event_name, INACTIVE_CONTEXT)
         elif _matches(prompt, ACTIVATION_PATTERNS):
             _activate(state_path)
-            _emit(event_name, ACTIVE_CONTEXT)
+            _emit(event_name, _active_context(session_id))
         elif _active(state_path):
-            _emit(event_name, ACTIVE_CONTEXT)
+            _emit(event_name, _active_context(session_id))
         return 0
 
     source = payload.get("source")
@@ -181,7 +186,7 @@ def main() -> int:
         _deactivate(state_path)
         _emit(event_name, INACTIVE_CONTEXT)
     elif source in {"resume", "compact", "startup"} and _active(state_path):
-        _emit(event_name, ACTIVE_CONTEXT)
+        _emit(event_name, _active_context(session_id))
     return 0
 
 

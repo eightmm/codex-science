@@ -27,7 +27,11 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library — no packages, virtualenv, or `uv` needed to run). The installer clones into `~/.codex-science`, registers the plugin globally, runs a runtime self-check, and is safe to re-run to update.
 Fresh installs are validated in staging before activation; installer reruns use the same locked, transactional updater as the hook.
 
-Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart` and `UserPromptSubmit` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
+Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
+
+Trust the `Stop` hook too. It is the guarded auto-continue mechanism. Hook trust
+is tied to the exact definition, so after an update that changes hooks, review
+the Codex Science hooks in `/hooks` again.
 
 `/hooks` is the human security boundary: it approves the plugin command but does
 not start the science mode. Keep that approval as a deliberate user action. Once
@@ -74,6 +78,19 @@ checkpoint contains control metadata only and is safe to inspect or resume after
 context compaction; prompts, credentials, private data, and conclusions are not
 stored in it.
 
+For multi-step work, the checkpoint is bound to a hashed task key. If Codex tries
+to finish while that checkpoint is still `active`, the plugin's `Stop` hook
+rejects the progress-only response and feeds the recorded next action back into
+the same turn. A `heartbeat` records meaningful same-step progress. Three stop
+attempts without a heartbeat or state transition trigger a safety escape instead
+of an infinite loop; set `CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS=1..20` before
+launching Codex to change that no-progress limit.
+
+For the strongest native long-running behavior, enter `/goal` in the Codex app,
+CLI, or IDE and put `Start Codex Science`, the outcome, constraints, and objective
+done criteria in the goal text. Goal mode owns the outer task lifecycle; the
+Codex Science checkpoint owns scientific step-by-step recovery.
+
 Agentic life-science examples:
 
 ```text
@@ -94,7 +111,7 @@ Reactome currently rejects GitHub-hosted runner IPs with HTTP 403; that single
 environment block is reported explicitly in scheduled runs, while every other
 source/status failure remains fatal. Local `scripts/check.sh public` stays strict.
 
-Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. It injects coordinator context on each later turn and after resume or context compaction; the coordinator then reloads the active run checkpoint before acting. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction persistence is not guaranteed.
+Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. The same hash binds an active checkpoint to its owning task so another task in the project cannot inherit its Stop guard. The hook injects coordinator context on each later turn and after resume or context compaction; the coordinator then reloads the active run checkpoint before acting. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction and guarded auto-continue are not guaranteed.
 
 Stop it explicitly:
 

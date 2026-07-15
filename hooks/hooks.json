@@ -36,6 +36,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/science_stop_hook.py\"",
+            "timeout": 5,
+            "statusMessage": "Checking Codex Science completion state"
+          }
+        ]
+      }
     ]
   }
 }

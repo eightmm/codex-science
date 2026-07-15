@@ -9,16 +9,22 @@ from pathlib import Path
 from codex_science.checkpoints import (
     advance_checkpoint,
     block_checkpoint,
+    claim_checkpoint,
     complete_checkpoint,
     create_checkpoint,
+    find_active_checkpoint,
+    heartbeat_checkpoint,
     load_checkpoint,
     record_attempt,
+    request_continuation,
     request_decision,
     resume_checkpoint,
 )
 
 
 class CheckpointTests(unittest.TestCase):
+    session_key = "a" * 64
+
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.run_dir = Path(self.tempdir.name) / "artifacts" / "run-001"
@@ -34,6 +40,7 @@ class CheckpointTests(unittest.TestCase):
             done_criteria=["Analysis verified", "Independent review complete"],
             steps=[("orient", "Orient"), ("analyze", "Analyze"), ("review", "Review")],
             next_action="Inspect the available inputs",
+            session_key=self.session_key,
         )
 
     def test_create_writes_private_atomic_checkpoint(self) -> None:
@@ -41,6 +48,8 @@ class CheckpointTests(unittest.TestCase):
         path = self.run_dir / "checkpoint.json"
 
         self.assertEqual("active", checkpoint["state"])
+        self.assertEqual(2, checkpoint["schema_version"])
+        self.assertEqual(self.session_key, checkpoint["session_key"])
         self.assertEqual("orient", checkpoint["current_step"])
         self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
         self.assertEqual(checkpoint, json.loads(path.read_text(encoding="utf-8")))
@@ -107,6 +116,77 @@ class CheckpointTests(unittest.TestCase):
         resumed = resume_checkpoint(self.run_dir, next_action="Validate the attached input")
         self.assertEqual("active", resumed["state"])
         self.assertEqual("", resumed["blocker"])
+
+    def test_stop_continuations_are_bounded_until_progress_heartbeat(self) -> None:
+        self.create()
+
+        first = request_continuation(self.run_dir, session_key=self.session_key, idle_limit=2)
+        second = request_continuation(self.run_dir, session_key=self.session_key, idle_limit=2)
+        exhausted = request_continuation(self.run_dir, session_key=self.session_key, idle_limit=2)
+
+        self.assertTrue(first["continue"])
+        self.assertTrue(second["continue"])
+        self.assertFalse(exhausted["continue"])
+        heartbeat = heartbeat_checkpoint(
+            self.run_dir,
+            next_action="Inspect the second evidence source",
+        )
+        self.assertEqual(0, heartbeat["idle_continuations"])
+        resumed = request_continuation(self.run_dir, session_key=self.session_key, idle_limit=2)
+        self.assertTrue(resumed["continue"])
+
+    def test_heartbeat_requires_a_new_concrete_next_action(self) -> None:
+        self.create()
+
+        with self.assertRaisesRegex(ValueError, "heartbeat must change next_action"):
+            heartbeat_checkpoint(
+                self.run_dir,
+                next_action="Inspect the available inputs",
+            )
+
+    def test_session_key_prevents_another_task_from_claiming_or_continuing_run(self) -> None:
+        self.create()
+
+        with self.assertRaisesRegex(ValueError, "belongs to another Codex task"):
+            request_continuation(self.run_dir, session_key="b" * 64, idle_limit=2)
+        with self.assertRaisesRegex(ValueError, "belongs to another Codex task"):
+            claim_checkpoint(self.run_dir, session_key="b" * 64)
+
+    def test_legacy_checkpoint_can_be_claimed_without_losing_progress(self) -> None:
+        checkpoint = self.create()
+        checkpoint["schema_version"] = 1
+        for field in ("session_key", "continuation_count", "idle_continuations"):
+            checkpoint.pop(field)
+        (self.run_dir / "checkpoint.json").write_text(
+            json.dumps(checkpoint),
+            encoding="utf-8",
+        )
+
+        claimed = claim_checkpoint(self.run_dir, session_key=self.session_key)
+
+        self.assertEqual(2, claimed["schema_version"])
+        self.assertEqual("orient", claimed["current_step"])
+        self.assertEqual(self.session_key, claimed["session_key"])
+
+    def test_active_checkpoint_discovery_is_session_scoped_and_ignores_symlinks(self) -> None:
+        self.create()
+        foreign = self.run_dir.parent / "foreign"
+        create_checkpoint(
+            foreign,
+            goal="Other task",
+            deliverable="Other report",
+            done_criteria=["Done"],
+            steps=[("work", "Work")],
+            next_action="Continue elsewhere",
+            session_key="b" * 64,
+        )
+        outside = Path(self.tempdir.name) / "outside"
+        outside.mkdir()
+        (self.run_dir.parent / "linked").symlink_to(outside, target_is_directory=True)
+
+        found = find_active_checkpoint(Path(self.tempdir.name), self.session_key)
+
+        self.assertEqual(self.run_dir, found)
 
     def test_completion_requires_every_planned_step(self) -> None:
         self.create()
@@ -185,6 +265,8 @@ class CheckpointTests(unittest.TestCase):
                 "orient=Orient",
                 "--next-action",
                 "Inspect inputs",
+                "--session-key",
+                self.session_key,
             ],
             capture_output=True,
             text=True,
@@ -200,6 +282,21 @@ class CheckpointTests(unittest.TestCase):
         )
         self.assertEqual(0, shown.returncode, shown.stderr)
         self.assertEqual("Question", json.loads(shown.stdout)["goal"])
+
+        heartbeat = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "heartbeat",
+                str(self.run_dir),
+                "--next-action",
+                "Continue analysis",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(0, heartbeat.returncode, heartbeat.stderr)
 
 
 if __name__ == "__main__":

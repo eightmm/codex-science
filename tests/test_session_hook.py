@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+import hashlib
 from pathlib import Path
 
 
@@ -68,6 +69,10 @@ class ScienceSessionHookTests(unittest.TestCase):
         context = self.additional_context(output)
         self.assertIn("Codex Science is active", context)
         self.assertIn("$codex-science", context)
+        expected_key = hashlib.sha256("session-A".encode("utf-8")).hexdigest()
+        self.assertIn(expected_key, context)
+        self.assertNotIn("session-A", context)
+        self.assertIn("--session-key", context)
 
         other_result, other_output = self.run_hook(
             "UserPromptSubmit",
@@ -198,9 +203,10 @@ class ScienceSessionHookTests(unittest.TestCase):
             (self.repository_root / "hooks" / "hooks.json").read_text(encoding="utf-8")
         )
 
-        self.assertEqual({"SessionStart", "UserPromptSubmit"}, set(config["hooks"]))
+        self.assertEqual({"SessionStart", "UserPromptSubmit", "Stop"}, set(config["hooks"]))
         serialized = json.dumps(config)
         self.assertIn("$PLUGIN_ROOT/scripts/science_session_hook.py", serialized)
+        self.assertIn("$PLUGIN_ROOT/scripts/science_stop_hook.py", serialized)
 
 
 if __name__ == "__main__":
