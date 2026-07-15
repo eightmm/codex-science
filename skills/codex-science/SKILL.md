@@ -30,6 +30,12 @@ Resolve the plugin root as two directories above this `SKILL.md`. Use:
 - `<plugin-root>/catalog/codex-skills/<name>/SKILL.md` for the Codex-compatible wrapper selected from the inventory.
 - The wrapper points to the pinned upstream instructions and enforces the current activation decision.
 
+## Capability priority
+
+While this mode is active, prefer Codex Science MCP tools and `status: active` catalog skills over equivalent general-purpose tools or skills. Use the smallest suitable Science capability for the task.
+
+Fall back to general-purpose tools or skills only when no suitable Science capability exists, the Science capability is unavailable or fails, or a higher-priority instruction requires another route. This preference does not override the activation gate, the approved plan, user instructions, project rules, or safety policy; never select an inactive skill silently.
+
 ## Workflow
 
 1. State the research question, expected deliverable, evidence boundary, and important non-goals.

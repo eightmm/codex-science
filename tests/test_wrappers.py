@@ -184,6 +184,15 @@ class SessionContractTests(unittest.TestCase):
         self.assertIn("Codex Science 종료", skill)
         self.assertIn("catalog/codex-skills/<name>/SKILL.md", skill)
         self.assertIn("Do not activate for an ordinary scientific question", skill)
+        self.assertIn(
+            "prefer Codex Science MCP tools and `status: active` catalog skills",
+            skill,
+        )
+        self.assertIn(
+            "Fall back to general-purpose tools or skills only when",
+            skill,
+        )
+        self.assertIn("does not override the activation gate", skill)
         self.assertIn("allow_implicit_invocation: true", coordinator_agent)
         for name in ("science-provenance", "science-review"):
             agent = (repository_root / "skills" / name / "agents" / "openai.yaml").read_text()
