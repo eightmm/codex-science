@@ -7,7 +7,7 @@ description: Package a scientific analysis as a reproducible artifact bundle con
 
 Create `artifacts/<run-id>/manifest.json` in the user's current research project. Copy [assets/manifest.template.json](assets/manifest.template.json) and fill every required field, or generate the same schema programmatically.
 
-For a non-trivial active run, keep `checkpoint.json` beside the manifest as mutable control state. Schema v2 binds the run to a hashed Codex session key and records the goal, done criteria, current step, next action, Stop-guard continuations, bounded failed attempts, and any approval gate or blocker. Update it with `<plugin-root>/scripts/science_checkpoint.py`, including `heartbeat` during long same-step work; do not cite it as scientific evidence or add it to the manifest while it is mutable.
+For a non-trivial active run, keep `checkpoint.json` beside the manifest as mutable control state. Schema v4 binds the run to an activation-generation key; records structured done criteria, hashed evidence and review receipts, continuation budget, native Goal task binding and phase, external waits, failed attempts, gates, and blockers; and prevents a second nonterminal run for the same owner across nested artifact roots. Update it with `<plugin-root>/scripts/science_checkpoint.py`. Save a run-local progress record before `heartbeat --progress-ref`; do not cite the mutable checkpoint as scientific evidence or add it to the manifest.
 
 ## Record
 

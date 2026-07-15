@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -69,8 +70,10 @@ class ScienceSessionHookTests(unittest.TestCase):
         context = self.additional_context(output)
         self.assertIn("Codex Science is active", context)
         self.assertIn("$codex-science", context)
-        expected_key = hashlib.sha256("session-A".encode("utf-8")).hexdigest()
-        self.assertIn(expected_key, context)
+        legacy_key = hashlib.sha256("session-A".encode("utf-8")).hexdigest()
+        key_match = re.search(r"--session-key ([0-9a-f]{64})", context)
+        self.assertIsNotNone(key_match)
+        self.assertNotEqual(legacy_key, key_match.group(1))
         self.assertNotIn("session-A", context)
         self.assertIn("--session-key", context)
 

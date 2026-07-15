@@ -132,13 +132,150 @@ else
 fi
 
 HOOK_DATA="$(mktemp -d)"
-if printf '%s\n' \
-    '{"cwd":".","hook_event_name":"UserPromptSubmit","model":"self-check","permission_mode":"default","prompt":"Start Codex Science","session_id":"install-self-check","transcript_path":null,"turn_id":"turn-1"}' \
-    | PLUGIN_DATA="$HOOK_DATA" python3 "$INSTALL_DIR/scripts/science_session_hook.py" 2>/dev/null \
-    | grep -q 'Codex Science is active'; then
-  info "Session persistence self-check passed"
+if PLUGIN_DATA="$HOOK_DATA" python3 - "$INSTALL_DIR" "$HOOK_DATA" <<'PY'
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+plugin_data = Path(sys.argv[2])
+workspace = plugin_data / "workspace"
+run_dir = workspace / "artifacts" / "install-self-check"
+workspace.mkdir()
+session_id = "install-self-check"
+environment = {**os.environ, "PLUGIN_DATA": str(plugin_data)}
+
+
+def hook(script: str, event: str, **extra: object) -> subprocess.CompletedProcess[str]:
+    payload: dict[str, object] = {
+        "cwd": str(workspace),
+        "hook_event_name": event,
+        "model": "self-check",
+        "permission_mode": "default",
+        "session_id": session_id,
+        "transcript_path": None,
+        "turn_id": "turn-1",
+    }
+    payload.update(extra)
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / script)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+    if result.returncode:
+        raise SystemExit(result.stderr or f"{script} failed")
+    return result
+
+
+activation = hook(
+    "science_session_hook.py",
+    "UserPromptSubmit",
+    prompt="Start Codex Science",
+)
+output = json.loads(activation.stdout)
+context = output["hookSpecificOutput"]["additionalContext"]
+match = re.search(r"--session-key ([0-9a-f]{64})", context)
+if match is None:
+    raise SystemExit("activation did not emit an owner key")
+owner_key = match.group(1)
+goal_match = re.search(r"--goal-task-key ([0-9a-f]{64})", context)
+if goal_match is None:
+    raise SystemExit("activation did not emit a Goal task key")
+goal_task_key = goal_match.group(1)
+expected_goal_key = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+if goal_task_key != expected_goal_key:
+    raise SystemExit("Goal task key is not bound to the Codex task")
+
+markers = [path for path in plugin_data.rglob("*") if path.is_file()]
+if len(markers) != 1:
+    raise SystemExit("activation did not create exactly one marker")
+marker = json.loads(markers[0].read_text(encoding="utf-8"))
+generation = marker.get("generation")
+if not isinstance(generation, str) or not re.fullmatch(r"[0-9a-f]{64}", generation):
+    raise SystemExit("activation marker generation is invalid")
+expected_key = hashlib.sha256(
+    session_id.encode("utf-8") + b"\0" + generation.encode("ascii")
+).hexdigest()
+if owner_key != expected_key:
+    raise SystemExit("owner key is not bound to session plus generation")
+
+checkpoint = subprocess.run(
+    [
+        sys.executable,
+        str(root / "scripts" / "science_checkpoint.py"),
+        "init",
+        str(run_dir),
+        "--goal",
+        "Exercise the installed Goal/loop contract",
+        "--deliverable",
+        "Temporary self-check artifact",
+        "--done",
+        "The active Stop guard is exercised",
+        "--step",
+        "work=Exercise the runtime",
+        "--next-action",
+        "Run the Stop hook",
+        "--session-key",
+        owner_key,
+        "--outer-goal",
+        "native",
+        "--goal-task-key",
+        goal_task_key,
+    ],
+    capture_output=True,
+    text=True,
+    env=environment,
+    check=False,
+)
+if checkpoint.returncode:
+    raise SystemExit(checkpoint.stderr or "checkpoint init failed")
+checkpoint_data = json.loads(checkpoint.stdout)
+if checkpoint_data.get("schema_version") != 4:
+    raise SystemExit("checkpoint self-check did not create schema v4")
+if checkpoint_data.get("outer_goal", {}).get("task_key") != goal_task_key:
+    raise SystemExit("checkpoint Goal binding does not match the task key")
+
+active_stop = hook("science_stop_hook.py", "Stop")
+active_output = json.loads(active_stop.stdout)
+if active_output.get("decision") != "block":
+    raise SystemExit("active checkpoint did not block Stop")
+
+waiting = subprocess.run(
+    [
+        sys.executable,
+        str(root / "scripts" / "science_checkpoint.py"),
+        "wait",
+        str(run_dir),
+        "--reason",
+        "Self-check external wait",
+        "--next-action",
+        "Resume after the self-check interval",
+        "--poll-interval-seconds",
+        "1",
+        "--terminal-rule",
+        "Stop after one bounded status check",
+    ],
+    capture_output=True,
+    text=True,
+    env=environment,
+    check=False,
+)
+if waiting.returncode:
+    raise SystemExit(waiting.stderr or "checkpoint wait failed")
+if hook("science_stop_hook.py", "Stop").stdout.strip():
+    raise SystemExit("waiting_external checkpoint did not allow Stop")
+PY
+then
+  info "Goal/loop runtime self-check passed"
 else
-  err "session persistence self-check failed"
+  err "Goal/loop runtime self-check failed"
   exit 1
 fi
 rm -rf "$HOOK_DATA"
@@ -158,9 +295,10 @@ Codex Science is installed at: $INSTALL_DIR
 Use it in ANY project — start a new Codex task and say:
   Start Codex Science   (or: Codex Science 시작)
 
-On first use, open /hooks and trust the Codex Science SessionStart and
-UserPromptSubmit hooks. They store only a hashed session marker under the
-plugin data directory; prompts and research data are never stored.
+On first use, open /hooks and trust the Codex Science SessionStart,
+UserPromptSubmit, and Stop hooks. The private activation marker stores a random
+generation; prompts and research data are never stored. Do not enable another
+generic Stop loop in the same task.
 
 Update checks default to notify at most once every 24 hours. Say
 "Codex Science 업데이트" to stage and install the exact advertised commit for

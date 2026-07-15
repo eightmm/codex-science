@@ -24,7 +24,10 @@ Install **once** — it registers globally with Codex and works in every project
 curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
 ```
 
-Requires a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python standard library — no packages, virtualenv, or `uv` needed to run). The installer clones into `~/.codex-science`, registers the plugin globally, runs a runtime self-check, and is safe to re-run to update.
+Requires `curl`, a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python
+standard library — no packages, virtualenv, or `uv` needed to run). The installer
+clones into `~/.codex-science`, registers the plugin globally, runs a runtime
+self-check, and is safe to re-run to update.
 Fresh installs are validated in staging before activation; installer reruns use the same locked, transactional updater as the hook.
 
 Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
@@ -69,6 +72,25 @@ Analyze these results and record reproducible artifacts.
 Review the final claims against the execution record.
 ```
 
+### Choose a run mode
+
+Use ordinary task activation for interactive work: trust the three hooks, say
+`Start Codex Science` once, then keep working in that same task.
+
+Use native Goal mode when the outcome needs several autonomous continuations. In
+a new task, enter `/goal` and use a concrete contract such as:
+
+```text
+Start Codex Science.
+Goal: reproduce the supplied result and write a reviewed report.
+Constraints: use public sources and local CPU only; do not install packages.
+Done when: tests pass, every claim has saved evidence, and independent review passes.
+```
+
+Codex creates and operates the checkpoint automatically; users do not need to
+run `science_checkpoint.py` commands. Goal mode is the outer task lifecycle and
+the checkpoint is the recoverable scientific execution record.
+
 One goal-oriented request is enough for a non-trivial run. Codex Science creates
 `artifacts/<run-id>/checkpoint.json`, then continues through discovery, execution,
 analysis, provenance, and review until the work is complete, genuinely blocked,
@@ -78,18 +100,31 @@ checkpoint contains control metadata only and is safe to inspect or resume after
 context compaction; prompts, credentials, private data, and conclusions are not
 stored in it.
 
-For multi-step work, the checkpoint is bound to a hashed task key. If Codex tries
-to finish while that checkpoint is still `active`, the plugin's `Stop` hook
-rejects the progress-only response and feeds the recorded next action back into
-the same turn. A `heartbeat` records meaningful same-step progress. Three stop
-attempts without a heartbeat or state transition trigger a safety escape instead
-of an infinite loop; set `CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS=1..20` before
-launching Codex to change that no-progress limit.
+For multi-step work, the checkpoint is bound to the current activation's owner
+key. If Codex tries to finish while that checkpoint is still `active`, the
+plugin's `Stop` hook rejects the progress-only response and feeds the recorded
+next action back into the same turn. A `heartbeat` records meaningful same-step
+progress. Three stop attempts without a heartbeat or state transition trigger a
+safety escape, and every run also has an absolute continuation budget of 100.
+Set `CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS=1..20` before launching Codex to change
+the no-progress limit. `approval_required`, `waiting_external`, and `blocked`
+allow the turn to stop; in particular, `waiting_external` records a polling
+interval and terminal rule instead of busy-polling a remote job.
 
-For the strongest native long-running behavior, enter `/goal` in the Codex app,
-CLI, or IDE and put `Start Codex Science`, the outcome, constraints, and objective
-done criteria in the goal text. Goal mode owns the outer task lifecycle; the
-Codex Science checkpoint owns scientific step-by-step recovery.
+Codex Science does **not** run in the background after the Codex app or task is
+closed, and it cannot bypass hook trust, permission prompts, approval gates, or
+host availability. `waiting_external` records how to resume safely; it does not
+continuously poll while the task is closed.
+
+In native Goal mode, hooks cannot call or observe Goal tools, so the coordinator
+performs the bridge on each automatic continuation. Completion is intentionally
+ordered: satisfy all schema-v4 criteria with run-local evidence, pass an
+independently attested review, enter `completion_pending`, complete the native
+Goal, and save a hashed run-local completion receipt. These are coordinator
+internals, not extra user commands. The receipts are auditable agent evidence;
+hooks do not authenticate the host or reviewer identity. Do not combine Codex
+Science with another generic or Ralph-style `Stop` loop; competing guards can
+prevent a task from terminating.
 
 Agentic life-science examples:
 
@@ -111,7 +146,18 @@ Reactome currently rejects GitHub-hosted runner IPs with HTTP 403; that single
 environment block is reported explicitly in scheduled runs, while every other
 source/status failure remains fatal. Local `scripts/check.sh public` stays strict.
 
-Activation is keyed to Codex's `session_id`. The hook stores only a hashed marker in the plugin's writable data directory, never the prompt or research data. The same hash binds an active checkpoint to its owning task so another task in the project cannot inherit its Stop guard. The hook injects coordinator context on each later turn and after resume or context compaction; the coordinator then reloads the active run checkpoint before acting. `clear`, a new task, or the explicit stop command removes or ignores the marker; abandoned markers expire after 180 days of inactivity. If the hooks have not been trusted, same-task conversation continuity remains available as a best-effort fallback, but resume/compaction and guarded auto-continue are not guaranteed.
+Activation is keyed to Codex's `session_id` plus a random generation stored in a
+private marker; the raw session ID, prompt, and research data are never stored.
+The derived owner key binds one nonterminal checkpoint to that activation only,
+so another task or a later activation cannot inherit its Stop guard. Resume and
+context compaction preserve the generation. Explicit stop or `clear` marks the
+discoverable owned nonterminal run `abandoned`, removes the marker, and the next
+activation creates a new generation and owner key. Rotation prevents an old run
+from regaining the guard even when its artifact is no longer discoverable.
+Activation markers expire after 180 days of inactivity. If the
+`SessionStart`, `UserPromptSubmit`, and `Stop` hooks have not all been trusted,
+same-task conversation continuity remains a best-effort fallback, but
+resume/compaction and guarded auto-continue are not guaranteed.
 
 Stop it explicitly:
 
@@ -161,6 +207,31 @@ Analyze this dataset with the current pinned plugin and save the run provenance.
 Codex Science 업데이트
 # Open a new Codex task, then continue with the newly loaded version.
 ```
+
+## Verify and troubleshoot
+
+Confirm that Codex sees the installed version:
+
+```bash
+codex plugin list
+```
+
+The `codex-science@codex-science` row should say `installed, enabled`. If the
+mode does not activate, open a **new** Codex task, inspect `/hooks`, trust all
+three Codex Science hooks, and use exactly `Start Codex Science` or
+`Codex Science 시작`. After an update, open a new task; if a hook definition
+changed, review and trust it again.
+
+For a development checkout, run:
+
+```bash
+./scripts/check.sh fast    # offline unit, catalog, plugin, and skill validation
+./scripts/doctor.sh        # checkout, submodule, catalog, and environment diagnosis
+./scripts/check.sh public  # optional live public-source smoke test
+```
+
+See [Setup](docs/SETUP.md) for path overrides and installation details and
+[Checkpoints](docs/CHECKPOINTS.md) for the state and recovery contract.
 
 ## Scientific computer use
 

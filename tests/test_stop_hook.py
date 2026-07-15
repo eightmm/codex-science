@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -52,6 +53,11 @@ class ScienceStopHookTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(0, result.returncode, result.stderr)
+        output = json.loads(result.stdout)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        match = re.search(r"--session-key ([0-9a-f]{64})", context)
+        self.assertIsNotNone(match)
+        self.active_key = match.group(1)
 
     def create(self) -> None:
         create_checkpoint(
@@ -61,7 +67,7 @@ class ScienceStopHookTests(unittest.TestCase):
             done_criteria=["Sources checked", "Review complete"],
             steps=[("discover", "Discover"), ("review", "Review")],
             next_action="Search the second primary source",
-            session_key=session_key(self.session_id),
+            session_key=getattr(self, "active_key", session_key(self.session_id)),
         )
 
     def stop(self, *, session_id: str | None = None, idle_limit: int = 3):
