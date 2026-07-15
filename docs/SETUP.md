@@ -20,6 +20,9 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 The installer validates a fresh clone in staging before moving it into
 `~/.codex-science`, runs the light bootstrap, and registers the plugin. Re-runs
 use the locked transactional updater. `CODEX_SCIENCE_HOME` overrides the path.
+This managed checkout is the only supported installation source. If the
+`codex-science` marketplace still points at an older local development checkout,
+the installer transactionally migrates it to the managed checkout.
 
 Then start a new Codex task in any project, open `/hooks`, and trust the Codex
 Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks. Say
@@ -74,17 +77,23 @@ pinned hook paths. Set the mode to `off` to disable checks.
 Without a fresh notice, the first explicit request advertises the exact commit;
 repeat it once to approve that commit.
 
-## Install (manual / development)
+## Development checkout
 
 ```bash
 git clone https://github.com/eightmm/codex-science.git
 cd codex-science
 ./scripts/bootstrap.sh
-codex plugin marketplace add "$PWD"
-python3 scripts/science_update_hook.py --register-plugin "$PWD"
+./scripts/check.sh fast
 ```
 
-`bootstrap.sh` verifies the Python version and shallow-fetches the pinned upstream skills submodule; `--recurse-submodules` at clone time is not required. The one-command installer additionally exercises the MCP server, generation-derived activation key, a temporary schema-v4 checkpoint, active-run Stop rejection, external-wait Stop allowance, and the update lifecycle before reporting success.
+Do not register this checkout as a marketplace. Development happens here, while
+the curl installer owns the runnable `~/.codex-science` checkout and global
+marketplace registration. `bootstrap.sh` verifies the Python version and
+shallow-fetches the pinned upstream skills submodule; `--recurse-submodules` at
+clone time is not required. The one-command installer additionally exercises the
+MCP server, generation-derived activation key, a temporary schema-v4 checkpoint,
+active-run Stop rejection, external-wait Stop allowance, and the update lifecycle
+before reporting success.
 
 ## Verify
 

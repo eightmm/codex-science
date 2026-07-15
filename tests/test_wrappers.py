@@ -270,9 +270,12 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
             self.assertIn("/goal", text)
             self.assertIn("codex plugin list", text)
             self.assertIn("science_checkpoint.py", text)
-            self.assertIn("--register-plugin", text)
+            self.assertIn("scripts/install.sh | bash", text)
+            self.assertIn("~/.codex-science", text)
         self.assertIn("does **not** run in the background", english)
+        self.assertIn("Do not register the development checkout", english)
         self.assertIn("백그라운드에서 실행되지", korean)
+        self.assertIn("개발 checkout을 Codex marketplace로 등록하지 마세요", korean)
 
     def test_readme_documents_safe_update_modes_and_examples(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]

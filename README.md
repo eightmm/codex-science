@@ -29,6 +29,10 @@ standard library — no packages, virtualenv, or `uv` needed to run). The instal
 clones into `~/.codex-science`, registers the plugin globally, runs a runtime
 self-check, and is safe to re-run to update.
 Fresh installs are validated in staging before activation; installer reruns use the same locked, transactional updater as the hook.
+The managed checkout is the only installation source. If an older development
+checkout is registered under the `codex-science` marketplace name, the installer
+replaces that registration with `~/.codex-science` and restores the previous
+source if the replacement cannot be added.
 
 Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
 
@@ -42,15 +46,18 @@ trusted, the plain-language start phrase activates the mode; asking Codex to run
 the hook script manually is neither required nor a substitute for hook trust.
 
 <details>
-<summary>Manual / development install</summary>
+<summary>Development checkout</summary>
 
 ```bash
 git clone https://github.com/eightmm/codex-science.git
 cd codex-science
 ./scripts/bootstrap.sh
-codex plugin marketplace add "$PWD"
-python3 scripts/science_update_hook.py --register-plugin "$PWD"
+./scripts/check.sh fast
 ```
+
+Do not register the development checkout as a Codex marketplace. Use it only
+for editing and verification; install the runnable plugin with the curl command
+above so Codex always loads the managed `~/.codex-science` checkout.
 
 </details>
 
@@ -230,6 +237,10 @@ For a development checkout, run:
 ./scripts/doctor.sh        # checkout, submodule, catalog, and environment diagnosis
 ./scripts/check.sh public  # optional live public-source smoke test
 ```
+
+Do not run `codex plugin marketplace add "$PWD"` from this repository. The curl
+installer owns the `codex-science` marketplace registration and points it at
+`~/.codex-science`.
 
 See [Setup](docs/SETUP.md) for path overrides and installation details and
 [Checkpoints](docs/CHECKPOINTS.md) for the state and recovery contract.

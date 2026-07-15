@@ -84,6 +84,164 @@ class ScienceUpdateHookTests(unittest.TestCase):
         for prompt in negatives:
             self.assertFalse(self.module.is_update_request(prompt), prompt)
 
+    def test_managed_marketplace_replaces_legacy_development_source(self) -> None:
+        managed = self.root / "managed"
+        development = self.root / "development"
+        managed.mkdir()
+        development.mkdir()
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[-2:] == ["list", "--json"]:
+                payload = {
+                    "marketplaces": [
+                        {
+                            "name": "codex-science",
+                            "root": str(development),
+                            "marketplaceSource": {
+                                "sourceType": "local",
+                                "source": str(development),
+                            },
+                        }
+                    ]
+                }
+                return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(self.module, "_run", side_effect=run):
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertTrue(success, reason)
+        self.assertEqual(
+            [
+                ["codex", "plugin", "marketplace", "list", "--json"],
+                ["codex", "plugin", "marketplace", "remove", "codex-science"],
+                ["codex", "plugin", "marketplace", "add", str(managed.resolve())],
+            ],
+            commands,
+        )
+
+    def test_managed_marketplace_keeps_matching_source(self) -> None:
+        managed = self.root / "managed"
+        managed.mkdir()
+        payload = {
+            "marketplaces": [
+                {
+                    "name": "codex-science",
+                    "root": str(managed),
+                    "marketplaceSource": {
+                        "sourceType": "local",
+                        "source": str(managed),
+                    },
+                }
+            ]
+        }
+
+        with mock.patch.object(
+            self.module,
+            "_run",
+            return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), ""),
+        ) as run:
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertTrue(success, reason)
+        run.assert_called_once_with(
+            ["codex", "plugin", "marketplace", "list", "--json"], timeout=30
+        )
+
+    def test_managed_marketplace_adds_missing_source(self) -> None:
+        managed = self.root / "managed"
+        managed.mkdir()
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[-2:] == ["list", "--json"]:
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps({"marketplaces": []}), ""
+                )
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(self.module, "_run", side_effect=run):
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertTrue(success, reason)
+        self.assertEqual(
+            ["codex", "plugin", "marketplace", "add", str(managed.resolve())],
+            commands[-1],
+        )
+
+    def test_managed_marketplace_does_not_replace_nonlocal_source(self) -> None:
+        managed = self.root / "managed"
+        managed.mkdir()
+        payload = {
+            "marketplaces": [
+                {
+                    "name": "codex-science",
+                    "root": "/tmp/codex-science",
+                    "marketplaceSource": {
+                        "sourceType": "git",
+                        "source": "https://example.invalid/codex-science.git",
+                    },
+                }
+            ]
+        }
+        with mock.patch.object(
+            self.module,
+            "_run",
+            return_value=subprocess.CompletedProcess([], 0, json.dumps(payload), ""),
+        ) as run:
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertFalse(success)
+        self.assertIn("not a local source", reason)
+        run.assert_called_once()
+
+    def test_managed_marketplace_restores_previous_source_when_add_fails(self) -> None:
+        managed = self.root / "managed"
+        development = self.root / "development"
+        managed.mkdir()
+        development.mkdir()
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[-2:] == ["list", "--json"]:
+                payload = {
+                    "marketplaces": [
+                        {
+                            "name": "codex-science",
+                            "root": str(development),
+                            "marketplaceSource": {
+                                "sourceType": "local",
+                                "source": str(development),
+                            },
+                        }
+                    ]
+                }
+                return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+            if command == [
+                "codex",
+                "plugin",
+                "marketplace",
+                "add",
+                str(managed.resolve()),
+            ]:
+                return subprocess.CompletedProcess(command, 1, "", "add failed")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(self.module, "_run", side_effect=run):
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertFalse(success)
+        self.assertIn("add failed", reason)
+        self.assertIn("previous source restored", reason)
+        self.assertEqual(
+            ["codex", "plugin", "marketplace", "add", str(development.resolve())],
+            commands[-1],
+        )
+
     def test_private_cache_round_trips_and_expires(self) -> None:
         cache = self.plugin_data / "update-check.json"
         status = self.status()
@@ -611,8 +769,10 @@ class ScienceUpdateHookTests(unittest.TestCase):
 
         self.assertIn("--manual-update", installer)
         self.assertIn("--candidate-check", installer)
+        self.assertIn("--ensure-marketplace", installer)
         self.assertIn("--register-plugin", installer)
         self.assertNotIn("git -C \"$INSTALL_DIR\" pull", installer)
+        self.assertNotIn("codex plugin marketplace add \"$INSTALL_DIR\"", installer)
         self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null", installer)
         self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null 2>&1 || true", installer)
 

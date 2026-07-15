@@ -386,6 +386,62 @@ def _installed_cache_matches(source: Path) -> bool:
     return True
 
 
+def ensure_managed_marketplace(source: Path) -> tuple[bool, str]:
+    """Point the Codex Science marketplace at the managed installer checkout."""
+    source = Path(source).expanduser().resolve()
+    listing = _run(
+        ["codex", "plugin", "marketplace", "list", "--json"], timeout=30
+    )
+    if listing.returncode != 0:
+        return False, listing.stderr.strip() or "could not list plugin marketplaces"
+    try:
+        payload = json.loads(listing.stdout)
+        marketplaces = payload["marketplaces"]
+        matches = [item for item in marketplaces if item.get("name") == "codex-science"]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        return False, "Codex returned invalid marketplace metadata"
+    if len(matches) > 1:
+        return False, "Codex returned duplicate codex-science marketplaces"
+
+    add_command = ["codex", "plugin", "marketplace", "add", str(source)]
+    if not matches:
+        added = _run(add_command, timeout=30)
+        if added.returncode != 0:
+            return False, added.stderr.strip() or "could not add managed marketplace"
+        return True, "managed marketplace added"
+
+    current = matches[0]
+    source_metadata = current.get("marketplaceSource") or {}
+    source_type = source_metadata.get("sourceType")
+    if source_type not in {None, "local"}:
+        return False, "existing codex-science marketplace is not a local source"
+    previous_value = source_metadata.get("source") or current.get("root")
+    if not isinstance(previous_value, str) or not previous_value:
+        return False, "existing codex-science marketplace has no local source path"
+    previous = Path(previous_value).expanduser().resolve()
+    if previous == source:
+        return True, "managed marketplace already registered"
+
+    removed = _run(
+        ["codex", "plugin", "marketplace", "remove", "codex-science"],
+        timeout=30,
+    )
+    if removed.returncode != 0:
+        return False, removed.stderr.strip() or "could not remove previous marketplace source"
+    added = _run(add_command, timeout=30)
+    if added.returncode == 0:
+        return True, f"managed marketplace replaced previous source {previous}"
+
+    restored = _run(
+        ["codex", "plugin", "marketplace", "add", str(previous)], timeout=30
+    )
+    reason = added.stderr.strip() or "could not add managed marketplace"
+    if restored.returncode == 0:
+        return False, f"{reason}; previous source restored"
+    restore_reason = restored.stderr.strip() or "restore command failed"
+    return False, f"{reason}; previous source restore failed: {restore_reason}"
+
+
 def register_plugin_preserving_caches(source: Path) -> tuple[bool, str]:
     """Register one version while preserving caches pinned by existing Codex tasks."""
     source = Path(source).expanduser().resolve()
@@ -711,6 +767,11 @@ def main() -> int:
         return 0 if _candidate_self_check(Path(sys.argv[2]).resolve()) else 1
     if len(sys.argv) == 3 and sys.argv[1] == "--register-plugin":
         success, reason = register_plugin_preserving_caches(Path(sys.argv[2]))
+        stream = sys.stdout if success else sys.stderr
+        print(reason, file=stream)
+        return 0 if success else 1
+    if len(sys.argv) == 3 and sys.argv[1] == "--ensure-marketplace":
+        success, reason = ensure_managed_marketplace(Path(sys.argv[2]))
         stream = sys.stdout if success else sys.stderr
         print(reason, file=stream)
         return 0 if success else 1

@@ -95,7 +95,14 @@ info "Running bootstrap"
 
 # 3. Register globally without deleting versions pinned by existing Codex tasks.
 info "Registering Codex plugin"
-codex plugin marketplace add "$INSTALL_DIR" >/dev/null
+if python3 "$INSTALL_DIR/scripts/science_update_hook.py" \
+  --ensure-marketplace "$INSTALL_DIR" >/dev/null
+then
+  info "Managed marketplace points to $INSTALL_DIR"
+else
+  err "managed marketplace registration failed"
+  exit 1
+fi
 if python3 "$INSTALL_DIR/scripts/science_update_hook.py" \
   --register-plugin "$INSTALL_DIR" >/dev/null
 then
