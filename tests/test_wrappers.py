@@ -187,6 +187,8 @@ class SessionContractTests(unittest.TestCase):
         self.assertIn("update_goal", skill)
         self.assertIn("confirm-goal-complete", skill)
         self.assertIn("generic Stop-loop", skill)
+        self.assertIn("openai/codex#20783", skill)
+        self.assertIn("CODEX_SCIENCE_STOP_MODE=block", skill)
         self.assertIn("Codex Science 종료", skill)
         self.assertIn("catalog/codex-skills/<name>/SKILL.md", skill)
         self.assertIn("Do not activate for an ordinary scientific question", skill)
@@ -273,8 +275,12 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
             self.assertIn("scripts/install.sh | bash", text)
             self.assertIn("~/.codex-science", text)
         self.assertIn("does **not** run in the background", english)
+        self.assertIn("openai/codex#20783", english)
+        self.assertIn("CODEX_SCIENCE_STOP_MODE=block", english)
         self.assertIn("Do not register the development checkout", english)
         self.assertIn("백그라운드에서 실행되지", korean)
+        self.assertIn("openai/codex#20783", korean)
+        self.assertIn("CODEX_SCIENCE_STOP_MODE=block", korean)
         self.assertIn("개발 checkout을 Codex marketplace로 등록하지 마세요", korean)
 
     def test_readme_documents_safe_update_modes_and_examples(self) -> None:

@@ -20,18 +20,22 @@ Schema v3 and v4 use these states:
 
 | State | Stop hook | Meaning |
 | --- | --- | --- |
-| `active` | blocks | Execute the recorded `next_action`. |
+| `active` | warns by default | Execute the recorded `next_action`; the checkpoint remains resumable. |
 | `approval_required` | allows stop | Ask the batched, material user decision once. |
 | `waiting_external` | allows stop | Wait for the recorded interval or event; do not busy-poll. |
 | `blocked` | allows stop | A genuine prerequisite is missing. |
 | `abandoned` | allows stop | Terminal and permanently non-resumable. |
 | `complete` | allows stop | Local contract and, when used, native Goal confirmation finished. |
 
-The Stop guard has two independent limits: three idle continuations by default
-(configurable from 1–20 with `CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS`) and an
-absolute per-run continuation budget of 100 by default. A heartbeat resets only
-the idle count and requires a changed next action plus run-local progress
-evidence; it never resets the absolute budget.
+Blocking continuation is disabled by default because openai/codex#20783 can
+serialize the hook-generated local message UUID as an API `message.id`. The
+default warning path does not mutate continuation counters. For compatibility
+testing only, `CODEX_SCIENCE_STOP_MODE=block` restores the legacy path; its two
+limits are three idle continuations by default (configurable from 1–20 with
+`CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS`) and an absolute per-run continuation
+budget of 100. A heartbeat resets only the idle count and requires a changed
+next action plus run-local progress evidence; it never resets the absolute
+budget.
 
 `waiting_external` stores `poll_interval_seconds`, a next action, and a terminal
 rule. Resume it only when that interval/event has arrived, then perform one
@@ -60,7 +64,7 @@ Without native Goal mode, `complete` then makes the checkpoint terminal. With
 
 Hooks cannot call or observe `get_goal` or `update_goal`; those are host tools
 used by the coordinator. The Goal receipt is an agent attestation derived from
-host tool output, not hook-authenticated proof. On each automatic continuation the coordinator must
+host tool output, not hook-authenticated proof. On each Goal continuation the coordinator must
 reload the checkpoint and, for native Goal mode, call `get_goal`. Do not stack a
 second generic or Ralph-style Stop loop on top of Codex Science.
 

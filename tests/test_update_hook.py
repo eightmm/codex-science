@@ -771,6 +771,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
         self.assertIn("--candidate-check", installer)
         self.assertIn("--ensure-marketplace", installer)
         self.assertIn("--register-plugin", installer)
+        self.assertIn('"CODEX_SCIENCE_STOP_MODE": "block"', installer)
         self.assertNotIn("git -C \"$INSTALL_DIR\" pull", installer)
         self.assertNotIn("codex plugin marketplace add \"$INSTALL_DIR\"", installer)
         self.assertNotIn("codex plugin add codex-science@codex-science >/dev/null", installer)

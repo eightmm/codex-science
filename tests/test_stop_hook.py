@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.checkpoints import create_checkpoint, request_decision
+from codex_science.checkpoints import create_checkpoint, load_checkpoint, request_decision
 from codex_science.sessions import session_key
 
 
@@ -27,10 +27,14 @@ class ScienceStopHookTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
-    def env(self, *, idle_limit: int = 3) -> dict[str, str]:
+    def env(self, *, idle_limit: int = 3, stop_mode: str | None = None) -> dict[str, str]:
         env = os.environ.copy()
         env["PLUGIN_DATA"] = str(self.plugin_data)
         env["CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS"] = str(idle_limit)
+        if stop_mode is None:
+            env.pop("CODEX_SCIENCE_STOP_MODE", None)
+        else:
+            env["CODEX_SCIENCE_STOP_MODE"] = stop_mode
         return env
 
     def activate(self) -> None:
@@ -70,7 +74,13 @@ class ScienceStopHookTests(unittest.TestCase):
             session_key=getattr(self, "active_key", session_key(self.session_id)),
         )
 
-    def stop(self, *, session_id: str | None = None, idle_limit: int = 3):
+    def stop(
+        self,
+        *,
+        session_id: str | None = None,
+        idle_limit: int = 3,
+        stop_mode: str | None = None,
+    ):
         payload = {
             "cwd": str(self.workspace),
             "hook_event_name": "Stop",
@@ -86,17 +96,29 @@ class ScienceStopHookTests(unittest.TestCase):
             input=json.dumps(payload),
             capture_output=True,
             text=True,
-            env=self.env(idle_limit=idle_limit),
+            env=self.env(idle_limit=idle_limit, stop_mode=stop_mode),
             check=False,
         )
         output = json.loads(result.stdout) if result.stdout.strip() else None
         return result, output
 
-    def test_active_checkpoint_blocks_stop_and_supplies_next_action(self) -> None:
+    def test_active_checkpoint_warns_without_blocking_by_default(self) -> None:
         self.activate()
         self.create()
 
         result, output = self.stop()
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("decision", output)
+        self.assertIn("blocking continuation is disabled", output["systemMessage"])
+        self.assertIn("Search the second primary source", output["systemMessage"])
+        self.assertEqual(0, load_checkpoint(self.run_dir)["idle_continuations"])
+
+    def test_explicit_block_mode_supplies_next_action(self) -> None:
+        self.activate()
+        self.create()
+
+        result, output = self.stop(stop_mode="block")
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("block", output["decision"])
@@ -130,9 +152,9 @@ class ScienceStopHookTests(unittest.TestCase):
         self.activate()
         self.create()
 
-        _, first = self.stop(idle_limit=2)
-        _, second = self.stop(idle_limit=2)
-        _, exhausted = self.stop(idle_limit=2)
+        _, first = self.stop(idle_limit=2, stop_mode="block")
+        _, second = self.stop(idle_limit=2, stop_mode="block")
+        _, exhausted = self.stop(idle_limit=2, stop_mode="block")
 
         self.assertEqual("block", first["decision"])
         self.assertEqual("block", second["decision"])

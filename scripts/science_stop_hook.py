@@ -13,7 +13,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.checkpoints import find_active_checkpoint, request_continuation  # noqa: E402
+from codex_science.checkpoints import (  # noqa: E402
+    find_active_checkpoint,
+    load_checkpoint,
+    request_continuation,
+)
 from codex_science.sessions import (  # noqa: E402
     activation_path,
     read_activation_generation,
@@ -40,6 +44,10 @@ def _idle_limit() -> int:
     except ValueError:
         return DEFAULT_IDLE_LIMIT
     return min(max(value, 1), MAX_IDLE_LIMIT)
+
+
+def _blocking_enabled() -> bool:
+    return os.environ.get("CODEX_SCIENCE_STOP_MODE", "warn").strip().lower() == "block"
 
 
 def _bounded(value: object, limit: int = 1000) -> str:
@@ -78,6 +86,19 @@ def main() -> int:
     try:
         run_dir = find_active_checkpoint(Path(cwd), key)
         if run_dir is None:
+            return 0
+        if not _blocking_enabled():
+            checkpoint = load_checkpoint(run_dir)
+            _emit(
+                {
+                    "systemMessage": (
+                        "Codex Science run remains active, but blocking continuation is disabled "
+                        "because Codex can reject hook-generated local message IDs "
+                        "(openai/codex#20783). Continue in the next user turn: "
+                        f"{_bounded(checkpoint['next_action'], 500)}"
+                    )
+                }
+            )
             return 0
         result = request_continuation(run_dir, session_key=key, idle_limit=_idle_limit())
     except (

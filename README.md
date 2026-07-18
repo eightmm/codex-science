@@ -36,9 +36,12 @@ source if the replacement cannot be added.
 
 Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
 
-Trust the `Stop` hook too. It is the guarded auto-continue mechanism. Hook trust
-is tied to the exact definition, so after an update that changes hooks, review
-the Codex Science hooks in `/hooks` again.
+Trust the `Stop` hook too. It reports the saved next action when a run remains
+active. Blocking same-turn continuation is temporarily disabled by default
+because of the open Codex bug [openai/codex#20783](https://github.com/openai/codex/issues/20783),
+which can send a hook-generated local UUID as an API message ID and break the
+next request. Hook trust is tied to the exact definition, so after an update
+that changes hooks, review the Codex Science hooks in `/hooks` again.
 
 `/hooks` is the human security boundary: it approves the plugin command but does
 not start the science mode. Keep that approval as a deliberate user action. Once
@@ -108,15 +111,20 @@ context compaction; prompts, credentials, private data, and conclusions are not
 stored in it.
 
 For multi-step work, the checkpoint is bound to the current activation's owner
-key. If Codex tries to finish while that checkpoint is still `active`, the
-plugin's `Stop` hook rejects the progress-only response and feeds the recorded
-next action back into the same turn. A `heartbeat` records meaningful same-step
-progress. Three stop attempts without a heartbeat or state transition trigger a
-safety escape, and every run also has an absolute continuation budget of 100.
-Set `CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS=1..20` before launching Codex to change
-the no-progress limit. `approval_required`, `waiting_external`, and `blocked`
-allow the turn to stop; in particular, `waiting_external` records a polling
+key. The `Stop` hook now warns with the recorded next action but allows the turn
+to end, leaving the checkpoint unchanged for the next prompt, resume, or native
+Goal continuation. Do not rely on the hook to rescue an early final response;
+the coordinator must keep working in the current turn and record a `heartbeat`
+after meaningful same-step progress. `approval_required`, `waiting_external`,
+and `blocked` remain explicit pause states; `waiting_external` records a polling
 interval and terminal rule instead of busy-polling a remote job.
+
+`CODEX_SCIENCE_STOP_MODE=block` restores the legacy blocking path only for
+compatibility testing after an installed Codex build includes the upstream fix.
+Do not enable it while openai/codex#20783 remains reproducible. In that opt-in
+mode, three stop attempts without progress trigger a safety escape,
+`CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS=1..20` changes that limit, and every run
+still has an absolute continuation budget of 100.
 
 Codex Science does **not** run in the background after the Codex app or task is
 closed, and it cannot bypass hook trust, permission prompts, approval gates, or
@@ -163,8 +171,8 @@ activation creates a new generation and owner key. Rotation prevents an old run
 from regaining the guard even when its artifact is no longer discoverable.
 Activation markers expire after 180 days of inactivity. If the
 `SessionStart`, `UserPromptSubmit`, and `Stop` hooks have not all been trusted,
-same-task conversation continuity remains a best-effort fallback, but
-resume/compaction and guarded auto-continue are not guaranteed.
+same-task conversation continuity remains a best-effort fallback, and
+resume/compaction context plus the active-checkpoint warning are not guaranteed.
 
 Stop it explicitly:
 

@@ -43,11 +43,14 @@ the generation and owner key, so an old run cannot regain the guard even if its
 artifact was not discoverable during deactivation. Inactive markers expire after
 180 days.
 
-The `Stop` hook only rejects a stop while the owned checkpoint is `active`.
-Approval gates, genuine blockers, and `waiting_external` allow the turn to end.
-An external wait records a poll interval and terminal rule so Codex does not
-busy-poll. Each run has a default absolute continuation budget of 100, in
-addition to the no-progress safety limit.
+The `Stop` hook warns when the owned checkpoint is `active` but allows the turn
+to end by default. This avoids openai/codex#20783, where a blocking continuation
+can poison the next API request with a local UUID. Approval gates, genuine
+blockers, and `waiting_external` end without that warning. An external wait
+records a poll interval and terminal rule so Codex does not busy-poll.
+`CODEX_SCIENCE_STOP_MODE=block` is retained only for compatibility testing after
+the installed Codex includes the upstream fix; its legacy path has a default
+absolute continuation budget of 100 plus the no-progress safety limit.
 
 Native Goal mode is optional and must be requested explicitly with `/goal`.
 Hooks cannot call or observe Goal tools; the coordinator uses `get_goal` during
@@ -92,8 +95,8 @@ marketplace registration. `bootstrap.sh` verifies the Python version and
 shallow-fetches the pinned upstream skills submodule; `--recurse-submodules` at
 clone time is not required. The one-command installer additionally exercises the
 MCP server, generation-derived activation key, a temporary schema-v4 checkpoint,
-active-run Stop rejection, external-wait Stop allowance, and the update lifecycle
-before reporting success.
+the opt-in active-run Stop rejection path, external-wait Stop allowance, and the
+update lifecycle before reporting success.
 
 ## Verify
 

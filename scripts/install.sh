@@ -158,7 +158,11 @@ workspace = plugin_data / "workspace"
 run_dir = workspace / "artifacts" / "install-self-check"
 workspace.mkdir()
 session_id = "install-self-check"
-environment = {**os.environ, "PLUGIN_DATA": str(plugin_data)}
+environment = {
+    **os.environ,
+    "PLUGIN_DATA": str(plugin_data),
+    "CODEX_SCIENCE_STOP_MODE": "block",
+}
 
 
 def hook(script: str, event: str, **extra: object) -> subprocess.CompletedProcess[str]:

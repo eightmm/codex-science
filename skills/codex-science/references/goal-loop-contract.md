@@ -33,4 +33,4 @@ Use native Goal only for explicit long-running or finish-to-completion intent. I
 
 Review and Goal receipts are hashed, auditable agent attestations. Hooks do not authenticate reviewer identity and cannot inspect host Goal state; the separate reviewer and faithful transcription of the host result remain procedural controls.
 
-Never use a false completion statement to escape a loop. Never run another generic Stop-loop alongside this guard; matching hooks execute concurrently and cannot establish a shared completion contract.
+Never use a false completion statement to escape a loop. The Codex Science Stop hook is warning-only by default because openai/codex#20783 can corrupt the next request after a blocking continuation. Native Goal owns automatic task continuation when explicitly requested. Never run another generic blocking Stop-loop alongside this hook; matching hooks execute concurrently and cannot establish a shared completion contract.
