@@ -1,0 +1,33 @@
+name: Platform new contracts
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - name: Release and connector v2
+        continue-on-error: true
+        run: uv run python -m unittest discover -s tests -p test_release_connector_v2.py
+      - name: Evidence and review v2
+        continue-on-error: true
+        run: uv run python -m unittest discover -s tests -p test_evidence_review_v2.py
+      - name: Collaboration and literature v2
+        continue-on-error: true
+        run: uv run python -m unittest discover -s tests -p test_collaboration_literature_v2.py
+      - name: Model registry v2
+        continue-on-error: true
+        run: uv run python -m unittest discover -s tests -p test_model_registry_v2.py
+      - name: Executable SBDD
+        continue-on-error: true
+        run: uv run python -m unittest discover -s tests -p test_sbdd_execution.py
