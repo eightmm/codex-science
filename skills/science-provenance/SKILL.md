@@ -46,7 +46,7 @@ Run `<plugin-root>/scripts/validate_artifact.py <manifest>` to verify artifact b
 11. Hash every saved output with SHA-256 and add it to `artifacts` using a path relative to the run directory. Preserve the raw or minimally processed data behind derived tables and figures when lawful and practical.
 12. Link each claim to one or more saved evidence paths, execution IDs, or primary-source identifiers. Record supporting, contradicting, and dependency edges; a duplicated portal record must not masquerade as independent replication.
 13. Label every result as planned, sensitivity, exploratory, failed, or inconclusive. Record uncertainty, units, sample counts, aggregation rules, applicability domain, and the exact code or query that produced it.
-14. When a visual materially improves interpretation, create a data-derived static raster figure beside the underlying table or data. Use domain-appropriate labels, units, uncertainty, legends, and readable resolution. Never present a decorative or model-imagined image as scientific evidence.
+14. When a visual materially improves interpretation, create a data-derived static raster figure beside the underlying table or data. Use domain-appropriate labels, units, uncertainty, legends, and readable resolution. Do not invent a decorative or model-imagined image or present it as scientific evidence.
 
 Treat every raster artifact referenced as claim evidence as primary for bundle validation, review invalidation, index navigation, and final presentation.
 
