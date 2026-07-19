@@ -33,5 +33,7 @@ jobs:
         run: ./scripts/check.sh inventory
       - name: Verify generated wrappers
         run: ./scripts/check.sh wrappers
+      - name: Validate evidence, model, and SBDD contracts
+        run: ./scripts/check.sh contracts
       - name: Validate plugin and skills when validators are available
         run: ./scripts/check.sh skills
