@@ -23,7 +23,7 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           python-version: "3.11"
-      - name: Regenerate catalog, wrappers, and README counts
+      - name: Refresh README counts
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -52,9 +52,22 @@ jobs:
                       raise SystemExit(f"missing README marker: {filename}: {old}")
               path.write_text(text, encoding="utf-8")
           PY
-          uv run python scripts/audit_skills.py
-          uv run python scripts/generate_wrappers.py
-          ./scripts/check.sh fast
+      - name: Audit deterministic skill inventory
+        run: uv run python scripts/audit_skills.py
+      - name: Generate catalog wrappers
+        run: uv run python scripts/generate_wrappers.py
+      - name: Compile Python sources
+        run: ./scripts/check.sh compile
+      - name: Run unit tests
+        run: ./scripts/check.sh tests
+      - name: Verify inventory determinism
+        run: ./scripts/check.sh inventory
+      - name: Verify generated wrappers
+        run: ./scripts/check.sh wrappers
+      - name: Validate evidence, model, and SBDD contracts
+        run: ./scripts/check.sh contracts
+      - name: Validate plugin and skills when validators are available
+        run: ./scripts/check.sh skills
       - name: Restore permanent CI definition
         run: |
           cp scripts/ci.permanent.yml .github/workflows/ci.yml
