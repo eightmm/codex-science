@@ -36,6 +36,20 @@ While this mode is active, prefer Codex Science MCP tools and `status: active` c
 
 Fall back to general-purpose tools or skills only when no suitable Science capability exists, the Science capability is unavailable or fails, or a higher-priority instruction requires another route. This preference does not override the activation gate, the approved plan, user instructions, project rules, or safety policy; never select an inactive skill silently.
 
+## Research contract and evidence graph
+
+For every non-trivial run, create a compact contract before retrieval or execution:
+
+- **Decision:** the question, intended decision or deliverable, population or system, evidence cutoff, non-goals, and what would change the conclusion.
+- **Claims:** stable claim IDs with claim type, required support, falsifier, and permitted inference level. Do not write the conclusion first and search only for confirmation.
+- **Evidence lanes:** the smallest independent retrieval or execution tracks needed to discriminate the claims. Give each lane explicit source, query, inclusion, exclusion, and stop rules.
+- **Acceptance:** baseline, primary metric or evidence threshold, uncertainty rule, and objective done criteria fixed before outcome inspection.
+- **Risks:** approval boundaries, sensitive data, cost, licensing, source drift, model-training overlap, and other threats to validity.
+
+Represent support, contradiction, duplication, and dependency explicitly. Two portals that expose the same study are one evidence dependency, not two replications. A search-result list, successful process, model confidence score, or attractive figure is not by itself a scientific result, and final confidence cannot exceed the weakest essential evidence link.
+
+Read `<plugin-root>/docs/NATIVE_SKILL_STANDARD.md` when composing or auditing a Codex-native workflow.
+
 ## Workflow
 
 1. State the research question, expected deliverable, evidence boundary, and important non-goals.
@@ -49,6 +63,18 @@ Fall back to general-purpose tools or skills only when no suitable Science capab
 9. Use `$science-provenance` to save code, commands, environment, outputs, claims, and evidence under the current research project's `artifacts/<run-id>/` directory.
 10. Use `$science-review` after producing claims. Delegate review to a separate subagent when available; give it the approved plan, artifact manifest, execution record, and outputs, not the intended conclusion. Attach the passed JSON receipt with `science_checkpoint.py review --artifact-ref`; the receipt must name the reviewer and attest independence. The checkpoint hashes this statement but cannot authenticate reviewer identity; a self-review is not independent.
 11. Resolve findings or mark them open. Satisfy every objective criterion with `science_checkpoint.py criterion` and a run-local evidence reference. Complete the checkpoint only after every planned step, criterion, and independent review passes, then report conclusions, uncertainty, limitations, and exact artifact paths.
+
+## Lane delegation and synthesis
+
+Delegate only lanes that can be evaluated independently. Give every lane the normalized inputs, claim IDs, evidence boundary, exact output schema, and artifact directory; withhold the intended conclusion from reviewers and avoid having multiple agents repeat the same search.
+
+Each lane must return a lane receipt containing the question addressed, sources and releases, exact queries or commands, included and excluded records, artifact paths and hashes, supported and contradicted claim IDs, limitations, confidence, and unresolved next action. The coordinator owns entity normalization, source-dependency deduplication, contradiction resolution, and final synthesis.
+
+For literature synthesis, define the review question and eligibility criteria, search complementary primary-literature sources, preserve query strings and dates, deduplicate by persistent identifier and study, distinguish peer-reviewed articles from preprints and registry records, and build a study-level evidence table rather than a citation list.
+
+## Completion test
+
+Before declaring success, verify that the requested deliverable exists; every plan step and objective criterion has terminal evidence; every material claim maps to primary evidence or a saved computation; queries, commands, environments, model revisions, inputs, and output hashes are recorded; uncertainty and generalization boundaries are explicit; unresolved reviewer findings are visible; and a clean rerun path is documented.
 
 ## Persistence and autonomy
 
