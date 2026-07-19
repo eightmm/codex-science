@@ -12,6 +12,9 @@ spec = importlib.util.spec_from_file_location("codex_science_stable_updater", UP
 if spec is None or spec.loader is None:
     raise SystemExit("could not load stable Codex Science updater")
 module = importlib.util.module_from_spec(spec)
+# dataclasses and other runtime type machinery resolve the defining module
+# through sys.modules during execution, so register it before exec_module.
+sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 _original_candidate_self_check = module._candidate_self_check
 
