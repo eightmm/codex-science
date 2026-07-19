@@ -139,16 +139,27 @@ class NativeSkillQualityTests(unittest.TestCase):
     def test_native_skill_standard_and_roadmap_are_present(self) -> None:
         standard = (ROOT / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")
         roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+        sidecars = (
+            ROOT / "skills" / "science-provenance" / "references" / "artifact-contract.md"
+        ).read_text(encoding="utf-8")
 
         for phrase in (
             "## Mandatory instruction contract",
             "## Claim semantics",
             "## Evidence lanes",
-            "## Repository sidecar vocabulary",
             "## Maturity levels",
             "## Repository quality gate",
         ):
             self.assertIn(phrase, standard)
+
+        for phrase in (
+            "## Validated sidecars",
+            "`claim-register`",
+            "`evidence-graph`",
+            "`query-ledger`",
+            "`model-receipt`",
+        ):
+            self.assertIn(phrase, sidecars)
 
         for phrase in (
             "## North star",

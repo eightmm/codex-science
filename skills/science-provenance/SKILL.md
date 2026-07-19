@@ -16,7 +16,6 @@ For a non-trivial active run, keep `checkpoint.json` beside the manifest as muta
 3. Give each planned claim a stable ID before synthesis. Record its type, permitted inference level, required support, falsifier, dependencies, and final status.
 4. For parallel work, save a lane receipt for each evidence or execution lane: normalized inputs, sources or code revision, exact queries or commands, included and excluded records, outputs, hashes, supported and contradicted claim IDs, limitations, confidence, and next action.
 
-
 ## Hashed sidecar contract
 
 Keep manifest schema version 1 stable. Add richer semantics as ordinary manifest artifacts with these `kind` values:
@@ -48,6 +47,8 @@ Run `<plugin-root>/scripts/validate_artifact.py <manifest>` to verify artifact b
 12. Link each claim to one or more saved evidence paths, execution IDs, or primary-source identifiers. Record supporting, contradicting, and dependency edges; a duplicated portal record must not masquerade as independent replication.
 13. Label every result as planned, sensitivity, exploratory, failed, or inconclusive. Record uncertainty, units, sample counts, aggregation rules, applicability domain, and the exact code or query that produced it.
 14. When a visual materially improves interpretation, create a data-derived static raster figure beside the underlying table or data. Use domain-appropriate labels, units, uncertainty, legends, and readable resolution. Never present a decorative or model-imagined image as scientific evidence.
+
+Treat every raster artifact referenced as claim evidence as primary for bundle validation, review invalidation, index navigation, and final presentation.
 
 ## Reproducibility level
 
