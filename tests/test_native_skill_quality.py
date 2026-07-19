@@ -48,6 +48,12 @@ TIER1_SKILLS = {
         "abstention",
         "held-out",
     ),
+    "literature-review": (
+        "study level",
+        "queries.jsonl",
+        "living-update mode",
+        "citation list",
+    ),
 }
 
 REQUIRED_SECTIONS = (
@@ -110,6 +116,8 @@ class NativeSkillQualityTests(unittest.TestCase):
             "queries.jsonl",
             "claim",
             "lane receipt",
+            "claim-register",
+            "model-receipt",
             "independently reproduced",
         ):
             self.assertIn(phrase, provenance)
@@ -122,6 +130,8 @@ class NativeSkillQualityTests(unittest.TestCase):
             "`method`",
             "`source`",
             "source-dependency",
+            "audit_sbdd_benchmark.py",
+            "model-receipt",
             "re-review",
         ):
             self.assertIn(phrase, review_lower)
@@ -134,6 +144,7 @@ class NativeSkillQualityTests(unittest.TestCase):
             "## Mandatory instruction contract",
             "## Claim semantics",
             "## Evidence lanes",
+            "## Repository sidecar vocabulary",
             "## Maturity levels",
             "## Repository quality gate",
         ):
