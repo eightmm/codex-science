@@ -2,6 +2,8 @@ name: Apply complete science platform
 
 on:
   pull_request:
+  push:
+    branches: [agent/complete-science-platform]
 
 permissions:
   contents: write
@@ -14,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
           submodules: recursive
           fetch-depth: 0
       - name: Install uv
@@ -87,11 +89,12 @@ jobs:
       - name: Persist payload diagnostics
         if: steps.payload.outcome == 'failure'
         run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/platform-payload/actual.json
-          git commit -m "Record payload integrity diagnostics"
-          git push origin HEAD:${GITHUB_HEAD_REF}
+          git commit -m "Record payload integrity diagnostics" || true
+          git push origin HEAD:"$branch"
           exit 1
       - name: Finalize source integrations
         if: steps.payload.outcome == 'success'
@@ -112,8 +115,9 @@ jobs:
       - name: Commit complete implementation
         if: steps.payload.outcome == 'success'
         run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Implement complete scientific platform contracts"
-          git push origin HEAD:${GITHUB_HEAD_REF}
+          git push origin HEAD:"$branch"
