@@ -1,6 +1,6 @@
 {
   "name": "codex-science",
-  "version": "0.1.0+codex.20260718170710",
+  "version": "0.3.0+codex.20260719000100",
   "description": "Audited scientific skills, public-source tools, reproducible artifacts, and evidence review for Codex.",
   "author": {
     "name": "eightmm"
@@ -9,12 +9,12 @@
   "interface": {
     "displayName": "Codex Science",
     "shortDescription": "Run reproducible scientific research in Codex.",
-    "longDescription": "Coordinate scientific work with an audited multi-source skill catalog, read-only public data tools, real uv-based execution, structured provenance, and independent evidence review.",
+    "longDescription": "Coordinate scientific work with an audited multi-source skill catalog, replayable read-only public data tools, reproducible execution, structured provenance, and independent evidence review.",
     "developerName": "eightmm",
     "category": "Productivity",
     "capabilities": [
       "Scientific research",
-      "Read-only public data",
+      "Replayable public data",
       "Reproducible artifacts",
       "Evidence review"
     ],

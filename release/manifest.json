@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "package_version": "0.3.0",
+  "plugin_version": "0.3.0+codex.20260719000100",
+  "mcp_version": "0.3.0",
+  "runtime_affecting_prefixes": [
+    ".codex-plugin/",
+    ".mcp.json",
+    "authored-skills/",
+    "catalog/",
+    "connectors/",
+    "hooks/",
+    "models/",
+    "scripts/",
+    "skills/",
+    "src/"
+  ]
+}
