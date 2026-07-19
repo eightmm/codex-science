@@ -1,0 +1,40 @@
+name: Test diagnostics
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.tests.outputs.files }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - id: tests
+        name: Discover test modules
+        shell: bash
+        run: |
+          files="$(find tests -maxdepth 1 -type f -name 'test_*.py' -printf '%f\n' | sort | jq -R -s -c 'split("\n")[:-1]')"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+
+  test-file:
+    needs: discover
+    name: ${{ matrix.test-file }} (3.11)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test-file: ${{ fromJSON(needs.discover.outputs.files) }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - name: Run ${{ matrix.test-file }}
+        run: uv run python -m unittest discover -s tests -p "${{ matrix.test-file }}"
