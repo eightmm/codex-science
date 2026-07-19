@@ -2,10 +2,9 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# Light installer: the catalog, wrappers, and inventory are committed, and the
-# runtime is pure Python stdlib, so installing only needs a compatible
-# interpreter plus the pinned upstream instructions (shallow submodule).
-# For development verification (regeneration, tests, doctor) use scripts/check.sh.
+# Light installer: committed catalog/wrappers plus a compatible interpreter and
+# the pinned upstream skill submodule. The deterministic candidate contract is
+# also exercised so fresh installs and managed updates use the same safety gate.
 
 python3 - <<'PY'
 import sys
@@ -14,9 +13,8 @@ if sys.version_info < (3, 11):
 print(f"python {sys.version.split()[0]} ok")
 PY
 
-# Upstream skill instructions live in a pinned submodule. Shallow-fetch it so
-# selected skills can show their upstream text without downloading full history.
 git submodule update --init --recursive --depth 1 vendor/scientific-agent-skills
+python3 scripts/candidate_contract_check.py --root "$PWD"
 
 cat <<'EOF'
 bootstrap: ok
