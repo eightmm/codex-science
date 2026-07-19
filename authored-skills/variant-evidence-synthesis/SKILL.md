@@ -6,13 +6,13 @@ license: MIT
 
 # Variant Evidence Synthesis
 
-1. Normalize assembly and allele with `$cx-biomedical-entity-normalization`; keep multi-allelic records separate.
-2. Retrieve frequency/constraint from `$cx-gnomad-search`, clinical assertions from `$cx-clinvar-search`, annotation from `$cx-ensembl-search`, and curated associations from `$cx-gwas-catalog-search`.
-3. Add tissue/regulatory evidence only where relevant using GTEx, ENCODE, HPA/Bgee, or AlphaGenome/Borzoi workflows.
-4. Run `$cx-phewas-replication-analysis` for cross-cohort phenotype evidence.
-5. Compare effect allele, direction, ancestry, phenotype definition, model, sample size, p-value, multiple-testing context, and release.
-6. Produce an evidence matrix, conflicts, missing evidence, and testable follow-ups; record artifacts and run `$science-review`.
-
-Do not equate association, in-silico effect, ClinVar assertion, or one cohort with causality or clinical actionability.
-
-Store the evidence matrix and exact source queries with `$science-provenance` before `$science-review`.
+## Decision contract
+Define assembly, normalized allele, transcript or regulatory context, phenotype, population, evidence cutoff, intended research decision, and non-goals; keep multiallelic records and allele-specific claims separate.
+## Workflow
+Retrieve population frequency and constraint, clinical assertions, predicted molecular consequences, curated associations, regulatory and expression evidence, and cross-cohort PheWAS only when relevant; preserve effect allele, strand, ancestry, phenotype definition, model, sample size, uncertainty, correction scope, source release, and assertion review status.
+Triangulate independent lanes rather than counting portals, test direction and allele alignment, distinguish primary evidence from propagated summaries, and reconcile conflicts with `$cx-biomedical-evidence-reconciliation`.
+## Outputs
+Return a claim-evidence matrix, allele-alignment audit, cohort comparison, conflicts, missing evidence, confidence by claim, and falsifiable functional or replication follow-ups.
+## Boundaries
+Do not equate association, in-silico effect, a ClinVar assertion, one cohort, or regulatory overlap with causality or clinical actionability; explicitly mark ancestry, ascertainment, LD, transcript, and tissue limitations.
+Store exact queries, normalized records, source snapshots, and evidence tables with `$science-provenance`; run `$science-review` before reporting an interpretation.
