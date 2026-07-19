@@ -22,7 +22,7 @@ A review may combine modes, but never imply a computation was reproduced when on
 
 ## Review workflow
 
-1. Run `<plugin-root>/scripts/validate_artifact.py <manifest> --review-output <run-dir>/review.json` for deterministic structural checks.
+1. Run `<plugin-root>/scripts/validate_artifact.py <manifest> --review-output <run-dir>/review.json --require-passed-review` for deterministic artifact-byte, sidecar-schema, and record/source checks. Do not use this flag for the producer's first diagnostic pass when unresolved findings are expected.
 2. Build a claim register from the deliverable and manifest. For each material claim, record type, inference level, supporting and contradicting evidence, dependencies, uncertainty, and required review mode.
 3. Verify execution integrity: successful command and exit status, input and output hashes, code and configuration identity, environment and model revision, seed handling, log consistency, and agreement between reported values and saved outputs.
 4. Verify retrieval integrity: exact query or request, source and release, access date, identifier normalization, inclusion and exclusion decisions, snapshot or response identity, source-dependency links, and whether duplicated portals expose the same underlying study.
@@ -34,6 +34,15 @@ A review may combine modes, but never imply a computation was reproduced when on
 10. Compare the deliverable with the artifact record. Flag unsupported computed claims, contradictions, overstated confidence, missing negative results, citation mismatch, stale source state, and any conclusion exceeding the weakest essential evidence link.
 11. Emit findings with stable ID, severity, affected claim or artifact, evidence, rationale, required correction or validation, owner, and resolution status. Do not silently edit the producer's record.
 12. Re-review corrections. Preserve the original finding, resolution evidence, and residual risk; a finding is resolved only when the changed claim or new evidence passes the same check.
+
+
+## Seeded-defect and benchmark review
+
+For literature reviews, verify that duplicate persistent IDs, citation relationships not declared by the study table, supported claims without required evidence, shared cohorts presented as replication, and failed queries used as support are detected. Use the checked-in literature fixture and its living-review diff as a minimum contract.
+
+For structure-based drug discovery, run `<plugin-root>/scripts/audit_sbdd_benchmark.py <benchmark.json>`. Treat held-out bound-pose pocket information, analog-series or scaffold leakage, cold-target violations, known training overlap, missing subgroup analysis, and affinity or mechanism claims without assay-aware validation as blocking findings. A clean process exit or favorable docking score is not a scientific pass.
+
+For model-backed runs, resolve the model in `<plugin-root>/models/registry.json` and verify the `model-receipt` fingerprint. A model contract, code, weight, database, configuration, or input change invalidates a prior acceptance or review receipt.
 
 ## Finding severity
 
