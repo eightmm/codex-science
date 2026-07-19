@@ -96,24 +96,52 @@ jobs:
           git commit -m "Record payload integrity diagnostics" || true
           git push origin HEAD:"$branch"
           exit 1
-      - name: Finalize source integrations
-        if: steps.payload.outcome == 'success'
-        run: uv run python scripts/finalize_platform_source.py
-      - name: Validate staged candidate
-        if: steps.payload.outcome == 'success'
-        run: uv run python scripts/candidate_contract_check.py
-      - name: Run complete fast validation
-        if: steps.payload.outcome == 'success'
-        run: ./scripts/check.sh fast
-      - name: Remove temporary application resources
+      - name: Commit expanded implementation source
         if: steps.payload.outcome == 'success'
         run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Expand complete scientific platform source" || true
+          git push origin HEAD:"$branch"
+      - id: finalize
+        name: Finalize source integrations
+        if: steps.payload.outcome == 'success'
+        continue-on-error: true
+        run: |
+          mkdir -p .ci
+          set +e
+          uv run python scripts/finalize_platform_source.py > .ci/finalize.log 2>&1
+          status=$?
+          cat .ci/finalize.log
+          exit "$status"
+      - name: Persist finalization diagnostics
+        if: steps.finalize.outcome == 'failure'
+        run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Record platform finalization diagnostics" || true
+          git push origin HEAD:"$branch"
+          exit 1
+      - name: Validate staged candidate
+        if: steps.finalize.outcome == 'success'
+        run: uv run python scripts/candidate_contract_check.py
+      - name: Run complete fast validation
+        if: steps.finalize.outcome == 'success'
+        run: ./scripts/check.sh fast
+      - name: Remove temporary application resources
+        if: steps.finalize.outcome == 'success'
+        run: |
           rm -rf .github/platform-payload
+          rm -rf .ci
           rm -f .github/workflows/apply-complete-platform.yml
           rm -f scripts/finalize_platform_source.py
           rm -f scripts/patch_update_hook_contract.py
       - name: Commit complete implementation
-        if: steps.payload.outcome == 'success'
+        if: steps.finalize.outcome == 'success'
         run: |
           branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           git config user.name "github-actions[bot]"
