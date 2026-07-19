@@ -1,0 +1,407 @@
+{
+  "models": [
+    {
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental_affinity",
+          "binding_probability"
+        ],
+        "outputs": [
+          "vina_score_kcal_per_mol",
+          "pose_rank"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "docking",
+      "hardware": {
+        "cpu": "supported",
+        "gpu": "not-required",
+        "minimum_vram_gb": 0
+      },
+      "id": "autodock-vina",
+      "implementation": {
+        "repository": "https://github.com/ccsb-scripps/AutoDock-Vina",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "held-out bound-pose pocket leakage",
+        "analog-series leakage",
+        "receptor-state leakage"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "not-applicable"
+      },
+      "modalities": [
+        "protein-ligand-pose-generation",
+        "virtual-screening"
+      ],
+      "required_databases": [],
+      "skill": "cx-autodock-vina-docking",
+      "training_cutoff": null,
+      "validated_tasks": [
+        "redocking",
+        "pose-generation",
+        "exploratory-screening"
+      ],
+      "weights": {
+        "revision_policy": "not-applicable"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental_affinity",
+          "calibrated_probability"
+        ],
+        "outputs": [
+          "cnn_pose_score",
+          "cnn_affinity_prediction"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "docking",
+      "hardware": {
+        "cpu": "limited",
+        "gpu": "recommended",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "gnina",
+      "implementation": {
+        "repository": "https://github.com/gnina/gnina",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "training-complex overlap",
+        "analog-series leakage",
+        "pocket leakage"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-pinned-release"
+      },
+      "modalities": [
+        "protein-ligand-pose-generation",
+        "cnn-rescoring"
+      ],
+      "required_databases": [],
+      "skill": "cx-gnina-docking",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "redocking",
+        "pose-reranking",
+        "exploratory-screening"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental_affinity",
+          "binding_probability"
+        ],
+        "outputs": [
+          "diffusion_confidence",
+          "pose_ensemble"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "docking",
+      "hardware": {
+        "cpu": "limited",
+        "gpu": "recommended",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "diffdock",
+      "implementation": {
+        "repository": "https://github.com/gcorso/DiffDock",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "training-complex overlap",
+        "ligand-frame leakage",
+        "target-family overlap"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-pinned-release"
+      },
+      "modalities": [
+        "blind-protein-ligand-pose-prediction"
+      ],
+      "required_databases": [],
+      "skill": "cx-diffdock-docking",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "pose-generation",
+        "cross-docking"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/modeling-problem-execution/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental-structure-quality",
+          "experimental-affinity"
+        ],
+        "outputs": [
+          "structure-confidence",
+          "affinity-prediction-when-supported"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "structure-prediction",
+      "hardware": {
+        "cpu": "limited",
+        "gpu": "required-for-practical-runs",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "boltz",
+      "implementation": {
+        "repository": "https://github.com/jwohlwend/boltz",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "template overlap",
+        "training-structure overlap",
+        "ligand-analog overlap"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-pinned-release"
+      },
+      "modalities": [
+        "protein-structure",
+        "complex-structure",
+        "protein-ligand-structure"
+      ],
+      "required_databases": [],
+      "skill": "cx-boltz-structure-prediction",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "structure-prediction",
+        "complex-modeling"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/alphafold3-structure-prediction/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental-validation",
+          "binding-affinity"
+        ],
+        "outputs": [
+          "ranking-score",
+          "per-atom-confidence",
+          "pairwise-error"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "structure-prediction",
+      "hardware": {
+        "cpu": "preprocessing-only",
+        "gpu": "required",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "alphafold3",
+      "implementation": {
+        "repository": "https://github.com/google-deepmind/alphafold3",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "template overlap",
+        "training-cutoff violation",
+        "ligand or complex memorization"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-authorized-parameters"
+      },
+      "modalities": [
+        "protein",
+        "nucleic-acid",
+        "ligand",
+        "covalent-complex"
+      ],
+      "required_databases": [
+        "sequence-databases",
+        "template-databases"
+      ],
+      "skill": "cx-alphafold3-structure-prediction",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "structure-prediction",
+        "complex-modeling"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/protenix-structure-prediction/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental-validation",
+          "binding-affinity"
+        ],
+        "outputs": [
+          "structure-confidence",
+          "pairwise-error"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "structure-prediction",
+      "hardware": {
+        "cpu": "limited",
+        "gpu": "required-for-practical-runs",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "protenix",
+      "implementation": {
+        "repository": "https://github.com/bytedance/Protenix",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "template overlap",
+        "training-cutoff violation",
+        "benchmark-complex overlap"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-pinned-release"
+      },
+      "modalities": [
+        "protein",
+        "nucleic-acid",
+        "ligand",
+        "antibody-antigen"
+      ],
+      "required_databases": [
+        "sequence-databases",
+        "template-databases"
+      ],
+      "skill": "cx-protenix-structure-prediction",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "structure-prediction",
+        "complex-modeling"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/esmfold2-structure-prediction/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental-validation",
+          "binding-affinity"
+        ],
+        "outputs": [
+          "diffusion-ensemble",
+          "structure-confidence"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "structure-prediction",
+      "hardware": {
+        "cpu": "limited",
+        "gpu": "recommended",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "esmfold2",
+      "implementation": {
+        "repository": "https://github.com/biohub/esm",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "training-structure overlap",
+        "MSA information leakage",
+        "complex-template overlap"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-pinned-release"
+      },
+      "modalities": [
+        "protein",
+        "complex",
+        "nucleic-acid",
+        "ligand"
+      ],
+      "required_databases": [],
+      "skill": "cx-esmfold2-structure-prediction",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "structure-prediction",
+        "ensemble-generation"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    },
+    {
+      "acceptance_contract": "authored-skills/rfdiffusion-protein-design/SKILL.md",
+      "confidence_semantics": {
+        "not_equivalent_to": [
+          "experimental-folding",
+          "experimental-binding"
+        ],
+        "outputs": [
+          "generated-backbone",
+          "diffusion-trajectory"
+        ]
+      },
+      "contract_revision": 1,
+      "family": "protein-design",
+      "hardware": {
+        "cpu": "limited",
+        "gpu": "required-for-practical-runs",
+        "minimum_vram_gb": "record-at-run-time"
+      },
+      "id": "rfdiffusion",
+      "implementation": {
+        "repository": "https://github.com/RosettaCommons/RFdiffusion",
+        "revision_policy": "pin-required"
+      },
+      "leakage_risks": [
+        "motif-template overlap",
+        "target-family overlap",
+        "selection on refolding model only"
+      ],
+      "license": {
+        "code": "verify-from-pinned-release",
+        "weights": "verify-from-pinned-release"
+      },
+      "modalities": [
+        "protein-backbone-design",
+        "motif-scaffolding",
+        "binder-design"
+      ],
+      "required_databases": [],
+      "skill": "cx-rfdiffusion-protein-design",
+      "training_cutoff": "record-from-pinned-release",
+      "validated_tasks": [
+        "backbone-generation",
+        "motif-scaffolding",
+        "binder-backbone-generation"
+      ],
+      "weights": {
+        "revision_policy": "pin-required"
+      }
+    }
+  ],
+  "registry_revision": "2026-07-19.1",
+  "schema_version": 1
+}
