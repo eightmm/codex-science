@@ -1,0 +1,17 @@
+{
+  "case_id": "dependency-cycle",
+  "evidence_graph_v2": {
+    "schema_version": 2,
+    "nodes": [
+      {"id": "artifact-a", "type": "artifact"},
+      {"id": "artifact-b", "type": "artifact"}
+    ],
+    "edges": [
+      {"source": "artifact-a", "target": "artifact-b", "relation": "derived_from"},
+      {"source": "artifact-b", "target": "artifact-a", "relation": "derived_from"}
+    ]
+  },
+  "expected_findings": [
+    {"code": "evidence-dependency-cycle", "severity": "major"}
+  ]
+}

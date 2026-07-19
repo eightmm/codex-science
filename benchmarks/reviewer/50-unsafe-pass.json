@@ -1,0 +1,23 @@
+{
+  "case_id": "unsafe-review-pass",
+  "artifact_hashes": {"metrics.json": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+  "review_receipt": {
+    "schema_version": 1,
+    "review_id": "review-unsafe",
+    "reviewer": "fixture-reviewer",
+    "independent": true,
+    "review_modes": ["record", "method"],
+    "status": "passed",
+    "covered_artifacts": [
+      {"path": "metrics.json", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+    ],
+    "covered_claim_ids": ["claim-1"],
+    "findings": [
+      {"id": "F-1", "code": "threshold-failure", "severity": "major", "resolution_status": "open"}
+    ],
+    "limitations": []
+  },
+  "expected_findings": [
+    {"code": "unsafe-review-pass", "severity": "critical"}
+  ]
+}

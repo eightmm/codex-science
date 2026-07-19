@@ -1,0 +1,20 @@
+{
+  "case_id": "hidden-shared-cohort",
+  "replicated_claim_id": "claim-1",
+  "evidence_graph_v2": {
+    "schema_version": 2,
+    "nodes": [
+      {"id": "study-1", "type": "study"},
+      {"id": "study-2", "type": "study"},
+      {"id": "claim-1", "type": "claim"}
+    ],
+    "edges": [
+      {"source": "study-1", "target": "claim-1", "relation": "supports"},
+      {"source": "study-2", "target": "claim-1", "relation": "supports"},
+      {"source": "study-1", "target": "study-2", "relation": "shares_cohort"}
+    ]
+  },
+  "expected_findings": [
+    {"code": "dependent-evidence-v2", "severity": "major"}
+  ]
+}
