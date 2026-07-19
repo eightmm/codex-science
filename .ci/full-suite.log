@@ -1,0 +1,27 @@
+Downloading cpython-3.11.15-linux-x86_64-gnu (download) (29.5MiB)
+ Downloaded cpython-3.11.15-linux-x86_64-gnu (download)
+Using CPython 3.11.15
+Creating virtual environment at: .venv
+   Building codex-science @ file:///home/runner/work/codex-science/codex-science
+      Built codex-science @ file:///home/runner/work/codex-science/codex-science
+Installed 1 package in 0.74ms
+........................................................................................................E......................................................................................................
+======================================================================
+ERROR: test_mcp_server (unittest.loader._FailedTest.test_mcp_server)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_mcp_server
+Traceback (most recent call last):
+  File "/home/runner/work/_temp/uv-python-dir/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/unittest/loader.py", line 419, in _find_test_path
+    module = self._get_module_from_name(name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/_temp/uv-python-dir/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/unittest/loader.py", line 362, in _get_module_from_name
+    __import__(name)
+  File "/home/runner/work/codex-science/codex-science/tests/test_mcp_server.py", line 8, in <module>
+    from codex_science.mcp_server import CONNECTOR_SPECS, TOOLS, CodexScienceMCP, run_stdio
+ImportError: cannot import name 'CONNECTOR_SPECS' from 'codex_science.mcp_server' (/home/runner/work/codex-science/codex-science/src/codex_science/mcp_server.py)
+
+
+----------------------------------------------------------------------
+Ran 207 tests in 5.326s
+
+FAILED (errors=1)
