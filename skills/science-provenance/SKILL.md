@@ -31,7 +31,7 @@ For a non-trivial active run, keep `checkpoint.json` beside the manifest as muta
 ## Outputs and claims
 
 11. Hash every saved output with SHA-256 and add it to `artifacts` using a path relative to the run directory. Preserve the raw or minimally processed data behind derived tables and figures when lawful and practical.
-12. Link each claim to one or more saved evidence paths, execution IDs, or primary-source identifiers. Record supporting, contradicting, and dependency edges; a duplicated portal record must not masquerade as independent replication.
+12. Link each claim to one or more saved evidence paths, execution IDs, or primary-source identifiers. Treat these links as the claim evidence map. Record supporting, contradicting, and dependency edges; a duplicated portal record must not masquerade as independent replication.
 13. Label every result as planned, sensitivity, exploratory, failed, or inconclusive. Record uncertainty, units, sample counts, aggregation rules, applicability domain, and the exact code or query that produced it.
 14. When a visual materially improves interpretation, create a data-derived static raster figure beside the underlying table or data. Use domain-appropriate labels, units, uncertainty, legends, and readable resolution. Never present a decorative or model-imagined image as scientific evidence.
 
@@ -47,13 +47,14 @@ Label the run honestly:
 
 15. Run `<plugin-root>/scripts/validate_artifact.py <manifest>` before reporting completion.
 16. Run `<plugin-root>/scripts/render_artifact_index.py <manifest>` to create `index.md`. Add `--html` only when the user wants an offline browser view; `index.html` uses no hosted or external assets. Treat both indexes as derived navigation views, not evidence, and do not add them to the manifest.
-17. In the final Codex response, link `index.md`, the report, tables, notebooks, and logs using each file's absolute local path. Display every primary raster result from its absolute local path; link secondary images when showing all would be noisy. Never claim an image was displayed unless it exists and matches the manifest hash.
+17. In the final Codex response, link `index.md`, the report, tables, notebooks, and logs using each file's absolute local path, and display every primary raster result from its absolute local path; link secondary images when showing all would be noisy. Never claim an image was displayed unless it exists and matches the manifest hash.
 
 Use [references/artifact-contract.md](references/artifact-contract.md) for field semantics, sidecar conventions, and versioning rules.
 
 ## Safety and integrity
 
 - Never record secrets, raw tokens, passwords, private keys, credential values, or credential-bearing URLs.
+- Do not invent an execution, source response, command, hash, review outcome, or reproduction status; record unavailable evidence and failed work explicitly.
 - Do not copy sensitive raw data into the artifact bundle merely for convenience. Record an approved local reference and hash instead.
 - Do not overwrite a failed or inconclusive run into a successful one, delete counterevidence, move thresholds after seeing results, or detach a claim from an unresolved review finding.
 - Escape user-controlled text in rendered views. Do not place active scripts, untrusted HTML, or externally hosted assets in an index.
