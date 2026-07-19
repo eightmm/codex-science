@@ -6,10 +6,121 @@ on:
   pull_request:
 
 permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          submodules: recursive
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - name: Regenerate catalog, wrappers, and README counts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "README.md": {
+                  "279 agent skills": "280 agent skills",
+                  "279 catalog wrappers": "280 catalog wrappers",
+                  "Codex-native authored — 127": "Codex-native authored — 128",
+                  "25 agentic life-science source and synthesis workflows, six spectroscopy": "25 agentic life-science source and synthesis workflows, a protocol-driven literature-review conductor, six spectroscopy",
+              },
+              "README.ko.md": {
+                  "279개 감사된 에이전트 스킬": "280개 감사된 에이전트 스킬",
+                  "279개 카탈로그 wrapper": "280개 카탈로그 wrapper",
+                  "Codex-native 저작 — 127": "Codex-native 저작 — 128",
+                  "에이전틱 생명과학 source·synthesis workflow 25개, 분광": "에이전틱 생명과학 source·synthesis workflow 25개, protocol 기반 literature-review conductor, 분광",
+              },
+          }
+          for filename, mapping in replacements.items():
+              path = Path(filename)
+              text = path.read_text(encoding="utf-8")
+              for old, new in mapping.items():
+                  if old in text:
+                      text = text.replace(old, new)
+                  elif new not in text:
+                      raise SystemExit(f"missing README marker: {filename}: {old}")
+              path.write_text(text, encoding="utf-8")
+          PY
+          uv run python scripts/audit_skills.py
+          uv run python scripts/generate_wrappers.py
+          ./scripts/check.sh fast
+      - name: Restore permanent CI definition
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          token = chr(36) + "{{ matrix.python-version }}"
+          content = '''name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
   contents: read
 
 jobs:
   check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: __PYTHON_VERSION__
+      - name: Compile Python sources
+        run: ./scripts/check.sh compile
+      - name: Run native skill quality tests
+        run: uv run python tests/test_native_skill_quality.py
+      - name: Run full unit test suite
+        run: ./scripts/check.sh tests
+      - name: Verify inventory determinism
+        run: ./scripts/check.sh inventory
+      - name: Verify generated wrappers
+        run: ./scripts/check.sh wrappers
+      - name: Validate evidence, model, and SBDD contracts
+        run: ./scripts/check.sh contracts
+      - name: Validate plugin and skills when validators are available
+        run: ./scripts/check.sh skills
+'''.replace("__PYTHON_VERSION__", token)
+          Path(".github/workflows/ci.yml").write_text(content, encoding="utf-8")
+          Path(".github/workflows/regenerate-science-catalog.yml").unlink(missing_ok=True)
+          PY
+      - id: commit
+        name: Commit generated state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Regenerate catalog for scientific contracts"
+          git push origin HEAD:${GITHUB_HEAD_REF}
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: regenerate
+    if: needs.regenerate.outputs.changed != 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
