@@ -17,7 +17,7 @@ class UpdateEntryTests(unittest.TestCase):
         cls.entry = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.entry)
 
-    def test_hooks_use_strict_update_entry(self) -> None:
+    def test_hooks_use_strict_entry_and_preserve_stable_updater_marker(self) -> None:
         hooks = json.loads((self.root / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         commands = [
             item["command"]
@@ -25,8 +25,14 @@ class UpdateEntryTests(unittest.TestCase):
             for group in hooks["hooks"][event]
             for item in group["hooks"]
         ]
-        self.assertTrue(any("science_update_entry.py" in command for command in commands))
-        self.assertFalse(any("science_update_hook.py" in command for command in commands))
+        update_commands = [command for command in commands if "science_update_entry.py" in command]
+        self.assertTrue(update_commands)
+        self.assertTrue(
+            all("CODEX_SCIENCE_STABLE_UPDATER" in command for command in update_commands)
+        )
+        self.assertTrue(
+            all("science_update_hook.py" in command for command in update_commands)
+        )
 
     def test_strict_candidate_runs_stable_check_then_complete_contract(self) -> None:
         candidate = self.root
