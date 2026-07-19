@@ -6,14 +6,14 @@ license: MIT
 
 # Life-Science Research Routing
 
-1. Call `science_plan_life_science_research` with the exact question.
-2. Restate the decision, population, evidence cutoff, outputs, and non-goals. Ask only when a missing choice changes retrieval or interpretation.
-3. Run `$cx-biomedical-entity-normalization` before evidence retrieval.
-4. Select at most four lanes: human genetics/PheWAS, expression/cell context, structure/mechanism, chemistry/pharmacology, clinical/cancer, literature, or public datasets.
-5. Use the smallest source set that can answer the question. Parallelize only independent lanes; keep normalization, conflicts, and synthesis in the coordinator.
-6. Record query, source release, access time, identifiers, outputs, and hashes with `$science-provenance`.
-7. Reconcile evidence with `$cx-biomedical-evidence-reconciliation`; run `$science-review` before delivery.
-
-Return a working conclusion, evidence by lane, conflicts, limitations, and falsifiable next steps. Distinguish direct, replicated, suggestive, absent, contradictory, and unavailable evidence. Never turn population-level research into patient-specific advice.
-
-Source basis: independently designed Codex workflow informed by FAIR provenance and the public API contracts recorded in `docs/LIFE_SCIENCE_RESEARCH_SOURCES.md`.
+## Decision contract
+State the decision, deliverable, population or species, evidence cutoff, causal and clinical boundary, acceptance criteria, and non-goals; ask only when an ambiguity changes retrieval or interpretation.
+## Workflow
+Normalize entities first, create stable claim IDs, call `science_plan_life_science_research`, and select at most four independent lanes; each lane must record its question, sources, exact queries, release or access date, inclusion and exclusion rules, outputs, and limitations.
+Use the smallest source set that can discriminate the claims; parallelize only independent lanes, keep shared normalization and synthesis in the coordinator, deduplicate propagated evidence, and reconcile conflicts with `$cx-biomedical-evidence-reconciliation`.
+Each lane returns a compact receipt containing claim IDs, retrieved and excluded records, source dependencies, artifact paths, confidence, and unresolved questions; a search-result list is not a completed lane.
+## Outputs
+Return the decision summary, lane evidence table, claim-evidence matrix, dependency and contradiction log, calibrated confidence, limitations, and the smallest falsifiable next actions; distinguish negative evidence from missing, filtered, stale, or unavailable evidence.
+## Boundaries
+Label evidence as direct, replicated, suggestive, absent, contradictory, or unavailable; never equate association with causality, prediction with validation, or population evidence with patient-specific advice.
+Record query logs, source versions, artifacts, and lane receipts with `$science-provenance`; run `$science-review`, and stop only at a material ambiguity, approval gate, or essential unavailable evidence.
