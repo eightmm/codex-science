@@ -25,7 +25,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Compile Python sources
         run: ./scripts/check.sh compile
-      - name: Run unit tests
+      - name: Run native skill quality tests
+        run: uv run python tests/test_native_skill_quality.py
+      - name: Run full unit test suite
         run: ./scripts/check.sh tests
       - name: Verify inventory determinism
         run: ./scripts/check.sh inventory
