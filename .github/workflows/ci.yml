@@ -52,10 +52,57 @@ jobs:
                       raise SystemExit(f"missing README marker: {filename}: {old}")
               path.write_text(text, encoding="utf-8")
           PY
+      - name: Complete sidecar documentation contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          standard_path = Path("docs/NATIVE_SKILL_STANDARD.md")
+          standard = standard_path.read_text(encoding="utf-8")
+          heading = "## Repository sidecar vocabulary"
+          if heading not in standard:
+              marker = "## Retrieval requirements"
+              section = "\n".join(
+                  [
+                      heading,
+                      "",
+                      "Keep manifest schema version 1 stable and attach richer scientific semantics as hashed artifacts. Use `claim-register`, `evidence-graph`, `query-ledger`, `study-table`, `lane-receipt`, `literature-snapshot`, and `model-receipt` kinds when their contracts apply.",
+                      "",
+                      "Sidecars must use stable IDs, explicit support, contradiction, duplication, dependency, shared-cohort or sample, source-propagation, and training-overlap relationships. A sidecar is authoritative only when its path and SHA-256 are recorded in the manifest and the complete bundle passes `scripts/validate_artifact.py`.",
+                      "",
+                      "Review or acceptance receipts are invalidated when a covered claim, source snapshot, query, code revision, model contract, weight, database, configuration, input, or artifact hash changes.",
+                      "",
+                  ]
+              )
+              if marker not in standard:
+                  raise SystemExit("missing native skill standard insertion marker")
+              standard = standard.replace(marker, section + "\n" + marker, 1)
+              standard_path.write_text(standard, encoding="utf-8")
+
+          provenance_path = Path("skills/science-provenance/SKILL.md")
+          provenance = provenance_path.read_text(encoding="utf-8")
+          if "claim evidence" not in provenance:
+              marker = "## Inputs and retrieval"
+              sentence = (
+                  "Treat every artifact cited as claim evidence as primary for bundle validation, "
+                  "review invalidation, index navigation, and final presentation."
+              )
+              if marker not in provenance:
+                  raise SystemExit("missing provenance insertion marker")
+              provenance = provenance.replace(marker, sentence + "\n\n" + marker, 1)
+              provenance_path.write_text(provenance, encoding="utf-8")
+          PY
       - name: Audit deterministic skill inventory
         run: uv run python scripts/audit_skills.py
       - name: Generate catalog wrappers
         run: uv run python scripts/generate_wrappers.py
+      - name: Restore permanent read-only CI definition
+        run: |
+          cp scripts/ci.permanent.yml .github/workflows/ci.yml
+          rm -f scripts/ci.permanent.yml
+          rm -f .github/workflows/regenerate-science-catalog.yml
+          rm -f .ci/test-failure.log
+          rmdir .ci 2>/dev/null || true
       - name: Compile Python sources
         run: ./scripts/check.sh compile
       - id: unit_tests
@@ -87,11 +134,6 @@ jobs:
         run: ./scripts/check.sh contracts
       - name: Validate plugin and skills when validators are available
         run: ./scripts/check.sh skills
-      - name: Restore permanent CI definition
-        run: |
-          cp scripts/ci.permanent.yml .github/workflows/ci.yml
-          rm -f scripts/ci.permanent.yml
-          rm -f .github/workflows/regenerate-science-catalog.yml
       - id: commit
         name: Commit generated state
         run: |
