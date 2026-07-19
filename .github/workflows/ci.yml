@@ -21,24 +21,96 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           python-version: "3.11"
-      - name: Expand implementation payload
+      - id: payload
+        name: Verify and expand implementation payload
+        continue-on-error: true
         run: |
-          cat .github/platform-payload/part-* > /tmp/platform.b64
-          base64 --decode /tmp/platform.b64 > /tmp/platform.tgz
-          tar -xzf /tmp/platform.tgz -C .
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import pathlib
+          import tarfile
+
+          root = pathlib.Path('.github/platform-payload')
+          expected = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          actual = {'chunks': {}}
+          parts = []
+          errors = []
+          for name in sorted(expected['chunks']):
+              path = root / name
+              data = path.read_bytes() if path.is_file() else b''
+              digest = hashlib.sha256(data).hexdigest()
+              actual['chunks'][name] = {'bytes': len(data), 'sha256': digest}
+              parts.append(data)
+              if digest != expected['chunks'][name]:
+                  errors.append(f'{name}: expected {expected["chunks"][name]}, got {digest}')
+
+          joined = b''.join(parts)
+          actual['base64_bytes'] = len(joined)
+          actual['base64_sha256'] = hashlib.sha256(joined).hexdigest()
+          if len(joined) != expected['base64_bytes']:
+              errors.append(
+                  f'base64 bytes: expected {expected["base64_bytes"]}, got {len(joined)}'
+              )
+          if actual['base64_sha256'] != expected['base64_sha256']:
+              errors.append(
+                  'base64 sha256: expected '
+                  f'{expected["base64_sha256"]}, got {actual["base64_sha256"]}'
+              )
+
+          try:
+              archive = base64.b64decode(joined, validate=True)
+              actual['decode_error'] = None
+          except Exception as error:
+              archive = b''
+              actual['decode_error'] = repr(error)
+              errors.append(f'base64 decode: {error!r}')
+
+          actual['tar_sha256'] = hashlib.sha256(archive).hexdigest()
+          if archive and actual['tar_sha256'] != expected['tar_sha256']:
+              errors.append(
+                  f'tar sha256: expected {expected["tar_sha256"]}, got {actual["tar_sha256"]}'
+              )
+          actual['errors'] = errors
+          (root / 'actual.json').write_text(
+              json.dumps(actual, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          if errors:
+              raise SystemExit('\n'.join(errors))
+
+          archive_path = pathlib.Path('/tmp/platform.tgz')
+          archive_path.write_bytes(archive)
+          with tarfile.open(archive_path, mode='r:gz') as handle:
+              handle.extractall(path='.', filter='data')
+          PY
+      - name: Persist payload diagnostics
+        if: steps.payload.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/platform-payload/actual.json
+          git commit -m "Record payload integrity diagnostics"
+          git push origin HEAD:${GITHUB_HEAD_REF}
+          exit 1
       - name: Finalize source integrations
+        if: steps.payload.outcome == 'success'
         run: uv run python scripts/finalize_platform_source.py
       - name: Validate staged candidate
+        if: steps.payload.outcome == 'success'
         run: uv run python scripts/candidate_contract_check.py
       - name: Run complete fast validation
+        if: steps.payload.outcome == 'success'
         run: ./scripts/check.sh fast
       - name: Remove temporary application resources
+        if: steps.payload.outcome == 'success'
         run: |
           rm -rf .github/platform-payload
           rm -f .github/workflows/apply-complete-platform.yml
           rm -f scripts/finalize_platform_source.py
           rm -f scripts/patch_update_hook_contract.py
       - name: Commit complete implementation
+        if: steps.payload.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
