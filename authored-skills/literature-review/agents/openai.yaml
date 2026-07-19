@@ -1,0 +1,4 @@
+interface:
+  display_name: "Literature Review"
+  short_description: "Run a protocol-driven, updateable evidence review"
+  default_prompt: "Use $literature-review to run a protocol-driven review with exact queries, study-level deduplication, an evidence graph, and independent review."
