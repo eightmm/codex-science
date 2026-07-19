@@ -13,6 +13,25 @@ from codex_science.life_science import plan_life_science_research
 from codex_science.version import MCP_VERSION
 
 PROTOCOL_VERSION = "2025-06-18"
+LEGACY_TOOL_NAMES = frozenset(
+    {
+        "science_search_alphafold", "science_search_arxiv", "science_search_bgee",
+        "science_search_biobank_japan", "science_search_biostudies", "science_search_cbioportal",
+        "science_search_chebi", "science_search_chembl", "science_search_clinical_trials",
+        "science_search_ensembl", "science_search_europepmc", "science_search_finngen",
+        "science_search_gtex", "science_search_gwas_catalog", "science_search_hpa",
+        "science_search_interpro", "science_search_mgnify", "science_search_mygene",
+        "science_search_ncbi_gene", "science_search_ols", "science_search_openalex",
+        "science_search_opentargets", "science_search_pdb", "science_search_pride",
+        "science_search_proteomexchange", "science_search_pubchem", "science_search_pubmed",
+        "science_search_quickgo", "science_search_rnacentral", "science_search_reactome",
+        "science_search_rhea", "science_search_string", "science_search_ukb_topmed",
+        "science_search_uniprot",
+    }
+)
+LEGACY_SOURCE_SPECS = tuple(spec for spec in SOURCE_SPECS if spec.tool_name in LEGACY_TOOL_NAMES)
+# Public compatibility contract used by existing tests and downstream integrations.
+CONNECTOR_SPECS = tuple((spec.tool_name, spec.description, spec.factory) for spec in LEGACY_SOURCE_SPECS)
 
 
 def _legacy_tool(name: str, description: str) -> dict[str, Any]:
@@ -76,7 +95,10 @@ TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
 class CodexScienceMCP:
     def __init__(self, inventory_path: Path) -> None:
         self.inventory_path = inventory_path
-        self.connectors = {spec.key: spec.factory() for spec in SOURCE_SPECS}
+        # Keep the historical tool-name-keyed registry stable.
+        self.connectors = {name: factory() for name, _description, factory in CONNECTOR_SPECS}
+        # Use a distinct source-key registry for typed v2 and newly cataloged adapters.
+        self.sources = {spec.key: spec.factory() for spec in SOURCE_SPECS}
 
     @staticmethod
     def _result(request_id: Any, result: dict[str, Any]) -> dict[str, Any]:
@@ -100,12 +122,15 @@ class CodexScienceMCP:
         if request_id is None and method.startswith("notifications/"):
             return None
         if method == "initialize":
-            return self._result(request_id, {
-                "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "codex-science", "version": MCP_VERSION},
-                "instructions": "Read-only scientific catalog and public-source queries. Prefer science_query_source_v2 for material evidence and replay receipts.",
-            })
+            return self._result(
+                request_id,
+                {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {"tools": {"listChanged": False}},
+                    "serverInfo": {"name": "codex-science", "version": MCP_VERSION},
+                    "instructions": "Read-only scientific catalog and public-source queries. Prefer science_query_source_v2 for material evidence and replay receipts.",
+                },
+            )
         if method == "ping":
             return self._result(request_id, {})
         if method == "tools/list":
@@ -126,7 +151,10 @@ class CodexScienceMCP:
                     raise ValueError("science_list_source_contracts takes no arguments")
                 payload = [spec.public_contract() for spec in SOURCE_SPECS]
             elif name == "science_query_source_v2":
-                extra = set(arguments) - {"source", "operation", "parameters", "page_size", "max_pages", "evidence_cutoff", "include_snapshot"}
+                extra = set(arguments) - {
+                    "source", "operation", "parameters", "page_size", "max_pages",
+                    "evidence_cutoff", "include_snapshot",
+                }
                 if extra:
                     raise ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}")
                 source = arguments.get("source")
@@ -138,7 +166,9 @@ class CodexScienceMCP:
                 request_payload = dict(arguments)
                 request_payload.pop("include_snapshot", None)
                 request = QueryRequest.from_payload(request_payload)
-                payload = execute_connector(self.connectors[str(source)], request, include_snapshot=include_snapshot).to_dict(include_snapshot=include_snapshot)
+                payload = execute_connector(
+                    self.sources[str(source)], request, include_snapshot=include_snapshot
+                ).to_dict(include_snapshot=include_snapshot)
             else:
                 extra = set(arguments) - {"query", "limit"}
                 if extra:
@@ -156,13 +186,18 @@ class CodexScienceMCP:
                     payload = search_inventory(load_inventory(self.inventory_path), query, limit=limit)
                 elif name == "science_plan_life_science_research":
                     payload = plan_life_science_research(query)
+                elif name in self.connectors:
+                    payload = self.connectors[str(name)].search(query, limit=limit)
                 else:
                     spec = SOURCE_BY_TOOL[str(name)]
-                    payload = self.connectors[spec.key].search(query, limit=limit)
+                    payload = self.sources[spec.key].search(query, limit=limit)
         except (KeyError, TypeError, ValueError) as exc:
             return self._error(request_id, -32602, str(exc))
         except Exception as exc:
-            return self._result(request_id, {"content": [{"type": "text", "text": f"Connector error: {exc}"}], "isError": True})
+            return self._result(
+                request_id,
+                {"content": [{"type": "text", "text": f"Connector error: {exc}"}], "isError": True},
+            )
         return self._result(request_id, self._text_payload(payload))
 
 
