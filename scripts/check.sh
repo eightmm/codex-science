@@ -4,16 +4,31 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 MODE="${1:-fast}"
 
-run_fast() {
+run_compile() {
   uv run python -m compileall -q src scripts
-  uv run python -m unittest discover -s tests
+  echo "compile: ok"
+}
 
+run_tests() {
+  uv run python -m unittest discover -s tests
+  echo "unit tests: ok"
+}
+
+run_inventory() {
+  local tmp
   tmp="$(mktemp)"
   trap 'rm -f "$tmp"' RETURN
   uv run python scripts/audit_skills.py --output "$tmp" >/dev/null
   cmp catalog/inventory.json "$tmp"
-  uv run python scripts/generate_wrappers.py --check
+  echo "inventory determinism: ok"
+}
 
+run_wrappers() {
+  uv run python scripts/generate_wrappers.py --check
+}
+
+run_skill_validation() {
+  local sys_skills validate_plugin quick_validate skill_count skill output
   sys_skills="${CODEX_HOME:-$HOME/.codex}/skills/.system"
   validate_plugin="$sys_skills/plugin-creator/scripts/validate_plugin.py"
   quick_validate="$sys_skills/skill-creator/scripts/quick_validate.py"
@@ -32,15 +47,28 @@ run_fast() {
   else
     echo "check: skipping Codex skill validation (system skills not found at $sys_skills)"
   fi
+}
+
+run_fast() {
+  run_compile
+  run_tests
+  run_inventory
+  run_wrappers
+  run_skill_validation
   echo "check fast: ok"
 }
 
 case "$MODE" in
   fast) run_fast ;;
+  compile) run_compile ;;
+  tests) run_tests ;;
+  inventory) run_inventory ;;
+  wrappers) run_wrappers ;;
+  skills) run_skill_validation ;;
   public) uv run python scripts/public_smoke.py ;;
   doctor) bash scripts/doctor.sh ;;
   *)
-    echo "usage: scripts/check.sh [fast|public|doctor]" >&2
+    echo "usage: scripts/check.sh [fast|compile|tests|inventory|wrappers|skills|public|doctor]" >&2
     exit 2
     ;;
 esac
