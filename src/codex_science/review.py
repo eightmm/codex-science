@@ -1,11 +1,17 @@
-"""Record-based review checks that never claim to re-run an analysis."""
+"""Record-based scientific review checks that never imply an unperformed rerun."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 
-def review_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+def review_manifest(
+    manifest: dict[str, Any],
+    run_dir: Path | None = None,
+    *,
+    sidecars: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     findings: list[dict[str, str]] = []
     artifacts = {str(item.get("path")) for item in manifest.get("artifacts", [])}
 
@@ -14,6 +20,7 @@ def review_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
             findings.append(
                 {
                     "code": "failed-execution",
+                    "severity": "major",
                     "message": f"Execution failed: {execution.get('command', '<unknown>')}",
                 }
             )
@@ -22,6 +29,7 @@ def review_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
             findings.append(
                 {
                     "code": "incomplete-plan",
+                    "severity": "major",
                     "message": f"Plan step is not complete: {step.get('id', '<unknown>')}",
                 }
             )
@@ -31,6 +39,7 @@ def review_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
             findings.append(
                 {
                     "code": "unsupported-claim",
+                    "severity": "major",
                     "message": f"Claim has no evidence: {claim.get('id', '<unknown>')}",
                 }
             )
@@ -40,9 +49,26 @@ def review_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
                 findings.append(
                     {
                         "code": "missing-evidence",
+                        "severity": "major",
                         "message": f"Claim evidence is not a saved artifact: {path}",
                     }
                 )
 
-    findings.sort(key=lambda item: (item["code"], item["message"]))
+    if sidecars is None and run_dir is not None:
+        from codex_science.artifacts import validate_bundle
+
+        sidecars = validate_bundle(manifest, run_dir)
+    if sidecars is not None:
+        from codex_science.evidence import review_sidecars
+
+        findings.extend(review_sidecars(sidecars))
+
+    findings.sort(
+        key=lambda item: (
+            item.get("severity", ""),
+            item["code"],
+            item.get("claim_id", ""),
+            item["message"],
+        )
+    )
     return {"status": "findings" if findings else "passed", "findings": findings}
