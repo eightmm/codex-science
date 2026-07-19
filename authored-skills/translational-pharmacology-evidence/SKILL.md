@@ -6,12 +6,12 @@ license: MIT
 
 # Translational Pharmacology Evidence
 
-1. Normalize target, compound form, mechanism, indication, population, route, and development stage.
-2. Retrieve orthogonal lanes: target/disease from Open Targets, compounds/assays from ChEMBL/PubChem/ChEBI, reactions/pathways from Rhea/Reactome, trials from ClinicalTrials.gov, and regulatory facts from openFDA.
-3. Preserve assay endpoint, units, species/system, exposure, selectivity, evidence date, trial status, and result availability.
-4. Separate biochemical potency, cellular activity, in-vivo exposure, clinical efficacy, safety, approval, and pharmacogenomic association.
-5. Reconcile contradictions and return explicit go/no-go evidence gaps and falsifiable follow-ups.
-
-Do not infer efficacy from binding, mechanism, preclinical data, trial registration, or approval in another indication. Do not provide patient-specific dosing or treatment advice.
-
-Link each claim to `$science-provenance` and run `$science-review` before a go/no-go conclusion.
+## Decision contract
+Normalize target, compound form, mechanism, indication, population, route, regimen context, development stage, comparator, evidence cutoff, and the exact go or no-go decision; separate scientific, clinical, safety, and regulatory claims.
+## Workflow
+Build independent lanes for target-disease rationale, biochemical and cellular pharmacology, selectivity and off-targets, ADME and exposure, in-vivo translation, biomarkers and pharmacogenomics, human efficacy, safety, trials, and regulatory status; preserve assay endpoint, units, species or system, free concentration, exposure, uncertainty, result availability, and source date.
+Reconcile molecule identity and mechanism, distinguish primary results from registry or portal summaries, compare dose and exposure across systems only with justified scaling, and explicitly trace failures, terminated programs, class effects, and evidence dependence.
+## Outputs
+Return a claim-evidence matrix, target-compound-indication map, exposure-to-effect chain, competitor and trial table, safety liabilities, contradictions, confidence by claim, go or no-go criteria, and falsifiable evidence gaps.
+## Boundaries
+Binding is not efficacy, potency is not exposure, preclinical activity is not human benefit, registration is not a result, and approval in another indication is not transferability; never give patient-specific advice, link every claim and registry state to `$science-provenance`, and run `$science-review` before a translational conclusion.
