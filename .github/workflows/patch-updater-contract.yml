@@ -1,0 +1,70 @@
+name: Patch updater contract
+
+on:
+  push:
+    branches: [agent/complete-science-platform]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - name: Require complete candidate contract in updater staging
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/science_update_hook.py")
+          text = path.read_text(encoding="utf-8")
+          old_required = '''        "scripts/science_update_hook.py",
+    )'''
+          new_required = '''        "scripts/science_update_hook.py",
+        "scripts/candidate_contract_check.py",
+    )'''
+          if old_required not in text:
+              raise SystemExit("candidate required-file marker is missing")
+          text = text.replace(old_required, new_required, 1)
+
+          old_tail = '''    updater = _run(
+        ["python3", str(candidate / "scripts" / "science_update_hook.py"), "--self-check"]
+    )
+    return updater.returncode == 0 and "self-check: ok" in updater.stdout
+'''
+          new_tail = '''    updater = _run(
+        ["python3", str(candidate / "scripts" / "science_update_hook.py"), "--self-check"]
+    )
+    if updater.returncode != 0 or "self-check: ok" not in updater.stdout:
+        return False
+    contract = _run(
+        [
+            "python3",
+            str(candidate / "scripts" / "candidate_contract_check.py"),
+            "--root",
+            str(candidate),
+        ],
+        timeout=300,
+    )
+    return contract.returncode == 0 and "candidate contract: ok" in contract.stdout
+'''
+          if old_tail not in text:
+              raise SystemExit("candidate self-check tail marker is missing")
+          path.write_text(text.replace(old_tail, new_tail, 1), encoding="utf-8")
+          PY
+      - name: Remove one-time patch workflow
+        run: rm -f .github/workflows/patch-updater-contract.yml
+      - name: Commit updater integration
+        run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Require complete contract checks before managed updates"
+          git push origin HEAD:"$branch"
