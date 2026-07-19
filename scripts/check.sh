@@ -27,6 +27,25 @@ run_wrappers() {
   uv run python scripts/generate_wrappers.py --check
 }
 
+run_science_contracts() {
+  local review_tmp diff_tmp
+  review_tmp="$(mktemp)"
+  diff_tmp="$(mktemp)"
+  trap 'rm -f "$review_tmp" "$diff_tmp"' RETURN
+  uv run python scripts/validate_models.py
+  uv run python scripts/validate_artifact.py \
+    examples/literature-review-reviewed-run/manifest.json \
+    --review-output "$review_tmp" \
+    --require-passed-review
+  uv run python scripts/diff_literature_review.py \
+    examples/literature-review-reviewed-run/snapshot.previous.json \
+    examples/literature-review-reviewed-run/snapshot.current.json \
+    --output "$diff_tmp"
+  cmp examples/literature-review-reviewed-run/snapshot.diff.json "$diff_tmp"
+  uv run python scripts/audit_sbdd_benchmark.py examples/sbdd-acceptance/benchmark.json >/dev/null
+  echo "scientific contracts: ok"
+}
+
 run_skill_validation() {
   local sys_skills validate_plugin quick_validate skill_count skill output
   sys_skills="${CODEX_HOME:-$HOME/.codex}/skills/.system"
@@ -54,6 +73,7 @@ run_fast() {
   run_tests
   run_inventory
   run_wrappers
+  run_science_contracts
   run_skill_validation
   echo "check fast: ok"
 }
@@ -64,11 +84,12 @@ case "$MODE" in
   tests) run_tests ;;
   inventory) run_inventory ;;
   wrappers) run_wrappers ;;
+  contracts) run_science_contracts ;;
   skills) run_skill_validation ;;
   public) uv run python scripts/public_smoke.py ;;
   doctor) bash scripts/doctor.sh ;;
   *)
-    echo "usage: scripts/check.sh [fast|compile|tests|inventory|wrappers|skills|public|doctor]" >&2
+    echo "usage: scripts/check.sh [fast|compile|tests|inventory|wrappers|contracts|skills|public|doctor]" >&2
     exit 2
     ;;
 esac
