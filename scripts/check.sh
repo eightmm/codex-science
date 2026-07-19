@@ -28,11 +28,18 @@ run_wrappers() {
 }
 
 run_science_contracts() {
-  local review_tmp diff_tmp
+  local review_tmp diff_tmp contract_tmp sbdd_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
-  trap 'rm -f "$review_tmp" "$diff_tmp"' RETURN
+  contract_tmp="$(mktemp)"
+  sbdd_dir="$(mktemp -d)"
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$contract_tmp"; rm -rf "$sbdd_dir"' RETURN
+
+  uv run python scripts/validate_release.py
   uv run python scripts/validate_models.py
+  uv run python scripts/validate_model_registry_v2.py
+  uv run python scripts/run_reviewer_benchmark.py --output "$contract_tmp" --require-safe
+
   uv run python scripts/validate_artifact.py \
     examples/literature-review-reviewed-run/manifest.json \
     --review-output "$review_tmp" \
@@ -42,7 +49,17 @@ run_science_contracts() {
     examples/literature-review-reviewed-run/snapshot.current.json \
     --output "$diff_tmp"
   cmp examples/literature-review-reviewed-run/snapshot.diff.json "$diff_tmp"
+
   uv run python scripts/audit_sbdd_benchmark.py examples/sbdd-acceptance/benchmark.json >/dev/null
+  uv run python scripts/run_sbdd_acceptance.py \
+    examples/sbdd-executable/input.json "$sbdd_dir" \
+    --registry models/registry-v2.json >/dev/null
+  uv run python scripts/validate_artifact.py \
+    "$sbdd_dir/manifest.json" \
+    --review-output "$review_tmp" \
+    --require-passed-review
+
+  uv run python scripts/candidate_contract_check.py
   echo "scientific contracts: ok"
 }
 
