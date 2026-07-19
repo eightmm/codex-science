@@ -1,0 +1,8 @@
+Downloading cpython-3.11.15-linux-x86_64-gnu (download) (29.5MiB)
+ Downloaded cpython-3.11.15-linux-x86_64-gnu (download)
+Using CPython 3.11.15
+Creating virtual environment at: .venv
+   Building codex-science @ file:///home/runner/work/codex-science/codex-science
+      Built codex-science @ file:///home/runner/work/codex-science/codex-science
+Installed 1 package in 0.80ms
+/home/runner/work/codex-science/codex-science/.venv/bin/python: can't open file '/home/runner/work/codex-science/codex-science/scripts/finalize_platform_source.py': [Errno 2] No such file or directory
