@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "registry_revision": "2026-07-19.2",
+  "models": [
+    {
+      "id": "autodock-vina",
+      "status": "contract-tested",
+      "family": "docking",
+      "skill": "cx-autodock-vina-docking",
+      "implementation": {
+        "repository": "https://github.com/ccsb-scripps/AutoDock-Vina",
+        "revision_policy": "pin-at-run-time"
+      },
+      "license": {"code": "verify-from-pinned-release", "weights": "not-applicable"},
+      "modalities": ["protein-ligand"],
+      "tasks": ["redocking", "pose-generation", "exploratory-screening"],
+      "hardware": {"minimum_vram_gb": 0, "cpu_supported": true},
+      "leakage_risks": ["held-out-pocket", "analog-series", "receptor-state"],
+      "confidence_semantics": {"outputs": ["score", "pose-rank"], "not_equivalent_to": ["experimental-affinity", "binding-probability"]},
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "acceptance": {"status": "contract-tested", "bundle": "examples/sbdd-acceptance/benchmark.json"}
+    },
+    {
+      "id": "gnina",
+      "status": "contract-tested",
+      "family": "docking",
+      "skill": "cx-gnina-docking",
+      "implementation": {
+        "repository": "https://github.com/gnina/gnina",
+        "revision_policy": "pin-at-run-time"
+      },
+      "license": {"code": "verify-from-pinned-release", "weights": "verify-from-pinned-release"},
+      "modalities": ["protein-ligand"],
+      "tasks": ["redocking", "pose-reranking", "exploratory-screening"],
+      "hardware": {"minimum_vram_gb": 4, "cpu_supported": true},
+      "leakage_risks": ["training-complex", "analog-series", "pocket"],
+      "confidence_semantics": {"outputs": ["cnn-pose-score", "cnn-affinity-prediction"], "not_equivalent_to": ["experimental-affinity", "calibrated-probability"]},
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "acceptance": {"status": "contract-tested", "bundle": "examples/sbdd-acceptance/benchmark.json"}
+    },
+    {
+      "id": "diffdock",
+      "status": "experimental",
+      "family": "docking",
+      "skill": "cx-diffdock-docking",
+      "implementation": {
+        "repository": "https://github.com/gcorso/DiffDock",
+        "revision_policy": "pin-at-run-time"
+      },
+      "license": {"code": "verify-from-pinned-release", "weights": "verify-from-pinned-release"},
+      "modalities": ["protein-ligand"],
+      "tasks": ["pose-generation", "cross-docking"],
+      "hardware": {"minimum_vram_gb": 8, "cpu_supported": false},
+      "leakage_risks": ["training-complex", "ligand-frame", "target-family"],
+      "confidence_semantics": {"outputs": ["diffusion-confidence", "pose-ensemble"], "not_equivalent_to": ["experimental-affinity", "binding-probability"]},
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "acceptance": {"status": "not-run", "bundle": null}
+    },
+    {
+      "id": "protenix",
+      "status": "contract-tested",
+      "family": "structure-prediction",
+      "skill": "cx-protenix-structure-prediction",
+      "implementation": {
+        "repository": "https://github.com/bytedance/Protenix",
+        "revision_policy": "pin-at-run-time"
+      },
+      "license": {"code": "verify-from-pinned-release", "weights": "verify-from-pinned-release"},
+      "modalities": ["protein", "protein-ligand", "complex"],
+      "tasks": ["structure-prediction", "complex-modeling"],
+      "hardware": {"minimum_vram_gb": 16, "cpu_supported": false},
+      "leakage_risks": ["template-overlap", "training-cutoff", "benchmark-complex"],
+      "confidence_semantics": {"outputs": ["structure-confidence", "pairwise-error"], "not_equivalent_to": ["experimental-validation", "binding-affinity"]},
+      "acceptance_contract": "authored-skills/protenix-structure-prediction/SKILL.md",
+      "acceptance": {"status": "contract-tested", "bundle": null}
+    }
+  ]
+}

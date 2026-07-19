@@ -1,5 +1,4 @@
 """Structured, reproducible analysis artifact manifests and bundle validation."""
-
 from __future__ import annotations
 
 import hashlib
@@ -7,38 +6,13 @@ import json
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-
-REQUIRED_FIELDS = {
-    "schema_version",
-    "run_id",
-    "question",
-    "plan",
-    "inputs",
-    "code",
-    "executions",
-    "environment",
-    "artifacts",
-    "claims",
-    "review",
-}
+REQUIRED_FIELDS = {"schema_version", "run_id", "question", "plan", "inputs", "code", "executions", "environment", "artifacts", "claims", "review"}
 
 
 def new_manifest(run_id: str, question: str, plan: list[dict[str, Any]]) -> dict[str, Any]:
     if not run_id.strip() or not question.strip():
         raise ValueError("run_id and question are required")
-    return {
-        "schema_version": 1,
-        "run_id": run_id,
-        "question": question,
-        "plan": plan,
-        "inputs": [],
-        "code": [],
-        "executions": [],
-        "environment": {},
-        "artifacts": [],
-        "claims": [],
-        "review": {"status": "pending", "findings": []},
-    }
+    return {"schema_version": 1, "run_id": run_id, "question": question, "plan": plan, "inputs": [], "code": [], "executions": [], "environment": {}, "artifacts": [], "claims": [], "review": {"status": "pending", "findings": []}}
 
 
 def _validate_relative_path(value: str) -> None:
@@ -51,21 +25,13 @@ def _valid_sha256(value: str) -> bool:
     return len(value) == 64 and all(character in "0123456789abcdefABCDEF" for character in value)
 
 
-def add_artifact(
-    manifest: dict[str, Any],
-    path: str,
-    *,
-    kind: str,
-    sha256: str,
-) -> None:
+def add_artifact(manifest: dict[str, Any], path: str, *, kind: str, sha256: str) -> None:
     _validate_relative_path(path)
     if not _valid_sha256(sha256):
         raise ValueError("sha256 must be a 64-character hexadecimal digest")
     if not kind.strip():
         raise ValueError("artifact kind is required")
-    manifest["artifacts"].append(
-        {"path": path, "kind": kind, "sha256": sha256.lower()}
-    )
+    manifest["artifacts"].append({"path": path, "kind": kind, "sha256": sha256.lower()})
 
 
 def validate_manifest(manifest: dict[str, Any]) -> None:
@@ -76,11 +42,8 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise ValueError(f"Missing manifest fields: {', '.join(missing)}")
     if manifest.get("schema_version") != 1:
         raise ValueError("Unsupported artifact schema version")
-    if not str(manifest.get("run_id", "")).strip() or not str(
-        manifest.get("question", "")
-    ).strip():
+    if not str(manifest.get("run_id", "")).strip() or not str(manifest.get("question", "")).strip():
         raise ValueError("run_id and question are required")
-
     for field in ("plan", "inputs", "code", "executions", "artifacts", "claims"):
         if not isinstance(manifest.get(field), list):
             raise ValueError(f"Manifest field must be a list: {field}")
@@ -88,7 +51,6 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise ValueError("Manifest environment must be an object")
     if not isinstance(manifest.get("review"), dict):
         raise ValueError("Manifest review must be an object")
-
     artifact_paths: set[str] = set()
     for artifact in manifest.get("artifacts", []):
         if not isinstance(artifact, dict):
@@ -100,10 +62,8 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         artifact_paths.add(path)
         if not str(artifact.get("kind", "")).strip():
             raise ValueError(f"Artifact kind is required: {path}")
-        digest = str(artifact.get("sha256", ""))
-        if not _valid_sha256(digest):
+        if not _valid_sha256(str(artifact.get("sha256", ""))):
             raise ValueError("Invalid artifact sha256")
-
     claim_ids: set[str] = set()
     for claim in manifest.get("claims", []):
         if not isinstance(claim, dict):
@@ -116,15 +76,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         claim_ids.add(claim_id)
 
 
-def verify_bundle_artifacts(
-    manifest: dict[str, Any], run_dir: Path
-) -> dict[str, Path]:
-    """Validate and hash every manifest artifact inside ``run_dir``.
-
-    The returned mapping is authoritative for sidecar loading and index rendering.
-    Symlinks that resolve outside the run directory are rejected.
-    """
-
+def verify_bundle_artifacts(manifest: dict[str, Any], run_dir: Path) -> dict[str, Path]:
     validate_manifest(manifest)
     resolved_run = run_dir.resolve()
     verified: dict[str, Path] = {}
@@ -144,22 +96,17 @@ def verify_bundle_artifacts(
 
 
 def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
-    """Validate a manifest, all saved artifact bytes, and optional sidecars.
-
-    Manifest schema version 1 stays stable. Claim registers, evidence graphs, query
-    ledgers, study tables, lane receipts, and model receipts are attached as normal
-    hashed artifacts and are validated only when present.
-    """
-
     verified = verify_bundle_artifacts(manifest, run_dir)
     from codex_science.evidence import validate_sidecars
-
-    return validate_sidecars(manifest, run_dir, verified)
+    base = validate_sidecars(manifest, run_dir, verified)
+    from codex_science.advanced_sidecars import review_advanced_sidecars, validate_advanced_sidecars
+    advanced = validate_advanced_sidecars(manifest, run_dir, verified, base_sidecars=base)
+    advanced["advanced_findings"] = review_advanced_sidecars(advanced)
+    base.update(advanced)
+    return base
 
 
 def write_manifest(manifest: dict[str, Any], path: Path) -> None:
     validate_manifest(manifest)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
