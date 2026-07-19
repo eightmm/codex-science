@@ -6,14 +6,14 @@ license: MIT
 
 # Biomedical Entity Normalization
 
-Create an entity table with raw input, entity type, canonical label, stable IDs, species, release/assembly, selected record, alternatives, and rationale.
-
-- Genes/proteins: use MyGene, NCBI Gene, Ensembl, and UniProt; keep isoforms and pseudogenes distinct.
-- Variants: preserve input; verify reference allele, assembly, chromosome, position, REF/ALT, normalization, transcript, and liftover log with `$cx-dbsnp-search`/`$cx-ensembl-search`.
-- Disease/phenotype/tissue/cell type: use OLS/EFO and preserve ontology version plus rejected near matches.
-- Compounds/metabolites/reactions: use ChEBI, PubChem, ChEMBL, and Rhea; preserve stereochemistry, charge, salt, and role.
-- Studies/datasets: preserve repository, accession, version, organism, assay, release, and terms.
-
-Stop when a consequential ambiguity remains. Never silently choose a genome build, transcript, isoform, species, ancestry, chemical form, or ontology concept.
-
-Record mappings and alternatives with `$science-provenance`; run `$science-review` when a mapping controls a material conclusion.
+## Decision contract
+Create a versioned mapping table with raw input, entity type, canonical label, stable IDs, species, assembly or release, selected record, alternatives, confidence, and rationale; preserve the original string and never overwrite ambiguity.
+## Workflow
+Resolve genes and proteins across MyGene, NCBI Gene, Ensembl, and UniProt while separating paralogs, pseudogenes, transcripts, and isoforms; normalize variants by assembly, chromosome, position, REF/ALT, left alignment, multiallelic decomposition, transcript, and liftover log.
+Resolve disease, phenotype, tissue, and cell concepts through versioned ontologies; resolve compounds and reactions with explicit stereochemistry, tautomer, charge, salt, isotope, role, and cross-references; preserve study repository, accession, version, organism, assay, and terms.
+Validate round trips and cardinality for every crosswalk, record deprecated or merged identifiers, and propagate a mapping confidence rather than silently collapsing alternatives.
+## Outputs
+Return accepted mappings, rejected near matches, unresolved entities, conversion provenance, one-to-many and many-to-one warnings, and a machine-readable table reusable by every evidence lane.
+## Boundaries
+Stop when species, assembly, transcript, isoform, chemical form, ancestry, ontology concept, or accession ambiguity could change a material conclusion; do not use label similarity alone as identity.
+Record mappings, alternatives, source releases, and conversion logs with `$science-provenance`; require `$science-review` whenever a mapping controls retrieval, aggregation, or a reported claim.
