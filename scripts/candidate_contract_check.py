@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def run(command: list[str], *, cwd: Path) -> None:
-    completed = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+    completed = subprocess.run(command, cwd=cwd, text=True, capture_output=True, env=os.environ.copy())
     if completed.returncode != 0:
         detail = "\n".join(part for part in (completed.stdout.strip(), completed.stderr.strip()) if part)
         raise SystemExit(f"candidate check failed: {' '.join(command)}\n{detail}")
@@ -26,8 +26,11 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
     python = sys.executable
+    existing_pythonpath = os.environ.get("PYTHONPATH", "")
+    os.environ["PYTHONPATH"] = str(root / "src") + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
 
     run([python, "scripts/validate_release.py", "--root", str(root)], cwd=root)
+    run([python, "scripts/validate_connector_contracts.py", "--root", str(root)], cwd=root)
     run([python, "-m", "compileall", "-q", "src", "scripts"], cwd=root)
 
     with tempfile.TemporaryDirectory() as tempdir:

@@ -28,17 +28,18 @@ run_wrappers() {
 }
 
 run_science_contracts() {
-  local review_tmp diff_tmp contract_tmp sbdd_dir
+  local review_tmp diff_tmp benchmark_tmp sbdd_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
-  contract_tmp="$(mktemp)"
+  benchmark_tmp="$(mktemp)"
   sbdd_dir="$(mktemp -d)"
-  trap 'rm -f "$review_tmp" "$diff_tmp" "$contract_tmp"; rm -rf "$sbdd_dir"' RETURN
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp"; rm -rf "$sbdd_dir"' RETURN
 
   uv run python scripts/validate_release.py
+  uv run python scripts/validate_connector_contracts.py
   uv run python scripts/validate_models.py
   uv run python scripts/validate_model_registry_v2.py
-  uv run python scripts/run_reviewer_benchmark.py --output "$contract_tmp" --require-safe
+  uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe
 
   uv run python scripts/validate_artifact.py \
     examples/literature-review-reviewed-run/manifest.json \
