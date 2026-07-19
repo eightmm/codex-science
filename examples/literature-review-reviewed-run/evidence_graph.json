@@ -1,0 +1,23 @@
+{
+  "edges": [
+    {
+      "independence_group": "cohort-example-a",
+      "relation": "supports",
+      "source": "study-example-1",
+      "target": "claim-method-effect"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "claim-method-effect",
+      "label": "Prespecified methodological effect claim",
+      "type": "claim"
+    },
+    {
+      "id": "study-example-1",
+      "label": "Example controlled primary study",
+      "type": "study"
+    }
+  ],
+  "schema_version": 1
+}

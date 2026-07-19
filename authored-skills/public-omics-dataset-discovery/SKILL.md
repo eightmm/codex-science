@@ -6,12 +6,12 @@ license: MIT
 
 # Public Omics Dataset Discovery
 
-1. Define organism, tissue/cell type, disease/perturbation, assay, sample unit, minimum metadata, license, and download budget.
-2. Search BioStudies/ArrayExpress, PRIDE/ProteomeXchange, MGnify, and relevant GEO/MetaboLights resources using the smallest source set.
-3. Build a candidate table with accession, release, cohort/sample count, assay/platform, controls, raw/processed files, size, license/terms, publication, and exclusion reason.
-4. Inspect manifests before download; ask before large transfers or controlled-access data.
-5. Select datasets by study design and metadata fitness, not query rank. Record every inclusion/exclusion decision.
-
-Return recommended datasets, rejected near matches, harmonization risks, download plan, and a minimal validation analysis. Repository presence is not quality or reuse permission.
-
-Record the complete candidate table with `$science-provenance`; run `$science-review` before final selection.
+## Decision contract
+Define organism, tissue or cell state, disease or perturbation, assay, sample unit, comparator, minimum metadata, reuse terms, raw-versus-processed need, storage and compute budget, and a validation analysis before searching.
+## Workflow
+Search only relevant repositories, deduplicate cross-listed studies, and build a candidate ledger with accession and version, cohort and sample counts, design and controls, assay and platform, batch structure, raw and processed files, checksums and size, metadata completeness, publication, terms, and explicit inclusion or exclusion reason.
+Inspect manifests and sample annotations before transfer; assess leakage, pseudoreplication, donor overlap, confounding, missing controls, file accessibility, harmonization burden, and whether the study can identify the requested estimand.
+## Outputs
+Return ranked datasets, rejected near matches, a study-design fitness score with rationale, harmonization and bias risks, exact download plan, expected cost, and the smallest smoke analysis that can invalidate the selection.
+## Boundaries
+Repository presence, citation count, or query rank is not evidence of quality or permission; do not download large or controlled data before approval, never silently substitute samples or endpoints, record the full candidate ledger and snapshots with `$science-provenance`, and run `$science-review` before final selection.

@@ -1,0 +1,127 @@
+{
+  "artifacts": [
+    {
+      "kind": "protocol",
+      "path": "protocol.json",
+      "sha256": "34ef48f5dda1eef9b2ecff933ac55644b9056bf861027784cd2bd940955be599"
+    },
+    {
+      "kind": "query-ledger",
+      "path": "queries.jsonl",
+      "sha256": "018396991e06d635ec6aef3840aec8b7a7737d84c6fb0087f960b465e93b0aa9"
+    },
+    {
+      "kind": "study-table",
+      "path": "studies.json",
+      "sha256": "b32fa7f60a77ba89716045d00fda5d10e1f17462e205791d43810f1a21e8fd84"
+    },
+    {
+      "kind": "claim-register",
+      "path": "claims.json",
+      "sha256": "44b496f95483c4812f80c6a7ac141a8ad569c0058b801d51e7eef1b00150a0c4"
+    },
+    {
+      "kind": "evidence-graph",
+      "path": "evidence_graph.json",
+      "sha256": "cc0e0e91469100ec99ff8c1a0545e4d4a145fe5e4abab0348bfe7732cbb0d076"
+    },
+    {
+      "kind": "lane-receipt",
+      "path": "lanes/pubmed-search.json",
+      "sha256": "a62f9ca8648f67c915457cffe480dea8543847974985b98b8de508d4f7195d2b"
+    },
+    {
+      "kind": "literature-snapshot-previous",
+      "path": "snapshot.previous.json",
+      "sha256": "a64eab9efae1a6e56a6381e62ac182ee6888654b013fbd37ae22976a6ee3d826"
+    },
+    {
+      "kind": "literature-snapshot",
+      "path": "snapshot.current.json",
+      "sha256": "7490ab203e76c1059d8bd794d75a11a7c4f8256b85db848c3ce7079e675942f9"
+    },
+    {
+      "kind": "literature-snapshot-diff",
+      "path": "snapshot.diff.json",
+      "sha256": "0869414597ace717ba72f8522c910d92dbb878d762d419a0e58996ee98c307c8"
+    },
+    {
+      "kind": "report",
+      "path": "report.md",
+      "sha256": "5fd1e51f952b1280f6614d931cb03c1f0dd1fc9b595ec29b90374d80f4757799"
+    },
+    {
+      "kind": "review-receipt",
+      "path": "review.json",
+      "sha256": "9598b43fcc74652db3deba247854179e09a22e64ffdef0c9dff7168108ef571a"
+    }
+  ],
+  "claims": [
+    {
+      "evidence": [
+        "studies.json",
+        "evidence_graph.json",
+        "report.md"
+      ],
+      "id": "claim-method-effect",
+      "text": "The example intervention improved the prespecified outcome relative to control in the included study."
+    }
+  ],
+  "code": [
+    {
+      "path": "scripts/diff_literature_review.py",
+      "revision": "repository-head"
+    }
+  ],
+  "environment": {
+    "network": "fixture-only",
+    "packages": [],
+    "python": ">=3.11"
+  },
+  "executions": [
+    {
+      "command": "python scripts/diff_literature_review.py snapshot.previous.json snapshot.current.json --output snapshot.diff.json",
+      "exit_code": 0
+    }
+  ],
+  "inputs": [
+    {
+      "path": "protocol.json",
+      "sha256": "34ef48f5dda1eef9b2ecff933ac55644b9056bf861027784cd2bd940955be599"
+    }
+  ],
+  "plan": [
+    {
+      "description": "Freeze protocol and evidence cutoff",
+      "id": "protocol",
+      "status": "completed"
+    },
+    {
+      "description": "Execute and record the exact source query",
+      "id": "search",
+      "status": "completed"
+    },
+    {
+      "description": "Deduplicate and extract study-level evidence",
+      "id": "extract",
+      "status": "completed"
+    },
+    {
+      "description": "Build claim graph and bounded synthesis",
+      "id": "synthesize",
+      "status": "completed"
+    },
+    {
+      "description": "Review the record, sources, and method",
+      "id": "review",
+      "status": "completed"
+    }
+  ],
+  "question": "Does the example intervention improve the prespecified outcome versus control in the defined population?",
+  "review": {
+    "findings": [],
+    "status": "passed"
+  },
+  "run_id": "literature-review-reviewed-example",
+  "schema_version": 1
+}

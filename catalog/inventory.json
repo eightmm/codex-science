@@ -760,6 +760,18 @@
       "status": "active"
     },
     {
+      "description": "Run a protocol-driven, updateable literature review with exact multi-source queries, study-level deduplication, structured extraction, evidence dependency tracking, bounded synthesis, provenance, and independent review. Use for systematic, scoping, rapid, living, or evidence-landscape reviews where discovery alone is insufficient.",
+      "executable_count": 0,
+      "instruction_line_count": 93,
+      "license": "MIT",
+      "name": "cx-literature-review",
+      "path": "authored-skills/literature-review",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Prioritize candidate genes at human genetic loci using curated association, credible-set/L2G, colocalization, eQTL, coding, burden, expression, and pathway evidence. Use for GWAS follow-up and target prioritization.",
       "executable_count": 0,
       "instruction_line_count": 18,
@@ -3649,8 +3661,8 @@
     }
   ],
   "summary": {
-    "active": 167,
+    "active": 168,
     "inactive": 112,
-    "total": 279
+    "total": 280
   }
 }

@@ -1,0 +1,21 @@
+{
+  "claims": [
+    {
+      "dependencies": [
+        "cohort-example-a"
+      ],
+      "falsifier": "A correctly analyzed independent study with compatible design shows no effect or an opposite effect.",
+      "id": "claim-method-effect",
+      "next_action": "Seek an independent replication before upgrading the claim beyond single-study support.",
+      "permitted_inference": "The included controlled study supports an association within its population and endpoint.",
+      "required_evidence": [
+        "primary"
+      ],
+      "required_support": 1,
+      "status": "supported",
+      "text": "The example intervention improved the prespecified outcome relative to control in the included study.",
+      "uncertainty": "Single-study evidence; external validity and independent replication remain unresolved."
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,11 @@
+{
+  "findings": [],
+  "independent": true,
+  "review_modes": [
+    "record",
+    "source",
+    "method"
+  ],
+  "reviewer": "checked-in-fixture-reviewer",
+  "status": "passed"
+}

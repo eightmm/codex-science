@@ -6,25 +6,25 @@ license: MIT
 
 # Docking Validation
 
-## Validation ladder
+## Decision contract
+Prespecify the use case, prediction unit, receptor and ligand states, pocket information allowed at inference, benchmark split, controls, primary metric, uncertainty method, applicability domain, and success threshold before inspecting outcomes.
+Treat benchmark construction, preparation, pose generation, scoring, and decision analysis as separate stages with separate artifacts.
 
-1. **Input audit:** verify receptor assembly/state, ligand stereo/protonation,
-   cofactors/metals/waters, pocket definition, atom mapping, and provenance.
-2. **Positive-control redocking:** prespecify top-1/top-k symmetry-aware heavy-atom
-   RMSD thresholds. Report the complete distribution, not one favorable pose.
-3. **Cross-docking:** test receptor conformation sensitivity when multiple holo or
-   apo structures exist. Separate apo, holo, and predicted receptors.
-4. **Screening:** define actives/decoys and negative provenance before scoring.
-   Report enrichment factor, BEDROC or PR-AUC plus ROC-AUC; bootstrap uncertainty
-   by compound or target as appropriate.
-5. **Generalization:** use cold-ligand, cold-target, and cold-both splits. Cluster
-   by chemical scaffold and target homology before splitting.
-6. **Leakage:** check bound-pose/template overlap, ligand-frame leakage, duplicated
-   complexes, shared analog series, and model training-set overlap.
-7. **Calibration:** if a score is used probabilistically, test calibration and
-   applicability domain. Do not regress docking score directly to experimental
-   affinity without assay-aware validation.
+## Workflow
+1. Audit biological assembly, chain and residue mapping, protonation, tautomers, stereochemistry, charges, metals, cofactors, waters, covalent bonds, pocket definition, and every conversion hash.
+2. Redock valid reference ligands with symmetry-aware heavy-atom RMSD and interaction recovery; report top-1, top-k, failures, and the complete distribution rather than a favorable pose.
+3. Cross-dock across apo, holo, alternate-state, and predicted receptors when the claim requires conformation robustness; quantify sensitivity to preparation, pocket, microstate, seed, and pose aggregation.
+4. For screening, define actives, property-matched decoys, assay provenance, and compound-level grouping; report PR-AUC plus enrichment metrics and bootstrap intervals, with ROC-AUC only as a secondary view.
+5. Test cold-ligand, cold-target, and cold-both generalization using scaffold and target-homology groups; audit bound-pose, template, ligand-frame, analog-series, duplicate-complex, and model-training overlap.
+6. Compare against simple baselines and an orthogonal method where feasible; calibrate probabilistic claims, define abstention rules, and keep pose confidence, ranking score, predicted affinity, and experimental affinity distinct.
+7. Report metrics by target, scaffold, receptor state, ligand class, and failure mode; inspect whether aggregate gains are driven by a narrow or leaked subgroup.
+8. For affinity or mechanism claims, require assay-aware external evidence beyond docking and state the domain where the conclusion is unsupported.
 
-Save the protocol, exclusions, failures, metrics, confidence intervals, and raw
-tables with `$science-provenance`; review claims with `$science-review`.
+## Outputs
+Save the protocol, split ledger, leakage report, exclusions, raw poses and scores, metric tables with intervals, failure taxonomy, sensitivity analyses, and applicability domain.
+Assign each prespecified claim a pass, fail, or inconclusive result and retain negative controls and failed systems.
+Save engine and model revisions, seeds, command lines, preparation manifests, and pose-to-compound aggregation rules so the benchmark can be rerun exactly.
 
+## Boundaries
+Do not tune thresholds on held-out data, derive a benchmark pocket from the held-out pose, count related analogs as independent, or infer affinity or mechanism from a docking score.
+Record all artifacts with `$science-provenance`; require `$science-review` before reporting generalization, enrichment, affinity, or mechanism claims.

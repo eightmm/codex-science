@@ -1,0 +1,35 @@
+{
+  "claims": {
+    "added": [],
+    "changed": [
+      {
+        "after": {
+          "id": "claim-method-effect",
+          "status": "supported"
+        },
+        "before": {
+          "id": "claim-method-effect",
+          "status": "unavailable"
+        },
+        "id": "claim-method-effect"
+      }
+    ],
+    "removed": []
+  },
+  "current_cutoff": "2026-07-19",
+  "previous_cutoff": "2026-06-30",
+  "protocol_id": "literature-review-example-v1",
+  "queries": {
+    "added": [],
+    "changed": [],
+    "removed": []
+  },
+  "schema_version": 1,
+  "studies": {
+    "added": [
+      "study-example-1"
+    ],
+    "changed": [],
+    "removed": []
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "benchmark_id": "sbdd-acceptance-v1",
+  "claims": [
+    {
+      "evidence": [
+        "top1_symmetry_rmsd",
+        "pr_auc"
+      ],
+      "id": "claim-pose-ranking",
+      "text": "The evaluated workflow supports pose generation and exploratory ranking within the tested applicability domain.",
+      "type": "ranking"
+    }
+  ],
+  "experimental_affinity_validation": false,
+  "metric_groups": [
+    "target",
+    "scaffold",
+    "receptor_state",
+    "failure_mode"
+  ],
+  "metrics": [
+    "top1_symmetry_rmsd",
+    "pr_auc",
+    "bootstrap_interval"
+  ],
+  "positive_controls": [
+    "control-redock-1"
+  ],
+  "records": [
+    {
+      "analog_series_id": "series-train-a",
+      "complex_id": "train-complex-1",
+      "ligand_id": "ligand-train-1",
+      "model_training_overlap": "none",
+      "partition": "train",
+      "pocket_derived_from_complex_id": "",
+      "pocket_source": "user-residues",
+      "receptor_state": "holo-active",
+      "role": "benchmark",
+      "scaffold_id": "scaffold-train-a",
+      "target_family": "family-train-a",
+      "target_id": "target-train-a",
+      "task": "screening"
+    },
+    {
+      "analog_series_id": "series-test-b",
+      "complex_id": "test-complex-1",
+      "ligand_id": "ligand-test-1",
+      "model_training_overlap": "none",
+      "partition": "test",
+      "pocket_derived_from_complex_id": "",
+      "pocket_source": "validated-prediction",
+      "receptor_state": "apo-open",
+      "role": "benchmark",
+      "scaffold_id": "scaffold-test-b",
+      "target_family": "family-test-b",
+      "target_id": "target-test-b",
+      "task": "screening"
+    },
+    {
+      "analog_series_id": "series-control-c",
+      "complex_id": "control-redock-1",
+      "ligand_id": "ligand-control-1",
+      "model_training_overlap": "none",
+      "partition": "test",
+      "pocket_derived_from_complex_id": "control-redock-1",
+      "pocket_source": "reference-ligand",
+      "receptor_state": "holo-active",
+      "role": "positive-control",
+      "scaffold_id": "scaffold-control-c",
+      "target_family": "family-control-c",
+      "target_id": "target-control-c",
+      "task": "redocking"
+    }
+  ],
+  "schema_version": 1,
+  "split_policy": "cold-both"
+}
