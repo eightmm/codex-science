@@ -1,5 +1,6 @@
 name: Apply complete science platform
 
+# The first push installs this branch-only workflow; the next push executes it.
 on:
   push:
     branches: [agent/complete-science-platform]
