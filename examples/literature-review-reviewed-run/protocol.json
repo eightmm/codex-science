@@ -1,0 +1,24 @@
+{
+  "decision": "Determine whether the supplied primary study supports a bounded methodological claim.",
+  "eligibility": {
+    "exclude": [
+      "secondary commentary without primary data",
+      "records outside the evidence cutoff"
+    ],
+    "include": [
+      "primary controlled studies matching the defined population and outcome"
+    ]
+  },
+  "evidence_cutoff": "2026-07-19",
+  "non_goals": [
+    "clinical treatment advice",
+    "causal claims beyond the study design"
+  ],
+  "protocol_id": "literature-review-example-v1",
+  "question": "Does the example intervention improve the prespecified outcome versus control in the defined population?",
+  "question_framework": "PICO",
+  "schema_version": 1,
+  "sources": [
+    "PubMed"
+  ]
+}

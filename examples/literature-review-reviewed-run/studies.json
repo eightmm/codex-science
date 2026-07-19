@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "studies": [
+    {
+      "cohort_id": "cohort-example-a",
+      "contradicts_claim_ids": [],
+      "evidence_type": "primary",
+      "included": true,
+      "persistent_id": "doi:10.0000/example.primary.1",
+      "study_id": "study-example-1",
+      "supports_claim_ids": [
+        "claim-method-effect"
+      ],
+      "title": "Example controlled study of the prespecified intervention"
+    }
+  ]
+}

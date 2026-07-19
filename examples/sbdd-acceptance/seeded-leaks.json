@@ -1,0 +1,72 @@
+{
+  "benchmark_id": "sbdd-seeded-leaks-v1",
+  "claims": [
+    {
+      "evidence": [
+        "docking_score"
+      ],
+      "id": "claim-affinity",
+      "text": "The top docking score proves the compound has the highest binding affinity.",
+      "type": "affinity"
+    }
+  ],
+  "experimental_affinity_validation": false,
+  "metric_groups": [
+    "target"
+  ],
+  "metrics": [
+    "docking_score"
+  ],
+  "positive_controls": [
+    "control-redock-1"
+  ],
+  "records": [
+    {
+      "analog_series_id": "series-leaked",
+      "complex_id": "train-complex-1",
+      "ligand_id": "ligand-train-1",
+      "model_training_overlap": "none",
+      "partition": "train",
+      "pocket_derived_from_complex_id": "",
+      "pocket_source": "reference-ligand",
+      "receptor_state": "holo-active",
+      "role": "benchmark",
+      "scaffold_id": "scaffold-leaked",
+      "target_family": "kinase-family-leaked",
+      "target_id": "target-leaked",
+      "task": "screening"
+    },
+    {
+      "analog_series_id": "series-leaked",
+      "complex_id": "test-complex-1",
+      "ligand_id": "ligand-test-1",
+      "model_training_overlap": "known",
+      "partition": "test",
+      "pocket_derived_from_complex_id": "test-complex-1",
+      "pocket_source": "heldout-bound-ligand",
+      "receptor_state": "holo-active",
+      "role": "benchmark",
+      "scaffold_id": "scaffold-leaked",
+      "target_family": "kinase-family-leaked",
+      "target_id": "target-leaked",
+      "task": "screening"
+    },
+    {
+      "analog_series_id": "series-control",
+      "complex_id": "control-redock-1",
+      "ligand_id": "ligand-control-1",
+      "model_training_overlap": "none",
+      "partition": "test",
+      "pocket_derived_from_complex_id": "control-redock-1",
+      "pocket_source": "reference-ligand",
+      "receptor_state": "holo-active",
+      "role": "positive-control",
+      "scaffold_id": "scaffold-control",
+      "target_family": "control-family",
+      "target_id": "control-target",
+      "task": "redocking"
+    }
+  ],
+  "schema_version": 1,
+  "split_policy": "cold-both"
+}

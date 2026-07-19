@@ -1,0 +1,28 @@
+{
+  "claims": [
+    {
+      "id": "claim-method-effect",
+      "status": "supported"
+    }
+  ],
+  "evidence_cutoff": "2026-07-19",
+  "protocol_id": "literature-review-example-v1",
+  "queries": [
+    {
+      "query": "example intervention AND prespecified outcome AND controlled study",
+      "query_id": "q-pubmed-1",
+      "source": "PubMed"
+    }
+  ],
+  "question": "Does the example intervention improve the prespecified outcome versus control in the defined population?",
+  "question_framework": "PICO",
+  "schema_version": 1,
+  "studies": [
+    {
+      "eligibility": "include",
+      "persistent_id": "doi:10.0000/example.primary.1",
+      "study_id": "study-example-1",
+      "title": "Example controlled study of the prespecified intervention"
+    }
+  ]
+}
