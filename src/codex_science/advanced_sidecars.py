@@ -11,7 +11,7 @@ from codex_science.literature_v2 import validate_risk_of_bias
 from codex_science.model_registry_v2 import load_registry_v2, validate_model_receipt_v2
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
-ADVANCED_KINDS = {"evidence-graph-v2", "review-receipt", "annotation", "model-receipt-v2", "risk-of-bias"}
+ADVANCED_KINDS = {"evidence-graph-v2", "review-receipt", "review-receipt-v2", "annotation", "model-receipt-v2", "risk-of-bias"}
 
 
 def _load(path: Path, label: str) -> dict[str, Any]:
@@ -40,6 +40,10 @@ def validate_advanced_sidecars(
             continue
         path = verified[relative]
         payload = _load(path, kind)
+        if kind == "review-receipt" and not payload.get("review_id"):
+            # Legacy receipt from schema-v1 bundles: keep it hashed and navigable,
+            # but do not reinterpret it as the new hash-covered receipt contract.
+            continue
         result["advanced_paths"].setdefault(kind, []).append(relative)
         if kind == "evidence-graph-v2":
             if seen_graph:
@@ -47,7 +51,7 @@ def validate_advanced_sidecars(
             seen_graph = True
             nodes, edges, findings = validate_graph_payload(payload)
             result.update({"graph_v2": payload, "graph_v2_nodes": nodes, "graph_v2_edges": edges, "graph_v2_findings": findings})
-        elif kind == "review-receipt":
+        elif kind in {"review-receipt", "review-receipt-v2"}:
             validate_review_receipt(payload)
             result["review_receipts"].append(payload)
         elif kind == "annotation":
