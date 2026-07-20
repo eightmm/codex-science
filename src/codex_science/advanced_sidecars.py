@@ -80,6 +80,15 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
         registry_digest = registry_sha256(registry)
     for receipt in sidecars.get("review_receipts", []):
         findings.extend(review_receipt_findings(receipt, artifact_hashes, registry_sha256=registry_digest))
+        if receipt.get("status") != "passed":
+            unresolved = [
+                item for item in receipt.get("findings", [])
+                if item.get("resolution_status", "open") != "resolved"
+            ]
+            if unresolved:
+                findings.extend(unresolved)
+            else:
+                findings.append({"code": "review-receipt-not-passed", "severity": "major", "message": f"Review receipt {receipt['review_id']} is {receipt.get('status')}."})
     for receipt in sidecars.get("model_receipts_v2", []):
         findings.extend(validate_model_receipt_v2(receipt, registry))
     for annotation in sidecars.get("annotations", []):

@@ -46,6 +46,12 @@ class PublicDriftTests(unittest.TestCase):
         self.assertIn("| pubmed | healthy | 0 | record=1 |", rendered)
         self.assertIn("Overall: **healthy**", rendered)
 
+    def test_scheduled_workflow_restores_and_saves_drift_state(self) -> None:
+        workflow = (self.root / ".github" / "workflows" / "public-api-drift.yml").read_text(encoding="utf-8")
+        self.assertIn("actions/cache/restore@", workflow)
+        self.assertIn("--state-in drift/state.json", workflow)
+        self.assertIn("actions/cache/save@", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

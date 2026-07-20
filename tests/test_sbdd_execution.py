@@ -34,6 +34,38 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
         by_name = {item["name"]: item for item in metrics}
         self.assertFalse(by_name["top1_symmetry_rmsd"]["passed"])
 
+    def test_threshold_failure_cannot_pass_artifact_review(self) -> None:
+        failed = copy.deepcopy(self.payload)
+        failed["numeric_thresholds"]["top1_symmetry_rmsd"] = 0.1
+        with tempfile.TemporaryDirectory() as tempdir:
+            temporary = Path(tempdir)
+            input_path = temporary / "input.json"
+            output = temporary / "run"
+            input_path.write_text(json.dumps(failed), encoding="utf-8")
+            manifest_path = execute_acceptance(
+                input_path,
+                output,
+                registry_path=self.root / "models" / "registry-v2.json",
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            review = review_manifest(manifest, output, sidecars=validate_bundle(manifest, output))
+            self.assertEqual("findings", review["status"])
+            self.assertIn("acceptance-metric-failed", {item["code"] for item in review["findings"]})
+
+    def test_acceptance_receipts_describe_the_actual_local_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            output = Path(tempdir) / "run"
+            execute_acceptance(
+                self.input_path,
+                output,
+                registry_path=self.root / "models" / "registry-v2.json",
+            )
+            model_receipt = json.loads((output / "model_receipt.json").read_text(encoding="utf-8"))
+            review_receipt = json.loads((output / "review_receipt.json").read_text(encoding="utf-8"))
+            self.assertEqual("deterministic-translation-baseline", model_receipt["model_id"])
+            self.assertFalse(review_receipt["independent"])
+            self.assertNotIn("reproduction", review_receipt["review_modes"])
+
     def test_execution_writes_a_valid_reviewed_bundle_and_offline_workbench(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             output = Path(tempdir) / "run"

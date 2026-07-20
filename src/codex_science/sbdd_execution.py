@@ -199,7 +199,7 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     _write_json(graph_v2_path, graph_v2)
     registry = load_registry_v2(registry_path)
     models = validate_registry_v2(registry)
-    model = models["autodock-vina"]
+    model = models["deterministic-translation-baseline"]
     config_hash = canonical_sha256({"thresholds": payload.get("numeric_thresholds", {}), "algorithm": "deterministic-translation-baseline-v1"})
     model_receipt = build_model_receipt_v2(
         model,
@@ -220,12 +220,22 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         encoding="utf-8",
     )
     covered = [{"path": path.name, "sha256": file_sha256(path)} for path in (poses_path, metrics_path, claims_path, graph_v1_path, graph_v2_path, model_path, report_path)]
+    review_findings = [
+        {
+            "code": "acceptance-metric-failed",
+            "severity": "major",
+            "message": f"Acceptance metric {item['name']} failed its preregistered threshold.",
+            "resolution_status": "open",
+        }
+        for item in metrics
+        if not item["passed"]
+    ]
     review_receipt = build_review_receipt(
-        review_id="review-sbdd-acceptance", reviewer="deterministic-contract-reviewer", independent=True,
-        review_modes=["record", "method", "reproduction"], status="passed" if all_passed else "findings",
-        covered_artifacts=covered, covered_claim_ids=["claim-sbdd-acceptance"], findings=[],
+        review_id="review-sbdd-acceptance", reviewer="deterministic-contract-checker", independent=False,
+        review_modes=["record", "method"], status="passed" if all_passed else "findings",
+        covered_artifacts=covered, covered_claim_ids=["claim-sbdd-acceptance"], findings=review_findings,
         covered_registry_sha256=registry_sha256(registry),
-        limitations=["The reviewer is deterministic code, not an independent scientific expert.", "The fixture does not validate experimental affinity."],
+        limitations=["This deterministic check is not an independent scientific review.", "The fixture does not validate experimental affinity."],
     )
     review_path = output_dir / "review_receipt.json"
     _write_json(review_path, review_receipt)
@@ -240,7 +250,7 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     manifest["executions"] = [{"command": f"python scripts/run_sbdd_acceptance.py {input_path} {output_dir}", "exit_code": 0}]
     manifest["environment"] = {"python": ">=3.11", "random_seed": 0, "model_registry_sha256": registry_sha256(registry)}
     manifest["claims"] = [{"id": "claim-sbdd-acceptance", "text": claims["claims"][0]["text"], "evidence": ["metrics.json", "poses.json", "report.md"]}]
-    manifest["review"] = {"status": "passed" if all_passed else "findings", "findings": []}
+    manifest["review"] = {"status": "passed" if all_passed else "findings", "findings": review_findings}
     for path, kind in (
         (poses_path, "pose-table"), (metrics_path, "metrics"), (claims_path, "claim-register"),
         (graph_v1_path, "evidence-graph"), (graph_v2_path, "evidence-graph-v2"),

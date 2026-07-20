@@ -1,7 +1,25 @@
 {
   "schema_version": 2,
-  "registry_revision": "2026-07-19.2",
+  "registry_revision": "2026-07-20.1",
   "models": [
+    {
+      "id": "deterministic-translation-baseline",
+      "status": "contract-tested",
+      "family": "docking-fixture",
+      "skill": "cx-docking-validation",
+      "implementation": {
+        "repository": "local:src/codex_science/sbdd_execution.py",
+        "revision_policy": "pinned-in-package"
+      },
+      "license": {"code": "MIT", "weights": "not-applicable"},
+      "modalities": ["protein-ligand"],
+      "tasks": ["acceptance-fixture"],
+      "hardware": {"minimum_vram_gb": 0, "cpu_supported": true},
+      "leakage_risks": ["fixture-only", "synthetic-scores"],
+      "confidence_semantics": {"outputs": ["translated-pose", "fixture-score"], "not_equivalent_to": ["docking-engine-output", "experimental-affinity", "binding-probability"]},
+      "acceptance_contract": "authored-skills/docking-validation/SKILL.md",
+      "acceptance": {"status": "contract-tested", "bundle": "examples/sbdd-executable/input.json"}
+    },
     {
       "id": "autodock-vina",
       "status": "contract-tested",

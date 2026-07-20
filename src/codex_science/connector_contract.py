@@ -237,12 +237,15 @@ def _instrument(connector: Any) -> Iterator[list[_Call]]:
 
 def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot: bool = False, retrieved_at: str | None = None) -> QueryResult:
     request.validate()
-    if request.operation != "search" and not hasattr(connector, "query_v2"):
+    typed_query = hasattr(connector, "query_v2")
+    if request.operation != "search" and not typed_query:
         raise ValueError(f"connector does not implement operation: {request.operation}")
+    if request.evidence_cutoff is not None and not typed_query:
+        raise ValueError(f"evidence_cutoff is not supported by source: {request.source}")
     warnings: list[str] = []
     timestamp = retrieved_at or _now()
     with _instrument(connector) as calls:
-        if hasattr(connector, "query_v2"):
+        if typed_query:
             records = connector.query_v2(request)
         else:
             query = request.parameters.get("query")

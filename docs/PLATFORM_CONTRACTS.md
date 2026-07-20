@@ -8,7 +8,7 @@ Codex Science uses one release identity module: `src/codex_science/version.py`.
 
 - Python package: `0.3.0`
 - MCP server: `0.3.0`
-- Plugin cachebuster: `0.3.0+codex.20260719000100`
+- Plugin cachebuster: `0.3.0+codex.20260720000100`
 - Machine-readable release record: `release/manifest.json`
 
 Run:
@@ -73,6 +73,8 @@ The response contains normalized records plus a receipt with:
 
 Use `include_snapshot: true` only when a replayable raw response snapshot is required. Snapshots must not contain credentials or secret-bearing URLs.
 
+`evidence_cutoff` is enforced only by typed source implementations. Legacy search adapters reject a cutoff instead of silently returning evidence outside the requested boundary.
+
 ### Offline replay and drift
 
 ```bash
@@ -88,7 +90,7 @@ Drift types are:
 - `response-drift`
 - `semantic-drift`
 
-The scheduled `Public API drift` workflow separately reports operational state as `healthy`, `environment-blocked`, `transient-failure`, `degraded`, `unavailable`, or `semantic-drift`. It stores JSON, Markdown, and next-state receipts as a GitHub Actions artifact. Reactome HTTP 403 from a hosted runner remains an explicit environment block; other semantic drift, degradation, or unavailability fails the workflow.
+The scheduled `Public API drift` workflow separately reports operational state as `healthy`, `environment-blocked`, `transient-failure`, `degraded`, `unavailable`, or `semantic-drift`. It restores the most recent branch state from the Actions cache and stores JSON, Markdown, and next-state receipts as a GitHub Actions artifact. Reactome HTTP 403 from a hosted runner remains an explicit environment block; other semantic drift, degradation, or unavailability fails the workflow.
 
 ### Source maturity
 

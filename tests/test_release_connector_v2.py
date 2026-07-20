@@ -46,6 +46,17 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         report = classify_drift(snapshot, changed)
         self.assertIn("semantic-drift", report["drift_types"])
 
+    def test_legacy_connector_rejects_unsupported_evidence_cutoff(self) -> None:
+        request = QueryRequest(
+            "pubmed",
+            "search",
+            {"query": "protein folding"},
+            evidence_cutoff="2026-01-01",
+        )
+        connector = PubMedConnector(fetch_json=lambda _url: {"esearchresult": {"idlist": []}})
+        with self.assertRaisesRegex(ValueError, "evidence_cutoff is not supported"):
+            execute_connector(connector, request)
+
     def test_typed_source_registry_and_parsers_are_available(self) -> None:
         for key in ("clinvar", "dbsnp", "gnomad", "encode", "jaspar", "geo", "arrayexpress", "metabolights", "bindingdb", "openfda", "emdb", "complex_portal", "intact", "eqtl_catalogue"):
             self.assertIn(key, SOURCE_BY_KEY)
