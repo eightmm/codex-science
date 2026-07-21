@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "codex-science",
+  "roles": ["conductor"],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "research-contract-v1",
+    "checkpoint-v4",
+    "artifact-manifest-v1",
+    "lane-receipt-v1",
+    "reference-use-ledger-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The coordinator delegates domain validity to specialist skills and independent review.",
+    "Task persistence depends on the installed Codex host and trusted hooks."
+  ]
+}
