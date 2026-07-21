@@ -25,24 +25,34 @@ jobs:
           python-version: "3.11"
       - name: Verify and expand runtime payload
         run: |
+          set -euo pipefail
+          archive=.github/project-artifact-runtime/payload.tgz
+          test -f "$archive"
+          file "$archive"
+          gzip -t "$archive"
+          echo "archive sha256=$(sha256sum "$archive" | cut -d' ' -f1)"
           python - <<'PY'
-          import hashlib
           import pathlib
           import tarfile
 
           archive = pathlib.Path('.github/project-artifact-runtime/payload.tgz')
-          data = archive.read_bytes()
-          print(f'payload bytes={len(data)} sha256={hashlib.sha256(data).hexdigest()}')
           destination = pathlib.Path('.').resolve()
           with tarfile.open(archive, mode='r:gz') as handle:
-              for member in handle.getmembers():
-                  target = (destination / member.name).resolve()
+              members = handle.getmembers()
+              if not members:
+                  raise SystemExit('runtime archive is empty')
+              for member in members:
+                  name = member.name.removeprefix('./')
+                  if not name:
+                      continue
+                  target = (destination / name).resolve()
                   if not target.is_relative_to(destination):
                       raise SystemExit(f'archive member escapes repository: {member.name}')
                   if member.issym() or member.islnk():
                       raise SystemExit(f'archive links are forbidden: {member.name}')
-              handle.extractall(destination)
+              print(f'validated {len(members)} archive members')
           PY
+          tar --extract --gzip --file "$archive" --directory . --no-same-owner --no-same-permissions
       - name: Extend progressive reference maps
         run: |
           python - <<'PY'
@@ -161,6 +171,7 @@ jobs:
       - name: Remove one-time integration resources
         run: |
           rm -rf .github/project-artifact-runtime
+          rm -rf .github/runtime-source-payload
           rm -f .github/workflows/apply-project-artifact-runtime.yml
       - name: Commit integrated runtime source
         run: |
