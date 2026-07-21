@@ -1,0 +1,42 @@
+name: Reference runtime diagnostics
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: compile
+            command: ./scripts/check.sh compile
+          - name: tests
+            command: ./scripts/check.sh tests
+          - name: inventory
+            command: ./scripts/check.sh inventory
+          - name: wrappers
+            command: ./scripts/check.sh wrappers
+          - name: reference-audit
+            command: uv run python scripts/audit_skill_references.py --require-clean
+          - name: connector-v3
+            command: uv run python scripts/validate_connector_contracts.py
+          - name: scientific-contracts
+            command: ./scripts/check.sh contracts
+          - name: skill-validation
+            command: ./scripts/check.sh skills
+          - name: candidate-contract
+            command: uv run python scripts/candidate_contract_check.py
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - run: ${{ matrix.command }}
