@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "skill": "literature-review",
+  "roles": ["conductor", "analyzer"],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "literature-protocol-v1",
+    "query-ledger-v1",
+    "study-table-v1",
+    "study-family-v1",
+    "risk-of-bias-v1",
+    "claim-register-v1",
+    "evidence-graph-v2",
+    "literature-snapshot-v1-v2"
+  ],
+  "acceptance_fixtures": [
+    "examples/literature-review-reviewed-run/manifest.json",
+    "examples/literature-review-reviewed-run/snapshot.previous.json",
+    "examples/literature-review-reviewed-run/snapshot.current.json"
+  ],
+  "seeded_failures": [
+    "duplicate-study-identity",
+    "citation-mismatch",
+    "unsupported-conclusion",
+    "dependent-evidence-presented-as-replication"
+  ],
+  "test_files": [
+    "tests/test_evidence_sidecars.py",
+    "tests/test_collaboration_literature_v2.py"
+  ],
+  "limitations": [
+    "The checked-in reviewed run is a deterministic fixture rather than a live systematic-review conclusion.",
+    "Full-text licensing and source availability remain publication-specific."
+  ]
+}
