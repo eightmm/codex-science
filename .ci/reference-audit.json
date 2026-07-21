@@ -1,0 +1,1426 @@
+{
+  "findings": [
+    {
+      "code": "unindexed-reference-file",
+      "message": "reference file is not indexed: references/catalog-policy.md",
+      "severity": "major",
+      "skill": "codex-science"
+    },
+    {
+      "code": "missing-reference-index",
+      "message": "spectroscopy-spectral-inference has reference files but no references/index.json",
+      "severity": "minor",
+      "skill": "spectroscopy-spectral-inference"
+    }
+  ],
+  "schema_version": 1,
+  "skills": [
+    {
+      "findings": [
+        {
+          "code": "unindexed-reference-file",
+          "message": "reference file is not indexed: references/catalog-policy.md",
+          "severity": "major"
+        }
+      ],
+      "index": {
+        "default_policy": "load-minimum-required",
+        "references": [
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Controls procedural grounding; it is not scientific evidence.",
+            "id": "reference-loading",
+            "path": "references/reference-loading.md",
+            "purpose": "Select, load, and receipt detailed skill references without flooding context or guessing undocumented arguments.",
+            "read_when": [
+              "a selected skill contains references/index.json",
+              "a route depends on detailed source, command, benchmark, or backend semantics"
+            ],
+            "required_before": [
+              "selected-skill-reference-loading",
+              "material-reference-controlled-operation"
+            ],
+            "search_patterns": [
+              "## 2. Load the minimum required material",
+              "## 3. Read before acting",
+              "## 5. Record material use"
+            ],
+            "version": "1"
+          },
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Controls task lifecycle only; it does not attest scientific completion.",
+            "id": "goal-loop-contract",
+            "path": "references/goal-loop-contract.md",
+            "purpose": "Operate native Goal mode and checkpoint lifecycle without creating conflicting continuation loops.",
+            "read_when": [
+              "starting or resuming a native Goal run",
+              "explaining completion_pending or Goal confirmation"
+            ],
+            "required_before": [
+              "native-goal-start",
+              "native-goal-resume",
+              "native-goal-completion"
+            ],
+            "search_patterns": [
+              "completion_pending",
+              "confirm-goal-complete",
+              "Stop"
+            ],
+            "version": "4"
+          }
+        ],
+        "schema_version": 1,
+        "skill": "codex-science"
+      },
+      "references": [
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Controls procedural grounding; it is not scientific evidence.",
+          "id": "reference-loading",
+          "path": "references/reference-loading.md",
+          "purpose": "Select, load, and receipt detailed skill references without flooding context or guessing undocumented arguments.",
+          "read_when": [
+            "a selected skill contains references/index.json",
+            "a route depends on detailed source, command, benchmark, or backend semantics"
+          ],
+          "required_before": [
+            "selected-skill-reference-loading",
+            "material-reference-controlled-operation"
+          ],
+          "search_patterns": [
+            "## 2. Load the minimum required material",
+            "## 3. Read before acting",
+            "## 5. Record material use"
+          ],
+          "sha256": "a953ca5ec7b5535e83f9c2e9a24f285dbacd7579a7afd4aa2b6a9288dc30f2f4",
+          "version": "1"
+        },
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Controls task lifecycle only; it does not attest scientific completion.",
+          "id": "goal-loop-contract",
+          "path": "references/goal-loop-contract.md",
+          "purpose": "Operate native Goal mode and checkpoint lifecycle without creating conflicting continuation loops.",
+          "read_when": [
+            "starting or resuming a native Goal run",
+            "explaining completion_pending or Goal confirmation"
+          ],
+          "required_before": [
+            "native-goal-start",
+            "native-goal-resume",
+            "native-goal-completion"
+          ],
+          "search_patterns": [
+            "completion_pending",
+            "confirm-goal-complete",
+            "Stop"
+          ],
+          "sha256": "557400c3ea98c127c349b65d1cf5d04858b82580b19c9cab62056742eba76570",
+          "version": "4"
+        }
+      ],
+      "skill": "codex-science"
+    },
+    {
+      "findings": [],
+      "index": {
+        "default_policy": "load-minimum-required",
+        "references": [
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Defines packaging and validation; it does not validate domain-specific scientific claims.",
+            "id": "artifact-contract",
+            "path": "references/artifact-contract.md",
+            "purpose": "Manifest fields, validated sidecars, evidence links, versioning, and review invalidation.",
+            "read_when": [
+              "creating or changing a manifest",
+              "adding a sidecar",
+              "reviewing bundle versioning or invalidation"
+            ],
+            "required_before": [
+              "manifest-authoring",
+              "sidecar-authoring",
+              "bundle-versioning"
+            ],
+            "search_patterns": [
+              "## Validated sidecars",
+              "## Bundle validation",
+              "## Versioning and invalidation"
+            ],
+            "version": "1"
+          },
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Validates artifact identity and transfer semantics, not the scientific meaning of the artifact.",
+            "id": "large-artifacts",
+            "path": "references/large-artifacts.md",
+            "purpose": "Streaming, chunked, Merkle-tree, external-reference, and content-addressed handling for large scientific outputs.",
+            "read_when": [
+              "an artifact is a directory",
+              "a file is too large for whole-file memory loading",
+              "a run uses trajectories, AnnData, BAM/CRAM, Zarr, Parquet, weights, or remote immutable objects"
+            ],
+            "required_before": [
+              "large-artifact-registration",
+              "directory-artifact-registration",
+              "content-addressed-cache-insertion"
+            ],
+            "search_patterns": [
+              "## Artifact types",
+              "## Content-addressed cache",
+              "## Validation and failure semantics"
+            ],
+            "version": "1"
+          }
+        ],
+        "schema_version": 1,
+        "skill": "science-provenance"
+      },
+      "references": [
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Defines packaging and validation; it does not validate domain-specific scientific claims.",
+          "id": "artifact-contract",
+          "path": "references/artifact-contract.md",
+          "purpose": "Manifest fields, validated sidecars, evidence links, versioning, and review invalidation.",
+          "read_when": [
+            "creating or changing a manifest",
+            "adding a sidecar",
+            "reviewing bundle versioning or invalidation"
+          ],
+          "required_before": [
+            "manifest-authoring",
+            "sidecar-authoring",
+            "bundle-versioning"
+          ],
+          "search_patterns": [
+            "## Validated sidecars",
+            "## Bundle validation",
+            "## Versioning and invalidation"
+          ],
+          "sha256": "b762bdd86796642e0b098091c043efef750d0462761e09be45996d111897c73a",
+          "version": "1"
+        },
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Validates artifact identity and transfer semantics, not the scientific meaning of the artifact.",
+          "id": "large-artifacts",
+          "path": "references/large-artifacts.md",
+          "purpose": "Streaming, chunked, Merkle-tree, external-reference, and content-addressed handling for large scientific outputs.",
+          "read_when": [
+            "an artifact is a directory",
+            "a file is too large for whole-file memory loading",
+            "a run uses trajectories, AnnData, BAM/CRAM, Zarr, Parquet, weights, or remote immutable objects"
+          ],
+          "required_before": [
+            "large-artifact-registration",
+            "directory-artifact-registration",
+            "content-addressed-cache-insertion"
+          ],
+          "search_patterns": [
+            "## Artifact types",
+            "## Content-addressed cache",
+            "## Validation and failure semantics"
+          ],
+          "sha256": "f24b550a570aa343b25df92fce965de893670b681483a346844157e948947afb",
+          "version": "1"
+        }
+      ],
+      "skill": "science-provenance"
+    },
+    {
+      "findings": [],
+      "index": {
+        "default_policy": "load-minimum-required",
+        "references": [
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Defines review procedure; reviewer success does not establish scientific truth.",
+            "id": "review-checklist",
+            "path": "references/review-checklist.md",
+            "purpose": "Claim-level checks, severity definitions, finding fields, and the review pass rule.",
+            "read_when": [
+              "assigning finding severity",
+              "reviewing a material claim",
+              "deciding whether a review passes"
+            ],
+            "required_before": [
+              "finding-severity-assignment",
+              "review-pass-decision"
+            ],
+            "search_patterns": [
+              "## Severity",
+              "## Claim-level checks",
+              "## Pass rule"
+            ],
+            "version": "1"
+          }
+        ],
+        "schema_version": 1,
+        "skill": "science-review"
+      },
+      "references": [
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Defines review procedure; reviewer success does not establish scientific truth.",
+          "id": "review-checklist",
+          "path": "references/review-checklist.md",
+          "purpose": "Claim-level checks, severity definitions, finding fields, and the review pass rule.",
+          "read_when": [
+            "assigning finding severity",
+            "reviewing a material claim",
+            "deciding whether a review passes"
+          ],
+          "required_before": [
+            "finding-severity-assignment",
+            "review-pass-decision"
+          ],
+          "search_patterns": [
+            "## Severity",
+            "## Claim-level checks",
+            "## Pass rule"
+          ],
+          "sha256": "9b3957c88263433c16af8df46a4de29d186d8bc173b233767cc79167d6e73c46",
+          "version": "1"
+        }
+      ],
+      "skill": "science-review"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "alphafold-structure-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "alphafold2-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "alphafold3-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "alphagenome-variant-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "arxiv-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "asymptotic-perturbation-methods"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "autodock-vina-docking"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "bgee-expression-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "bindcraft-binder-design"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "biomedical-entity-normalization"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "biomedical-evidence-reconciliation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "biorxiv-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "biostudies-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "boltz-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "borzoi-regulatory-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "cancer-genomics-evidence"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "cbioportal-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "chai1-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "chaos-nonlinear-dynamics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "chebi-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "chembl-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "chemical-structure-elucidation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "chromatography-quantification"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "classical-mechanics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "clinical-trials-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "clinvar-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "complex-fourier-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "computational-physics-validation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "compute-environment"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "condensed-matter-solid-state"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "continuum-mechanics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "control-dynamical-systems"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "dbsnp-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "diffdock-docking"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "dimensional-analysis-units"
+    },
+    {
+      "findings": [],
+      "index": {
+        "default_policy": "load-minimum-required",
+        "references": [
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Defines benchmark validity; it does not show that a docking engine performs well.",
+            "id": "benchmark-design",
+            "path": "references/benchmark-design.md",
+            "purpose": "Define state manifests, information boundaries, leakage-aware splits, controls, and prediction units.",
+            "read_when": [
+              "building a docking benchmark",
+              "defining a pocket",
+              "creating train/test splits"
+            ],
+            "required_before": [
+              "benchmark-construction",
+              "pocket-definition",
+              "split-construction"
+            ],
+            "search_patterns": [
+              "## Information boundary",
+              "## Splits",
+              "## Controls"
+            ],
+            "version": "1"
+          },
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Metric definitions do not validate data splits, state preparation, or biological claims.",
+            "id": "metric-and-acceptance",
+            "path": "references/metric-and-acceptance.md",
+            "purpose": "Prespecify pose, screening, calibration, uncertainty, threshold, and failure metrics.",
+            "read_when": [
+              "computing docking metrics",
+              "setting acceptance thresholds",
+              "calibrating scores"
+            ],
+            "required_before": [
+              "metric-computation",
+              "acceptance-decision",
+              "score-calibration"
+            ],
+            "search_patterns": [
+              "## Pose metrics",
+              "## Screening metrics",
+              "## Thresholds"
+            ],
+            "version": "1"
+          },
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Provides inference limits and does not supply assay or mechanistic evidence.",
+            "id": "inference-boundaries",
+            "path": "references/inference-boundaries.md",
+            "purpose": "Keep pose, confidence, ranking, affinity, mechanism, and translational claims distinct.",
+            "read_when": [
+              "writing docking conclusions",
+              "claiming affinity or mechanism",
+              "defining applicability or abstention"
+            ],
+            "required_before": [
+              "docking-claim-synthesis",
+              "affinity-claim",
+              "mechanism-claim"
+            ],
+            "search_patterns": [
+              "## Distinct outputs",
+              "## Required external evidence",
+              "## Claim downgrade"
+            ],
+            "version": "1"
+          }
+        ],
+        "schema_version": 1,
+        "skill": "docking-validation"
+      },
+      "references": [
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Defines benchmark validity; it does not show that a docking engine performs well.",
+          "id": "benchmark-design",
+          "path": "references/benchmark-design.md",
+          "purpose": "Define state manifests, information boundaries, leakage-aware splits, controls, and prediction units.",
+          "read_when": [
+            "building a docking benchmark",
+            "defining a pocket",
+            "creating train/test splits"
+          ],
+          "required_before": [
+            "benchmark-construction",
+            "pocket-definition",
+            "split-construction"
+          ],
+          "search_patterns": [
+            "## Information boundary",
+            "## Splits",
+            "## Controls"
+          ],
+          "sha256": "03df4bc301b9296299eab50c21e42a1edee2fec165b53a6b20f2a0a127f0e867",
+          "version": "1"
+        },
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Metric definitions do not validate data splits, state preparation, or biological claims.",
+          "id": "metric-and-acceptance",
+          "path": "references/metric-and-acceptance.md",
+          "purpose": "Prespecify pose, screening, calibration, uncertainty, threshold, and failure metrics.",
+          "read_when": [
+            "computing docking metrics",
+            "setting acceptance thresholds",
+            "calibrating scores"
+          ],
+          "required_before": [
+            "metric-computation",
+            "acceptance-decision",
+            "score-calibration"
+          ],
+          "search_patterns": [
+            "## Pose metrics",
+            "## Screening metrics",
+            "## Thresholds"
+          ],
+          "sha256": "8f8f2c41c5972b798665ffc6f1839bd0408011d420993bf0a571489efa1a9543",
+          "version": "1"
+        },
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Provides inference limits and does not supply assay or mechanistic evidence.",
+          "id": "inference-boundaries",
+          "path": "references/inference-boundaries.md",
+          "purpose": "Keep pose, confidence, ranking, affinity, mechanism, and translational claims distinct.",
+          "read_when": [
+            "writing docking conclusions",
+            "claiming affinity or mechanism",
+            "defining applicability or abstention"
+          ],
+          "required_before": [
+            "docking-claim-synthesis",
+            "affinity-claim",
+            "mechanism-claim"
+          ],
+          "search_patterns": [
+            "## Distinct outputs",
+            "## Required external evidence",
+            "## Claim downgrade"
+          ],
+          "sha256": "1c4140d18d18c3a21399b16b7cb2bac42536b3d39ac4aa3c4eba8a6b5ba8d31e",
+          "version": "1"
+        }
+      ],
+      "skill": "docking-validation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "electromagnetism"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "encode-ccres-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ensembl-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "esm2-protein-embeddings"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "esmc-protein-modeling"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "esmfold-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "esmfold2-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "europepmc-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "evo2-genome-modeling"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "experimental-uncertainty-propagation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "expression-cell-context"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "foldseek-structural-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "formal-theorem-proving"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "gene-burden-evidence"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "geometry-topology"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "gnina-docking"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "gnomad-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "gromacs-molecular-dynamics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "gtex-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "gwas-catalog-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "hpa-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "indication-dossier"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "interpro-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "inverse-problems-regularization"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "jaspar-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "life-science-research-routing"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "linear-algebra-problem-solving"
+    },
+    {
+      "findings": [],
+      "index": {
+        "default_policy": "load-minimum-required",
+        "references": [
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Defines review procedure; actual study records remain the evidence.",
+            "id": "protocol-and-study-identity",
+            "path": "references/protocol-and-study-identity.md",
+            "purpose": "Freeze the review protocol, normalize identifiers, resolve publication versions, and determine evidence independence.",
+            "read_when": [
+              "freezing eligibility",
+              "deduplicating studies",
+              "resolving preprints, corrections, or registries"
+            ],
+            "required_before": [
+              "protocol-freeze",
+              "study-deduplication",
+              "replication-assessment"
+            ],
+            "search_patterns": [
+              "## Protocol freeze",
+              "## Study-family resolution",
+              "## Independence"
+            ],
+            "version": "1"
+          },
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Does not supply missing study values or replace primary-source verification.",
+            "id": "extraction-and-bias",
+            "path": "references/extraction-and-bias.md",
+            "purpose": "Construct study rows, effect assertions, source locators, and explicit risk-of-bias records.",
+            "read_when": [
+              "extracting studies",
+              "grading risk of bias",
+              "writing claim-level evidence assertions"
+            ],
+            "required_before": [
+              "structured-extraction",
+              "risk-of-bias-assessment",
+              "evidence-assertion"
+            ],
+            "search_patterns": [
+              "## Minimum study row",
+              "## Risk-of-bias record",
+              "## Evidence assertion"
+            ],
+            "version": "1"
+          },
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Controls update lineage; it does not establish that new evidence changes a claim.",
+            "id": "living-update",
+            "path": "references/living-update.md",
+            "purpose": "Advance a literature snapshot without overwriting prior evidence or reusing stale review receipts.",
+            "read_when": [
+              "running living-update mode",
+              "changing an evidence cutoff",
+              "replacing a reviewed synthesis"
+            ],
+            "required_before": [
+              "living-review-update",
+              "review-snapshot-replacement"
+            ],
+            "search_patterns": [
+              "## Immutable snapshots",
+              "## Update diff",
+              "## Invalidation"
+            ],
+            "version": "1"
+          }
+        ],
+        "schema_version": 1,
+        "skill": "literature-review"
+      },
+      "references": [
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Defines review procedure; actual study records remain the evidence.",
+          "id": "protocol-and-study-identity",
+          "path": "references/protocol-and-study-identity.md",
+          "purpose": "Freeze the review protocol, normalize identifiers, resolve publication versions, and determine evidence independence.",
+          "read_when": [
+            "freezing eligibility",
+            "deduplicating studies",
+            "resolving preprints, corrections, or registries"
+          ],
+          "required_before": [
+            "protocol-freeze",
+            "study-deduplication",
+            "replication-assessment"
+          ],
+          "search_patterns": [
+            "## Protocol freeze",
+            "## Study-family resolution",
+            "## Independence"
+          ],
+          "sha256": "c5286c87e59a816a46f9371956e68e0ddd1044c324e9b67ea3cc4228dd7d3491",
+          "version": "1"
+        },
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Does not supply missing study values or replace primary-source verification.",
+          "id": "extraction-and-bias",
+          "path": "references/extraction-and-bias.md",
+          "purpose": "Construct study rows, effect assertions, source locators, and explicit risk-of-bias records.",
+          "read_when": [
+            "extracting studies",
+            "grading risk of bias",
+            "writing claim-level evidence assertions"
+          ],
+          "required_before": [
+            "structured-extraction",
+            "risk-of-bias-assessment",
+            "evidence-assertion"
+          ],
+          "search_patterns": [
+            "## Minimum study row",
+            "## Risk-of-bias record",
+            "## Evidence assertion"
+          ],
+          "sha256": "6e4a396ea658a9989ee6d9dfcf2b7e3ba385b3b29501e23f67926522f9059140",
+          "version": "1"
+        },
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Controls update lineage; it does not establish that new evidence changes a claim.",
+          "id": "living-update",
+          "path": "references/living-update.md",
+          "purpose": "Advance a literature snapshot without overwriting prior evidence or reusing stale review receipts.",
+          "read_when": [
+            "running living-update mode",
+            "changing an evidence cutoff",
+            "replacing a reviewed synthesis"
+          ],
+          "required_before": [
+            "living-review-update",
+            "review-snapshot-replacement"
+          ],
+          "search_patterns": [
+            "## Immutable snapshots",
+            "## Update diff",
+            "## Invalidation"
+          ],
+          "sha256": "ca85ebad8a50f808921b91398b00ff6d92f50ba3aab0583f9207266228023cd8",
+          "version": "1"
+        }
+      ],
+      "skill": "literature-review"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "locus-to-gene-prioritization"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "mass-spectrometry-identification"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "mathematical-problem-execution"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "mdanalysis-trajectory-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "metabolomics-proteomics-context"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "mgnify-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "modeling-problem-execution"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "molecular-input-preparation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "mygene-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ncbi-gene-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ncbi-integrated-research"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ncbi-sequence-fetch"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "nmr-structure-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "nuclear-particle-physics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "numerical-analysis-error-control"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ode-pde-solving"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ols-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "openalex-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "openfda-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "openff-parameterization"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "openfold3-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "openmm-molecular-dynamics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "opentargets-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "optics-wave-physics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "optimization-variational-methods"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "pdb-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "phewas-replication-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "plip-interaction-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "predicting-the-past"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "pride-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "probability-stochastic-processes"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "proof-and-counterexample"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "protein-msa"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "protein-similarity-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "proteinmpnn-sequence-design"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "protenix-structure-prediction"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "proteomexchange-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "pubchem-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "public-omics-dataset-discovery"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "pubmed-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "pymol-visualize"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "quantum-mechanics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "quickgo-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "reactome-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "relativity-spacetime"
+    },
+    {
+      "findings": [],
+      "index": {
+        "default_policy": "load-minimum-required",
+        "references": [
+          {
+            "authority": "repository-contract",
+            "evidence_boundary": "Controls remote execution safety; it does not validate the scientific method or result.",
+            "id": "backend-checklists",
+            "path": "references/backends.md",
+            "purpose": "Backend-specific SSH, Slurm/HPC, cloud GPU, and object-storage preflight, execution, monitoring, and cleanup rules.",
+            "read_when": [
+              "selecting a remote backend",
+              "submitting a Slurm job",
+              "allocating cloud GPU",
+              "transferring object storage data"
+            ],
+            "required_before": [
+              "remote-stage",
+              "remote-submit",
+              "paid-allocation",
+              "object-storage-write"
+            ],
+            "search_patterns": [
+              "## SSH",
+              "## Slurm/HPC",
+              "## Cloud GPU",
+              "## Object storage"
+            ],
+            "version": "1"
+          }
+        ],
+        "schema_version": 1,
+        "skill": "remote-scientific-compute"
+      },
+      "references": [
+        {
+          "authority": "repository-contract",
+          "evidence_boundary": "Controls remote execution safety; it does not validate the scientific method or result.",
+          "id": "backend-checklists",
+          "path": "references/backends.md",
+          "purpose": "Backend-specific SSH, Slurm/HPC, cloud GPU, and object-storage preflight, execution, monitoring, and cleanup rules.",
+          "read_when": [
+            "selecting a remote backend",
+            "submitting a Slurm job",
+            "allocating cloud GPU",
+            "transferring object storage data"
+          ],
+          "required_before": [
+            "remote-stage",
+            "remote-submit",
+            "paid-allocation",
+            "object-storage-write"
+          ],
+          "search_patterns": [
+            "## SSH",
+            "## Slurm/HPC",
+            "## Cloud GPU",
+            "## Object storage"
+          ],
+          "sha256": "83e6b9a3ecae80c4bc9c8e02c934593c05abed453435c321c3f3fd6e3fac0e4f",
+          "version": "1"
+        }
+      ],
+      "skill": "remote-scientific-compute"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "rfdiffusion-protein-design"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "rhea-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "rnacentral-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "rosettafold-all-atom"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "scgpt-single-cell"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "scvi-tools-analysis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "simplefold-structure-prediction"
+    },
+    {
+      "findings": [
+        {
+          "code": "missing-reference-index",
+          "message": "spectroscopy-spectral-inference has reference files but no references/index.json",
+          "severity": "minor"
+        }
+      ],
+      "index": null,
+      "references": [],
+      "skill": "spectroscopy-spectral-inference"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "statistical-inference-experimental-design"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "string-ppi-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "tensor-calculus-differential-geometry"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "thermodynamics-statistical-mechanics"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "translational-pharmacology-evidence"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "ucsc-conservation"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "unibind-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "uniprot-search"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "variant-evidence-synthesis"
+    },
+    {
+      "findings": [],
+      "index": null,
+      "references": [],
+      "skill": "xray-diffraction-scattering"
+    }
+  ],
+  "summary": {
+    "findings": 2,
+    "indexed_skills": 6,
+    "major_findings": 1,
+    "references": 12,
+    "skills": 131
+  }
+}
