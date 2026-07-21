@@ -1,0 +1,85 @@
+name: Apply reference runtime v3
+
+on:
+  push:
+    branches: [agent/reference-runtime-v3]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          submodules: recursive
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - name: Verify and expand implementation payload
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import pathlib
+          import tarfile
+
+          root = pathlib.Path('.github/reference-runtime-v3')
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          parts = []
+          for name, expected in sorted(manifest['parts'].items()):
+              data = (root / name).read_bytes()
+              if len(data) != expected['bytes']:
+                  raise SystemExit(f'{name}: byte count mismatch')
+              if hashlib.sha256(data).hexdigest() != expected['sha256']:
+                  raise SystemExit(f'{name}: sha256 mismatch')
+              parts.append(data)
+          joined = b''.join(parts)
+          if len(joined) != manifest['base64_bytes']:
+              raise SystemExit('base64 byte count mismatch')
+          if hashlib.sha256(joined).hexdigest() != manifest['base64_sha256']:
+              raise SystemExit('base64 sha256 mismatch')
+          archive = base64.b64decode(joined, validate=True)
+          if len(archive) != manifest['tar_bytes']:
+              raise SystemExit('archive byte count mismatch')
+          if hashlib.sha256(archive).hexdigest() != manifest['tar_sha256']:
+              raise SystemExit('archive sha256 mismatch')
+          archive_path = pathlib.Path('/tmp/reference-runtime-v3.tgz')
+          archive_path.write_bytes(archive)
+          destination = pathlib.Path('.').resolve()
+          with tarfile.open(archive_path, mode='r:gz') as handle:
+              for member in handle.getmembers():
+                  target = (destination / member.name).resolve()
+                  if not target.is_relative_to(destination):
+                      raise SystemExit(f'archive member escapes repository: {member.name}')
+              handle.extractall(destination)
+          PY
+      - name: Apply reference and runtime migration
+        run: uv run python scripts/apply_reference_runtime.py
+      - name: Regenerate deterministic catalog and wrappers
+        run: |
+          uv run python scripts/audit_skills.py
+          uv run python scripts/generate_wrappers.py
+      - name: Run complete verification
+        run: ./scripts/check.sh fast
+      - name: Remove one-time migration resources
+        run: |
+          rm -rf .github/reference-runtime-v3
+          rm -f .github/workflows/apply-reference-runtime.yml
+          rm -f scripts/apply_reference_runtime.py
+      - name: Commit migrated source
+        run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Complete reference runtime v3 integration"
+          git push origin HEAD:"$branch"
