@@ -1,0 +1,54 @@
+name: Integrate native runtime v4
+
+on:
+  push:
+    branches: [agent/reference-runtime-v3]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          submodules: recursive
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - name: Integrate references and validation routes
+        run: uv run python scripts/integrate_native_runtime_v4.py
+      - name: Compile new runtime modules
+        run: uv run python -m compileall -q src scripts
+      - name: Run focused runtime tests
+        run: |
+          uv run python -m unittest \
+            tests.test_artifact_runtime \
+            tests.test_project_store \
+            tests.test_compute_backends \
+            tests.test_skill_maturity
+      - name: Run complete repository validation
+        run: ./scripts/check.sh fast
+      - name: Remove one-time integration resources
+        run: |
+          rm -f .github/workflows/integrate-native-runtime-v4.yml
+          rm -f scripts/integrate_native_runtime_v4.py
+      - name: Commit integrated implementation
+        run: |
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No integration changes"
+            exit 0
+          fi
+          git commit -m "Integrate native artifact, project, compute, and skill maturity runtimes"
+          git push origin HEAD:"$branch"
