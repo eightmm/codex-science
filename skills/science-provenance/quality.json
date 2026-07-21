@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "skill": "science-provenance",
+  "roles": ["infrastructure"],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "artifact-manifest-v1",
+    "claim-register-v1",
+    "evidence-graph-v1-v2",
+    "reference-use-ledger-v1",
+    "artifact-descriptor-v1",
+    "artifact-selection-v1",
+    "transform-proposal-v1",
+    "fair-export-receipt-v1",
+    "scientific-bom-v1",
+    "ro-crate-oriented-v1",
+    "prov-oriented-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "A provenance bundle can be internally valid while the scientific design remains invalid.",
+    "Large or proprietary external inputs may be represented only by immutable references and checksums."
+  ]
+}

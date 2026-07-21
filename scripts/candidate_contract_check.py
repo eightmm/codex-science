@@ -31,6 +31,7 @@ def main() -> int:
 
     run([python, "scripts/validate_release.py", "--root", str(root)], cwd=root)
     run([python, "scripts/validate_connector_contracts.py", "--root", str(root)], cwd=root)
+    run([python, "scripts/audit_skill_references.py", "--root", str(root), "--require-clean"], cwd=root)
     run([python, "-m", "compileall", "-q", "src", "scripts"], cwd=root)
 
     with tempfile.TemporaryDirectory() as tempdir:

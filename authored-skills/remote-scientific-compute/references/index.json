@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "remote-scientific-compute",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "backend-checklists",
+      "path": "references/backends.md",
+      "purpose": "Backend-specific SSH, Slurm/HPC, cloud GPU, and object-storage preflight, execution, monitoring, and cleanup rules.",
+      "read_when": ["selecting a remote backend", "submitting a Slurm job", "allocating cloud GPU", "transferring object storage data"],
+      "required_before": ["remote-stage", "remote-submit", "paid-allocation", "object-storage-write"],
+      "search_patterns": ["## SSH", "## Slurm/HPC", "## Cloud GPU", "## Object storage"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Controls remote execution safety; it does not validate the scientific method or result."
+    },
+    {
+      "id": "job-runtime",
+      "path": "references/job-runtime.md",
+      "purpose": "Durable local and Slurm job specs, approvals, submission, status, cancellation, checkpoint, and output collection receipts.",
+      "read_when": ["before constructing a durable job spec", "before submitting, polling, cancelling, or collecting a local or Slurm job", "before approving a non-local resource allocation"],
+      "required_before": ["calling scripts/science_job.py", "submitting work through LocalBackend or SlurmBackend"],
+      "search_patterns": ["## Job spec", "## Local execution", "## Approval receipt", "## Slurm execution", "## Checkpoint and resume", "## Failure handling"],
+      "authority": "Codex Science first-party compute runtime contract",
+      "version": "1",
+      "evidence_boundary": "A job receipt proves execution state and collected hashes, not scientific success."
+    }
+  ]
+}

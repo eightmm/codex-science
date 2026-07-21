@@ -286,3 +286,11 @@ When editing an authored skill:
 4. run `./scripts/check.sh fast`;
 5. run `./scripts/check.sh public` only for explicit live-source validation;
 6. describe what was verified, what was not, and which scientific claims remain unvalidated.
+
+## Progressive reference contract
+
+Keep the decision-bearing workflow, outputs, stop rules, and inference boundary in `SKILL.md`. Move source-specific operations, command signatures, large schemas, benchmark details, backend procedures, and worked examples into `references/`.
+
+A skill with detailed references should provide `references/index.json` and a `## Reference usage` section. The index declares stable reference IDs, purposes, `read_when` routes, mandatory `required_before` operations, search patterns, authority, version, and evidence boundary. The agent must read the selected reference before executing a controlled operation and must not guess arguments or schemas that exist only in the reference.
+
+When a reference materially controls a query, command, transformation, threshold, or claim, record a hash-bound `reference-use-ledger`. Reference documents guide procedure; they are not scientific evidence by themselves. Run `python scripts/audit_skill_references.py --require-clean` before treating a migrated core skill as complete.

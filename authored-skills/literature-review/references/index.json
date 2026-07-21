@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "skill": "literature-review",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "protocol-and-study-identity",
+      "path": "references/protocol-and-study-identity.md",
+      "purpose": "Freeze the review protocol, normalize identifiers, resolve publication versions, and determine evidence independence.",
+      "read_when": ["freezing eligibility", "deduplicating studies", "resolving preprints, corrections, or registries"],
+      "required_before": ["protocol-freeze", "study-deduplication", "replication-assessment"],
+      "search_patterns": ["## Protocol freeze", "## Study-family resolution", "## Independence"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines review procedure; actual study records remain the evidence."
+    },
+    {
+      "id": "extraction-and-bias",
+      "path": "references/extraction-and-bias.md",
+      "purpose": "Construct study rows, effect assertions, source locators, and explicit risk-of-bias records.",
+      "read_when": ["extracting studies", "grading risk of bias", "writing claim-level evidence assertions"],
+      "required_before": ["structured-extraction", "risk-of-bias-assessment", "evidence-assertion"],
+      "search_patterns": ["## Minimum study row", "## Risk-of-bias record", "## Evidence assertion"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Does not supply missing study values or replace primary-source verification."
+    },
+    {
+      "id": "living-update",
+      "path": "references/living-update.md",
+      "purpose": "Advance a literature snapshot without overwriting prior evidence or reusing stale review receipts.",
+      "read_when": ["running living-update mode", "changing an evidence cutoff", "replacing a reviewed synthesis"],
+      "required_before": ["living-review-update", "review-snapshot-replacement"],
+      "search_patterns": ["## Immutable snapshots", "## Update diff", "## Invalidation"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Controls update lineage; it does not establish that new evidence changes a claim."
+    }
+  ]
+}

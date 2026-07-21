@@ -426,7 +426,7 @@
     {
       "description": "Validate docking, pose-prediction, rescoring, and virtual-screening workflows with leakage-aware controls and prespecified metrics. Use before interpreting AutoDock Vina, GNINA, DiffDock, or related docking outputs.",
       "executable_count": 0,
-      "instruction_line_count": 30,
+      "instruction_line_count": 36,
       "license": "MIT",
       "name": "cx-docking-validation",
       "path": "authored-skills/docking-validation",
@@ -762,7 +762,7 @@
     {
       "description": "Run a protocol-driven, updateable literature review with exact multi-source queries, study-level deduplication, structured extraction, evidence dependency tracking, bounded synthesis, provenance, and independent review. Use for systematic, scoping, rapid, living, or evidence-landscape reviews where discovery alone is insufficient.",
       "executable_count": 0,
-      "instruction_line_count": 93,
+      "instruction_line_count": 99,
       "license": "MIT",
       "name": "cx-literature-review",
       "path": "authored-skills/literature-review",
@@ -1314,7 +1314,7 @@
     {
       "description": "Run reproducible scientific workloads through an existing SSH host, Slurm/HPC cluster, cloud GPU provider, or remote object storage. Use for remote execution, job submission and monitoring, checkpointed long runs, GPU allocation, data staging, result retrieval, queue diagnosis, or resuming work that can outlive the current Codex task.",
       "executable_count": 0,
-      "instruction_line_count": 70,
+      "instruction_line_count": 90,
       "license": "Apache-2.0",
       "name": "cx-remote-scientific-compute",
       "path": "authored-skills/remote-scientific-compute",

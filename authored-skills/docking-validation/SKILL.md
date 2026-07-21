@@ -6,6 +6,12 @@ license: MIT
 
 # Docking Validation
 
+## Reference usage
+
+Read [benchmark design](references/benchmark-design.md) before defining states, pockets, controls, or data splits. Read [metrics and acceptance](references/metric-and-acceptance.md) before computing metrics, fixing thresholds, calibrating scores, or declaring a pass. Read [inference boundaries](references/inference-boundaries.md) before writing pose, ranking, affinity, mechanism, or generalization claims.
+
+Do not infer benchmark information boundaries, metric aggregation, or claim strength from an engine name or score. Record the reference hashes used for a material benchmark or claim in a `reference-use-ledger`.
+
 ## Decision contract
 Prespecify the use case, prediction unit, receptor and ligand states, pocket information allowed at inference, benchmark split, controls, primary metric, uncertainty method, applicability domain, and success threshold before inspecting outcomes.
 Treat benchmark construction, preparation, pose generation, scoring, and decision analysis as separate stages with separate artifacts.
