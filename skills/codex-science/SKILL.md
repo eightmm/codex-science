@@ -40,6 +40,8 @@ Fall back to general-purpose tools or skills only when no suitable Science capab
 
 After selecting a skill, inspect its `references/index.json` when present and load only the entries required by the active route. Read [the reference-loading protocol](references/reference-loading.md) before any reference-controlled operation; do not infer arguments, output schemas, source semantics, thresholds, or licenses from names alone. Read [the catalog policy](references/catalog-policy.md) before selecting or inspecting an inactive catalog skill. Read [the Goal-loop contract](references/goal-loop-contract.md) before starting, resuming, or completing a native Goal run.
 
+Read [the project evidence store contract](references/project-evidence-store.md) before managing multi-run lineage, hypotheses, comparisons, or merge plans. Read [the pipeline promotion contract](references/pipeline-promotion.md) before generating a reusable draft from a reviewed run, and [the next-experiment planning contract](references/next-experiment-planning.md) before ranking a proposed batch. Read [the authenticated connector pack contract](references/authenticated-connector-packs.md) before designing, approving, or using a credentialed or write-capable provider action.
+
 When a reference materially controls a query, command, transformation, threshold, or claim, record its path, SHA-256, read reason, and affected claim or artifact in a `reference-use-ledger`. A reference explains procedure; the actual source record or computation remains the scientific evidence.
 
 ## Research contract and evidence graph

@@ -6,7 +6,9 @@
   "output_schemas": [
     "review-receipt-v2",
     "scientific-finding-v1",
-    "review-resolution-v1"
+    "review-resolution-v1",
+    "review-task-v1",
+    "review-response-v1"
   ],
   "acceptance_fixtures": [],
   "seeded_failures": [],

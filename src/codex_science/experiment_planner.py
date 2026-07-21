@@ -169,10 +169,15 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
     constraints = payload.get("constraints")
     if not isinstance(constraints, Mapping):
         raise ValueError("constraints must be an object")
-    batch_size = int(constraints.get("batch_size", 0))
+    batch_raw = constraints.get("batch_size", 0)
+    group_raw = constraints.get("diversity_group_cap", constraints.get("scaffold_cap", batch_raw))
+    controls_raw = constraints.get("minimum_controls", 0)
+    if any(isinstance(item, bool) for item in (batch_raw, group_raw, controls_raw)):
+        raise ValueError("batch size, diversity cap, and minimum controls must be integers")
+    batch_size = int(batch_raw)
     budget = _number(constraints.get("budget", 0), "budget")
-    group_cap = int(constraints.get("diversity_group_cap", constraints.get("scaffold_cap", batch_size)))
-    minimum_controls = int(constraints.get("minimum_controls", 0))
+    group_cap = int(group_raw)
+    minimum_controls = int(controls_raw)
     if batch_size < 1 or budget < 0 or group_cap < 1 or minimum_controls < 0:
         raise ValueError("batch size, budget, diversity cap, and minimum controls are invalid")
     uncertainty_weight = _number(payload.get("uncertainty_weight", 0.25), "uncertainty_weight")

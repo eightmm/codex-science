@@ -24,7 +24,14 @@ def _sha(value: Any, label: str) -> str:
 
 
 def canonical_sha256(payload: Mapping[str, Any]) -> str:
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def validate_review_receipt(payload: dict[str, Any]) -> None:

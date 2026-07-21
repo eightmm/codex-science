@@ -1314,7 +1314,7 @@
     {
       "description": "Run reproducible scientific workloads through an existing SSH host, Slurm/HPC cluster, cloud GPU provider, or remote object storage. Use for remote execution, job submission and monitoring, checkpointed long runs, GPU allocation, data staging, result retrieval, queue diagnosis, or resuming work that can outlive the current Codex task.",
       "executable_count": 0,
-      "instruction_line_count": 76,
+      "instruction_line_count": 90,
       "license": "Apache-2.0",
       "name": "cx-remote-scientific-compute",
       "path": "authored-skills/remote-scientific-compute",

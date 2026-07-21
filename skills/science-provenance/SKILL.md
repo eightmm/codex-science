@@ -13,6 +13,8 @@ For a non-trivial active run, keep `checkpoint.json` beside the manifest as muta
 
 Read [the artifact contract](references/artifact-contract.md) before authoring a manifest, sidecar, or bundle-version change. Read [the large-artifact protocol](references/large-artifacts.md) before registering a directory, a file too large for whole-memory loading, a chunked dataset, model weights, or an immutable external object. Do not guess sidecar fields, Merkle rules, or invalidation semantics.
 
+Read [the native artifact runtime contract](references/artifact-runtime.md) before rendering an artifact, recording a typed selection, or proposing a transform. Read [the FAIR-oriented export contract](references/fair-export.md) before archival, interoperable export, or scientific dependency and license handoff.
+
 When a reference controls artifact registration or review, save a `reference-use-ledger` with the reference hash. A changed reference hash invalidates a receipt that explicitly covered its prior procedural assumptions.
 
 ## Run contract

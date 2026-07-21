@@ -8,7 +8,13 @@
     "checkpoint-v4",
     "artifact-manifest-v1",
     "lane-receipt-v1",
-    "reference-use-ledger-v1"
+    "reference-use-ledger-v1",
+    "pipeline-promotion-v1",
+    "experiment-proposal-v1",
+    "connector-action-spec-v1",
+    "connector-action-preview-v1",
+    "connector-action-approval-v1",
+    "connector-action-receipt-v1"
   ],
   "acceptance_fixtures": [],
   "seeded_failures": [],

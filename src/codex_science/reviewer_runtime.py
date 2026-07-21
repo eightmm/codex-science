@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
-from codex_science.review_receipts import build_review_receipt, validate_review_receipt
+from codex_science.review_receipts import build_review_receipt, canonical_sha256, validate_review_receipt
 
 
 REVIEW_MODES = {"record", "source", "method", "reproduction"}
@@ -66,6 +67,31 @@ def _redact(value: Any) -> Any:
         return result
     if isinstance(value, list):
         return [_redact(item) for item in value]
+    if isinstance(value, str) and "://" in value:
+        try:
+            parsed = urllib.parse.urlsplit(value)
+            query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+            if query:
+                query = [
+                    (
+                        key,
+                        "[REDACTED]"
+                        if any(fragment in key.lower() for fragment in SENSITIVE_FRAGMENTS)
+                        else item,
+                    )
+                    for key, item in query
+                ]
+                return urllib.parse.urlunsplit(
+                    (
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        urllib.parse.urlencode(query),
+                        parsed.fragment,
+                    )
+                )
+        except ValueError:
+            return "[REDACTED-INVALID-URL]"
     return value
 
 
@@ -205,10 +231,16 @@ def finalize_review_response(packet: Mapping[str, Any], response: Mapping[str, A
     independent = response.get("independent")
     if not isinstance(independent, bool):
         raise ValueError("independent must be a boolean attestation")
-    response_modes = sorted({_text(item, "response review mode") for item in response.get("review_modes", [])})
+    response_modes_raw = response.get("review_modes", [])
+    if not isinstance(response_modes_raw, list):
+        raise ValueError("response review_modes must be a list")
+    response_modes = sorted({_text(item, "response review mode") for item in response_modes_raw})
     if not response_modes or set(response_modes) - set(packet["review_modes"]):
         raise ValueError("response review modes are empty or exceed the packet")
-    reviewed_claims = sorted({_text(item, "reviewed claim ID") for item in response.get("reviewed_claim_ids", [])})
+    reviewed_claims_raw = response.get("reviewed_claim_ids", [])
+    if not isinstance(reviewed_claims_raw, list):
+        raise ValueError("reviewed_claim_ids must be a list")
+    reviewed_claims = sorted({_text(item, "reviewed claim ID") for item in reviewed_claims_raw})
     material_claims = set(map(str, packet["material_claim_ids"]))
     unknown_claims = sorted(set(reviewed_claims) - material_claims)
     if unknown_claims:
@@ -287,6 +319,6 @@ def finalize_review_response(packet: Mapping[str, Any], response: Mapping[str, A
     # Rebuild the receipt fingerprint after adding packet linkage.
     material = dict(receipt)
     material.pop("fingerprint", None)
-    receipt["fingerprint"] = _fingerprint(material)
+    receipt["fingerprint"] = canonical_sha256(material)
     validate_review_receipt(receipt)
     return receipt

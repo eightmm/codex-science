@@ -65,6 +65,50 @@
         "Explicit acknowledgement"
       ],
       "version": "1"
+    },
+    {
+      "id": "authenticated-connector-packs",
+      "path": "references/authenticated-connector-packs.md",
+      "purpose": "Approval-gated optional connector packs with out-of-band credentials, preview, scopes, idempotency, concurrency, and before/after receipts.",
+      "read_when": ["before installing or designing an authenticated connector pack", "before previewing or executing a provider write", "before transferring sensitive data to an external service"],
+      "required_before": ["issuing a connector action approval", "executing through ConnectorActionAdapter", "claiming a provider write integration is safe"],
+      "search_patterns": ["## Action spec", "## Provider preview", "## Approval", "## Execute through an optional pack", "## Failure handling"],
+      "authority": "Codex Science first-party optional connector contract",
+      "version": "1",
+      "evidence_boundary": "The framework standardizes action safety; it does not supply credentials, provider implementations, or compliance certification."
+    },
+    {
+      "id": "next-experiment-planning",
+      "path": "references/next-experiment-planning.md",
+      "purpose": "Deterministic Pareto, uncertainty, control, diversity, budget, and batch planning for a non-executing experiment proposal.",
+      "read_when": ["before ranking candidates for a new experiment", "before using model uncertainty or multi-objective utility for selection"],
+      "required_before": ["calling scripts/plan_next_experiment.py", "treating a selected batch as an approved experiment"],
+      "search_patterns": ["## Input contract", "## Selection method", "## Output contract", "## Failure handling"],
+      "authority": "Codex Science first-party experiment proposal contract",
+      "version": "1",
+      "evidence_boundary": "The planner ranks declared properties; it does not calibrate uncertainty, infer similarity, or execute experiments."
+    },
+    {
+      "id": "pipeline-promotion",
+      "path": "references/pipeline-promotion.md",
+      "purpose": "Generate a non-active reusable skill draft from a currently passed run without transferring conclusions or review receipts.",
+      "read_when": ["before converting a reviewed run into a reusable workflow", "before generating a skill draft from artifacts"],
+      "required_before": ["calling scripts/promote_run_to_skill.py", "adding a generated draft to authored-skills or a catalog"],
+      "search_patterns": ["## Preconditions", "## Generated draft", "## Promotion path", "## Failure handling"],
+      "authority": "Codex Science first-party promotion contract",
+      "version": "1",
+      "evidence_boundary": "Promotion preserves workflow shape; it does not activate a skill or prove generalization."
+    },
+    {
+      "id": "project-evidence-store",
+      "path": "references/project-evidence-store.md",
+      "purpose": "Project-level immutable run imports, evidence assertions, hypothesis forks, comparisons, and non-executing merge plans.",
+      "read_when": ["before importing more than one run into a project", "before creating a hypothesis or experiment branch", "before recording a quantitative evidence assertion", "before comparing or merging scientific branches"],
+      "required_before": ["calling scripts/science_project.py", "treating project-level state as scientific lineage"],
+      "search_patterns": ["## Import a reviewed run", "## Fork a hypothesis branch", "## Add a quantitative evidence assertion", "## Prepare a merge plan", "## Failure handling"],
+      "authority": "Codex Science first-party project lineage contract",
+      "version": "1",
+      "evidence_boundary": "The project store indexes immutable runs and decisions; it does not replace manifests, evidence, or independent review."
     }
   ],
   "schema_version": 1,

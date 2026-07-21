@@ -348,9 +348,10 @@ class ProjectStore:
                     (project_id, run_id, claim_id, json.dumps(claim, sort_keys=True)),
                 )
             if branch is None:
+                branch_base = parent_run_id or run_id
                 connection.execute(
                     "INSERT INTO branches(project_id, branch_name, base_run_id, head_run_id, status, created_at, updated_at) VALUES(?,?,?,?,?,?,?)",
-                    (project_id, branch_name, run_id, run_id, "active", imported_at, imported_at),
+                    (project_id, branch_name, branch_base, run_id, "active", imported_at, imported_at),
                 )
             else:
                 connection.execute(

@@ -11,6 +11,8 @@ Review the record adversarially; do not assume the producing agent's conclusion,
 
 Read [the review checklist](references/review-checklist.md) before assigning severity, deciding whether a review passes, or closing a material finding. Use the indexed headings rather than loading unrelated reference material. Do not infer a pass rule or downgrade a finding from prose convenience.
 
+Read [the independent reviewer packet contract](references/independent-review-runtime.md) before preparing a separate review packet, accepting a reviewer response, or claiming independence or reproduction.
+
 If the checklist materially controls a review receipt, include its SHA-256 in the run's `reference-use-ledger`. The checklist defines review procedure; it does not prove the reviewed conclusion true.
 
 ## Inputs and review mode

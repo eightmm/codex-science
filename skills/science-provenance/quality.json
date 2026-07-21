@@ -10,7 +10,11 @@
     "reference-use-ledger-v1",
     "artifact-descriptor-v1",
     "artifact-selection-v1",
-    "transform-proposal-v1"
+    "transform-proposal-v1",
+    "fair-export-receipt-v1",
+    "scientific-bom-v1",
+    "ro-crate-oriented-v1",
+    "prov-oriented-v1"
   ],
   "acceptance_fixtures": [],
   "seeded_failures": [],

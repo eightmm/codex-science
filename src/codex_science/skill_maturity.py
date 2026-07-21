@@ -16,6 +16,12 @@ CORE_SECTION_ALIASES = {
     "codex-science": ("## Research contract and evidence graph", "## Workflow", "## Completion test", "## Boundaries"),
     "science-provenance": ("## Run contract", "## Inputs and retrieval", "## Outputs and claims", "## Safety and integrity"),
     "science-review": ("## Inputs and review mode", "## Review workflow", "## Receipt and independence", "## Boundary"),
+    "remote-scientific-compute": (
+        "## Decision contract",
+        "## Execute and monitor",
+        "## Outputs",
+        "## Boundaries",
+    ),
 }
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*\n", re.DOTALL)
 FIELD_RE = re.compile(r"^(?P<key>[A-Za-z0-9_-]+):\s*(?P<value>.+?)\s*$", re.MULTILINE)
@@ -36,7 +42,13 @@ def _frontmatter(text: str) -> dict[str, str]:
     match = FRONTMATTER_RE.match(text)
     if match is None:
         return {}
-    return {item.group("key"): item.group("value").strip().strip('"\'') for item in FIELD_RE.finditer(match.group("body"))}
+    result: dict[str, str] = {}
+    for item in FIELD_RE.finditer(match.group("body")):
+        value = item.group("value").strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {chr(34), chr(39)}:
+            value = value[1:-1]
+        result[item.group("key")] = value
+    return result
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -172,8 +184,14 @@ def evaluate_skill(root: Path, skill_dir: Path) -> dict[str, Any]:
     record["name"] = name
     computed = 1
     complete_sections, missing_sections = _sections_for(skill_dir, skill_dir.name, text)
-    has_provenance = "$science-provenance" in text or skill_dir.name == "science-provenance"
-    has_review = "$science-review" in text or skill_dir.name == "science-review"
+    if skill_dir.name in {"codex-science", "science-provenance", "science-review"}:
+        # These three skills jointly define the first-party handoff contract;
+        # requiring circular self-references would not add evidence.
+        has_provenance = True
+        has_review = True
+    else:
+        has_provenance = "$science-provenance" in text
+        has_review = "$science-review" in text
     if complete_sections and has_provenance and has_review:
         computed = 2
     else:

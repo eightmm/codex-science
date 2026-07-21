@@ -44,6 +44,12 @@ VIEWER_SELECTIONS: dict[str, frozenset[str]] = {
     "binary": frozenset({"byte-range", "record"}),
 }
 
+MAX_RUNTIME_BYTES = 16 * 1024 * 1024
+MAX_RUNTIME_RECORDS = 10_000
+MAX_SELECTION_BYTES = 64 * 1024
+MAX_PROPOSAL_PARAMETER_BYTES = 64 * 1024
+MAX_REASON_CHARACTERS = 4_000
+
 STRUCTURE_SUFFIXES = {".pdb", ".ent", ".cif", ".mmcif"}
 MOLECULE_SUFFIXES = {".sdf", ".mol", ".mol2", ".smi", ".smiles"}
 GENOME_SUFFIXES = {".vcf", ".bed", ".gff", ".gff3", ".gtf", ".wig", ".bedgraph", ".bigwig", ".bw"}
@@ -489,8 +495,12 @@ def describe_runtime(
     path = path.resolve()
     if not path.exists():
         raise ValueError(f"artifact does not exist: {path}")
-    if max_records < 1:
-        raise ValueError("max_records must be positive")
+    if max_bytes < 1 or max_records < 1:
+        raise ValueError("max_bytes and max_records must be positive")
+    if max_bytes > MAX_RUNTIME_BYTES:
+        raise ValueError(f"max_bytes exceeds hard runtime ceiling: {MAX_RUNTIME_BYTES}")
+    if max_records > MAX_RUNTIME_RECORDS:
+        raise ValueError(f"max_records exceeds hard runtime ceiling: {MAX_RUNTIME_RECORDS}")
     relative = _safe_relative(artifact_path or path.name, "artifact_path")
     viewer = detect_viewer(path, kind=kind, media_type=media_type)
     if path.is_dir():
@@ -530,7 +540,10 @@ def describe_runtime(
         "warnings": warnings,
         "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
     }
-    return ArtifactRuntimeDescriptor(**material, fingerprint=_fingerprint(material), warnings=tuple(warnings))
+    return ArtifactRuntimeDescriptor(
+        **{**material, "warnings": tuple(warnings)},
+        fingerprint=_fingerprint(material),
+    )
 
 
 def validate_runtime_descriptor(payload: Mapping[str, Any]) -> None:
@@ -574,6 +587,10 @@ def build_selection(
     if not isinstance(selector, Mapping) or not selector:
         raise ValueError("selector must be a non-empty object")
     _json_value(dict(selector), "selector")
+    if len(reason) > MAX_REASON_CHARACTERS:
+        raise ValueError("selection reason is too long")
+    if len(_canonical_bytes(selector)) > MAX_SELECTION_BYTES:
+        raise ValueError("selection payload exceeds the runtime limit")
     for value, field in ((selected_by, "selected_by"), (reason, "reason")):
         if not value.strip():
             raise ValueError(f"{field} is required")
@@ -647,6 +664,10 @@ def build_transform_proposal(
     if not isinstance(parameters, Mapping):
         raise ValueError("parameters must be an object")
     _json_value(dict(parameters), "parameters")
+    if len(reason) > MAX_REASON_CHARACTERS:
+        raise ValueError("proposal reason is too long")
+    if len(_canonical_bytes(parameters)) > MAX_PROPOSAL_PARAMETER_BYTES:
+        raise ValueError("proposal parameters exceed the runtime limit")
     steps = sorted({_safe_relative(str(item), "affected step") for item in affected_steps})
     outputs = sorted({_safe_relative(str(item), "expected output") for item in expected_outputs})
     if not steps:

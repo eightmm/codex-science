@@ -20,6 +20,30 @@ from codex_science.review import review_manifest
 
 
 SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SECRET_ARGUMENT_FLAGS = {
+    "--token",
+    "--password",
+    "--secret",
+    "--credential",
+    "--api-key",
+    "--apikey",
+    "--private-key",
+    "--access-key",
+    "--client-secret",
+    "--authorization",
+}
+SECRET_KEY_FRAGMENTS = {
+    "token",
+    "password",
+    "secret",
+    "credential",
+    "private_key",
+    "api_key",
+    "apikey",
+    "access_key",
+    "client_secret",
+    "authorization",
+}
 
 
 def _now() -> str:
@@ -39,6 +63,42 @@ def _text(value: Any, label: str) -> str:
     if not text:
         raise ValueError(f"{label} is required")
     return text
+
+
+def _redact_mapping(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if any(fragment in key_text.lower() for fragment in SECRET_KEY_FRAGMENTS):
+                result[key_text] = "[REDACTED]"
+            else:
+                result[key_text] = _redact_mapping(item)
+        return result
+    if isinstance(value, list):
+        return [_redact_mapping(item) for item in value]
+    return value
+
+
+def _validate_command(command: list[str], index: int) -> None:
+    for argument in command:
+        lower = argument.lower()
+        if any(lower == flag or lower.startswith(flag + "=") for flag in SECRET_ARGUMENT_FLAGS):
+            raise ValueError(f"command_contract[{index}] contains a credential-bearing argument")
+        if "://" in argument and any(
+            token in lower
+            for token in (
+                "token=",
+                "password=",
+                "secret=",
+                "api_key=",
+                "apikey=",
+                "access_key=",
+                "client_secret=",
+                "authorization=",
+            )
+        ):
+            raise ValueError(f"command_contract[{index}] contains a credential-bearing URL")
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -97,7 +157,15 @@ def _schema_inputs(manifest: Mapping[str, Any]) -> dict[str, Any]:
         },
         "required": ["question", "parameters", "inputs", "acceptance"],
         "additionalProperties": False,
-        "x-source-run-inputs": list(manifest.get("inputs", []))
+        "x-source-run-input-count": len(manifest.get("inputs", [])),
+        "x-source-run-input-fields": sorted(
+            {
+                str(key)
+                for item in manifest.get("inputs", [])
+                if isinstance(item, Mapping)
+                for key in item.keys()
+            }
+        ),
     }
 
 
@@ -196,7 +264,7 @@ This reference was generated from a reviewed run and is a **draft implementation
 - source run: `{manifest.get('run_id')}`
 - source manifest: `{source_manifest_path}`
 - source manifest SHA-256: `{source_manifest_sha256}`
-- source review status: `{manifest.get('review', {{}}).get('status', 'unknown')}`
+- source review status: `{manifest.get('review', {}).get('status', 'unknown')}`
 - generated skill: `{name}`
 
 The source manifest path may be local-machine-specific. The SHA-256 is the stable identity. Never use this reference to bypass source bundle validation.
@@ -210,7 +278,7 @@ Use `input.schema.json`. Each new input needs an ID plus either a local path or 
 Reconstruct and review the runtime, lockfile/container, code revision, model and weight revisions, databases, hardware, seed, determinism settings, and material non-secret environment variables. The source environment was:
 
 ```json
-{json.dumps(manifest.get('environment', {{}}), indent=2, sort_keys=True, ensure_ascii=False)}
+{json.dumps(_redact_mapping(manifest.get('environment', {})), indent=2, sort_keys=True, ensure_ascii=False)}
 ```
 
 ## Source workflow shape
@@ -316,6 +384,7 @@ def compile_pipeline_draft(
     for index, command in enumerate(commands):
         if not isinstance(command, list) or not command or not all(isinstance(item, str) and item for item in command):
             raise ValueError(f"command_contract[{index}] must be a non-empty argv list")
+        _validate_command(command, index)
     limit_values = limitations or [
         "Generated from one reviewed run and not validated for a new input distribution.",
         "External sources, models, weights, databases, and endpoints may drift.",

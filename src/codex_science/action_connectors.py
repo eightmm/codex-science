@@ -19,7 +19,20 @@ from typing import Any, Mapping, Protocol
 
 
 MODES = {"read", "write"}
-SECRET_FRAGMENTS = {"token", "password", "secret", "credential", "private_key", "api_key", "apikey", "access_key", "client_secret"}
+SECRET_FRAGMENTS = {
+    "token",
+    "password",
+    "secret",
+    "credential",
+    "private_key",
+    "api_key",
+    "apikey",
+    "access_key",
+    "client_secret",
+    "authorization",
+    "bearer",
+    "session_cookie",
+}
 
 
 def _now() -> str:
@@ -146,10 +159,12 @@ def build_preview(adapter: ConnectorActionAdapter, spec: ActionSpec, *, created_
     if adapter.connector_name != spec.connector:
         raise ValueError("adapter connector does not match action spec")
     before = dict(adapter.snapshot(spec))
+    _json_value(before, "provider before state")
     before_sha = _fingerprint(before)
     if spec.expected_before_sha256 is not None and before_sha != spec.expected_before_sha256:
         raise ValueError("current remote state does not match expected_before_sha256")
     changes = dict(adapter.preview(spec, before))
+    _json_value(changes, "provider proposed changes")
     material = {
         "schema_version": 1,
         "connector": spec.connector,
@@ -268,6 +283,8 @@ def execute_action(
     executed_at: str | None = None,
 ) -> dict[str, Any]:
     validate_preview(preview, spec)
+    if adapter.connector_name != spec.connector:
+        raise ValueError("adapter connector does not match action spec")
     existing = ledger.get(spec.idempotency_key)
     if existing is not None:
         if existing.get("action_spec_sha256") != spec.fingerprint:
@@ -278,10 +295,12 @@ def execute_action(
             raise ValueError("write action requires explicit approval")
         validate_action_approval(approval, preview)
     current = dict(adapter.snapshot(spec))
+    _json_value(current, "provider current state")
     current_sha = _fingerprint(current)
     if current_sha != preview["before_state_sha256"]:
         raise ValueError("remote state changed after preview; create a new preview")
     result = dict(adapter.execute(spec, preview))
+    _json_value(result, "provider execution result")
     after = dict(result.get("after_state", result))
     after_sha = _fingerprint(after)
     material = {
@@ -309,3 +328,37 @@ def execute_action(
     receipt = {**material, "fingerprint": _fingerprint(material)}
     ledger.record(key=spec.idempotency_key, spec_sha256=spec.fingerprint, receipt=receipt)
     return receipt
+
+
+def validate_action_receipt(payload: Mapping[str, Any], spec: ActionSpec | None = None) -> None:
+    if payload.get("schema_version") != 1 or payload.get("status") != "executed":
+        raise ValueError("invalid action receipt state")
+    for field in (
+        "action_id",
+        "connector",
+        "operation",
+        "mode",
+        "target",
+        "action_spec_sha256",
+        "preview_id",
+        "preview_fingerprint",
+        "idempotency_key",
+        "before_state_sha256",
+        "after_state_sha256",
+        "executed_at",
+        "evidence_boundary",
+    ):
+        _text(payload.get(field), field)
+    for field in (
+        "action_spec_sha256",
+        "preview_fingerprint",
+        "before_state_sha256",
+        "after_state_sha256",
+    ):
+        _sha(payload.get(field), field)
+    material = dict(payload)
+    fingerprint = str(material.pop("fingerprint", "")).lower()
+    if _fingerprint(material) != fingerprint:
+        raise ValueError("action receipt fingerprint mismatch")
+    if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
+        raise ValueError("action receipt covers a different spec")

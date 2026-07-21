@@ -6,6 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from codex_science.artifact_store import validate_descriptor
+from codex_science.artifact_runtime import (
+    stale_selection,
+    validate_runtime_descriptor,
+    validate_selection,
+    validate_transform_proposal,
+)
 from codex_science.collaboration import stale_annotations, validate_annotation
 from codex_science.evidence_graph_v2 import independent_support_groups, validate_graph_payload
 from codex_science.literature_v2 import validate_risk_of_bias
@@ -16,6 +22,7 @@ from codex_science.review_receipts import review_receipt_findings, validate_revi
 ADVANCED_KINDS = {
     "evidence-graph-v2", "review-receipt", "review-receipt-v2", "annotation",
     "model-receipt-v2", "risk-of-bias", "reference-use-ledger", "artifact-descriptor",
+    "artifact-runtime-descriptor", "artifact-selection", "transform-proposal",
 }
 
 
@@ -43,6 +50,10 @@ def validate_advanced_sidecars(
         "risk_of_bias": [],
         "reference_use_ledgers": [],
         "artifact_descriptors": [],
+        "runtime_descriptors": [],
+        "artifact_selections": [],
+        "transform_proposals": [],
+        "runtime_descriptor_stale": [],
         "artifact_hashes": {
             str(item["path"]): str(item["sha256"]).lower()
             for item in manifest.get("artifacts", [])
@@ -50,6 +61,8 @@ def validate_advanced_sidecars(
         "advanced_paths": {},
     }
     seen_graph = False
+    selections_by_id: dict[str, dict[str, Any]] = {}
+    pending_proposals: list[dict[str, Any]] = []
     for record in manifest.get("artifacts", []):
         kind, relative = str(record.get("kind", "")), str(record.get("path", ""))
         if kind not in ADVANCED_KINDS:
@@ -88,6 +101,24 @@ def validate_advanced_sidecars(
             result["reference_use_ledgers"].append(payload)
         elif kind == "artifact-descriptor":
             result["artifact_descriptors"].append(validate_descriptor(payload).to_dict())
+        elif kind == "artifact-runtime-descriptor":
+            validate_runtime_descriptor(payload)
+            if result["artifact_hashes"].get(str(payload["artifact_path"])) != str(
+                payload["artifact_sha256"]
+            ).lower():
+                result["runtime_descriptor_stale"].append(payload)
+            result["runtime_descriptors"].append(payload)
+        elif kind == "artifact-selection":
+            validate_selection(payload)
+            selection = stale_selection(payload, result["artifact_hashes"])
+            result["artifact_selections"].append(selection)
+            selections_by_id[str(selection["selection_id"])] = payload
+        elif kind == "transform-proposal":
+            pending_proposals.append(payload)
+    for proposal in pending_proposals:
+        selection = selections_by_id.get(str(proposal.get("selection_id", "")))
+        validate_transform_proposal(proposal, selection)
+        result["transform_proposals"].append(proposal)
     result["annotations"] = stale_annotations(result["annotations"], result["artifact_hashes"])
     if base_sidecars:
         result["base_sidecars"] = base_sidecars
@@ -128,6 +159,39 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
                 "code": "stale-annotation-anchor",
                 "severity": "minor",
                 "message": f"Annotation {annotation['annotation_id']} points to changed artifact bytes.",
+            })
+    for descriptor in sidecars.get("runtime_descriptor_stale", []):
+        findings.append({
+            "code": "stale-runtime-descriptor",
+            "severity": "minor",
+            "message": (
+                "Artifact runtime descriptor covers changed or missing bytes: "
+                f"{descriptor.get('artifact_path', '<unknown>')}"
+            ),
+        })
+    for selection in sidecars.get("artifact_selections", []):
+        if selection.get("status") == "stale-anchor":
+            findings.append({
+                "code": "stale-artifact-selection",
+                "severity": "minor",
+                "message": (
+                    f"Artifact selection {selection.get('selection_id')} points to "
+                    "changed or missing bytes."
+                ),
+            })
+    selection_ids = {
+        str(item.get("selection_id"))
+        for item in sidecars.get("artifact_selections", [])
+    }
+    for proposal in sidecars.get("transform_proposals", []):
+        if str(proposal.get("selection_id")) not in selection_ids:
+            findings.append({
+                "code": "missing-transform-selection",
+                "severity": "major",
+                "message": (
+                    f"Transform proposal {proposal.get('proposal_id')} references "
+                    "a selection not present in the bundle."
+                ),
             })
     base = sidecars.get("base_sidecars", {})
     claims = base.get("claim_by_id", {}) if isinstance(base, dict) else {}

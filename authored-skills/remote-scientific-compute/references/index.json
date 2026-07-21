@@ -13,6 +13,17 @@
       "authority": "repository-contract",
       "version": "1",
       "evidence_boundary": "Controls remote execution safety; it does not validate the scientific method or result."
+    },
+    {
+      "id": "job-runtime",
+      "path": "references/job-runtime.md",
+      "purpose": "Durable local and Slurm job specs, approvals, submission, status, cancellation, checkpoint, and output collection receipts.",
+      "read_when": ["before constructing a durable job spec", "before submitting, polling, cancelling, or collecting a local or Slurm job", "before approving a non-local resource allocation"],
+      "required_before": ["calling scripts/science_job.py", "submitting work through LocalBackend or SlurmBackend"],
+      "search_patterns": ["## Job spec", "## Local execution", "## Approval receipt", "## Slurm execution", "## Checkpoint and resume", "## Failure handling"],
+      "authority": "Codex Science first-party compute runtime contract",
+      "version": "1",
+      "evidence_boundary": "A job receipt proves execution state and collected hashes, not scientific success."
     }
   ]
 }

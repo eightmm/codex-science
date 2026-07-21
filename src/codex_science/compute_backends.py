@@ -105,6 +105,85 @@ def _reject_secret_environment(environment: Mapping[str, Any]) -> dict[str, str]
     return result
 
 
+def _sha(value: Any, label: str) -> str:
+    digest = _text(value, label).lower()
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+        raise ValueError(f"{label} must be a SHA-256 digest")
+    return digest
+
+
+def _normalize_inputs(value: Any) -> tuple[dict[str, Any], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError("inputs must be a list")
+    results: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for index, raw in enumerate(value):
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"input {index} must be an object")
+        item = dict(raw)
+        input_id = _text(item.get("id", f"input-{index}"), f"input {index} id")
+        if input_id in ids:
+            raise ValueError(f"duplicate input ID: {input_id}")
+        ids.add(input_id)
+        item["id"] = input_id
+        if item.get("path") is not None:
+            item["path"] = _safe_relative(item["path"], f"input {input_id} path")
+        elif not str(item.get("identifier", "")).strip():
+            raise ValueError(f"input {input_id} needs path or identifier")
+        if item.get("sha256") is not None:
+            item["sha256"] = _sha(item["sha256"], f"input {input_id} sha256")
+        if item.get("root_sha256") is not None:
+            item["root_sha256"] = _sha(item["root_sha256"], f"input {input_id} root_sha256")
+        results.append(item)
+    return tuple(results)
+
+
+def _input_preflight(spec: "JobSpec") -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    working = Path(spec.working_directory).resolve()
+    for item in spec.inputs:
+        input_id = str(item["id"])
+        if item.get("path") is None:
+            checks.append(
+                {"name": f"input:{input_id}", "ready": True, "detail": "external identifier recorded"}
+            )
+            continue
+        target = (working / str(item["path"])).resolve()
+        if not target.is_relative_to(working):
+            checks.append(
+                {"name": f"input:{input_id}", "ready": False, "detail": "path escapes working directory"}
+            )
+            continue
+        if not target.exists():
+            checks.append({"name": f"input:{input_id}", "ready": False, "detail": "missing"})
+            continue
+        expected = item.get("sha256") or item.get("root_sha256")
+        if expected is None:
+            checks.append(
+                {"name": f"input:{input_id}", "ready": True, "detail": "exists; no digest declared"}
+            )
+            continue
+        if target.is_file():
+            actual, _size = stream_sha256(target)
+        elif target.is_dir():
+            actual = describe_directory(target).root_sha256
+        else:
+            checks.append(
+                {"name": f"input:{input_id}", "ready": False, "detail": "unsupported filesystem object"}
+            )
+            continue
+        checks.append(
+            {
+                "name": f"input:{input_id}",
+                "ready": actual == expected,
+                "detail": "digest matches" if actual == expected else f"digest mismatch: {actual}",
+            }
+        )
+    return checks
+
+
 @dataclass(frozen=True)
 class ResourceRequest:
     cpus: int = 1
@@ -174,8 +253,6 @@ class JobSpec:
         if not isinstance(environment_raw, Mapping):
             raise ValueError("environment must be an object")
         inputs_raw = payload.get("inputs", [])
-        if not isinstance(inputs_raw, list) or not all(isinstance(item, Mapping) for item in inputs_raw):
-            raise ValueError("inputs must be object records")
         outputs_raw = payload.get("outputs", [])
         if not isinstance(outputs_raw, list):
             raise ValueError("outputs must be a list")
@@ -196,7 +273,7 @@ class JobSpec:
             working_directory=str(Path(_text(payload.get("working_directory"), "working_directory")).resolve()),
             environment=_reject_secret_environment(environment_raw),
             inherit_environment=bool(payload.get("inherit_environment", True)),
-            inputs=tuple(dict(item) for item in inputs_raw),
+            inputs=_normalize_inputs(inputs_raw),
             outputs=tuple(_safe_relative(item, "output") for item in outputs_raw),
             resources=ResourceRequest.from_payload(payload.get("resources") if isinstance(payload.get("resources"), Mapping) else None),
             timeout_seconds=timeout,
@@ -344,10 +421,25 @@ class LocalBackend:
     def preflight(self, spec: JobSpec) -> dict[str, Any]:
         spec.validate()
         executable = shutil.which(spec.command[0]) if not Path(spec.command[0]).is_absolute() else spec.command[0]
+        checks = [
+            {
+                "name": "working-directory",
+                "ready": Path(spec.working_directory).is_dir(),
+                "detail": spec.working_directory,
+            },
+            {"name": "executable", "ready": executable is not None, "detail": executable or "not found"},
+            {
+                "name": "resource-request-recorded",
+                "ready": True,
+                "detail": asdict(spec.resources),
+            },
+        ]
+        checks.extend(_input_preflight(spec))
         return {
             "schema_version": 1,
             "backend": "local",
-            "ready": executable is not None and Path(spec.working_directory).is_dir(),
+            "ready": all(check["ready"] for check in checks),
+            "checks": checks,
             "executable": executable,
             "working_directory": spec.working_directory,
             "job_spec_sha256": spec.fingerprint,
@@ -372,17 +464,33 @@ class LocalBackend:
         submitted_at = _now()
         initial = _state_material(spec, job_id=job_id, state="submitted", submitted_at=submitted_at)
         _atomic_json(job_dir / "state.json", initial)
+        worker_environment = os.environ.copy()
+        source_root = str(Path(__file__).resolve().parents[1])
+        existing_pythonpath = worker_environment.get("PYTHONPATH", "")
+        worker_environment["PYTHONPATH"] = source_root + (
+            os.pathsep + existing_pythonpath if existing_pythonpath else ""
+        )
         process = subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), "_worker", str(job_dir)],
+            [sys.executable, "-m", "codex_science.compute_backends", "_worker", str(job_dir)],
+            env=worker_environment,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
             close_fds=True,
         )
-        state = _state_material(spec, job_id=job_id, state="submitted", submitted_at=submitted_at, worker_pid=process.pid, message="local worker started")
-        _atomic_json(job_dir / "state.json", state)
-        return state
+        current = _read_json(job_dir / "state.json")
+        submitted_receipt = _state_material(
+            spec,
+            job_id=job_id,
+            state="submitted",
+            submitted_at=submitted_at,
+            worker_pid=process.pid,
+            message="local worker started",
+        )
+        if current.get("state") == "submitted":
+            _atomic_json(job_dir / "state.json", submitted_receipt)
+        return submitted_receipt
 
     def status(self, job_id: str) -> dict[str, Any]:
         job_dir = self._job_dir(job_id)
@@ -552,10 +660,26 @@ class SlurmBackend:
     def preflight(self, spec: JobSpec) -> dict[str, Any]:
         spec.validate()
         tools = {name: shutil.which(name) for name in ("sbatch", "squeue", "sacct", "scancel")}
+        checks = [
+            {
+                "name": "working-directory",
+                "ready": Path(spec.working_directory).is_dir(),
+                "detail": spec.working_directory,
+            },
+            {"name": "sbatch", "ready": tools["sbatch"] is not None, "detail": tools["sbatch"] or "not found"},
+            {"name": "scancel", "ready": tools["scancel"] is not None, "detail": tools["scancel"] or "not found"},
+            {
+                "name": "status-command",
+                "ready": tools["sacct"] is not None or tools["squeue"] is not None,
+                "detail": tools["sacct"] or tools["squeue"] or "not found",
+            },
+        ]
+        checks.extend(_input_preflight(spec))
         return {
             "schema_version": 1,
             "backend": "slurm",
-            "ready": tools["sbatch"] is not None and tools["scancel"] is not None and (tools["sacct"] is not None or tools["squeue"] is not None),
+            "ready": all(check["ready"] for check in checks),
+            "checks": checks,
             "tools": tools,
             "job_spec_sha256": spec.fingerprint,
             "resource_request": asdict(spec.resources),

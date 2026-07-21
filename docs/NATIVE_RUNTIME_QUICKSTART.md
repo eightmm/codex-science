@@ -117,3 +117,11 @@ Maturity is computed from actual instructions, progressive references, declared 
 ## Completion boundary
 
 These runtime commands improve inspection, lineage, execution, and auditability. Scientific completion still requires a prespecified decision contract, valid domain methods, material evidence, uncertainty, and independent review.
+
+## 6. Prepare an independent review packet
+
+Read `skills/science-review/references/independent-review-runtime.md`, then use `scripts/science_reviewer.py prepare` and `finalize`. A producer second pass is not independent, and reproduction requires a separate execution.
+
+## 7. Validate an authenticated connector action
+
+Read `skills/codex-science/references/authenticated-connector-packs.md`. Use `scripts/connector_action_contract.py` for spec, preview, and approval validation. Provider execution belongs to an optional adapter pack; credentials never enter the action JSON.
