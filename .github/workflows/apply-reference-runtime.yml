@@ -68,14 +68,12 @@ jobs:
         run: |
           uv run python scripts/audit_skills.py
           uv run python scripts/generate_wrappers.py
-      - name: Run complete verification
-        run: ./scripts/check.sh fast
       - name: Remove one-time migration resources
         run: |
           rm -rf .github/reference-runtime-v3
           rm -f .github/workflows/apply-reference-runtime.yml
           rm -f scripts/apply_reference_runtime.py
-      - name: Commit migrated source
+      - name: Commit expanded implementation before final verification
         run: |
           branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           git config user.name "github-actions[bot]"
@@ -83,3 +81,5 @@ jobs:
           git add -A
           git commit -m "Complete reference runtime v3 integration"
           git push origin HEAD:"$branch"
+      - name: Run complete verification on committed source
+        run: ./scripts/check.sh fast
