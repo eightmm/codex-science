@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "skill": "docking-validation",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "sbdd-benchmark-v1",
+    "numeric-metric-v1",
+    "pose-table-v1",
+    "model-receipt-v2",
+    "review-receipt-v2"
+  ],
+  "acceptance_fixtures": [
+    "examples/sbdd-acceptance/benchmark.json",
+    "examples/sbdd-acceptance/seeded-leaks.json",
+    "examples/sbdd-executable/input.json"
+  ],
+  "seeded_failures": [
+    "held-out-pocket-leak",
+    "analog-series-leak",
+    "scaffold-leak",
+    "cold-target-violation",
+    "known-training-overlap",
+    "missing-subgroup-analysis",
+    "affinity-overclaim"
+  ],
+  "test_files": [
+    "tests/test_sbdd_acceptance.py",
+    "tests/test_sbdd_execution.py"
+  ],
+  "limitations": [
+    "The deterministic executable fixture validates contract handling rather than prospective docking accuracy.",
+    "Docking scores and model confidence are not experimental affinity or mechanism."
+  ]
+}
