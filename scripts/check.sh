@@ -37,6 +37,7 @@ run_science_contracts() (
 
   uv run python scripts/validate_release.py
   uv run python scripts/validate_connector_contracts.py
+  uv run python scripts/audit_skill_references.py --require-clean
   uv run python scripts/validate_models.py
   uv run python scripts/validate_model_registry_v2.py
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

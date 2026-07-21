@@ -73,3 +73,9 @@ Claim status and computation status are separate axes. A claim may be planned, s
 Create a new run when the research question, estimand, baseline, primary metric, data split, success threshold, intended decision, or material input identity changes. Keep revisions inside one run only when they answer the same contract and preserve original files, snapshot diffs, findings, and prior receipts.
 
 A review or acceptance receipt becomes stale when a covered claim, artifact hash, source snapshot, query, code revision, model contract, weight, database, configuration, input, or acceptance bundle changes. Retain failed and inconclusive manifests. Never rewrite a failed run into a successful one, detach counterevidence, silently transfer an annotation, or reuse a receipt for changed bytes.
+
+## Progressive references and large artifacts
+
+Use `reference-use-ledger` for hash-bound records of detailed skill references that controlled a material query, command, threshold, transformation, or claim. Use `artifact-descriptor` for streaming, chunked, directory-Merkle, or immutable external artifact metadata.
+
+Manifest schema version `1` remains stable. A local artifact may optionally declare `artifact_type` as `file`, `chunked-file`, or `directory-tree`, together with `size_bytes`, `entry_count`, `media_type`, and `descriptor_path`. Directory artifacts use the deterministic `sha256-merkle-v1` root described in [large-artifacts.md](large-artifacts.md). Changing referenced instructions, descriptor bytes, directory entries, or chunk hashes invalidates dependent review receipts.

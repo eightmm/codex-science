@@ -10,6 +10,8 @@ from codex_science.catalog import load_inventory, search_inventory
 from codex_science.connector_contract import QueryRequest, execute_connector
 from codex_science.connector_sources import SOURCE_BY_KEY, SOURCE_BY_TOOL, SOURCE_SPECS
 from codex_science.life_science import plan_life_science_research
+from codex_science.source_operations_v3 import SOURCE_OPERATIONS_V3
+from codex_science.transport_v3 import execute_paginated
 from codex_science.version import MCP_VERSION
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -30,7 +32,6 @@ LEGACY_TOOL_NAMES = frozenset(
     }
 )
 LEGACY_SOURCE_SPECS = tuple(spec for spec in SOURCE_SPECS if spec.tool_name in LEGACY_TOOL_NAMES)
-# Public compatibility contract used by existing tests and downstream integrations.
 CONNECTOR_SPECS = tuple((spec.tool_name, spec.description, spec.factory) for spec in LEGACY_SOURCE_SPECS)
 
 
@@ -54,7 +55,7 @@ def _legacy_tool(name: str, description: str) -> dict[str, Any]:
 def _v2_tool() -> dict[str, Any]:
     return {
         "name": "science_query_source_v2",
-        "description": "Execute a bounded typed public-source query and return normalized records plus a canonical replay receipt.",
+        "description": "Execute a bounded normalized public-source query and return records plus a canonical v2 receipt.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -73,10 +74,31 @@ def _v2_tool() -> dict[str, Any]:
     }
 
 
+def _v3_tool() -> dict[str, Any]:
+    return {
+        "name": "science_query_source_v3",
+        "description": "Execute a true-paginated source operation with HTTP headers, retries, rate-limit state, page hashes, and explicit completeness semantics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "enum": sorted(SOURCE_OPERATIONS_V3)},
+                "operation": {"type": "string", "enum": ["search"], "default": "search"},
+                "parameters": {"type": "object", "additionalProperties": True},
+                "page_size": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
+                "max_pages": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1},
+                "evidence_cutoff": {"type": ["string", "null"]},
+            },
+            "required": ["source", "parameters"],
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True},
+    }
+
+
 def _contracts_tool() -> dict[str, Any]:
     return {
         "name": "science_list_source_contracts",
-        "description": "List public-source operations, query semantics, and maturity states.",
+        "description": "List public-source operations, query semantics, maturity states, and v3 transport availability.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
     }
@@ -87,6 +109,7 @@ TOOLS = (
     *(_legacy_tool(spec.tool_name, spec.description) for spec in SOURCE_SPECS),
     _legacy_tool("science_plan_life_science_research", "Plan bounded normalization, evidence lanes, provenance, and synthesis."),
     _v2_tool(),
+    _v3_tool(),
     _contracts_tool(),
 )
 TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
@@ -95,9 +118,7 @@ TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
 class CodexScienceMCP:
     def __init__(self, inventory_path: Path) -> None:
         self.inventory_path = inventory_path
-        # Keep the historical tool-name-keyed registry stable.
         self.connectors = {name: factory() for name, _description, factory in CONNECTOR_SPECS}
-        # Use a distinct source-key registry for typed v2 and newly cataloged adapters.
         self.sources = {spec.key: spec.factory() for spec in SOURCE_SPECS}
 
     @staticmethod
@@ -128,7 +149,7 @@ class CodexScienceMCP:
                     "protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {"tools": {"listChanged": False}},
                     "serverInfo": {"name": "codex-science", "version": MCP_VERSION},
-                    "instructions": "Read-only scientific catalog and public-source queries. Prefer science_query_source_v2 for material evidence and replay receipts.",
+                    "instructions": "Read-only scientific catalog and public-source queries. Prefer science_query_source_v3 when available for material evidence; use v2 for sources not yet migrated.",
                 },
             )
         if method == "ping":
@@ -149,7 +170,22 @@ class CodexScienceMCP:
             if name == "science_list_source_contracts":
                 if arguments:
                     raise ValueError("science_list_source_contracts takes no arguments")
-                payload = [spec.public_contract() for spec in SOURCE_SPECS]
+                payload = []
+                for spec in SOURCE_SPECS:
+                    record = spec.public_contract()
+                    record["v3_operations"] = ["search"] if spec.key in SOURCE_OPERATIONS_V3 else []
+                    payload.append(record)
+            elif name == "science_query_source_v3":
+                extra = set(arguments) - {
+                    "source", "operation", "parameters", "page_size", "max_pages", "evidence_cutoff",
+                }
+                if extra:
+                    raise ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}")
+                source = arguments.get("source")
+                if source not in SOURCE_OPERATIONS_V3:
+                    raise ValueError(f"Source has no v3 operation: {source}")
+                request = QueryRequest.from_payload({**arguments, "source_contract_version": "3"})
+                payload = execute_paginated(SOURCE_OPERATIONS_V3[str(source)], request).to_dict()
             elif name == "science_query_source_v2":
                 extra = set(arguments) - {
                     "source", "operation", "parameters", "page_size", "max_pages",

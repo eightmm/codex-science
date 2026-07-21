@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "remote-scientific-compute",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "backend-checklists",
+      "path": "references/backends.md",
+      "purpose": "Backend-specific SSH, Slurm/HPC, cloud GPU, and object-storage preflight, execution, monitoring, and cleanup rules.",
+      "read_when": ["selecting a remote backend", "submitting a Slurm job", "allocating cloud GPU", "transferring object storage data"],
+      "required_before": ["remote-stage", "remote-submit", "paid-allocation", "object-storage-write"],
+      "search_patterns": ["## SSH", "## Slurm/HPC", "## Cloud GPU", "## Object storage"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Controls remote execution safety; it does not validate the scientific method or result."
+    }
+  ]
+}

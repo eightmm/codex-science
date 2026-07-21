@@ -286,3 +286,15 @@ The workbench is a local offline HTML view of validated claims, findings, annota
 - A deterministic SBDD fixture is not an affinity experiment.
 - Artifact or model changes invalidate covered receipts.
 - Fresh install and managed update activation require the complete candidate contract.
+
+## Progressive skill references
+
+Core skills use `references/index.json` to load the minimum detailed instructions needed for the selected route. Mandatory references must be read before their `required_before` operation, and material use is recorded in a hash-bound `reference-use-ledger`. See `docs/REFERENCE_CONTRACT.md`.
+
+## Connector Contract v3
+
+`science_query_source_v3` adds true source pagination, bounded retries, response-size limits, ETag and Last-Modified capture, rate-limit state, page-level request and response hashes, explicit completeness, and replayable raw page snapshots. Initial v3 operations cover PubMed, Europe PMC, ChEMBL molecule search, and RCSB PDB search. Sources not yet migrated remain available through v2 with their maturity visible.
+
+## Large artifact protocol
+
+Artifact validation uses streaming SHA-256 for files and deterministic Merkle roots for directories. Chunked descriptors support resumable verification, while a local content-addressed store reuses immutable verified files. Large scientific objects are never required to be loaded with `read_bytes()`.

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "science-review",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "review-checklist",
+      "path": "references/review-checklist.md",
+      "purpose": "Claim-level checks, severity definitions, finding fields, and the review pass rule.",
+      "read_when": [
+        "assigning finding severity",
+        "reviewing a material claim",
+        "deciding whether a review passes"
+      ],
+      "required_before": [
+        "finding-severity-assignment",
+        "review-pass-decision"
+      ],
+      "search_patterns": [
+        "## Severity",
+        "## Claim-level checks",
+        "## Pass rule"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines review procedure; reviewer success does not establish scientific truth."
+    }
+  ]
+}

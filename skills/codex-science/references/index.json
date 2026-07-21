@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "skill": "codex-science",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "reference-loading",
+      "path": "references/reference-loading.md",
+      "purpose": "Select, load, and receipt detailed skill references without flooding context or guessing undocumented arguments.",
+      "read_when": [
+        "a selected skill contains references/index.json",
+        "a route depends on detailed source, command, benchmark, or backend semantics"
+      ],
+      "required_before": [
+        "selected-skill-reference-loading",
+        "material-reference-controlled-operation"
+      ],
+      "search_patterns": [
+        "## 2. Load the minimum required material",
+        "## 3. Read before acting",
+        "## 5. Record material use"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Controls procedural grounding; it is not scientific evidence."
+    },
+    {
+      "id": "goal-loop-contract",
+      "path": "references/goal-loop-contract.md",
+      "purpose": "Operate native Goal mode and checkpoint lifecycle without creating conflicting continuation loops.",
+      "read_when": [
+        "starting or resuming a native Goal run",
+        "explaining completion_pending or Goal confirmation"
+      ],
+      "required_before": [
+        "native-goal-start",
+        "native-goal-resume",
+        "native-goal-completion"
+      ],
+      "search_patterns": [
+        "completion_pending",
+        "confirm-goal-complete",
+        "Stop"
+      ],
+      "authority": "repository-contract",
+      "version": "4",
+      "evidence_boundary": "Controls task lifecycle only; it does not attest scientific completion."
+    }
+  ]
+}

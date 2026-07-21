@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "skill": "science-provenance",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "artifact-contract",
+      "path": "references/artifact-contract.md",
+      "purpose": "Manifest fields, validated sidecars, evidence links, versioning, and review invalidation.",
+      "read_when": [
+        "creating or changing a manifest",
+        "adding a sidecar",
+        "reviewing bundle versioning or invalidation"
+      ],
+      "required_before": [
+        "manifest-authoring",
+        "sidecar-authoring",
+        "bundle-versioning"
+      ],
+      "search_patterns": [
+        "## Validated sidecars",
+        "## Bundle validation",
+        "## Versioning and invalidation"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines packaging and validation; it does not validate domain-specific scientific claims."
+    },
+    {
+      "id": "large-artifacts",
+      "path": "references/large-artifacts.md",
+      "purpose": "Streaming, chunked, Merkle-tree, external-reference, and content-addressed handling for large scientific outputs.",
+      "read_when": [
+        "an artifact is a directory",
+        "a file is too large for whole-file memory loading",
+        "a run uses trajectories, AnnData, BAM/CRAM, Zarr, Parquet, weights, or remote immutable objects"
+      ],
+      "required_before": [
+        "large-artifact-registration",
+        "directory-artifact-registration",
+        "content-addressed-cache-insertion"
+      ],
+      "search_patterns": [
+        "## Artifact types",
+        "## Content-addressed cache",
+        "## Validation and failure semantics"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Validates artifact identity and transfer semantics, not the scientific meaning of the artifact."
+    }
+  ]
+}

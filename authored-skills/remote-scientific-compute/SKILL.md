@@ -8,6 +8,12 @@ description: "Run reproducible scientific workloads through an existing SSH host
 Move an approved scientific workload to existing remote infrastructure while
 protecting credentials, login nodes, private data, budgets, and reproducibility.
 
+## Reference usage
+
+Read [the backend checklists](references/backends.md) for the selected SSH, Slurm/HPC, cloud GPU, or object-storage route before staging, submitting, allocating, or writing remotely. Do not infer scheduler flags, cost controls, storage semantics, or cleanup procedures from a backend name.
+
+Record the reference version and SHA-256 in the run when it controls a submission or transfer. The backend reference governs execution safety; it is not evidence for the scientific result.
+
 ## Inspect without changing state
 
 1. Use only an existing host alias, provider profile, project, and account. Never

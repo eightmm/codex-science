@@ -36,6 +36,12 @@ While this mode is active, prefer Codex Science MCP tools and `status: active` c
 
 Fall back to general-purpose tools or skills only when no suitable Science capability exists, the Science capability is unavailable or fails, or a higher-priority instruction requires another route. This preference does not override the activation gate, the approved plan, user instructions, project rules, or safety policy; never select an inactive skill silently.
 
+## Reference usage
+
+After selecting a skill, inspect its `references/index.json` when present and load only the entries required by the active route. Read [the reference-loading protocol](references/reference-loading.md) before any reference-controlled operation; do not infer arguments, output schemas, source semantics, thresholds, or licenses from names alone. Read [the Goal-loop contract](references/goal-loop-contract.md) before starting, resuming, or completing a native Goal run.
+
+When a reference materially controls a query, command, transformation, threshold, or claim, record its path, SHA-256, read reason, and affected claim or artifact in a `reference-use-ledger`. A reference explains procedure; the actual source record or computation remains the scientific evidence.
+
 ## Research contract and evidence graph
 
 For every non-trivial run, create a compact contract before retrieval or execution:

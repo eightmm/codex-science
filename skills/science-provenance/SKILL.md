@@ -9,6 +9,12 @@ Create `artifacts/<run-id>/manifest.json` in the user's current research project
 
 For a non-trivial active run, keep `checkpoint.json` beside the manifest as mutable control state. Schema v4 binds the run to an activation-generation key; records structured done criteria, hashed evidence and review receipts, continuation budget, native Goal task binding and phase, external waits, failed attempts, gates, and blockers; and prevents a second nonterminal run for the same owner across nested artifact roots. Update it with `<plugin-root>/scripts/science_checkpoint.py`. Save a run-local progress record before `heartbeat --progress-ref`; do not cite the mutable checkpoint as scientific evidence or add it to the manifest.
 
+## Reference usage
+
+Read [the artifact contract](references/artifact-contract.md) before authoring a manifest, sidecar, or bundle-version change. Read [the large-artifact protocol](references/large-artifacts.md) before registering a directory, a file too large for whole-memory loading, a chunked dataset, model weights, or an immutable external object. Do not guess sidecar fields, Merkle rules, or invalidation semantics.
+
+When a reference controls artifact registration or review, save a `reference-use-ledger` with the reference hash. A changed reference hash invalidates a receipt that explicitly covered its prior procedural assumptions.
+
 ## Run contract
 
 1. Use a stable run ID. Create a new run when the question, estimand, baseline, metric, data split, success threshold, or intended decision changes.
