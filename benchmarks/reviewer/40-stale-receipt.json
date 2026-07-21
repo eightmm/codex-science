@@ -1,0 +1,21 @@
+{
+  "case_id": "stale-review-receipt",
+  "artifact_hashes": {"metrics.json": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+  "review_receipt": {
+    "schema_version": 1,
+    "review_id": "review-stale",
+    "reviewer": "fixture-reviewer",
+    "independent": true,
+    "review_modes": ["record"],
+    "status": "passed",
+    "covered_artifacts": [
+      {"path": "metrics.json", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+    ],
+    "covered_claim_ids": ["claim-1"],
+    "findings": [],
+    "limitations": []
+  },
+  "expected_findings": [
+    {"code": "stale-review-receipt", "severity": "major"}
+  ]
+}

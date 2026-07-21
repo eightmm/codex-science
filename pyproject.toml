@@ -1,6 +1,6 @@
 [project]
 name = "codex-science"
-version = "0.1.0"
+version = "0.4.0"
 description = "Audited scientific research workflows and public-source tools for Codex"
 readme = "README.md"
 authors = [

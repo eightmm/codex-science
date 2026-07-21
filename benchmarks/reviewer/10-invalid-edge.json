@@ -1,0 +1,16 @@
+{
+  "case_id": "invalid-edge-type",
+  "evidence_graph_v2": {
+    "schema_version": 2,
+    "nodes": [
+      {"id": "claim-1", "type": "claim"},
+      {"id": "study-1", "type": "study"}
+    ],
+    "edges": [
+      {"source": "claim-1", "target": "study-1", "relation": "supports"}
+    ]
+  },
+  "expected_findings": [
+    {"code": "invalid-evidence-edge-type", "severity": "major"}
+  ]
+}

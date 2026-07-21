@@ -1,0 +1,14 @@
+{
+  "case_id": "valid-independent-graph",
+  "evidence_graph_v2": {
+    "schema_version": 2,
+    "nodes": [
+      {"id": "study-1", "type": "study"},
+      {"id": "claim-1", "type": "claim"}
+    ],
+    "edges": [
+      {"source": "study-1", "target": "claim-1", "relation": "supports"}
+    ]
+  },
+  "expected_findings": []
+}

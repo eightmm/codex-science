@@ -8,6 +8,14 @@ description: "Run reproducible scientific workloads through an existing SSH host
 Move an approved scientific workload to existing remote infrastructure while
 protecting credentials, login nodes, private data, budgets, and reproducibility.
 
+## Reference usage
+
+Read [the backend checklists](references/backends.md) for the selected SSH, Slurm/HPC, cloud GPU, or object-storage route before staging, submitting, allocating, or writing remotely. Do not infer scheduler flags, cost controls, storage semantics, or cleanup procedures from a backend name.
+
+Read [the durable job runtime contract](references/job-runtime.md) before constructing, approving, submitting, polling, cancelling, or collecting a local or Slurm job. A process receipt records execution state; it is not scientific acceptance.
+
+Record the reference version and SHA-256 in the run when it controls a submission or transfer. The backend reference governs execution safety; it is not evidence for the scientific result.
+
 ## Inspect without changing state
 
 1. Use only an existing host alias, provider profile, project, and account. Never
@@ -68,3 +76,15 @@ Stop for unknown ownership, host-key changes, missing authorization, secrets in 
 planned command, unapproved private-data transfer, unavailable cancellation,
 uncapped paid resources, a full filesystem, or a resource request unsuitable for
 the target. Report the blocker without weakening the boundary.
+
+## Decision contract
+
+Before execution, record the target, transfer boundary, argv or workflow, input hashes, runtime or container, resource and wall-time caps, cost cap, checkpoints, cancellation, outputs, and scientific acceptance criteria. Remote writes or allocation require explicit approval covering the exact job spec.
+
+## Outputs
+
+Save the job spec, preflight and approval receipts, job ID and states, stdout and stderr hashes, failure class, checkpoint references, collected output hashes, and `$science-provenance` and `$science-review` handoffs.
+
+## Boundaries
+
+Do not probe credentials, submit to unapproved accounts or partitions, stage sensitive data without approval, busy-poll, hide failed attempts, or treat process exit zero as scientific success.

@@ -8,6 +8,12 @@ license: MIT
 
 Use this conductor when the deliverable is an auditable body-of-evidence synthesis rather than a citation list or list of papers. Discovery tools retrieve records; this skill owns the protocol, eligibility, study identity, extraction, dependency graph, synthesis boundary, update diff, and review handoff.
 
+## Reference usage
+
+Before protocol freeze, study deduplication, or replication assessment, read [protocol and study identity](references/protocol-and-study-identity.md). Before structured extraction, risk-of-bias assessment, or claim-level evidence assertions, read [extraction and bias](references/extraction-and-bias.md). Before advancing a cutoff or replacing a reviewed snapshot, read [living update](references/living-update.md).
+
+Do not infer identifier relationships, extraction fields, bias judgments, or update invalidation rules from a record title. Save material reference use and SHA-256 values in a `reference-use-ledger`.
+
 ## Decision contract
 
 Before retrieval, record:

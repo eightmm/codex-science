@@ -14,25 +14,34 @@ run_tests() {
   echo "unit tests: ok"
 }
 
-run_inventory() {
+run_inventory() (
   local tmp
   tmp="$(mktemp)"
-  trap 'rm -f "$tmp"' RETURN
+  trap 'rm -f "$tmp"' EXIT
   uv run python scripts/audit_skills.py --output "$tmp" >/dev/null
   cmp catalog/inventory.json "$tmp"
   echo "inventory determinism: ok"
-}
+)
 
 run_wrappers() {
   uv run python scripts/generate_wrappers.py --check
 }
 
-run_science_contracts() {
-  local review_tmp diff_tmp
+run_science_contracts() (
+  local review_tmp diff_tmp benchmark_tmp sbdd_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
-  trap 'rm -f "$review_tmp" "$diff_tmp"' RETURN
+  benchmark_tmp="$(mktemp)"
+  sbdd_dir="$(mktemp -d)"
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp"; rm -rf "$sbdd_dir"' EXIT
+
+  uv run python scripts/validate_release.py
+  uv run python scripts/validate_connector_contracts.py
+  uv run python scripts/audit_skill_references.py --require-clean
   uv run python scripts/validate_models.py
+  uv run python scripts/validate_model_registry_v2.py
+  uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe
+
   uv run python scripts/validate_artifact.py \
     examples/literature-review-reviewed-run/manifest.json \
     --review-output "$review_tmp" \
@@ -42,9 +51,19 @@ run_science_contracts() {
     examples/literature-review-reviewed-run/snapshot.current.json \
     --output "$diff_tmp"
   cmp examples/literature-review-reviewed-run/snapshot.diff.json "$diff_tmp"
+
   uv run python scripts/audit_sbdd_benchmark.py examples/sbdd-acceptance/benchmark.json >/dev/null
+  uv run python scripts/run_sbdd_acceptance.py \
+    examples/sbdd-executable/input.json "$sbdd_dir" \
+    --registry models/registry-v2.json >/dev/null
+  uv run python scripts/validate_artifact.py \
+    "$sbdd_dir/manifest.json" \
+    --review-output "$review_tmp" \
+    --require-passed-review
+
+  uv run python scripts/candidate_contract_check.py
   echo "scientific contracts: ok"
-}
+)
 
 run_skill_validation() {
   local sys_skills validate_plugin quick_validate skill_count skill output

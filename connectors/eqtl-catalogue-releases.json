@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "releases": [
+    {
+      "id": "eqtl-catalogue-current",
+      "title": "eQTL Catalogue current public release metadata",
+      "release": "availability-gated",
+      "status": "bulk-snapshot-required",
+      "url": "https://www.ebi.ac.uk/eqtl/"
+    }
+  ]
+}

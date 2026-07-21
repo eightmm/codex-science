@@ -12,7 +12,7 @@
           },
           {
             "type": "command",
-            "command": "python3 \"$PLUGIN_ROOT/scripts/science_update_hook.py\"",
+            "command": "CODEX_SCIENCE_STABLE_UPDATER=\"$PLUGIN_ROOT/scripts/science_update_hook.py\" python3 \"$PLUGIN_ROOT/scripts/science_update_entry.py\"",
             "timeout": 360,
             "statusMessage": "Checking Codex Science updates"
           }
@@ -30,7 +30,7 @@
           },
           {
             "type": "command",
-            "command": "python3 \"$PLUGIN_ROOT/scripts/science_update_hook.py\"",
+            "command": "CODEX_SCIENCE_STABLE_UPDATER=\"$PLUGIN_ROOT/scripts/science_update_hook.py\" python3 \"$PLUGIN_ROOT/scripts/science_update_entry.py\"",
             "timeout": 360,
             "statusMessage": "Updating Codex Science when explicitly requested"
           }

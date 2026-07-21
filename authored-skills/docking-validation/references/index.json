@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "skill": "docking-validation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "benchmark-design",
+      "path": "references/benchmark-design.md",
+      "purpose": "Define state manifests, information boundaries, leakage-aware splits, controls, and prediction units.",
+      "read_when": ["building a docking benchmark", "defining a pocket", "creating train/test splits"],
+      "required_before": ["benchmark-construction", "pocket-definition", "split-construction"],
+      "search_patterns": ["## Information boundary", "## Splits", "## Controls"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines benchmark validity; it does not show that a docking engine performs well."
+    },
+    {
+      "id": "metric-and-acceptance",
+      "path": "references/metric-and-acceptance.md",
+      "purpose": "Prespecify pose, screening, calibration, uncertainty, threshold, and failure metrics.",
+      "read_when": ["computing docking metrics", "setting acceptance thresholds", "calibrating scores"],
+      "required_before": ["metric-computation", "acceptance-decision", "score-calibration"],
+      "search_patterns": ["## Pose metrics", "## Screening metrics", "## Thresholds"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Metric definitions do not validate data splits, state preparation, or biological claims."
+    },
+    {
+      "id": "inference-boundaries",
+      "path": "references/inference-boundaries.md",
+      "purpose": "Keep pose, confidence, ranking, affinity, mechanism, and translational claims distinct.",
+      "read_when": ["writing docking conclusions", "claiming affinity or mechanism", "defining applicability or abstention"],
+      "required_before": ["docking-claim-synthesis", "affinity-claim", "mechanism-claim"],
+      "search_patterns": ["## Distinct outputs", "## Required external evidence", "## Claim downgrade"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Provides inference limits and does not supply assay or mechanistic evidence."
+    }
+  ]
+}

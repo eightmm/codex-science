@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "skill": "remote-scientific-compute",
+  "roles": ["executor", "infrastructure"],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "job-spec-v1",
+    "job-approval-receipt-v1",
+    "job-state-v1",
+    "collection-receipt-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Local execution is directly supported; Slurm submission requires an existing scheduler configuration and explicit approval.",
+    "TES, WES, SSH staging, and cloud-provider adapters remain separate future backends."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "skill": "science-review",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "review-checklist",
+      "path": "references/review-checklist.md",
+      "purpose": "Claim-level checks, severity definitions, finding fields, and the review pass rule.",
+      "read_when": [
+        "assigning finding severity",
+        "reviewing a material claim",
+        "deciding whether a review passes"
+      ],
+      "required_before": [
+        "finding-severity-assignment",
+        "review-pass-decision"
+      ],
+      "search_patterns": [
+        "## Severity",
+        "## Claim-level checks",
+        "## Pass rule"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines review procedure; reviewer success does not establish scientific truth."
+    },
+    {
+      "id": "independent-review-runtime",
+      "path": "references/independent-review-runtime.md",
+      "purpose": "Prepare blinded, hash-bound review packets and validate separate reviewer responses without exposing producer-only rationale.",
+      "read_when": ["before handing a run to a separate reviewer", "before accepting a reviewer response", "before calling a review independent or reproduced"],
+      "required_before": ["calling scripts/science_reviewer.py", "attaching a packet-derived review receipt to a run"],
+      "search_patterns": ["## Independence boundary", "## Prepare a review packet", "## Reviewer response contract", "## Reproduction mode", "## Failure handling"],
+      "authority": "Codex Science first-party review packet contract",
+      "version": "1",
+      "evidence_boundary": "The runtime standardizes packet and receipt coverage but does not authenticate reviewer identity or guarantee independence."
+    }
+  ]
+}

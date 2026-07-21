@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "skill": "science-provenance",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "artifact-contract",
+      "path": "references/artifact-contract.md",
+      "purpose": "Manifest fields, validated sidecars, evidence links, versioning, and review invalidation.",
+      "read_when": [
+        "creating or changing a manifest",
+        "adding a sidecar",
+        "reviewing bundle versioning or invalidation"
+      ],
+      "required_before": [
+        "manifest-authoring",
+        "sidecar-authoring",
+        "bundle-versioning"
+      ],
+      "search_patterns": [
+        "## Validated sidecars",
+        "## Bundle validation",
+        "## Versioning and invalidation"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines packaging and validation; it does not validate domain-specific scientific claims."
+    },
+    {
+      "id": "large-artifacts",
+      "path": "references/large-artifacts.md",
+      "purpose": "Streaming, chunked, Merkle-tree, external-reference, and content-addressed handling for large scientific outputs.",
+      "read_when": [
+        "an artifact is a directory",
+        "a file is too large for whole-file memory loading",
+        "a run uses trajectories, AnnData, BAM/CRAM, Zarr, Parquet, weights, or remote immutable objects"
+      ],
+      "required_before": [
+        "large-artifact-registration",
+        "directory-artifact-registration",
+        "content-addressed-cache-insertion"
+      ],
+      "search_patterns": [
+        "## Artifact types",
+        "## Content-addressed cache",
+        "## Validation and failure semantics"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Validates artifact identity and transfer semantics, not the scientific meaning of the artifact."
+    },
+    {
+      "id": "artifact-runtime",
+      "path": "references/artifact-runtime.md",
+      "purpose": "Bounded native views, hash-bound selections, and non-executing transform proposals for scientific artifacts.",
+      "read_when": ["before rendering a scientific artifact", "before creating an atom, residue, locus, cell, table, graph, figure, or trajectory selection", "before converting an annotation into a proposed edit or rerun"],
+      "required_before": ["calling scripts/render_artifact_runtime.py", "recording artifact-runtime-descriptor, artifact-selection, or transform-proposal sidecars"],
+      "search_patterns": ["### Describe an artifact", "### Create a typed selection", "### Propose a transform", "## Failure handling", "## Common mistakes"],
+      "authority": "Codex Science first-party runtime contract",
+      "version": "1",
+      "evidence_boundary": "A bounded runtime view improves inspection but does not validate a scientific interpretation or execute a transform."
+    },
+    {
+      "id": "fair-export",
+      "path": "references/fair-export.md",
+      "purpose": "Export validated run metadata as RO-Crate-oriented, W3C PROV-oriented, and scientific dependency BOM records.",
+      "read_when": ["before archival or interoperable export", "before generating a scientific dependency or license handoff"],
+      "required_before": ["calling scripts/export_scientific_run.py", "describing an export as portable, FAIR, or compliance-supporting"],
+      "search_patterns": ["## RO-Crate-oriented metadata", "## W3C PROV-oriented lineage", "## Scientific dependency BOM", "## Failure handling"],
+      "authority": "Codex Science first-party export contract",
+      "version": "1",
+      "evidence_boundary": "The exporter packages recorded metadata; it does not certify completeness, licensing, regulatory compliance, or scientific validity."
+    }
+  ]
+}
