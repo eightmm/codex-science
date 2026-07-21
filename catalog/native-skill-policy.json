@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "skill": "codex-science",
+      "minimum_maturity": "L3",
+      "required_roles": ["conductor"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "science-provenance",
+      "minimum_maturity": "L3",
+      "required_roles": ["infrastructure"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "science-review",
+      "minimum_maturity": "L3",
+      "required_roles": ["reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "literature-review",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "docking-validation",
+      "minimum_maturity": "L4",
+      "required_roles": ["analyzer", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "remote-scientific-compute",
+      "minimum_maturity": "L3",
+      "required_roles": ["executor", "infrastructure"],
+      "require_reference_contract": true
+    }
+  ]
+}
