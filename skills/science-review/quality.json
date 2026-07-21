@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "science-review",
+  "roles": ["reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "review-receipt-v2",
+    "scientific-finding-v1",
+    "review-resolution-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Deterministic review checks do not replace domain-expert judgment.",
+    "Independent reproduction is claimed only after a separate execution recreates the material result."
+  ]
+}
