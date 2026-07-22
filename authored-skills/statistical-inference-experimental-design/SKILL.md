@@ -1,45 +1,50 @@
 ---
 name: statistical-inference-experimental-design
-description: "Design experiments and perform defensible statistical inference. Use for estimands, randomization, blocking, sample-size planning, regression, hypothesis tests, intervals, multiple comparisons, missing data, diagnostics, and reproducible analysis plans."
+description: "Design experiments and perform defensible statistical inference with explicit estimands, experimental units, preregistration, effect sizes, intervals, multiplicity, missingness, randomization, diagnostics, and machine-readable analysis receipts."
 license: MIT
 ---
 
 # Statistical Inference and Experimental Design
 
-## Define the claim before analysis
+## Decision contract
 
-State the population, experimental unit, treatment or exposure, outcome, estimand, observation window, and
-decision threshold. Separate confirmatory hypotheses from exploratory questions. Identify clustering,
-repeated measures, censoring, missingness, and plausible confounders before selecting a test.
+Before looking at outcomes, state the population, experimental unit, observational unit, treatment or exposure, outcome, estimand, assignment mechanism, observation window, primary family, decision rule, missing-data assumptions, exclusions, stopping rule, and scientifically meaningful effect scale. Mark the work confirmatory or exploratory.
 
-## Design the experiment
+Do not use the number of cells, images, technical repeats, time points, or model outputs as the sample size when treatment was assigned at a higher unit.
 
-1. Prefer randomized assignment; state the randomization unit and allocation mechanism.
-2. Use blocking, pairing, or stratification only with a declared analysis that respects the design.
-3. Plan replication at the independent-unit level, not the number of technical readings.
-4. Size the study from a scientifically meaningful effect, variability range, power target, and attrition.
-5. Predefine exclusions, transformations, primary outcomes, stopping rules, and multiplicity handling.
+## Reference usage
 
-## Analyze
+Read [the design and inference runtime](references/design-and-inference-runtime.md) before `research-design-audit` or `statistical-analysis`. It contains the exact input fields, CLI arguments, supported bounded methods, and interpretation limits. Do not infer a model, p-value meaning, multiplicity family, or independent-unit count from an operation name.
 
-Match the likelihood or estimating procedure to the outcome and sampling process. Report effect sizes and
-intervals, not only p-values. Preserve continuous outcomes unless categorization is scientifically required.
-Use hierarchical or robust methods for grouped data and sensitivity analyses for missing-data assumptions.
+For material work, record the reference hash with `scripts/reference_lookup.py` and preserve the design and result files with `$science-provenance`.
 
-## Verify
+## Workflow
 
-- Confirm units, independence structure, balance, missingness, and data provenance.
-- Inspect residuals, influential cases, model specification, and numerical convergence.
-- Compare a simple baseline with the chosen model and rerun key claims under reasonable alternatives.
-- Control or clearly label multiple testing; never select a model using the held-out confirmatory set.
-- Check interval coverage or calibration with simulation when the design or estimator is nonstandard.
+1. Author a `research-design` input and run `scripts/validate_research_design.py --require-clean` before outcome-dependent analysis.
+2. Match the analysis to assignment and sampling. Use blocking, pairing, hierarchy, survey weights, censoring, or longitudinal dependence only with a method that represents them.
+3. For a bounded independent or paired two-group contrast, run `scripts/run_statistical_analysis.py`; for more complex models, use a suitable external implementation but emit equivalent design, effect, interval, diagnostic, seed, and environment records.
+4. Report effect size, interval, independent-unit count, missingness, exclusions, and multiplicity handling before p-values.
+5. Run prespecified sensitivity analyses and diagnose design/model mismatch.
+6. Package the design and analysis sidecars, then run `$science-review`.
 
-## Deliver
+## Outputs
 
-Provide the design, estimand, analysis population, model, effect and interval, diagnostics, sensitivity results,
-and a clear separation between association, prediction, and causal claims.
+- `research-design` with deterministic audit and fingerprint;
+- `statistical-analysis` with effect, interval, randomization result, unit counts, seed, and limitations;
+- data/source hashes and preprocessing records;
+- diagnostics and sensitivity analyses;
+- manifest claim IDs that distinguish association, prediction, and causal interpretation;
+- independent review receipt for material conclusions.
+
+## Boundaries
+
+- A p-value is not effect magnitude, practical importance, replication, or causal identification.
+- Randomization inference is valid only for the recorded assignment or exchangeability model.
+- Bootstrap intervals are conditional on the resampling unit and may fail for small, irregular, or dependent samples.
+- A clean deterministic design audit does not prove that all domain assumptions are scientifically justified.
+- Do not alter exclusions, endpoints, transformations, stopping rules, or multiplicity families to obtain a preferred result without labeling the change exploratory.
+- Stop or downgrade the claim when the experimental unit is ambiguous, the model cannot represent the design, missingness assumptions are indefensible, or the causal estimand is unidentified.
 
 ## Source basis
 
-Original synthesis informed by OpenIntro statistics materials and Seltman's experimental-design text; source
-and license details are in `../../docs/TEXTBOOK_SOURCES.md`.
+Original synthesis informed by OpenIntro statistics materials and Seltman's experimental-design text; source and license details are in `../../docs/TEXTBOOK_SOURCES.md`.
