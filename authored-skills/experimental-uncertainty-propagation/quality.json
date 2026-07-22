@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "experimental-uncertainty-propagation",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["uncertainty-propagation-v1", "dimension-check-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": ["tests/test_numerical_units_uncertainty.py"],
+  "limitations": [
+    "The built-in Monte Carlo runtime uses a correlated Gaussian input model.",
+    "Calibration, traceability, distribution choice, and model discrepancy require independent scientific evidence."
+  ]
+}
