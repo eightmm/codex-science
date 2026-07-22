@@ -35,6 +35,17 @@
       "authority": "Codex Science first-party review packet contract",
       "version": "1",
       "evidence_boundary": "The runtime standardizes packet and receipt coverage but does not authenticate reviewer identity or guarantee independence."
+    },
+    {
+      "id": "quantitative-review",
+      "path": "references/quantitative-review.md",
+      "purpose": "Review preregistration, statistical units and inference, proof evidence levels, numerical convergence, dimensions, covariance, and quantitative claim boundaries.",
+      "read_when": ["reviewing a statistical result", "reviewing a mathematical proof or counterexample", "reviewing numerical, unit, or uncertainty artifacts"],
+      "required_before": ["quantitative-review", "proof-status-review", "statistical-pass-decision", "numerical-pass-decision"],
+      "search_patterns": ["## Research design", "## Statistics", "## Mathematics and proof", "## Numerical units and uncertainty", "## Pass rule"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines deterministic and methodological review questions; it does not replace expert domain judgment or independent reproduction."
     }
   ]
 }
