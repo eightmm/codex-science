@@ -1,6 +1,6 @@
 {
   "name": "codex-science",
-  "version": "0.4.0+codex.20260721000100",
+  "version": "0.5.0+codex.20260722000100",
   "description": "Audited scientific skills, public-source tools, reproducible artifacts, and evidence review for Codex.",
   "author": {
     "name": "eightmm"
@@ -9,18 +9,20 @@
   "interface": {
     "displayName": "Codex Science",
     "shortDescription": "Run reproducible scientific research in Codex.",
-    "longDescription": "Coordinate scientific work with an audited multi-source skill catalog, replayable read-only public data tools, reproducible execution, structured provenance, and independent evidence review.",
+    "longDescription": "Coordinate scientific work with an audited multi-source skill catalog, replayable public data, executable quantitative research, reproducible computation, structured provenance, and independent evidence review.",
     "developerName": "eightmm",
     "category": "Productivity",
     "capabilities": [
       "Scientific research",
+      "Mathematical verification",
+      "Quantitative inference",
       "Replayable public data",
       "Reproducible artifacts",
       "Evidence review"
     ],
     "defaultPrompt": [
       "Start Codex Science and investigate this question with an auditable research plan.",
-      "Start Codex Science and find the right scientific skills for this analysis.",
+      "Start Codex Science and solve this quantitative problem with explicit assumptions and verification.",
       "Start Codex Science and review this result against its code and evidence."
     ]
   },
