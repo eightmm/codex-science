@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "numerical-analysis-error-control",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "numerical-verification-runtime",
+      "path": "references/numerical-verification-runtime.md",
+      "purpose": "Exact refinement, reference, residual, invariant, solver, cross-method, threshold, receipt, and failure semantics.",
+      "read_when": ["validating a numerical solver", "claiming convergence order", "auditing residuals, invariants, precision, or cross-method agreement"],
+      "required_before": ["numerical-verification", "convergence-claim", "stable-digit-claim"],
+      "search_patterns": ["## Input schema", "## Observed order", "## Cross-method agreement", "## Stop and downgrade"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Verifies a finite numerical test contract; it does not prove asymptotic convergence, model adequacy, or experimental truth."
+    }
+  ]
+}
