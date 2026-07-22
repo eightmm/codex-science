@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "formal-theorem-proving",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["mathematical-claim-v1", "proof-obligation-graph-v1", "formal-proof-check-v1", "proof-receipt-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": ["tests/test_math_research_runtime.py"],
+  "limitations": [
+    "The runtime requires an existing approved Lean workspace and does not install or certify a toolchain.",
+    "Kernel checking does not replace a separate informal-to-formal statement correspondence review."
+  ]
+}
