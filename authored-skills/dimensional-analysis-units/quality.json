@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "dimensional-analysis-units",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["dimension-check-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": ["tests/test_numerical_units_uncertainty.py"],
+  "limitations": [
+    "The built-in registry is intentionally bounded and does not encode every domain-specific unit convention.",
+    "Dimensional consistency cannot validate model form, coefficients, frames, or physical mechanisms."
+  ]
+}
