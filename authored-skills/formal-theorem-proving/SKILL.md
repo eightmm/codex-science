@@ -26,7 +26,7 @@ Record the reference and theorem hashes with `$science-provenance`. Use `$scienc
 4. Prefer stable term or structured tactic proofs. Isolate automation and record its dependencies.
 5. Preview with `scripts/check_formal_proof.py --preview` before executing an unfamiliar workspace command.
 6. Execute the bounded checker in the existing approved workspace. Preserve stdout/stderr hashes, tool version, exit code, theorem hash, axioms, admitted constructs, and source-mutation check.
-7. Create `proved-formal` only after a passed `formal-kernel` receipt and a separate correspondence review.
+7. Verify informal/formal correspondence explicitly; create `proved-formal` only after a passed `formal-kernel` receipt and a separate correspondence review.
 
 ## Outputs
 
