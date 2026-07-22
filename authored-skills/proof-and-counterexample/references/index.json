@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "proof-and-counterexample",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "proof-counterexample-runtime",
+      "path": "references/proof-counterexample-runtime.md",
+      "purpose": "Exact mathematical claim statuses, safe bounded expression language, domain declarations, counterexample result semantics, proof obligations, and proof receipt rules.",
+      "read_when": ["searching for a counterexample", "building proof obligations", "assigning proved, tested, conditional, or disproved status"],
+      "required_before": ["counterexample-search", "proof-obligation-authoring", "mathematical-claim-status"],
+      "search_patterns": ["## Search input", "## Result statuses", "## Proof obligation graph", "## Proof receipt rules"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Bounded search may refute a universal claim but cannot establish a general proof unless the exact declared finite domain is exhausted."
+    }
+  ]
+}

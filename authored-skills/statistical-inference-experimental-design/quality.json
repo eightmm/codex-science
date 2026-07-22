@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "statistical-inference-experimental-design",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["research-design-v1", "statistical-analysis-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": ["tests/test_research_design_statistics.py"],
+  "limitations": [
+    "The built-in runtime supports only bounded independent or paired two-group contrasts.",
+    "Complex outcome families and dependence structures require domain-appropriate external models with equivalent provenance."
+  ]
+}

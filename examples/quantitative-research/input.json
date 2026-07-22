@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "run_id": "quantitative-research-acceptance",
+  "research_design": {
+    "schema_version": 1,
+    "design_id": "design-two-group-randomized",
+    "question": "Does the treatment increase the prespecified continuous outcome relative to control in the deterministic fixture?",
+    "experimental_unit": "sample",
+    "observational_unit": "sample",
+    "outcome": {
+      "name": "response",
+      "measurement": "one prespecified continuous value per sample",
+      "subjective": false
+    },
+    "estimand": {
+      "population": "the eight deterministic fixture samples",
+      "contrast": "treatment minus control",
+      "summary_measure": "mean difference",
+      "causal": false
+    },
+    "assignment": {
+      "type": "randomized",
+      "mechanism": "computer-generated balanced assignment fixed before outcome values",
+      "allocation_concealment": true
+    },
+    "analysis": {
+      "method": "difference in means with exact randomization test and bootstrap interval",
+      "aggregation_unit": "sample",
+      "cluster_adjustment": false
+    },
+    "primary_endpoints": [
+      {
+        "id": "response-primary",
+        "decision_threshold": "report the effect and interval; do not equate p-value with scientific importance"
+      }
+    ],
+    "multiplicity": {
+      "method": "none",
+      "family_size": 1
+    },
+    "missing_data": {
+      "strategy": "none-expected",
+      "assumptions": "the deterministic fixture contains no missing values"
+    },
+    "exclusions": {
+      "prespecified": true,
+      "criteria": ["exclude only malformed or non-finite records before analysis"]
+    },
+    "stopping": {
+      "planned_looks": 1,
+      "decision_rule": "analyze once after all eight fixture samples are present"
+    },
+    "sample_size": {
+      "planned": 8,
+      "rationale": "small deterministic acceptance fixture chosen to permit an exact 70-allocation randomization distribution"
+    },
+    "sensitivity_analyses": [
+      "repeat with median difference"
+    ],
+    "identification_assumptions": [],
+    "blinding": {
+      "outcome_assessor": true
+    },
+    "locked_before_outcomes": true
+  },
+  "statistical_analysis": {
+    "schema_version": 1,
+    "analysis_id": "analysis-two-group-randomized",
+    "claim_id": "claim-effect-estimate",
+    "design_id": "design-two-group-randomized",
+    "analysis_type": "independent",
+    "group_labels": ["control", "treatment"],
+    "estimand": "mean-difference",
+    "alternative": "two-sided",
+    "confidence_level": 0.95,
+    "seed": 20260722,
+    "bootstrap_replicates": 5000,
+    "permutation_replicates": 10000,
+    "within_unit_aggregation": "mean",
+    "data": [
+      {"unit_id": "C1", "group": "control", "value": 1.0},
+      {"unit_id": "C2", "group": "control", "value": 2.0},
+      {"unit_id": "C3", "group": "control", "value": 1.5},
+      {"unit_id": "C4", "group": "control", "value": 2.5},
+      {"unit_id": "T1", "group": "treatment", "value": 3.0},
+      {"unit_id": "T2", "group": "treatment", "value": 4.0},
+      {"unit_id": "T3", "group": "treatment", "value": 3.5},
+      {"unit_id": "T4", "group": "treatment", "value": 4.5}
+    ],
+    "hypotheses": []
+  },
+  "numerical_verification": {
+    "schema_version": 1,
+    "verification_id": "verification-second-order",
+    "claim_id": "claim-numerical-convergence",
+    "method": "manufactured second-order refinement fixture",
+    "reference_value": 1.0,
+    "thresholds": {
+      "minimum_order": 1.8,
+      "max_residual": 0.1,
+      "max_invariant_deviation": 0.1,
+      "max_cross_method_z": 3.0
+    },
+    "solver": {
+      "precision": "IEEE-754 binary64",
+      "relative_tolerance": 1e-10,
+      "absolute_tolerance": 1e-12
+    },
+    "refinements": [
+      {"resolution": 0.4, "estimate": 1.08, "residual": 0.064, "invariants": {"mass": 0.016}},
+      {"resolution": 0.2, "estimate": 1.02, "residual": 0.008, "invariants": {"mass": 0.004}},
+      {"resolution": 0.1, "estimate": 1.005, "residual": 0.001, "invariants": {"mass": 0.001}},
+      {"resolution": 0.05, "estimate": 1.00125, "residual": 0.000125, "invariants": {"mass": 0.00025}}
+    ],
+    "cross_method": [
+      {"method": "refinement-extrapolation", "estimate": 1.0, "uncertainty": 0.001},
+      {"method": "independent-reference", "estimate": 1.0005, "uncertainty": 0.001}
+    ]
+  },
+  "dimension_check": {
+    "schema_version": 1,
+    "check_id": "dimension-mechanics",
+    "claim_id": "claim-dimensional-consistency",
+    "variables": {
+      "m": "kg",
+      "a": "m/s^2",
+      "F": "N",
+      "d": "m",
+      "E": "J"
+    },
+    "equations": [
+      {"id": "newton-second-law", "left": "F", "right": "m*a"},
+      {"id": "work", "left": "E", "right": "F*d"}
+    ],
+    "conversions": [
+      {"id": "centimetres-to-metres", "value": 100.0, "from": "cm", "to": "m"},
+      {"id": "celsius-to-kelvin", "value": 25.0, "from": "degC", "to": "K"}
+    ]
+  },
+  "uncertainty_propagation": {
+    "schema_version": 1,
+    "propagation_id": "uncertainty-product",
+    "claim_id": "claim-uncertainty-budget",
+    "expression": "x*y",
+    "inputs": [
+      {"name": "x", "mean": 2.0, "standard_uncertainty": 0.1, "unit": "m"},
+      {"name": "y", "mean": 3.0, "standard_uncertainty": 0.2, "unit": "N"}
+    ],
+    "covariance": [],
+    "method": "both",
+    "confidence_level": 0.95,
+    "seed": 20260722,
+    "samples": 20000,
+    "nonlinearity_threshold": 0.25
+  },
+  "false_statement_search": {
+    "schema_version": 1,
+    "claim_id": "claim-square-ge-input",
+    "statement": "For every real x, x squared is at least x.",
+    "scope": "general",
+    "variables": [
+      {"name": "x", "float_grid": {"start": 0.0, "stop": 1.0, "count": 5}}
+    ],
+    "assumptions": ["True"],
+    "conclusion": "x*x >= x",
+    "max_evaluations": 100
+  },
+  "finite_statement_search": {
+    "schema_version": 1,
+    "claim_id": "claim-square-nonnegative-finite",
+    "statement": "For every integer x in {-3,-2,-1,0,1,2,3}, x squared is nonnegative.",
+    "scope": "finite",
+    "variables": [
+      {"name": "x", "integer_range": {"start": -3, "stop": 3, "step": 1}}
+    ],
+    "assumptions": ["True"],
+    "conclusion": "x*x >= 0",
+    "max_evaluations": 100
+  }
+}

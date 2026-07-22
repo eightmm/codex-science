@@ -28,16 +28,23 @@ run_wrappers() {
 }
 
 run_science_contracts() (
-  local review_tmp diff_tmp benchmark_tmp sbdd_dir
+  local review_tmp diff_tmp benchmark_tmp maturity_json maturity_md sbdd_dir quantitative_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
   benchmark_tmp="$(mktemp)"
+  maturity_json="$(mktemp)"
+  maturity_md="$(mktemp)"
   sbdd_dir="$(mktemp -d)"
-  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp"; rm -rf "$sbdd_dir"' EXIT
+  quantitative_dir="$(mktemp -d)"
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$maturity_json" "$maturity_md"; rm -rf "$sbdd_dir" "$quantitative_dir"' EXIT
 
   uv run python scripts/validate_release.py
   uv run python scripts/validate_connector_contracts.py
   uv run python scripts/audit_skill_references.py --require-clean
+  uv run python scripts/audit_native_skill_maturity.py \
+    --output "$maturity_json" \
+    --markdown "$maturity_md" \
+    --require-clean
   uv run python scripts/validate_models.py
   uv run python scripts/validate_model_registry_v2.py
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe
@@ -58,6 +65,13 @@ run_science_contracts() (
     --registry models/registry-v2.json >/dev/null
   uv run python scripts/validate_artifact.py \
     "$sbdd_dir/manifest.json" \
+    --review-output "$review_tmp" \
+    --require-passed-review
+
+  uv run python scripts/run_quantitative_acceptance.py \
+    examples/quantitative-research/input.json "$quantitative_dir" >/dev/null
+  uv run python scripts/validate_artifact.py \
+    "$quantitative_dir/manifest.json" \
     --review-output "$review_tmp" \
     --require-passed-review
 

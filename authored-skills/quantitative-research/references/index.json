@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "skill": "quantitative-research",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "research-design-and-statistics",
+      "path": "references/research-design-and-statistics.md",
+      "purpose": "Exact preregistration fields, deterministic statistical CLI usage, experimental-unit handling, randomization inference, intervals, and multiplicity semantics.",
+      "read_when": [
+        "designing a quantitative study",
+        "running a two-group statistical analysis",
+        "auditing pseudoreplication, optional stopping, missingness, or multiplicity"
+      ],
+      "required_before": ["research-design-audit", "statistical-analysis"],
+      "search_patterns": ["## Research-design input", "## Statistical-analysis input", "## Interpretation boundary", "## Failure handling"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines bounded design and statistical computation; it does not make an empirical result causal, replicated, or scientifically important."
+    },
+    {
+      "id": "mathematical-proof-and-counterexample",
+      "path": "references/mathematical-proof-and-counterexample.md",
+      "purpose": "Mathematical claim states, finite counterexample search, proof-obligation graphs, proof receipts, and the distinction between tests and proofs.",
+      "read_when": [
+        "proving or disproving a statement",
+        "searching a finite or sampled domain",
+        "assigning a proved, disproved, or tested status"
+      ],
+      "required_before": ["counterexample-search", "proof-obligation-authoring", "mathematical-claim-status"],
+      "search_patterns": ["## Evidence levels", "## Counterexample search", "## Proof receipts", "## Common invalid promotions"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A bounded test can refute a universal statement but cannot prove a general statement unless an exact finite domain is exhausted."
+    },
+    {
+      "id": "numerical-units-uncertainty",
+      "path": "references/numerical-units-uncertainty.md",
+      "purpose": "Refinement, residual, invariant, solver, cross-method, SI dimension, conversion, covariance, and Monte Carlo uncertainty contracts.",
+      "read_when": [
+        "validating a numerical solver or approximation",
+        "checking equations or conversions",
+        "propagating measurement or model-input uncertainty"
+      ],
+      "required_before": ["numerical-verification", "dimension-check", "uncertainty-propagation"],
+      "search_patterns": ["## Numerical verification", "## Dimensional analysis", "## Uncertainty propagation", "## Interpretation boundary"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Verifies bounded computational contracts; it does not prove model adequacy, experimental validity, or asymptotic behavior beyond tested ranges."
+    },
+    {
+      "id": "formal-proof-runtime",
+      "path": "references/formal-proof-runtime.md",
+      "purpose": "Lean workspace, source hashing, preview, execution, timeout, admitted-construct, axiom, unsafe-declaration, and kernel-receipt rules.",
+      "read_when": [
+        "checking a Lean theorem",
+        "repairing a formal proof",
+        "claiming a theorem is kernel checked"
+      ],
+      "required_before": ["formal-proof-preview", "formal-proof-execution", "formal-proof-claim"],
+      "search_patterns": ["## Input", "## Preview", "## Execute", "## Receipt interpretation"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A kernel receipt covers the exact hashed formal statement and environment, not an unverified correspondence to informal prose."
+    },
+    {
+      "id": "artifact-and-review",
+      "path": "references/artifact-and-review.md",
+      "purpose": "Quantitative artifact kinds, cross-sidecar links, manifest packaging, review findings, and the deterministic acceptance workflow.",
+      "read_when": [
+        "packaging a quantitative research run",
+        "reviewing cross-artifact claim semantics",
+        "running the checked acceptance bundle"
+      ],
+      "required_before": ["quantitative-bundle-authoring", "quantitative-review", "quantitative-acceptance"],
+      "search_patterns": ["## Artifact kinds", "## Cross-sidecar rules", "## Acceptance run", "## Completion rule"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A valid bundle establishes integrity and contract compliance, not truth outside the recorded inputs, assumptions, and methods."
+    }
+  ]
+}

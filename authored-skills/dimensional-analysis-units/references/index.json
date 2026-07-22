@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "dimensional-analysis-units",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "unit-dimension-runtime",
+      "path": "references/unit-dimension-runtime.md",
+      "purpose": "Supported SI unit grammar, conversions, affine temperatures, dimensional equations, receipt fields, and physical interpretation boundaries.",
+      "read_when": ["checking equation dimensions", "converting units", "auditing a physical scaling or dimensional claim"],
+      "required_before": ["dimension-check", "unit-conversion", "dimensional-acceptance"],
+      "search_patterns": ["## Unit grammar", "## Equation check", "## Affine quantities", "## Boundary"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Dimensional consistency and conversion do not validate coefficients, constitutive laws, boundary conditions, or physical mechanisms."
+    }
+  ]
+}

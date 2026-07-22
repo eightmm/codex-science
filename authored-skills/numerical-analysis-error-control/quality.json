@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "numerical-analysis-error-control",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["numerical-verification-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": ["tests/test_numerical_units_uncertainty.py"],
+  "limitations": [
+    "The verifier evaluates finite recorded refinement series and does not prove asymptotic convergence.",
+    "Domain-specific norms, stability theory, and model discrepancy still require explicit scientific justification."
+  ]
+}

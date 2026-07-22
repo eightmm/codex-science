@@ -16,6 +16,12 @@ from codex_science.collaboration import stale_annotations, validate_annotation
 from codex_science.evidence_graph_v2 import independent_support_groups, validate_graph_payload
 from codex_science.literature_v2 import validate_risk_of_bias
 from codex_science.model_registry_v2 import load_registry_v2, validate_model_receipt_v2
+from codex_science.quantitative_sidecars import (
+    QUANTITATIVE_KINDS,
+    empty_quantitative_sidecars,
+    review_quantitative_sidecars,
+    validate_quantitative_sidecar,
+)
 from codex_science.reference_contract import validate_reference_use_ledger
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
@@ -23,6 +29,7 @@ ADVANCED_KINDS = {
     "evidence-graph-v2", "review-receipt", "review-receipt-v2", "annotation",
     "model-receipt-v2", "risk-of-bias", "reference-use-ledger", "artifact-descriptor",
     "artifact-runtime-descriptor", "artifact-selection", "transform-proposal",
+    *QUANTITATIVE_KINDS,
 }
 
 
@@ -59,6 +66,7 @@ def validate_advanced_sidecars(
             for item in manifest.get("artifacts", [])
         },
         "advanced_paths": {},
+        **empty_quantitative_sidecars(),
     }
     seen_graph = False
     selections_by_id: dict[str, dict[str, Any]] = {}
@@ -115,6 +123,8 @@ def validate_advanced_sidecars(
             selections_by_id[str(selection["selection_id"])] = payload
         elif kind == "transform-proposal":
             pending_proposals.append(payload)
+        elif kind in QUANTITATIVE_KINDS:
+            validate_quantitative_sidecar(kind, payload, result)
     for proposal in pending_proposals:
         selection = selections_by_id.get(str(proposal.get("selection_id", "")))
         validate_transform_proposal(proposal, selection)
@@ -127,6 +137,7 @@ def validate_advanced_sidecars(
 
 def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | None = None) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = list(sidecars.get("graph_v2_findings", []))
+    findings.extend(review_quantitative_sidecars(sidecars))
     artifact_hashes = sidecars.get("artifact_hashes", {})
     registry = None
     registry_digest = None

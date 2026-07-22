@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "mathematical-problem-execution",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "problem-execution-runtime",
+      "path": "references/problem-execution-runtime.md",
+      "purpose": "Problem classification, quantitative runtime routing, evidence levels, verification matrix, output contracts, and stop conditions.",
+      "read_when": ["solving a multi-step mathematics problem", "choosing a proof or computation route", "verifying or packaging a mathematical result"],
+      "required_before": ["mathematical-route-selection", "mathematical-evidence-status", "mathematical-result-packaging"],
+      "search_patterns": ["## Route matrix", "## Verification matrix", "## Evidence status", "## Stop conditions"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "The reference controls procedure and evidence labeling; it does not make a derivation or computation correct without the recorded checks."
+    }
+  ]
+}

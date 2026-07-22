@@ -20,6 +20,12 @@ def run(command: list[str], *, cwd: Path) -> None:
         print(completed.stdout.strip())
 
 
+def validate_review(path: Path, label: str) -> None:
+    review = json.loads(path.read_text(encoding="utf-8"))
+    if review.get("status") != "passed":
+        raise SystemExit(f"candidate {label} acceptance review did not pass")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -37,10 +43,24 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tempdir:
         temporary = Path(tempdir)
         inventory = temporary / "inventory.json"
+        maturity_json = temporary / "native-skill-quality.json"
+        maturity_markdown = temporary / "native-skill-quality.md"
         run([python, "scripts/audit_skills.py", "--output", str(inventory)], cwd=root)
         if inventory.read_bytes() != (root / "catalog" / "inventory.json").read_bytes():
             raise SystemExit("candidate inventory is stale")
         run([python, "scripts/generate_wrappers.py", "--check"], cwd=root)
+        run(
+            [
+                python,
+                "scripts/audit_native_skill_maturity.py",
+                "--output",
+                str(maturity_json),
+                "--markdown",
+                str(maturity_markdown),
+                "--require-clean",
+            ],
+            cwd=root,
+        )
         run([python, "scripts/validate_models.py"], cwd=root)
         run([python, "scripts/validate_model_registry_v2.py"], cwd=root)
         run([python, "scripts/run_reviewer_benchmark.py", "--require-safe"], cwd=root)
@@ -57,21 +77,43 @@ def main() -> int:
             ],
             cwd=root,
         )
-        review_output = temporary / "sbdd-review.json"
+        sbdd_review = temporary / "sbdd-review.json"
         run(
             [
                 python,
                 "scripts/validate_artifact.py",
                 str(sbdd_run / "manifest.json"),
                 "--review-output",
-                str(review_output),
+                str(sbdd_review),
                 "--require-passed-review",
             ],
             cwd=root,
         )
-        review = json.loads(review_output.read_text(encoding="utf-8"))
-        if review.get("status") != "passed":
-            raise SystemExit("candidate SBDD acceptance review did not pass")
+        validate_review(sbdd_review, "SBDD")
+
+        quantitative_run = temporary / "quantitative-run"
+        run(
+            [
+                python,
+                "scripts/run_quantitative_acceptance.py",
+                "examples/quantitative-research/input.json",
+                str(quantitative_run),
+            ],
+            cwd=root,
+        )
+        quantitative_review = temporary / "quantitative-review.json"
+        run(
+            [
+                python,
+                "scripts/validate_artifact.py",
+                str(quantitative_run / "manifest.json"),
+                "--review-output",
+                str(quantitative_review),
+                "--require-passed-review",
+            ],
+            cwd=root,
+        )
+        validate_review(quantitative_review, "quantitative research")
 
     print("candidate contract: ok")
     return 0

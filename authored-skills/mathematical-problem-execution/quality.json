@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "skill": "mathematical-problem-execution",
+  "roles": ["conductor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "mathematical-claim-v1",
+    "counterexample-search-v1",
+    "proof-obligation-graph-v1",
+    "proof-receipt-v1",
+    "numerical-verification-v1",
+    "dimension-check-v1",
+    "uncertainty-propagation-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [
+    "tests/test_math_research_runtime.py",
+    "tests/test_numerical_units_uncertainty.py"
+  ],
+  "limitations": [
+    "This conductor routes to specialized proof, statistics, numerical, units, uncertainty, and domain skills rather than replacing them.",
+    "Correct evidence status still depends on an explicit claim statement and independent review."
+  ]
+}

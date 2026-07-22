@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "statistical-inference-experimental-design",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "design-and-inference-runtime",
+      "path": "references/design-and-inference-runtime.md",
+      "purpose": "Exact preregistration and bounded two-group statistical runtime inputs, outputs, assumptions, failure states, and interpretation limits.",
+      "read_when": ["designing an experiment", "running a two-group analysis", "auditing sample size, multiplicity, stopping, or missingness"],
+      "required_before": ["research-design-audit", "statistical-analysis"],
+      "search_patterns": ["## Design audit", "## Statistical execution", "## Unsupported cases", "## Review checklist"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines design and computation contracts; it does not establish scientific importance, causality, or replication."
+    }
+  ]
+}

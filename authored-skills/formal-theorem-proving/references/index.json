@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "formal-theorem-proving",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "lean-proof-runtime",
+      "path": "references/lean-proof-runtime.md",
+      "purpose": "Existing-workspace Lean preview and execution, source and statement hashes, timeout, admitted constructs, axioms, unsafe declarations, and kernel receipt interpretation.",
+      "read_when": ["formalizing a claim in Lean", "checking or repairing a Lean proof", "claiming a theorem is kernel checked"],
+      "required_before": ["formal-proof-preview", "formal-proof-execution", "formal-proof-claim"],
+      "search_patterns": ["## Statement correspondence", "## Preview", "## Execute", "## Passed receipt requirements"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A kernel receipt covers the exact formal statement and workspace; it does not establish equivalence to informal prose without correspondence review."
+    }
+  ]
+}

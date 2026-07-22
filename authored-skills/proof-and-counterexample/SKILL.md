@@ -1,58 +1,52 @@
 ---
 name: proof-and-counterexample
-description: "Prove, disprove, or repair mathematical statements by normalizing quantifiers and hypotheses, selecting a proof strategy, constructing counterexamples, and auditing every logical dependency. Use for theorem proving, proof critique, missing-assumption diagnosis, and universal or existential claims."
+description: "Prove, disprove, test, or repair mathematical statements by normalizing quantifiers and assumptions, building proof obligations, searching bounded domains safely, verifying counterexamples, and assigning evidence statuses that distinguish computation from proof."
 license: MIT
 ---
 
 # Proof and Counterexample
 
-## Normalize the claim
+## Decision contract
 
-1. Rewrite the statement with explicit universe, quantifier order, hypotheses, and conclusion.
-2. Expand ambiguous terms into definitions and mark edge cases such as empty sets, zero,
-   endpoints, degeneracy, and non-finite objects.
-3. Write the exact negation. Preserve quantifier order: negating `for every` produces
-   `there exists`, and negating an implication keeps the hypothesis and negates the conclusion.
-4. Check whether the statement is false before investing in a proof.
+Write the exact domain, quantifier order, hypotheses, conclusion, equality notion, edge cases, and intended evidence status before proof search. Write the exact negation. Decide whether the target is a general theorem, an exact finite proposition, or only a bounded test.
 
-## Choose a route
+Check whether the statement is false before investing in a proof. Do not weaken a failed statement silently; create a repaired claim with its added hypothesis.
 
-- Direct: start from hypotheses and build the conclusion.
-- Contrapositive: use when the negated conclusion exposes usable structure.
-- Contradiction: use when assuming the negation creates a short impossible condition;
-  avoid it when a direct or contrapositive proof is clearer.
-- Induction: state the induction domain, base cases, hypothesis, and exact step.
-- Construction: exhibit an object and verify every required property.
-- Extremal/invariant: select a minimal or maximal object or a preserved quantity.
-- Equivalence: prove every direction separately; a cycle is acceptable only if all
-  implications are explicit.
+## Reference usage
 
-## Search for a counterexample
+Read [proof and counterexample evidence](references/proof-counterexample-runtime.md) before `counterexample-search`, `proof-obligation-authoring`, or assigning `proved-*` or `disproved`. The reference contains exact domain declarations, expression limits, result statuses, and receipt rules.
 
-1. Attack omitted hypotheses: zero, empty, disconnected, noncompact, noncomplete,
-   noncommutative, singular, repeated-root, and boundary cases.
-2. Search the smallest finite dimension or cardinality first.
-3. Translate the negated claim into constraints and construct an object satisfying them.
-4. Verify that the example satisfies every original hypothesis and fails exactly the conclusion.
-5. If the original statement is nearly true, give the smallest repair and explain why it suffices.
+Record material reference hashes. Preserve search and proof artifacts with `$science-provenance`, then use `$science-review` for any claim that leaves the local exercise context.
 
-## Audit
+## Workflow
 
-- Label definitions, earlier results, and external theorems.
-- Verify all theorem hypotheses at the point of use.
-- Reject circular steps, converse errors, hidden existence assumptions, unjustified limit
-  interchange, and division by a possibly zero quantity.
-- Distinguish `not proven` from `false`.
-- Treat symbolic or finite computation as proof only when it exhausts the stated finite domain
-  or is accompanied by a valid general argument.
+1. Normalize the statement and negation with explicit types and quantifiers.
+2. Attack omitted hypotheses, zero and empty cases, boundaries, singularities, small finite objects, and low dimensions.
+3. When a bounded executable domain helps, run `scripts/search_counterexample.py`. A returned assignment must satisfy every hypothesis and violate the conclusion.
+4. If no counterexample is found, keep the status `tested` unless an exact finite domain was completely exhausted.
+5. For a proof, choose direct, contrapositive, contradiction, induction, construction, invariant, extremal, or equivalence routes and decompose every material dependency into a proof-obligation graph.
+6. Produce an `informal-deductive`, `finite-exhaustion`, or `formal-kernel` proof receipt appropriate to the evidence.
+7. Cross-check statement hashes, assumptions, and unresolved obligations before changing the claim status.
 
-## Deliver
+## Outputs
 
-State `proved`, `disproved`, or `conditional`. For a proof, give a dependency-complete argument.
-For a refutation, give the counterexample and verification. For a repaired theorem, identify the
-added hypothesis and whether it is sufficient, necessary, or both.
+- `mathematical-claim` with statement hash, domain, assumptions, quantifiers, status, and permitted inference;
+- `counterexample-search` receipt for bounded evaluation;
+- `proof-obligation-graph` for deductive dependencies;
+- `proof-receipt` identifying deductive, finite, formal, or computational evidence;
+- repaired theorem and necessity/sufficiency discussion when the original statement fails;
+- manifest and review receipt for material work.
+
+## Boundaries
+
+- `not proved` is not `false`; `no counterexample found` is not `proved`.
+- Random or floating-point samples cannot prove a universal statement.
+- Exact finite exhaustion proves only the exact finite domain stated in the receipt.
+- A symbolic computation is proof only when its transformations, domains, and theorem dependencies are justified.
+- A passed obligation cannot depend on an open or failed obligation.
+- A counterexample must satisfy every original hypothesis, not a weakened approximation.
+- Stop and report `conditional`, `tested`, or `unavailable` rather than inventing a missing lemma or hiding a failed case.
 
 ## Source basis
 
-The proof discipline is independently synthesized from Lebl's *Basic Analysis I* and
-Hefferon's *Linear Algebra*; provenance and licenses are in `../../docs/TEXTBOOK_SOURCES.md`.
+The proof discipline is independently synthesized from Lebl's *Basic Analysis I* and Hefferon's *Linear Algebra*; provenance and licenses are in `../../docs/TEXTBOOK_SOURCES.md`.

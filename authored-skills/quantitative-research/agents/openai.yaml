@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quantitative Research"
+  short_description: "Run auditable mathematical and quantitative research"
+  default_prompt: "Use $quantitative-research to design, execute, verify, and review this quantitative research question."
