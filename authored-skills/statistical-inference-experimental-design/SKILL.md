@@ -24,7 +24,7 @@ For material work, record the reference hash with `scripts/reference_lookup.py` 
 2. Match the analysis to assignment and sampling. Use blocking, pairing, hierarchy, survey weights, censoring, or longitudinal dependence only with a method that represents them.
 3. For a bounded independent or paired two-group contrast, run `scripts/run_statistical_analysis.py`; for more complex models, use a suitable external implementation but emit equivalent design, effect, interval, diagnostic, seed, and environment records.
 4. Report effect size, interval, independent-unit count, missingness, exclusions, and multiplicity handling before p-values.
-5. Run prespecified sensitivity analyses and diagnose design/model mismatch.
+5. Verify the unit counts, contrast direction, missingness, multiplicity family, randomization model, interval method, and prespecified sensitivity analyses.
 6. Package the design and analysis sidecars, then run `$science-review`.
 
 ## Outputs
