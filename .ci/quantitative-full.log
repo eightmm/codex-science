@@ -1,0 +1,35 @@
+compile: ok
+............................................................./home/runner/work/_temp/uv-python-dir/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/subprocess.py:1127: ResourceWarning: subprocess 2565 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.../home/runner/work/_temp/uv-python-dir/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/subprocess.py:1127: ResourceWarning: subprocess 2567 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..........................................................................................................................................................................................................................F.........F...........
+======================================================================
+FAIL: test_extended_math_physics_skills_are_active_and_sourced (test_wrappers.FeaturedScienceSkillCoverageTests.test_extended_math_physics_skills_are_active_and_sourced)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/codex-science/codex-science/tests/test_wrappers.py", line 435, in test_extended_math_physics_skills_are_active_and_sourced
+    self.assertIn("verify", text)
+AssertionError: 'verify' not found in '---\nname: formal-theorem-proving\ndescription: "formalize mathematical statements and produce auditable kernel-check receipts in an existing lean 4 workspace. use for theorem-statement audits, proof repair, definition design, tactic or term proofs, dependency minimization, axiom inspection, and correspondence checks between formal and informal claims."\nlicense: mit\n---\n\n# formal theorem proving\n\n## decision contract\n\nwrite the intended informal claim, formal domain and types, quantifiers, hypotheses, equality notion, constructive or classical assumptions, and required trust boundary. pin the existing lean, lake, mathlib, and import revisions. state whether the task is statement design, proof construction, proof repair, or final kernel verification.\n\ndo not change the theorem merely to obtain a compiling proof without creating a new mathematical claim and correspondence review.\n\n## reference usage\n\nread [the lean proof runtime](references/lean-proof-runtime.md) before `formal-proof-preview`, `formal-proof-execution`, or assigning `proved-formal`. it defines safe workspace paths, exact cli fields, timeouts, source hashes, admitted constructs, axioms, unsafe declarations, and receipt meaning.\n\nrecord the reference and theorem hashes with `$science-provenance`. use `$science-review` to compare the checked theorem with the informal claim.\n\n## workflow\n\n1. audit the statement before proof search. check for vacuity, weakened hypotheses, wrong quantifier order, unintended coercions, finite/infinite mismatch, and a stronger or weaker equality notion.\n2. search existing definitions and lemmas before introducing synonyms.\n3. create the smallest compiling theorem with explicit imports and helper lemmas that expose the mathematical invariants.\n4. prefer stable term or structured tactic proofs. isolate automation and record its dependencies.\n5. preview with `scripts/check_formal_proof.py --preview` before executing an unfamiliar workspace command.\n6. execute the bounded checker in the existing approved workspace. preserve stdout/stderr hashes, tool version, exit code, theorem hash, axioms, admitted constructs, and source-mutation check.\n7. create `proved-formal` only after a passed `formal-kernel` receipt and a separate correspondence review.\n\n## outputs\n\n- exact formal theorem source and imports;\n- `mathematical-claim` for the intended statement;\n- optional `proof-obligation-graph` for helper lemmas;\n- `formal-proof-check` with nested `proof-receipt`;\n- checker command, version, output hashes, and theorem-file sha-256;\n- axiom, admitted-construct, and unsafe-declaration report;\n- line-by-line informal/formal correspondence explanation;\n- manifest and independent review receipt.\n\n## boundaries\n\n- do not accept `sorry`, `admit`, placeholder proof terms, unsafe declarations, or unreviewed axioms as completed proof.\n- a compiling theorem may be vacuous or weaker than the prose claim.\n- the runtime never installs lean, downloads mathlib, creates a project, or modifies the toolchain without explicit user approval.\n- a preview does not execute the kernel and cannot support `proved-formal`.\n- a kernel receipt covers exact hashed source and environment; any statement, source, import, toolchain, or trust change invalidates it.\n- stop and report `failed` or `unavailable` instead of introducing an axiom or weakening the target to force completion.\n\n## source basis\n\noriginal synthesis informed by the official *theorem proving in lean 4* documentation; source details are in `../../docs/textbook_sources.md`.\n'
+
+======================================================================
+FAIL: test_every_authored_skill_has_ui_metadata (test_wrappers.SessionContractTests.test_every_authored_skill_has_ui_metadata)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/runner/work/codex-science/codex-science/tests/test_wrappers.py", line 164, in test_every_authored_skill_has_ui_metadata
+    self.assertEqual([], missing)
+AssertionError: Lists differ: [] != ['quantitative-research']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'quantitative-research'
+
+- []
++ ['quantitative-research']
+
+----------------------------------------------------------------------
+Ran 304 tests in 8.750s
+
+FAILED (failures=2)

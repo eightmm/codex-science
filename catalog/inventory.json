@@ -412,9 +412,9 @@
       "status": "active"
     },
     {
-      "description": "Audit and simplify mathematical or physical models using dimensions, units, characteristic scales, nondimensionalization, and limiting cases. Use when equations mix physical quantities, unit conversions, empirical correlations, scaling laws, similarity parameters, or order-of-magnitude estimates.",
+      "description": "Audit equations, models, conversions, scales, and limiting cases with explicit dimensions and units, plus executable SI dimensional-consistency and conversion receipts. Use for physical quantities, empirical correlations, nondimensionalization, scaling laws, or order-of-magnitude models.",
       "executable_count": 0,
-      "instruction_line_count": 46,
+      "instruction_line_count": 51,
       "license": "MIT",
       "name": "cx-dimensional-analysis-units",
       "path": "authored-skills/dimensional-analysis-units",
@@ -544,9 +544,9 @@
       "status": "active"
     },
     {
-      "description": "Quantify and report experimental measurement uncertainty. Use for measurand definitions, calibration, Type A and Type B components, covariance, nonlinear propagation, Monte Carlo uncertainty, coverage intervals, and traceable result reporting.",
+      "description": "Quantify and review measurement or model-input uncertainty with explicit measurands, calibration, Type A and B components, covariance, linear sensitivities, seeded Monte Carlo propagation, nonlinear disagreement, and machine-readable uncertainty receipts.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 51,
       "license": "MIT",
       "name": "cx-experimental-uncertainty-propagation",
       "path": "authored-skills/experimental-uncertainty-propagation",
@@ -580,9 +580,9 @@
       "status": "active"
     },
     {
-      "description": "Formalize mathematical statements and produce kernel-checked proofs. Use for Lean 4 theorem proving, proof repair, definition design, tactic or term proofs, dependency minimization, theorem-statement audits, and correspondence checks between formal and informal claims.",
+      "description": "Formalize mathematical statements and produce auditable kernel-check receipts in an existing Lean 4 workspace. Use for theorem-statement audits, proof repair, definition design, tactic or term proofs, dependency minimization, axiom inspection, and correspondence checks between formal and informal claims.",
       "executable_count": 0,
-      "instruction_line_count": 42,
+      "instruction_line_count": 53,
       "license": "MIT",
       "name": "cx-formal-theorem-proving",
       "path": "authored-skills/formal-theorem-proving",
@@ -796,9 +796,9 @@
       "status": "active"
     },
     {
-      "description": "Drive a concrete mathematics problem from precise statement through method selection, derivation or proof, symbolic and numerical checks, edge cases, and a verified final result. Use for multi-step pure or applied mathematics problems where the user expects an actual solution rather than a formula lookup.",
+      "description": "Drive a concrete pure or applied mathematics problem from exact statement through method selection, derivation, proof or computation, executable checks, error control, edge cases, and machine-readable evidence without promoting bounded tests to proofs.",
       "executable_count": 0,
-      "instruction_line_count": 66,
+      "instruction_line_count": 51,
       "license": "MIT",
       "name": "cx-mathematical-problem-execution",
       "path": "authored-skills/mathematical-problem-execution",
@@ -940,9 +940,9 @@
       "status": "active"
     },
     {
-      "description": "Design and audit numerical computations by separating problem conditioning from algorithmic stability and quantifying discretization, truncation, iteration, floating-point, and sampling errors. Use for root finding, interpolation, quadrature, numerical linear algebra, ODE/PDE solvers, optimization, and any result sensitive to tolerances or precision.",
+      "description": "Design and audit numerical computations by separating conditioning, stability, discretization, iteration, floating-point, sampling, and model errors, with executable refinement, residual, invariant, precision, and cross-method verification receipts.",
       "executable_count": 0,
-      "instruction_line_count": 60,
+      "instruction_line_count": 51,
       "license": "MIT",
       "name": "cx-numerical-analysis-error-control",
       "path": "authored-skills/numerical-analysis-error-control",
@@ -1144,9 +1144,9 @@
       "status": "active"
     },
     {
-      "description": "Prove, disprove, or repair mathematical statements by normalizing quantifiers and hypotheses, selecting a proof strategy, constructing counterexamples, and auditing every logical dependency. Use for theorem proving, proof critique, missing-assumption diagnosis, and universal or existential claims.",
+      "description": "Prove, disprove, test, or repair mathematical statements by normalizing quantifiers and assumptions, building proof obligations, searching bounded domains safely, verifying counterexamples, and assigning evidence statuses that distinguish computation from proof.",
       "executable_count": 0,
-      "instruction_line_count": 58,
+      "instruction_line_count": 52,
       "license": "MIT",
       "name": "cx-proof-and-counterexample",
       "path": "authored-skills/proof-and-counterexample",
@@ -1258,6 +1258,18 @@
       "license": "Apache-2.0",
       "name": "cx-pymol-visualize",
       "path": "authored-skills/pymol-visualize",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Execute auditable quantitative research across preregistered study design, statistical inference, numerical verification, dimensional analysis, uncertainty propagation, counterexample search, and formal proof. Use when a scientific or mathematical question needs actual computation and machine-readable evidence rather than only explanation.",
+      "executable_count": 0,
+      "instruction_line_count": 73,
+      "license": "MIT",
+      "name": "cx-quantitative-research",
+      "path": "authored-skills/quantitative-research",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1420,9 +1432,9 @@
       "status": "active"
     },
     {
-      "description": "Design experiments and perform defensible statistical inference. Use for estimands, randomization, blocking, sample-size planning, regression, hypothesis tests, intervals, multiple comparisons, missing data, diagnostics, and reproducible analysis plans.",
+      "description": "Design experiments and perform defensible statistical inference with explicit estimands, experimental units, preregistration, effect sizes, intervals, multiplicity, missingness, randomization, diagnostics, and machine-readable analysis receipts.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 50,
       "license": "MIT",
       "name": "cx-statistical-inference-experimental-design",
       "path": "authored-skills/statistical-inference-experimental-design",
@@ -3661,8 +3673,8 @@
     }
   ],
   "summary": {
-    "active": 168,
+    "active": 169,
     "inactive": 112,
-    "total": 280
+    "total": 281
   }
 }

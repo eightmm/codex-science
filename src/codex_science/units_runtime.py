@@ -123,7 +123,7 @@ _register_derived("V", 1.0, tuple(w - current for w, current in zip(UNIT_REGISTR
 _register_derived("ohm", 1.0, tuple(v - current for v, current in zip(UNIT_REGISTRY["V"].dimension, A)))
 _register_derived("S_to_conductance", 1.0, tuple(-value for value in UNIT_REGISTRY["ohm"].dimension))
 _register_derived("F", 1.0, tuple(c - v for c, v in zip(UNIT_REGISTRY["C"].dimension, UNIT_REGISTRY["V"].dimension)))
-_register_derived("T", 1.0, tuple(v - 2 * length for v, length in zip(UNIT_REGISTRY["V"].dimension, M)))
+_register_derived("T", 1.0, tuple(v + time - 2 * length for v, time, length in zip(UNIT_REGISTRY["V"].dimension, S, M)))
 _register_derived("H", 1.0, tuple(v + time - current for v, time, current in zip(UNIT_REGISTRY["V"].dimension, S, A)))
 _register_derived("eV", 1.602176634e-19, UNIT_REGISTRY["J"].dimension)
 
