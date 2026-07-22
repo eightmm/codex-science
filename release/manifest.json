@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "package_version": "0.4.0",
-  "plugin_version": "0.4.0+codex.20260721000100",
-  "mcp_version": "0.4.0",
+  "package_version": "0.5.0",
+  "plugin_version": "0.5.0+codex.20260722000100",
+  "mcp_version": "0.5.0",
   "runtime_affecting_prefixes": [
     ".codex-plugin/",
     ".mcp.json",
