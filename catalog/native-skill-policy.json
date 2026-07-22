@@ -36,6 +36,54 @@
       "minimum_maturity": "L3",
       "required_roles": ["executor", "infrastructure"],
       "require_reference_contract": true
+    },
+    {
+      "skill": "quantitative-research",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "mathematical-problem-execution",
+      "minimum_maturity": "L3",
+      "required_roles": ["conductor"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "proof-and-counterexample",
+      "minimum_maturity": "L3",
+      "required_roles": ["analyzer", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "formal-theorem-proving",
+      "minimum_maturity": "L3",
+      "required_roles": ["executor", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "statistical-inference-experimental-design",
+      "minimum_maturity": "L3",
+      "required_roles": ["analyzer", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "numerical-analysis-error-control",
+      "minimum_maturity": "L3",
+      "required_roles": ["analyzer", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "dimensional-analysis-units",
+      "minimum_maturity": "L3",
+      "required_roles": ["analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "experimental-uncertainty-propagation",
+      "minimum_maturity": "L3",
+      "required_roles": ["analyzer"],
+      "require_reference_contract": true
     }
   ]
 }
