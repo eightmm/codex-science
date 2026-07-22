@@ -1,39 +1,51 @@
 ---
 name: experimental-uncertainty-propagation
-description: "Quantify and report experimental measurement uncertainty. Use for measurand definitions, calibration, Type A and Type B components, covariance, nonlinear propagation, Monte Carlo uncertainty, coverage intervals, and traceable result reporting."
+description: "Quantify and review measurement or model-input uncertainty with explicit measurands, calibration, Type A and B components, covariance, linear sensitivities, seeded Monte Carlo propagation, nonlinear disagreement, and machine-readable uncertainty receipts."
 license: MIT
 ---
 
 # Experimental Uncertainty Propagation
 
-## Define the measurement
+## Decision contract
 
-State the measurand, measurement equation, units, operating conditions, calibration chain, corrections, data
-reduction, and intended coverage statement. Separate repeatability, reproducibility, resolution, drift,
-calibration, sampling, and model-form contributions. Do not call all variation “error.”
+State the measurand, measurement equation, units, operating conditions, calibration chain, corrections, data reduction, intended coverage statement, and every uncertainty source. Separate repeatability, reproducibility, resolution, drift, calibration, sampling, numerical, and model-form contributions. State all distribution and covariance assumptions.
 
-## Build the uncertainty budget
+Do not call every discrepancy “error,” and do not treat a sample standard deviation as the full uncertainty budget.
 
-1. Estimate Type A components from an explicit statistical model and effective independent sample size.
-2. Estimate Type B components from certificates, specifications, prior data, or bounded assumptions.
-3. Convert components to standard uncertainties and document each assumed distribution.
-4. Include covariance caused by shared calibrations, environmental effects, or common preprocessing.
-5. Propagate through the measurement equation using sensitivities or Monte Carlo for strong nonlinearity.
+## Reference usage
 
-## Verify
+Read [the uncertainty propagation runtime](references/uncertainty-runtime.md) before `uncertainty-propagation`, covariance entry, Monte Carlo execution, or a coverage statement. It defines exact input fields, positive-semidefinite covariance rules, linear sensitivities, seeded sampling, output, and interpretation.
 
-- Check dimensions, signs, correlation bounds, and positive semidefiniteness of covariance matrices.
-- Compare linear propagation with Monte Carlo in a regime where both should agree.
-- Test sensitivity to plausible Type B distributions and correlation assumptions.
-- Confirm calibration validity dates, traceability, resolution effects, and significant digits.
-- Distinguish standard, combined, and expanded uncertainty; state the coverage factor and interpretation.
+Preserve inputs, calibration references, covariance, seed, and receipts with `$science-provenance`, then use `$science-review` for material uncertainty claims.
 
-## Deliver
+## Workflow
 
-Report the estimate as value, unit, uncertainty, coverage convention, uncertainty budget, degrees of freedom
-when used, correlations, calibration provenance, and dominant sensitivity contributors.
+1. Define the measurand and measurement equation with units.
+2. Build Type A and Type B components and convert them to standard uncertainties with explicit distributions.
+3. Record covariance caused by shared calibration, environment, preprocessing, or common parameters.
+4. Check dimensions, correlation bounds, and covariance positive semidefiniteness.
+5. Run `scripts/propagate_uncertainty.py`; use `both` when first-order linearization may be questionable.
+6. Compare linear and Monte Carlo means and standard uncertainties, inspect failed samples, and identify dominant sensitivity contributors.
+7. Vary plausible Type B distributions, correlations, calibration values, and model forms.
+8. Report value, unit, standard uncertainty, interval convention, assumptions, dominant contributors, and limitations.
+
+## Outputs
+
+- `uncertainty-propagation` receipt with expression hash, means, standard uncertainties, covariance, gradient, variance, sensitivities, seed, Monte Carlo interval, findings, and fingerprint;
+- calibration and traceability records;
+- uncertainty budget and sensitivity alternatives;
+- dimension check where quantities carry units;
+- manifest and independent review receipt.
+
+## Boundaries
+
+- Linear propagation can fail near discontinuities, boundaries, zero denominators, and strong nonlinearity.
+- Monte Carlo output is conditional on the declared distributions and covariance; it does not discover them.
+- Covariance from shared sources must not be omitted merely because independence is convenient.
+- A coverage interval requires a clear probability or repeated-sampling interpretation.
+- Numerical uncertainty, measurement uncertainty, and model discrepancy must remain separate when they have different origins.
+- Stop when calibration validity, unit convention, covariance, measurand definition, or input distribution is unresolved.
 
 ## Source basis
 
-Original synthesis informed by NIST Technical Note 1297 and the source registry at
-`../../docs/TEXTBOOK_SOURCES.md`.
+Original synthesis informed by NIST Technical Note 1297 and the source registry at `../../docs/TEXTBOOK_SOURCES.md`.
