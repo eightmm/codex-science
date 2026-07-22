@@ -1,60 +1,51 @@
 ---
 name: numerical-analysis-error-control
-description: "Design and audit numerical computations by separating problem conditioning from algorithmic stability and quantifying discretization, truncation, iteration, floating-point, and sampling errors. Use for root finding, interpolation, quadrature, numerical linear algebra, ODE/PDE solvers, optimization, and any result sensitive to tolerances or precision."
+description: "Design and audit numerical computations by separating conditioning, stability, discretization, iteration, floating-point, sampling, and model errors, with executable refinement, residual, invariant, precision, and cross-method verification receipts."
 license: MIT
 ---
 
 # Numerical Analysis Error Control
 
-## Define the numerical claim
+## Decision contract
 
-1. State the mathematical target, input uncertainty, output observable, requested tolerance,
-   norm, and reference scale.
-2. Identify all error sources: model, data, discretization, truncation, iteration, roundoff,
-   stochastic sampling, and implementation.
-3. Separate conditioning of the mathematical problem from stability of the chosen algorithm.
-4. Predict expected convergence order and failure modes before running refinements.
+State the mathematical target, observable, norm, reference scale, requested accuracy, input uncertainty, solver precision, tolerances, expected convergence order, invariant or conservation conditions, and intended validity range before refinement. Separate model, data, discretization, truncation, iteration, roundoff, stochastic, and implementation errors.
 
-## Design the computation
+Do not use tighter tolerance in the same implementation as the only reference.
 
-- Scale variables and avoid subtractive cancellation or overflow/underflow.
-- Use bracketing for guaranteed scalar roots; use open methods only with basin and derivative checks.
-- Prefer stable factorizations over explicit inverses and normal equations.
-- Choose interpolation nodes and basis to control oscillation and conditioning.
-- Match quadrature to smoothness, singularity, and oscillation.
-- Match time integrators to stiffness, conservation, and stability-region requirements.
-- Use absolute and relative tolerances tied to the physical or mathematical output scale.
+## Reference usage
 
-## Establish a reference
+Read [the numerical verification runtime](references/numerical-verification-runtime.md) before `numerical-verification` or making a convergence, residual, invariant, or stable-digit claim. It defines refinement ordering, required levels, threshold fields, cross-method uncertainty, exact output semantics, and failure conditions.
 
-Use one or more of:
+Preserve inputs, code, environment, refinements, and receipts with `$science-provenance`, then use `$science-review` for material scientific interpretation.
 
-- exact solution or identity;
-- higher precision arithmetic;
-- finer mesh/order with demonstrated asymptotic convergence;
-- independent algorithm or implementation;
-- interval/bound enclosure;
-- manufactured solution with known forcing.
+## Workflow
 
-Do not use the same implementation at slightly tighter tolerance as the only reference.
+1. Predict conditioning, stability restrictions, convergence order, invariants, and likely failure modes.
+2. Choose a reference from exact solutions, manufactured solutions, independent implementations, interval bounds, or a demonstrated higher-accuracy method.
+3. Run at least three refinement levels for an order claim and retain failed levels.
+4. Record errors or reference value, residuals, invariants, precision, absolute and relative tolerances, and cross-method estimates with uncertainties.
+5. Run `scripts/verify_numerical_result.py --require-clean`.
+6. Perturb tolerances, precision, inputs, grids, and algorithm where the claim depends on them.
+7. Report only digits and validity supported by the error budget and verification receipt.
 
-## Measure error
+## Outputs
 
-1. Report absolute and scale-aware relative errors in a declared norm.
-2. Run at least three resolutions when estimating convergence order.
-3. Check residual and backward error; distinguish them from forward error.
-4. Perturb inputs to estimate sensitivity and compare it with the condition estimate.
-5. Repeat stochastic calculations with independent seeds and report Monte Carlo uncertainty.
-6. Demonstrate that the reported digits are stable under reasonable precision/tolerance changes.
+- `numerical-verification` receipt with ordered refinements, observed order, residual, invariant, solver, and cross-method findings;
+- reference or manufactured-solution record;
+- conditioning and stability discussion;
+- input, code, environment, and seed hashes;
+- claim status and limitations;
+- independent review receipt for claim-bearing results.
 
-## Stop or downgrade the claim
+## Boundaries
 
-Stop when the refinement sequence is not asymptotic, conservation or positivity fails, the
-reference disagrees, the condition number makes the requested accuracy unattainable, or the error
-budget is dominated by unknown model/data error. Report a bound or qualitative conclusion instead
-of unsupported digits.
+- Residual, backward error, forward error, discretization error, and model discrepancy are different quantities.
+- Small residual does not imply small forward error for an ill-conditioned problem.
+- Agreement between two implementations is not independent evidence when they share code, discretization, data, or assumptions.
+- Observed order on a finite range does not prove asymptotic convergence.
+- Solver tolerance is not a discretization-error estimate.
+- Stop or downgrade when refinement is non-asymptotic, invariants fail, the reference disagrees, conditioning makes requested accuracy unattainable, or unknown model/data error dominates.
 
 ## Source basis
 
-This error-control workflow is an original synthesis informed by Brin's *Tea Time Numerical
-Analysis* and the CC BY numerical PDE text recorded in `../../docs/TEXTBOOK_SOURCES.md`.
+This error-control workflow is an original synthesis informed by Brin's *Tea Time Numerical Analysis* and the CC BY numerical PDE text recorded in `../../docs/TEXTBOOK_SOURCES.md`.
