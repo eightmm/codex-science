@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "skill": "quantitative-research",
+  "roles": ["conductor", "executor", "analyzer", "reviewer"],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "research-design-v1",
+    "statistical-analysis-v1",
+    "mathematical-claim-v1",
+    "counterexample-search-v1",
+    "proof-obligation-graph-v1",
+    "proof-receipt-v1",
+    "formal-proof-check-v1",
+    "numerical-verification-v1",
+    "dimension-check-v1",
+    "uncertainty-propagation-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/quantitative-research/input.json"
+  ],
+  "seeded_failures": [
+    "pseudoreplication",
+    "optional-stopping",
+    "causal-identification-gap",
+    "computation-presented-as-proof",
+    "proof-obligation-cycle",
+    "admitted-formal-proof",
+    "nonmonotone-convergence",
+    "cross-method-disagreement",
+    "dimension-mismatch",
+    "invalid-covariance"
+  ],
+  "test_files": [
+    "tests/test_math_research_runtime.py",
+    "tests/test_research_design_statistics.py",
+    "tests/test_numerical_units_uncertainty.py",
+    "tests/test_quantitative_acceptance.py"
+  ],
+  "limitations": [
+    "The built-in statistical runtime is bounded to independent or paired two-group contrasts and is not a replacement for domain-specific modeling.",
+    "The formal checker uses an existing Lean workspace and does not install or certify a toolchain.",
+    "The acceptance bundle is deterministic software validation rather than an empirical scientific result."
+  ]
+}
