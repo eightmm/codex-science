@@ -25,7 +25,7 @@ Preserve inputs, calibration references, covariance, seed, and receipts with `$s
 3. Record covariance caused by shared calibration, environment, preprocessing, or common parameters.
 4. Check dimensions, correlation bounds, and covariance positive semidefiniteness.
 5. Run `scripts/propagate_uncertainty.py`; use `both` when first-order linearization may be questionable.
-6. Compare linear and Monte Carlo means and standard uncertainties, inspect failed samples, and identify dominant sensitivity contributors.
+6. Verify linear and Monte Carlo means and standard uncertainties, inspect failed samples, and identify dominant sensitivity contributors.
 7. Vary plausible Type B distributions, correlations, calibration values, and model forms.
 8. Report value, unit, standard uncertainty, interval convention, assumptions, dominant contributors, and limitations.
 
