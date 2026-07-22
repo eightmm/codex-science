@@ -4,9 +4,9 @@ Using CPython 3.11.15
 Creating virtual environment at: .venv
    Building codex-science @ file:///home/runner/work/codex-science/codex-science
       Built codex-science @ file:///home/runner/work/codex-science/codex-science
-Installed 1 package in 0.79ms
+Installed 1 package in 0.89ms
 ......................
 ----------------------------------------------------------------------
-Ran 22 tests in 0.387s
+Ran 22 tests in 0.412s
 
 OK
