@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "experimental-uncertainty-propagation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "uncertainty-runtime",
+      "path": "references/uncertainty-runtime.md",
+      "purpose": "Exact measurement-expression, covariance, linear sensitivity, correlated Monte Carlo, seed, nonlinear disagreement, receipt, and reporting semantics.",
+      "read_when": ["building an uncertainty budget", "propagating covariance", "running Monte Carlo uncertainty", "reporting a coverage interval"],
+      "required_before": ["uncertainty-propagation", "covariance-entry", "coverage-statement"],
+      "search_patterns": ["## Input", "## Linear propagation", "## Monte Carlo", "## Reporting boundary"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Propagation is conditional on the input uncertainty and covariance model; it does not validate that model or create traceability."
+    }
+  ]
+}
