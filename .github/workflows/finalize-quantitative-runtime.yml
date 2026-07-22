@@ -1,0 +1,105 @@
+name: Finalize quantitative research runtime
+
+on:
+  push:
+    branches: [agent/quantitative-research-runtime]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/quantitative-research-runtime
+          submodules: recursive
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          python-version: "3.11"
+      - name: Apply final bounded-source correction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/codex_science/units_runtime.py")
+          text = path.read_text(encoding="utf-8")
+          old = '_register_derived("T", 1.0, tuple(v - 2 * length for v, length in zip(UNIT_REGISTRY["V"].dimension, M)))'
+          new = '_register_derived("T", 1.0, tuple(v + time - 2 * length for v, time, length in zip(UNIT_REGISTRY["V"].dimension, S, M)))'
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding="utf-8")
+          elif new not in text:
+              raise SystemExit("Tesla dimension marker is missing")
+          PY
+      - id: focused
+        name: Run focused quantitative tests
+        continue-on-error: true
+        run: |
+          mkdir -p .ci
+          set +e
+          uv run python -m compileall -q src scripts > .ci/quantitative-focused.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            uv run python -m unittest \
+              tests.test_math_research_runtime \
+              tests.test_research_design_statistics \
+              tests.test_numerical_units_uncertainty \
+              tests.test_quantitative_acceptance \
+              >> .ci/quantitative-focused.log 2>&1
+            status=$?
+          fi
+          cat .ci/quantitative-focused.log
+          exit "$status"
+      - name: Persist focused failure diagnostics
+        if: steps.focused.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/quantitative-focused.log src/codex_science/units_runtime.py
+          git commit -m "Record quantitative runtime focused diagnostics"
+          git push origin HEAD:agent/quantitative-research-runtime
+          exit 1
+      - name: Regenerate audited catalog and wrappers
+        if: steps.focused.outcome == 'success'
+        run: |
+          uv run python scripts/audit_skills.py
+          uv run python scripts/generate_wrappers.py
+      - id: full
+        name: Run complete repository verification
+        if: steps.focused.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set +e
+          ./scripts/check.sh fast > .ci/quantitative-full.log 2>&1
+          status=$?
+          cat .ci/quantitative-full.log
+          exit "$status"
+      - name: Persist complete failure diagnostics
+        if: steps.full.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Record quantitative runtime complete diagnostics"
+          git push origin HEAD:agent/quantitative-research-runtime
+          exit 1
+      - name: Remove temporary diagnostics and development workflows
+        if: steps.full.outcome == 'success'
+        run: |
+          rm -rf .ci
+          rm -f .github/workflows/quantitative-runtime-dev.yml
+          rm -f .github/workflows/finalize-quantitative-runtime.yml
+      - name: Commit clean quantitative runtime
+        if: steps.full.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Finalize executable quantitative research runtime"
+          git push origin HEAD:agent/quantitative-research-runtime
