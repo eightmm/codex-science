@@ -1,6 +1,6 @@
 ---
 name: science-review
-description: Independently review a scientific run by checking claims against the approved plan, saved artifacts, citations, environment, and execution record. Use after scientific analysis or writing, before presenting conclusions, and when users ask to verify calculations, citations, reproducibility, methods, figures, or evidence fidelity.
+description: Independently review a scientific run by checking claims against the approved plan, saved artifacts, citations, environment, and execution record. Use after scientific analysis or writing, before presenting conclusions, and when users ask to verify calculations, citations, reproducibility, methods, figures, proofs, statistics, numerical results, or evidence fidelity.
 ---
 
 # Science Review
@@ -11,9 +11,9 @@ Review the record adversarially; do not assume the producing agent's conclusion,
 
 Read [the review checklist](references/review-checklist.md) before assigning severity, deciding whether a review passes, or closing a material finding. Use the indexed headings rather than loading unrelated reference material. Do not infer a pass rule or downgrade a finding from prose convenience.
 
-Read [the independent reviewer packet contract](references/independent-review-runtime.md) before preparing a separate review packet, accepting a reviewer response, or claiming independence or reproduction.
+Read [the independent reviewer packet contract](references/independent-review-runtime.md) before preparing a separate review packet, accepting a reviewer response, or claiming independence or reproduction. Read [the quantitative review contract](references/quantitative-review.md) before reviewing a statistical, mathematical-proof, counterexample, numerical-convergence, dimensional, or uncertainty artifact.
 
-If the checklist materially controls a review receipt, include its SHA-256 in the run's `reference-use-ledger`. The checklist defines review procedure; it does not prove the reviewed conclusion true.
+If a checklist materially controls a review receipt, include its SHA-256 in the run's `reference-use-ledger`. A reference defines review procedure; it does not prove the reviewed conclusion true.
 
 ## Inputs and review mode
 
@@ -43,18 +43,19 @@ A review may combine modes, but never imply a computation was reproduced when on
 11. Emit findings with stable ID, severity, affected claim or artifact, evidence, rationale, required correction or validation, owner, and resolution status. Do not silently edit the producer's record.
 12. Re-review corrections. Preserve the original finding, resolution evidence, and residual risk; a finding is resolved only when the changed claim or new evidence passes the same check.
 
-
 ## Seeded-defect and benchmark review
 
 For literature reviews, verify that duplicate persistent IDs, citation relationships not declared by the study table, supported claims without required evidence, shared cohorts presented as replication, and failed queries used as support are detected. Use the checked-in literature fixture and its living-review diff as a minimum contract.
 
 For structure-based drug discovery, run `<plugin-root>/scripts/audit_sbdd_benchmark.py <benchmark.json>`. Treat held-out bound-pose pocket information, analog-series or scaffold leakage, cold-target violations, known training overlap, missing subgroup analysis, and affinity or mechanism claims without assay-aware validation as blocking findings. A clean process exit or favorable docking score is not a scientific pass.
 
+For quantitative research, use [the quantitative review contract](references/quantitative-review.md). Treat pseudoreplication, outcome-dependent design, uncontrolled stopping or multiplicity, causal-identification gaps, computation presented as proof, unresolved proof obligations, admitted formal proofs, nonmonotone convergence, failed residual or invariant thresholds, dimensional mismatch, and invalid covariance as blocking according to severity. Run the deterministic quantitative acceptance fixture as the minimum software contract.
+
 For model-backed runs, resolve the model in `<plugin-root>/models/registry.json` and verify the `model-receipt` fingerprint. A model contract, code, weight, database, configuration, or input change invalidates a prior acceptance or review receipt.
 
 ## Finding severity
 
-Use [references/review-checklist.md](references/review-checklist.md). `critical` changes trust in the run or exposes fabrication, leakage, or contradiction; `major` can change a material conclusion; `minor` affects clarity or reproducibility without changing the central result. Mark non-blocking suggestions separately.
+Use [references/review-checklist.md](references/review-checklist.md). `critical` changes trust in the run or exposes fabrication, leakage, contradiction, invalid proof, or invalid causal/statistical independence; `major` can change a material conclusion; `minor` affects clarity or reproducibility without changing the central result. Mark non-blocking suggestions separately.
 
 ## Receipt and independence
 
@@ -66,4 +67,4 @@ After every blocking finding is resolved and `status` is `passed`, let the coord
 
 ## Boundary
 
-A record review does not rerun analyses, and deterministic validation cannot judge domain validity by itself. Reviewer success reduces inconsistencies and unsupported claims; it does not establish scientific truth, clinical validity, safety, or regulatory compliance.
+A record review does not rerun analyses, and deterministic validation cannot judge domain validity by itself. Reviewer success reduces inconsistencies and unsupported claims; it does not establish mathematical truth, scientific truth, clinical validity, safety, or regulatory compliance.
