@@ -25,7 +25,7 @@ def strict_candidate_self_check(candidate: Path) -> bool:
         return False
     contract = module._run(
         [
-            "python3",
+            sys.executable,
             str(candidate / "scripts" / "candidate_contract_check.py"),
             "--root",
             str(candidate),

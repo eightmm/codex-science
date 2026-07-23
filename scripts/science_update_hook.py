@@ -309,6 +309,7 @@ def _candidate_self_check(candidate: Path) -> bool:
     required = (
         ".codex-plugin/plugin.json",
         "hooks/hooks.json",
+        "scripts/python_runtime.sh",
         "scripts/science_mcp.py",
         "scripts/science_session_hook.py",
         "scripts/science_update_hook.py",
@@ -337,7 +338,7 @@ def _candidate_self_check(candidate: Path) -> bool:
         '{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n'
     )
     mcp = _run(
-        ["python3", str(candidate / "scripts" / "science_mcp.py")],
+        [sys.executable, str(candidate / "scripts" / "science_mcp.py")],
         input_text=mcp_input,
         timeout=20,
     )
@@ -346,7 +347,7 @@ def _candidate_self_check(candidate: Path) -> bool:
     with tempfile.TemporaryDirectory() as tempdir:
         environment = {**os.environ, "PLUGIN_DATA": tempdir, "CODEX_SCIENCE_AUTO_UPDATE": "off"}
         session = _run(
-            ["python3", str(candidate / "scripts" / "science_session_hook.py")],
+            [sys.executable, str(candidate / "scripts" / "science_session_hook.py")],
             input_text=(
                 '{"hook_event_name":"UserPromptSubmit","session_id":"candidate-check",'
                 '"prompt":"Start Codex Science"}'
@@ -356,7 +357,7 @@ def _candidate_self_check(candidate: Path) -> bool:
         if session.returncode != 0 or "Codex Science is active" not in session.stdout:
             return False
     updater = _run(
-        ["python3", str(candidate / "scripts" / "science_update_hook.py"), "--self-check"]
+        [sys.executable, str(candidate / "scripts" / "science_update_hook.py"), "--self-check"]
     )
     return updater.returncode == 0 and "self-check: ok" in updater.stdout
 

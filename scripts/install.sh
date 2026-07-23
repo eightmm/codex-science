@@ -13,13 +13,87 @@ INSTALL_DIR="${CODEX_SCIENCE_HOME:-$HOME/.codex-science}"
 BRANCH="${CODEX_SCIENCE_REF:-main}"
 OFFICIAL_REPO="https://github.com/eightmm/codex-science.git"
 RUNNING_INSTALLER="${BASH_SOURCE[0]:-}"
+RUNTIME_FILE="${CODEX_SCIENCE_RUNTIME_FILE:-$HOME/.codex-science-python}"
+PYTHON=""
 
 info() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; }
 
 command -v git >/dev/null || { err "git is required"; exit 1; }
-command -v python3 >/dev/null || { err "python3 (3.11+) is required"; exit 1; }
 command -v codex >/dev/null || { err "codex CLI not found; install Codex first"; exit 1; }
+
+python_is_compatible() {
+  [ -n "$1" ] \
+    && [ -x "$1" ] \
+    && "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' \
+      >/dev/null 2>&1
+}
+
+record_python() {
+  runtime_parent="$(dirname "$RUNTIME_FILE")"
+  mkdir -p "$runtime_parent"
+  if [ -L "$RUNTIME_FILE" ] || { [ -e "$RUNTIME_FILE" ] && [ ! -f "$RUNTIME_FILE" ]; }; then
+    err "runtime interpreter record is unsafe: $RUNTIME_FILE"
+    exit 1
+  fi
+  runtime_temporary="$(mktemp "$runtime_parent/.codex-science-python.XXXXXX")"
+  chmod 600 "$runtime_temporary"
+  printf '%s\n' "$PYTHON" > "$runtime_temporary"
+  mv -f "$runtime_temporary" "$RUNTIME_FILE"
+}
+
+select_python() {
+  requested="${CODEX_SCIENCE_PYTHON:-}"
+  if [ -n "$requested" ]; then
+    python_is_compatible "$requested" || {
+      err "CODEX_SCIENCE_PYTHON must point to Python 3.11+"; exit 1;
+    }
+    PYTHON="$requested"
+  elif [ -f "$RUNTIME_FILE" ] && [ ! -L "$RUNTIME_FILE" ]; then
+    IFS= read -r recorded_python < "$RUNTIME_FILE" || recorded_python=""
+    case "$recorded_python" in
+      /*)
+        if python_is_compatible "$recorded_python"; then
+          PYTHON="$recorded_python"
+        fi
+        ;;
+    esac
+  fi
+
+  if [ -z "$PYTHON" ] && command -v uv >/dev/null 2>&1; then
+    managed_python="$(
+      uv python find --managed-python --no-project --no-python-downloads 3.12 2>/dev/null \
+        || true
+    )"
+    if ! python_is_compatible "$managed_python"; then
+      info "Provisioning managed Python 3.12 with uv"
+      if uv python install 3.12; then
+        managed_python="$(uv python find --managed-python --no-project 3.12)"
+      else
+        managed_python=""
+      fi
+    fi
+    if python_is_compatible "$managed_python"; then
+      PYTHON="$managed_python"
+    fi
+  fi
+
+  if [ -z "$PYTHON" ] && command -v python3 >/dev/null 2>&1; then
+    system_python="$(command -v python3)"
+    if python_is_compatible "$system_python"; then
+      PYTHON="$system_python"
+    fi
+  fi
+  if [ -z "$PYTHON" ]; then
+    err "Python 3.11+ is required; install uv or set CODEX_SCIENCE_PYTHON"
+    exit 1
+  fi
+
+  PYTHON="$(cd "$(dirname "$PYTHON")" && pwd)/$(basename "$PYTHON")"
+  export CODEX_SCIENCE_PYTHON="$PYTHON"
+  record_python
+  info "Using $("$PYTHON" -c 'import sys; print(sys.executable)')"
+}
 
 STAGING=""
 LOCKER_PID=""
@@ -35,19 +109,28 @@ cleanup() {
 trap cleanup EXIT
 
 # 1. Clone into staging or update through the transactional updater.
-if [ -d "$INSTALL_DIR/.git" ]; then
-  info "Safely updating $INSTALL_DIR"
-  python3 "$INSTALL_DIR/scripts/science_update_hook.py" --manual-update "$INSTALL_DIR" "$BRANCH"
-else
+if [ ! -d "$INSTALL_DIR/.git" ]; then
   [ "$REPO_URL" = "$OFFICIAL_REPO" ] || {
     err "fresh installs accept only $OFFICIAL_REPO"; exit 1;
   }
   [ "$BRANCH" = "main" ] || { err "fresh installs accept only the main branch"; exit 1; }
+  if [ -e "$INSTALL_DIR" ]; then
+    err "$INSTALL_DIR already exists and is not a managed Git checkout"
+    exit 1
+  fi
+fi
+select_python
+
+if [ -d "$INSTALL_DIR/.git" ]; then
+  info "Safely updating $INSTALL_DIR"
+  "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
+    --manual-update "$INSTALL_DIR" "$BRANCH"
+else
   INSTALL_PARENT="$(dirname "$INSTALL_DIR")"
   mkdir -p "$INSTALL_PARENT"
   LOCK_PATH="$INSTALL_PARENT/.codex-science-update.lock"
   coproc CODEX_SCIENCE_LOCKER {
-    exec python3 - "$LOCK_PATH" <<'PY'
+    exec "$PYTHON" - "$LOCK_PATH" <<'PY'
 import fcntl
 import os
 import sys
@@ -75,15 +158,11 @@ PY
     err "another Codex Science install or update is running, or the lock path is unsafe"
     exit 1
   fi
-  if [ -e "$INSTALL_DIR" ]; then
-    err "$INSTALL_DIR already exists and is not a managed Git checkout"
-    exit 1
-  fi
   STAGING="$(mktemp -d "$INSTALL_PARENT/.codex-science-install.XXXXXX")"
   info "Cloning and validating in staging"
   git clone --quiet --branch "$BRANCH" --single-branch "$REPO_URL" "$STAGING/candidate"
   "$STAGING/candidate/scripts/bootstrap.sh"
-  python3 "$STAGING/candidate/scripts/science_update_hook.py" \
+  "$PYTHON" "$STAGING/candidate/scripts/science_update_hook.py" \
     --candidate-check "$STAGING/candidate"
   mv -T "$STAGING/candidate" "$INSTALL_DIR"
   rm -rf "$STAGING"
@@ -112,7 +191,7 @@ info "Running bootstrap"
 
 # 3. Register globally without deleting versions pinned by existing Codex tasks.
 info "Registering Codex plugin"
-if python3 "$INSTALL_DIR/scripts/science_update_hook.py" \
+if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
   --ensure-marketplace "$INSTALL_DIR" >/dev/null
 then
   info "Managed marketplace points to $INSTALL_DIR"
@@ -120,7 +199,7 @@ else
   err "managed marketplace registration failed"
   exit 1
 fi
-if python3 "$INSTALL_DIR/scripts/science_update_hook.py" \
+if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
   --register-plugin "$INSTALL_DIR" >/dev/null
 then
   info "Installed plugin cache verified; prior task caches preserved"
@@ -134,16 +213,16 @@ info "Verifying runtime"
 if printf '%s\n%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-    | python3 "$INSTALL_DIR/scripts/science_mcp.py" --inventory "$INSTALL_DIR/catalog/inventory.json" 2>/dev/null \
+    | "$PYTHON" "$INSTALL_DIR/scripts/science_mcp.py" --inventory "$INSTALL_DIR/catalog/inventory.json" 2>/dev/null \
     | grep -q science_search_skills; then
   info "Runtime self-check passed"
 else
-  err "runtime self-check failed — the MCP server did not respond; check python3 (3.11+)"
+  err "runtime self-check failed — the managed Python runtime did not respond"
   exit 1
 fi
 
 HOOK_DATA="$(mktemp -d)"
-if PLUGIN_DATA="$HOOK_DATA" python3 - "$INSTALL_DIR" "$HOOK_DATA" <<'PY'
+if PLUGIN_DATA="$HOOK_DATA" "$PYTHON" - "$INSTALL_DIR" "$HOOK_DATA" <<'PY'
 import hashlib
 import json
 import os
@@ -296,7 +375,7 @@ fi
 rm -rf "$HOOK_DATA"
 HOOK_DATA=""
 
-if python3 "$INSTALL_DIR/scripts/science_update_hook.py" --self-check >/dev/null 2>&1; then
+if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" --self-check >/dev/null 2>&1; then
   info "Update lifecycle self-check passed"
 else
   err "update lifecycle self-check failed"

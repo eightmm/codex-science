@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "package_version": "0.5.0",
-  "plugin_version": "0.5.0+codex.20260722000100",
+  "plugin_version": "0.5.0+codex.20260723031415",
   "mcp_version": "0.5.0",
   "runtime_affecting_prefixes": [
     ".codex-plugin/",

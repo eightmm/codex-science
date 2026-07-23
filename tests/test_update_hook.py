@@ -64,6 +64,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
         return {
             **os.environ,
             "CODEX_SCIENCE_HOME": str(target),
+            "CODEX_SCIENCE_RUNTIME_FILE": str(self.root / "runtime-python"),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
         }
 
@@ -761,8 +762,51 @@ class ScienceUpdateHookTests(unittest.TestCase):
         serialized = json.dumps(config)
 
         self.assertIn("$PLUGIN_ROOT/scripts/science_update_hook.py", serialized)
+        self.assertIn("$PLUGIN_ROOT/scripts/python_runtime.sh", serialized)
+        self.assertNotIn("python3", serialized)
         self.assertIn("SessionStart", config["hooks"])
         self.assertIn("UserPromptSubmit", config["hooks"])
+
+    def test_candidate_self_check_reuses_the_running_interpreter(self) -> None:
+        candidate = self.root / "candidate"
+        for relative in (
+            ".codex-plugin/plugin.json",
+            "hooks/hooks.json",
+            "scripts/python_runtime.sh",
+            "scripts/science_mcp.py",
+            "scripts/science_session_hook.py",
+            "scripts/science_update_hook.py",
+        ):
+            path = candidate / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}\n", encoding="utf-8")
+
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            stdout = ""
+            if "science_mcp.py" in " ".join(command):
+                stdout = "science_search_skills"
+            elif "science_session_hook.py" in " ".join(command):
+                stdout = "Codex Science is active"
+            elif "--self-check" in command:
+                stdout = "self-check: ok"
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+
+        with mock.patch.object(self.module, "_run", side_effect=run):
+            self.assertTrue(self.module._candidate_self_check(candidate))
+
+        python_commands = [
+            command
+            for command in commands
+            if any(str(value).endswith(".py") for value in command)
+        ]
+        self.assertTrue(python_commands)
+        self.assertTrue(
+            all(command[0] == sys.executable for command in python_commands),
+            python_commands,
+        )
 
     def test_installer_uses_staging_and_transactional_reruns(self) -> None:
         installer = (self.repository_root / "scripts" / "install.sh").read_text(encoding="utf-8")
@@ -809,6 +853,71 @@ class ScienceUpdateHookTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("1", record.read_text(encoding="utf-8"))
+
+    def test_streamed_installer_provisions_uv_python_when_python3_is_too_old(self) -> None:
+        target = self.root / "installed"
+        scripts = target / "scripts"
+        scripts.mkdir(parents=True)
+        (target / ".git").mkdir()
+        update_record = self.root / "update-python"
+        (scripts / "science_update_hook.py").write_text(
+            "import os, pathlib, sys\n"
+            "pathlib.Path(os.environ['UPDATE_RECORD']).write_text(sys.executable)\n",
+            encoding="utf-8",
+        )
+        handoff_record = self.root / "handoff"
+        (scripts / "install.sh").write_text(
+            "#!/bin/sh\n"
+            "printf '%s' \"$CODEX_SCIENCE_INSTALLER_HANDOFF\" > \"$HANDOFF_RECORD\"\n",
+            encoding="utf-8",
+        )
+
+        fake_bin = self.root / "python38-bin"
+        fake_bin.mkdir()
+        (fake_bin / "codex").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (fake_bin / "python3").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        uv_marker = self.root / "uv-installed"
+        (fake_bin / "uv").write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = python ] && [ \"$2\" = install ]; then\n"
+            "  : > \"$UV_MARKER\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = python ] && [ \"$2\" = find ] && [ -f \"$UV_MARKER\" ]; then\n"
+            "  printf '%s\\n' \"$MANAGED_PYTHON\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        for path in fake_bin.iterdir():
+            path.chmod(0o755)
+
+        installer = (self.repository_root / "scripts" / "install.sh").read_text(
+            encoding="utf-8"
+        )
+        result = subprocess.run(
+            ["bash"],
+            input=installer,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **os.environ,
+                "CODEX_SCIENCE_HOME": str(target),
+                "CODEX_SCIENCE_RUNTIME_FILE": str(self.root / "runtime-python"),
+                "HANDOFF_RECORD": str(handoff_record),
+                "MANAGED_PYTHON": sys.executable,
+                "UPDATE_RECORD": str(update_record),
+                "UV_MARKER": str(uv_marker),
+                "PATH": f"{fake_bin}:/usr/bin:/bin",
+            },
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue(uv_marker.is_file())
+        self.assertEqual(sys.executable, update_record.read_text(encoding="utf-8"))
+        self.assertEqual("1", handoff_record.read_text(encoding="utf-8"))
 
     def test_fresh_installer_rejects_existing_non_git_target(self) -> None:
         target = self.root / "existing-target"
@@ -872,6 +981,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
         catalog.mkdir()
         (catalog / "inventory.json").write_text("{}", encoding="utf-8")
         (scripts / "bootstrap.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (scripts / "python_runtime.sh").write_text("#!/bin/sh\nexec python3 \"$@\"\n", encoding="utf-8")
         (scripts / "science_update_hook.py").write_text(
             "import sys\n"
             "def _installed_cache_matches(root): return True\n"
@@ -944,6 +1054,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
             env={
                 **os.environ,
                 "CODEX_SCIENCE_HOME": str(target),
+                "CODEX_SCIENCE_RUNTIME_FILE": str(self.root / "runtime-python"),
                 "FAKE_CANDIDATE": str(fixture),
                 "PATH": f"{fake_bin}:{os.environ['PATH']}",
             },

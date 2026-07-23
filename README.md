@@ -24,10 +24,14 @@ Install **once** — it registers globally with Codex and works in every project
 curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
 ```
 
-Requires `curl`, a Codex CLI, Git, and Python 3.11+ (the runtime is pure Python
-standard library — no packages, virtualenv, or `uv` needed to run). The installer
+Requires `curl`, a Codex CLI, Git, and either `uv` or Python 3.11+. When `uv` is
+available, the installer provisions and records a managed Python 3.12 runtime;
+otherwise it uses a compatible `python3`. The hooks and MCP server execute that
+recorded interpreter directly, so they do not resolve or download Python on every
+invocation. The runtime uses only the Python standard library. The installer
 clones into `~/.codex-science`, registers the plugin globally, runs a runtime
-self-check, and is safe to re-run to update.
+self-check, and is safe to re-run to update. On a Python 3.8 system, install
+`uv` first and then run the same command.
 Fresh installs are validated in staging before activation; installer reruns use the same locked, transactional updater as the hook.
 The managed checkout is the only installation source. If an older development
 checkout is registered under the `codex-science` marketplace name, the installer
