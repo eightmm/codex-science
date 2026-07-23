@@ -547,7 +547,9 @@ def register_plugin_preserving_caches(source: Path) -> tuple[bool, str]:
             ["codex", "plugin", "add", "codex-science@codex-science"], timeout=60
         )
         if registration.returncode != 0:
-            reason = registration.stderr.strip() or "plugin registration command failed"
+            reason = _command_reason(
+                registration, "plugin registration command failed"
+            )
         elif not _installed_cache_matches(source):
             reason = "installed plugin cache verification failed"
         else:
@@ -651,6 +653,11 @@ def install_update(
         home.rename(previous)
         previous_moved = True
         candidate.rename(home)
+        marketplace_ready, marketplace_reason = ensure_managed_marketplace(home)
+        if not marketplace_ready:
+            raise RuntimeError(
+                f"plugin marketplace registration failed: {marketplace_reason}"
+            )
         registered, registration_reason = register_plugin_preserving_caches(home)
         if not registered:
             raise RuntimeError(f"plugin registration failed: {registration_reason}")
