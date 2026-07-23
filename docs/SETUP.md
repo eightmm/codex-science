@@ -5,9 +5,14 @@
 - Codex app or CLI with plugin support.
 - `curl` for the recommended one-command install.
 - Git.
-- Python 3.11 or later.
+- Either `uv` or Python 3.11 or later.
 
-The runtime is pure Python standard library — no packages to install. `uv` is only needed for the development checks below.
+The runtime is pure Python standard library — no packages to install. The
+installer prefers `uv`: it provisions a managed Python 3.12 interpreter once
+and records its absolute path in `~/.codex-science-python`. Hooks and the MCP
+server execute that interpreter directly rather than running `uv` for every
+event. Without `uv`, an existing compatible `python3` is used. A host whose
+default Python is 3.8 therefore needs `uv` before running the installer.
 
 ## Install (recommended)
 
@@ -20,6 +25,8 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 The installer validates a fresh clone in staging before moving it into
 `~/.codex-science`, runs the light bootstrap, and registers the plugin. Re-runs
 use the locked transactional updater. `CODEX_SCIENCE_HOME` overrides the path.
+`CODEX_SCIENCE_PYTHON` can select an existing Python 3.11+ interpreter, and
+`CODEX_SCIENCE_RUNTIME_FILE` can override the interpreter record path.
 This managed checkout is the only supported installation source. If the
 `codex-science` marketplace still points at an older local development checkout,
 the installer transactionally migrates it to the managed checkout.
@@ -100,7 +107,7 @@ update lifecycle before reporting success.
 
 ## Verify
 
-Development checks require `uv`:
+Development checks also require `uv`:
 
 ```bash
 ./scripts/check.sh fast

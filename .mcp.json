@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "codex-science": {
-      "command": "python3",
+      "command": "./scripts/python_runtime.sh",
       "args": [
         "./scripts/science_mcp.py",
         "--inventory",

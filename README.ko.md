@@ -24,10 +24,13 @@ Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러
 curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | bash
 ```
 
-`curl`, Codex CLI, Git, Python 3.11+가 필요합니다(런타임은 순수 Python 표준
-라이브러리이므로 패키지·가상환경·`uv` 없이 실행). 설치 스크립트는
-`~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임 self-check까지
-수행하며, 업데이트하려면 다시 실행하면 됩니다.
+`curl`, Codex CLI, Git과 `uv` 또는 Python 3.11+가 필요합니다. `uv`가 있으면
+installer가 관리형 Python 3.12를 준비하고 그 경로를 기록하며, 없으면 호환되는
+`python3`를 사용합니다. Hook과 MCP는 매번 `uv`로 해석하거나 내려받지 않고 기록된
+인터프리터를 직접 실행합니다. 런타임 자체는 Python 표준 라이브러리만 사용합니다.
+설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임
+self-check까지 수행하며, 업데이트하려면 다시 실행하면 됩니다. 시스템 기본값이
+Python 3.8이면 먼저 `uv`를 설치한 뒤 같은 명령을 실행하세요.
 최초 설치는 staging에서 검증한 뒤 활성화하며, 설치 스크립트를 다시 실행할 때도 hook과 같은 잠금·transactional updater를 사용합니다.
 관리 대상 checkout만 실제 설치 source로 사용합니다. 과거 개발 checkout이
 `codex-science` marketplace 이름으로 등록되어 있으면 installer가 이를

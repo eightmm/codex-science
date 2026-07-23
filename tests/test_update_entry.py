@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -47,6 +48,7 @@ class UpdateEntryTests(unittest.TestCase):
             self.assertTrue(self.entry.strict_candidate_self_check(candidate))
         stable.assert_called_once_with(candidate.resolve())
         command = run.call_args.args[0]
+        self.assertEqual(sys.executable, command[0])
         self.assertIn("candidate_contract_check.py", command[1])
         self.assertEqual(["--root", str(candidate.resolve())], command[-2:])
         self.assertEqual(300, run.call_args.kwargs["timeout"])
