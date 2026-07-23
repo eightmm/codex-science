@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The installer now recovers when `codex plugin marketplace list --json` is unavailable or fails: it reads the existing `codex-science` entry from Codex's local config, preserves the same-source and rollback guarantees, and reports both CLI and config errors when recovery is impossible.
 - The one-command installer now works when the system `python3` is 3.8 by provisioning a persistent managed Python 3.12 with `uv` (or falling back to an existing Python 3.11+). Hooks, MCP, bootstrap, and transactional candidate checks all reuse the recorded interpreter directly instead of depending on PATH or invoking `uv` for each event.
 - Added a reviewed PheWAS life-science acceptance artifact, weekly/manual public API drift workflow, and local `.omc/` ignore rule. The acceptance result preserves missing-evidence and genome-build boundaries instead of overclaiming cross-cohort replication.
 - Added an independently implemented agentic life-science research layer: 19 new read-only public API tools, a deterministic entity/evidence-lane planner, 12 source skills, and 13 cross-source workflows for normalization, variant/PheWAS synthesis, locus-to-gene, burden evidence, expression/cell context, public omics datasets, pharmacology, cancer genomics, multi-omics context, and conflict reconciliation. Proprietary OpenAI plugin code was not copied; unstable or terms-gated sources remain explicitly unavailable. Catalog: 279 (149 kdense + 3 gdm + 127 cx).

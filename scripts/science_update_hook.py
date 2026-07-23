@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 from typing import Any, Mapping, NamedTuple
 
@@ -387,20 +388,73 @@ def _installed_cache_matches(source: Path) -> bool:
     return True
 
 
+def _marketplace_config_fallback() -> tuple[list[dict[str, Any]], str | None]:
+    """Read only the managed marketplace entry when the CLI cannot list it."""
+    codex_home = Path(
+        os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
+    ).expanduser()
+    config_path = codex_home / "config.toml"
+    try:
+        payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return [], None
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        return [], f"could not read {config_path}: {error}"
+
+    marketplaces = payload.get("marketplaces", {})
+    if not isinstance(marketplaces, dict):
+        return [], f"{config_path} has invalid marketplace metadata"
+    current = marketplaces.get("codex-science")
+    if current is None:
+        return [], None
+    if not isinstance(current, dict):
+        return [], f"{config_path} has an invalid codex-science marketplace"
+    source = current.get("source")
+    source_type = current.get("source_type")
+    if not isinstance(source, str) or not source:
+        return [], f"{config_path} has no codex-science marketplace source"
+    if source_type is not None and not isinstance(source_type, str):
+        return [], f"{config_path} has an invalid codex-science source type"
+    return [
+        {
+            "name": "codex-science",
+            "root": source,
+            "marketplaceSource": {
+                "sourceType": source_type,
+                "source": source,
+            },
+        }
+    ], None
+
+
+def _command_reason(result: subprocess.CompletedProcess[str], fallback: str) -> str:
+    return result.stderr.strip() or result.stdout.strip() or fallback
+
+
 def ensure_managed_marketplace(source: Path) -> tuple[bool, str]:
     """Point the Codex Science marketplace at the managed installer checkout."""
     source = Path(source).expanduser().resolve()
     listing = _run(
         ["codex", "plugin", "marketplace", "list", "--json"], timeout=30
     )
-    if listing.returncode != 0:
-        return False, listing.stderr.strip() or "could not list plugin marketplaces"
-    try:
-        payload = json.loads(listing.stdout)
-        marketplaces = payload["marketplaces"]
-        matches = [item for item in marketplaces if item.get("name") == "codex-science"]
-    except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
-        return False, "Codex returned invalid marketplace metadata"
+    listing_reason = ""
+    if listing.returncode == 0:
+        try:
+            payload = json.loads(listing.stdout)
+            marketplaces = payload["marketplaces"]
+            matches = [
+                item for item in marketplaces if item.get("name") == "codex-science"
+            ]
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+            listing_reason = "Codex returned invalid marketplace metadata"
+    else:
+        listing_reason = _command_reason(
+            listing, "could not list plugin marketplaces"
+        )
+    if listing_reason:
+        matches, config_reason = _marketplace_config_fallback()
+        if config_reason:
+            return False, f"{listing_reason}; {config_reason}"
     if len(matches) > 1:
         return False, "Codex returned duplicate codex-science marketplaces"
 
@@ -408,7 +462,10 @@ def ensure_managed_marketplace(source: Path) -> tuple[bool, str]:
     if not matches:
         added = _run(add_command, timeout=30)
         if added.returncode != 0:
-            return False, added.stderr.strip() or "could not add managed marketplace"
+            reason = _command_reason(added, "could not add managed marketplace")
+            if listing_reason:
+                reason = f"{reason}; marketplace list failed: {listing_reason}"
+            return False, reason
         return True, "managed marketplace added"
 
     current = matches[0]
@@ -428,7 +485,9 @@ def ensure_managed_marketplace(source: Path) -> tuple[bool, str]:
         timeout=30,
     )
     if removed.returncode != 0:
-        return False, removed.stderr.strip() or "could not remove previous marketplace source"
+        return False, _command_reason(
+            removed, "could not remove previous marketplace source"
+        )
     added = _run(add_command, timeout=30)
     if added.returncode == 0:
         return True, f"managed marketplace replaced previous source {previous}"
@@ -436,10 +495,10 @@ def ensure_managed_marketplace(source: Path) -> tuple[bool, str]:
     restored = _run(
         ["codex", "plugin", "marketplace", "add", str(previous)], timeout=30
     )
-    reason = added.stderr.strip() or "could not add managed marketplace"
+    reason = _command_reason(added, "could not add managed marketplace")
     if restored.returncode == 0:
         return False, f"{reason}; previous source restored"
-    restore_reason = restored.stderr.strip() or "restore command failed"
+    restore_reason = _command_reason(restored, "restore command failed")
     return False, f"{reason}; previous source restore failed: {restore_reason}"
 
 
