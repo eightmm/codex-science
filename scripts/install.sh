@@ -98,8 +98,11 @@ select_python() {
 STAGING=""
 LOCKER_PID=""
 HOOK_DATA=""
+RECOVERY_HELPER=""
+UPDATE_HOOK=""
 cleanup() {
   if [ -n "$HOOK_DATA" ]; then rm -rf "$HOOK_DATA"; fi
+  if [ -n "$RECOVERY_HELPER" ]; then rm -f "$RECOVERY_HELPER"; fi
   if [ -n "$STAGING" ]; then rm -rf "$STAGING"; fi
   if [ -n "$LOCKER_PID" ]; then
     kill "$LOCKER_PID" 2>/dev/null || true
@@ -107,6 +110,36 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+repair_marketplace_for_legacy_updater() {
+  UPDATE_HOOK="$INSTALL_DIR/scripts/science_update_hook.py"
+  if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
+    --ensure-marketplace "$INSTALL_DIR" >/dev/null 2>&1
+  then
+    return
+  fi
+
+  command -v curl >/dev/null || {
+    err "curl is required to recover a legacy Codex Science installation"
+    exit 1
+  }
+  info "Repairing plugin marketplace before the legacy updater runs"
+  RECOVERY_HELPER="$(mktemp "${TMPDIR:-/tmp}/codex-science-update-hook.XXXXXX")"
+  RECOVERY_URL="https://raw.githubusercontent.com/eightmm/codex-science/$BRANCH/scripts/science_update_hook.py"
+  if ! curl -fsSL "$RECOVERY_URL" -o "$RECOVERY_HELPER"; then
+    err "could not download the marketplace recovery helper"
+    exit 1
+  fi
+  if ! "$PYTHON" "$RECOVERY_HELPER" --self-check >/dev/null; then
+    err "marketplace recovery helper self-check failed"
+    exit 1
+  fi
+  if ! "$PYTHON" "$RECOVERY_HELPER" --ensure-marketplace "$INSTALL_DIR"; then
+    err "legacy marketplace recovery failed"
+    exit 1
+  fi
+  UPDATE_HOOK="$RECOVERY_HELPER"
+}
 
 # 1. Clone into staging or update through the transactional updater.
 if [ ! -d "$INSTALL_DIR/.git" ]; then
@@ -122,8 +155,9 @@ fi
 select_python
 
 if [ -d "$INSTALL_DIR/.git" ]; then
+  repair_marketplace_for_legacy_updater
   info "Safely updating $INSTALL_DIR"
-  "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
+  "$PYTHON" "$UPDATE_HOOK" \
     --manual-update "$INSTALL_DIR" "$BRANCH"
 else
   INSTALL_PARENT="$(dirname "$INSTALL_DIR")"

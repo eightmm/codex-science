@@ -710,6 +710,11 @@ class ScienceUpdateHookTests(unittest.TestCase):
             mock.patch.object(self.module, "_git_output", return_value=expected),
             mock.patch.object(self.module, "_candidate_self_check", return_value=True),
             mock.patch.object(self.module, "_installed_cache_matches", return_value=True),
+            mock.patch.object(
+                self.module,
+                "ensure_managed_marketplace",
+                return_value=(True, "managed marketplace already registered"),
+            ) as ensure_marketplace,
             mock.patch.object(self.module, "_run", side_effect=run),
         ):
             success, reason = self.module.install_update(
@@ -717,6 +722,7 @@ class ScienceUpdateHookTests(unittest.TestCase):
             )
 
         self.assertTrue(success, reason)
+        ensure_marketplace.assert_called_once_with(self.home)
         self.assertEqual([], list(self.root.glob(".codex-science-update-*")))
 
     def test_installed_cache_verification_covers_all_tracked_files(self) -> None:
@@ -798,6 +804,25 @@ class ScienceUpdateHookTests(unittest.TestCase):
                 encoding="utf-8"
             ),
         )
+
+    def test_registration_failure_reports_stdout_when_stderr_is_empty(self) -> None:
+        source = self.root / "new-source"
+        (source / ".codex-plugin").mkdir(parents=True)
+        (source / ".codex-plugin" / "plugin.json").write_text(
+            '{"version":"new-version"}', encoding="utf-8"
+        )
+
+        with mock.patch.object(
+            self.module,
+            "_run",
+            return_value=subprocess.CompletedProcess(
+                [], 1, "registration failed on stdout", ""
+            ),
+        ):
+            success, reason = self.module.register_plugin_preserving_caches(source)
+
+        self.assertFalse(success)
+        self.assertEqual("registration failed on stdout", reason)
 
     def test_installer_self_check_exercises_update_primitives(self) -> None:
         result = subprocess.run(
@@ -924,6 +949,101 @@ class ScienceUpdateHookTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("1", record.read_text(encoding="utf-8"))
+
+    def test_streamed_installer_repairs_marketplace_before_legacy_updater(self) -> None:
+        target = self.root / "installed"
+        scripts = target / "scripts"
+        scripts.mkdir(parents=True)
+        (target / ".git").mkdir()
+        (scripts / "science_update_hook.py").write_text(
+            "import os, pathlib, sys\n"
+            "if sys.argv[1] == '--ensure-marketplace':\n"
+            "    print('legacy marketplace listing failed', file=sys.stderr)\n"
+            "    raise SystemExit(1)\n"
+            "if sys.argv[1] == '--manual-update':\n"
+            "    pathlib.Path(os.environ['LEGACY_UPDATE_RECORD']).touch()\n"
+            "raise SystemExit(0)\n",
+            encoding="utf-8",
+        )
+        handoff_record = self.root / "handoff"
+        (scripts / "install.sh").write_text(
+            "#!/bin/sh\n"
+            "printf '%s' \"$CODEX_SCIENCE_INSTALLER_HANDOFF\" > \"$HANDOFF_RECORD\"\n",
+            encoding="utf-8",
+        )
+
+        environment = self.installer_environment(target)
+        fake_bin = Path(environment["PATH"].split(":", 1)[0])
+        marketplace_record = self.root / "marketplace-repaired"
+        legacy_update_record = self.root / "legacy-update"
+        modern_update_record = self.root / "modern-update"
+        recovery_helper = self.root / "recovery-helper.py"
+        recovery_helper.write_text(
+            "import os, pathlib, subprocess, sys\n"
+            "if sys.argv[1] == '--self-check':\n"
+            "    raise SystemExit(0)\n"
+            "if sys.argv[1] == '--ensure-marketplace':\n"
+            "    raise SystemExit(subprocess.run([\n"
+            "        'codex', 'plugin', 'marketplace', 'add', sys.argv[2]\n"
+            "    ]).returncode)\n"
+            "if sys.argv[1] == '--manual-update':\n"
+            "    pathlib.Path(os.environ['MODERN_UPDATE_RECORD']).touch()\n"
+            "    raise SystemExit(0)\n"
+            "raise SystemExit(2)\n",
+            encoding="utf-8",
+        )
+        (fake_bin / "codex").write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = plugin ] && [ \"$2\" = marketplace ] && [ \"$3\" = list ]; then\n"
+            "  printf '%s\\n' '{\"marketplaces\":[]}'\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = plugin ] && [ \"$2\" = marketplace ] && [ \"$3\" = add ]; then\n"
+            "  printf '%s' \"$4\" > \"$MARKETPLACE_RECORD\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        (fake_bin / "curl").write_text(
+            "#!/bin/sh\n"
+            "while [ \"$#\" -gt 0 ]; do\n"
+            "  if [ \"$1\" = -o ]; then\n"
+            "    cp \"$RECOVERY_HELPER_SOURCE\" \"$2\"\n"
+            "    exit 0\n"
+            "  fi\n"
+            "  shift\n"
+            "done\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        for path in fake_bin.iterdir():
+            path.chmod(0o755)
+
+        installer = (self.repository_root / "scripts" / "install.sh").read_text(
+            encoding="utf-8"
+        )
+        result = subprocess.run(
+            ["bash"],
+            input=installer,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **environment,
+                "HANDOFF_RECORD": str(handoff_record),
+                "LEGACY_UPDATE_RECORD": str(legacy_update_record),
+                "MARKETPLACE_RECORD": str(marketplace_record),
+                "MODERN_UPDATE_RECORD": str(modern_update_record),
+                "RECOVERY_HELPER_SOURCE": str(recovery_helper),
+            },
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(str(target.resolve()), marketplace_record.read_text())
+        self.assertFalse(legacy_update_record.exists())
+        self.assertTrue(modern_update_record.is_file())
+        self.assertEqual("1", handoff_record.read_text(encoding="utf-8"))
 
     def test_streamed_installer_provisions_uv_python_when_python3_is_too_old(self) -> None:
         target = self.root / "installed"
