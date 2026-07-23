@@ -173,6 +173,77 @@ class ScienceUpdateHookTests(unittest.TestCase):
             commands[-1],
         )
 
+    def test_managed_marketplace_uses_config_when_cli_list_fails(self) -> None:
+        managed = self.root / "managed"
+        managed.mkdir()
+        self.codex_home.mkdir(parents=True)
+        (self.codex_home / "config.toml").write_text(
+            "[marketplaces.codex-science]\n"
+            'source_type = "local"\n'
+            f'source = "{managed}"\n',
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(
+            self.module,
+            "_run",
+            return_value=subprocess.CompletedProcess([], 1, "", ""),
+        ) as run:
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertTrue(success, reason)
+        self.assertIn("already registered", reason)
+        run.assert_called_once_with(
+            ["codex", "plugin", "marketplace", "list", "--json"], timeout=30
+        )
+
+    def test_managed_marketplace_adds_when_cli_list_fails_and_config_is_missing(
+        self,
+    ) -> None:
+        managed = self.root / "managed"
+        managed.mkdir()
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[-2:] == ["list", "--json"]:
+                return subprocess.CompletedProcess(command, 1, "", "")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(self.module, "_run", side_effect=run):
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertTrue(success, reason)
+        self.assertEqual(
+            [
+                ["codex", "plugin", "marketplace", "list", "--json"],
+                ["codex", "plugin", "marketplace", "add", str(managed.resolve())],
+            ],
+            commands,
+        )
+
+    def test_managed_marketplace_reports_cli_and_config_failures(self) -> None:
+        managed = self.root / "managed"
+        managed.mkdir()
+        self.codex_home.mkdir(parents=True)
+        (self.codex_home / "config.toml").write_text(
+            "[marketplaces.codex-science\n",
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(
+            self.module,
+            "_run",
+            return_value=subprocess.CompletedProcess(
+                [], 1, "list failed on stdout", ""
+            ),
+        ):
+            success, reason = self.module.ensure_managed_marketplace(managed)
+
+        self.assertFalse(success)
+        self.assertIn("list failed on stdout", reason)
+        self.assertIn("config.toml", reason)
+
     def test_managed_marketplace_does_not_replace_nonlocal_source(self) -> None:
         managed = self.root / "managed"
         managed.mkdir()
