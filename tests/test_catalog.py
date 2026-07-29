@@ -165,6 +165,7 @@ class CatalogAuditTests(unittest.TestCase):
             "Use statsmodels for a regression diagnostics workflow": "kdense-statsmodels",
             "Run a Julia notebook on the local GPU": "cx-compute-environment",
             "Submit a scientific job to a Slurm HPC cluster": "cx-remote-scientific-compute",
+            "Turn this reviewed run into a manuscript with verified citations": "cx-write-scientific-manuscript",
         }
 
         for query, expected in cases.items():

@@ -26,6 +26,12 @@
       "require_reference_contract": true
     },
     {
+      "skill": "write-scientific-manuscript",
+      "minimum_maturity": "L3",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
       "skill": "docking-validation",
       "minimum_maturity": "L4",
       "required_roles": ["analyzer", "reviewer"],

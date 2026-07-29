@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Write Scientific Manuscript"
+  short_description: "Audited scientific workflow for cx-write-scientific-manuscript"
+  default_prompt: "Use $cx-write-scientific-manuscript for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

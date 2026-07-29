@@ -9,6 +9,7 @@
 - Stage 1 intent: Make the Codex app usable as a local scientific workbench comparable to Claude Science, without building a separate web application.
 - Stage 2 scope: Preserve the complete public Scientific Agent Skills catalog in this repository at a pinned upstream revision. Enable only audited skills by default. Enable public read-only scientific data sources by default; provide opt-in configuration templates for authenticated services.
 - Stage 3 execution: Verify an end-to-end research flow in a fresh Codex task, including skill routing, analysis artifacts, execution provenance, environment capture, independent review, and smoke tests against at least three public scientific data sources.
+- Stage 4 confirmed manuscript scope: Add a first-party `write-scientific-manuscript` skill that turns reviewed scientific artifacts or an existing draft into a traceable manuscript and submission package without external credentials or mandatory generated figures.
 - Open decisions: None.
 
 ## Project
@@ -24,6 +25,10 @@
   - Validate skill structure and scan executable or instruction content before default activation.
   - Default-enable only skills that pass the project policy. Keep blocked, unknown-license, proprietary, credentialed, or high-risk skills present but inactive until explicitly requested and acknowledged.
   - Add a coordinating research workflow, artifact/provenance contract, and independent reviewer workflow.
+  - Add a native manuscript workflow for new drafting, revision, and reviewer
+    rebuttal. It must preserve claim-to-evidence and citation traceability,
+    distinguish reported results from interpretation, and hand the finished
+    package to independent review.
   - Provide public read-only connector coverage for the documented Claude Science source categories where a legal public API or maintained public implementation is available.
   - Provide configuration templates, with no secrets, for authenticated services such as Benchling, DNAnexus, Modal, and similar integrations.
   - Support local Python, R, Julia, Jupyter, shell, container, CPU, and GPU execution plus approved existing SSH, Slurm/HPC, cloud GPU, and private object-storage workflows. Install task-specific scientific packages only when a selected workflow requires them.
@@ -33,6 +38,11 @@
   - Enable every imported skill without review.
   - Store credentials or automatically authorize paid, write-capable, clinical, or destructive services.
   - Treat reviewer output as a substitute for scientific, clinical, or regulatory validation.
+  - Fabricate citations, author identities or contributions, ethics approval,
+    funding, conflicts of interest, data availability, or unrecorded numerical
+    results.
+  - Require an external LLM API, imported executable writing tool, graphical
+    abstract, or AI-generated figure merely to produce a manuscript.
 
 ## Interfaces
 
@@ -43,6 +53,18 @@
 - Outputs: project-local artifact bundles with stable metadata and links suitable for inspection in Codex.
   Each completed run includes a generated Markdown index, optional offline HTML,
   and direct Codex display of primary raster results.
+- Manuscript entry points:
+  - Create a new manuscript from a passed or explicitly qualified run bundle.
+  - Revise an existing manuscript against its evidence and target constraints.
+  - Prepare a point-by-point reviewer response without silently changing the
+    evidence record.
+- Manuscript outputs:
+  - Required: `manuscript-contract.json`, `manuscript.md`,
+    `claim-citation-map.json`, `reporting-checklist.json`, and
+    `submission-package.json`.
+  - Optional when requested or applicable: `manuscript.tex`, `references.bib`,
+    `cover-letter.md`, `reviewer-response.md`, and supplementary-material
+    indexes.
 
 ## Artifact Contract
 
@@ -56,6 +78,49 @@
   - Claims linked to supporting evidence.
   - Reviewer findings and resolution status.
 - Failed and inconclusive runs remain recorded; they are not silently discarded.
+- Every manuscript material claim records its source claim ID, evidence or
+  artifact reference, citation identifier where applicable, inference level,
+  and manuscript location.
+- Unsupported prose is marked unresolved or removed; missing citations become
+  explicit citation-needed findings rather than invented references.
+- Every reported number, unit, denominator, uncertainty statement, table, and
+  figure traces to a hashed artifact or cited primary source.
+- Author, contribution, ethics, funding, conflict, and availability statements
+  retain `unknown`, `not-applicable`, or user-supplied status instead of being
+  inferred.
+
+## Manuscript Workflow Contract
+
+- Role: first-party artifact-bearing conductor under
+  `authored-skills/write-scientific-manuscript`, exposed through the audited
+  catalog rather than enabling the inactive imported writing skill.
+- Inputs:
+  - A target document type, audience or venue constraints, evidence cutoff,
+    applicable reporting guideline, and requested output formats.
+  - A reviewed artifact manifest and claim register for new manuscripts, or an
+    existing draft plus its evidence record for revision.
+  - Reviewer comments and the exact submitted manuscript identity for rebuttal.
+- Workflow:
+  - Freeze the manuscript contract before drafting.
+  - Build the figure/table and claim narrative from recorded evidence.
+  - Draft Methods and Results before interpretive sections; preserve null,
+    negative, failed, and inconclusive results.
+  - Resolve citations to persistent identifiers and verify that each source
+    supports the attributed statement.
+  - Apply IMRAD or a declared alternative structure, venue limits, terminology,
+    and the applicable reporting checklist.
+  - Validate the package deterministically, then use `$science-review` in
+    record, source, and method modes as applicable.
+- Boundaries:
+  - Never promote association to causality, exploratory work to confirmatory
+    evidence, process success to scientific validity, or reviewer approval to
+    truth.
+  - Never manufacture missing manuscript declarations or bibliographic data.
+  - Do not invoke inactive imported skills, external credentials, executable
+    templates, or image generation without their separate audit or approval.
+- Maturity target: L3 with machine-readable outputs, a checked fixture, seeded
+  unsupported-claim and citation-mismatch failures, and a deterministic package
+  validator.
 
 ## Commands
 
@@ -106,6 +171,14 @@
   - Secret-pattern and unsafe-instruction checks.
   - Focused unit tests for routing, artifact metadata, and reviewer inputs.
   - End-to-end Codex installation and example-workflow smoke test.
+  - Native manuscript skill validation, active catalog routing, and reference
+    index audit.
+  - Deterministic manuscript-package tests covering new drafting, revision,
+    rebuttal, unsupported claims, citation mismatch, untraceable numerical
+    values, and unresolved declaration fields.
+  - One fixture that produces Markdown, LaTeX/BibTeX, traceability sidecars, a
+    reporting checklist, and a reviewable submission package without network
+    credentials.
 - Baseline/metric: 100% catalog inventory coverage; zero silently enabled blocked skills; all required checks pass; one reviewed end-to-end research run; three public-source smoke tests.
 
 ## References

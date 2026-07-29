@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Scientific Manuscript"
+  short_description: "Draft traceable scientific submission packages"
+  default_prompt: "Use $write-scientific-manuscript to turn this reviewed run into a traceable manuscript package."
