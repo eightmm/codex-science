@@ -54,6 +54,12 @@ TIER1_SKILLS = {
         "living-update mode",
         "citation list",
     ),
+    "write-scientific-manuscript": (
+        "claim-citation map",
+        "citation-needed",
+        "reviewer rebuttal",
+        "unresolved declarations",
+    ),
 }
 
 REQUIRED_SECTIONS = (

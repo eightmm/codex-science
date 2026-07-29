@@ -6,9 +6,9 @@ This document is the operational contract for release identity, public-source re
 
 Codex Science uses one release identity module: `src/codex_science/version.py`.
 
-- Python package: `0.3.0`
-- MCP server: `0.3.0`
-- Plugin cachebuster: `0.3.0+codex.20260720000100`
+- Python package: `0.5.0`
+- MCP server: `0.5.0`
+- Plugin cachebuster: `0.5.0+codex.20260729022641`
 - Machine-readable release record: `release/manifest.json`
 
 Run:

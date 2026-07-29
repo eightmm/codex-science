@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "skill": "write-scientific-manuscript",
+  "roles": ["conductor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "manuscript-contract-v1",
+    "claim-citation-map-v1",
+    "reporting-checklist-v1",
+    "submission-package-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/manuscript-writing/input.json"
+  ],
+  "seeded_failures": [
+    "unsupported-material-claim",
+    "citation-claim-mismatch",
+    "citation-verification-source-missing",
+    "reported-value-evidence-mismatch",
+    "submission-file-unlisted",
+    "unresolved-declaration-for-review-ready",
+    "incomplete-rebuttal-identity"
+  ],
+  "test_files": [
+    "tests/test_manuscript_package.py",
+    "tests/test_native_skill_quality.py"
+  ],
+  "limitations": [
+    "The deterministic validator checks package identity and declared traceability; it cannot judge prose quality or discover every unregistered semantic claim.",
+    "Venue requirements and reporting-guideline interpretation still require current authoritative instructions and expert judgment.",
+    "The acceptance package is a deterministic software fixture, not a scientific manuscript or publication claim."
+  ]
+}

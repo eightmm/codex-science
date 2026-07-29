@@ -28,7 +28,7 @@ run_wrappers() {
 }
 
 run_science_contracts() (
-  local review_tmp diff_tmp benchmark_tmp maturity_json maturity_md sbdd_dir quantitative_dir
+  local review_tmp diff_tmp benchmark_tmp maturity_json maturity_md sbdd_dir quantitative_dir manuscript_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
   benchmark_tmp="$(mktemp)"
@@ -36,7 +36,8 @@ run_science_contracts() (
   maturity_md="$(mktemp)"
   sbdd_dir="$(mktemp -d)"
   quantitative_dir="$(mktemp -d)"
-  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$maturity_json" "$maturity_md"; rm -rf "$sbdd_dir" "$quantitative_dir"' EXIT
+  manuscript_dir="$(mktemp -d)"
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$maturity_json" "$maturity_md"; rm -rf "$sbdd_dir" "$quantitative_dir" "$manuscript_dir"' EXIT
 
   uv run python scripts/validate_release.py
   uv run python scripts/validate_connector_contracts.py
@@ -74,6 +75,11 @@ run_science_contracts() (
     "$quantitative_dir/manifest.json" \
     --review-output "$review_tmp" \
     --require-passed-review
+
+  uv run python scripts/run_manuscript_acceptance.py \
+    examples/manuscript-writing/input.json "$manuscript_dir" >/dev/null
+  uv run python scripts/validate_manuscript_package.py \
+    "$manuscript_dir" --require-clean >/dev/null
 
   uv run python scripts/candidate_contract_check.py
   echo "scientific contracts: ok"

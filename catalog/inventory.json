@@ -1540,6 +1540,18 @@
       "status": "active"
     },
     {
+      "description": "Create or revise a traceable scientific manuscript and submission package from reviewed artifacts, a claim register, verified citations, or an existing draft. Use for research articles, methods papers, literature syntheses, journal revisions, cover letters, and point-by-point reviewer rebuttals; do not use to invent results, citations, authorship, ethics, funding, or other missing declarations.",
+      "executable_count": 0,
+      "instruction_line_count": 84,
+      "license": "MIT",
+      "name": "cx-write-scientific-manuscript",
+      "path": "authored-skills/write-scientific-manuscript",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Analyze and verify X-ray diffraction and scattering data. Use for powder XRD, phase identification, indexing, lattice parameters, Rietveld refinement, crystallite size or strain, texture, amorphous content, SAXS, WAXS, pair distributions, and comparison with calculated patterns.",
       "executable_count": 0,
       "instruction_line_count": 54,
@@ -3673,8 +3685,8 @@
     }
   ],
   "summary": {
-    "active": 169,
+    "active": 170,
     "inactive": 112,
-    "total": 281
+    "total": 282
   }
 }

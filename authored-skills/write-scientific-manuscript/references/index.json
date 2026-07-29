@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "skill": "write-scientific-manuscript",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "manuscript-package",
+      "path": "references/manuscript-package.md",
+      "purpose": "Define the portable manuscript package, required files, statuses, hashes, and deterministic validation command.",
+      "read_when": ["creating manuscript package files", "validating or changing package status"],
+      "required_before": ["manuscript-package-authoring", "manuscript-package-validation"],
+      "search_patterns": ["## Required files", "## Package status", "## Validation", "## Failure handling"],
+      "authority": "Codex Science first-party manuscript package contract",
+      "version": "1",
+      "evidence_boundary": "Validates declared package identity and links; it does not establish scientific truth or prose quality."
+    },
+    {
+      "id": "claim-citation-traceability",
+      "path": "references/claim-citation-traceability.md",
+      "purpose": "Constrain material claims, reported values, artifact links, citations, and manuscript locators.",
+      "read_when": ["drafting a material claim", "adding a citation, number, table, or figure"],
+      "required_before": ["claim-citation-map-authoring", "reported-value-attribution"],
+      "search_patterns": ["## Claim records", "## Citation records", "## Reported values", "## Failure handling"],
+      "authority": "Codex Science first-party manuscript traceability contract",
+      "version": "1",
+      "evidence_boundary": "Checks declared attribution; it cannot prove that all semantic claims were registered."
+    },
+    {
+      "id": "reporting-and-submission",
+      "path": "references/reporting-and-submission.md",
+      "purpose": "Apply reporting checklists, venue constraints, declarations, and review-ready or submission-ready status.",
+      "read_when": ["selecting a reporting guideline", "writing declarations", "preparing submission files"],
+      "required_before": ["reporting-checklist-authoring", "submission-ready-decision"],
+      "search_patterns": ["## Reporting checklist", "## Declarations", "## Venue constraints", "## Submission readiness"],
+      "authority": "Codex Science first-party submission preparation contract",
+      "version": "1",
+      "evidence_boundary": "Tracks completeness and declared constraints; it does not certify regulatory or journal compliance."
+    },
+    {
+      "id": "revision-and-rebuttal",
+      "path": "references/revision-and-rebuttal.md",
+      "purpose": "Bind revisions and point-by-point reviewer responses to the exact submitted manuscript and received comments.",
+      "read_when": ["revising an existing manuscript", "responding to reviewers or editors"],
+      "required_before": ["revision-authoring", "reviewer-rebuttal-authoring"],
+      "search_patterns": ["## Identity boundary", "## Point-by-point response", "## Change ledger", "## Failure handling"],
+      "authority": "Codex Science first-party revision and rebuttal contract",
+      "version": "1",
+      "evidence_boundary": "Preserves revision identity and response coverage; it does not guarantee reviewer acceptance."
+    }
+  ]
+}
