@@ -8,7 +8,7 @@ Codex Science uses one release identity module: `src/codex_science/version.py`.
 
 - Python package: `0.5.0`
 - MCP server: `0.5.0`
-- Plugin cachebuster: `0.5.0+codex.20260729022641`
+- Plugin cachebuster: `0.5.0+codex.20260802100417`
 - Machine-readable release record: `release/manifest.json`
 
 Run:

@@ -52,6 +52,52 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         codes = {item["code"] for item in review_receipt_findings(receipt, {"metrics.json": "b" * 64})}
         self.assertIn("stale-review-receipt", codes)
 
+    def test_review_receipt_rejects_non_object_findings_without_crashing(self) -> None:
+        receipt = build_review_receipt(
+            review_id="review-malformed",
+            reviewer="reviewer",
+            independent=True,
+            review_modes=["record"],
+            status="passed",
+            covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+            covered_claim_ids=["claim-1"],
+            findings=[],
+            limitations=[],
+        )
+        receipt["findings"] = ["not-an-object"]
+        receipt.pop("fingerprint")
+
+        with self.assertRaisesRegex(ValueError, "findings must contain objects"):
+            validate_review_receipt(receipt)
+        self.assertEqual(
+            {"invalid-review-receipt"},
+            {
+                item["code"]
+                for item in review_receipt_findings(
+                    receipt,
+                    {"metrics.json": "a" * 64},
+                )
+            },
+        )
+
+    def test_review_receipt_requires_an_actual_reviewer_string(self) -> None:
+        receipt = build_review_receipt(
+            review_id="review-without-reviewer",
+            reviewer="reviewer",
+            independent=True,
+            review_modes=["record"],
+            status="passed",
+            covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+            covered_claim_ids=["claim-1"],
+            findings=[],
+            limitations=[],
+        )
+        receipt["reviewer"] = None
+        receipt.pop("fingerprint")
+
+        with self.assertRaisesRegex(ValueError, "reviewer is required"):
+            validate_review_receipt(receipt)
+
     def test_seeded_reviewer_benchmark_has_zero_unsafe_passes(self) -> None:
         report = score_cases(load_cases(self.root / "benchmarks" / "reviewer"))
         self.assertEqual(0.0, report["unsafe_pass_rate"], json.dumps(report, indent=2))

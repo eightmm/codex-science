@@ -39,10 +39,9 @@ def _fingerprint(value: Mapping[str, Any]) -> str:
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
-    if not text:
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label} is required")
-    return text
+    return value.strip()
 
 
 def _sha(value: Any, label: str) -> str:

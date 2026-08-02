@@ -16,8 +16,18 @@
     "unsupported-material-claim",
     "citation-claim-mismatch",
     "citation-verification-source-missing",
+    "claim-text-mismatch",
+    "source-review-not-passed",
+    "source-claim-missing",
     "reported-value-evidence-mismatch",
+    "reported-value-content-mismatch",
+    "reporting-guideline-mismatch",
     "submission-file-unlisted",
+    "stale-review-receipt",
+    "incomplete-review-artifact-coverage",
+    "incomplete-review-mode-coverage",
+    "review-receipt-limitations-missing",
+    "source-review-packet-stale",
     "unresolved-declaration-for-review-ready",
     "incomplete-rebuttal-identity"
   ],
@@ -27,6 +37,8 @@
   ],
   "limitations": [
     "The deterministic validator checks package identity and declared traceability; it cannot judge prose quality or discover every unregistered semantic claim.",
+    "Only JSON scalar locators receive deterministic content comparison; non-JSON locators still require independent semantic review.",
+    "Revision and rebuttal validation checks prior-document identity, reviewer-comment identity, and response presence; complete point-by-point response coverage still requires independent review.",
     "Venue requirements and reporting-guideline interpretation still require current authoritative instructions and expert judgment.",
     "The acceptance package is a deterministic software fixture, not a scientific manuscript or publication claim."
   ]
