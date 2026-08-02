@@ -10,6 +10,9 @@ models, ARRIVE for animal research, or another named authoritative guideline.
 Record each item as `met`, `not-applicable`, or `unresolved`, with a manuscript
 locator and evidence reference when applicable. Do not turn an absent procedure
 into a writing omission; the manuscript must disclose that it was not done.
+The checklist guideline must exactly match the value frozen in
+`manuscript-contract.json`; use the explicit value `none` when no named
+guideline applies.
 
 ## Declarations
 
@@ -45,7 +48,14 @@ only when:
 - requested output formats are present;
 - declarations and reporting items are resolved;
 - independent record/source/method review passed for the exact package;
+- the receipt is independent and covers mandatory `record`, `source`, and
+  `method` modes, every file listed by the root package manifest except the
+  receipt itself, and every material claim ID at the current hashes;
+- the receipt states at least one limitation of the review;
 - critical and major findings are resolved or affected claims are withdrawn.
 
 A journal portal upload, editorial check, or reviewer pass does not establish
 scientific truth or acceptance.
+
+If `target_venue` is null, `submission-ready` means the recorded package is
+internally ready for handoff; it does not claim compliance with any venue.

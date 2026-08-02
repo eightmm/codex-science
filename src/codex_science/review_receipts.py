@@ -10,10 +10,9 @@ REVIEW_STATUSES = {"passed", "findings", "blocked", "superseded"}
 
 
 def _text(value: Any, label: str) -> str:
-    result = str(value).strip()
-    if not result:
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label} is required")
-    return result
+    return value.strip()
 
 
 def _sha(value: Any, label: str) -> str:
@@ -71,6 +70,13 @@ def validate_review_receipt(payload: dict[str, Any]) -> None:
     findings = payload.get("findings", [])
     if not isinstance(findings, list):
         raise ValueError("findings must be a list")
+    if not all(isinstance(item, Mapping) for item in findings):
+        raise ValueError("findings must contain objects")
+    limitations = payload.get("limitations", [])
+    if not isinstance(limitations, list) or not all(
+        isinstance(item, str) and item.strip() for item in limitations
+    ):
+        raise ValueError("limitations must be a string list")
     fingerprint = payload.get("fingerprint")
     if fingerprint is not None:
         material = dict(payload)
@@ -121,7 +127,12 @@ def review_receipt_findings(
     expected_registry = payload.get("covered_registry_sha256")
     if expected_registry is not None and registry_sha256 != expected_registry:
         findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} covers a different model registry."})
-    if payload.get("status") == "passed" and any(item.get("severity") in {"critical", "major"} and item.get("resolution_status", "open") != "resolved" for item in payload.get("findings", [])):
+    if payload.get("status") == "passed" and any(
+        item.get("severity") in {"critical", "major"}
+        and item.get("resolution_status", "open")
+        not in {"resolved", "not-applicable"}
+        for item in payload.get("findings", [])
+    ):
         findings.append({"code": "unsafe-review-pass", "severity": "critical", "message": f"Review receipt {payload['review_id']} is passed with unresolved blocking findings."})
     unique = {(item["code"], item["message"]): item for item in findings}
     return sorted(unique.values(), key=lambda item: (item["severity"], item["code"], item["message"]))

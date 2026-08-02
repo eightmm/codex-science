@@ -15,6 +15,11 @@ Give every material manuscript statement a stable ID and record:
 
 A supported material claim needs artifact evidence, a verified citation, or
 both. A source claim may remain inconclusive; prose must not silently promote it.
+The exact mapped claim text must appear after one unique claim marker and before
+the next claim marker. `citation-needed` and `unresolved` claims remain `draft`.
+Every citation ID attributed to a claim must also appear as an `@citation-id`
+anchor inside that same claim-marker segment, and each citation record must list
+the claim ID in its string-valued `supports_claim_ids` array.
 
 ## Citation records
 
@@ -45,6 +50,12 @@ or uncertainty statement, record:
 
 Keep `text` present verbatim in `manuscript.md`. A hash proves byte identity,
 not that the locator or interpretation is scientifically correct; review both.
+For JSON artifacts, use an RFC 6901 pointer that resolves to one scalar. The
+validator checks that scalar against the reported text, accepting equivalent
+numeric formatting such as `2.5` and `2.50`. Point percentages, unit conversions,
+rounding, and derived values to a derivation artifact that records the displayed
+value. Non-JSON locators remain hash-checked but require independent semantic
+review.
 
 ## Failure handling
 

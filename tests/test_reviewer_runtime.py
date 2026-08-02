@@ -6,7 +6,7 @@ from pathlib import Path
 
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
 from codex_science.reviewer_runtime import build_review_packet, finalize_review_response, validate_review_packet
-from codex_science.review_receipts import validate_review_receipt
+from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
 
 def make_reviewed_run(root: Path) -> Path:
@@ -77,6 +77,31 @@ class ReviewerRuntimeTests(unittest.TestCase):
             self.assertEqual("passed", receipt["status"])
             self.assertTrue(receipt["independent"])
             self.assertEqual(packet["review_task_id"], receipt["review_task_id"])
+
+            response["reviewer"] = None
+            with self.assertRaisesRegex(ValueError, "reviewer is required"):
+                finalize_review_response(packet, response)
+
+            response["reviewer"] = "independent-reviewer-1"
+            response["findings"] = [
+                {
+                    "id": "F-not-applicable",
+                    "severity": "major",
+                    "code": "not-applicable-control",
+                    "message": "This control does not apply to the reviewed design.",
+                    "resolution_status": "not-applicable",
+                    "evidence": [],
+                    "required_action": "",
+                }
+            ]
+            receipt = finalize_review_response(packet, response)
+            self.assertEqual(
+                [],
+                review_receipt_findings(
+                    receipt,
+                    {artifact["path"]: artifact["sha256"]},
+                ),
+            )
 
     def test_nonindependent_or_incomplete_review_cannot_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
