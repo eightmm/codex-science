@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from codex_science.artifact_store import describe_directory, stream_sha256, validate_descriptor
+from codex_science.runtime_identity import record_runtime_identity, validate_runtime_history
 
 REQUIRED_FIELDS = {
     "schema_version", "run_id", "question", "plan", "inputs", "code",
@@ -17,7 +18,7 @@ LOCAL_ARTIFACT_TYPES = {"file", "chunked-file", "directory-tree"}
 def new_manifest(run_id: str, question: str, plan: list[dict[str, Any]]) -> dict[str, Any]:
     if not run_id.strip() or not question.strip():
         raise ValueError("run_id and question are required")
-    return {
+    manifest = {
         "schema_version": 1,
         "run_id": run_id,
         "question": question,
@@ -30,6 +31,8 @@ def new_manifest(run_id: str, question: str, plan: list[dict[str, Any]]) -> dict
         "claims": [],
         "review": {"status": "pending", "findings": []},
     }
+    record_runtime_identity(manifest)
+    return manifest
 
 
 def _validate_relative_path(value: str) -> None:
@@ -101,6 +104,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise ValueError("Manifest environment must be an object")
     if not isinstance(manifest.get("review"), dict):
         raise ValueError("Manifest review must be an object")
+    validate_runtime_history(manifest)
     artifact_paths: set[str] = set()
     for artifact in manifest.get("artifacts", []):
         if not isinstance(artifact, dict):
@@ -196,6 +200,7 @@ def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
 
 
 def write_manifest(manifest: dict[str, Any], path: Path) -> None:
+    record_runtime_identity(manifest)
     validate_manifest(manifest)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")

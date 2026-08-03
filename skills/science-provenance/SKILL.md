@@ -1,82 +1,20 @@
 ---
 name: science-provenance
-description: Package a scientific analysis as a reproducible artifact bundle containing the approved plan, inputs, code, commands, environment, outputs, claims, evidence links, and review findings. Use whenever Codex produces or revises scientific figures, tables, datasets, notebooks, reports, simulations, benchmarks, or experimental conclusions.
+description: Package scientific work as a reproducible artifact bundle with plans, inputs, commands, environments, outputs, evidence, claims, and review findings. This stable bootstrap loads the verified activation-pinned provenance workflow first.
 ---
 
-# Science Provenance
+# Science Provenance bootstrap
 
-Create `artifacts/<run-id>/manifest.json` in the user's current research project. Copy [assets/manifest.template.json](assets/manifest.template.json) and fill every required field, or generate the same schema programmatically.
+Read the verified activation-pinned workflow before creating or changing an artifact bundle:
 
-For a non-trivial active run, keep `checkpoint.json` beside the manifest as mutable control state. Schema v4 binds the run to an activation-generation key; records structured done criteria, hashed evidence and review receipts, continuation budget, native Goal task binding and phase, external waits, failed attempts, gates, and blockers; and prevents a second nonterminal run for the same owner across nested artifact roots. Update it with `<plugin-root>/scripts/science_checkpoint.py`. Save a run-local progress record before `heartbeat --progress-ref`; do not cite the mutable checkpoint as scientific evidence or add it to the manifest.
+1. Prefer the absolute runtime root injected by the Codex Science hook and read
+   `<runtime-root>/runtime-skills/science-provenance/SKILL.md` completely.
+2. Otherwise resolve the loaded registered-cache plugin root as `../..` from this
+   skill's containing directory and read
+   `<plugin-root>/runtime-skills/science-provenance/SKILL.md`.
 
-## Reference usage
-
-Read [the artifact contract](references/artifact-contract.md) before authoring a manifest, sidecar, or bundle-version change. Read [the large-artifact protocol](references/large-artifacts.md) before registering a directory, a file too large for whole-memory loading, a chunked dataset, model weights, or an immutable external object. Do not guess sidecar fields, Merkle rules, or invalidation semantics.
-
-Read [the native artifact runtime contract](references/artifact-runtime.md) before rendering an artifact, recording a typed selection, or proposing a transform. Read [the FAIR-oriented export contract](references/fair-export.md) before archival, interoperable export, or scientific dependency and license handoff.
-
-When a reference controls artifact registration or review, save a `reference-use-ledger` with the reference hash. A changed reference hash invalidates a receipt that explicitly covered its prior procedural assumptions.
-
-## Run contract
-
-1. Use a stable run ID. Create a new run when the question, estimand, baseline, metric, data split, success threshold, or intended decision changes.
-2. Record the exact research question, decision context, deliverable, evidence cutoff, non-goals, approved plan, objective done criteria, and every material assumption. Mark plan steps `completed`, `pending`, or `blocked`.
-3. Give each planned claim a stable ID before synthesis. Record its type, permitted inference level, required support, falsifier, dependencies, and final status.
-4. For parallel work, save a lane receipt for each evidence or execution lane: normalized inputs, sources or code revision, exact queries or commands, included and excluded records, outputs, hashes, supported and contradicted claim IDs, limitations, confidence, and next action.
-
-## Hashed sidecar contract
-
-Keep manifest schema version 1 stable. Add richer semantics as ordinary manifest artifacts with these `kind` values:
-
-- `claim-register`: stable claim IDs, permitted inference, required support, falsifier, uncertainty, dependencies, status, and next action;
-- `evidence-graph`: typed nodes and explicit support, contradiction, duplication, derivation, shared-cohort or sample, source-propagation, and training-overlap edges;
-- `query-ledger`: JSON Lines records with source, exact query, access time, status, and response hash;
-- `study-table`: normalized study identity, publication state, eligibility, evidence type, cohort or sample dependencies, and claim relationships;
-- `lane-receipt`: normalized inputs, source releases, query IDs or commands, included and excluded records, outputs, supported and contradicted claims, limitations, confidence, and next action;
-- `model-receipt`: model ID, registry contract revision, code, weight and database revisions, configuration and input hashes, and a deterministic fingerprint.
-
-Run `<plugin-root>/scripts/validate_artifact.py <manifest>` to verify artifact bytes and all recognized sidecars. A sidecar is authoritative only when its path and SHA-256 are recorded in the manifest. Changing a sidecar, source snapshot, code revision, model revision, weight, database, configuration, or input invalidates any review receipt that covered the prior hash.
-
-## Inputs and retrieval
-
-5. Record local input paths and hashes; for external data record the canonical identifier, source and release, exact query or request parameters, access time, response or snapshot hash when practical, license or terms, and any transformation chain.
-6. Preserve a machine-readable query ledger such as `queries.jsonl` for retrievals that materially support a claim. Redact secrets and sensitive values; do not store credential-bearing URLs or private prompts.
-7. Keep normalization and mapping tables, rejected aliases, inclusion and exclusion decisions, source-dependency links, and deduplication decisions. Missing, filtered, stale, unavailable, and negative evidence must remain distinguishable.
-
-## Execution and environment
-
-8. Save reproducible scripts, notebooks, configuration, and command lines before or at execution time. Record every executed command, start and end time, exit code, stdout or stderr log path, retry, failure, and cancellation; do not reconstruct commands from memory.
-9. Record language and runtime, package and system versions, lockfiles or container digest, code revision or diff, model and weight revision plus checksum, databases and training-data cutoff where relevant, hardware, seed, determinism settings, resource use, and material environment variables without secret values.
-10. Treat the execution log as authoritative when it conflicts with a notebook narrative or reconstructed script. Keep failed executions, null results, negative controls, abandoned methods, and post-hoc analyses.
-
-## Outputs and claims
-
-11. Hash every saved output with SHA-256 and add it to `artifacts` using a path relative to the run directory. Preserve the raw or minimally processed data behind derived tables and figures when lawful and practical.
-12. Link each claim to one or more saved evidence paths, execution IDs, or primary-source identifiers. Record supporting, contradicting, and dependency edges; a duplicated portal record must not masquerade as independent replication.
-13. Label every result as planned, sensitivity, exploratory, failed, or inconclusive. Record uncertainty, units, sample counts, aggregation rules, applicability domain, and the exact code or query that produced it.
-14. When a visual materially improves interpretation, create a data-derived static raster figure beside the underlying table or data. Use domain-appropriate labels, units, uncertainty, legends, and readable resolution. Do not invent a decorative or model-imagined image or present it as scientific evidence.
-
-Treat every raster artifact referenced as claim evidence as primary for bundle validation, review invalidation, index navigation, and final presentation.
-
-## Reproducibility level
-
-Label the run honestly:
-
-- `inspectable`: artifacts, claims, and logs can be audited.
-- `rerunnable`: a documented environment and deterministic or seed-controlled recipe can recreate the computation from available inputs.
-- `independently reproduced`: a separate execution has recreated the material result. Do not use this label for a second reading of the same outputs.
-
-## Validate and present
-
-15. Run `<plugin-root>/scripts/validate_artifact.py <manifest>` before reporting completion. When a record/source review receipt is being emitted, add `--review-output <path> --require-passed-review` so unresolved sidecar findings fail the completion gate.
-16. Run `<plugin-root>/scripts/render_artifact_index.py <manifest>` to create `index.md`. Add `--html` only when the user wants an offline browser view; `index.html` uses no hosted or external assets. Treat both indexes as derived navigation views, not evidence, and do not add them to the manifest.
-17. In the final Codex response, link `index.md`, the report, tables, notebooks, and logs using each file's absolute local path. Display every primary raster result from its absolute local path; link secondary images when showing all would be noisy. Never claim an image was displayed unless it exists and matches the manifest hash.
-
-Use [references/artifact-contract.md](references/artifact-contract.md) for field semantics, sidecar conventions, and versioning rules.
-
-## Safety and integrity
-
-- Never record secrets, raw tokens, passwords, private keys, credential values, or credential-bearing URLs.
-- Do not copy sensitive raw data into the artifact bundle merely for convenience. Record an approved local reference and hash instead.
-- Do not overwrite a failed or inconclusive run into a successful one, delete counterevidence, move thresholds after seeing results, or detach a claim from an unresolved review finding.
-- Escape user-controlled text in rendered views. Do not place active scripts, untrusted HTML, or externally hosted assets in an index.
+Follow the selected file and its same-root references. Preserve machine-readable
+artifact contracts and all safety, approval, evidence, and repository rules.
+Never read workflow instructions directly from `~/.codex-science` without a
+verified hook-injected root; require installation repair if the loaded fallback
+is unavailable.

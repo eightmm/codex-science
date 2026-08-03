@@ -1,6 +1,6 @@
 # Artifact contract
 
-The manifest remains schema version `1`. It is the stable index for one scientific run; richer ledgers are ordinary hashed artifacts referenced by the manifest rather than unversioned fields added ad hoc.
+The manifest remains schema version `1`. It is the stable index for one scientific run; richer scientific ledgers are ordinary hashed artifacts referenced by the manifest. The runtime writer owns two validated provenance fields described below; do not add other fields ad hoc.
 
 ## Required manifest fields
 
@@ -12,6 +12,8 @@ The manifest remains schema version `1`. It is the stable index for one scientif
 - `code`: scripts, notebooks, configuration, or immutable code references.
 - `executions`: commands, timestamps, exit codes, attempts, and relevant log paths.
 - `environment`: runtime, packages, lock or image identity, hardware, seed, configuration, model or database revision, and code revision.
+- `runtime_history`: identities of the verified Codex Science releases that wrote this manifest. The writer appends the current runtime version, commit, receipt digest, and non-reversible source ID automatically; legacy records with `plugin_version` remain readable.
+- `runtime_span`: `true` exactly when durable manifest revisions were written by more than one release. Treat it as a comparability limitation, not an automatic invalidation.
 - `artifacts`: relative path, `kind`, role, and SHA-256 for every saved output.
 - `claims`: stable claim IDs and minimal evidence links retained for backward-compatible navigation.
 - `review`: review status, receipt path and hash, findings, and resolution state.
@@ -27,7 +29,7 @@ Store these as ordinary manifest artifacts. The `kind` controls schema validatio
 - `query-ledger`: JSON Lines with `query_id`, `source`, exact query, access time, status, and optional response SHA-256. `failed`, `unavailable`, `filtered`, and negative evidence remain distinct.
 - `study-table`: normalized study identity, persistent identifier, title, evidence type, eligibility, claim relationships, and optional cohort or sample dependency IDs.
 - `lane-receipt`: normalized inputs, source releases, query IDs, included and excluded records, output paths, supported and contradicted claims, dependencies, limitations, confidence, and next action.
-- `literature-snapshot`: immutable protocol-compatible snapshot used by `scripts/diff_literature_review.py`.
+- `literature-snapshot`: immutable protocol-compatible snapshot used by `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_literature_review.py"`.
 - `model-receipt`: legacy registry contract revision, code and weight revisions, database revisions, configuration/input SHA-256, and fingerprint.
 
 ### Advanced sidecars
@@ -43,7 +45,7 @@ Other artifacts may use descriptive kinds such as `protocol`, `decision-log`, `e
 ## Bundle validation
 
 ```bash
-python scripts/validate_artifact.py <manifest>
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py" <manifest>
 ```
 
 Validation rejects duplicate or escaping paths, verifies every artifact byte against SHA-256, validates stable and advanced sidecars, checks claim/study/query/output cross-references, evaluates graph relation types and dependency cycles, verifies model and review receipts, and identifies stale annotation anchors.
@@ -53,10 +55,10 @@ Add `--review-output <path> --require-passed-review` at a completion gate. The r
 ## Navigation, diff, and rerun
 
 ```bash
-python scripts/render_artifact_index.py <manifest> --html
-python scripts/render_workbench.py <manifest> --output workbench.html
-python scripts/diff_runs.py old/manifest.json new/manifest.json --output run-diff.json
-python scripts/plan_selective_rerun.py graph-v2.json steps.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_index.py" <manifest> --html
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_workbench.py" <manifest> --output workbench.html
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_runs.py" old/manifest.json new/manifest.json --output run-diff.json
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/plan_selective_rerun.py" graph-v2.json steps.json \
   --changed input-node --review-path review.json --output rerun-plan.json
 ```
 
@@ -79,3 +81,8 @@ A review or acceptance receipt becomes stale when a covered claim, artifact hash
 Use `reference-use-ledger` for hash-bound records of detailed skill references that controlled a material query, command, threshold, transformation, or claim. Use `artifact-descriptor` for streaming, chunked, directory-Merkle, or immutable external artifact metadata.
 
 Manifest schema version `1` remains stable. A local artifact may optionally declare `artifact_type` as `file`, `chunked-file`, or `directory-tree`, together with `size_bytes`, `entry_count`, `media_type`, and `descriptor_path`. Directory artifacts use the deterministic `sha256-merkle-v1` root described in [large-artifacts.md](large-artifacts.md). Changing referenced instructions, descriptor bytes, directory entries, or chunk hashes invalidates dependent review receipts.
+
+Legacy schema-v1 manifests without runtime fields remain readable. Every new or
+rewritten manifest must go through `write_manifest`, which records the current
+identity before validation. When `runtime_span` is true, the independent review
+must check whether changed code or contracts affect cross-step comparability.

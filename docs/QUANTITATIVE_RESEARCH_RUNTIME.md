@@ -1,6 +1,6 @@
 # Quantitative and mathematical research runtime
 
-Codex Science 0.5 adds executable contracts for research questions whose central evidence is mathematical, statistical, or numerical. The goal is not to add a generic calculator. The goal is to prevent a plausible-looking computation from being promoted into a stronger scientific or mathematical claim than its design and receipts support.
+Codex Science 0.5 adds executable contracts for research questions whose central evidence is mathematical, statistical, or numerical. The goal is not to add a generic calculator. The goal is to prevent a plausible-looking computation from being promoted into a stronger scientific or mathematical claim than its design and receipts support. In the commands below, `<plugin-root>` means the absolute activation-pinned runtime root injected by the hook.
 
 ## Functional gaps addressed
 
@@ -43,7 +43,7 @@ All artifacts remain ordinary manifest entries with SHA-256. Editing a result in
 ### Research design
 
 ```bash
-uv run python scripts/validate_research_design.py design.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_research_design.py" design.json \
   --output artifacts/run/research-design.json \
   --require-clean
 ```
@@ -51,7 +51,7 @@ uv run python scripts/validate_research_design.py design.json \
 ### Statistical analysis
 
 ```bash
-uv run python scripts/run_statistical_analysis.py analysis.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_statistical_analysis.py" analysis.json \
   --output artifacts/run/statistical-analysis.json
 ```
 
@@ -60,7 +60,7 @@ The built-in baseline supports bounded independent or paired two-group mean or m
 ### Counterexample search
 
 ```bash
-uv run python scripts/search_counterexample.py search.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/search_counterexample.py" search.json \
   --output artifacts/run/counterexample-search.json
 ```
 
@@ -69,12 +69,12 @@ The evaluator uses a deliberately small mathematical language and explicit finit
 ### Formal Lean check
 
 ```bash
-uv run python scripts/check_formal_proof.py proof.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py" proof.json \
   --workspace existing/lean/project \
   --output artifacts/run/formal-proof-preview.json \
   --preview
 
-uv run python scripts/check_formal_proof.py proof.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py" proof.json \
   --workspace existing/lean/project \
   --output artifacts/run/formal-proof-check.json \
   --require-passed
@@ -85,7 +85,7 @@ The runtime uses an existing workspace. It does not install Lean, create a proje
 ### Numerical verification
 
 ```bash
-uv run python scripts/verify_numerical_result.py numerical.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/verify_numerical_result.py" numerical.json \
   --output artifacts/run/numerical-verification.json \
   --require-clean
 ```
@@ -95,7 +95,7 @@ The receipt records refinement sequence, reference or errors, observed order, re
 ### Dimensional analysis
 
 ```bash
-uv run python scripts/check_dimensions.py dimensions.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_dimensions.py" dimensions.json \
   --output artifacts/run/dimension-check.json \
   --require-clean
 ```
@@ -105,7 +105,7 @@ The built-in unit registry covers common SI base and derived units, prefixes, li
 ### Uncertainty propagation
 
 ```bash
-uv run python scripts/propagate_uncertainty.py uncertainty.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/propagate_uncertainty.py" uncertainty.json \
   --output artifacts/run/uncertainty-propagation.json \
   --require-clean
 ```
@@ -149,11 +149,11 @@ A clean audit means the record is internally complete. It is not a scientific en
 ## Deterministic acceptance
 
 ```bash
-uv run python scripts/run_quantitative_acceptance.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_quantitative_acceptance.py" \
   examples/quantitative-research/input.json \
   /tmp/quantitative-run
 
-uv run python scripts/validate_artifact.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py" \
   /tmp/quantitative-run/manifest.json \
   --review-output /tmp/quantitative-review.json \
   --require-passed-review

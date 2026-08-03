@@ -86,14 +86,14 @@ The spec fingerprint covers all fields, including command, environment values, r
 ## CLI overview
 
 ```bash
-python scripts/science_job.py --state-dir .science-jobs preflight ...
-python scripts/science_job.py --state-dir .science-jobs approve ...
-python scripts/science_job.py --state-dir .science-jobs render-slurm ...
-python scripts/science_job.py --state-dir .science-jobs submit ...
-python scripts/science_job.py --state-dir .science-jobs status ...
-python scripts/science_job.py --state-dir .science-jobs wait ...
-python scripts/science_job.py --state-dir .science-jobs cancel ...
-python scripts/science_job.py --state-dir .science-jobs collect ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs preflight ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs approve ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs render-slurm ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs submit ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs status ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs wait ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs cancel ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir .science-jobs collect ...
 ```
 
 Every command writes a JSON receipt to `--output`.
@@ -103,7 +103,7 @@ Every command writes a JSON receipt to `--output`.
 ### Preflight
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   preflight \
   --spec artifacts/run-014/job-spec.json \
@@ -123,7 +123,7 @@ A successful preflight does not prove that imports, model weights, databases, in
 ### Submit
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   submit \
   --spec artifacts/run-014/job-spec.json \
@@ -161,14 +161,14 @@ jobs/jobs/local-.../
 ### Status and wait
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   status \
   --backend local \
   --job-id local-... \
   --output artifacts/run-014/job-status.json
 
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   wait \
   --backend local \
@@ -206,7 +206,7 @@ A process exit code of zero means only that the command completed according to t
 ### Cancel
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   cancel \
   --backend local \
@@ -219,7 +219,7 @@ Cancellation is idempotent for terminal jobs. The local backend sends `SIGTERM` 
 ### Collect outputs
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   collect \
   --backend local \
@@ -240,7 +240,7 @@ Do not remove a missing output from the receipt to make a run appear complete.
 Create approval for a spec only after reviewing target, resource, cost, transfer, cancellation, and scientific scope.
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   approve \
   --spec artifacts/run-014/slurm-job-spec.json \
@@ -270,7 +270,7 @@ Changing the job spec invalidates the approval. Approval authorizes execution bo
 ### Render before submitting
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   render-slurm \
   --spec artifacts/run-014/slurm-job-spec.json \
@@ -292,7 +292,7 @@ Rendering is safe and does not submit.
 ### Submit
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   submit \
   --spec artifacts/run-014/slurm-job-spec.json \
@@ -314,7 +314,7 @@ The backend does not copy data or credentials.
 ### Status
 
 ```bash
-python scripts/science_job.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" \
   --state-dir artifacts/run-014/jobs \
   status \
   --backend slurm \
@@ -327,10 +327,10 @@ The adapter normalizes scheduler states while retaining the raw state in the mes
 ### Cancel and collect
 
 ```bash
-python scripts/science_job.py --state-dir artifacts/run-014/jobs cancel \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir artifacts/run-014/jobs cancel \
   --backend slurm --job-id slurm-local-... --output cancelled.json
 
-python scripts/science_job.py --state-dir artifacts/run-014/jobs collect \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_job.py" --state-dir artifacts/run-014/jobs collect \
   --backend slurm --job-id slurm-local-... --output collected.json
 ```
 

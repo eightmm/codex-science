@@ -22,7 +22,7 @@ Preserve unit mappings and receipts with `$science-provenance`; use `$science-re
 
 1. Normalize quantities and source units without losing their original representation.
 2. Check sums, equalities, derivatives, integrals, powers, logarithms, exponentials, and trigonometric arguments.
-3. Run `scripts/check_dimensions.py --require-clean` for equations and bounded conversions supported by the built-in registry.
+3. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_dimensions.py" --require-clean` for equations and bounded conversions supported by the built-in registry.
 4. Choose characteristic scales, nondimensionalize the model, identify independent groups, and estimate their magnitudes before dropping terms.
 5. Test zero, infinite, symmetric, and dominant-balance limits and rescale to recover the original equation.
 6. Cross-check nontrivial conversions with an independent trusted source or quantity library.

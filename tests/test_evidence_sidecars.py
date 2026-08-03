@@ -26,10 +26,16 @@ class EvidenceSidecarTests(unittest.TestCase):
         self.assertEqual({"claim-method-effect"}, set(sidecars["claim_by_id"]))
         self.assertEqual({"literature-search-pubmed"}, set(sidecars["lane_by_id"]))
         rendered = render_markdown(manifest, self.example)
-        self.assertIn("## Evidence graph", rendered)
-        self.assertIn("## Evidence and execution lanes", rendered)
-        self.assertIn("## Query ledger", rendered)
+        self.assertIn("### Evidence graph", rendered)
+        self.assertIn("### Evidence and execution lanes", rendered)
+        self.assertIn("### Query ledger", rendered)
         self.assertIn("claim-method-effect", rendered)
+        self.assertIn("✅ Passed", rendered)
+        self.assertIn("**Inference boundary:**", rendered)
+        self.assertIn("**Limitation or uncertainty:**", rendered)
+        self.assertIn("**Report:** [report.md](report.md)", rendered)
+        self.assertNotIn("status=supported", rendered)
+        self.assertNotIn("SHA-256 `", rendered)
 
     def _copy_example(self, root: Path) -> tuple[Path, dict]:
         destination = root / "run"

@@ -1,10 +1,19 @@
 # Configuration
 
 - `.codex-plugin/plugin.json`: plugin manifest.
-- `.mcp.json`: bundled read-only MCP server.
-- `hooks/hooks.json`: task-scoped activation hooks for later turns, resume, and context compaction.
-- `scripts/science_session_hook.py`: stores only a hashed session marker under `PLUGIN_DATA` and injects coordinator context.
-- `scripts/science_update_hook.py`: 24-hour cached official-GitHub update notification and opt-in next-task installation.
+- `.mcp.json`: read-only MCP entry through the task-pinned runtime proxy.
+- `hooks/hooks.json`: stable `SessionStart`, `UserPromptSubmit`, and `Stop` bootstrap definitions. Users trust these in `/hooks`; they do not run internal hook scripts directly.
+- `scripts/science_hook_dispatch.py`: verifies an eligible release, atomically claims an activation pin, and dispatches the event to that exact private immutable runtime.
+- `PLUGIN_DATA/science-sessions/`: hashed task keys containing only a random generation and public runtime pin identity; no raw session ID or prompt is stored.
+- `PLUGIN_DATA/runtime-cache/<runtime_version>/`: append-only, project-owned scientific runtimes that remain independent of Codex's prunable host plugin cache.
+- `PLUGIN_DATA/runtime-receipts/`: bounded tracked-file receipts used to verify private runtimes before hook or MCP execution.
+- `PLUGIN_DATA/runtime-cache.lock`: shared/exclusive barrier that prevents activation from racing a runtime install or acknowledged host-bootstrap migration.
+- `scripts/science_session_hook.py`: pinned handler that injects coordinator context and performs generation-CAS deactivation.
+- `scripts/science_mcp_proxy.py`: binds the first tool call to the activation's runtime pin using Codex task metadata and keeps that pin for the connection.
+- `scripts/science_update_hook.py`: transactional official-GitHub update policy. `CODEX_SCIENCE_AUTO_UPDATE=apply|notify|off` defaults to `apply`; compatible runtime updates never call the Codex plugin CLI, while a bootstrap change requires the acknowledged curl migration.
+- `skills/`: the three small, host-registered bootstrap skills.
+- `runtime-skills/`: the verified coordinator, provenance, and review workflows selected from the pinned private runtime.
+- Checkpoints and artifact manifests append `runtime_history`; `runtime_span=true` marks durable state written by more than one release.
 - `src/codex_science/life_science.py`: deterministic life-science entity/evidence-lane planner.
 - `docs/LIFE_SCIENCE_RESEARCH_SOURCES.md`: verified public API coverage, scientific boundaries, and gated-source status.
 - `catalog/sources.json`: skill sources — repository, pinned commit, name prefix, kind, vendored `content_sha256`, and optional per-source `exclude`.

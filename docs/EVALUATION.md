@@ -2,16 +2,23 @@
 
 ## Acceptance
 
-- 279 skills (149 K-Dense + 3 DeepMind infra pointers + 127 Codex-native authored) appear in the deterministic inventory.
-- All 279 skills have deterministic, source-prefixed Codex-compatible wrappers.
+- 282 skills (149 K-Dense + 3 DeepMind infra pointers + 130 Codex-native authored) appear in the deterministic inventory.
+- All 282 skills have deterministic, source-prefixed Codex-compatible wrappers.
 - Every active skill is returned in the first five results for its natural, source-prefix-free name.
 - Inactive skills cannot be returned by default search.
 - Only the three task-scoped core skills are registered with the plugin.
 - One explicit activation self-invokes the coordinator on later turns and survives resume/context compaction for the same session.
 - Explicit stop, `clear`, and a different session remain inactive; hook state never stores prompt text.
-- Update checks default to notify, cache only public commit IDs for 24 hours, and
-  require an explicit prompt before staging an exact commit for a transactional update.
-- Plugin, three registered skills, and all 279 internal wrapper schemas validate.
+- After one acknowledged bootstrap migration, update checks default to `apply`
+  at `SessionStart` and first activation. Only a verified official fast-forward
+  with a monotonic runtime version, unchanged bootstrap, and compatible MCP
+  discovery contract is added to the private immutable runtime store. Automatic
+  update makes no Codex plugin CLI call. First activation pins the same task's
+  hook, skill, Stop, and MCP runtime to its commit and receipt. `notify` reports
+  only, `off` skips lifecycle checks, explicit requests install compatible
+  runtimes in every mode without switching an active generation, and any failed
+  check preserves the last-known-good runtime.
+- Plugin, three registered skills, and all 282 internal wrapper schemas validate.
 - All 127 Codex-native source skills validate and include `agents/openai.yaml` UI metadata.
 - The bundled read-only MCP exposes 34 public-source tools plus local catalog
   search and deterministic life-science planning; new source families have

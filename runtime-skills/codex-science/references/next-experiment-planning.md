@@ -97,7 +97,7 @@ Required controls are selected before optimization. If they cannot fit the batch
 ## CLI
 
 ```bash
-python scripts/plan_next_experiment.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/plan_next_experiment.py" \
   artifacts/run-020/next-experiment-input.json \
   --output artifacts/run-020/next-experiment.proposal.json
 ```

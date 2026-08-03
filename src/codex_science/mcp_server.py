@@ -136,6 +136,10 @@ class CodexScienceMCP:
     def handle(self, request: Any) -> dict[str, Any] | None:
         if not isinstance(request, dict):
             return self._error(None, -32600, "Invalid Request")
+        if "id" not in request:
+            # JSON-RPC notifications never receive a response, including an
+            # otherwise invalid or unknown notification.
+            return None
         request_id = request.get("id")
         method = request.get("method")
         if not isinstance(method, str):

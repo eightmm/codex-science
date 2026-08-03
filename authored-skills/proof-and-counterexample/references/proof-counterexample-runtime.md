@@ -3,7 +3,7 @@
 ## Search input
 
 ```bash
-uv run python scripts/search_counterexample.py search.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/search_counterexample.py" search.json \
   --output artifacts/run/counterexample-search.json
 ```
 

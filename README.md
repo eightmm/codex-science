@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **280 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, agentic life-science evidence synthesis, experimental spectroscopy and analytical chemistry, local and remote scientific compute, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 34 read-only public data connectors plus local catalog search and research planning, and records reproducible artifacts with independent evidence review.
+Codex Science turns one Codex task into an opt-in scientific workbench: start it once, continue the research workflow across later turns, and stop it explicitly. It routes work to an audited catalog of **282 agent skills** — 149 pinned from [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills), plus [Codex-native skills](authored-skills/) covering the entire [Google DeepMind](https://github.com/google-deepmind/science-skills) science set, 28 textbook-grounded mathematics and physics workflows, agentic life-science evidence synthesis, experimental spectroscopy and analytical chemistry, local and remote scientific compute, Claude Science's publicly documented featured workflows, and current open models such as ESMFold2, ESMC, AlphaFold3, Protenix-v2, SimpleFold, RoseTTAFold All-Atom, RFdiffusion, and BindCraft — adds 34 read-only public data connectors plus local catalog search and research planning, and records reproducible artifacts with independent evidence review.
 
 This is an independent Codex plugin inspired by the public workflow of Claude Science. It does not claim parity with any private implementation.
 
@@ -29,14 +29,26 @@ available, the installer provisions and records a managed Python 3.12 runtime;
 otherwise it uses a compatible `python3`. The hooks and MCP server execute that
 recorded interpreter directly, so they do not resolve or download Python on every
 invocation. The runtime uses only the Python standard library. The installer
-clones into `~/.codex-science`, registers the plugin globally, runs a runtime
-self-check, and is safe to re-run to update. On a Python 3.8 system, install
-`uv` first and then run the same command.
-Fresh installs are validated in staging before activation; installer reruns use the same locked, transactional updater as the hook.
-The managed checkout is the only installation source. If an older development
-checkout is registered under the `codex-science` marketplace name, the installer
-replaces that registration with `~/.codex-science` and restores the previous
-source if the replacement cannot be added.
+clones into `~/.codex-science`, registers a small stable host bootstrap globally,
+prepares a receipt-verified immutable scientific runtime under Codex Science's
+private plugin data, and runs a runtime self-check. On a Python 3.8 system,
+install `uv` first and then run the same command. Fresh installs are validated in
+staging before activation.
+
+An existing installation whose host bootstrap must change needs a one-time
+migration. First close every Codex task and quit the Codex app, then explicitly
+acknowledge that condition to the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | CODEX_SCIENCE_MIGRATION_ACK=all-codex-tasks-closed bash
+```
+
+Do not use that acknowledgement while any Codex task or the app is still open.
+Codex can prune an old host cache during registration, so even an inactive open
+task must be closed. The installer migrates an older development-checkout
+registration transactionally and restores the previous source if replacement
+fails. After this bootstrap migration, routine scientific-runtime updates are
+automatic and do not re-register the plugin.
 
 Then in **any** project, start a new Codex task, open `/hooks`, and trust the Codex Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks once. Say `Start Codex Science`; later turns self-invoke the coordinator without another skill mention. You do not re-install per project.
 
@@ -44,8 +56,9 @@ Trust the `Stop` hook too. It reports the saved next action when a run remains
 active. Blocking same-turn continuation is temporarily disabled by default
 because of the open Codex bug [openai/codex#20783](https://github.com/openai/codex/issues/20783),
 which can send a hook-generated local UUID as an API message ID and break the
-next request. Hook trust is tied to the exact definition, so after an update
-that changes hooks, review the Codex Science hooks in `/hooks` again.
+next request. Hook trust is tied to the exact bootstrap definition. Ordinary
+live-runtime updates keep that definition stable; review `/hooks` again only
+when the bootstrap definition itself changes.
 
 `/hooks` is the human security boundary: it approves the plugin command but does
 not start the science mode. Keep that approval as a deliberate user action. Once
@@ -187,50 +200,59 @@ Codex Science 종료
 
 ## Updates
 
-The default `notify` mode checks the official GitHub `main` branch at most once
-every 24 hours when a new Codex Science task starts. If an update exists, install
-it with plain language:
+Older installations need the acknowledged bootstrap migration shown above.
+After that, the default `apply` mode checks the official GitHub `main` branch at
+`SessionStart` and again on the first Codex Science activation when needed.
+
+A clean, official fast-forward candidate is classified before any candidate code
+runs. A compatible scientific-runtime change must advance `runtime_version`,
+preserve the stable host-bootstrap bytes and policy, keep the MCP discovery
+contract compatible, and pass the complete candidate gate. It is then installed
+append-only under
+`$CODEX_HOME/plugins/data/codex-science-codex-science/runtime-cache/<runtime_version>`;
+this project-owned store is independent of Codex's prunable plugin cache.
+Automatic and ordinary explicit runtime updates never call `codex plugin`, edit
+Codex plugin registration, or replace the host bootstrap.
+
+First activation pins the generation to an exact runtime commit and receipt.
+Later hooks, Stop checks, skills, and MCP calls do not switch when another task
+installs a release. The first MCP tool call uses Codex task metadata to bind the
+connection to the same pin after checking the advertised tool contract.
+Checkpoints and artifact manifests record that runtime identity; `runtime_span`
+is a defensive warning for legacy or recovery transitions rather than the normal
+update path.
+
+If a candidate changes bootstrap files, bootstrap policy, or the host
+`plugin_version`, automatic update stops before running it and asks for the
+acknowledged curl migration. The plugin version shown by Codex identifies this
+stable host bootstrap; it is not the scientific `runtime_version`. Open a new
+task to adopt a newly installed runtime or, after a bootstrap migration, to load
+and review the new hook definition.
+
+Choose the startup behavior before launching Codex:
+
+| `CODEX_SCIENCE_AUTO_UPDATE` | Session start / first activation | Explicit update request |
+| --- | --- | --- |
+| `apply` (default) | Verify and install a compatible runtime for activation | Install a compatible runtime for new activations; keep an active run pinned |
+| `notify` | Report only | Install a compatible runtime for new activations; keep an active run pinned |
+| `off` | Skip | Install a compatible runtime for new activations; keep an active run pinned |
+
+An explicit request works in every mode:
 
 ```text
 Codex Science 업데이트
 Update Codex Science
 ```
 
-The managed `~/.codex-science` checkout must be clean and point to the official
-`eightmm/codex-science` repository. The updater clones the exact commit that was
-shown to the user, verifies fast-forward ancestry and runtime behavior in staging,
-then atomically replaces the managed checkout and verifies the installed plugin
-cache. Failure rolls back to the previous checkout. The current task's loaded
-cache and every older version cache are preserved so already-open tasks keep
-their pinned hook paths; start a new Codex task to use the update.
-If there is no fresh update notice, the first update request checks and advertises
-the exact commit; repeat the request once to approve that advertised commit.
-
-Advanced modes are process environment variables set before launching Codex:
-
-```bash
-CODEX_SCIENCE_AUTO_UPDATE=notify  # default: check and ask
-CODEX_SCIENCE_AUTO_UPDATE=off     # no automatic check
-```
-
-There is no unattended apply mode. Updating always requires the explicit plain-
-language request above. Updates refuse dirty checkouts, forks, custom remotes,
-branch movement after approval, non-fast-forward changes, unchanged cachebuster,
-failed staging checks, and failed plugin-cache verification. A development
-checkout is never silently overwritten.
-
-Example workflow:
-
-```text
-Start Codex Science
-Analyze this dataset with the current pinned plugin and save the run provenance.
-Codex Science 업데이트
-# Open a new Codex task, then continue with the newly loaded version.
-```
+If the network is unavailable, another update owns the lock, the managed checkout
+is dirty or unofficial, ancestry diverges, or validation fails, Codex Science
+keeps the last-known-good verified runtime and reports the reason. It never
+silently overwrites a development checkout. Re-run the installer only when the
+message asks for migration or repair.
 
 ## Verify and troubleshoot
 
-Confirm that Codex sees the installed version:
+Confirm that Codex sees the stable host bootstrap:
 
 ```bash
 codex plugin list
@@ -239,8 +261,10 @@ codex plugin list
 The `codex-science@codex-science` row should say `installed, enabled`. If the
 mode does not activate, open a **new** Codex task, inspect `/hooks`, trust all
 three Codex Science hooks, and use exactly `Start Codex Science` or
-`Codex Science 시작`. After an update, open a new task; if a hook definition
-changed, review and trust it again.
+`Codex Science 시작`. An inactive task can use the verified update on first
+activation; an already active task deliberately keeps its prior pin. Open a new
+task to start on the installed scientific runtime. After an acknowledged
+bootstrap migration, open a new task and review and trust the new hook definition.
 
 For a development checkout, run:
 
@@ -279,7 +303,7 @@ Each completed run also gets a local `index.md` and, when requested, an offline
 Codex conversation; reports, tables, notebooks, logs, and secondary figures are
 returned as clickable absolute-path links. No web deployment is required.
 
-An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 280 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
+An ordinary scientific question in a fresh task does **not** activate the mode. Only three core skills are registered with Codex; the 282 catalog wrappers stay in an internal catalog and load only when the active coordinator selects them.
 
 > Catalog presence is not execution permission. Inactive skills show their audit reasons and require acknowledgement before their upstream instructions can be inspected. See [docs/](docs/) for verification, configuration, and boundaries.
 

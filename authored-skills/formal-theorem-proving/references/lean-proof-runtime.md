@@ -17,7 +17,7 @@ Record a new claim when any of these change. A theorem with a similar name or co
 ## Preview
 
 ```bash
-uv run python scripts/check_formal_proof.py proof.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py" proof.json \
   --workspace path/to/existing/lean-project \
   --output artifacts/run/formal-proof-preview.json \
   --preview
@@ -46,7 +46,7 @@ Preview records the exact command, theorem SHA-256, statement SHA-256, timeout, 
 ## Execute
 
 ```bash
-uv run python scripts/check_formal_proof.py proof.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py" proof.json \
   --workspace path/to/existing/lean-project \
   --output artifacts/run/formal-proof-check.json \
   --require-passed

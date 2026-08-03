@@ -29,15 +29,15 @@ An immutable remote or database object described by URI or accession, version, S
 ## Commands
 
 ```bash
-python scripts/describe_artifact.py trajectory/ \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/describe_artifact.py" trajectory/ \
   --media-type application/x-zarr \
   --output trajectory.descriptor.json
 
-python scripts/describe_artifact.py model.safetensors \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/describe_artifact.py" model.safetensors \
   --chunk-size 8388608 \
   --output model.descriptor.json
 
-python scripts/describe_artifact.py model.safetensors \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/describe_artifact.py" model.safetensors \
   --verify model.descriptor.json
 ```
 

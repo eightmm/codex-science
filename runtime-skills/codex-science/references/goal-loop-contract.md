@@ -7,7 +7,7 @@ Use native Goal only for explicit long-running or finish-to-completion intent. I
 1. Call `get_goal`.
 2. Reuse an unfinished Goal. Call `create_goal` only when no unfinished Goal exists.
 3. Initialize or claim exactly one nonterminal checkpoint with the hook-provided activation-generation owner key plus `--outer-goal native --goal-task-key <key>`.
-4. On every automatic continuation, resume, or compaction, call `get_goal` and `science_checkpoint.py show` before acting.
+4. On every automatic continuation, resume, or compaction, call `get_goal` and `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" show` before acting.
 5. If Goal state and checkpoint state disagree, preserve artifacts, open a blocker, and do not invent completion or create a replacement Goal.
 
 ## State mapping

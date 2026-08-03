@@ -102,11 +102,11 @@ class NativeSkillQualityTests(unittest.TestCase):
                 self.assertEqual([], record["reasons"])
 
     def test_core_skills_define_contract_provenance_and_review_semantics(self) -> None:
-        coordinator = (ROOT / "skills" / "codex-science" / "SKILL.md").read_text(encoding="utf-8")
-        provenance = (ROOT / "skills" / "science-provenance" / "SKILL.md").read_text(
+        coordinator = (ROOT / "runtime-skills" / "codex-science" / "SKILL.md").read_text(encoding="utf-8")
+        provenance = (ROOT / "runtime-skills" / "science-provenance" / "SKILL.md").read_text(
             encoding="utf-8"
         )
-        review = (ROOT / "skills" / "science-review" / "SKILL.md").read_text(encoding="utf-8")
+        review = (ROOT / "runtime-skills" / "science-review" / "SKILL.md").read_text(encoding="utf-8")
 
         for phrase in (
             "## Research contract and evidence graph",
@@ -146,7 +146,7 @@ class NativeSkillQualityTests(unittest.TestCase):
         standard = (ROOT / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")
         roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
         sidecars = (
-            ROOT / "skills" / "science-provenance" / "references" / "artifact-contract.md"
+            ROOT / "runtime-skills" / "science-provenance" / "references" / "artifact-contract.md"
         ).read_text(encoding="utf-8")
 
         for phrase in (

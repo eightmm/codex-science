@@ -22,7 +22,7 @@ Record material reference hashes. Preserve search and proof artifacts with `$sci
 
 1. Normalize the statement and negation with explicit types and quantifiers.
 2. Attack omitted hypotheses, zero and empty cases, boundaries, singularities, small finite objects, and low dimensions.
-3. When a bounded executable domain helps, run `scripts/search_counterexample.py`. A returned assignment must satisfy every hypothesis and violate the conclusion.
+3. When a bounded executable domain helps, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/search_counterexample.py"`. A returned assignment must satisfy every hypothesis and violate the conclusion.
 4. If no counterexample is found, keep the status `tested` unless an exact finite domain was completely exhausted.
 5. For a proof, choose direct, contrapositive, contradiction, induction, construction, invariant, extremal, or equivalence routes and decompose every material dependency into a proof-obligation graph.
 6. Produce an `informal-deductive`, `finite-exhaustion`, or `formal-kernel` proof receipt appropriate to the evidence.

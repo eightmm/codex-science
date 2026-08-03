@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 에이전틱 생명과학 evidence synthesis, 실험 분광·분석화학, 로컬·원격 과학 컴퓨팅, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **280개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다. 공개 source 34개와 로컬 catalog 검색·research planner를 read-only MCP로 제공합니다.
+Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 에이전틱 생명과학 evidence synthesis, 실험 분광·분석화학, 로컬·원격 과학 컴퓨팅, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **282개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다. 공개 source 34개와 로컬 catalog 검색·research planner를 read-only MCP로 제공합니다.
 
 Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러그인이며, 비공개 구현과의 동등성을 주장하지 않습니다.
 
@@ -28,13 +28,26 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 installer가 관리형 Python 3.12를 준비하고 그 경로를 기록하며, 없으면 호환되는
 `python3`를 사용합니다. Hook과 MCP는 매번 `uv`로 해석하거나 내려받지 않고 기록된
 인터프리터를 직접 실행합니다. 런타임 자체는 Python 표준 라이브러리만 사용합니다.
-설치 스크립트는 `~/.codex-science`에 clone하고 플러그인을 전역 등록한 뒤 런타임
-self-check까지 수행하며, 업데이트하려면 다시 실행하면 됩니다. 시스템 기본값이
-Python 3.8이면 먼저 `uv`를 설치한 뒤 같은 명령을 실행하세요.
-최초 설치는 staging에서 검증한 뒤 활성화하며, 설치 스크립트를 다시 실행할 때도 hook과 같은 잠금·transactional updater를 사용합니다.
-관리 대상 checkout만 실제 설치 source로 사용합니다. 과거 개발 checkout이
-`codex-science` marketplace 이름으로 등록되어 있으면 installer가 이를
-`~/.codex-science`로 교체하며, 새 source 추가가 실패하면 기존 source를 복구합니다.
+설치 스크립트는 `~/.codex-science`에 clone하고 작고 안정적인 host bootstrap을
+전역 등록한 뒤, Codex Science의 private plugin data 아래에 receipt로 검증되는
+immutable 과학 runtime을 준비하고 self-check를 수행합니다. 시스템 기본값이 Python
+3.8이면 먼저 `uv`를 설치한 뒤 같은 명령을 실행하세요. 최초 설치는 staging에서
+검증한 뒤 활성화합니다.
+
+기존 설치의 host bootstrap을 바꿔야 한다면 한 번의 migration이 필요합니다. 먼저
+모든 Codex 작업을 닫고 Codex 앱도 완전히 종료한 뒤, 그 상태를 installer에
+명시적으로 확인하세요:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | CODEX_SCIENCE_MIGRATION_ACK=all-codex-tasks-closed bash
+```
+
+Codex 작업이나 앱이 열려 있을 때 이 확인 값을 사용하면 안 됩니다. 등록 과정에서
+Codex가 이전 host cache를 정리할 수 있으므로 비활성 상태인 열린 작업도 먼저
+닫아야 합니다. 과거 개발 checkout 등록은 transaction 안에서 관리 대상
+`~/.codex-science`로 migration하며, 교체 실패 시 기존 source를 복구합니다. 이
+bootstrap migration 뒤의 일반 과학 runtime 업데이트는 자동이며 plugin을 다시
+등록하지 않습니다.
 
 그다음 **아무** 프로젝트에서나 새 Codex 작업을 시작하고 `/hooks`를 열어 Codex Science의 `SessionStart`·`UserPromptSubmit`·`Stop` hook을 한 번 신뢰 처리하세요. `Start Codex Science`(또는 `Codex Science 시작`)라고 하면 이후 턴에서는 coordinator가 스스로 재호출됩니다. 프로젝트마다 재설치하지 않습니다.
 
@@ -42,8 +55,8 @@ Python 3.8이면 먼저 `uv`를 설치한 뒤 같은 명령을 실행하세요.
 표시합니다. 같은 턴을 강제로 이어 가는 blocking 동작은 현재 기본적으로 꺼져
 있습니다. 공개 Codex 버그 [openai/codex#20783](https://github.com/openai/codex/issues/20783)이
 hook이 만든 로컬 UUID를 API message ID로 보내 다음 요청을 깨뜨릴 수 있기
-때문입니다. Hook 정의가 바뀌는 update 뒤에는 `/hooks`에서 Codex Science hook을
-다시 검토하고 신뢰해야 합니다.
+때문입니다. 일반 runtime 업데이트는 신뢰한 bootstrap 정의를 유지합니다.
+bootstrap hook 정의 자체가 바뀐 경우에만 `/hooks`에서 다시 검토하고 신뢰하세요.
 
 `/hooks`는 사람이 확인하는 보안 경계입니다. Plugin command를 승인할 뿐
 science mode를 시작하지는 않으므로, 이 승인은 사용자가 직접 처리하는 것이
@@ -181,50 +194,56 @@ Codex Science 종료
 
 ## 자동 업데이트
 
-기본 `notify` mode는 새 Codex Science 작업을 시작할 때 공식 GitHub `main`
-branch를 최대 24시간에 한 번 확인합니다. 새 버전이 있으면 평문으로
-설치합니다:
+이전 설치는 위의 확인된 bootstrap migration을 한 번 거쳐야 합니다. 이후 기본
+`apply` mode는 `SessionStart`와 최초 Codex Science 활성화 때 공식 GitHub `main`을
+확인합니다.
+
+공식 fast-forward 후보는 candidate code를 실행하기 전에 먼저 분류됩니다. 호환되는
+과학 runtime 변경은 `runtime_version`을 올리고, stable host bootstrap의 byte와
+policy를 보존하고, MCP discovery contract가 호환되며, 전체 candidate gate를
+통과해야 합니다. 통과한 runtime은
+`$CODEX_HOME/plugins/data/codex-science-codex-science/runtime-cache/<runtime_version>`
+아래에 append-only로 설치됩니다. 이 프로젝트 소유 store는 Codex가 정리할 수 있는
+plugin cache와 독립적입니다. 자동 업데이트와 일반 명시적 runtime 업데이트는
+`codex plugin`을 호출하거나 plugin 등록을 수정하거나 host bootstrap을 교체하지
+않습니다.
+
+최초 활성화는 generation을 정확한 runtime commit과 receipt에 고정합니다. 이후
+hook, Stop, skill, MCP call은 다른 작업이 새 release를 설치해도 바뀌지 않습니다.
+첫 MCP tool call은 Codex task metadata로 같은 pin에 결합하고 이미 표시한 tool
+contract를 확인합니다. Checkpoint와 artifact manifest는 runtime identity를 계속
+기록하며, `runtime_span`은 정상 자동 업데이트가 아니라 legacy·recovery 전환을
+드러내는 방어적 경고입니다.
+
+후보가 bootstrap file, bootstrap policy, host `plugin_version`을 바꾸면 자동
+업데이트는 후보를 실행하기 전에 중단하고 위 curl migration을 안내합니다. Codex에
+표시되는 plugin version은 stable host bootstrap의 identity이며 과학
+`runtime_version`과 다릅니다. 새 runtime을 사용하려면 새 작업을 열고, bootstrap
+migration 뒤에는 새 작업에서 바뀐 hook 정의를 다시 검토하고 신뢰하세요.
+
+Codex를 실행하기 전에 mode를 선택할 수 있습니다:
+
+| `CODEX_SCIENCE_AUTO_UPDATE` | 작업 시작 / 최초 활성화 | 명시적 업데이트 요청 |
+| --- | --- | --- |
+| `apply` (기본값) | 호환 runtime을 검증해 최초 활성화용으로 설치 | 호환 runtime을 새 활성화용으로 설치, 진행 중 run은 기존 pin 유지 |
+| `notify` | 알림만 표시 | 호환 runtime을 새 활성화용으로 설치, 진행 중 run은 기존 pin 유지 |
+| `off` | 확인 생략 | 호환 runtime을 새 활성화용으로 설치, 진행 중 run은 기존 pin 유지 |
+
+다음 명시적 요청은 어느 mode에서나 동작합니다:
 
 ```text
 Codex Science 업데이트
 Update Codex Science
 ```
 
-관리 대상 `~/.codex-science` checkout은 변경사항이 없어야 하며 공식
-`eightmm/codex-science` repository를 가리켜야 합니다. Updater가 사용자에게
-표시한 정확한 commit을 staging에 clone하고 fast-forward ancestry와 runtime을
-검증한 뒤 관리 checkout을 원자적으로 교체하고 설치 cache를 확인합니다.
-실패하면 이전 checkout으로 rollback합니다. 현재 작업의 load된 cache는
-물론 기존 version cache도 모두 보존하므로 이미 열린 작업의 고정된 hook path가
-유지됩니다. 업데이트 적용본은 new Codex task를 열어 사용합니다.
-최근 update 알림이 없다면 첫 요청은 정확한 commit을 확인해 표시만 합니다.
-같은 요청을 한 번 더 보내야 표시된 commit 설치를 승인합니다.
-
-고급 mode는 Codex를 실행하기 전에 process environment로 설정합니다:
-
-```bash
-CODEX_SCIENCE_AUTO_UPDATE=notify  # 기본값: 확인 후 알림
-CODEX_SCIENCE_AUTO_UPDATE=off     # 자동 확인 중지
-```
-
-무인 apply mode는 없습니다. Update는 위 평문 요청으로 매번 명시적으로
-승인해야 합니다. Dirty checkout, fork, custom remote, 승인 후 branch 이동,
-non-fast-forward 변경, 동일 cachebuster, staging self-check 실패, plugin cache
-검증 실패에서는 업데이트를 거부합니다. 개발용 checkout을 자동으로
-덮어쓰지 않습니다.
-
-사용 예시:
-
-```text
-Codex Science 시작
-현재 고정된 plugin으로 이 데이터를 분석하고 run provenance를 저장해줘.
-Codex Science 업데이트
-# 새 Codex 작업을 열고 업데이트된 버전으로 계속 진행
-```
+네트워크 연결 실패, 다른 updater의 lock, dirty·비공식 checkout, diverged history,
+검증 실패가 발생하면 last-known-good runtime을 유지하고 짧은 이유를 표시합니다.
+개발용 checkout을 자동으로 덮어쓰지 않습니다. Migration 또는 repair가 필요하다는
+메시지가 나온 경우에만 curl installer를 다시 실행하면 됩니다.
 
 ## 설치 확인과 문제 해결
 
-Codex가 설치된 버전을 인식하는지 확인합니다:
+Codex가 stable host bootstrap을 인식하는지 확인합니다:
 
 ```bash
 codex plugin list
@@ -233,8 +252,10 @@ codex plugin list
 `codex-science@codex-science` 행이 `installed, enabled`여야 합니다. Mode가
 활성화되지 않으면 **새** Codex 작업을 열고 `/hooks`에서 Codex Science hook 세
 개를 모두 신뢰한 뒤 정확히 `Start Codex Science` 또는 `Codex Science 시작`을
-입력하세요. 업데이트 후에는 새 작업을 열어야 하며, hook 정의가 바뀌었다면 다시
-검토하고 신뢰해야 합니다.
+입력하세요. 아직 비활성인 작업은 최초 활성화 때 검증된 새 runtime을 사용할 수
+있고, 이미 활성인 작업은 재현성을 위해 기존 pin을 유지합니다. 설치된 과학
+runtime으로 새로 시작하려면 새 작업을 여세요. 확인된 bootstrap migration 뒤에는
+새 작업에서 바뀐 hook 정의를 다시 검토하고 신뢰해야 합니다.
 
 개발 checkout에서는 다음을 실행합니다:
 
@@ -272,7 +293,7 @@ packet으로 제시합니다. 승인된 reversible 단계는 반복 확인 없�
 report·table·notebook·log·보조 figure는 클릭 가능한 절대경로 링크로
 제공합니다. 별도 웹 배포는 필요하지 않습니다.
 
-새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 280개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
+새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 282개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
 
 > 카탈로그에 있다고 실행 권한이 생기는 것은 아닙니다. 비활성 스킬은 audit 사유를 표시하고, upstream 지침을 열람하기 전에 확인을 요구합니다. 검증·설정·경계는 [docs/](docs/) 참고.
 

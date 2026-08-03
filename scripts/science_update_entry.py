@@ -30,7 +30,7 @@ def strict_candidate_self_check(candidate: Path) -> bool:
             "--root",
             str(candidate),
         ],
-        timeout=300,
+        timeout=600,
     )
     return contract.returncode == 0 and "candidate contract: ok" in contract.stdout
 

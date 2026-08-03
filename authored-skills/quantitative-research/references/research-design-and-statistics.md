@@ -5,7 +5,7 @@ Read this file before `research-design-audit` or `statistical-analysis`. The com
 ## Research-design input
 
 ```bash
-uv run python scripts/validate_research_design.py design.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_research_design.py" design.input.json \
   --output artifacts/run/research-design.json \
   --require-clean
 ```
@@ -78,7 +78,7 @@ The audit detects:
 The built-in dependency-free runtime is deliberately bounded to independent or paired two-group contrasts. Use a domain-specific model outside this runtime when censoring, complex hierarchy, longitudinal dependence, survey weights, generalized outcomes, or adaptive designs are material; still retain the same research-design and artifact contracts.
 
 ```bash
-uv run python scripts/run_statistical_analysis.py analysis.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_statistical_analysis.py" analysis.input.json \
   --output artifacts/run/statistical-analysis.json
 ```
 

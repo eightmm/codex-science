@@ -19,7 +19,7 @@ A run with findings, blocked work, missing outputs, stale receipts, or incomplet
 ## CLI
 
 ```bash
-python scripts/promote_run_to_skill.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/promote_run_to_skill.py" \
   artifacts/run-014/manifest.json \
   drafts/receptor-state-docking \
   --name receptor-state-docking \

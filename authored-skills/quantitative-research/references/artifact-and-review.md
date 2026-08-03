@@ -43,11 +43,11 @@ The manifest claim table remains a navigation layer. Mathematical truth status i
 Run the deterministic end-to-end fixture:
 
 ```bash
-uv run python scripts/run_quantitative_acceptance.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_quantitative_acceptance.py" \
   examples/quantitative-research/input.json \
   /tmp/quantitative-run
 
-uv run python scripts/validate_artifact.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py" \
   /tmp/quantitative-run/manifest.json \
   --review-output /tmp/quantitative-review.json \
   --require-passed-review
@@ -68,7 +68,7 @@ It is a software and contract acceptance fixture. It is not an empirical scienti
 
 ## Review procedure
 
-1. Validate every artifact hash and sidecar schema with `scripts/validate_artifact.py`.
+1. Validate every artifact hash and sidecar schema with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py"`.
 2. Confirm that research-design fields were fixed before outcome inspection.
 3. Recompute experimental-unit counts from raw rows or source data.
 4. Inspect effect sizes, intervals, missingness, multiplicity family, and alternative analyses before p-values.

@@ -19,12 +19,7 @@ git submodule update --init --recursive --depth 1 vendor/scientific-agent-skills
 cat <<'EOF'
 bootstrap: ok
 
-Register the plugin with Codex:
-  codex plugin marketplace add "$PWD"
-  codex plugin add codex-science@codex-science
-
-Then start a new Codex task, review/trust the SessionStart, UserPromptSubmit, and
-Stop hooks with /hooks, and say "Start Codex Science". The mode will self-invoke
-on later turns in that task. Do not enable a second generic Stop loop.
+The managed installer performs plugin registration after this validation step.
+Do not register a development checkout as a second marketplace source.
 Developers can verify the checkout with: ./scripts/check.sh fast
 EOF

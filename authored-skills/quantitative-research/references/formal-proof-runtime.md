@@ -27,7 +27,7 @@ The checker never creates a Lean project, installs Lean, downloads Mathlib, or c
 Always preview an unfamiliar workspace before execution:
 
 ```bash
-uv run python scripts/check_formal_proof.py proof.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py" proof.input.json \
   --workspace path/to/existing/project \
   --output artifacts/run/formal-proof-preview.json \
   --preview
@@ -47,7 +47,7 @@ Preview does not execute the checker and cannot support `proved-formal`.
 ## Execute
 
 ```bash
-uv run python scripts/check_formal_proof.py proof.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py" proof.input.json \
   --workspace path/to/existing/project \
   --output artifacts/run/formal-proof-check.json \
   --require-passed

@@ -3,7 +3,7 @@
 ## Input schema
 
 ```bash
-uv run python scripts/verify_numerical_result.py verification.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/verify_numerical_result.py" verification.json \
   --output artifacts/run/numerical-verification.json \
   --require-clean
 ```

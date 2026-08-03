@@ -23,26 +23,41 @@ curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/
 ```
 
 The installer validates a fresh clone in staging before moving it into
-`~/.codex-science`, runs the light bootstrap, and registers the plugin. Re-runs
-use the locked transactional updater. `CODEX_SCIENCE_HOME` overrides the path.
+`~/.codex-science`, runs the light bootstrap, registers the stable host plugin,
+and prepares an immutable scientific runtime in Codex Science's private plugin
+data. `CODEX_SCIENCE_HOME` overrides the managed-checkout path.
 `CODEX_SCIENCE_PYTHON` can select an existing Python 3.11+ interpreter, and
 `CODEX_SCIENCE_RUNTIME_FILE` can override the interpreter record path.
-This managed checkout is the only supported installation source. If the
-`codex-science` marketplace still points at an older local development checkout,
-the installer transactionally migrates it to the managed checkout.
+
+An existing installation requires an explicit migration only when its
+host-loaded bootstrap must change. Close every Codex task and quit the Codex app,
+then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | CODEX_SCIENCE_MIGRATION_ACK=all-codex-tasks-closed bash
+```
+
+The acknowledgement is an assertion by the user, not a process-killing option;
+never set it while Codex is open. Codex registration can prune an old host cache,
+including one still referenced by an inactive open task. The installer also uses
+this guarded transaction to migrate a marketplace that points at an older local
+development checkout. Routine scientific-runtime updates are automatic after
+the host bootstrap is installed and do not use Codex's plugin CLI.
 
 Then start a new Codex task in any project, open `/hooks`, and trust the Codex
 Science `SessionStart`, `UserPromptSubmit`, and `Stop` hooks. Say
 `Start Codex Science` or `Codex Science 시작`. You do not install per project —
 the plugin is user-global in `~/.codex`. Hook definitions are the human security
-boundary; review them again after an update that changes them.
+boundary. Ordinary runtime updates keep the bootstrap definition stable; review
+them again only if that definition changes.
 
 Verify registration with `codex plugin list`; the
 `codex-science@codex-science` row should be `installed, enabled`.
 
 The activation marker path is a SHA-256 hash of Codex's `session_id`, and the
-marker content is a random generation. The checkpoint owner key is derived from
-the session ID plus that generation. Raw session IDs, prompts, research inputs,
+marker contains a random generation plus the public version, commit, and receipt
+digest of its private immutable runtime pin. The checkpoint owner key is derived
+from the session ID plus that generation. Raw session IDs, prompts, research inputs,
 credentials, and results are not stored in the marker. Later turns, resume, and
 context compaction retain the generation. Explicit stop or `clear` abandons the
 discoverable owned nonterminal run and removes the marker; reactivation rotates
@@ -77,15 +92,37 @@ Competing stop guards can keep each other alive.
 Neither Goal nor the Stop hook runs after the Codex app or task is closed. They
 do not bypass hook trust, permissions, approvals, or host availability.
 
-Update checks default to `CODEX_SCIENCE_AUTO_UPDATE=notify`. A `SessionStart`
-hook checks the official GitHub `main` branch at most once per 24 hours and stores
-only the check time and public commit IDs under `PLUGIN_DATA`. Say
-`Codex Science 업데이트` to stage and apply the exact advertised commit. There
-is no unattended apply mode. Updates affect only a new task; the current task's
-loaded cache and older version caches are preserved so open tasks retain their
-pinned hook paths. Set the mode to `off` to disable checks.
-Without a fresh notice, the first explicit request advertises the exact commit;
-repeat it once to approve that commit.
+Update checks default to `CODEX_SCIENCE_AUTO_UPDATE=apply`. The stable bootstrap
+checks the official GitHub `main` branch at `SessionStart` and on the first
+activation when needed. Before candidate code runs, the updater rejects a
+bootstrap-byte or bootstrap-policy change and a non-monotonic runtime version.
+It then performs only the bounded MCP discovery handshake, requires that
+contract to match the host, and runs the full candidate gate. A verified
+compatible candidate is installed append-only at
+`$CODEX_HOME/plugins/data/codex-science-codex-science/runtime-cache/<runtime_version>`
+with a bounded receipt. This store belongs to Codex Science and is not a Codex
+host cache.
+
+Automatic and ordinary explicit runtime updates never call `codex plugin` or
+modify Codex plugin registration. First activation pins the runtime version,
+commit, and receipt across hook, Stop, skill, and MCP boundaries. An explicit
+update in an active task installs for new activations without switching the
+current run. Durable checkpoint and manifest writes record runtime identity;
+version-spanning state is a defensive legacy/recovery warning. A candidate that
+changes the host bootstrap is rejected with instructions for the acknowledged
+curl migration. Codex's displayed plugin version identifies the stable host
+bootstrap, not the independently advancing scientific runtime.
+
+| Mode | Automatic lifecycle check | `Codex Science 업데이트` |
+| --- | --- | --- |
+| `apply` (default) | Verify and apply | Verify and apply |
+| `notify` | Report only | Verify and apply |
+| `off` | Skip | Verify and apply |
+
+Offline access, a busy updater, a dirty or unofficial checkout, diverged history,
+or failed validation leaves the last-known-good verified runtime active. Re-run
+the curl installer only when a bootstrap migration or repair is requested, and
+use the acknowledgement only after closing every Codex task and the app.
 
 ## Development checkout
 

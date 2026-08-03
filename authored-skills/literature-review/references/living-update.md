@@ -21,7 +21,7 @@ Compare:
 Use:
 
 ```bash
-python scripts/diff_literature_review.py previous.json current.json --output diff.json
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_literature_review.py" previous.json current.json --output diff.json
 ```
 
 ## Invalidation

@@ -5,11 +5,11 @@
 | Problem class | Primary skill/runtime | Required caution |
 | --- | --- | --- |
 | theorem or refutation | `$cx-proof-and-counterexample`; optional formal checker | bounded tests are not general proof |
-| formal Lean theorem | `$cx-formal-theorem-proving`; `scripts/check_formal_proof.py` | compare formal and informal statements |
+| formal Lean theorem | `$cx-formal-theorem-proving`; `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_formal_proof.py"` | compare formal and informal statements |
 | experimental or observational contrast | `$cx-statistical-inference-experimental-design` | experimental unit and estimand first |
-| numerical approximation | `$cx-numerical-analysis-error-control`; `scripts/verify_numerical_result.py` | residual and tolerance are not total error |
-| physical equation or conversion | `$cx-dimensional-analysis-units`; `scripts/check_dimensions.py` | dimensional consistency is not physical validity |
-| propagated uncertainty | `$cx-experimental-uncertainty-propagation`; `scripts/propagate_uncertainty.py` | covariance and distribution are assumptions |
+| numerical approximation | `$cx-numerical-analysis-error-control`; `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/verify_numerical_result.py"` | residual and tolerance are not total error |
+| physical equation or conversion | `$cx-dimensional-analysis-units`; `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_dimensions.py"` | dimensional consistency is not physical validity |
+| propagated uncertainty | `$cx-experimental-uncertainty-propagation`; `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/propagate_uncertainty.py"` | covariance and distribution are assumptions |
 | symbolic algebra | `kdense-sympy` plus manual domain checks | branches and lost solutions must be audited |
 | ODE/PDE or inverse problem | `$cx-ode-pde-solving` plus numerical verification | boundary conditions and identifiability control the claim |
 

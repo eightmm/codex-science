@@ -279,6 +279,9 @@ class ActivationGenerationContractTests(unittest.TestCase):
         payload.update(extra)
         env = os.environ.copy()
         env["PLUGIN_DATA"] = str(self.plugin_data)
+        env["CODEX_SCIENCE_RUNTIME_VERSION"] = "0.5.0+codex.20260803052002"
+        env["CODEX_SCIENCE_RUNTIME_COMMIT"] = "a" * 40
+        env["CODEX_SCIENCE_RUNTIME_RECEIPT"] = "b" * 64
         script = self.stop_script if event == "Stop" else self.session_script
         result = subprocess.run(
             [sys.executable, str(script)],

@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from codex_science.runtime_identity import record_runtime_identity, validate_runtime_history
+
 
 CHECKPOINT_FILE = "checkpoint.json"
 MAX_ATTEMPTS_PER_FAILURE = 3
@@ -247,6 +249,7 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
             raise ValueError(f"missing checkpoint fields: {', '.join(missing_v3)}")
         _positive_integer(checkpoint["continuation_budget"], "continuation_budget")
         _nonnegative_integer(checkpoint["revision"], "revision")
+    validate_runtime_history(checkpoint)
 
     _nonempty(checkpoint["goal"], "goal")
     _nonempty(checkpoint["deliverable"], "deliverable")
@@ -325,6 +328,7 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
 
 
 def _write_checkpoint(run_dir: Path, checkpoint: dict[str, Any]) -> dict[str, Any]:
+    record_runtime_identity(checkpoint)
     validate_checkpoint(checkpoint)
     run_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = run_dir / CHECKPOINT_FILE

@@ -141,6 +141,9 @@ class WrapperGenerationTests(unittest.TestCase):
 class SessionContractTests(unittest.TestCase):
     def test_only_core_skills_are_registered_with_the_plugin(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
+        manifest = json.loads(
+            (repository_root / ".codex-plugin" / "plugin.json").read_text()
+        )
         registered = {
             path.name
             for path in (repository_root / "skills").iterdir()
@@ -151,6 +154,13 @@ class SessionContractTests(unittest.TestCase):
             {"codex-science", "science-provenance", "science-review"},
             registered,
         )
+        self.assertEqual("./skills/", manifest["skills"])
+        for name in registered:
+            bootstrap = (repository_root / "skills" / name / "SKILL.md").read_text()
+            self.assertIn(f"runtime-skills/{name}/SKILL.md", bootstrap)
+            self.assertTrue(
+                (repository_root / "runtime-skills" / name / "SKILL.md").is_file()
+            )
 
     def test_every_authored_skill_has_ui_metadata(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
@@ -165,7 +175,7 @@ class SessionContractTests(unittest.TestCase):
 
     def test_coordinator_has_narrow_opt_in_and_stays_active_in_its_task(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
-        skill = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        skill = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
         coordinator_agent = (
             repository_root / "skills" / "codex-science" / "agents" / "openai.yaml"
         ).read_text()
@@ -253,7 +263,7 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
         self.assertIn("host fingerprint", remote)
         self.assertIn("monitoring cadence", remote)
 
-        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        coordinator = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
         self.assertIn("$cx-compute-environment", coordinator)
         self.assertIn("$cx-remote-scientific-compute", coordinator)
 
@@ -287,16 +297,18 @@ class ScientificComputerUseCoverageTests(unittest.TestCase):
         repository_root = Path(__file__).resolve().parents[1]
         for name in ("README.md", "README.ko.md"):
             text = (repository_root / name).read_text()
-            self.assertIn("CODEX_SCIENCE_AUTO_UPDATE=notify", text)
-            self.assertIn("CODEX_SCIENCE_AUTO_UPDATE=off", text)
-            self.assertNotIn("CODEX_SCIENCE_AUTO_UPDATE=apply", text)
+            self.assertIn("CODEX_SCIENCE_AUTO_UPDATE", text)
+            self.assertIn("`apply`", text)
+            self.assertIn("`notify`", text)
+            self.assertIn("`off`", text)
             self.assertIn("Codex Science 업데이트", text)
-            self.assertIn("24", text)
-            self.assertIn("new Codex task", text)
+            self.assertIn("last-known-good", text)
+        self.assertIn("same task", (repository_root / "README.md").read_text())
+        self.assertIn("같은 작업", (repository_root / "README.ko.md").read_text())
 
     def test_provenance_renders_and_surfaces_visual_results(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
-        provenance = (repository_root / "skills" / "science-provenance" / "SKILL.md").read_text()
+        provenance = (repository_root / "runtime-skills" / "science-provenance" / "SKILL.md").read_text()
 
         self.assertIn("render_artifact_index.py", provenance)
         self.assertIn("index.md", provenance)
@@ -337,7 +349,7 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
             self.assertIn("provenance", text)
             self.assertTrue("review" in text or "$science-review" in text)
 
-        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        coordinator = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
         self.assertIn("$cx-life-science-research-routing", coordinator)
         self.assertIn("science_plan_life_science_research", coordinator)
 
@@ -397,7 +409,7 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
         for name in expected:
             self.assertIn(name.removeprefix("cx-"), sources)
 
-        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        coordinator = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
         self.assertIn("experimental spectrum or analytical chemistry dataset", coordinator)
         self.assertIn("$cx-chemical-structure-elucidation", coordinator)
 
@@ -461,7 +473,7 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
             source = repository_root / records[name]["path"] / "SKILL.md"
             self.assertIn("source basis", source.read_text(encoding="utf-8").lower())
 
-        coordinator = (repository_root / "skills" / "codex-science" / "SKILL.md").read_text()
+        coordinator = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
         self.assertIn("$cx-mathematical-problem-execution", coordinator)
         self.assertIn("concrete mathematics or physics problem", coordinator)
         self.assertIn(".cache/textbooks/", (repository_root / ".gitignore").read_text())
@@ -542,7 +554,7 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
             repository_root / "authored-skills" / "modeling-problem-execution" / "SKILL.md"
         ).read_text().lower()
         coordinator = (
-            repository_root / "skills" / "codex-science" / "SKILL.md"
+            repository_root / "runtime-skills" / "codex-science" / "SKILL.md"
         ).read_text().lower()
 
         for marker in (

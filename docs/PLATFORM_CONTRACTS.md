@@ -8,7 +8,8 @@ Codex Science uses one release identity module: `src/codex_science/version.py`.
 
 - Python package: `0.5.0`
 - MCP server: `0.5.0`
-- Plugin cachebuster: `0.5.0+codex.20260802100417`
+- Stable host-bootstrap version: `0.5.0+codex.20260803040515`
+- Scientific runtime version: `0.5.0+codex.20260803040515`
 - Machine-readable release record: `release/manifest.json`
 
 Run:
@@ -17,9 +18,49 @@ Run:
 python scripts/validate_release.py
 ```
 
-A runtime-affecting change under plugin, MCP, skills, catalog, connectors, hooks, models, scripts, or source code requires a different plugin cachebuster. Existing task caches are retained; a new Codex task loads the new release.
+A runtime-affecting change requires a monotonically newer `runtime_version`. A
+host-bootstrap file or bootstrap-policy change additionally requires a
+monotonically newer `plugin_version` and cannot be applied automatically.
+Cache-neutral changes need neither version bump. The stable dispatcher can use a
+verified compatible runtime on first activation in the initiating task. Once
+active, that generation stays on its immutable runtime commit and receipt; a new
+Codex task can start on the latest installed runtime without replacing the host
+bootstrap.
 
-Fresh installs call `scripts/bootstrap.sh`, which initializes the pinned skill catalog and runs the complete candidate contract. Managed update hooks use `scripts/science_update_entry.py`, which preserves the stable transactional updater and adds the same complete candidate contract before activation.
+Fresh installs call `scripts/bootstrap.sh`, initialize the pinned skill catalog,
+register the stable host bootstrap, and seed the project-owned runtime store.
+When a later release changes that bootstrap, every Codex task and the app must be
+closed before running the curl installer with
+`CODEX_SCIENCE_MIGRATION_ACK=all-codex-tasks-closed`. After that migration, the
+stable hook dispatcher and MCP proxy resolve a verified runtime from
+`$CODEX_HOME/plugins/data/codex-science-codex-science/runtime-cache/`;
+`scripts/science_update_entry.py` preserves the transactional candidate contract
+before activation without invoking Codex plugin registration.
+
+## Pinned runtime lifecycle
+
+```mermaid
+flowchart LR
+    A["Fresh install or acknowledged bootstrap migration"] --> B["Stable host bootstrap"]
+    B --> C["SessionStart or first activation"]
+    C --> D{"Compatible verified fast-forward?"}
+    D -->|Yes| E["Append immutable private runtime"]
+    D -->|Offline, dirty, busy, invalid, or bootstrap change| F["Keep last-known-good runtime"]
+    E --> G["First activation pins version, commit, and receipt"]
+    G --> H["Hooks, Stop, skills, and MCP stay pinned"]
+```
+
+`CODEX_SCIENCE_AUTO_UPDATE=apply` is the default. `notify` reports a candidate
+without applying it automatically, and `off` skips lifecycle checks. An explicit
+`Codex Science 업데이트` request verifies and installs a compatible runtime in
+every mode. Neither path calls `codex plugin`; bootstrap changes stop with an
+instruction to use the acknowledged curl migration. If a run is already active,
+the install is reserved for new activations and the current generation remains
+pinned. On the first MCP `tools/call`, Codex's session metadata selects that same
+pin; initialize and tool-list contracts are replayed before a handoff. Every
+checkpoint and artifact-manifest write appends the runtime identity.
+`runtime_span` remains a reviewable defense against legacy or recovery
+transitions, not routine automatic updating.
 
 ## Complete candidate gate
 
@@ -31,7 +72,7 @@ python scripts/candidate_contract_check.py
 
 The gate verifies:
 
-1. synchronized release identities and cachebuster syntax;
+1. independent host-bootstrap and scientific-runtime identities, monotonic bumps, and cachebuster syntax;
 2. Connector Contract v2 registry, legacy connector compatibility, snapshot replay, and typed parser fixtures;
 3. Python compilation;
 4. deterministic skill inventory and generated wrappers;
@@ -285,7 +326,7 @@ The workbench is a local offline HTML view of validated claims, findings, annota
 - Reviewer success is a procedural control, not proof of scientific truth.
 - A deterministic SBDD fixture is not an affinity experiment.
 - Artifact or model changes invalidate covered receipts.
-- Fresh install and managed update activation require the complete candidate contract.
+- Fresh install and managed update promotion require the complete candidate contract; failed validation keeps the last-known-good verified runtime. Candidate promotion never repins an active activation generation.
 
 ## Progressive skill references
 

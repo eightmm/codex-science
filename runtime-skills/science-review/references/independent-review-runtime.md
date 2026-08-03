@@ -19,7 +19,7 @@ A second pass by the producer must use `independent: false`.
 ## Prepare a review packet
 
 ```bash
-python scripts/science_reviewer.py prepare \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" prepare \
   artifacts/run-014/manifest.json \
   --mode record \
   --mode source \
@@ -139,7 +139,7 @@ A finding should identify exact evidence whenever possible: artifact path and ha
 ## Finalize a response
 
 ```bash
-python scripts/science_reviewer.py finalize \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" finalize \
   artifacts/run-014/review-task.json \
   artifacts/run-014/reviewer-response.json \
   --output artifacts/run-014/review-receipt-v2.json

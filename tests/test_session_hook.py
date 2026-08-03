@@ -28,6 +28,7 @@ class ScienceSessionHookTests(unittest.TestCase):
         session_id: str = "session-A",
         prompt: str | None = None,
         source: str | None = None,
+        pinned: bool = True,
     ) -> tuple[subprocess.CompletedProcess[str], dict[str, object] | None]:
         payload: dict[str, object] = {
             "cwd": str(self.repository_root),
@@ -43,6 +44,14 @@ class ScienceSessionHookTests(unittest.TestCase):
             payload["source"] = source
         env = os.environ.copy()
         env["PLUGIN_DATA"] = str(self.plugin_data)
+        if pinned:
+            env.update(
+                {
+                    "CODEX_SCIENCE_RUNTIME_VERSION": "0.5.0+codex.20260803052000",
+                    "CODEX_SCIENCE_RUNTIME_COMMIT": "a" * 40,
+                    "CODEX_SCIENCE_RUNTIME_RECEIPT": "b" * 64,
+                }
+            )
         result = subprocess.run(
             [sys.executable, str(self.script)],
             input=json.dumps(payload),
@@ -164,7 +173,11 @@ class ScienceSessionHookTests(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        files = [path for path in self.plugin_data.rglob("*") if path.is_file()]
+        files = [
+            path
+            for path in self.plugin_data.rglob("*")
+            if path.is_file() and re.fullmatch(r"[0-9a-f]{64}", path.name)
+        ]
         self.assertEqual(1, len(files))
         self.assertEqual(64, len(files[0].name))
         self.assertNotIn("..", files[0].as_posix())
@@ -189,7 +202,11 @@ class ScienceSessionHookTests(unittest.TestCase):
 
     def test_inactive_markers_expire_without_reactivating_session(self) -> None:
         self.run_hook("UserPromptSubmit", prompt="Start Codex Science")
-        marker = next(path for path in self.plugin_data.rglob("*") if path.is_file())
+        marker = next(
+            path
+            for path in self.plugin_data.rglob("*")
+            if path.is_file() and re.fullmatch(r"[0-9a-f]{64}", path.name)
+        )
         expired = time.time() - (181 * 24 * 60 * 60)
         os.utime(marker, (expired, expired))
 
@@ -201,6 +218,22 @@ class ScienceSessionHookTests(unittest.TestCase):
         self.assertIsNone(output)
         self.assertFalse(marker.exists())
 
+    def test_new_activation_without_dispatcher_pin_fails_closed(self) -> None:
+        result, output = self.run_hook(
+            "UserPromptSubmit",
+            prompt="Start Codex Science",
+            pinned=False,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIsNone(output)
+        markers = [
+            path
+            for path in self.plugin_data.rglob("*")
+            if path.is_file() and re.fullmatch(r"[0-9a-f]{64}", path.name)
+        ]
+        self.assertEqual([], markers)
+
     def test_plugin_bundles_session_hooks(self) -> None:
         config = json.loads(
             (self.repository_root / "hooks" / "hooks.json").read_text(encoding="utf-8")
@@ -208,8 +241,9 @@ class ScienceSessionHookTests(unittest.TestCase):
 
         self.assertEqual({"SessionStart", "UserPromptSubmit", "Stop"}, set(config["hooks"]))
         serialized = json.dumps(config)
-        self.assertIn("$PLUGIN_ROOT/scripts/science_session_hook.py", serialized)
-        self.assertIn("$PLUGIN_ROOT/scripts/science_stop_hook.py", serialized)
+        self.assertEqual(3, serialized.count("$PLUGIN_ROOT/scripts/science_hook_dispatch.py"))
+        self.assertNotIn("$PLUGIN_ROOT/scripts/science_session_hook.py", serialized)
+        self.assertNotIn("$PLUGIN_ROOT/scripts/science_stop_hook.py", serialized)
 
 
 if __name__ == "__main__":

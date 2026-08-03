@@ -19,10 +19,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from codex_science.checkpoints import abandon_checkpoint, find_nonterminal_checkpoint  # noqa: E402
 from codex_science.sessions import (  # noqa: E402
     activation_path,
-    new_activation_generation,
+    claim_activation,
+    parse_runtime_pin,
     read_activation_generation,
+    read_activation_state,
+    remove_activation,
     session_key,
-    write_activation_generation,
 )
 
 INACTIVE_CONTEXT = (
@@ -94,20 +96,32 @@ def _active_context(session_id: str, generation: str) -> str:
     )
 
 
-def _activate(path: Path) -> str:
-    generation = read_activation_generation(path, refresh=True)
-    if generation is not None:
-        return generation
-    generation = new_activation_generation()
-    write_activation_generation(path, generation)
-    return generation
-
-
-def _deactivate(path: Path) -> None:
+def _activate(path: Path) -> str | None:
     try:
-        path.unlink()
-    except FileNotFoundError:
-        pass
+        state = claim_activation(path, _pending_runtime_pin())
+    except (OSError, TimeoutError, ValueError):
+        return None
+    return state.generation
+
+
+def _pending_runtime_pin():
+    version = os.environ.get("CODEX_SCIENCE_RUNTIME_VERSION", "")
+    commit = os.environ.get("CODEX_SCIENCE_RUNTIME_COMMIT", "")
+    receipt = os.environ.get("CODEX_SCIENCE_RUNTIME_RECEIPT", "")
+    if not (version and commit and receipt):
+        return None
+    return parse_runtime_pin(
+        {
+            "runtime_version": version,
+            "runtime_commit": commit,
+            "receipt_sha256": receipt,
+        }
+    )
+
+
+def _deactivate(path: Path, generation: str | None) -> None:
+    if generation is not None:
+        remove_activation(path, generation)
 
 
 def _prune_expired(state_dir: Path) -> None:
@@ -124,7 +138,9 @@ def _prune_expired(state_dir: Path) -> None:
         try:
             metadata = path.lstat()
             if stat.S_ISREG(metadata.st_mode) and metadata.st_mtime < cutoff:
-                path.unlink()
+                state = read_activation_state(path)
+                if state is not None:
+                    remove_activation(path, state.generation)
         except (FileNotFoundError, PermissionError):
             continue
 
@@ -198,11 +214,12 @@ def main() -> int:
                     session_key(session_id, generation),
                     "Codex Science explicitly deactivated",
                 )
-            _deactivate(state_path)
+            _deactivate(state_path, generation)
             _emit(event_name, INACTIVE_CONTEXT)
         elif _matches(prompt, ACTIVATION_PATTERNS):
             generation = _activate(state_path)
-            _emit(event_name, _active_context(session_id, generation))
+            if generation is not None:
+                _emit(event_name, _active_context(session_id, generation))
         elif (generation := _active(state_path)) is not None:
             _emit(event_name, _active_context(session_id, generation))
         return 0
@@ -216,7 +233,7 @@ def main() -> int:
                 session_key(session_id, generation),
                 "Codex task context cleared",
             )
-        _deactivate(state_path)
+        _deactivate(state_path, generation)
         _emit(event_name, INACTIVE_CONTEXT)
     elif source in {"resume", "compact", "startup"}:
         generation = _active(state_path)

@@ -154,7 +154,7 @@ class MCPServerTests(unittest.TestCase):
         )
         self.assertEqual(-32600, invalid_request["error"]["code"])
         self.assertEqual(-32602, invalid_params["error"]["code"])
-        self.assertEqual(-32600, invalid_method["error"]["code"])
+        self.assertIsNone(invalid_method)
 
     def test_stdio_survives_invalid_method_and_processes_next_request(self) -> None:
         stdin = io.StringIO(
@@ -165,8 +165,8 @@ class MCPServerTests(unittest.TestCase):
         with patch("sys.stdin", stdin), patch("sys.stdout", stdout):
             run_stdio(self.inventory)
         responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
-        self.assertEqual(-32600, responses[0]["error"]["code"])
-        self.assertEqual({}, responses[1]["result"])
+        self.assertEqual(1, len(responses))
+        self.assertEqual({}, responses[0]["result"])
 
     def test_tool_arguments_are_validated_at_runtime(self) -> None:
         cases = (

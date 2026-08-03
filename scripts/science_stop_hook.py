@@ -92,10 +92,9 @@ def main() -> int:
             _emit(
                 {
                     "systemMessage": (
-                        "Codex Science run remains active, but blocking continuation is disabled "
-                        "because Codex can reject hook-generated local message IDs "
-                        "(openai/codex#20783). Continue in the next user turn: "
-                        f"{_bounded(checkpoint['next_action'], 500)}"
+                        "Codex Science · 작업이 남아 있습니다 — "
+                        f"{_bounded(checkpoint['current_step'], 180)} · 다음: "
+                        f"{_bounded(checkpoint['next_action'], 320)}"
                     )
                 }
             )
@@ -116,37 +115,31 @@ def main() -> int:
         _emit(
             {
                 "systemMessage": (
-                    f"Codex Science auto-continue safety limit stopped: {reason}. "
-                    "The run remains non-complete; "
-                    "inspect the checkpoint before the next continuation."
+                    "Codex Science · 자동 계속을 안전하게 멈췄습니다 — "
+                    f"{_bounded(reason, 240)} · 다음: 체크포인트 확인"
                 )
             }
         )
         return 0
 
     checkpoint_path = run_dir / "checkpoint.json"
-    criteria = "; ".join(
-        _bounded(item.get("text", item), 300) if isinstance(item, dict) else _bounded(item, 300)
-        for item in checkpoint["done_criteria"][:5]
-    )
     reason = (
-        "Continue the active Codex Science run instead of returning a progress-only answer. "
-        f"Reload {_bounded(checkpoint_path, 1500)} with science_checkpoint.py show. "
-        f"Goal: {_bounded(checkpoint['goal'])}. "
-        f"Current step: {_bounded(checkpoint['current_step'])}. "
-        f"Next action: {_bounded(checkpoint['next_action'])}. "
-        f"Done criteria: {criteria}. "
-        "Perform the next safe in-scope action now. Before the next stop, update the checkpoint "
-        "with heartbeat, advance, attempt, gate, block, or complete. Ask the user only through a "
-        "real approval gate; never claim completion while planned steps or verification remain."
+        "## Codex Science · 계속 진행\n\n"
+        f"- **목표:** {_bounded(checkpoint['goal'], 500)}\n"
+        f"- **현재:** {_bounded(checkpoint['current_step'], 300)}\n"
+        f"- **다음:** {_bounded(checkpoint['next_action'], 500)}\n"
+        f"- **체크포인트:** `{_bounded(checkpoint_path, 1200)}`\n\n"
+        "체크포인트와 완료 기준을 다시 확인하고, 다음 안전한 행동을 실제로 수행하세요. "
+        "멈추기 전에는 진행·단계·게이트·실패·완료 중 해당 상태를 기록하세요. "
+        "사용자 입력은 실제 승인 게이트에서만 요청하고, 검증이 남아 있으면 완료라고 말하지 마세요."
     )
     _emit(
         {
             "decision": "block",
             "reason": reason,
             "systemMessage": (
-                "Codex Science auto-continue "
-                f"{checkpoint['idle_continuations']}/{_idle_limit()}: "
+                "Codex Science · 계속 진행 — "
+                f"{_bounded(checkpoint['current_step'], 150)} · 다음: "
                 f"{_bounded(checkpoint['next_action'], 240)}"
             ),
         }
