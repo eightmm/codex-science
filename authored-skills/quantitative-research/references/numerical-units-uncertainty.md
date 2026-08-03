@@ -5,7 +5,7 @@ Read the relevant section before invoking a numerical, dimensional, or uncertain
 ## Numerical verification
 
 ```bash
-uv run python scripts/verify_numerical_result.py numerical.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/verify_numerical_result.py" numerical.input.json \
   --output artifacts/run/numerical-verification.json \
   --require-clean
 ```
@@ -74,7 +74,7 @@ Observed convergence on a finite range does not prove asymptotic convergence or 
 ## Dimensional analysis
 
 ```bash
-uv run python scripts/check_dimensions.py dimensions.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_dimensions.py" dimensions.input.json \
   --output artifacts/run/dimension-check.json \
   --require-clean
 ```
@@ -110,7 +110,7 @@ Dimensional consistency is only a necessary check. A dimensionally valid equatio
 ## Uncertainty propagation
 
 ```bash
-uv run python scripts/propagate_uncertainty.py uncertainty.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/propagate_uncertainty.py" uncertainty.input.json \
   --output artifacts/run/uncertainty-propagation.json \
   --require-clean
 ```

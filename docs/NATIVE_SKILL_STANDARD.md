@@ -1,6 +1,6 @@
 # Codex-native scientific skill standard
 
-This standard defines the minimum contract for first-party skills under `authored-skills/` and the three registered core skills under `skills/`. It does not rewrite or relicense pinned upstream skills.
+This standard defines the minimum contract for first-party skills under `authored-skills/` and the three live core workflows under `runtime-skills/`. The host-registered skills under `skills/` are deliberately small bootstrap loaders. This standard does not rewrite or relicense pinned upstream skills.
 
 A scientific skill is not complete because it names the right tools. It must constrain the scientific question, preserve evidence semantics, produce inspectable artifacts, state when it must stop, and make its claims reviewable.
 

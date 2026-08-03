@@ -3,7 +3,7 @@
 ## Input
 
 ```bash
-uv run python scripts/propagate_uncertainty.py uncertainty.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/propagate_uncertainty.py" uncertainty.json \
   --output artifacts/run/uncertainty-propagation.json \
   --require-clean
 ```

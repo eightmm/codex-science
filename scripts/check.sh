@@ -28,26 +28,31 @@ run_wrappers() {
 }
 
 run_science_contracts() (
-  local review_tmp diff_tmp benchmark_tmp maturity_json maturity_md sbdd_dir quantitative_dir manuscript_dir
+  local review_tmp diff_tmp benchmark_tmp reference_tmp maturity_json maturity_md sbdd_dir quantitative_dir manuscript_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
   benchmark_tmp="$(mktemp)"
+  reference_tmp="$(mktemp)"
   maturity_json="$(mktemp)"
   maturity_md="$(mktemp)"
   sbdd_dir="$(mktemp -d)"
   quantitative_dir="$(mktemp -d)"
   manuscript_dir="$(mktemp -d)"
-  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$maturity_json" "$maturity_md"; rm -rf "$sbdd_dir" "$quantitative_dir" "$manuscript_dir"' EXIT
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$reference_tmp" "$maturity_json" "$maturity_md"; rm -rf "$sbdd_dir" "$quantitative_dir" "$manuscript_dir"' EXIT
 
   uv run python scripts/validate_release.py
   uv run python scripts/validate_connector_contracts.py
-  uv run python scripts/audit_skill_references.py --require-clean
+  uv run python scripts/audit_skill_references.py \
+    --output "$reference_tmp" \
+    --require-clean
   uv run python scripts/audit_native_skill_maturity.py \
     --output "$maturity_json" \
     --markdown "$maturity_md" \
-    --require-clean
-  uv run python scripts/validate_models.py
-  uv run python scripts/validate_model_registry_v2.py
+    --require-clean >/dev/null
+  echo "native skill maturity: valid"
+  uv run python scripts/validate_models.py >/dev/null
+  uv run python scripts/validate_model_registry_v2.py >/dev/null
+  echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe
 
   uv run python scripts/validate_artifact.py \
@@ -93,7 +98,7 @@ run_skill_validation() {
   if [ -f "$validate_plugin" ] && [ -f "$quick_validate" ]; then
     python3 "$validate_plugin" .
     skill_count=0
-    for skill in skills/* authored-skills/* catalog/codex-skills/*; do
+    for skill in skills/* runtime-skills/* authored-skills/* catalog/codex-skills/*; do
       [ -d "$skill" ] || continue
       if ! output="$(python3 "$quick_validate" "$skill")"; then
         echo "$skill: $output" >&2

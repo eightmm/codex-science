@@ -19,7 +19,7 @@ Use the exports for interoperability, archival review, dependency inspection, an
 ## CLI
 
 ```bash
-python scripts/export_scientific_run.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/export_scientific_run.py" \
   artifacts/run-014/manifest.json \
   artifacts/run-014/exports \
   --receipt artifacts/run-014/fair-export.receipt.json

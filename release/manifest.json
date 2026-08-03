@@ -1,18 +1,61 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "package_version": "0.5.0",
-  "plugin_version": "0.5.0+codex.20260802100417",
+  "plugin_version": "0.5.0+codex.20260803040515",
+  "runtime_version": "0.5.0+codex.20260803040515",
   "mcp_version": "0.5.0",
   "runtime_affecting_prefixes": [
+    ".agents/plugins/marketplace.json",
     ".codex-plugin/",
+    ".gitmodules",
     ".mcp.json",
+    ".python-version",
+    "assets/",
     "authored-skills/",
     "catalog/",
     "connectors/",
+    "docs/",
+    "examples/",
     "hooks/",
     "models/",
+    "pyproject.toml",
+    "release/manifest.json",
+    "runtime-skills/",
     "scripts/",
     "skills/",
-    "src/"
+    "src/",
+    "uv.lock",
+    "vendor/"
+  ],
+  "cache_neutral_files": [
+    ".gitignore",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "LICENSE",
+    "PROJECT.md",
+    "README.md",
+    "README.ko.md"
+  ],
+  "cache_neutral_prefixes": [
+    ".claude/",
+    ".github/",
+    ".oms/",
+    "benchmarks/",
+    "tests/"
+  ],
+  "bootstrap_affecting_files": [
+    ".agents/plugins/marketplace.json",
+    ".mcp.json",
+    "scripts/python_runtime.sh",
+    "scripts/science_hook_dispatch.py",
+    "scripts/science_mcp_proxy.py",
+    "scripts/science_runtime_state.py",
+    "scripts/science_update_entry.py",
+    "scripts/science_update_hook.py"
+  ],
+  "bootstrap_affecting_prefixes": [
+    ".codex-plugin/",
+    "hooks/",
+    "skills/"
   ]
 }

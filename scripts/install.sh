@@ -8,16 +8,27 @@
 # starting a new Codex task and saying "Start Codex Science".
 set -euo pipefail
 
-REPO_URL="${CODEX_SCIENCE_REPO:-https://github.com/eightmm/codex-science.git}"
 INSTALL_DIR="${CODEX_SCIENCE_HOME:-$HOME/.codex-science}"
-BRANCH="${CODEX_SCIENCE_REF:-main}"
 OFFICIAL_REPO="https://github.com/eightmm/codex-science.git"
+REPO_URL="$OFFICIAL_REPO"
+BRANCH="main"
 RUNNING_INSTALLER="${BASH_SOURCE[0]:-}"
+RUNNING_INSTALLER_SHA256=""
+HANDOFF_COUNT="${CODEX_SCIENCE_INSTALLER_HANDOFF_COUNT:-0}"
 RUNTIME_FILE="${CODEX_SCIENCE_RUNTIME_FILE:-$HOME/.codex-science-python}"
 PYTHON=""
 
 info() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; }
+
+if [ -n "${CODEX_SCIENCE_REPO:-}" ] && [ "$CODEX_SCIENCE_REPO" != "$OFFICIAL_REPO" ]; then
+  err "CODEX_SCIENCE_REPO overrides are not accepted by the managed installer"
+  exit 1
+fi
+if [ -n "${CODEX_SCIENCE_REF:-}" ] && [ "$CODEX_SCIENCE_REF" != "main" ]; then
+  err "CODEX_SCIENCE_REF overrides are not accepted; managed installs track main"
+  exit 1
+fi
 
 command -v git >/dev/null || { err "git is required"; exit 1; }
 command -v codex >/dev/null || { err "codex CLI not found; install Codex first"; exit 1; }
@@ -98,11 +109,11 @@ select_python() {
 STAGING=""
 LOCKER_PID=""
 HOOK_DATA=""
-RECOVERY_HELPER=""
+RECOVERY_DIR=""
 UPDATE_HOOK=""
 cleanup() {
   if [ -n "$HOOK_DATA" ]; then rm -rf "$HOOK_DATA"; fi
-  if [ -n "$RECOVERY_HELPER" ]; then rm -f "$RECOVERY_HELPER"; fi
+  if [ -n "$RECOVERY_DIR" ]; then rm -rf "$RECOVERY_DIR"; fi
   if [ -n "$STAGING" ]; then rm -rf "$STAGING"; fi
   if [ -n "$LOCKER_PID" ]; then
     kill "$LOCKER_PID" 2>/dev/null || true
@@ -111,34 +122,67 @@ cleanup() {
 }
 trap cleanup EXIT
 
-repair_marketplace_for_legacy_updater() {
-  UPDATE_HOOK="$INSTALL_DIR/scripts/science_update_hook.py"
-  if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
-    --ensure-marketplace "$INSTALL_DIR" >/dev/null 2>&1
-  then
-    return
-  fi
+managed_updater_is_trusted() {
+  [ -d "$INSTALL_DIR/.git" ] || return 1
+  remote="$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || true)"
+  case "${remote%/}" in
+    https://github.com/eightmm/codex-science.git|https://github.com/eightmm/codex-science|git@github.com:eightmm/codex-science.git|ssh://git@github.com/eightmm/codex-science.git) ;;
+    *) return 1 ;;
+  esac
+  [ -z "$(git -C "$INSTALL_DIR" status --porcelain --untracked-files=normal 2>/dev/null)" ] \
+    || return 1
+  head="$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)"
+  tracking="$(git -C "$INSTALL_DIR" rev-parse refs/remotes/origin/main 2>/dev/null || true)"
+  [ "${#head}" -eq 40 ] || return 1
+  case "$head" in *[!0-9a-f]*) return 1 ;; esac
+  [ "$head" = "$tracking" ]
+}
 
+select_trusted_updater() {
   command -v curl >/dev/null || {
-    err "curl is required to recover a legacy Codex Science installation"
+    err "curl is required to load the trusted main-branch update helper"
     exit 1
   }
-  info "Repairing plugin marketplace before the legacy updater runs"
-  RECOVERY_HELPER="$(mktemp "${TMPDIR:-/tmp}/codex-science-update-hook.XXXXXX")"
-  RECOVERY_URL="https://raw.githubusercontent.com/eightmm/codex-science/$BRANCH/scripts/science_update_hook.py"
-  if ! curl -fsSL "$RECOVERY_URL" -o "$RECOVERY_HELPER"; then
-    err "could not download the marketplace recovery helper"
+  RECOVERY_COMMIT="$(git ls-remote --heads "$OFFICIAL_REPO" refs/heads/main 2>/dev/null | awk 'NR == 1 {print $1}')"
+  if [ "${#RECOVERY_COMMIT}" -ne 40 ]; then
+    err "could not resolve the official main commit"
     exit 1
   fi
-  if ! "$PYTHON" "$RECOVERY_HELPER" --self-check >/dev/null; then
-    err "marketplace recovery helper self-check failed"
+  case "$RECOVERY_COMMIT" in
+    *[!0-9a-f]*) err "official main returned an invalid commit"; exit 1 ;;
+  esac
+
+  if managed_updater_is_trusted \
+    && [ "$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)" = "$RECOVERY_COMMIT" ]
+  then
+    if [ -f "$INSTALL_DIR/scripts/science_update_entry.py" ]; then
+      UPDATE_HOOK="$INSTALL_DIR/scripts/science_update_entry.py"
+    else
+      UPDATE_HOOK="$INSTALL_DIR/scripts/science_update_hook.py"
+    fi
+    if "$PYTHON" "$UPDATE_HOOK" --self-check >/dev/null 2>&1; then
+      return
+    fi
+  fi
+
+  info "Loading the verified main-branch update helper"
+  RECOVERY_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codex-science-update-helper.XXXXXX")"
+  mkdir -p "$RECOVERY_DIR/scripts"
+  RECOVERY_BASE="https://raw.githubusercontent.com/eightmm/codex-science/$RECOVERY_COMMIT/scripts"
+  if ! curl -fsSL "$RECOVERY_BASE/science_update_hook.py" \
+      -o "$RECOVERY_DIR/scripts/science_update_hook.py" \
+    || ! curl -fsSL "$RECOVERY_BASE/science_update_entry.py" \
+      -o "$RECOVERY_DIR/scripts/science_update_entry.py" \
+    || ! curl -fsSL "$RECOVERY_BASE/science_runtime_state.py" \
+      -o "$RECOVERY_DIR/scripts/science_runtime_state.py"; then
+    err "could not download the trusted update helper"
     exit 1
   fi
-  if ! "$PYTHON" "$RECOVERY_HELPER" --ensure-marketplace "$INSTALL_DIR"; then
-    err "legacy marketplace recovery failed"
+  UPDATE_HOOK="$RECOVERY_DIR/scripts/science_update_entry.py"
+  if ! "$PYTHON" "$UPDATE_HOOK" --self-check >/dev/null; then
+    err "trusted update helper self-check failed"
     exit 1
   fi
-  UPDATE_HOOK="$RECOVERY_HELPER"
 }
 
 # 1. Clone into staging or update through the transactional updater.
@@ -154,8 +198,24 @@ if [ ! -d "$INSTALL_DIR/.git" ]; then
 fi
 select_python
 
+case "$HANDOFF_COUNT" in
+  0|1|2|3) ;;
+  *) err "CODEX_SCIENCE_INSTALLER_HANDOFF_COUNT is invalid"; exit 1 ;;
+esac
+if [ -n "$RUNNING_INSTALLER" ] && [ -f "$RUNNING_INSTALLER" ]; then
+  RUNNING_INSTALLER_SHA256="$(
+    "$PYTHON" - "$RUNNING_INSTALLER" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+  )"
+fi
+
 if [ -d "$INSTALL_DIR/.git" ]; then
-  repair_marketplace_for_legacy_updater
+  select_trusted_updater
   info "Safely updating $INSTALL_DIR"
   "$PYTHON" "$UPDATE_HOOK" \
     --manual-update "$INSTALL_DIR" "$BRANCH"
@@ -204,18 +264,34 @@ PY
 fi
 
 # A streamed or older downloaded installer may have updated the checkout to a
-# newer implementation. Continue with that implementation before taking any
-# registration action, and use a marker to prevent recursive handoffs.
-if [ "${CODEX_SCIENCE_INSTALLER_HANDOFF:-0}" != "1" ] \
-  && [ -f "$INSTALL_DIR/scripts/install.sh" ] \
-  && { [ -z "$RUNNING_INSTALLER" ] \
-    || [ ! -f "$RUNNING_INSTALLER" ] \
-    || ! cmp -s "$RUNNING_INSTALLER" "$INSTALL_DIR/scripts/install.sh"; }
+# newer implementation. Compare against the bytes captured before the checkout
+# swap: the original path may now resolve to the replacement file even though
+# this shell is still executing the old program. A bounded count permits a
+# second handoff if main advances again during the first update.
+MANAGED_INSTALLER_SHA256=""
+if [ -f "$INSTALL_DIR/scripts/install.sh" ]; then
+  MANAGED_INSTALLER_SHA256="$(
+    "$PYTHON" - "$INSTALL_DIR/scripts/install.sh" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+  )"
+fi
+if [ -n "$MANAGED_INSTALLER_SHA256" ] \
+  && [ "$RUNNING_INSTALLER_SHA256" != "$MANAGED_INSTALLER_SHA256" ]
 then
+  if [ "$HANDOFF_COUNT" -ge 3 ]; then
+    err "official main changed repeatedly during installer handoff; rerun the installer"
+    exit 1
+  fi
   info "Continuing with the installer from $INSTALL_DIR"
   cleanup
   trap - EXIT
   export CODEX_SCIENCE_INSTALLER_HANDOFF=1
+  export CODEX_SCIENCE_INSTALLER_HANDOFF_COUNT="$((HANDOFF_COUNT + 1))"
   exec bash "$INSTALL_DIR/scripts/install.sh"
 fi
 
@@ -223,31 +299,26 @@ fi
 info "Running bootstrap"
 "$INSTALL_DIR/scripts/bootstrap.sh"
 
-# 3. Register globally without deleting versions pinned by existing Codex tasks.
+# 3. Register the stable host bootstrap. The helper prepares the independent
+# runtime store first and performs any Codex CLI mutation under its migration
+# barrier.
 info "Registering Codex plugin"
-if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
-  --ensure-marketplace "$INSTALL_DIR" >/dev/null
-then
-  info "Managed marketplace points to $INSTALL_DIR"
-else
-  err "managed marketplace registration failed"
-  exit 1
-fi
 if "$PYTHON" "$INSTALL_DIR/scripts/science_update_hook.py" \
   --register-plugin "$INSTALL_DIR" >/dev/null
 then
-  info "Installed plugin cache verified; prior task caches preserved"
+  info "Host bootstrap verified; private runtime ready"
 else
-  err "installed plugin cache verification failed"
+  err "host bootstrap registration failed"
   exit 1
 fi
 
-# 4. Runtime self-check: confirm both the MCP server and session hook respond.
+# 4. Runtime self-check: confirm the live MCP proxy and unified hooks respond.
 info "Verifying runtime"
 if printf '%s\n%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-    | "$PYTHON" "$INSTALL_DIR/scripts/science_mcp.py" --inventory "$INSTALL_DIR/catalog/inventory.json" 2>/dev/null \
+    | CODEX_SCIENCE_HOME="$INSTALL_DIR" PLUGIN_ROOT="$INSTALL_DIR" \
+      "$PYTHON" "$INSTALL_DIR/scripts/science_mcp_proxy.py" 2>/dev/null \
     | grep -q science_search_skills; then
   info "Runtime self-check passed"
 else
@@ -273,9 +344,25 @@ workspace.mkdir()
 session_id = "install-self-check"
 environment = {
     **os.environ,
+    "CODEX_SCIENCE_AUTO_UPDATE": "off",
+    "CODEX_SCIENCE_HOME": str(root),
+    "CODEX_SCIENCE_PLUGIN_DATA": str(plugin_data),
     "PLUGIN_DATA": str(plugin_data),
+    "PLUGIN_ROOT": str(root),
     "CODEX_SCIENCE_STOP_MODE": "block",
 }
+
+sys.path.insert(0, str(root / "scripts"))
+from science_runtime_state import install_runtime_append_only
+
+runtime, runtime_reason = install_runtime_append_only(
+    root,
+    environment,
+    plugin_data=plugin_data,
+    repair_existing=True,
+)
+if runtime is None:
+    raise SystemExit(f"private runtime preparation failed: {runtime_reason}")
 
 
 def hook(script: str, event: str, **extra: object) -> subprocess.CompletedProcess[str]:
@@ -303,7 +390,7 @@ def hook(script: str, event: str, **extra: object) -> subprocess.CompletedProces
 
 
 activation = hook(
-    "science_session_hook.py",
+    "science_hook_dispatch.py",
     "UserPromptSubmit",
     prompt="Start Codex Science",
 )
@@ -321,13 +408,20 @@ expected_goal_key = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
 if goal_task_key != expected_goal_key:
     raise SystemExit("Goal task key is not bound to the Codex task")
 
-markers = [path for path in plugin_data.rglob("*") if path.is_file()]
+markers = [
+    path
+    for path in (plugin_data / "science-sessions").iterdir()
+    if path.is_file() and re.fullmatch(r"[0-9a-f]{64}", path.name)
+]
 if len(markers) != 1:
     raise SystemExit("activation did not create exactly one marker")
 marker = json.loads(markers[0].read_text(encoding="utf-8"))
 generation = marker.get("generation")
 if not isinstance(generation, str) or not re.fullmatch(r"[0-9a-f]{64}", generation):
     raise SystemExit("activation marker generation is invalid")
+runtime_pin = marker.get("runtime_pin")
+if marker.get("schema_version") != 2 or not isinstance(runtime_pin, dict):
+    raise SystemExit("activation marker has no verified runtime pin")
 expected_key = hashlib.sha256(
     session_id.encode("utf-8") + b"\0" + generation.encode("ascii")
 ).hexdigest()
@@ -370,7 +464,7 @@ if checkpoint_data.get("schema_version") != 4:
 if checkpoint_data.get("outer_goal", {}).get("task_key") != goal_task_key:
     raise SystemExit("checkpoint Goal binding does not match the task key")
 
-active_stop = hook("science_stop_hook.py", "Stop")
+active_stop = hook("science_hook_dispatch.py", "Stop")
 active_output = json.loads(active_stop.stdout)
 if active_output.get("decision") != "block":
     raise SystemExit("active checkpoint did not block Stop")
@@ -397,7 +491,7 @@ waiting = subprocess.run(
 )
 if waiting.returncode:
     raise SystemExit(waiting.stderr or "checkpoint wait failed")
-if hook("science_stop_hook.py", "Stop").stdout.strip():
+if hook("science_hook_dispatch.py", "Stop").stdout.strip():
     raise SystemExit("waiting_external checkpoint did not allow Stop")
 PY
 then
@@ -428,9 +522,18 @@ UserPromptSubmit, and Stop hooks. The private activation marker stores a random
 generation; prompts and research data are never stored. Do not enable another
 generic Stop loop in the same task.
 
-Update checks default to notify at most once every 24 hours. Say
-"Codex Science 업데이트" to stage and install the exact advertised commit for
-the next new Codex task. Unattended apply is intentionally unsupported.
+From this bootstrap release onward, a new task or first activation checks the
+official main branch automatically. A verified compatible fast-forward is added
+to Codex Science's private immutable runtime store without calling the Codex
+plugin CLI. Before first activation it is pinned to that generation, so its
+workflow and MCP runtime are used in the same task. An update requested after
+activation is installed for new activations and does not repin the current run.
+If the network or verification fails, Codex Science keeps the last verified
+runtime and shows one short recovery message.
 
-Re-run this installer any time to update.
+Routine runtime updates do not require this installer. If a later release asks
+for a host-bootstrap migration, close every Codex task and quit the Codex app,
+then run:
+  curl -fsSL https://raw.githubusercontent.com/eightmm/codex-science/main/scripts/install.sh | CODEX_SCIENCE_MIGRATION_ACK=all-codex-tasks-closed bash
+Never set that acknowledgement while Codex is still open.
 EOF

@@ -32,16 +32,16 @@ Never collapse these records into one action. A view does not validate an interp
 All commands require explicit output files. No command edits the artifact.
 
 ```bash
-python scripts/render_artifact_runtime.py describe ...
-python scripts/render_artifact_runtime.py render ...
-python scripts/render_artifact_runtime.py select ...
-python scripts/render_artifact_runtime.py propose ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" describe ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" render ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" select ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" propose ...
 ```
 
 ### Describe an artifact
 
 ```bash
-python scripts/render_artifact_runtime.py describe \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" describe \
   artifacts/run-001/receptor.pdb \
   --artifact-path receptor.pdb \
   --sha256 8e7f...64-hex... \
@@ -94,7 +94,7 @@ The fingerprint covers the descriptor, including the artifact hash and view boun
 ### Render an offline view
 
 ```bash
-python scripts/render_artifact_runtime.py render \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" render \
   artifacts/run-001/receptor.runtime.json \
   --title "Receptor state inspection" \
   --output artifacts/run-001/receptor.runtime.html
@@ -105,7 +105,7 @@ The HTML uses no hosted assets and escapes source-controlled text. It is a deriv
 ### Create a typed selection
 
 ```bash
-python scripts/render_artifact_runtime.py select \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" select \
   artifacts/run-001/receptor.runtime.json \
   --selector-type residue \
   --selector '{"chain":"A","residue_number":145,"insertion_code":""}' \
@@ -140,7 +140,7 @@ A selection becomes stale when the current manifest digest for `artifact_path` d
 ### Propose a transform
 
 ```bash
-python scripts/render_artifact_runtime.py propose \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_runtime.py" propose \
   artifacts/run-001/selections/residue-A-145.json \
   --operation exclude-alternate-conformation \
   --parameters '{"altloc":"B","retain":"highest-occupancy"}' \

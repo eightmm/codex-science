@@ -53,6 +53,46 @@
 - Outputs: project-local artifact bundles with stable metadata and links suitable for inspection in Codex.
   Each completed run includes a generated Markdown index, optional offline HTML,
   and direct Codex display of primary raster results.
+
+## Runtime Delivery and Human Output Contract
+
+- The installed plugin exposes a small, stable bootstrap. On a new task start or
+  first Codex Science activation, that bootstrap checks the official `main`
+  branch, stages and validates a fast-forward candidate, appends it to the
+  project-owned immutable runtime store, and dispatches the same hook event to
+  that receipt-verified runtime. Routine automatic updates never invoke Codex's
+  plugin marketplace or registration commands.
+- The verified runtime, coordinator instructions, and MCP implementation must be
+  usable in that same task. Codex's displayed plugin version identifies the
+  stable host bootstrap and can differ from the scientific runtime version;
+  user-facing text must not claim that host metadata was hot-reloaded.
+- First activation atomically pins one activation generation to an immutable,
+  receipt-verified private runtime. Later hook events, Stop checks, coordinator
+  instructions, and MCP tool calls stay on that pin even when another task
+  installs a newer release. The first MCP `tools/call` binds through Codex's
+  task metadata and replays the already-advertised protocol before handoff.
+- Every durable checkpoint and artifact-manifest write records the runtime
+  identity. `runtime_span` remains a defense-in-depth signal for legacy,
+  recovery, or explicit generation transitions; routine automatic updates do
+  not make an active run span releases.
+- Offline, busy, dirty, invalid, or failed candidates fall back to the last
+  verified runtime with a short actionable status. Automatic update must never
+  silently run a partially installed candidate or destroy the last known-good
+  release.
+- Existing installations need one explicit migration install when the stable
+  host bootstrap changes. Because Codex can retain that bootstrap in inactive
+  open tasks, the migration runs only after all Codex tasks and the app are
+  closed and the installer receives the documented migration acknowledgement.
+  Later runtime-only releases update automatically without plugin registration
+  or a second plain-language approval.
+- Human-facing output follows one order: **status, current step, next action,
+  evidence/result**. Hook notices stay to one concise line; progress appears only
+  at meaningful phase transitions; `index.md` is the canonical completed-run
+  view. Raw JSON, hashes, and complete logs remain machine contracts or linked
+  audit details rather than primary prose.
+- Markdown is the default ChatGPT/Codex presentation surface. Primary raster
+  results render inline, important local files use clickable absolute paths in
+  chat, and optional HTML remains a secondary offline audit view.
 - Manuscript entry points:
   - Create a new manuscript from a passed or explicitly qualified run bundle.
   - Revise an existing manuscript against its evidence and target constraints.
@@ -133,7 +173,8 @@
 ## Paths
 
 - Plugin manifest: `.codex-plugin/`
-- Registered task-scoped Codex skills: `skills/`
+- Registered stable bootstrap skills: `skills/`
+- Verified live core workflows: `runtime-skills/`
 - Internal catalog skill wrappers: `catalog/codex-skills/`
 - Imported upstream catalog: `vendor/scientific-agent-skills/`
 - Activation policy and inventory: `catalog/`
@@ -179,6 +220,18 @@
   - One fixture that produces Markdown, LaTeX/BibTeX, traceability sidecars, a
     reporting checklist, and a reviewable submission package without network
     credentials.
+  - One lifecycle fixture proving that an A-to-B automatic update dispatches
+    B's session runtime in the initiating task, while failed, offline, concurrent,
+    and interrupted updates continue on A or recover it.
+  - One MCP handoff fixture proving that discovery can hand off to the task's
+    pinned runtime, while external or explicit updates do not switch an active
+    generation.
+  - Human-output fixtures proving concise hook notices, suppressed successful
+    candidate logs, and a human-first Markdown index without changing machine
+    JSON or JSON-RPC stdout.
+  - CI must reject a runtime-affecting diff whose runtime version was not
+    changed relative to the pull-request base, and reject a bootstrap-affecting
+    diff whose host plugin version was not changed.
 - Baseline/metric: 100% catalog inventory coverage; zero silently enabled blocked skills; all required checks pass; one reviewed end-to-end research run; three public-source smoke tests.
 
 ## References

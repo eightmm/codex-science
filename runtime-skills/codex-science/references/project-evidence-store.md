@@ -33,13 +33,13 @@ The event chain detects accidental or unauthorized mutation of project-index his
 ## CLI overview
 
 ```bash
-python scripts/science_project.py --database project/evidence.sqlite init ...
-python scripts/science_project.py --database project/evidence.sqlite import-run ...
-python scripts/science_project.py --database project/evidence.sqlite fork ...
-python scripts/science_project.py --database project/evidence.sqlite assert ...
-python scripts/science_project.py --database project/evidence.sqlite compare ...
-python scripts/science_project.py --database project/evidence.sqlite merge-plan ...
-python scripts/science_project.py --database project/evidence.sqlite summary ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite init ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite import-run ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite fork ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite assert ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite compare ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite merge-plan ...
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite summary ...
 ```
 
 Every subcommand requires `--output` and writes a machine-readable JSON receipt.
@@ -47,7 +47,7 @@ Every subcommand requires `--output` and writes a machine-readable JSON receipt.
 ## Initialize a project
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   init \
   --project-id egfr-resistance \
@@ -61,7 +61,7 @@ The command is idempotent only when project ID, title, and question are identica
 ## Import a reviewed run
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   import-run \
   --project-id egfr-resistance \
@@ -73,7 +73,7 @@ python scripts/science_project.py \
 For a continuation:
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   import-run \
   --project-id egfr-resistance \
@@ -103,7 +103,7 @@ The project database is local-machine state. For portable collaboration, export 
 ## Fork a hypothesis branch
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   fork \
   --project-id egfr-resistance \
@@ -132,7 +132,7 @@ Avoid names such as `successful-model` or `best-compounds`; they encode an answe
 An evidence assertion links one imported run claim to a source and an exact location in a hash-validated artifact.
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   assert \
   --project-id egfr-resistance \
@@ -181,7 +181,7 @@ The store verifies that the locator path and digest occur in the imported run. I
 ## Compare two runs
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   compare \
   --project-id egfr-resistance \
@@ -203,7 +203,7 @@ A run comparison is not a statistical comparison. It reports record changes, not
 ## Prepare a merge plan
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   merge-plan \
   --project-id egfr-resistance \
@@ -238,7 +238,7 @@ If branch ancestry has no unambiguous base, `base_ambiguity` is true. Resolve li
 ## Summarize project state
 
 ```bash
-python scripts/science_project.py \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" \
   --database projects/egfr/evidence.sqlite \
   summary \
   --project-id egfr-resistance \

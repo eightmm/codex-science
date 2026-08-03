@@ -16,13 +16,13 @@ Do not use the number of cells, images, technical repeats, time points, or model
 
 Read [the design and inference runtime](references/design-and-inference-runtime.md) before `research-design-audit` or `statistical-analysis`. It contains the exact input fields, CLI arguments, supported bounded methods, and interpretation limits. Do not infer a model, p-value meaning, multiplicity family, or independent-unit count from an operation name.
 
-For material work, record the reference hash with `scripts/reference_lookup.py` and preserve the design and result files with `$science-provenance`.
+For material work, record the reference hash with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/reference_lookup.py"` and preserve the design and result files with `$science-provenance`.
 
 ## Workflow
 
-1. Author a `research-design` input and run `scripts/validate_research_design.py --require-clean` before outcome-dependent analysis.
+1. Author a `research-design` input and run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_research_design.py" --require-clean` before outcome-dependent analysis.
 2. Match the analysis to assignment and sampling. Use blocking, pairing, hierarchy, survey weights, censoring, or longitudinal dependence only with a method that represents them.
-3. For a bounded independent or paired two-group contrast, run `scripts/run_statistical_analysis.py`; for more complex models, use a suitable external implementation but emit equivalent design, effect, interval, diagnostic, seed, and environment records.
+3. For a bounded independent or paired two-group contrast, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_statistical_analysis.py"`; for more complex models, use a suitable external implementation but emit equivalent design, effect, interval, diagnostic, seed, and environment records.
 4. Report effect size, interval, independent-unit count, missingness, exclusions, and multiplicity handling before p-values.
 5. Verify the unit counts, contrast direction, missingness, multiplicity family, randomization model, interval method, and prespecified sensitivity analyses.
 6. Package the design and analysis sidecars, then run `$science-review`.

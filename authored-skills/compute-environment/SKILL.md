@@ -17,7 +17,7 @@ schemas or review procedure are needed.
 
 1. Resolve the project root from the current workspace or nearest version-control
    root. Inspect relevant inputs and storage needs without copying sensitive data.
-2. Run `python3 <plugin-root>/scripts/compute_probe.py`
+2. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/compute_probe.py"`
    for a read-only capability report. Save it under the run directory with
    `--output artifacts/<run-id>/compute-environment.json` once a run exists.
 3. Select the smallest adequate backend:

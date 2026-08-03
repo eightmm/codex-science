@@ -67,7 +67,7 @@ The core validator rejects secret-like parameter keys such as token, password, s
 ## Validate a spec
 
 ```bash
-python scripts/connector_action_contract.py validate-spec \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/connector_action_contract.py" validate-spec \
   artifacts/run-014/action-spec.json \
   --output artifacts/run-014/action-spec.validated.json
 ```
@@ -108,7 +108,7 @@ The adapter should minimize `before_state`; do not include full private records 
 Validate a provider-created preview:
 
 ```bash
-python scripts/connector_action_contract.py validate-preview \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/connector_action_contract.py" validate-preview \
   artifacts/run-014/action-preview.json \
   --spec artifacts/run-014/action-spec.json \
   --output artifacts/run-014/action-preview.validated.json
@@ -117,7 +117,7 @@ python scripts/connector_action_contract.py validate-preview \
 ## Approval
 
 ```bash
-python scripts/connector_action_contract.py approve \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/connector_action_contract.py" approve \
   artifacts/run-014/action-preview.json \
   --approved-by jaemin \
   --scope assay:read \

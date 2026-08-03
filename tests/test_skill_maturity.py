@@ -48,7 +48,7 @@ class SkillMaturityTests(unittest.TestCase):
     def test_synthetic_l4_requires_references_outputs_fixture_failures_and_tests(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            skill = root / "skills" / "demo"
+            skill = root / "runtime-skills" / "demo"
             references = skill / "references"
             references.mkdir(parents=True)
             (skill / "SKILL.md").write_text(SKILL_TEXT, encoding="utf-8")
@@ -104,7 +104,7 @@ class SkillMaturityTests(unittest.TestCase):
     def test_invalid_l4_declaration_is_not_silently_downgraded(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            skill = root / "skills" / "demo"
+            skill = root / "runtime-skills" / "demo"
             references = skill / "references"
             references.mkdir(parents=True)
             (skill / "SKILL.md").write_text(SKILL_TEXT, encoding="utf-8")

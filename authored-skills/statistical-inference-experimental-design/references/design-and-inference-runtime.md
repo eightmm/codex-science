@@ -5,7 +5,7 @@
 Run before outcome-driven analysis:
 
 ```bash
-uv run python scripts/validate_research_design.py design.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_research_design.py" design.json \
   --output artifacts/run/research-design.json \
   --require-clean
 ```
@@ -21,7 +21,7 @@ A clean audit means the record is internally complete. It does not make the assu
 The built-in runtime is limited to independent or paired two-group mean or median differences:
 
 ```bash
-uv run python scripts/run_statistical_analysis.py analysis.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_statistical_analysis.py" analysis.json \
   --output artifacts/run/statistical-analysis.json
 ```
 

@@ -65,7 +65,7 @@ relabel the old receipt.
 Run:
 
 ```bash
-uv run python scripts/validate_manuscript_package.py artifacts/<run>/manuscript --require-clean
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_manuscript_package.py" artifacts/<run>/manuscript --require-clean
 ```
 
 Save JSON output with `--output <path>` when it must enter the artifact bundle.

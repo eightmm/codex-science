@@ -1,0 +1,6 @@
+interface:
+  display_name: "Science Provenance"
+  short_description: "Record reproducible scientific artifacts"
+  default_prompt: "Use $science-provenance to package this analysis with reproducible evidence."
+policy:
+  allow_implicit_invocation: false

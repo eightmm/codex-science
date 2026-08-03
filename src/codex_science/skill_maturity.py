@@ -234,7 +234,7 @@ def load_policy(root: Path, path: Path | None = None) -> dict[str, Any]:
 def audit_native_skills(root: Path, *, policy_path: Path | None = None) -> dict[str, Any]:
     root = root.resolve()
     records = []
-    for parent in (root / "skills", root / "authored-skills"):
+    for parent in (root / "runtime-skills", root / "authored-skills"):
         if not parent.is_dir():
             continue
         for skill_dir in sorted(path for path in parent.iterdir() if path.is_dir() and (path / "SKILL.md").is_file()):

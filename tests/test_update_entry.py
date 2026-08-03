@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -17,23 +19,31 @@ class UpdateEntryTests(unittest.TestCase):
             raise RuntimeError("could not load science_update_entry")
         cls.entry = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.entry)
+        candidate_path = cls.root / "scripts" / "candidate_contract_check.py"
+        candidate_spec = importlib.util.spec_from_file_location(
+            "candidate_contract_check", candidate_path
+        )
+        if candidate_spec is None or candidate_spec.loader is None:
+            raise RuntimeError("could not load candidate_contract_check")
+        cls.candidate = importlib.util.module_from_spec(candidate_spec)
+        candidate_spec.loader.exec_module(cls.candidate)
 
-    def test_hooks_use_strict_entry_and_preserve_stable_updater_marker(self) -> None:
+    def test_hooks_use_one_stable_dispatcher_per_event(self) -> None:
         hooks = json.loads((self.root / "hooks" / "hooks.json").read_text(encoding="utf-8"))
-        commands = [
-            item["command"]
-            for event in ("SessionStart", "UserPromptSubmit")
-            for group in hooks["hooks"][event]
-            for item in group["hooks"]
-        ]
-        update_commands = [command for command in commands if "science_update_entry.py" in command]
-        self.assertTrue(update_commands)
-        self.assertTrue(
-            all("CODEX_SCIENCE_STABLE_UPDATER" in command for command in update_commands)
+        for event in ("SessionStart", "UserPromptSubmit", "Stop"):
+            commands = [
+                item["command"]
+                for group in hooks["hooks"][event]
+                for item in group["hooks"]
+            ]
+            self.assertEqual(1, len(commands))
+            self.assertIn("science_hook_dispatch.py", commands[0])
+
+        dispatcher = (self.root / "scripts" / "science_hook_dispatch.py").read_text(
+            encoding="utf-8"
         )
-        self.assertTrue(
-            all("science_update_hook.py" in command for command in update_commands)
-        )
+        self.assertIn("science_update_entry.py", dispatcher)
+        self.assertIn("--resolve-runtime", dispatcher)
 
     def test_strict_candidate_runs_stable_check_then_complete_contract(self) -> None:
         candidate = self.root
@@ -51,7 +61,7 @@ class UpdateEntryTests(unittest.TestCase):
         self.assertEqual(sys.executable, command[0])
         self.assertIn("candidate_contract_check.py", command[1])
         self.assertEqual(["--root", str(candidate.resolve())], command[-2:])
-        self.assertEqual(300, run.call_args.kwargs["timeout"])
+        self.assertEqual(600, run.call_args.kwargs["timeout"])
 
     def test_stable_candidate_failure_short_circuits_contract(self) -> None:
         with (
@@ -64,6 +74,32 @@ class UpdateEntryTests(unittest.TestCase):
     def test_bootstrap_uses_same_candidate_contract(self) -> None:
         bootstrap = (self.root / "scripts" / "bootstrap.sh").read_text(encoding="utf-8")
         self.assertIn("candidate_contract_check.py", bootstrap)
+
+    def test_candidate_contract_hides_successful_child_output(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["child-check"], 0, '{"large": "machine report"}\n', ""
+        )
+        output = io.StringIO()
+        with (
+            mock.patch.object(self.candidate.subprocess, "run", return_value=completed),
+            redirect_stdout(output),
+        ):
+            self.candidate.run(["child-check"], cwd=self.root)
+
+        self.assertEqual("", output.getvalue())
+
+    def test_candidate_contract_preserves_failed_child_diagnostics(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["child-check"], 1, "validation summary\n", "specific failure\n"
+        )
+        with mock.patch.object(self.candidate.subprocess, "run", return_value=completed):
+            with self.assertRaises(SystemExit) as raised:
+                self.candidate.run(["child-check"], cwd=self.root)
+
+        message = str(raised.exception)
+        self.assertIn("candidate check failed: child-check", message)
+        self.assertIn("validation summary", message)
+        self.assertIn("specific failure", message)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ Preserve inputs, code, environment, refinements, and receipts with `$science-pro
 2. Choose a reference from exact solutions, manufactured solutions, independent implementations, interval bounds, or a demonstrated higher-accuracy method.
 3. Run at least three refinement levels for an order claim and retain failed levels.
 4. Record errors or reference value, residuals, invariants, precision, absolute and relative tolerances, and cross-method estimates with uncertainties.
-5. Run `scripts/verify_numerical_result.py --require-clean`.
+5. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/verify_numerical_result.py" --require-clean`.
 6. Perturb tolerances, precision, inputs, grids, and algorithm where the claim depends on them.
 7. Report only digits and validity supported by the error budget and verification receipt.
 

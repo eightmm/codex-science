@@ -18,7 +18,7 @@ Unknown units fail loudly. Normalize domain-specific units explicitly rather tha
 ## Equation check
 
 ```bash
-uv run python scripts/check_dimensions.py dimensions.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_dimensions.py" dimensions.json \
   --output artifacts/run/dimension-check.json \
   --require-clean
 ```

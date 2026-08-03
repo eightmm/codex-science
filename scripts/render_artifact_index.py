@@ -40,11 +40,12 @@ def main() -> int:
     run_dir = manifest_path.parent
     markdown_path = run_dir / "index.md"
     _write(markdown_path, render_markdown(manifest, run_dir))
-    print(f"artifact index: {markdown_path}")
+    outputs = [f"Markdown: {markdown_path}"]
     if args.html:
         html_path = run_dir / "index.html"
         _write(html_path, render_html(manifest, run_dir))
-        print(f"artifact HTML: {html_path}")
+        outputs.append(f"offline HTML: {html_path}")
+    print("Codex Science report ready — " + " · ".join(outputs))
     return 0
 
 

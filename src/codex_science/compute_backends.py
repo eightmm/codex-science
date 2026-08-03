@@ -28,6 +28,20 @@ from typing import Any, Mapping, Protocol
 from codex_science.artifact_store import describe_directory, stream_sha256
 
 
+_LOCAL_PROCESSES: dict[int, subprocess.Popen[bytes]] = {}
+
+
+def _reap_local_process(pid: int) -> None:
+    process = _LOCAL_PROCESSES.get(pid)
+    if process is None:
+        return
+    try:
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        return
+    _LOCAL_PROCESSES.pop(pid, None)
+
+
 TERMINAL_STATES = {"completed", "failed", "timed-out", "cancelled", "lost"}
 ALL_STATES = {"submitted", "running", *TERMINAL_STATES}
 SECRET_KEY_FRAGMENTS = {"token", "secret", "password", "credential", "private_key", "api_key", "apikey"}
@@ -479,6 +493,7 @@ class LocalBackend:
             start_new_session=True,
             close_fds=True,
         )
+        _LOCAL_PROCESSES[process.pid] = process
         current = _read_json(job_dir / "state.json")
         submitted_receipt = _state_material(
             spec,
@@ -496,6 +511,8 @@ class LocalBackend:
         job_dir = self._job_dir(job_id)
         state = _read_json(job_dir / "state.json")
         validate_job_state(state)
+        if state["state"] in TERMINAL_STATES and state.get("worker_pid"):
+            _reap_local_process(int(state["worker_pid"]))
         if state["state"] in {"submitted", "running"} and state.get("worker_pid") and not _process_alive(int(state["worker_pid"])):
             # Give an atomically-written terminal state a short chance to land.
             time.sleep(0.05)

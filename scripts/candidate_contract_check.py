@@ -16,8 +16,6 @@ def run(command: list[str], *, cwd: Path) -> None:
     if completed.returncode != 0:
         detail = "\n".join(part for part in (completed.stdout.strip(), completed.stderr.strip()) if part)
         raise SystemExit(f"candidate check failed: {' '.join(command)}\n{detail}")
-    if completed.stdout.strip():
-        print(completed.stdout.strip())
 
 
 def validate_review(path: Path, label: str) -> None:

@@ -29,7 +29,7 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
     report = audit_reference_roots(
-        [root / "skills", root / "authored-skills"],
+        [root / "runtime-skills", root / "authored-skills"],
         strict_names=STRICT_SKILLS,
     )
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"

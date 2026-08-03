@@ -6,6 +6,9 @@ contains the goal, plan state, next action, evidence references, review receipt,
 and loop counters—not prompts, credentials, private inputs, or scientific
 conclusions.
 
+`<plugin-root>` below means the absolute activation-pinned runtime root injected
+by the hook, never a moving checkout path.
+
 ## Ownership and lifecycle
 
 Activation creates a random generation in a private plugin-data marker. The
@@ -70,7 +73,7 @@ second generic or Ralph-style Stop loop on top of Codex Science.
 
 ## CLI
 
-Use `scripts/science_checkpoint.py --help` for all commands. The normal flow is
+Use `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" --help` for all commands. The normal flow is
 `init`, then `heartbeat`/`advance`/`attempt`; use `gate`, `wait`, or `block` only
 for their corresponding pause condition. Use `criterion` and `review` before
 `complete`. `claim` upgrades a compatible legacy run; changing a schema-v2/v3

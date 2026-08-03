@@ -3,14 +3,30 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import codex_science.release as release_contract
 from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, replay_snapshot
 from codex_science.connector_sources import SOURCE_BY_KEY
 from codex_science.connectors import PubMedConnector
 from codex_science.mcp_server import CodexScienceMCP
-from codex_science.release import runtime_change_requires_bump, validate_release
+from codex_science.release import (
+    RELEASE_VERSION_RE,
+    classify_release_path,
+    plugin_version_advances,
+    runtime_change_requires_bump,
+    validate_release,
+)
 from codex_science.typed_connectors import ClinVarConnector, GnomADConnector
-from codex_science.version import MCP_VERSION, PACKAGE_VERSION, PLUGIN_VERSION
+from codex_science.version import (
+    CACHE_NEUTRAL_FILES,
+    CACHE_NEUTRAL_PREFIXES,
+    MCP_VERSION,
+    PACKAGE_VERSION,
+    PLUGIN_VERSION,
+    RUNTIME_AFFECTING_PREFIXES,
+    RUNTIME_VERSION,
+)
 
 
 class ReleaseAndConnectorV2Tests(unittest.TestCase):
@@ -19,10 +35,154 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
 
     def test_release_identities_are_synchronized(self) -> None:
         self.assertEqual([], validate_release(self.root))
-        self.assertTrue(PLUGIN_VERSION.startswith(PACKAGE_VERSION + "+codex."))
+        self.assertIsNotNone(RELEASE_VERSION_RE.fullmatch(PLUGIN_VERSION))
+        runtime_match = RELEASE_VERSION_RE.fullmatch(RUNTIME_VERSION)
+        self.assertIsNotNone(runtime_match)
+        assert runtime_match is not None
+        self.assertEqual(PACKAGE_VERSION, runtime_match.group("package"))
         self.assertEqual(PACKAGE_VERSION, MCP_VERSION)
-        self.assertTrue(runtime_change_requires_bump(["src/codex_science/review.py"], "1.0.0+codex.a", "1.0.0+codex.a"))
-        self.assertFalse(runtime_change_requires_bump(["docs/README.md"], "a", "a"))
+        self.assertTrue(runtime_change_requires_bump(["src/codex_science/review.py"], "1.0.0+codex.20260101000000", "1.0.0+codex.20260101000000"))
+        self.assertFalse(runtime_change_requires_bump(["tests/test_release.py"], "a", "a"))
+        self.assertFalse(
+            runtime_change_requires_bump(
+                ["vendor/scientific-agent-skills"],
+                "1.0.0+codex.20260101000000",
+                "1.0.0+codex.20260101000001",
+            )
+        )
+        self.assertTrue(
+            runtime_change_requires_bump(
+                ["pyproject.toml"],
+                "1.0.0+codex.20260101000001",
+                "1.0.0+codex.20260101000000",
+            )
+        )
+        self.assertTrue(
+            plugin_version_advances(
+                "1.0.0+codex.20260101000009", "1.0.0+codex.20260101000010"
+            )
+        )
+        self.assertFalse(
+            plugin_version_advances(
+                "1.0.0+codex.20260101000010", "1.0.0+codex.20260101000009"
+            )
+        )
+        self.assertFalse(plugin_version_advances("1.0.0+codex.a", "1.0.0+codex.b"))
+
+    def test_plugin_package_is_independent_but_runtime_embeds_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            plugin_version = "9.4.0+codex.20260101000000"
+            package_version = "1.2.3"
+            runtime_version = "1.2.3+codex.20260102000000"
+            plugin = root / ".codex-plugin" / "plugin.json"
+            plugin.parent.mkdir(parents=True)
+            plugin.write_text(
+                json.dumps({"version": plugin_version}) + "\n", encoding="utf-8"
+            )
+            (root / "pyproject.toml").write_text(
+                f'[project]\nname = "release-fixture"\nversion = "{package_version}"\n',
+                encoding="utf-8",
+            )
+            manifest = root / "release" / "manifest.json"
+            manifest.parent.mkdir()
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "package_version": package_version,
+                        "plugin_version": plugin_version,
+                        "runtime_version": runtime_version,
+                        "mcp_version": package_version,
+                        "runtime_affecting_prefixes": list(RUNTIME_AFFECTING_PREFIXES),
+                        "cache_neutral_files": list(CACHE_NEUTRAL_FILES),
+                        "cache_neutral_prefixes": list(CACHE_NEUTRAL_PREFIXES),
+                        "bootstrap_affecting_files": list(
+                            release_contract.BOOTSTRAP_AFFECTING_FILES
+                        ),
+                        "bootstrap_affecting_prefixes": list(
+                            release_contract.BOOTSTRAP_AFFECTING_PREFIXES
+                        ),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with mock.patch.multiple(
+                release_contract,
+                PACKAGE_VERSION=package_version,
+                PLUGIN_VERSION=plugin_version,
+                RUNTIME_VERSION=runtime_version,
+                MCP_VERSION=package_version,
+            ):
+                self.assertEqual([], release_contract.validate_release(root))
+
+            invalid_plugin = "9.4.0+codex.2026010100000"
+            plugin.write_text(
+                json.dumps({"version": invalid_plugin}) + "\n", encoding="utf-8"
+            )
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["plugin_version"] = invalid_plugin
+            manifest.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            with mock.patch.multiple(
+                release_contract,
+                PACKAGE_VERSION=package_version,
+                PLUGIN_VERSION=invalid_plugin,
+                RUNTIME_VERSION=runtime_version,
+                MCP_VERSION=package_version,
+            ):
+                self.assertIn(
+                    "plugin version must match <semver>+codex.<14 digits>",
+                    release_contract.validate_release(root),
+                )
+
+            invalid_runtime = "1.2.3+codex.2026010200000x"
+            payload["runtime_version"] = invalid_runtime
+            manifest.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            with mock.patch.multiple(
+                release_contract,
+                PACKAGE_VERSION=package_version,
+                PLUGIN_VERSION=invalid_plugin,
+                RUNTIME_VERSION=invalid_runtime,
+                MCP_VERSION=package_version,
+            ):
+                self.assertIn(
+                    "runtime version must match <semver>+codex.<14 digits>",
+                    release_contract.validate_release(root),
+                )
+
+    def test_every_repository_path_has_exactly_one_release_classification(self) -> None:
+        import subprocess
+
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.root),
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        paths = [path for path in result.stdout.split("\0") if path]
+        self.assertTrue(paths)
+        unknown = [path for path in paths if classify_release_path(path) == "unknown"]
+        overlaps = [
+            path
+            for path in paths
+            if any(path.startswith(prefix) for prefix in RUNTIME_AFFECTING_PREFIXES)
+            and (
+                path in CACHE_NEUTRAL_FILES
+                or any(path.startswith(prefix) for prefix in CACHE_NEUTRAL_PREFIXES)
+            )
+        ]
+        self.assertEqual([], unknown)
+        self.assertEqual([], overlaps)
 
     def test_query_request_receipt_replay_and_drift_are_deterministic(self) -> None:
         def fetch_json(_url: str) -> dict:

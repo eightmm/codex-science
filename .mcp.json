@@ -3,9 +3,7 @@
     "codex-science": {
       "command": "./scripts/python_runtime.sh",
       "args": [
-        "./scripts/science_mcp.py",
-        "--inventory",
-        "./catalog/inventory.json"
+        "./scripts/science_mcp_proxy.py"
       ]
     }
   }

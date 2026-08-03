@@ -69,7 +69,7 @@ Do not infer an unreported method, denominator, result, or uncertainty from an a
 
 Keep prior snapshots immutable. Save a new snapshot with the revised cutoff and run:
 
-`<plugin-root>/scripts/diff_literature_review.py <previous.json> <current.json> --output <diff.json>`
+`"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_literature_review.py" <previous.json> <current.json> --output <diff.json>`
 
 Report added, removed, and changed queries, studies, eligibility decisions, and claims. Never replace a previous reviewed narrative without a diff and review invalidation.
 

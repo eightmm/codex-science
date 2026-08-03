@@ -31,6 +31,9 @@ class ScienceStopHookTests(unittest.TestCase):
         env = os.environ.copy()
         env["PLUGIN_DATA"] = str(self.plugin_data)
         env["CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS"] = str(idle_limit)
+        env["CODEX_SCIENCE_RUNTIME_VERSION"] = "0.5.0+codex.20260803052001"
+        env["CODEX_SCIENCE_RUNTIME_COMMIT"] = "a" * 40
+        env["CODEX_SCIENCE_RUNTIME_RECEIPT"] = "b" * 64
         if stop_mode is None:
             env.pop("CODEX_SCIENCE_STOP_MODE", None)
         else:
@@ -110,7 +113,8 @@ class ScienceStopHookTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertNotIn("decision", output)
-        self.assertIn("blocking continuation is disabled", output["systemMessage"])
+        self.assertIn("작업이 남아 있습니다", output["systemMessage"])
+        self.assertIn("discover", output["systemMessage"])
         self.assertIn("Search the second primary source", output["systemMessage"])
         self.assertEqual(0, load_checkpoint(self.run_dir)["idle_continuations"])
 
@@ -124,7 +128,8 @@ class ScienceStopHookTests(unittest.TestCase):
         self.assertEqual("block", output["decision"])
         self.assertIn("Search the second primary source", output["reason"])
         self.assertIn(str(self.run_dir / "checkpoint.json"), output["reason"])
-        self.assertIn("auto-continue 1/3", output["systemMessage"])
+        self.assertIn("계속 진행", output["systemMessage"])
+        self.assertNotIn("1/3", output["systemMessage"])
 
     def test_inactive_or_foreign_session_never_blocks(self) -> None:
         self.create()
@@ -159,7 +164,8 @@ class ScienceStopHookTests(unittest.TestCase):
         self.assertEqual("block", first["decision"])
         self.assertEqual("block", second["decision"])
         self.assertNotIn("decision", exhausted)
-        self.assertIn("safety limit", exhausted["systemMessage"])
+        self.assertIn("안전하게 멈췄습니다", exhausted["systemMessage"])
+        self.assertIn("체크포인트 확인", exhausted["systemMessage"])
 
     def test_corrupt_or_symlinked_checkpoint_fails_open(self) -> None:
         self.activate()

@@ -44,7 +44,7 @@ The statement hash is part of every proof and counterexample linkage. Rephrasing
 ## Counterexample search
 
 ```bash
-uv run python scripts/search_counterexample.py search.input.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/search_counterexample.py" search.input.json \
   --output artifacts/run/counterexample-search.json
 ```
 

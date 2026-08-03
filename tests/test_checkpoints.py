@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from codex_science.checkpoints import (
     advance_checkpoint,
@@ -70,6 +71,37 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual("orient", checkpoint["current_step"])
         self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
         self.assertEqual(checkpoint, json.loads(path.read_text(encoding="utf-8")))
+
+    def test_runtime_switch_is_durably_marked_on_next_checkpoint_write(self) -> None:
+        runtime_b = {
+            "commit": "b" * 40,
+            "receipt_sha256": "b" * 64,
+            "runtime_version": "1.0.0+codex.b",
+            "source_id": "b" * 16,
+        }
+        runtime_c = {
+            "commit": "c" * 40,
+            "receipt_sha256": "c" * 64,
+            "runtime_version": "1.0.0+codex.c",
+            "source_id": "c" * 16,
+        }
+        with mock.patch(
+            "codex_science.runtime_identity.current_runtime_identity",
+            side_effect=[runtime_b, runtime_c],
+        ):
+            created = self.create()
+            (self.run_dir / "runtime-switch.json").write_text(
+                '{"status":"observed"}\n', encoding="utf-8"
+            )
+            changed = heartbeat_checkpoint(
+                self.run_dir,
+                next_action="Continue with the new verified runtime",
+                progress_ref="runtime-switch.json",
+            )
+
+        self.assertFalse(created["runtime_span"])
+        self.assertTrue(changed["runtime_span"])
+        self.assertEqual([runtime_b, runtime_c], changed["runtime_history"])
 
     def test_atomic_checkpoint_write_never_follows_a_precreated_temp_symlink(self) -> None:
         self.run_dir.mkdir(parents=True)
