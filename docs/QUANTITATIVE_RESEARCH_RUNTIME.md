@@ -11,6 +11,7 @@ Before this runtime, the repository had strong instruction skills for proof, exp
 - no proof-obligation graph or kernel proof receipt;
 - no executable preregistration audit for experimental units, stopping, multiplicity, missingness, exclusions, or causal identification;
 - no dependency-free deterministic baseline for effect size, uncertainty interval, and randomization inference;
+- no finite action/state decision receipt connecting prior risk, minimax regret, information value, experiment cost, and decision sensitivity;
 - no common convergence/residual/invariant receipt;
 - no bounded dimensional equation and unit-conversion engine;
 - no covariance-aware linear and Monte Carlo uncertainty receipt;
@@ -24,6 +25,7 @@ The new runtime closes those gaps while keeping advanced domain-specific tools r
 research question
   ├─ research-design
   ├─ statistical-analysis
+  ├─ decision-analysis
   ├─ mathematical-claim
   │    ├─ counterexample-search
   │    ├─ proof-obligation-graph
@@ -56,6 +58,16 @@ All artifacts remain ordinary manifest entries with SHA-256. Editing a result in
 ```
 
 The built-in baseline supports bounded independent or paired two-group mean or median contrasts, experimental-unit aggregation, percentile bootstrap intervals, exact or seeded Monte Carlo randomization tests, standardized effects, and Benjamini-Hochberg adjustment. Complex models remain external but should emit equivalent provenance and review artifacts.
+
+### Statistical decision analysis
+
+```bash
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_decision_analysis.py" decision.json \
+  --output artifacts/run/decision-analysis.json \
+  --report artifacts/run/decision-analysis.md
+```
+
+The bounded runtime supports finite one-stage loss, cardinal-utility, or explicitly risk-neutral payoff tables; Bayes risk or expected value; pure minimax loss; minimax regret; dominance; posterior outcome policies; EVPI/EVSI and experiment cost; and two-state prior thresholds. It preserves ties and decision-sensitive regions, and rejects incomplete matrices, ambiguous scales, non-normalized probabilities, action-dependent state models, and experiment valuation under an incompatible criterion.
 
 ### Counterexample search
 
@@ -172,6 +184,7 @@ The following skills now use DeepMind-style progressive reference contracts and 
 - `proof-and-counterexample` — L3;
 - `formal-theorem-proving` — L3;
 - `statistical-inference-experimental-design` — L3;
+- `statistical-decision-analysis` — L4;
 - `numerical-analysis-error-control` — L3;
 - `dimensional-analysis-units` — L3;
 - `experimental-uncertainty-propagation` — L3.
@@ -181,6 +194,7 @@ Each `SKILL.md` carries the decision-bearing workflow. Detailed CLI arguments, s
 ## Non-goals and limitations
 
 - The statistical baseline does not replace generalized, hierarchical, longitudinal, survival, causal, Bayesian, or survey-specific models.
+- The decision baseline does not validate probabilities or utilities and does not solve continuous decisions, mixed strategies, games, MDPs, POMDPs, or RL.
 - The expression evaluator is not a computer algebra system or arbitrary Python runtime.
 - The unit registry is bounded and does not encode every domain convention.
 - Monte Carlo input distributions are assumed, not learned or validated.

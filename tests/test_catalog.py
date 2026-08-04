@@ -166,6 +166,7 @@ class CatalogAuditTests(unittest.TestCase):
             "Run a Julia notebook on the local GPU": "cx-compute-environment",
             "Submit a scientific job to a Slurm HPC cluster": "cx-remote-scientific-compute",
             "Turn this reviewed run into a manuscript with verified citations": "cx-write-scientific-manuscript",
+            "Make a statistical decision under uncertainty using Bayes risk and whether the experiment's EVSI is worth its cost": "cx-statistical-decision-analysis",
         }
 
         for query, expected in cases.items():

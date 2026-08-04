@@ -18,6 +18,7 @@ STRICT_SKILLS = {
     "literature-review",
     "docking-validation",
     "remote-scientific-compute",
+    "statistical-decision-analysis",
 }
 
 

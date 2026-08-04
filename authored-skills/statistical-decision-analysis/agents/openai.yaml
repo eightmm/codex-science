@@ -1,0 +1,4 @@
+interface:
+  display_name: "Statistical Decision Analysis"
+  short_description: "Compare actions, information value, and sensitivity"
+  default_prompt: "Use $statistical-decision-analysis to compare these actions under uncertainty and test whether more information is worth its cost."

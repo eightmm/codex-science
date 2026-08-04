@@ -74,6 +74,12 @@
       "require_reference_contract": true
     },
     {
+      "skill": "statistical-decision-analysis",
+      "minimum_maturity": "L4",
+      "required_roles": ["analyzer", "reviewer"],
+      "require_reference_contract": true
+    },
+    {
       "skill": "numerical-analysis-error-control",
       "minimum_maturity": "L3",
       "required_roles": ["analyzer", "reviewer"],

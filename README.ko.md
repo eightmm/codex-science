@@ -12,7 +12,7 @@
   <a href="https://github.com/eightmm/codex-science/actions/workflows/ci.yml"><img src="https://github.com/eightmm/codex-science/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 에이전틱 생명과학 evidence synthesis, 실험 분광·분석화학, 로컬·원격 과학 컴퓨팅, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **282개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다. 공개 source 34개와 로컬 catalog 검색·research planner를 read-only MCP로 제공합니다.
+Codex Science는 하나의 Codex 작업을 옵트인 방식의 과학 워크벤치로 바꿉니다: 한 번 시작하면 이후 턴에서 연구 워크플로가 이어지고, 명시적으로 종료합니다. [K-Dense-AI](https://github.com/K-Dense-AI/scientific-agent-skills)에서 pin한 149개에, [Google DeepMind](https://github.com/google-deepmind/science-skills) 과학 스킬 전체, 공개 교재 기반 수학·물리와 유한 통계적 의사결정 분석, 에이전틱 생명과학 evidence synthesis, 실험 분광·분석화학, 로컬·원격 과학 컴퓨팅, Claude Science 공개 featured workflow, ESMFold2·ESMC·AlphaFold3·Protenix-v2·SimpleFold·RoseTTAFold All-Atom·RFdiffusion·BindCraft 같은 최신 공개 모델의 [Codex-native 저작본](authored-skills/)을 더한 **283개 감사된 에이전트 스킬** 카탈로그로 작업을 라우팅합니다. 공개 source 34개와 로컬 catalog 검색·research planner를 read-only MCP로 제공합니다.
 
 Claude Science의 공개 워크플로에서 영감을 받은 독립 Codex 플러그인이며, 비공개 구현과의 동등성을 주장하지 않습니다.
 
@@ -293,7 +293,7 @@ packet으로 제시합니다. 승인된 reversible 단계는 반복 확인 없�
 report·table·notebook·log·보조 figure는 클릭 가능한 절대경로 링크로
 제공합니다. 별도 웹 배포는 필요하지 않습니다.
 
-새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 282개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
+새 작업에서 평범한 과학 질문만으로는 모드가 활성화되지 않습니다. Codex에 등록되는 코어 스킬은 3개뿐이며, 283개 카탈로그 wrapper는 내부 카탈로그에 남아 활성 coordinator가 선택할 때만 로드됩니다.
 
 > 카탈로그에 있다고 실행 권한이 생기는 것은 아닙니다. 비활성 스킬은 audit 사유를 표시하고, upstream 지침을 열람하기 전에 확인을 요구합니다. 검증·설정·경계는 [docs/](docs/) 참고.
 
@@ -302,7 +302,7 @@ report·table·notebook·log·보조 figure는 클릭 가능한 절대경로 링
 모든 스킬은 하나의 결정적·감사된 inventory(`catalog/inventory.json`)로 병합되며, 세 티어로 구성됩니다:
 
 - **K-Dense-AI — 149** · pinned upstream(Git 서브모듈); 얇은 Codex wrapper가 고정된 지침을 가리킴.
-- **Codex-native 저작 — 128** · Google DeepMind 과학 스킬 전체, 공개 교재 기반 수학·물리 워크플로 28개, 에이전틱 생명과학 source·synthesis workflow 25개, protocol 기반 literature-review conductor, 분광·NMR·MS·XRD/산란·크로마토그래피·통합 구조규명 워크플로 6개, 로컬·원격 과학 컴퓨팅, 최신 구조·단백질/유전체·도킹·설계·MD·single-cell 모델을 [격리·승인형 실행 스킬](authored-skills/)로 제공. 실제 문제가 주어지면 전용 runner가 풀이·독립 검증·provenance·review까지 이어서 수행. 공개 source 34개와 로컬 catalog 검색·life-science planner는 plugin read-only MCP(`science_search_*`, `science_plan_*`)로 직접 호출. [생명과학 source 지원표](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md) 참고.
+- **Codex-native 저작 — 131** · Google DeepMind 과학 스킬 전체, 공개 교재 기반 수학·물리와 유한 통계적 의사결정 분석, 에이전틱 생명과학 source·synthesis workflow, protocol 기반 literature-review conductor, 분광·NMR·MS·XRD/산란·크로마토그래피·통합 구조규명 워크플로 6개, 로컬·원격 과학 컴퓨팅, 최신 구조·단백질/유전체·도킹·설계·MD·single-cell 모델을 [격리·승인형 실행 스킬](authored-skills/)로 제공. 실제 문제가 주어지면 전용 runner가 풀이·독립 검증·provenance·review까지 이어서 수행. 공개 source 34개와 로컬 catalog 검색·life-science planner는 plugin read-only MCP(`science_search_*`, `science_plan_*`)로 직접 호출. [생명과학 source 지원표](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md) 참고.
 - **DeepMind 인프라 — 3** · `credentials`, `uv`, `workflow_skill_creator`는 포인터로 유지.
 
 보수적 audit이 각 스킬을 **active/inactive**로 표시합니다(라이선스·실행 코드·인증정보·안전성 기준). 비활성 스킬은 카탈로그에 남되 사용 전 명시적 확인을 요구합니다.

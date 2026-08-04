@@ -9,7 +9,7 @@ Codex Science uses one release identity module: `src/codex_science/version.py`.
 - Python package: `0.5.0`
 - MCP server: `0.5.0`
 - Stable host-bootstrap version: `0.5.0+codex.20260803040515`
-- Scientific runtime version: `0.5.0+codex.20260803040515`
+- Scientific runtime version: `0.5.0+codex.20260804051742`
 - Machine-readable release record: `release/manifest.json`
 
 Run:

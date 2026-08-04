@@ -63,6 +63,19 @@ def main() -> int:
         run([python, "scripts/validate_model_registry_v2.py"], cwd=root)
         run([python, "scripts/run_reviewer_benchmark.py", "--require-safe"], cwd=root)
 
+        run(
+            [
+                python,
+                "scripts/run_decision_analysis.py",
+                "examples/statistical-decision-analysis/input.json",
+                "--output",
+                str(temporary / "decision-analysis.json"),
+                "--report",
+                str(temporary / "decision-analysis.md"),
+            ],
+            cwd=root,
+        )
+
         sbdd_run = temporary / "sbdd-run"
         run(
             [

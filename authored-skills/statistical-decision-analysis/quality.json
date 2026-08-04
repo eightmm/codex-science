@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "skill": "statistical-decision-analysis",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L4",
+  "output_schemas": ["decision-analysis-v1"],
+  "acceptance_fixtures": [
+    "examples/statistical-decision-analysis/input.json"
+  ],
+  "seeded_failures": [
+    "incomplete-decision-table",
+    "mixed-or-ambiguous-value-scale",
+    "non-normalized-prior",
+    "non-normalized-likelihood",
+    "payoff-without-risk-neutrality",
+    "experiment-valued-without-expected-criterion",
+    "evsi-exceeds-evpi",
+    "decision-sensitive-unconditional-recommendation"
+  ],
+  "test_files": [
+    "tests/test_decision_analysis.py"
+  ],
+  "limitations": [
+    "The deterministic runtime is bounded to finite one-stage tables and pure-action minimax; it does not solve randomized policies, continuous decisions, optimal stopping, MDPs, POMDPs, RL, or games.",
+    "Probability, likelihood, causal, utility, loss, and risk-neutrality assumptions are inputs and remain outside the solver's validation boundary.",
+    "An acceptance fixture validates computation and contracts, not the correctness or authority of a real-world decision."
+  ]
+}

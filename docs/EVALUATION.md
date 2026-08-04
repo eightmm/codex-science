@@ -2,8 +2,8 @@
 
 ## Acceptance
 
-- 282 skills (149 K-Dense + 3 DeepMind infra pointers + 130 Codex-native authored) appear in the deterministic inventory.
-- All 282 skills have deterministic, source-prefixed Codex-compatible wrappers.
+- 283 skills (149 K-Dense + 3 DeepMind infra pointers + 131 Codex-native authored) appear in the deterministic inventory.
+- All 283 skills have deterministic, source-prefixed Codex-compatible wrappers.
 - Every active skill is returned in the first five results for its natural, source-prefix-free name.
 - Inactive skills cannot be returned by default search.
 - Only the three task-scoped core skills are registered with the plugin.
@@ -18,8 +18,8 @@
   only, `off` skips lifecycle checks, explicit requests install compatible
   runtimes in every mode without switching an active generation, and any failed
   check preserves the last-known-good runtime.
-- Plugin, three registered skills, and all 282 internal wrapper schemas validate.
-- All 127 Codex-native source skills validate and include `agents/openai.yaml` UI metadata.
+- Plugin, three registered skills, and all 283 internal wrapper schemas validate.
+- All 131 Codex-native source skills validate and include `agents/openai.yaml` UI metadata.
 - The bundled read-only MCP exposes 34 public-source tools plus local catalog
   search and deterministic life-science planning; new source families have
   parser tests and representative live smoke coverage.

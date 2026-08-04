@@ -10,6 +10,7 @@
 - Stage 2 scope: Preserve the complete public Scientific Agent Skills catalog in this repository at a pinned upstream revision. Enable only audited skills by default. Enable public read-only scientific data sources by default; provide opt-in configuration templates for authenticated services.
 - Stage 3 execution: Verify an end-to-end research flow in a fresh Codex task, including skill routing, analysis artifacts, execution provenance, environment capture, independent review, and smoke tests against at least three public scientific data sources.
 - Stage 4 confirmed manuscript scope: Add a first-party `write-scientific-manuscript` skill that turns reviewed scientific artifacts or an existing draft into a traceable manuscript and submission package without external credentials or mandatory generated figures.
+- Stage 5 confirmed decision-analysis scope: Add a first-party finite statistical decision-analysis skill that keeps actions, exogenous states, value scale, priors, information timing, criterion choice, EVPI/EVSI, experiment cost, and sensitivity explicit without expanding into sequential control or high-stakes prescriptive advice.
 - Open decisions: None.
 
 ## Project
@@ -29,6 +30,9 @@
     rebuttal. It must preserve claim-to-evidence and citation traceability,
     distinguish reported results from interpretation, and hand the finished
     package to independent review.
+  - Add a bounded finite decision-analysis workflow for Bayes risk or expected
+    value, pure minimax loss, minimax regret, dominance, posterior outcome
+    policies, EVPI/EVSI, experiment cost, and two-state prior thresholds.
   - Provide public read-only connector coverage for the documented Claude Science source categories where a legal public API or maintained public implementation is available.
   - Provide configuration templates, with no secrets, for authenticated services such as Benchling, DNAnexus, Modal, and similar integrations.
   - Support local Python, R, Julia, Jupyter, shell, container, CPU, and GPU execution plus approved existing SSH, Slurm/HPC, cloud GPU, and private object-storage workflows. Install task-specific scientific packages only when a selected workflow requires them.
@@ -38,6 +42,8 @@
   - Enable every imported skill without review.
   - Store credentials or automatically authorize paid, write-capable, clinical, or destructive services.
   - Treat reviewer output as a substitute for scientific, clinical, or regulatory validation.
+  - Treat a computed decision optimum as validation of supplied probabilities,
+    utilities, losses, causal effects, authority to act, or high-stakes advice.
   - Fabricate citations, author identities or contributions, ethics approval,
     funding, conflicts of interest, data availability, or unrecorded numerical
     results.
@@ -125,6 +131,9 @@
   explicit citation-needed findings rather than invented references.
 - Every reported number, unit, denominator, uncertainty statement, table, and
   figure traces to a hashed artifact or cited primary source.
+- Every decision-analysis result retains its finite action/state table, common
+  consequence horizon and scale, selected criterion, probability and likelihood
+  assumptions, information boundary, sensitivity, and conditional status.
 - Author, contribution, ethics, funding, conflict, and availability statements
   retain `unknown`, `not-applicable`, or user-supplied status instead of being
   inferred.
@@ -220,6 +229,10 @@
   - One fixture that produces Markdown, LaTeX/BibTeX, traceability sidecars, a
     reporting checklist, and a reviewable submission package without network
     credentials.
+  - Deterministic finite decision-analysis tests covering Bayes/minimax
+    conflicts, dominance, regret, EVPI/EVSI bounds, net experiment value,
+    unreachable outcomes, decision thresholds, input-order invariance, and
+    malformed probability or value contracts.
   - One lifecycle fixture proving that an A-to-B automatic update dispatches
     B's session runtime in the initiating task, while failed, offline, concurrent,
     and interrupted updates continue on A or recover it.

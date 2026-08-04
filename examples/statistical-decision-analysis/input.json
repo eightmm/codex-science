@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "analysis_id": "candidate-assay-decision-v1",
+  "claim_id": "claim-candidate-assay-policy",
+  "question": "Which candidate minimizes modeled loss, and is the bounded assay worth its cost?",
+  "information_boundary": "Choose one candidate after observing at most one assay outcome.",
+  "consequence_horizon": "All loss values cover the same 30-day outcome horizon.",
+  "state_model": "exogenous",
+  "applicability": "The three listed candidates and two-state mechanism model only.",
+  "criterion": "bayes-risk",
+  "criterion_rationale": "The prior is recorded and the consequence table is expressed as loss.",
+  "scale": {
+    "kind": "loss",
+    "unit": "loss-point",
+    "risk_attitude": "encoded-in-loss"
+  },
+  "tie_tolerance": 1e-12,
+  "actions": [
+    {
+      "id": "risky",
+      "label": "Risky candidate"
+    },
+    {
+      "id": "safe",
+      "label": "Safe candidate"
+    },
+    {
+      "id": "dominated",
+      "label": "Dominated candidate"
+    }
+  ],
+  "states": [
+    {
+      "id": "mechanism-1",
+      "label": "Mechanism 1",
+      "prior": 0.6
+    },
+    {
+      "id": "mechanism-2",
+      "label": "Mechanism 2",
+      "prior": 0.4
+    }
+  ],
+  "values": [
+    {
+      "action": "risky",
+      "state": "mechanism-1",
+      "value": 0
+    },
+    {
+      "action": "risky",
+      "state": "mechanism-2",
+      "value": 10
+    },
+    {
+      "action": "safe",
+      "state": "mechanism-1",
+      "value": 4
+    },
+    {
+      "action": "safe",
+      "state": "mechanism-2",
+      "value": 4
+    },
+    {
+      "action": "dominated",
+      "state": "mechanism-1",
+      "value": 6
+    },
+    {
+      "action": "dominated",
+      "state": "mechanism-2",
+      "value": 8
+    }
+  ],
+  "experiments": [
+    {
+      "id": "bounded-assay",
+      "label": "Bounded assay",
+      "cost_in_scale_units": 0.5,
+      "outcomes": [
+        {
+          "id": "signal-1",
+          "likelihoods": {
+            "mechanism-1": 0.8,
+            "mechanism-2": 0.2
+          }
+        },
+        {
+          "id": "signal-2",
+          "likelihoods": {
+            "mechanism-1": 0.2,
+            "mechanism-2": 0.8
+          }
+        }
+      ]
+    }
+  ],
+  "sensitivity": {
+    "two_state_prior": {
+      "state_id": "mechanism-1",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "assumptions": [
+    "The states are mutually exclusive and exhaustive for this bounded comparison.",
+    "The assay changes information only and does not alter the consequence table.",
+    "Assay cost is commensurate with the encoded loss scale."
+  ]
+}

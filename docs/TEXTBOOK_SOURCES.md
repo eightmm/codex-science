@@ -165,6 +165,10 @@ literature, current standards, or tool documentation for a concrete project.
   <https://docs.lean-lang.org/theorem_proving_in_lean4/>
 - NASA, verification, validation, and uncertainty-quantification guidance:
   <https://ntrs.nasa.gov/citations/20070017454>
+- UC Berkeley Data 102, *Data, Inference, and Decisions*, statistical decision
+  theory chapter, CC BY-SA 4.0: <https://data102.org/ds-102-book/content/chapters/01/decision-theory/>
+- Glynn et al. (2022), *Value of Information and Decision Pathways: Concepts and
+  Case Studies*, CC BY 4.0: <https://doi.org/10.3389/fenvs.2022.805214>
 
 ## Explicit exclusions
 
@@ -174,6 +178,13 @@ literature, current standards, or tool documentation for a concrete project.
   a right to download the text. Do not cache or transform it.
 - Commercial textbook mirrors: never use unofficial copies regardless of technical
   availability.
+- Mazumder, *Statistical Decision Theory: Concepts, Methods and Applications*
+  (2003 first complete draft), <https://probability.ca/jeff/ftpdir/anjali0.pdf>:
+  the author-hosted PDF was consulted only to map
+  possible capability areas. No explicit adaptation or redistribution license was
+  identified, so do not cache, bundle, copy, or adapt its prose, figures, formulas,
+  structure, or worked examples. Use the independently synthesized runtime and the
+  licensed references above instead.
 
 ## Skills grounded in this registry
 
@@ -189,6 +200,7 @@ literature, current standards, or tool documentation for a concrete project.
 - `quantum-mechanics`
 - `probability-stochastic-processes`
 - `statistical-inference-experimental-design`
+- `statistical-decision-analysis`
 - `optimization-variational-methods`
 - `asymptotic-perturbation-methods`
 - `complex-fourier-analysis`

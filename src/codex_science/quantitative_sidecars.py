@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Mapping
 
+from codex_science.decision_analysis import review_decision_analysis, validate_decision_analysis
 from codex_science.math_contracts import (
     math_review_findings,
     validate_mathematical_claim,
@@ -25,6 +26,7 @@ QUANTITATIVE_KINDS = {
     "counterexample-search",
     "formal-proof-check",
     "statistical-analysis",
+    "decision-analysis",
     "numerical-verification",
     "dimension-check",
     "uncertainty-propagation",
@@ -40,6 +42,7 @@ def empty_quantitative_sidecars() -> dict[str, list[dict[str, Any]]]:
         "counterexample_receipts": [],
         "formal_proof_checks": [],
         "statistical_analyses": [],
+        "decision_analyses": [],
         "numerical_verifications": [],
         "dimension_checks": [],
         "uncertainty_propagations": [],
@@ -72,6 +75,9 @@ def validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result:
     elif kind == "statistical-analysis":
         validate_statistical_analysis(payload)
         result["statistical_analyses"].append(dict(payload))
+    elif kind == "decision-analysis":
+        validate_decision_analysis(payload)
+        result["decision_analyses"].append(dict(payload))
     elif kind == "numerical-verification":
         validate_numerical_verification(payload)
         result["numerical_verifications"].append(dict(payload))
@@ -93,6 +99,7 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
     counters = [item for item in sidecars.get("counterexample_receipts", []) if isinstance(item, Mapping)]
     graphs = [item for item in sidecars.get("proof_obligation_graphs", []) if isinstance(item, Mapping)]
     analyses = [item for item in sidecars.get("statistical_analyses", []) if isinstance(item, Mapping)]
+    decisions = [item for item in sidecars.get("decision_analyses", []) if isinstance(item, Mapping)]
     numerical = [item for item in sidecars.get("numerical_verifications", []) if isinstance(item, Mapping)]
     dimensions = [item for item in sidecars.get("dimension_checks", []) if isinstance(item, Mapping)]
     uncertainty = [item for item in sidecars.get("uncertainty_propagations", []) if isinstance(item, Mapping)]
@@ -101,6 +108,8 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
         findings.extend(review_research_design(design))
     for analysis in analyses:
         findings.extend(review_statistical_analysis(analysis))
+    for decision in decisions:
+        findings.extend(review_decision_analysis(decision))
     for receipt in numerical:
         findings.extend(review_numerical_verification(receipt))
     for receipt in dimensions:
@@ -151,6 +160,8 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
     by_claim: dict[str, list[str]] = defaultdict(list)
     for item in analyses:
         by_claim[str(item.get("claim_id"))].append("statistical-analysis")
+    for item in decisions:
+        by_claim[str(item.get("claim_id"))].append("decision-analysis")
     for item in numerical:
         by_claim[str(item.get("claim_id"))].append("numerical-verification")
     for item in dimensions:

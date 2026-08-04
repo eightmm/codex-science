@@ -28,17 +28,19 @@ run_wrappers() {
 }
 
 run_science_contracts() (
-  local review_tmp diff_tmp benchmark_tmp reference_tmp maturity_json maturity_md sbdd_dir quantitative_dir manuscript_dir
+  local review_tmp diff_tmp benchmark_tmp reference_tmp maturity_json maturity_md decision_tmp decision_report_tmp sbdd_dir quantitative_dir manuscript_dir
   review_tmp="$(mktemp)"
   diff_tmp="$(mktemp)"
   benchmark_tmp="$(mktemp)"
   reference_tmp="$(mktemp)"
   maturity_json="$(mktemp)"
   maturity_md="$(mktemp)"
+  decision_tmp="$(mktemp)"
+  decision_report_tmp="$(mktemp)"
   sbdd_dir="$(mktemp -d)"
   quantitative_dir="$(mktemp -d)"
   manuscript_dir="$(mktemp -d)"
-  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$reference_tmp" "$maturity_json" "$maturity_md"; rm -rf "$sbdd_dir" "$quantitative_dir" "$manuscript_dir"' EXIT
+  trap 'rm -f "$review_tmp" "$diff_tmp" "$benchmark_tmp" "$reference_tmp" "$maturity_json" "$maturity_md" "$decision_tmp" "$decision_report_tmp"; rm -rf "$sbdd_dir" "$quantitative_dir" "$manuscript_dir"' EXIT
 
   uv run python scripts/validate_release.py
   uv run python scripts/validate_connector_contracts.py
@@ -54,6 +56,12 @@ run_science_contracts() (
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe
+
+  uv run python scripts/run_decision_analysis.py \
+    examples/statistical-decision-analysis/input.json \
+    --output "$decision_tmp" \
+    --report "$decision_report_tmp" >/dev/null
+  echo "decision analysis: valid"
 
   uv run python scripts/validate_artifact.py \
     examples/literature-review-reviewed-run/manifest.json \

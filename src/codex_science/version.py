@@ -8,7 +8,7 @@ PACKAGE_VERSION = "0.5.0"
 PLUGIN_VERSION = "0.5.0+codex.20260803040515"
 # Scientific workflows and implementation run from the project-owned immutable
 # runtime store. This cachebuster can advance independently of PLUGIN_VERSION.
-RUNTIME_VERSION = "0.5.0+codex.20260803040515"
+RUNTIME_VERSION = "0.5.0+codex.20260804051742"
 MCP_VERSION = PACKAGE_VERSION
 RELEASE_SCHEMA_VERSION = 2
 RUNTIME_AFFECTING_PREFIXES = (

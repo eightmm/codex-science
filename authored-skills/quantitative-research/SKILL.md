@@ -25,6 +25,7 @@ Do not select a test, solver tolerance, search domain, or proof statement after 
 Inspect `references/index.json` and load only the entries required for the selected lanes.
 
 - Read [research design and statistics](references/research-design-and-statistics.md) before `research-design-audit` or `statistical-analysis`.
+- For a finite action choice, information-value calculation, or prior decision threshold, invoke `$cx-statistical-decision-analysis` and read its indexed finite runtime before creating a `decision-analysis` receipt.
 - Read [mathematical claims and proof levels](references/mathematical-proof-and-counterexample.md) before `counterexample-search`, `proof-obligation-authoring`, or any `proved-*` status.
 - Read [numerical, dimensional, and uncertainty verification](references/numerical-units-uncertainty.md) before `numerical-verification`, `dimension-check`, or `uncertainty-propagation`.
 - Read [formal proof execution](references/formal-proof-runtime.md) before executing Lean or accepting a kernel-check receipt.
@@ -36,7 +37,7 @@ For a material computation or claim, record the loaded reference hashes with `"<
 
 1. **Specify.** Normalize assumptions, quantifiers, variables, units, experimental units, outcomes, estimands, and claim status. Give each material claim an ID.
 2. **Preregister.** For empirical work, author a `research-design` input and run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_research_design.py" --require-clean` before outcome-driven analysis.
-3. **Route evidence lanes.** Use `$cx-statistical-inference-experimental-design`, `$cx-proof-and-counterexample`, `$cx-formal-theorem-proving`, `$cx-numerical-analysis-error-control`, `$cx-dimensional-analysis-units`, and `$cx-experimental-uncertainty-propagation` as applicable.
+3. **Route evidence lanes.** Use `$cx-statistical-inference-experimental-design`, `$cx-statistical-decision-analysis`, `$cx-proof-and-counterexample`, `$cx-formal-theorem-proving`, `$cx-numerical-analysis-error-control`, `$cx-dimensional-analysis-units`, and `$cx-experimental-uncertainty-propagation` as applicable.
 4. **Execute.** Use only the bounded CLIs described in the selected references. Write results to files; never paste a large result stream into the conversation.
 5. **Cross-check.** Require independent checks appropriate to the lane: exact randomization, sensitivity analysis, refinement order, residual, invariant, unit balance, covariance-aware propagation, counterexample verification, proof obligations, or kernel execution.
 6. **Package.** Save quantitative sidecars under one hash-validated manifest with `$science-provenance`.
@@ -48,6 +49,7 @@ A complete run uses the applicable machine-readable artifacts:
 
 - `research-design`
 - `statistical-analysis`
+- `decision-analysis`
 - `mathematical-claim`
 - `counterexample-search`
 - `proof-obligation-graph`

@@ -28,8 +28,13 @@ def load_json_object(path: Path, *, max_bytes: int = DEFAULT_MAX_JSON_BYTES) -> 
 
 
 def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     rendered = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    write_text_atomic(path, rendered)
+
+
+def write_text_atomic(path: Path, rendered: str) -> None:
+    """Write UTF-8 text through a same-directory atomic replacement."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)
     try:

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "skill": "statistical-decision-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "finite-decision-analysis",
+      "path": "references/finite-decision-analysis.md",
+      "purpose": "Exact finite input schema, supported decision criteria, information-value semantics, prior sensitivity, CLI use, validation, and interpretation boundaries.",
+      "read_when": [
+        "comparing finite actions under uncertainty",
+        "calculating Bayes risk, minimax, minimax regret, EVPI, or EVSI",
+        "testing whether an experiment is worth its cost",
+        "finding prior thresholds where an action changes"
+      ],
+      "required_before": [
+        "decision-analysis",
+        "information-value-analysis",
+        "decision-sensitivity-analysis"
+      ],
+      "search_patterns": [
+        "## Input schema",
+        "## Supported criteria",
+        "## Information value",
+        "## Prior sensitivity",
+        "## Validation and failure handling"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines deterministic calculations conditional on a finite problem contract; it does not validate probabilities, utilities, causal effects, or real-world authority to act."
+    }
+  ]
+}

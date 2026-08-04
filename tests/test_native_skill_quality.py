@@ -60,6 +60,13 @@ TIER1_SKILLS = {
         "reviewer rebuttal",
         "unresolved declarations",
     ),
+    "statistical-decision-analysis": (
+        "Bayes risk",
+        "EVPI",
+        "EVSI",
+        "decision-sensitive",
+        "MDPs",
+    ),
 }
 
 REQUIRED_SECTIONS = (

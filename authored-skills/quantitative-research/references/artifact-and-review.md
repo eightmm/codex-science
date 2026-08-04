@@ -10,6 +10,7 @@ The artifact manifest recognizes these quantitative sidecars:
 | --- | --- |
 | `research-design` | preregistration, experimental unit, estimand, stopping, multiplicity, missingness, exclusions |
 | `statistical-analysis` | effect, interval, randomization test, unit counts, multiplicity output, seed |
+| `decision-analysis` | finite action/state contract, criterion scores, dominance, regret, EVPI/EVSI, posterior policy, sensitivity |
 | `mathematical-claim` | exact statement hash, domain, assumptions, quantifiers, status, permitted inference |
 | `counterexample-search` | bounded domain, assumptions, evaluations, counterexample or exhaustion status |
 | `proof-obligation-graph` | dependency-complete proof decomposition |
@@ -26,6 +27,7 @@ Every file is included in the manifest with an exact SHA-256. Editing any sideca
 Artifact review enforces:
 
 - every statistical analysis references an included `research-design` by `design_id`;
+- every decision analysis passes deterministic recomputation and preserves its probability, value-scale, criterion, information-boundary, and applicability assumptions;
 - quantitative checks reference an included mathematical claim when mathematical claims are present;
 - proof and counterexample receipts match the exact mathematical statement SHA-256;
 - `proved-formal` requires a passed formal-kernel receipt;
