@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Completed discovery development support: optional strict assumption-to-method
+  design and observation-linked revision lessons, conditional cross-run memory,
+  next-action synthesis, prediction graph export, separate review axes, and
+  preregistered observation-conditioned finite decisions. Added a receipt-backed
+  matched-comparison evaluator with explicit synthetic and unauthenticated
+  provenance boundaries; it does not establish empirical agent improvement.
+
+- Added Research Discovery Loop: competing explanations, executable method
+  definitions, prediction-discriminating selection, budget reservations,
+  immutable observation-driven revisions, and integration with run artifacts
+  and ProjectStore. CPU acceptance exercises representation change, repair,
+  and inconclusive termination. These fixtures establish runtime behavior, not
+  a measured improvement in an agent's research ability.
+- Added optional immutable Git source binding for durable local and Slurm jobs.
+  Strict jobs hash-bind an exact clean commit and declared input digests, start
+  with an owner-only verified archive as cwd, collect from that isolated
+  materialization, and fail closed on moved/dirty trees, unsafe entries, or
+  archive tampering. Omitting the field preserves legacy schema-v1
+  serialization, fingerprints, and live-tree source execution. New Slurm
+  rendering and submission reject whitespace, controls, and unsupported token
+  characters in directive fields while persisted legacy job records remain
+  readable for status, cancellation, and collection.
 - Added `cx-statistical-decision-analysis`, a finite one-stage decision runtime with explicit loss, utility, or risk-neutral payoff scales; Bayes and pure minimax comparisons; minimax regret and dominance; posterior outcome policies; EVPI/EVSI and experiment cost; two-state prior thresholds; deterministic recomputation; provenance sidecar validation; and L4 fixtures. The 2003 draft supplied during design is recorded as a non-reusable scoping source rather than copied. Catalog: 283 (149 kdense + 3 gdm + 131 cx; 171 active).
 - The installer now recovers when `codex plugin marketplace list --json` is unavailable or fails: it reads the existing `codex-science` entry from Codex's local config, preserves the same-source and rollback guarantees, and reports both CLI and config errors when recovery is impossible.
 - The one-command installer now works when the system `python3` is 3.8 by provisioning a persistent managed Python 3.12 with `uv` (or falling back to an existing Python 3.11+). Hooks, MCP, bootstrap, and transactional candidate checks all reuse the recorded interpreter directly instead of depending on PATH or invoking `uv` for each event.

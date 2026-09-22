@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Discovery Loop"
+  short_description: "Turn bottlenecks into tested methods"
+  default_prompt: "Use $research-discovery to diagnose this bottleneck, compare explanations, and plan the smallest discriminating test."

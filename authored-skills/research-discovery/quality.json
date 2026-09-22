@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "skill": "research-discovery",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "research-cycle-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/research-discovery/input.json"
+  ],
+  "seeded_failures": [
+    "tampered-cycle-snapshot",
+    "stale-cycle-parent",
+    "observation-locator-value-mismatch",
+    "reservation-retry-or-budget-failure",
+    "execution-failure-treated-as-refutation",
+    "successful-completion-without-execution-receipt",
+    "execution-receipt-identity-or-hash-mismatch",
+    "indistinguishable-predictions-at-resolution",
+    "over-budget-discrimination-candidate",
+    "implementation-failure-repair",
+    "honest-budget-overlap-inconclusive",
+    "incomplete-computational-design-reservation",
+    "unregistered-review-overwrite",
+    "posthoc-observation-artifact-selection",
+    "hidden-registered-review-disagreement",
+    "unmatched-comparison-cell",
+    "comparison-metric-relabel"
+  ],
+  "test_files": [
+    "tests/test_research_cycle.py",
+    "tests/test_discovery_planner.py",
+    "tests/test_discovery_integration.py",
+    "tests/test_research_discovery_acceptance.py",
+    "tests/test_discovery_design.py",
+    "tests/test_discovery_synthesis.py",
+    "tests/test_discovery_evidence.py",
+    "tests/test_discovery_workbench.py",
+    "tests/test_discovery_comparison.py"
+  ],
+  "limitations": [
+    "The runtime checks declared contracts, hashes, budgets, transitions, and deterministic toy calculations; it cannot invent valid scientific explanations or establish novelty.",
+    "CPU toy scenarios separate information loss, implementation failure, and inconclusive measurement but do not validate a domain model or generalization.",
+    "P4 comparisons require actual matched runs with the same model, tool, input, evaluator, budget, and review protocol; this repository does not claim those results."
+  ]
+}

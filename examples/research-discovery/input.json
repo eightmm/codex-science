@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "evaluator": "toy_evaluator.py",
+  "primary_metric": "held_out_accuracy",
+  "split": "paired signed samples; train magnitudes 1-4; held-out magnitudes 5-6",
+  "scenarios": [
+    "capacity-revision",
+    "implementation-repair",
+    "budget-overlap-inconclusive"
+  ]
+}

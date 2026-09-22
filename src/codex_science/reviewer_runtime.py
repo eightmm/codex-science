@@ -172,6 +172,14 @@ def build_review_packet(
         },
         "evidence_boundary": "This packet exposes recorded run evidence while excluding producer-only rationale fields. It does not authenticate the reviewer, guarantee true independence, or include unrecorded evidence."
     }
+    if sidecars.get("research_cycles"):
+        material["research_cycles"] = _redact(sidecars["research_cycles"])
+        material["review_questions"].extend([
+            "Do the method's computation and implementation address its stated assumptions and hypotheses?",
+            "Do preregistered predictions and controls distinguish explanations, including null and failed attempts?",
+            "Are revisions traceable to observations without rewriting earlier predictions or expanding the tested applicability?",
+            "Keep execution integrity, method correctness, reproduction, explanation support and novelty separate."
+        ])
     fingerprint = _fingerprint(material)
     return {**material, "review_task_id": f"review-task-{fingerprint[:20]}", "fingerprint": fingerprint}
 

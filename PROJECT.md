@@ -12,6 +12,68 @@
 - Stage 4 confirmed manuscript scope: Add a first-party `write-scientific-manuscript` skill that turns reviewed scientific artifacts or an existing draft into a traceable manuscript and submission package without external credentials or mandatory generated figures.
 - Stage 5 confirmed decision-analysis scope: Add a first-party finite statistical decision-analysis skill that keeps actions, exogenous states, value scale, priors, information timing, criterion choice, EVPI/EVSI, experiment cost, and sensitivity explicit without expanding into sequential control or high-stakes prescriptive advice.
 - Open decisions: None.
+- Stage 6 confirmed discovery scope (2026-09-18): Implement the Research
+  Discovery Loop described in the user's shared conversation and the local
+  architecture assessment. The user authorized Terra/Luna implementation and
+  parent-owned verification through completion. Preserve existing workflows.
+
+## Research Discovery Loop contract
+
+- Route new-method development and unexplained scientific bottlenecks through
+  problem formation, competing explanations, explicit predictions, computational
+  method definitions, discriminating experiments, observations, and revisions.
+  Ordinary retrieval, reproduction, and fixed analyses retain their routes.
+- Codex generates and interprets ideas; the Python runtime validates references,
+  frozen evaluation contracts, budgets, revision history, and transition evidence.
+  A new `research-cycle` hashed artifact is authoritative scientific state;
+  existing checkpoints remain the sole execution/approval/wait lifecycle and
+  ProjectStore remains an index over immutable run bundles. No external service,
+  new dependency, second database, or automatic remote execution is required.
+- Keep hypotheses, method effect, explanation support, verification, and novelty
+  separate. Unproven ideas are permitted; unsupported results are not promoted.
+  Failure due to implementation or measurement cannot refute a hypothesis.
+- Preserve preregistered predictions and evaluation/baseline/split/metric identities.
+  Revisions append instead of rewriting observed predictions. Reserve experiment
+  identity and cost before execution; ambiguous submissions require reconciliation,
+  never blind resubmission. Local artifact confinement and hashes are checked.
+- Add `discriminate_first_v1` selection using explicit distinguishable prediction
+  intervals, measurement resolution, controls, and budget, preserving the legacy
+  planner. Reuse finite decision analysis only with an explicit valid contract;
+  do not equate uncertainty proxies, EIG, and EVSI.
+- Acceptance uses actual inexpensive deterministic CPU calculations: information
+  loss versus capacity, implementation failure/repair, and honest inconclusive
+  termination. Test tampering, resume/idempotency, budget exhaustion, protected
+  evaluator changes, conditional conclusions, and lineage. Run `scripts/check.sh fast`.
+- Provide a matched-model/tool/budget comparison protocol for ordinary Codex,
+  the prior workflow, and RDL. Do not claim measured research-capability gains
+  from deterministic fixtures; agent-comparison results require actual runs.
+- Documentation outline: purpose and limits, lifecycle and schemas, executable
+  CLI walkthrough, recovery and evaluation protection, acceptance and comparison.
+
+## Discovery development completion (user-authorized 2026-09-18)
+
+- Extend the existing RDL with machine-checked assumption-to-method design,
+  conditional cross-run learning, evidence/review projections, and an executable
+  matched-comparison evaluator. Terra/Luna implement bounded components; the
+  parent integrates and verifies them. Existing dirty source-snapshot work stays
+  intact. No publication, remote execution, or new dependency is included.
+- Preserve v1 cycle compatibility; an explicit strict design policy requires a
+  computational method contract before experiment reservation. Exploratory ideas
+  remain admissible without pretending they are implementation-ready.
+- Keep execution integrity, method review, reproduction, explanation consistency,
+  and literature novelty distinct. Existing review receipts remain authoritative
+  review evidence; read-only summaries never rewrite a scientific snapshot.
+- Historical reuse retains conditions, failure/null results and evidence identity;
+  it must not count repeated snapshots as independent experiments or combine
+  incompatible evaluations into a universal rejection rule.
+- The comparison evaluator validates frozen task/model/tool/evaluation/budget
+  identities, complete paired cells and actual receipt-backed outcomes. Synthetic
+  fixtures test the evaluator only. No measured agent improvement is claimed
+  without real matched runs.
+- Documentation extends the existing discovery guide with strict design, next
+  actions/history, review/graph views and comparison CLI examples. Acceptance
+  adds malformed design, stale review, duplicate history, unmatched comparison,
+  and observation-to-decision linkage cases, followed by the required fast gate.
 
 ## Project
 

@@ -49,9 +49,12 @@ data boundary, cost cap, resource envelope, or scientific interpretation changes
 
 ## Execute and monitor
 
-1. Stage into a run-specific directory. Verify input and code hashes remotely.
-   Never persist credentials in commands, scripts, logs, artifacts, notebooks, or
-   environment snapshots.
+1. Stage into a run-specific directory. For claim-bearing local or Slurm jobs,
+   use the strict `git-archive` source snapshot in the durable job runtime when
+   its clean-tree and bounded-input constraints are satisfied; otherwise record
+   why the live working-tree compatibility route is necessary. Verify input and
+   code hashes remotely. Never persist credentials in commands, scripts, logs,
+   artifacts, notebooks, or environment snapshots.
 2. Smoke-test on the smallest input. Do not run long, GPU, or high-CPU work on an
    SSH or cluster login node.
 3. For Slurm, submit with `sbatch`; set account, partition, time, CPU, memory, GPU,

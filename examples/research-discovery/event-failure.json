@@ -1,0 +1,7 @@
+{
+  "kind": "failure",
+  "experiment_id": "E1",
+  "request_id": "rdl-toy-e1",
+  "failure_kind": "implementation",
+  "outcome": "Injected candidate returned a non-finite feature; no scientific conclusion was assessed."
+}

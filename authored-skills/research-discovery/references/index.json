@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "research-discovery",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "rdl-contract",
+      "path": "references/rdl-contract.md",
+      "purpose": "Define the research-cycle schema, state transitions, method contract, observation classification, recovery, and protected evaluation rules.",
+      "read_when": ["authoring a research cycle", "defining a method or prediction", "interpreting an observation", "resuming or revising a cycle"],
+      "required_before": ["research-cycle-authoring", "research-cycle-revision", "research-cycle-interpretation"],
+      "search_patterns": ["## Cycle schema", "## Method contract", "## Observation classification", "## Recovery"],
+      "authority": "Codex Science first-party research discovery contract",
+      "version": "1",
+      "evidence_boundary": "Constrains scientific workflow records; it does not establish a hypothesis, result, novelty, or causal truth."
+    },
+    {
+      "id": "comparison-and-toys",
+      "path": "references/comparison-and-toys.md",
+      "purpose": "Specify deterministic CPU toy acceptance scenarios and a matched-model/tool/budget P4 comparison without overclaiming results.",
+      "read_when": ["running acceptance scenarios", "writing a limitations section", "planning an RDL comparison"],
+      "required_before": ["research-discovery-acceptance", "research-discovery-comparison"],
+      "search_patterns": ["## CPU scenarios", "## P4 comparison protocol", "## Limitations"],
+      "authority": "Codex Science first-party research discovery contract",
+      "version": "1",
+      "evidence_boundary": "Defines a test and comparison protocol; it is not a benchmark result or evidence that RDL improves research outcomes."
+    }
+  ]
+}

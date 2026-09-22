@@ -1,0 +1,32 @@
+{
+  "schema": "comparison-contract-v1",
+  "study_id": "rdl-p4-comparison-example",
+  "synthetic": true,
+  "tasks": [
+    {"id": "task-a", "spec": {"question": "synthetic fixture task A"}, "digest": "replace-with-sha256-of-canonical-task-spec"},
+    {"id": "task-b", "spec": {"question": "synthetic fixture task B"}, "digest": "replace-with-sha256-of-canonical-task-spec"}
+  ],
+  "arms": ["ordinary", "prior", "rdl"],
+  "model": {"family": "fixture-model", "version": "1"},
+  "tools": [{"name": "fixture-toolset", "version": "1"}],
+  "arm_versions": {"ordinary": "ordinary-v1", "prior": "prior-v1", "rdl": "rdl-v1"},
+  "budget": {"tokens": 100, "wall_time_seconds": 10},
+  "evaluation": {
+    "split_identity": "heldout-split-v1",
+    "holdout_identity": "heldout-access-controlled-v1",
+    "baseline_identity": "fixed-baseline-v1",
+    "access_policy": "evaluator-only",
+    "review_protocol": "preregistered-review-v1"
+  },
+  "seeds": [7],
+  "repetitions": 1,
+  "preregistered_criteria": {
+    "primary_metric": "score",
+    "metrics": [{"id": "score", "direction": "higher"}],
+    "stopping_rule": "one fixed attempt per cell"
+  },
+  "evaluator_refs": [{"path": "evaluator.json", "sha256": "replace-with-real-evaluator-sha256"}],
+  "evaluator_sha256": "replace-with-real-evaluator-sha256",
+  "contract_digest": "replace-with-sha256-of-canonical-contract-without-contract_digest",
+  "notes": "Synthetic schema fixture only. It is not an empirical P4 result."
+}

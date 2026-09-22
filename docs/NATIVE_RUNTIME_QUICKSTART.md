@@ -102,6 +102,15 @@ Then:
 ```
 
 For Slurm, render the script and create an approval receipt before `submit --approval`.
+For a claim-bearing local or Slurm run, set
+`"source_snapshot":{"mode":"git-archive","commit":"<exact-HEAD>"}` in the
+job spec. Preflight will reject a dirty or moved tree; the job's initial cwd and
+relative-path output collection will use the verified job-local archive instead
+of the mutable checkout. This is source binding, not a hermetic sandbox. See the
+job-runtime reference for bounded-input and unsupported-entry rules.
+The pre-submission Slurm rendering is a placeholder preview; audit the `job.sh`
+and `source-receipt.json` saved by `submit` for the exact archive digest. Submit a new
+attempt rather than requeueing or restarting a strict job directory.
 
 ## 4. Audit skill maturity
 

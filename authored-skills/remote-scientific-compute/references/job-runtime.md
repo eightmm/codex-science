@@ -38,6 +38,10 @@ A job spec is a JSON object:
     "metrics.json"
   ],
   "working_directory": "/absolute/path/project",
+  "source_snapshot": {
+    "mode": "git-archive",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
   "environment": {
     "OMP_NUM_THREADS": "4"
   },
@@ -74,6 +78,8 @@ A job spec is a JSON object:
 
 - `command` is an argv list, never a shell command string;
 - `working_directory` must already exist;
+- `source_snapshot` is optional for schema-v1 compatibility. When present, it
+  must select `git-archive` and name the exact 40- or 64-hex commit at `HEAD`;
 - outputs and checkpoints are safe paths relative to the working directory;
 - input hashes are recorded when available;
 - secret-like environment keys are rejected;
@@ -81,7 +87,74 @@ A job spec is a JSON object:
 - local resource requests are recorded but not scheduler reservations;
 - non-local submission requires approval even when `approval_required` is false in an invalid user-supplied spec.
 
-The spec fingerprint covers all fields, including command, environment values, resource request, input hashes, outputs, timeout, and cost cap.
+The spec fingerprint covers all fields, including the optional exact source
+commit, command, environment values, resource request, input hashes, outputs,
+timeout, and cost cap. Omitting `source_snapshot` preserves the legacy live-tree
+serialization, fingerprint, and source execution. New Slurm rendering and
+submission require names, partitions, accounts, QoS values, and GPU types to be
+safe single tokens on both routes. Persisted legacy job records remain readable
+for status, cancellation, and collection.
+
+### Strict Git source snapshot
+
+Use `source_snapshot.mode: git-archive` when a result may support a scientific
+claim or matched comparison. Preflight and submit require:
+
+- an exact commit equal to the current `HEAD`;
+- a clean worktree with no tracked changes or nonignored untracked files;
+- no tracked symbolic links or submodules;
+- a SHA-256 for every declared file input and a directory Merkle root for every
+  declared directory input;
+- source and input bytes within the runtime's bounded archive limits.
+
+Ignored, digest-bound inputs may be overlaid into the committed source. The
+runtime verifies them before and after copying. Submit produces an owner-only,
+deterministic source archive plus a fingerprinted receipt containing the commit,
+tree, working-directory location inside the tree, archive SHA-256 and size, and
+input IDs. Local and Slurm jobs verify and materialize that archive in their job
+directory immediately before execution. Output collection reads that isolated
+directory, never the mutable checkout.
+
+Ignored input overlays have normalized execution metadata: a new file is
+non-executable, committed target files retain their commit-bound executable bit,
+directories are owner-only, and empty nested input directories are omitted.
+Their declared content digest remains the identity boundary.
+Local and strict Slurm extraction preserve these archive modes identically inside
+the owner-only managed job directory.
+
+Committed blobs are materialized without checkout filters. If Git LFS or another
+smudge filter supplies bytes needed at runtime, declare that path as a hashed
+input so those materialized bytes replace the committed pointer under the same
+receipt.
+
+Directory inputs must be quiescent for the duration of bundling. If another
+process may change their entries or types, first stage them into a reviewed
+immutable directory and bind that staged Merkle root.
+
+`render-slurm` before submission emits a clearly marked preview with fail-closed
+source placeholders. Only the script saved by `submit`, together with
+`source-receipt.json`, carries the exact archive size and digest. Treat a strict
+Slurm job directory as one attempt: scheduler requeue or a manual restart
+requires a new submission rather than reusing materialized source state.
+Strict Slurm setup requires Linux `/proc`, Bash, and every verifier tool reported
+by preflight; the submitted script records resolved verifier paths and removes
+inherited Bash startup files/functions and ambient tar transformation options
+before extraction. Its owner-only setup umask is restored before the user command.
+Archive copying is bounded by a size-derived timeout with a 1 MiB/s floor and a
+30-second minimum.
+
+Place `--state-dir` outside the source worktree or gitignore it in the exact
+commit. A generated, nonignored state directory is intentionally treated as an
+untracked change by the next strict preflight.
+
+The compatibility route without `source_snapshot` still executes in
+`working_directory`. It is appropriate for legacy or exploratory jobs, but its
+receipt does not prove an immutable source state. A source snapshot also does not
+pin the Python/R/Julia environment, container, model weights, database release,
+or external identifier-only inputs; record those separately. It changes the
+initial cwd, not the process's entire filesystem namespace: absolute command
+arguments and inherited `PATH`, `PYTHONPATH`, or equivalent values can still
+reach mutable external paths. Pin or disable them when they affect a claim.
 
 ## CLI overview
 
@@ -117,6 +190,8 @@ Preflight checks:
 - working directory exists;
 - spec validates;
 - resource request and spec fingerprint are recorded.
+- when strict source binding is selected, the commit, clean-tree state, Git tree
+  entry types, path-input hashes, and bundle limits are valid.
 
 A successful preflight does not prove that imports, model weights, databases, input semantics, or scientific assumptions are correct.
 
@@ -152,6 +227,9 @@ The job directory contains:
 jobs/jobs/local-.../
   spec.json
   state.json
+  source-receipt.json  # strict source route only
+  source.tar           # strict source route only
+  source/              # verified materialization and outputs
   stdout.log
   stderr.log
 ```
@@ -227,7 +305,9 @@ Cancellation is idempotent for terminal jobs. The local backend sends `SIGTERM` 
   --output artifacts/run-014/job-collected.json
 ```
 
-Collection is allowed only after a terminal state. Declared outputs are resolved inside the working directory:
+Collection is allowed only after a terminal state. Declared outputs are resolved
+inside the isolated materialization for a strict source job, or the live working
+directory for a legacy job:
 
 - files receive streaming SHA-256 and size;
 - directories receive a Merkle root, total bytes, and entry count;
@@ -286,6 +366,8 @@ Inspect:
 - stdout/stderr destination;
 - environment exports;
 - timeout wrapper.
+- strict source archive hash verification and isolated materialization, when
+  selected.
 
 Rendering is safe and does not submit.
 
@@ -307,9 +389,13 @@ Preconditions:
 - approval fingerprint matches the exact spec;
 - scheduler account/partition already known and approved;
 - working directory is a shared path visible to compute nodes;
-- all required data are already staged by an approved route.
+- all required data are already staged by an approved route;
+- a strict source archive and receipt are hash-consistent with the approved job
+  spec, when selected.
 
-The backend does not copy data or credentials.
+The backend does not perform a remote dataset transfer or copy credentials. A
+strict job stages its bounded source archive only inside the managed job
+directory on the already-approved shared filesystem.
 
 ### Status
 
@@ -377,6 +463,9 @@ Use these exact searches when reading this reference:
 | output escapes working directory | reject collection; correct the job spec |
 | approval mismatch | create a new approval for the exact spec |
 | stale input hash | create a new run or attempt contract before execution |
+| dirty tree or moved `HEAD` | commit or restore the intended exact source state, then create a new spec/approval |
+| source archive or receipt mismatch | fail closed; preserve the job directory and create a new attempt from verified bytes |
+| unsupported symlink, submodule, or oversized source | use a reviewed immutable staging route; do not silently fall back to the live tree |
 
 ## Common mistakes
 
@@ -389,8 +478,14 @@ Use these exact searches when reading this reference:
 - Treating exit code zero as scientific success.
 - Omitting failed attempts, missing outputs, or cancellation receipts.
 - Reusing approval after changing code, command, resources, target, or input hashes.
+- Using the live-tree compatibility route for a claim-bearing comparison without
+  recording the reproducibility limitation.
 - Claiming remote durability when state files exist only on an ephemeral local disk.
 
 ## Evidence boundary
 
-The job runtime provides durable execution and collection receipts. It does not establish reproducibility across environments, validate model or database licensing, authenticate scheduler identity, measure cloud cost unless an adapter reports it, or prove a scientific result.
+The job runtime provides durable execution and collection receipts. A strict
+source receipt hash-binds the committed and declared input bytes materialized;
+it does not establish reproducibility across environments, validate model or
+database licensing, authenticate scheduler identity, measure cloud cost unless
+an adapter reports it, or prove a scientific result.

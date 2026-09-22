@@ -493,6 +493,29 @@ class ProjectStore:
         result["project_id"] = project_id
         return result
 
+    def discovery_history(self, *, project_id: str, run_id: str | None = None) -> dict[str, Any]:
+        """Read verified cycle history from immutable imported bundles, not a second DB."""
+        self.initialize()
+        runs = []
+        with self.connect() as connection:
+            self._require_project(connection, project_id)
+            if run_id is not None:
+                self._require_run(connection, project_id, run_id)
+            rows = connection.execute(
+                "SELECT run_id, manifest_path FROM runs WHERE project_id=? ORDER BY imported_at, run_id",
+                (project_id,),
+            ).fetchall()
+            for row in rows:
+                if run_id is not None and str(row["run_id"]) != run_id:
+                    continue
+                manifest = self._load_manifest_for_run(connection, project_id, str(row["run_id"]))
+                sidecars = validate_bundle(manifest, Path(str(row["manifest_path"])).parent)
+                cycles = sidecars.get("research_cycles", [])
+                if cycles:
+                    runs.append({"run_id": str(row["run_id"]), "cycles": cycles})
+        return {"project_id": project_id, "runs": runs,
+                "evidence_boundary": "Verified recorded history; no new execution or scientific review is implied."}
+
     @staticmethod
     def _three_way_conflicts(base: Mapping[str, Any], source: Mapping[str, Any], target: Mapping[str, Any], key: str) -> list[str]:
         base_items = {str(item.get(key)): item for item in base.values() if isinstance(item, Mapping)} if isinstance(base, Mapping) else {}

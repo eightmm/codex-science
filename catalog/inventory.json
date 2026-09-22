@@ -1326,10 +1326,22 @@
     {
       "description": "Run reproducible scientific workloads through an existing SSH host, Slurm/HPC cluster, cloud GPU provider, or remote object storage. Use for remote execution, job submission and monitoring, checkpointed long runs, GPU allocation, data staging, result retrieval, queue diagnosis, or resuming work that can outlive the current Codex task.",
       "executable_count": 0,
-      "instruction_line_count": 90,
+      "instruction_line_count": 93,
       "license": "Apache-2.0",
       "name": "cx-remote-scientific-compute",
       "path": "authored-skills/remote-scientific-compute",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Guide new-method development or an unexplained scientific bottleneck from observed failure through competing explanations, falsifiable predictions, a concrete method, the smallest discriminating experiment, and evidence-driven revision. Do not use for routine retrieval, reproduction, or a fixed analysis whose method is already specified.",
+      "executable_count": 0,
+      "instruction_line_count": 107,
+      "license": "MIT",
+      "name": "cx-research-discovery",
+      "path": "authored-skills/research-discovery",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3697,8 +3709,8 @@
     }
   ],
   "summary": {
-    "active": 171,
+    "active": 172,
     "inactive": 112,
-    "total": 283
+    "total": 284
   }
 }

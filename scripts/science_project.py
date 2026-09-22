@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.project_store import ProjectStore  # noqa: E402
+from codex_science.cli_io import load_json_object, write_json_atomic  # noqa: E402
 
 
 def _write(path: Path, payload: Any) -> None:
@@ -88,9 +89,97 @@ def summary(args: argparse.Namespace) -> None:
     _write(args.output, store.summary(project_id=args.project_id))
 
 
+def discovery(args: argparse.Namespace) -> None:
+    from codex_science.discovery import attach_cycle, finite_decision, plan_cycle
+    from codex_science.experiment_planner import plan_discriminating_experiment
+    from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle
+
+    action = args.discovery_command
+    if args.output and getattr(args, "input", None) and args.output.resolve() == args.input.resolve():
+        raise ValueError("--output cannot overwrite its input")
+    if args.output and getattr(args, "input", None) and getattr(args, "run_dir", None):
+        def protect_input_refs(value: Any) -> None:
+            if isinstance(value, dict):
+                if isinstance(value.get("path"), str) and "sha256" in value:
+                    if (args.run_dir / value["path"]).resolve() == args.output.resolve():
+                        raise ValueError("--output cannot overwrite referenced input evidence")
+                for child in value.values():
+                    protect_input_refs(child)
+            elif isinstance(value, list):
+                for child in value:
+                    protect_input_refs(child)
+        protect_input_refs(load_json_object(args.input))
+    if args.output and getattr(args, "run_dir", None):
+        root = args.run_dir.resolve()
+        destination = args.output.resolve()
+        if destination in {root / "manifest.json", root / "checkpoint.json"} or destination.is_relative_to(root / "discovery" / "revisions"):
+            raise ValueError("--output cannot overwrite authoritative run state")
+        manifest_path = root / "manifest.json"
+        if manifest_path.exists():
+            protected = {(root / item["path"]).resolve() for item in load_json_object(manifest_path)["artifacts"]}
+            if destination in protected:
+                raise ValueError("--output cannot overwrite a registered artifact")
+    if action in {"history", "memory"}:
+        if args.database is None:
+            raise ValueError("--database is required for discovery history")
+        result = ProjectStore(args.database).discovery_history(project_id=args.project_id, run_id=args.run_id)
+        if action == "memory":
+            from codex_science.discovery_synthesis import synthesize_history
+            result = synthesize_history(result)
+    elif action == "init":
+        payload = load_json_object(args.input)
+        if args.require_design:
+            payload["design_policy"] = "required-for-reservation"
+        cycle = new_cycle(payload)
+        save_cycle(cycle, args.run_dir)
+        attach_cycle(args.run_dir)
+        result = load_cycle(args.run_dir)
+    elif action == "event":
+        cycle = load_cycle(args.run_dir)
+        result = apply_cycle_event(cycle, load_json_object(args.input), run_dir=args.run_dir)
+        save_cycle(result, args.run_dir)
+        attach_cycle(args.run_dir)
+        result = load_cycle(args.run_dir)
+    elif action == "show":
+        result = load_cycle(args.run_dir)
+    elif action == "plan":
+        result = (plan_cycle(load_cycle(args.run_dir), args.run_dir) if args.run_dir
+                  else plan_discriminating_experiment(load_json_object(args.input)))
+    elif action == "decision":
+        result = finite_decision(load_cycle(args.run_dir), load_json_object(args.input), args.run_dir)
+    elif action == "attach":
+        result = attach_cycle(args.run_dir)
+    elif action == "audit":
+        from codex_science.discovery_design import audit_design
+        result = audit_design(load_cycle(args.run_dir), args.run_dir)
+    elif action == "next":
+        from codex_science.discovery_synthesis import summarize_cycle
+        result = summarize_cycle(load_cycle(args.run_dir), args.run_dir)
+    elif action == "graph":
+        from codex_science.discovery_evidence import cycle_graph
+        result = cycle_graph(load_cycle(args.run_dir), args.run_dir)
+    elif action == "assess":
+        from codex_science.discovery_evidence import assess_cycle
+        result = assess_cycle(load_cycle(args.run_dir), args.run_dir,
+                              load_json_object(args.input) if args.input else None)
+    elif action == "compare":
+        from codex_science.discovery_comparison import evaluate_comparison
+        payload = load_json_object(args.input)
+        result = evaluate_comparison(payload.get("contract"), payload.get("records"), args.run_dir)
+    else:
+        raise ValueError(f"unknown discovery operation: {action}")
+    if args.output:
+        write_json_atomic(args.output, result)
+        print(f"Success! Data written to: {args.output.resolve()}")
+    else:
+        print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))
+    if action == "compare" and result["status"] != "passed":
+        raise ValueError(f"comparison is {result['status']}; see the comparison report")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument("--database", type=Path)
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     command = subcommands.add_parser("init", help="Initialize a project")
@@ -152,12 +241,37 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--project-id", required=True)
     command.add_argument("--output", type=Path, required=True)
     command.set_defaults(handler=summary)
+
+    command = subcommands.add_parser("discovery", help="Develop, record, and inspect a research cycle")
+    operations = command.add_subparsers(dest="discovery_command", required=True)
+    for action in ("init", "event", "show", "plan", "decision", "attach", "history",
+                   "audit", "next", "graph", "assess", "memory", "compare"):
+        operation = operations.add_parser(action)
+        if action not in {"history", "memory", "plan"}:
+            operation.add_argument("--run-dir", type=Path, required=True)
+        if action == "plan":
+            source = operation.add_mutually_exclusive_group(required=True)
+            source.add_argument("--input", type=Path)
+            source.add_argument("--run-dir", type=Path)
+        if action in {"init", "event", "decision", "compare"}:
+            operation.add_argument("--input", type=Path, required=True)
+        if action == "assess":
+            operation.add_argument("--input", type=Path)
+        if action == "init":
+            operation.add_argument("--require-design", action="store_true")
+        if action in {"history", "memory"}:
+            operation.add_argument("--project-id", required=True)
+            operation.add_argument("--run-id")
+        operation.add_argument("--output", type=Path)
+        operation.set_defaults(handler=discovery)
     return parser
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.command != "discovery" and args.database is None:
+        parser.error("--database is required for project store commands")
     try:
         args.handler(args)
     except (OSError, ValueError, sqlite3.Error if False else ValueError) as error:  # type: ignore[misc]

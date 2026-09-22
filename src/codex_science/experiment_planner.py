@@ -308,3 +308,71 @@ def validate_experiment_proposal(payload: Mapping[str, Any]) -> None:
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if _fingerprint(material) != fingerprint or proposal_id != f"experiment-{fingerprint[:20]}":
         raise ValueError("experiment proposal fingerprint or ID mismatch")
+
+
+def plan_discriminating_experiment(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Rank declared experiments by hypothesis-interval separation, never proxy EIG."""
+    if payload.get("policy", "discriminate_first_v1") != "discriminate_first_v1":
+        raise ValueError("unsupported discrimination policy")
+    hypotheses = payload.get("hypotheses")
+    candidates = payload.get("candidates")
+    if not isinstance(hypotheses, list) or len(hypotheses) < 2 or not isinstance(candidates, list) or not candidates:
+        raise ValueError("at least two hypotheses and one candidate are required")
+    hypothesis_ids = sorted(
+        _strict_text(x.get("id"), "hypothesis id") for x in hypotheses if isinstance(x, Mapping)
+    )
+    if len(hypothesis_ids) != len(hypotheses) or len(set(hypothesis_ids)) != len(hypothesis_ids): raise ValueError("hypothesis IDs are invalid")
+    budget = _number(payload.get("budget"), "budget")
+    if budget < 0: raise ValueError("budget must be non-negative")
+    scored = []
+    candidate_ids: set[str] = set()
+    for raw in candidates:
+        if not isinstance(raw, Mapping): raise ValueError("candidate must be an object")
+        ident = _strict_text(raw.get("id"), "candidate id")
+        if ident in candidate_ids:
+            raise ValueError(f"duplicate candidate ID: {ident}")
+        candidate_ids.add(ident)
+        cost = _number(raw.get("cost"), "candidate cost")
+        control_cost = _number(raw.get("control_cost", 0), "candidate control_cost")
+        resolution = _number(raw.get("resolution"), "candidate resolution")
+        controls = raw.get("controls")
+        predictions = raw.get("predictions")
+        if (
+            cost < 0 or control_cost < 0 or resolution <= 0
+            or not isinstance(controls, list) or not controls
+            or not all(isinstance(control, str) and control.strip() for control in controls)
+            or not isinstance(predictions, Mapping) or set(predictions) != set(hypothesis_ids)
+        ):
+            raise ValueError("candidate controls, predictions, or resolution are invalid")
+        pairs = []
+        for left_i, left in enumerate(hypothesis_ids):
+            a = predictions[left]
+            if not isinstance(a, list) or len(a) != 2:
+                raise ValueError("prediction interval is invalid")
+            a_low, a_high = _number(a[0], "prediction"), _number(a[1], "prediction")
+            if a_low > a_high:
+                raise ValueError("prediction interval is invalid")
+            for right in hypothesis_ids[left_i + 1:]:
+                b = predictions[right]
+                if not isinstance(b, list) or len(b) != 2:
+                    raise ValueError("prediction interval is invalid")
+                b_low, b_high = _number(b[0], "prediction"), _number(b[1], "prediction")
+                if b_low > b_high:
+                    raise ValueError("prediction interval is invalid")
+                gap = max(a_low - b_high, b_low - a_high, 0.0)
+                if gap >= resolution: pairs.append([left, right])
+        reasons = []
+        total_cost = cost + control_cost
+        if total_cost > budget: reasons.append("budget")
+        if not pairs: reasons.append("no-distinguishable-pair-at-declared-resolution")
+        scored.append({"id": ident, "cost": cost, "control_cost": control_cost, "total_cost": total_cost, "resolution": resolution, "controls": list(controls), "predictions": dict(predictions), "distinguishable_pairs": pairs, "reasons": reasons})
+    ranked = sorted(scored, key=lambda x: (bool(x["reasons"]), -len(x["distinguishable_pairs"]), x["total_cost"], x["id"]))
+    selected = next((x for x in ranked if not x["reasons"]), None)
+    material = {"schema_version": 1, "policy": "discriminate_first_v1", "budget": budget, "hypothesis_ids": hypothesis_ids, "selected": selected, "ranked": ranked, "evidence_boundary": "Ranks only declared interval separation, controls, resolution, and cost. It is not expected information gain or EVSI."}
+    return {**material, "fingerprint": _fingerprint(material)}
+
+
+def _strict_text(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} is required")
+    return value.strip()

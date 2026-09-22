@@ -26,6 +26,16 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Protocol
 
 from codex_science.artifact_store import describe_directory, stream_sha256
+from codex_science.source_snapshot import (
+    SOURCE_ARCHIVE_NAME,
+    SOURCE_RECEIPT_NAME,
+    SourceSnapshotError,
+    create_git_source_bundle,
+    materialize_source_bundle,
+    materialized_working_directory,
+    preflight_git_source,
+    validate_source_receipt,
+)
 
 
 _LOCAL_PROCESSES: dict[int, subprocess.Popen[bytes]] = {}
@@ -45,6 +55,9 @@ def _reap_local_process(pid: int) -> None:
 TERMINAL_STATES = {"completed", "failed", "timed-out", "cancelled", "lost"}
 ALL_STATES = {"submitted", "running", *TERMINAL_STATES}
 SECRET_KEY_FRAGMENTS = {"token", "secret", "password", "credential", "private_key", "api_key", "apikey"}
+SLURM_SAFE_TOKEN_CHARACTERS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:@/+,-"
+)
 SLURM_STATE_MAP = {
     "COMPLETED": "completed",
     "CANCELLED": "cancelled",
@@ -108,6 +121,27 @@ def _safe_relative(value: Any, label: str) -> str:
     return pure.as_posix()
 
 
+def _slurm_token(value: Any, label: str) -> str:
+    text = _text(value, label)
+    if any(character not in SLURM_SAFE_TOKEN_CHARACTERS for character in text):
+        raise ValueError(f"{label} must be a newline-free Slurm-safe token")
+    return text
+
+
+def _slurm_directive_path(value: Path, label: str) -> str:
+    text = str(value)
+    if any(ord(character) < 32 or ord(character) == 127 for character in text):
+        raise ValueError(f"{label} must not contain control characters")
+    return text
+
+
+def _required_tool(name: str) -> str:
+    resolved = shutil.which(name)
+    if resolved is None:
+        raise ValueError(f"required execution tool is unavailable: {name}")
+    return str(Path(resolved).resolve())
+
+
 def _reject_secret_environment(environment: Mapping[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
     for key, value in environment.items():
@@ -152,6 +186,19 @@ def _normalize_inputs(value: Any) -> tuple[dict[str, Any], ...]:
             item["root_sha256"] = _sha(item["root_sha256"], f"input {input_id} root_sha256")
         results.append(item)
     return tuple(results)
+
+
+def _normalize_source_snapshot(value: Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("source_snapshot must be an object")
+    if set(value) != {"mode", "commit"} or value.get("mode") != "git-archive":
+        raise ValueError("source_snapshot must contain only mode=git-archive and commit")
+    commit = str(value.get("commit", "")).strip().lower()
+    if len(commit) not in {40, 64} or any(character not in "0123456789abcdef" for character in commit):
+        raise ValueError("source_snapshot commit must be an exact 40- or 64-hex Git object ID")
+    return {"mode": "git-archive", "commit": commit}
 
 
 def _input_preflight(spec: "JobSpec") -> list[dict[str, Any]]:
@@ -251,6 +298,7 @@ class JobSpec:
     approval_required: bool
     scientific_run_id: str | None
     checkpoint_paths: tuple[str, ...]
+    source_snapshot: dict[str, str] | None = None
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "JobSpec":
@@ -295,6 +343,7 @@ class JobSpec:
             approval_required=bool(payload.get("approval_required", backend != "local")),
             scientific_run_id=None if payload.get("scientific_run_id") is None else str(payload["scientific_run_id"]),
             checkpoint_paths=tuple(_safe_relative(item, "checkpoint path") for item in checkpoints_raw),
+            source_snapshot=_normalize_source_snapshot(payload.get("source_snapshot")),
         )
         spec.validate()
         return spec
@@ -322,11 +371,25 @@ class JobSpec:
         payload["inputs"] = [dict(item) for item in self.inputs]
         payload["outputs"] = list(self.outputs)
         payload["checkpoint_paths"] = list(self.checkpoint_paths)
+        if self.source_snapshot is None:
+            payload.pop("source_snapshot", None)
         return payload
 
     @property
     def fingerprint(self) -> str:
         return _fingerprint(self.to_dict())
+
+
+def _validate_slurm_directive_tokens(spec: JobSpec) -> None:
+    _slurm_token(spec.name, "Slurm job name")
+    for label, value in (
+        ("Slurm partition", spec.resources.partition),
+        ("Slurm account", spec.resources.account),
+        ("Slurm qos", spec.resources.qos),
+        ("Slurm gpu_type", spec.resources.gpu_type),
+    ):
+        if value is not None:
+            _slurm_token(value, label)
 
 
 class JobBackend(Protocol):
@@ -409,6 +472,61 @@ def validate_job_state(payload: Mapping[str, Any]) -> None:
         raise ValueError("job state fingerprint mismatch")
 
 
+def _source_preflight(spec: JobSpec) -> dict[str, Any] | None:
+    if spec.source_snapshot is None:
+        return None
+    return preflight_git_source(
+        Path(spec.working_directory),
+        spec.source_snapshot["commit"],
+        spec.inputs,
+    )
+
+
+def _prepare_source_snapshot(spec: JobSpec, job_dir: Path) -> dict[str, Any] | None:
+    if spec.source_snapshot is None:
+        return None
+    job_dir.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=f".{job_dir.name}-source-", dir=job_dir.parent))
+    temporary.chmod(0o700)
+    try:
+        receipt = create_git_source_bundle(
+            working_directory=Path(spec.working_directory),
+            commit=spec.source_snapshot["commit"],
+            inputs=spec.inputs,
+            job_spec_sha256=spec.fingerprint,
+            job_dir=temporary,
+            allowed_untracked_path=temporary,
+        )
+        _atomic_json(temporary / SOURCE_RECEIPT_NAME, receipt)
+        os.replace(temporary, job_dir)
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+    return receipt
+
+
+def _source_state_update(state: Mapping[str, Any]) -> dict[str, Any]:
+    receipt = state.get("source_receipt")
+    return {"source_receipt": dict(receipt)} if isinstance(receipt, Mapping) else {}
+
+
+def _load_source_receipt(job_dir: Path, spec: JobSpec, state: Mapping[str, Any]) -> dict[str, Any] | None:
+    if spec.source_snapshot is None:
+        return None
+    state_receipt = state.get("source_receipt")
+    if not isinstance(state_receipt, Mapping):
+        raise SourceSnapshotError("strict job state is missing its source receipt")
+    recorded = _read_json(job_dir / SOURCE_RECEIPT_NAME)
+    if dict(state_receipt) != recorded:
+        raise SourceSnapshotError("job state and saved source receipts differ")
+    validated = validate_source_receipt(recorded, expected_job_spec_sha256=spec.fingerprint)
+    if validated["commit"] != spec.source_snapshot["commit"]:
+        raise SourceSnapshotError("source receipt commit differs from the job spec")
+    expected_input_ids = [str(item["id"]) for item in spec.inputs]
+    if validated["input_ids"] != expected_input_ids:
+        raise SourceSnapshotError("source receipt inputs differ from the job spec")
+    return validated
+
+
 def _process_alive(pid: int) -> bool:
     if pid <= 0:
         return False
@@ -448,7 +566,18 @@ class LocalBackend:
                 "detail": asdict(spec.resources),
             },
         ]
-        checks.extend(_input_preflight(spec))
+        if spec.source_snapshot is None:
+            checks.extend(_input_preflight(spec))
+        else:
+            source_check = _source_preflight(spec)
+            assert source_check is not None
+            checks.append(source_check)
+        warnings = ["Local resource requests are recorded but are not a scheduler-enforced reservation."]
+        if spec.source_snapshot is not None:
+            warnings.append(
+                "Source isolation covers the initial working directory and declared path inputs only; "
+                "absolute paths, inherited environments, external services, and out-of-tree writes remain non-hermetic."
+            )
         return {
             "schema_version": 1,
             "backend": "local",
@@ -458,7 +587,7 @@ class LocalBackend:
             "working_directory": spec.working_directory,
             "job_spec_sha256": spec.fingerprint,
             "resource_request": asdict(spec.resources),
-            "warnings": ["Local resource requests are recorded but are not a scheduler-enforced reservation."],
+            "warnings": warnings,
         }
 
     def submit(self, spec: JobSpec, *, approval: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -473,10 +602,19 @@ class LocalBackend:
             validate_approval_receipt(approval, spec)
         job_id = "local-" + uuid.uuid4().hex[:20]
         job_dir = self._job_dir(job_id)
-        job_dir.mkdir(parents=True)
+        source_receipt = _prepare_source_snapshot(spec, job_dir)
+        if source_receipt is None:
+            job_dir.mkdir(parents=True)
         _atomic_json(job_dir / "spec.json", spec.to_dict())
         submitted_at = _now()
-        initial = _state_material(spec, job_id=job_id, state="submitted", submitted_at=submitted_at)
+        source_update = {} if source_receipt is None else {"source_receipt": source_receipt}
+        initial = _state_material(
+            spec,
+            job_id=job_id,
+            state="submitted",
+            submitted_at=submitted_at,
+            **source_update,
+        )
         _atomic_json(job_dir / "state.json", initial)
         worker_environment = os.environ.copy()
         source_root = str(Path(__file__).resolve().parents[1])
@@ -502,6 +640,7 @@ class LocalBackend:
             submitted_at=submitted_at,
             worker_pid=process.pid,
             message="local worker started",
+            **source_update,
         )
         if current.get("state") == "submitted":
             _atomic_json(job_dir / "state.json", submitted_receipt)
@@ -530,6 +669,7 @@ class LocalBackend:
                     worker_pid=state.get("worker_pid"),
                     failure_class="worker-lost",
                     message="local worker exited without a terminal receipt",
+                    **_source_state_update(state),
                 )
                 _atomic_json(job_dir / "state.json", state)
         return state
@@ -568,6 +708,7 @@ class LocalBackend:
             worker_pid=pid or None,
             failure_class="user-cancelled",
             message="job cancelled",
+            **_source_state_update(state),
         )
         _atomic_json(job_dir / "state.json", cancelled)
         return cancelled
@@ -578,9 +719,34 @@ class LocalBackend:
         if state["state"] not in TERMINAL_STATES:
             raise ValueError("cannot collect a nonterminal job")
         spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
-        root = Path(spec.working_directory).resolve()
+        root: Path | None
+        source_collection_error: str | None = None
+        try:
+            source_receipt = _load_source_receipt(job_dir, spec, state)
+            root = (
+                Path(spec.working_directory).resolve()
+                if source_receipt is None
+                else materialized_working_directory(job_dir, source_receipt)
+            )
+        except SourceSnapshotError as error:
+            incomplete_source_attempt = spec.source_snapshot is not None and state["state"] != "completed"
+            if not incomplete_source_attempt:
+                raise
+            root = None
+            source_collection_error = str(error)
         outputs: list[dict[str, Any]] = []
         for relative in spec.outputs:
+            if root is None:
+                outputs.append(
+                    {
+                        "path": relative,
+                        "artifact_type": "missing",
+                        "sha256": None,
+                        "size_bytes": None,
+                        "entry_count": 0,
+                    }
+                )
+                continue
             path = (root / relative).resolve()
             if not path.is_relative_to(root):
                 raise ValueError(f"output escapes working directory: {relative}")
@@ -595,6 +761,8 @@ class LocalBackend:
         state = dict(state)
         state.pop("fingerprint", None)
         state["outputs"] = outputs
+        if source_collection_error is not None:
+            state["source_collection_error"] = source_collection_error
         state["updated_at"] = _now()
         state["fingerprint"] = _fingerprint(state)
         _atomic_json(job_dir / "state.json", state)
@@ -604,10 +772,20 @@ class LocalBackend:
 def _worker(job_dir: Path) -> int:
     spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
     initial = _read_json(job_dir / "state.json")
+    validate_job_state(initial)
     job_id = str(initial["job_id"])
     submitted_at = str(initial["submitted_at"])
     worker_pid = os.getpid()
-    running = _state_material(spec, job_id=job_id, state="running", submitted_at=submitted_at, started_at=_now(), worker_pid=worker_pid, message="command running")
+    running = _state_material(
+        spec,
+        job_id=job_id,
+        state="running",
+        submitted_at=submitted_at,
+        started_at=_now(),
+        worker_pid=worker_pid,
+        message="command running",
+        **_source_state_update(initial),
+    )
     _atomic_json(job_dir / "state.json", running)
     environment = os.environ.copy() if spec.inherit_environment else {}
     environment.update(spec.environment)
@@ -619,10 +797,20 @@ def _worker(job_dir: Path) -> int:
     failure_class: str | None = None
     message = ""
     try:
+        source_receipt = _load_source_receipt(job_dir, spec, initial)
+        execution_directory = (
+            Path(spec.working_directory)
+            if source_receipt is None
+            else materialize_source_bundle(
+                job_dir,
+                source_receipt,
+                expected_job_spec_sha256=spec.fingerprint,
+            )
+        )
         with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
             completed = subprocess.run(
                 list(spec.command),
-                cwd=spec.working_directory,
+                cwd=execution_directory,
                 env=environment,
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
@@ -642,6 +830,10 @@ def _worker(job_dir: Path) -> int:
         state = "failed"
         failure_class = "executable-not-found"
         message = str(error)
+    except SourceSnapshotError as error:
+        state = "failed"
+        failure_class = "source-integrity"
+        message = str(error)
     except BaseException as error:
         state = "failed"
         failure_class = "worker-exception"
@@ -658,6 +850,7 @@ def _worker(job_dir: Path) -> int:
         worker_pid=worker_pid,
         resource_usage={"wall_seconds": round(time.monotonic() - started_monotonic, 6)},
         message=message,
+        **_source_state_update(initial),
     )
     _atomic_json(job_dir / "state.json", final)
     return 0 if state == "completed" else 1
@@ -666,6 +859,7 @@ def _worker(job_dir: Path) -> int:
 class SlurmBackend:
     def __init__(self, state_dir: Path) -> None:
         self.state_dir = state_dir.resolve()
+        _slurm_directive_path(self.state_dir, "Slurm state directory")
         self.jobs_dir = self.state_dir / "jobs"
 
     def _job_dir(self, job_id: str) -> Path:
@@ -676,7 +870,13 @@ class SlurmBackend:
 
     def preflight(self, spec: JobSpec) -> dict[str, Any]:
         spec.validate()
-        tools = {name: shutil.which(name) for name in ("sbatch", "squeue", "sacct", "scancel")}
+        _validate_slurm_directive_tokens(spec)
+        tool_names = ["sbatch", "squeue", "sacct", "scancel"]
+        if spec.source_snapshot is not None:
+            tool_names.extend(
+                ["bash", "head", "mkdir", "mktemp", "rm", "sha256sum", "stat", "tar", "timeout", "wc"]
+            )
+        tools = {name: shutil.which(name) for name in tool_names}
         checks = [
             {
                 "name": "working-directory",
@@ -691,7 +891,34 @@ class SlurmBackend:
                 "detail": tools["sacct"] or tools["squeue"] or "not found",
             },
         ]
-        checks.extend(_input_preflight(spec))
+        if spec.source_snapshot is not None:
+            checks.extend(
+                {"name": name, "ready": tools[name] is not None, "detail": tools[name] or "not found"}
+                for name in (
+                    "bash",
+                    "head",
+                    "mkdir",
+                    "mktemp",
+                    "rm",
+                    "sha256sum",
+                    "stat",
+                    "tar",
+                    "timeout",
+                    "wc",
+                )
+            )
+        if spec.source_snapshot is None:
+            checks.extend(_input_preflight(spec))
+        else:
+            source_check = _source_preflight(spec)
+            assert source_check is not None
+            checks.append(source_check)
+        warnings = [] if tools["sacct"] else ["sacct is unavailable; terminal accounting may be incomplete."]
+        if spec.source_snapshot is not None:
+            warnings.append(
+                "Source isolation covers the initial working directory and declared path inputs only; "
+                "absolute paths, inherited environments, external services, and out-of-tree writes remain non-hermetic."
+            )
         return {
             "schema_version": 1,
             "backend": "slurm",
@@ -700,22 +927,32 @@ class SlurmBackend:
             "tools": tools,
             "job_spec_sha256": spec.fingerprint,
             "resource_request": asdict(spec.resources),
-            "warnings": [] if tools["sacct"] else ["sacct is unavailable; terminal accounting may be incomplete."],
+            "warnings": warnings,
         }
 
-    def render_script(self, spec: JobSpec, *, job_id: str) -> str:
+    def render_script(
+        self,
+        spec: JobSpec,
+        *,
+        job_id: str,
+        source_receipt: Mapping[str, Any] | None = None,
+    ) -> str:
         if spec.backend != "slurm":
             raise ValueError("SlurmBackend requires backend=slurm")
+        spec.validate()
+        _validate_slurm_directive_tokens(spec)
         resources = spec.resources
         hours, remainder = divmod(resources.wall_time_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
+        stdout_path = _slurm_directive_path(self._job_dir(job_id) / "stdout.log", "Slurm stdout path")
+        stderr_path = _slurm_directive_path(self._job_dir(job_id) / "stderr.log", "Slurm stderr path")
         directives = [
             f"#SBATCH --job-name={spec.name}",
             f"#SBATCH --cpus-per-task={resources.cpus}",
             f"#SBATCH --mem={resources.memory_mb}M",
             f"#SBATCH --time={hours:02d}:{minutes:02d}:{seconds:02d}",
-            f"#SBATCH --output={shlex.quote(str(self._job_dir(job_id) / 'stdout.log'))}",
-            f"#SBATCH --error={shlex.quote(str(self._job_dir(job_id) / 'stderr.log'))}",
+            f"#SBATCH --output={shlex.quote(stdout_path)}",
+            f"#SBATCH --error={shlex.quote(stderr_path)}",
         ]
         if resources.gpus:
             gres = f"gpu:{resources.gpu_type}:{resources.gpus}" if resources.gpu_type else f"gpu:{resources.gpus}"
@@ -725,13 +962,97 @@ class SlurmBackend:
                 directives.append(f"#SBATCH --{flag}={value}")
         exports = "\n".join(f"export {shlex.quote(key)}={shlex.quote(value)}" for key, value in sorted(spec.environment.items()))
         command = shlex.join(spec.command)
+        shebang = "#!/usr/bin/env bash"
+        shell_options = "set -euo pipefail"
+        timeout_command = "timeout"
+        setup = [f"cd {shlex.quote(spec.working_directory)}"]
+        preview_marker: list[str] = []
+        if spec.source_snapshot is not None:
+            bash_tool = _required_tool("bash")
+            timeout_tool = _required_tool("timeout")
+            shebang = f"#!{bash_tool} -p"
+            shell_options = "builtin set -euo pipefail"
+            timeout_command = shlex.quote(timeout_tool)
+            if source_receipt is None:
+                preview_marker = ["# PREVIEW ONLY: fail-closed source hash and size placeholders follow"]
+                source_check = _source_preflight(spec)
+                detail = source_check.get("detail") if isinstance(source_check, Mapping) else None
+                relative_cwd = (
+                    str(detail.get("worktree_relative_cwd", "__invalid_source_snapshot__"))
+                    if isinstance(detail, Mapping)
+                    else "__invalid_source_snapshot__"
+                )
+                expected_sha256 = "0" * 64
+                expected_size = 0
+            else:
+                validated = validate_source_receipt(
+                    source_receipt,
+                    expected_job_spec_sha256=spec.fingerprint,
+                )
+                if validated["commit"] != spec.source_snapshot["commit"]:
+                    raise SourceSnapshotError("source receipt commit differs from the job spec")
+                expected_input_ids = [str(item["id"]) for item in spec.inputs]
+                if validated["input_ids"] != expected_input_ids:
+                    raise SourceSnapshotError("source receipt inputs differ from the job spec")
+                relative_cwd = str(validated["worktree_relative_cwd"])
+                expected_sha256 = str(validated["archive"]["sha256"])
+                expected_size = int(validated["archive"]["size_bytes"])
+            job_dir = self._job_dir(job_id)
+            archive_path = job_dir / SOURCE_ARCHIVE_NAME
+            source_root = job_dir / "source"
+            snapshot_cwd = source_root.joinpath(*PurePosixPath(relative_cwd).parts)
+            strict_tools = {
+                name: _required_tool(name)
+                for name in ("head", "mkdir", "mktemp", "rm", "sha256sum", "stat", "tar", "wc")
+            }
+            source_copy_timeout = max(30, (expected_size + 1024 * 1024 - 1) // (1024 * 1024))
+            setup = [
+                'saved_umask="$(builtin umask)"',
+                "builtin umask 077",
+                "builtin unset TAR_OPTIONS",
+                f"head_tool={shlex.quote(strict_tools['head'])}",
+                f"mkdir_tool={shlex.quote(strict_tools['mkdir'])}",
+                f"mktemp_tool={shlex.quote(strict_tools['mktemp'])}",
+                f"rm_tool={shlex.quote(strict_tools['rm'])}",
+                f"sha256sum_tool={shlex.quote(strict_tools['sha256sum'])}",
+                f"stat_tool={shlex.quote(strict_tools['stat'])}",
+                f"tar_tool={shlex.quote(strict_tools['tar'])}",
+                f"timeout_tool={shlex.quote(timeout_tool)}",
+                f"wc_tool={shlex.quote(strict_tools['wc'])}",
+                f"source_archive={shlex.quote(str(archive_path))}",
+                f"source_root={shlex.quote(str(source_root))}",
+                f"expected_source_sha256={shlex.quote(expected_sha256)}",
+                f"expected_source_size={expected_size}",
+                f"source_copy_timeout={source_copy_timeout}",
+                f"source_copy=\"$(\"$mktemp_tool\" {shlex.quote(str(job_dir / '.source-copy.XXXXXX'))})\"",
+                'builtin trap \'"$rm_tool" -f -- "$source_copy"\' EXIT',
+                '[[ -f "$source_archive" && ! -L "$source_archive" ]]',
+                'actual_source_size="$("$timeout_tool" --signal=TERM "${source_copy_timeout}s" "$stat_tool" -Lc %s -- "$source_archive")"',
+                '[[ "$actual_source_size" -eq "$expected_source_size" ]]',
+                '"$timeout_tool" --signal=TERM "${source_copy_timeout}s" "$head_tool" -c "$expected_source_size" -- "$source_archive" > "$source_copy"',
+                '[[ "$("$stat_tool" -Lc %s -- "$source_archive")" -eq "$expected_source_size" ]]',
+                'builtin exec {source_fd}<"$source_copy"',
+                '"$rm_tool" -f -- "$source_copy"',
+                'source_fd_path="/proc/$$/fd/$source_fd"',
+                '[[ "$("$wc_tool" -c < "$source_fd_path")" -eq "$expected_source_size" ]]',
+                'builtin read -r actual_source_sha256 _ < <("$sha256sum_tool" "$source_fd_path")',
+                '[[ "$actual_source_sha256" = "$expected_source_sha256" ]]',
+                '[[ ! -e "$source_root" ]]',
+                '"$mkdir_tool" "$source_root"',
+                'TAR_OPTIONS= "$tar_tool" -xpf "$source_fd_path" -C "$source_root"',
+                'builtin exec {source_fd}<&-',
+                'builtin trap - EXIT',
+                'builtin umask "$saved_umask"',
+                f"builtin cd {shlex.quote(str(snapshot_cwd))}",
+            ]
         return "\n".join([
-            "#!/usr/bin/env bash",
+            shebang,
             *directives,
-            "set -euo pipefail",
-            f"cd {shlex.quote(spec.working_directory)}",
+            *preview_marker,
+            shell_options,
+            *setup,
             exports,
-            f"timeout --signal=TERM {spec.timeout_seconds}s {command}",
+            f"{timeout_command} --signal=TERM {spec.timeout_seconds}s {command}",
             "",
         ])
 
@@ -746,10 +1067,15 @@ class SlurmBackend:
             raise ValueError("Slurm preflight failed")
         job_id = "slurm-local-" + uuid.uuid4().hex[:16]
         job_dir = self._job_dir(job_id)
-        job_dir.mkdir(parents=True)
+        source_receipt = _prepare_source_snapshot(spec, job_dir)
+        if source_receipt is None:
+            job_dir.mkdir(parents=True)
         _atomic_json(job_dir / "spec.json", spec.to_dict())
         script_path = job_dir / "job.sh"
-        script_path.write_text(self.render_script(spec, job_id=job_id), encoding="utf-8")
+        script_path.write_text(
+            self.render_script(spec, job_id=job_id, source_receipt=source_receipt),
+            encoding="utf-8",
+        )
         script_path.chmod(0o700)
         completed = subprocess.run(["sbatch", "--parsable", str(script_path)], text=True, capture_output=True, check=False)
         if completed.returncode != 0:
@@ -758,7 +1084,16 @@ class SlurmBackend:
         if not scheduler_job_id:
             raise ValueError("sbatch returned no scheduler job ID")
         submitted_at = _now()
-        state = _state_material(spec, job_id=job_id, state="submitted", submitted_at=submitted_at, scheduler_job_id=scheduler_job_id, message="submitted to Slurm")
+        source_update = {} if source_receipt is None else {"source_receipt": source_receipt}
+        state = _state_material(
+            spec,
+            job_id=job_id,
+            state="submitted",
+            submitted_at=submitted_at,
+            scheduler_job_id=scheduler_job_id,
+            message="submitted to Slurm",
+            **source_update,
+        )
         _atomic_json(job_dir / "state.json", state)
         return state
 
@@ -800,6 +1135,7 @@ class SlurmBackend:
             failure_class=None if mapped == "completed" else (raw_state.lower() if mapped in TERMINAL_STATES else None),
             scheduler_job_id=scheduler_job_id,
             message=f"Slurm state {raw_state}",
+            **_source_state_update(state),
         )
         _atomic_json(job_dir / "state.json", updated)
         return updated
@@ -823,6 +1159,7 @@ class SlurmBackend:
             scheduler_job_id=state.get("scheduler_job_id"),
             failure_class="user-cancelled",
             message="Slurm job cancellation requested",
+            **_source_state_update(state),
         )
         _atomic_json(job_dir / "state.json", cancelled)
         return cancelled

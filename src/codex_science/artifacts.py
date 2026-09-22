@@ -196,6 +196,8 @@ def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     advanced = validate_advanced_sidecars(manifest, run_dir, verified, base_sidecars=base)
     advanced["advanced_findings"] = review_advanced_sidecars(advanced)
     base.update(advanced)
+    from codex_science.discovery import cycle_artifacts
+    base["research_cycles"] = cycle_artifacts(manifest, run_dir)
     return base
 
 
