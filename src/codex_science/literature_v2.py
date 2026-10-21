@@ -10,7 +10,7 @@ IDENTIFIER_PATTERNS = (
     ("doi", re.compile(r"^(?:https?://doi\.org/|doi:)?(10\.\d{4,9}/\S+)$", re.I)),
     ("pmid", re.compile(r"^(?:https?://pubmed\.ncbi\.nlm\.nih\.gov/|pmid:)?(\d{5,9})/?$", re.I)),
     ("pmcid", re.compile(r"^(?:pmcid:)?(PMC\d+)$", re.I)),
-    ("arxiv", re.compile(r"^(?:https?://arxiv\.org/abs/|arxiv:)?([a-z-]+/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?$", re.I)),
+    ("arxiv", re.compile(r"^(?:https?://arxiv\.org/abs/|arxiv:)?([a-z]+(?:-[a-z]+)?(?:\.[a-z]+(?:-[a-z]+)?)?/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?$", re.I)),
     ("nct", re.compile(r"^(?:nct:)?(NCT\d{8})$", re.I)),
 )
 RELATIONSHIPS = {"preprint_of", "published_as", "corrected_by", "retracted_by", "secondary_analysis_of", "protocol_for", "registry_for"}
@@ -44,7 +44,16 @@ def normalize_identifier(value: str) -> str:
         match = pattern.fullmatch(text)
         if match:
             identifier = match.group(1)
-            return f"{namespace}:{identifier.lower() if namespace in {'doi', 'arxiv'} else identifier.upper() if namespace in {'pmcid', 'nct'} else identifier}"
+            if namespace == "arxiv":
+                identifier = identifier.lower()
+                if "/" in identifier:
+                    archive, number = identifier.split("/", 1)
+                    identifier = f"{archive.split('.', 1)[0]}/{number}"
+            elif namespace == "doi":
+                identifier = identifier.lower()
+            elif namespace in {"pmcid", "nct"}:
+                identifier = identifier.upper()
+            return f"{namespace}:{identifier}"
     if ":" in text:
         namespace, identifier = text.split(":", 1)
         if namespace and identifier:

@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.citation_trace import extract_identifiers, trace_citations
+from codex_science.literature_v2 import normalize_identifier
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples/literature-review-reviewed-run"
@@ -33,9 +34,23 @@ class CitationTraceTests(unittest.TestCase):
         self.assertEqual(ids, ["doi:10.1234/abc", "doi:10.1016/s0146-6736(20)30183-5", "doi:10.5678/other_id"])
 
     def test_arxiv_subject_class_and_numeric_boundaries(self) -> None:
-        text = "arXiv:math.GT/0309136 arXiv:math.GT/03091367 arXiv:2401.123456 PMID:1234567890"
+        text = ("arXiv:math.GT/0309136 arXiv:cond-mat.stat-mech/0101001 "
+                "arXiv:physics.bio-ph/0412001 arXiv:hep-th/9901001 arXiv:q-bio.PE/0601001 "
+                "arXiv:math.GT/03091367 arXiv:2401.123456 PMID:1234567890")
         ids = [item["identifier"] for item in extract_identifiers(text)]
-        self.assertEqual(ids, ["arxiv:math.gt/0309136"])
+        self.assertEqual(ids, ["arxiv:math/0309136", "arxiv:cond-mat/0101001",
+                               "arxiv:physics/0412001", "arxiv:hep-th/9901001",
+                               "arxiv:q-bio/0601001"])
+        for identifier in ids:
+            self.assertEqual(identifier, normalize_identifier(identifier))
+
+    def test_arxiv_dotted_identifiers_round_trip_through_shared_normalizer(self) -> None:
+        for raw in ("math.GT/0309136", "cond-mat.stat-mech/0101001", "physics.bio-ph/0412001",
+                    "hep-th/9901001", "q-bio.PE/0601001"):
+            with self.subTest(identifier=raw):
+                traced = [item["identifier"] for item in extract_identifiers("arXiv:" + raw)]
+                normalized = normalize_identifier("arxiv:" + raw)
+                self.assertEqual([normalized], traced)
         bare = extract_identifiers("**10.1126/Science.1232033** and https://example.org/10.1234/not-a-citation")
         self.assertEqual([item["identifier"] for item in bare], ["doi:10.1126/science.1232033"])
 

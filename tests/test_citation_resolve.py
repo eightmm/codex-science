@@ -40,7 +40,8 @@ class CitationResolveTests(unittest.TestCase):
 
     def test_identifier_patterns_refuse_malformed_ids_before_fetch(self):
         fetch = Mock()
-        for identifier in ("pmid:abc", "doi:FOO", "arxiv:../x"):
+        for identifier in ("pmid:abc", "doi:FOO", "arxiv:../x", "arxiv:a..b/1234567",
+                           "arxiv:math./0309136"):
             with self.subTest(identifier=identifier), self.assertRaisesRegex(ValueError, "malformed"):
                 resolve_identifiers([identifier], fetch=fetch)
         fetch.assert_not_called()
@@ -50,6 +51,25 @@ class CitationResolveTests(unittest.TestCase):
         identifier = "arxiv:hep-th/9901001"
         self.assertEqual([identifier], normalize_identifiers([identifier]))
         self.assertEqual(([identifier], []), supported_identifiers_from_text("arXiv:hep-th/9901001"))
+
+    def test_dotted_old_style_arxiv_text_uses_canonical_api_id(self):
+        identifiers, skipped = supported_identifiers_from_text("Cites arXiv:math.GT/0309136.")
+        self.assertEqual(["arxiv:math/0309136"], identifiers)
+        self.assertEqual([], skipped)
+        requested = []
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>Regular points in affine Springer fibers</title>'
+                b'<published>2003-09-17T00:00:00Z</published>'
+                b'</entry></feed>')
+        result = resolve_identifiers(
+            identifiers,
+            fetch=lambda url, **kwargs: (requested.append(url) or (200, feed)),
+            delay=lambda _: None,
+        )
+        self.assertEqual("resolved", result["results"][0]["status"])
+        self.assertEqual("arxiv:math/0309136", result["results"][0]["identifier"])
+        self.assertEqual(1, len(requested))
+        self.assertIn("id_list=math%2F0309136", requested[0])
 
     def test_labelled_scan_reports_malformed_without_adding_lookups(self):
         identifiers, skipped = supported_identifiers_from_text("(doi:10.1234/foo). PMID: 1234")

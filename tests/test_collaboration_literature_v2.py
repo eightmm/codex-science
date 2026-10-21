@@ -35,6 +35,15 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
     def test_namespace_safe_identifiers_and_union_find_study_families(self) -> None:
         self.assertEqual("doi:10.1000/abc", normalize_identifier("https://doi.org/10.1000/ABC"))
         self.assertEqual("pmid:12345678", normalize_identifier("PMID:12345678"))
+        for raw, expected in (
+            ("math.GT/0309136", "arxiv:math/0309136"),
+            ("cond-mat.stat-mech/0101001", "arxiv:cond-mat/0101001"),
+            ("physics.bio-ph/0412001", "arxiv:physics/0412001"),
+            ("q-bio.PE/0601001", "arxiv:q-bio/0601001"),
+            ("hep-th/9901001", "arxiv:hep-th/9901001"),
+        ):
+            with self.subTest(identifier=raw):
+                self.assertEqual(expected, normalize_identifier("arxiv:" + raw))
         records = [
             {"study_id": "preprint", "persistent_ids": ["arxiv:2607.12345", "doi:10.1000/abc"], "publication_state": "preprint", "relationships": [{"type": "published_as", "target_study_id": "article"}]},
             {"study_id": "article", "persistent_ids": ["doi:10.1000/abc", "pmid:12345678"], "publication_state": "peer-reviewed", "relationships": []},
