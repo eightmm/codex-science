@@ -17,6 +17,10 @@ If a checklist materially controls a review receipt, include its SHA-256 in the 
 
 ## Inputs and review mode
 
+Review packets include `review_priority` and an advisory `review_order_policy` with `suggested_first_claim_ids`.
+The ordering tier affects review order only; full coverage of material claims remains mandatory.
+Choose an explicit tier with the reviewer CLI's `--tier` option when a caller-selected ordering is needed.
+
 Require the decision contract, approved plan, artifact manifest, claim register, query and execution logs, outputs, environment, lane receipts, cited sources, and prior findings. Report missing evidence rather than filling gaps from memory.
 
 Declare one review mode:

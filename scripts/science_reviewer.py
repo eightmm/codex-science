@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.reviewer_runtime import build_review_packet, finalize_review_response  # noqa: E402
+from codex_science.rigor import TIERS  # noqa: E402
 
 
 def read_object(path: Path) -> dict:
@@ -33,6 +34,7 @@ def prepare(args: argparse.Namespace) -> None:
         review_modes=args.mode,
         independent_required=not args.independence_not_required,
         review_questions=args.question or None,
+        **({"tier": args.tier} if args.tier is not None else {}),
     )
     write(args.output, packet)
 
@@ -51,6 +53,7 @@ def main() -> int:
     command.add_argument("--mode", action="append", choices=["record", "source", "method", "reproduction"], required=True)
     command.add_argument("--question", action="append", default=[])
     command.add_argument("--independence-not-required", action="store_true")
+    command.add_argument("--tier", choices=TIERS)
     command.add_argument("--output", type=Path, required=True)
     command.set_defaults(handler=prepare)
     command = commands.add_parser("finalize")

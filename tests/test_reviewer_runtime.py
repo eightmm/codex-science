@@ -1,5 +1,7 @@
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,6 +35,27 @@ def make_reviewed_run(root: Path) -> Path:
 
 
 class ReviewerRuntimeTests(unittest.TestCase):
+    def test_reviewer_cli_prepare_tier_and_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest = make_reviewed_run(Path(tempdir))
+            for tier, source in ((None, "default"), ("quick", "caller"), ("full", "caller")):
+                output = Path(tempdir) / f"{tier or 'default'}.json"
+                command = [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "science_reviewer.py"), "prepare", str(manifest), "--mode", "record", "--output", str(output)]
+                if tier is not None:
+                    command.extend(["--tier", tier])
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                policy = json.loads(output.read_text(encoding="utf-8"))["review_order_policy"]
+                self.assertEqual(tier or "standard", policy["tier"])
+                self.assertEqual(source, policy["tier_source"])
+
+            invalid = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "science_reviewer.py"), "prepare", str(manifest), "--mode", "record", "--tier", "invalid", "--output", str(Path(tempdir) / "invalid.json")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(2, invalid.returncode)
+            self.assertIn("invalid choice", invalid.stderr)
+
     def test_priority_order_ties_and_coverage_tiers(self) -> None:
         manifest = {"claims": [], "artifacts": [{"path": "analysis.json"}], "executions": [{"id": "run-analysis", "exit_code": 0}]}
         claims = [

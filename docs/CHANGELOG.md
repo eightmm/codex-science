@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Exposed the reviewer packet ordering tier through `science_reviewer.py prepare --tier` and documented its advisory, coverage-preserving behavior.
 - Added a bounded resume driver, weighted rubric grading, trajectory consensus
   and ranking, claim evidence-count checks, opt-in citation existence lookup,
   and an opt-in completion-record schema cross-check. These mechanisms report
