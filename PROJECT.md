@@ -124,6 +124,39 @@
   adds malformed design, stale review, duplicate history, unmatched comparison,
   and observation-to-decision linkage cases, followed by the required fast gate.
 
+## Stage 8: Research-derived drive-to-result mechanisms (authorized by user directive 2026-10-21; scope confirmation pending at return)
+
+- Source: three surveys (AI-scientist platforms, research-agent benchmarks,
+  Codex 0.163 extension surface). Adopted items are the smallest ones that
+  close the "runs stall before a result" gap; the rest go to the ROADMAP
+  backlog with citations. Existing finding-closure gates (review receipts) and
+  claim statuses (`unsupported`, `unavailable`, `suggestive`) already cover
+  reviewer closure and abstention and are not rebuilt.
+- Resume driver: `codex exec` runs one turn per invocation. A bounded driver
+  records `thread_id`, parses JSONL events (terminal-event stop reasons,
+  item/tool counts, cumulative token deltas, arrival-stamped wall time), and
+  calls `codex exec resume` with a fixed continuation prompt until the
+  completion reporter shows a terminal outcome or a turn, wall-clock, or token
+  cap is reached. It pins the sandbox, approval, and network flags, never uses
+  `--ephemeral`, `--ignore-user-config`, or sandbox bypass, and records a
+  preflight of effective plugin, hook, sandbox, and approval state. It never
+  edits Codex configuration.
+- Literature saturation stopping: a deterministic estimator fits the
+  discovery curve `1 - exp(-n/tau)` to logged (evaluated, relevant) counts and
+  reports predicted remaining relevant records; the literature-review conductor
+  uses it as a documented, vendor-derived stopping aid with a hard cap, never
+  as proof of completeness.
+- Bounded partial completion: tier budgets end an exhausted run with an
+  explicit partial result and caveats instead of a stall, additively on the
+  existing checkpoint states (no new state that older runtimes cannot read).
+  Requires an architect decision first; deferred if it cannot stay additive.
+- Hookless fallback: when plugin hooks are unavailable, the coordinator has a
+  documented way to obtain a run-local session key so standard/full runs can
+  still checkpoint; the run records that it is not hook-bound.
+- Acceptance: deterministic tests for each item (golden JSONL fixtures, fake
+  codex for resume loops, synthetic saturation curves, partial-completion
+  fixtures, hookless init), `scripts/check.sh fast`, and documentation.
+
 ## Project
 
 - Name: Codex Science

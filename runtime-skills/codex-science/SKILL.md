@@ -168,7 +168,7 @@ Stop and ask only when it genuinely matters, and batch all currently known quest
 - a fork that materially changes the deliverable, scope, or interpretation and cannot be settled from context or a reasonable default;
 - acknowledgement required before inspecting an inactive skill.
 
-Persistence never overrides a safety gate or the audit policy. Declare the problem solved only after `$science-review`, verification, and successful checkpoint completion. An inconclusive result does not itself finish the run: execute the next planned discriminating experiment, revise the route, or record why no in-scope action remains.
+Persistence never overrides a safety gate or the audit policy. Declare a standard or full run solved only after `$science-review`, verification, and successful checkpoint completion; a quick answer is delivered as labeled and unreviewed. An inconclusive result does not itself finish the run: execute the next planned discriminating experiment, revise the route, or record why no in-scope action remains.
 
 ## Plugin updates
 
