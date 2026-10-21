@@ -240,7 +240,10 @@ Every model has a deterministic contract hash covering task and modality fit, im
 
 ```bash
 python scripts/validate_model_registry_v2.py
+python scripts/validate_model_registry_v2.py --receipt receipt.json --current-revisions current.json
 ```
+
+With `--receipt`, findings print as JSON lines tagged with the receipt path; exit 0 means fresh, 1 means findings (including stale code, weight, or supplied database revisions), and 2 means unreadable input.
 
 A model receipt v2 binds:
 

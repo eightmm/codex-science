@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 STATUSES = {"cataloged", "experimental", "smoke-tested", "contract-tested", "acceptance-tested", "degraded", "deprecated", "license-blocked"}
 USABLE_STATUSES = {"experimental", "smoke-tested", "contract-tested", "acceptance-tested"}
@@ -116,19 +116,47 @@ def build_model_receipt_v2(
     return material
 
 
-def validate_model_receipt_v2(receipt: dict[str, Any], registry: dict[str, Any] | None = None) -> list[dict[str, str]]:
+def validate_model_receipt_v2(
+    receipt: dict[str, Any], registry: dict[str, Any] | None = None, *,
+    current_revisions: Mapping[str, Any] | None = None,
+) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     if receipt.get("schema_version") != 2:
         return [{"code": "invalid-model-receipt-v2", "severity": "critical", "message": "unsupported model receipt v2 schema"}]
     try:
         material = dict(receipt)
-        fingerprint = _sha(material.pop("fingerprint"), "fingerprint")
+        fingerprint = _sha(material.pop("fingerprint", None), "fingerprint")
         if canonical_sha256(material) != fingerprint:
             raise ValueError("model receipt fingerprint mismatch")
         for field in ("model_contract_sha256", "registry_sha256", "configuration_sha256", "input_sha256"):
             _sha(receipt.get(field), field)
     except ValueError as error:
         return [{"code": "invalid-model-receipt-v2", "severity": "critical", "message": str(error)}]
+    if current_revisions is not None:
+        if not isinstance(current_revisions, Mapping):
+            raise ValueError("current_revisions must be a mapping")
+        allowed = {"code_revision", "weight_revision", "database_revisions"}
+        unknown = set(current_revisions) - allowed
+        if unknown:
+            raise ValueError(f"unknown current revision key(s): {', '.join(map(str, sorted(unknown, key=str)))}")
+        for field in ("code_revision", "weight_revision"):
+            if field in current_revisions and not isinstance(current_revisions[field], str):
+                raise ValueError(f"current_revisions.{field} must be a string")
+        if "database_revisions" in current_revisions:
+            databases = current_revisions["database_revisions"]
+            if not isinstance(databases, Mapping):
+                raise ValueError("current_revisions.database_revisions must be a mapping")
+            if any(not isinstance(name, str) or not isinstance(revision, str) for name, revision in databases.items()):
+                raise ValueError("current_revisions.database_revisions must map string names to string revisions")
+        model_id = str(receipt.get("model_id"))
+        for field in ("code_revision", "weight_revision"):
+            if field in current_revisions and current_revisions[field] != receipt.get(field):
+                findings.append({"code": "stale-model-receipt-v2", "severity": "major", "message": f"{field} changed: {model_id}"})
+        if "database_revisions" in current_revisions:
+            receipt_databases = receipt.get("database_revisions", {})
+            for name, revision in current_revisions["database_revisions"].items():
+                if not isinstance(receipt_databases, Mapping) or receipt_databases.get(name) != revision:
+                    findings.append({"code": "stale-model-receipt-v2", "severity": "major", "message": f"database revision changed ({name}): {model_id}"})
     if registry is not None:
         models = validate_registry_v2(registry)
         model = models.get(str(receipt.get("model_id")))
