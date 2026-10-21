@@ -14,6 +14,13 @@ onto Codex tools instead of a bundled script harness.
 > [google-deepmind/science-skills](https://github.com/google-deepmind/science-skills)
 > (Apache-2.0 + CC-BY-4.0). Model terms: https://deepmind.google.com/science/alphagenome/
 
+## Decision contract
+
+Normalize the variant as `chr:pos:ref/alt` (or `ref>alt`) and record assembly,
+reference allele validation, relevant tissue, permitted interpretation, reported
+model release, and evidence cutoff. Define output types before ranking. A quantile
+hit is a relative signal, not a calibrated probability or clinical classification.
+
 ## Gates (ask before proceeding)
 
 - **Credential**: this workflow calls the AlphaGenome API and needs
@@ -75,6 +82,16 @@ onto Codex tools instead of a bundled script harness.
 7. **Provenance & review**: record inputs, API endpoint, and outputs with
    `$science-provenance`, then check claims with `$science-review` before
    presenting.
+
+## Outputs
+
+Save normalized variant and reference-check status, tissue/phenotype filters,
+endpoint and model release when reported, raw response and score table, returned
+and excluded records with reasons, failures, report path/hash, and provenance.
+Return claim IDs/statuses (supported, contradicted, inconclusive, unavailable),
+direction, uncertainty/limitations, and the smallest falsifiable follow-up. Record
+artifacts with `$science-provenance`; `$science-review` is mandatory before
+material variant interpretation.
 
 ## Boundaries
 

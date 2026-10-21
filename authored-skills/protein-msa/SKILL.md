@@ -18,6 +18,14 @@ Uses the public API directly through Codex's own tools.
   Write large responses to a file and parse them; if you write helper code, run
   it via `uv run`, never bare `python3`. Ask before installs or large downloads.
 
+## Decision contract
+
+Validate a FASTA containing at least two protein sequences; preserve each supplied
+identifier and sequence, reject malformed/empty entries, and record sequence
+hashes. Define the comparison question and residue/region of interest. This service
+aligns the submitted set and does not discover homologs. Capture service-reported
+job state/release metadata when present; do not infer an unreported release.
+
 ## Endpoints
 
 - EBI Clustal Omega REST `https://www.ebi.ac.uk/Tools/services/rest/clustalo/`
@@ -28,6 +36,26 @@ Uses the public API directly through Codex's own tools.
 2. Report conserved columns/regions and key-residue conservation from the alignment.
 - **Provenance & review**: record queries, endpoints, and cited identifiers with
   `$science-provenance`; check claims with `$science-review` before presenting.
+
+Serialize the exact FASTA and request fields supported by the endpoint. Use the
+returned job ID for bounded status polling; retry only transient request failures
+with a fixed retry cap, and stop on terminal failure. Validate the result format,
+returned sequence IDs/count, and alignment dimensions; detect incomplete or
+truncated responses before interpreting them. Record submitted, returned, and
+excluded IDs with reasons. Distinguish an absent result from an empty alignment
+and from an unavailable request. No repository connector is configured for this
+source, so use the documented public endpoint directly; do not substitute another
+search route after failure.
+
+## Outputs
+
+Return submitted IDs/hashes, endpoint, job ID/status, request and result artifact
+paths/hashes, aligned sequences, alignment length and gaps, conserved columns or
+regions, claim IDs/statuses, exclusions/failures, limitations, and smallest
+falsifiable next analysis. Use supported, contradicted, inconclusive, or unavailable
+for each claim status.
+Record artifacts with `$science-provenance`; `$science-review` is mandatory before
+material conservation claims.
 
 ## Boundaries
 

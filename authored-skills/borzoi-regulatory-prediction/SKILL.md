@@ -6,6 +6,14 @@ license: MIT
 
 # Borzoi Regulatory Prediction
 
+## Decision contract
+
+Record assembly, coordinate convention, reference/alternate alleles and validation,
+window boundaries, transcript/annotation release, track and tissue identifiers,
+and the variant-level question. Define matched windows, effect summaries,
+acceptance criteria, evaluation split, and permitted inference before prediction.
+Keep model track scores separate from causal or clinical interpretation.
+
 ## Gate
 
 Ask once before cloning/installing a pinned Borzoi revision, downloading model
@@ -26,6 +34,18 @@ approved. Follow `$cx-compute-environment`.
    report ensemble variability and sensitivity to window placement. Compare
    simple conservation/motif and nearby-QTL baselines where relevant.
 5. Record with `$science-provenance`; review with `$science-review`.
+
+## Outputs
+
+Save normalized loci and coordinate maps, assembly/annotation/track IDs, checkpoint
+and preprocessing revisions, hardware/seed/precision, raw and reference-alternate
+tracks, comparison table, failures/exclusions, and artifact paths/hashes. Return
+per-tissue/transcript effects, ensemble and window sensitivity, uncertainty,
+applicability limits, and a smallest falsifiable next test. Record with
+`$science-provenance`; `$science-review` is mandatory before material claims.
+Retain failed windows and keep prediction completion separate from acceptance.
+Assign each material claim an ID and status: supported, contradicted, inconclusive,
+or unavailable.
 
 ## Boundaries
 

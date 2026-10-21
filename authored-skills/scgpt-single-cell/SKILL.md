@@ -6,6 +6,14 @@ license: MIT
 
 # scGPT Single-Cell Analysis
 
+## Decision contract
+
+Record dataset/sample/donor identifiers, assay, count layer, feature dictionary
+and release, labels, perturbation, task, deployment population, and independent
+unit. Prespecify split, preprocessing, baseline, metrics, uncertainty and subgroup
+checks. State whether analysis is inductive or transductive and what would falsify
+the requested interpretation.
+
 ## Gate
 
 Ask once before installing a pinned scGPT revision, downloading checkpoints or
@@ -27,6 +35,16 @@ explicit authorization and governance review. Follow `$cx-compute-environment`.
    donor-level uncertainty, batch/tissue slices, calibration, OOD detection, and
    nuisance predictability from embeddings.
 5. Record with `$science-provenance`; review with `$science-review`.
+
+## Outputs
+
+Save input and sample/donor hashes, schema and feature mapping, split IDs,
+preprocessing/model/checkpoint/token dictionary, environment/seeds, metrics and
+uncertainty by independent unit, exclusions/failures, and artifact paths/hashes.
+Return claim IDs with supported, contradicted, inconclusive, or unavailable status,
+limitations, and the smallest falsifiable validation. Record with
+`$science-provenance`; `$science-review` is mandatory before material claims.
+Retain failed quality checks and excluded observations without silent repair.
 
 ## Boundaries
 

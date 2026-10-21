@@ -6,6 +6,14 @@ license: MIT
 
 # scvi-tools Analysis
 
+## Decision contract
+
+Record dataset/sample/donor identifiers, assay and count layer, feature registry,
+biological and technical units, estimand, deployment population, and whether the
+design identifies the requested effect. Prespecify model, split, likelihood,
+baseline, diagnostics, metrics and uncertainty. Mark transductive choices and
+define criteria that would contradict or leave the claim inconclusive.
+
 ## Gate
 
 Ask once before installing a pinned scvi-tools stack, downloading hub models or
@@ -30,6 +38,16 @@ authorization. Follow `$cx-compute-environment`.
    simple task-appropriate baselines; report donor-level uncertainty, batch and
    biology conservation, subgroup/OOD performance, and sensitivity to covariates.
 5. Record with `$science-provenance`; review with `$science-review`.
+
+## Outputs
+
+Save input and independent-unit IDs/hashes, schema/registry and transformations,
+split, model/config/checkpoint/environment/seeds, diagnostics and per-unit metrics
+with uncertainty, exclusions/failures, and artifact paths/hashes. Return claim IDs
+with supported, contradicted, inconclusive, or unavailable status, limitations, and
+the smallest falsifiable follow-up. Record with `$science-provenance`;
+`$science-review` is mandatory before material claims. Preserve failed checks and
+distinguish training completion from scientific acceptance.
 
 ## Boundaries
 

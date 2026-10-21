@@ -9,7 +9,15 @@ license: MIT
 For a concrete dataset, use `$cx-modeling-problem-execution` to continue through
 execution and downstream evaluation.
 
-## Gate and workflow
+## Decision contract
+
+Record sequence/construct identifiers and hashes, downstream task and estimand,
+independent split unit, permitted inference, model family/checkpoint revision,
+and whether sequence transfer or hosted inference is authorized. Prespecify
+extraction settings, baselines, acceptance tolerances, and leakage checks. Keep
+model scale or likelihood separate from biological validity.
+
+## Workflow
 
 1. Ask once before installing a pinned Biohub `esm`/Transformers revision,
    downloading ESMC/SAE weights, using GPU compute, Hugging Face authentication,
@@ -24,6 +32,17 @@ execution and downstream evaluation.
    nearest-homolog, composition/profile, and simple linear baselines; report by
    nearest-train identity and applicability domain.
 5. Record with `$science-provenance`; review with `$science-review`.
+
+## Outputs
+
+Save normalized sequence IDs/hashes, split IDs, model and checkpoint revision,
+tokenizer/layer/SAE and preprocessing, environment/device/precision, outputs and
+dimensions, masks, logs, exclusions/failures, and artifact paths/hashes. Return
+the candidate/evaluation table, uncertainty, baseline and applicability results,
+limitations, and smallest falsifiable next analysis. Record with
+`$science-provenance`; `$science-review` is mandatory before material claims.
+Output integrity and batch invariance do not validate function. Assign each
+material claim an ID and status: supported, contradicted, inconclusive, or unavailable.
 
 ## Boundaries
 

@@ -9,7 +9,15 @@ license: MIT
 Use `$cx-modeling-problem-execution` for a concrete target or motif and continue
 through the complete candidate funnel.
 
-## Gate and workflow
+## Decision contract
+
+Record the design objective, target or motif source and identifiers, structure
+chains and residue numbering, conditioning constraints, topology, candidate
+budget, and compute envelope before generation. Define acceptance and failure
+criteria for geometry, motif recovery, diversity, and downstream refolding. State
+which properties remain hypotheses for experimental evaluation.
+
+## Workflow
 
 1. Ask once before cloning a pinned commit/container, downloading checkpoints,
    and running GPU compute. State candidate count, expected time/storage, and any
@@ -24,6 +32,18 @@ through the complete candidate funnel.
    prediction, geometry/interface filters, diversity/novelty checks, and
    developability screens. Report the full funnel and orthogonal-model agreement.
 5. Record with `$science-provenance`; review with `$science-review` before ranking.
+
+## Outputs
+
+Save a manifest containing normalized target/motif inputs, coordinate and residue
+maps, pinned code/checkpoint/config/environment, seeds, resource use, all candidate
+IDs, stage-level counts and exclusions, output paths/hashes, and failure records.
+Return per-candidate evidence, diversity and uncertainty, limitations, and the
+smallest falsifiable next validation. Record artifacts with `$science-provenance`;
+`$science-review` is mandatory before ranking. Keep process success separate from
+scientific acceptance and preserve every rejected candidate with its reason.
+Assign each material claim an ID and status: supported, contradicted, inconclusive,
+or unavailable.
 
 ## Boundaries
 

@@ -40,7 +40,7 @@
     {
       "description": "Analyze how a single non-coding genetic variant affects gene expression, chromatin accessibility, histone marks, transcription factors, and splicing using the AlphaGenome API. Use when the user gives a variant in chr:pos:ref/alt form and asks about regulatory or splicing effects, tissue-specific impact, or pathogenicity of a non-coding change. Requires an AlphaGenome API key.",
       "executable_count": 0,
-      "instruction_line_count": 87,
+      "instruction_line_count": 104,
       "license": "Apache-2.0",
       "name": "cx-alphagenome-variant-analysis",
       "path": "authored-skills/alphagenome-variant-analysis",
@@ -102,7 +102,7 @@
     {
       "description": "Run a pinned BindCraft campaign for de novo protein binders using AlphaFold2 optimization, ProteinMPNN, PyRosetta, and configurable filters. Use only when the target structure, hotspot strategy, candidate budget, dependency licenses, and experimental handoff are explicit.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 57,
       "license": "MIT",
       "name": "cx-bindcraft-binder-design",
       "path": "authored-skills/bindcraft-binder-design",
@@ -174,7 +174,7 @@
     {
       "description": "Run pinned Borzoi models to predict RNA-seq and regulatory tracks from long DNA sequence and compare reference versus alternate alleles. Use for regulatory variant hypotheses with explicit genome assembly, sequence-window, tissue, and track provenance.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 55,
       "license": "MIT",
       "name": "cx-borzoi-regulatory-prediction",
       "path": "authored-skills/borzoi-regulatory-prediction",
@@ -474,7 +474,7 @@
     {
       "description": "Extract reproducible ESM-2 protein embeddings, residue representations, likelihoods, or zero-shot mutation scores. Use when a frozen protein language model is needed as a feature extractor or baseline.",
       "executable_count": 0,
-      "instruction_line_count": 34,
+      "instruction_line_count": 53,
       "license": "MIT",
       "name": "cx-esm2-protein-embeddings",
       "path": "authored-skills/esm2-protein-embeddings",
@@ -486,7 +486,7 @@
     {
       "description": "Run released Biohub ESMC protein language models for representations, masked likelihoods, sequence scoring, mutation analysis, or sparse-autoencoder features. Use as the current ESMC alternative to ESM-2 when model scale, revision, and inference boundaries are explicit.",
       "executable_count": 0,
-      "instruction_line_count": 32,
+      "instruction_line_count": 51,
       "license": "MIT",
       "name": "cx-esmc-protein-modeling",
       "path": "authored-skills/esmc-protein-modeling",
@@ -534,7 +534,7 @@
     {
       "description": "Run pinned Evo 2 DNA sequence scoring, embeddings, variant scoring, or controlled generation. Use for long-context genomic foundation-model analyses when compatible local GPU hardware and explicit genome/strand provenance are available.",
       "executable_count": 0,
-      "instruction_line_count": 37,
+      "instruction_line_count": 56,
       "license": "MIT",
       "name": "cx-evo2-genome-modeling",
       "path": "authored-skills/evo2-genome-modeling",
@@ -1158,7 +1158,7 @@
     {
       "description": "Align multiple protein sequences with EBI Clustal Omega to assess similarity and residue/domain conservation (up to 4000 sequences, 4 MB). Not for homolog search, non-protein sequences, structural alignment, or a single sequence. Public EBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 63,
       "license": "Apache-2.0",
       "name": "cx-protein-msa",
       "path": "authored-skills/protein-msa",
@@ -1182,7 +1182,7 @@
     {
       "description": "Design or score protein sequences for fixed backbones with ProteinMPNN, LigandMPNN, or SolubleMPNN. Use for backbone-conditioned design, ligand-context design, soluble-protein design, residue constraints, or side-chain packing.",
       "executable_count": 0,
-      "instruction_line_count": 36,
+      "instruction_line_count": 55,
       "license": "MIT",
       "name": "cx-proteinmpnn-sequence-design",
       "path": "authored-skills/proteinmpnn-sequence-design",
@@ -1350,7 +1350,7 @@
     {
       "description": "Run pinned RFdiffusion for unconditional generation, motif scaffolding, binder backbones, symmetric assemblies, partial diffusion, or macrocyclic peptide design. Use when structural conditioning and a downstream sequence/refolding validation funnel are defined.",
       "executable_count": 0,
-      "instruction_line_count": 33,
+      "instruction_line_count": 53,
       "license": "MIT",
       "name": "cx-rfdiffusion-protein-design",
       "path": "authored-skills/rfdiffusion-protein-design",
@@ -1398,7 +1398,7 @@
     {
       "description": "Run pinned scGPT checkpoints for single-cell embeddings, cell-type annotation, reference mapping, perturbation modeling, or fine-tuning. Use when a pretrained single-cell transformer is requested and donor/batch/feature provenance can be preserved.",
       "executable_count": 0,
-      "instruction_line_count": 36,
+      "instruction_line_count": 54,
       "license": "MIT",
       "name": "cx-scgpt-single-cell",
       "path": "authored-skills/scgpt-single-cell",
@@ -1410,7 +1410,7 @@
     {
       "description": "Build and evaluate reproducible scvi-tools workflows for single-cell RNA, protein, chromatin, spatial, or multimodal data using scVI, scANVI, totalVI, MultiVI, PeakVI, DestVI, or related models.",
       "executable_count": 0,
-      "instruction_line_count": 41,
+      "instruction_line_count": 59,
       "license": "MIT",
       "name": "cx-scvi-tools-analysis",
       "path": "authored-skills/scvi-tools-analysis",

@@ -6,6 +6,14 @@ license: MIT
 
 # ProteinMPNN Sequence Design
 
+## Decision contract
+
+Record the backbone source/hash, biological objective, chain and residue mapping,
+fixed/designable positions, ligand context, sequence constraints, and evaluation
+split before scoring or design. Prespecify candidate budget and acceptance checks
+for sequence validity, structural compatibility, diversity, and applicable
+downstream tests. State the intended applicability domain and falsifiers.
+
 ## Gate
 
 Ask once before cloning a pinned repository commit, downloading model weights,
@@ -27,6 +35,17 @@ submit generated sequences for synthesis or remote screening.
    dependence, and developability proxies with orthogonal methods.
 5. Record the candidate funnel with `$science-provenance`; review with
    `$science-review` before selecting candidates.
+
+## Outputs
+
+Save a run manifest with normalized backbone/constraint identifiers and hashes,
+model/checkpoint/config/environment, seeds, resource use, all candidate IDs,
+per-stage counts, scores and exclusions, and output paths/hashes. Return the full
+candidate table, uncertainty and baseline comparisons, limitations, and the
+smallest falsifiable next test. Record artifacts with `$science-provenance`;
+`$science-review` is mandatory before candidate selection. Preserve failed
+candidates and separate process completion from scientific acceptance. Assign each
+material claim an ID and status: supported, contradicted, inconclusive, or unavailable.
 
 ## Boundaries
 
