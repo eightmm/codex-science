@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from codex_science.statement_support import check_statement_support
+
+ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE = ROOT / "examples/literature-review-reviewed-run"
+CLI = ROOT / "scripts/check_statement_support.py"
+IDENTIFIER = "doi:10.0000/example.primary.1"
+
+
+class StatementSupportTests(unittest.TestCase):
+    def make_run(self, root: Path, report: str, excerpt: str | None = None) -> Path:
+        run = root / "run"
+        shutil.copytree(EXAMPLE, run)
+        (run / "report.md").write_text(report, encoding="utf-8")
+        manifest_path = run / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        study_path = run / "studies.json"
+        studies = json.loads(study_path.read_text(encoding="utf-8"))
+        if excerpt is not None:
+            source = "source.txt"
+            (run / source).write_text(excerpt, encoding="utf-8")
+            studies["studies"][0]["support_excerpts"] = [{
+                "claim_id": "claim-method-effect", "text": excerpt,
+                "source_artifact": source,
+                "source_sha256": hashlib.sha256((run / source).read_bytes()).hexdigest(),
+            }]
+        study_path.write_text(json.dumps(studies), encoding="utf-8")
+        for artifact in manifest["artifacts"]:
+            artifact["sha256"] = hashlib.sha256((run / artifact["path"]).read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        return run
+
+    def test_available_no_excerpt_untraced_and_lexical_flag(self):
+        with tempfile.TemporaryDirectory() as temp:
+            report = (f"The result showed a strikingly unrelated outcome for {IDENTIFIER}.\n"
+                      f"A different result for {IDENTIFIER}.\n"
+                      "An unknown study DOI:10.9999/unknown.1 was cited.")
+            run = self.make_run(Path(temp), report, "The source describes a measured cohort outcome and observed association in participants.")
+            result = check_statement_support(run)
+            pairs = [pair for row in result["statements"] for pair in row["pair_statuses"]]
+            self.assertEqual(["excerpt_available", "excerpt_available", "untraced"], [p["status"] for p in pairs])
+            self.assertTrue(pairs[0]["low_overlap"])
+            self.assertEqual(1, result["counts"]["untraced"])
+            before = {path.name: path.read_bytes() for path in run.iterdir() if path.is_file()}
+            self.assertEqual(result, check_statement_support(run))
+            self.assertEqual(before, {path.name: path.read_bytes() for path in run.iterdir() if path.is_file()})
+
+    def test_no_excerpt_and_markdown_table_is_one_unit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.make_run(Path(temp), f"| Finding | Citation |\n| --- | --- |\n| Cohort outcome {IDENTIFIER} | included |")
+            rows = check_statement_support(run)["statements"]
+            self.assertEqual(1, len(rows))
+            self.assertEqual(3, rows[0]["line"])
+            self.assertEqual("no_excerpt", rows[0]["pair_statuses"][0]["status"])
+
+    def test_cli_exit_codes_and_error_json(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run = self.make_run(root, f"Cited {IDENTIFIER}.")
+            env = dict(os.environ)
+            env.pop("PYTHONPATH", None)
+            def invoke(*args):
+                return subprocess.run([sys.executable, str(CLI), "--run-dir", str(run), *args],
+                                      cwd=root, env=env, text=True, capture_output=True)
+            self.assertEqual(0, invoke().returncode)
+            self.assertEqual(1, invoke("--require-excerpts").returncode)
+            invalid = invoke("--report", "../outside.md")
+            self.assertEqual(2, invalid.returncode)
+            self.assertEqual("statement-support-error-v1", json.loads(invalid.stdout)["schema"])
+
+
+if __name__ == "__main__":
+    unittest.main()
