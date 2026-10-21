@@ -607,9 +607,9 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
             independence_groups: set[str] = set()
             for edge in supports:
                 source = str(edge["source"])
-                group = str(edge.get("independence_group", "")).strip()
+                group = str(edge.get("independence_group") or "").strip()
                 if not group and source in studies:
-                    group = str(studies[source].get("cohort_id", "")).strip()
+                    group = str(studies[source].get("cohort_id") or "").strip()
                 independence_groups.add(group or source)
             if len(independence_groups) < 2:
                 add(

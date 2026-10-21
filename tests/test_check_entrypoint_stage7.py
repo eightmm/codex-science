@@ -13,6 +13,11 @@ SCRIPTS = (
     "report_literature_evaluation",
     "estimate_saturation",
     "trace_citations",
+    "drive_codex_run",
+    "grade_rubric",
+    "rank_trajectories",
+    "check_claim_sufficiency",
+    "resolve_citations",
 )
 
 

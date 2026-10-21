@@ -377,7 +377,7 @@
   - One MCP handoff fixture proving that discovery can hand off to the task's pinned runtime, while external or explicit updates do not switch an active generation.
   - Human-output fixtures proving concise hook notices, suppressed successful candidate logs, and a human-first Markdown index without changing machine JSON or JSON-RPC stdout.
   - CI must reject a runtime-affecting diff whose runtime version was not changed relative to the pull-request base, and reject a bootstrap-affecting diff whose host plugin version was not changed.
-  - Stage 7 rigor-tier classifier, coordinator tier routing, completion reporter, and real-run harness dry-run tests; Stage 8 resume driver (pending), saturation, hookless, budgets, citation tracing, and excerpts.
+  - Stage 7 rigor-tier classifier, coordinator tier routing, completion reporter, and real-run harness dry-run tests; Stage 8 resume driver, saturation, hookless, budgets, citation tracing, and excerpts; Stage 9 rubric grader, trajectory consensus, claim sufficiency, citation resolution, and completion record.
 - Baseline/metric: 100% catalog inventory coverage; zero silently enabled blocked skills; all required checks pass; one reviewed end-to-end research run; three public-source smoke tests.
 
 ## References

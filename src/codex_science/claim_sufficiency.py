@@ -21,10 +21,10 @@ SUFFICIENCY_POLICY = {
 
 
 def _group_id(study: dict[str, Any], edge: dict[str, Any]) -> str:
-    explicit = str(edge.get("independence_group", "")).strip()
+    explicit = str(edge.get("independence_group") or "").strip()
     if explicit:
         return explicit
-    cohort = str(study.get("cohort_id", "")).strip()
+    cohort = str(study.get("cohort_id") or "").strip()
     if cohort:
         return cohort
     persistent = _persistent_id(study.get("persistent_id") or "")

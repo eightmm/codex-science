@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a bounded resume driver, weighted rubric grading, trajectory consensus
+  and ranking, claim evidence-count checks, opt-in citation existence lookup,
+  and an opt-in completion-record schema cross-check. These mechanisms report
+  execution or supplied evidence; they do not establish scientific validity or
+  measured improvement.
 - Added proportional rigor tiers and a read-only completion reporter.
 - Added a frozen literature evaluation harness and receipt grader with
   dry-run planning, runtime identity receipts, and append-only reporting.

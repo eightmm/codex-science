@@ -8,9 +8,15 @@
 - Checkpoint support includes hookless session binding, tier-based optional
   budgets and partial termination, verified support excerpts, and
   claim-kind-specific review questions.
+- Stage 8/9 additions include a bounded resume driver whose receipts summarize
+  invocations while checkpoints remain authoritative; weighted rubric scores
+  and trajectory consensus/rankings summarize supplied records; claim
+  sufficiency counts independent study groups without judging entailment;
+  citation resolution is network-opt-in and existence-only; and output-schema
+  validation is an optional completion-record cross-check.
 - These are local runtime contracts and deterministic checks. No real
   literature evaluation has established measured completion or agent
-  improvement; the resume driver remains under review.
+  improvement.
 
 ## Completed in 0.3.0
 

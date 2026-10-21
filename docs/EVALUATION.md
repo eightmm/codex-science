@@ -42,7 +42,52 @@ scripts/python_runtime.sh scripts/run_literature_evaluation.py --tasks benchmark
 scripts/python_runtime.sh scripts/report_literature_evaluation.py --tasks benchmarks/literature-review/tasks.json --runs /tmp/literature-run --format markdown
 ```
 
-Resume driver: pending
+### Bounded resume driver
+
+`scripts/drive_codex_run.py` resumes an existing Codex thread one turn at a
+time until the checkpoint reports a terminal outcome, a human gate is reached,
+or a turn, wall-clock, or summed-token cap stops execution. Stop codes include
+`terminal`, `needs_human`, `quick_answer`, `turn_failed`, `driver_error`,
+`interrupted`, `turn_cap`, `wall_cap`, `token_cap`, and `stalled`; exit codes
+separate successful terminal/quick outcomes (0), human gates (3), caps/stalls
+(4), failed/interrupted turns (5), and usage/driver errors (2). The driver
+records per-turn JSONL event summaries and a receipt with invocation and
+preflight evidence. The checkpoint remains the source of truth; the driver
+does not depend on Goal state. Token totals sum per-invocation input and output
+counts and may overcount cumulative resume usage.
+
+### Rubric tree grader
+
+`scripts/grade_rubric.py` scores a bounded weighted `rubric-tree-v1` against
+criterion results and optional run-local review receipts. Its score records
+the supplied checks; it does not establish scientific validity, reproducibility,
+or correctness.
+
+### Trajectory consensus and ranking
+
+`scripts/rank_trajectories.py` builds claim consensus from a
+`trajectory-set-v1` input and can summarize supplied pairwise comparisons with
+Bradley-Terry strengths. Agreement and preferences do not establish truth,
+independence, causal validity, or replication.
+
+### Claim evidence sufficiency
+
+`scripts/check_claim_sufficiency.py` counts distinct included study groups linked
+to supported or replicated claims under the selected tier policy. This is a
+recorded evidence-count check, not a judgment that evidence entails a claim.
+
+### Citation resolution
+
+`scripts/resolve_citations.py` can resolve supported identifiers against public
+metadata services only with explicit `--network` opt-in. `unavailable` means
+the lookup could not determine existence and is never `not_found`. Resolution
+is an existence signal only; it never decides citation support or grading.
+
+### Completion record
+
+The evaluation runner's opt-in `--output-schema` validates Codex output against
+a supplied JSON schema and records completion metadata. This cross-check does
+not replace checkpoint-derived outcomes or establish scientific correctness.
 
 ## Acceptance
 

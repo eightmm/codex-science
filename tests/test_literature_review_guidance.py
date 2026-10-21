@@ -11,6 +11,10 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
         self.assertIn("--require-traced", text)
         self.assertIn("support_excerpts", text)
         self.assertIn("`kind`", text)
+        self.assertIn("check_claim_sufficiency.py", text)
+        self.assertIn("counts independent study groups only and does not prove support", text)
+        self.assertIn("resolve_citations.py", text)
+        self.assertIn("as an existence signal; it never overrides review", text)
 
 
 if __name__ == "__main__":

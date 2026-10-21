@@ -89,6 +89,8 @@ Return and save:
 - current snapshot, prior-to-current diff when updating, and review receipt.
 
 Record every artifact and hash with `$science-provenance`. Before `$science-review`, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/trace_citations.py" --run-dir <run-dir> --require-traced`; resolve every orphan by adding provenance or removing the citation. This checks internal traceability only, not whether a source exists or supports a claim. Then run `$science-review` in `record`, `source`, and `method` modes before delivery; use `reproduction` only when a separate worker actually re-executes the searches and extraction.
+At standard/full tier, before `$science-review`, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/check_claim_sufficiency.py" --run-dir <run-dir> --tier <tier>` and downgrade or caveat claims it reports insufficient; it counts independent study groups only and does not prove support.
+If the user allows network access, optionally run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/resolve_citations.py" --input <report> --network` as an existence signal; it never overrides review.
 
 ## Boundaries
 

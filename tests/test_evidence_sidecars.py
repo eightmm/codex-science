@@ -7,6 +7,7 @@ from pathlib import Path
 
 from codex_science.artifact_index import render_markdown
 from codex_science.artifacts import validate_bundle
+from codex_science.evidence import review_sidecars
 from codex_science.literature import diff_review_snapshots
 from codex_science.review import review_manifest
 
@@ -85,6 +86,23 @@ class EvidenceSidecarTests(unittest.TestCase):
                 for item in review_manifest(manifest, run_dir, sidecars=sidecars)["findings"]
             }
             self.assertIn("duplicate-study", codes)
+
+    def test_replicated_claim_with_null_cohorts_has_independent_studies(self) -> None:
+        sidecars = {
+            "claim_by_id": {"claim-1": {"status": "replicated"}},
+            "study_by_id": {
+                "study-1": {"persistent_id": "doi:10.1/one", "cohort_id": None},
+                "study-2": {"persistent_id": "doi:10.1/two", "cohort_id": None},
+            },
+            "edges": [
+                {"source": study_id, "target": "claim-1", "relation": "supports"}
+                for study_id in ("study-1", "study-2")
+            ],
+        }
+
+        findings = review_sidecars(sidecars)
+
+        self.assertNotIn("dependent-evidence", {item["code"] for item in findings})
 
     def test_seeded_citation_mismatch_and_unsupported_claim_are_detected(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

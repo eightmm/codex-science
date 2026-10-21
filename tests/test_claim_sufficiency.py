@@ -106,6 +106,43 @@ class ClaimSufficiencyTests(unittest.TestCase):
         row = check_sufficiency(path, tier="standard")["claims"][0]
         self.assertEqual(row["supporting_groups"], 1)
 
+    def test_persistent_identifier_aliases_without_cohort_count_once(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        base = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
+        base.pop("cohort_id", None)
+        studies = [
+            {**base, "study_id": "study-alias-1", "persistent_id": "https://doi.org/10.1/AB",
+             "supports_claim_ids": [claim["id"]]},
+            {**base, "study_id": "study-alias-2", "persistent_id": "doi:10.1/ab",
+             "supports_claim_ids": [claim["id"]]},
+        ]
+        graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
+        nodes = [node for node in graph["nodes"] if node["type"] != "study"] + [
+            {"id": item["study_id"], "label": item["study_id"], "type": "study"}
+            for item in studies
+        ]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=[], nodes=nodes)
+        row = check_sufficiency(path, tier="standard")["claims"][0]
+        self.assertEqual(row["supporting_groups"], 1)
+
+    def test_distinct_persistent_ids_with_null_cohorts_count_separately(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        base = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
+        studies = [
+            {**base, "study_id": "study-doi-1", "persistent_id": "doi:10.1/one",
+             "cohort_id": None, "supports_claim_ids": [claim["id"]]},
+            {**base, "study_id": "study-doi-2", "persistent_id": "doi:10.1/two",
+             "cohort_id": None, "supports_claim_ids": [claim["id"]]},
+        ]
+        graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
+        nodes = [node for node in graph["nodes"] if node["type"] != "study"] + [
+            {"id": item["study_id"], "label": item["study_id"], "type": "study"}
+            for item in studies
+        ]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=[], nodes=nodes)
+        row = check_sufficiency(path, tier="standard")["claims"][0]
+        self.assertEqual(row["supporting_groups"], 2)
+
     def test_replicated_claim_requires_two_groups_at_each_tier(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
         claim["status"] = "replicated"
