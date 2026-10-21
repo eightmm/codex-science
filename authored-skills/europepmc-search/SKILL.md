@@ -28,9 +28,11 @@ are source records, not a complete review or evidence of absence.
    expose API pagination. For exact pagination, citations, annotations, or
    full text, use the direct API:
    `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=<terms>&format=json&pageSize=<n>`.
+   Europe PMC covers 40M+ abstracts across PubMed, PMC, preprints, and patents.
    Use source query syntax such as `AUTH:` and `PUB_YEAR:`. For full text
    restrict to open access (`OPEN_ACCESS:y`) and fetch by PMCID at
-   `https://www.ebi.ac.uk/europepmc/webservices/rest/PMC<ID>/fullTextXML`.
+   `https://www.ebi.ac.uk/europepmc/webservices/rest/PMC<ID>/fullTextXML`;
+   only open-access articles have retrievable full text.
    Citations/references use `.../MED/<PMID>/citations` and `.../references`.
 3. Record exact serialized query, tool/API, page size/token, access time,
    response count, and the release/update time actually reported. Page to an

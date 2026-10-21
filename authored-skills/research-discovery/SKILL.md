@@ -18,12 +18,14 @@ inference before proposing a solution. Separate observations from
 interpretations; record assumptions as tested, inherited, or untested. Give
 material predictions and outcomes stable claim IDs, required evidence,
 falsifiers, and dependencies. Construct at least two distinct explanations
-when evidence allows; they may coexist.
+when evidence allows. They may coexist; do not force mutually exclusive
+probabilities.
 
 ## Workflow
 
 1. If ProjectStore exists, read relevant `discovery memory`; reuse evidence
-   only for matching frozen evaluation and method identities. Read [RDL
+   only for matching frozen evaluation and method identities; heterogeneous
+   contexts remain separate. Read [RDL
    contract](references/rdl-contract.md) before authoring a cycle, method,
    prediction, or revision, and [comparison/toy
    protocol](references/comparison-and-toys.md) before acceptance scenarios or
@@ -37,7 +39,13 @@ when evidence allows; they may coexist.
    prediction at available resolution, control, uncertainty, and weakening or
    contradiction condition. Preserve alternatives; do not force probabilities
    without a justified model.
-4. Specify candidate representation, objective, assumptions, data/tensor flow,
+4. Generate candidate methods using only operators justified by the bottleneck:
+   change the representation, remove or relax an assumption, redefine the
+   objective, condition the method on an observable regime, restructure
+   computation, or map a precise formalism from another domain. “Use a
+   transformer/graph/gate” is not a method until the operator, data path,
+   invariant, cost, and falsifier are specified. Specify candidate
+   representation, objective, assumptions, data/tensor flow,
    invariants, complexity, code location, and falsifier. Initialize material work
    with `discovery init --require-design`; run `discovery audit` before
    reservation. Missing design, code identity, or evidence means next step, not
@@ -53,7 +61,8 @@ when evidence allows; they may coexist.
    checkpoint, provenance, and review lifecycle. Do not create a second run loop
    or blindly resubmit ambiguous jobs. Run `discovery next` after audit and each
    event: reconcile ambiguous work, recover submissions, repair, then consider
-   eligible proposals.
+   eligible proposals. Use actual feedback and receipts to revise the code or
+   method; do not stop merely because the JSON is valid.
 7. Classify method effect, explanation support, verification, and novelty
    separately. Improvement does not prove mechanism; invalid measurement or
    implementation makes a null result non-refuting. Append revisions linked to
@@ -66,15 +75,17 @@ Return the hashed `research-cycle` with frozen contract, prediction/assumption
 audit, method, experiment selection/receipt, raw-data lineage, observation and
 revision records, claim status (supported, contradicted, inconclusive, or
 unavailable), uncertainty, limitations, and smallest falsifiable next action.
-Record paths/hashes with `$science-provenance`. Use `$science-review` for
+Link snapshots to real execution artifacts. Record paths/hashes with
+`$science-provenance`. Use `$science-review` for
 material claims and `discovery assess` for separate record, source, method, and
 reproduction review axes. Review is not proof of truth.
 
 ## Boundaries
 
 - The authoritative scientific record is one hashed `research-cycle` artifact
-  with immutable snapshots. Existing checkpoints remain the sole execution,
-  approval, waiting, and completion lifecycle.
+  with immutable snapshots and links to real execution artifacts. Existing
+  checkpoints remain the sole execution, approval, waiting, and completion
+  lifecycle.
 - Never change a protected evaluator, split, baseline, metric, or budget after
   seeing an outcome; declare a new cycle when that contract must change.
 - Keep idea, measured result, verification, and novelty distinct. A recorded
@@ -83,3 +94,5 @@ reproduction review axes. Review is not proof of truth.
   and recorded evidence; it neither auto-runs experiments nor invents methods
   or conclusions. Deterministic toy acceptance validates software contracts
   only, not research capability or a domain result.
+- Use `discovery graph` for scoped prediction evidence and `discovery assess`
+  for separate record, source, method, and reproduction review axes.

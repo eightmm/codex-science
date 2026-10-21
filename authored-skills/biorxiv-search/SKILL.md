@@ -28,12 +28,17 @@ versions or published articles without evidence.
    `python3`.
 2. Select the smallest route. By DOI use
    `https://api.biorxiv.org/details/biorxiv/<DOI>` (use `medrxiv` for medRxiv).
+   A DOI from a citation can be fetched directly; date/category browsing needs
+   an approximate date and category. For topic/keywords alone, do not discover
+   here: route to a keyword-capable source first.
    By date/category use
    `https://api.biorxiv.org/details/biorxiv/<YYYY-MM-DD>/<YYYY-MM-DD>/<cursor>`
    and keep the range narrow (1–4 weeks). The API has **no server-side keyword
    search**. For topic-only discovery use `$cx-pubmed-search`,
    `$cx-europepmc-search`, `$cx-openalex-search`, or `$cx-arxiv-search` to find
    candidate DOIs, then verify them here; do not scan months/years locally.
+   Scanning months or years and filtering locally triggers thousands of calls,
+   timeouts, and API blocks.
 3. Serialize and save the exact URL/query, access time, cursor, date bounds,
    category filter, response count, and reported version/date. Page until the
    source signals completion or the bounded requested range is exhausted. Keep
@@ -45,7 +50,8 @@ versions or published articles without evidence.
    silently. Preserve null/missing fields as unknown, not negative findings.
    Mark exhausted/unavailable retrieval explicitly.
 5. Report each preprint with title, DOI, date, category, version, and URL.
-   Check for a published-DOI link without conflating publication state. Save
+   Include authors and abstract from returned metadata. Check for a
+   published-DOI link without conflating publication state. Save
    query, records, exclusions, and hashes with `$science-provenance`; use
    `$science-review` before material conclusions.
 
@@ -53,7 +59,8 @@ versions or published articles without evidence.
 
 Return normalized DOI or date/category, exact query and access time, reported
 version/update time, included and excluded records with reasons, and a table of
-title, DOI, date, category, version, URL, publication state, and claim IDs.
+title, authors, date, category, version, abstract, DOI, URL, publication state,
+and claim IDs. Write responses to a file and parse them.
 Classify claims supported, contradicted, inconclusive, or unavailable; state
 uncertainty, shared-study dependencies, limitations, next falsifiable action,
 and artifact paths/hashes.

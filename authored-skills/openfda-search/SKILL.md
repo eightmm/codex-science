@@ -22,7 +22,8 @@ checking returned identifiers and context.
 
 1. **Gates (ask before proceeding).** On first use in a workspace, tell the
    user to review the source's terms of use and record the notice in provenance.
-   Use read-only public access and follow current rate-limit guidance. Write
+   Use read-only public access, be polite about rate limits, and follow current
+   rate-limit guidance. Write
    large responses to a file and parse them; helper code must use `uv run`,
    never bare `python3`. Ask before installs or large downloads.
 2. The direct endpoint base is `https://api.fda.gov` (for example

@@ -30,9 +30,12 @@ identifier. Material claims require the paper itself and stable claim IDs.
 2. Normalize arXiv IDs exactly as returned and deduplicate version suffixes
    only after verifying they identify the same work. Record the version/date
    reported by the response. Triage each record against explicit criteria;
-   retain included and excluded IDs with reasons. Empty results mean no match
+   discard off-topic hits; do not pad the list. Retain included and excluded
+   IDs with reasons. Empty results mean no match
    in this response, not evidence of absence.
-3. If refining, make a bounded focused query. On errors, malformed XML/JSON,
+3. If refining, re-query with more specific terms, an author, or a narrower
+   concept; full-text search is broad, so precise terms help. Make a bounded
+   focused query. On errors, malformed XML/JSON,
    missing IDs, or apparent truncation, preserve the failed response and retry
    at most twice with backoff; do not silently substitute web search. Mark an
    exhausted or unavailable source as unavailable. Open the returned URL (or
@@ -47,7 +50,8 @@ identifier. Material claims require the paper itself and stable claim IDs.
 
 Return normalized question and query, cutoff, source/API and version or reported
 update time, included and excluded IDs with reasons, and a table of ID, title,
-URL, relevance, publication state, and supporting claim IDs. Record claims as
+URL, relevance, publication state, and supporting claim IDs. Separate strong
+matches from tangential ones. Record claims as
 supported, contradicted, inconclusive, or unavailable; include dependencies,
 uncertainty, limitations, next falsifiable action, and artifact hashes. Abstract
 only evidence remains abstract-level evidence.

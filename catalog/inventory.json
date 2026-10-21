@@ -54,7 +54,7 @@
     {
       "description": "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics; use another source for peer-review status or complete coverage. Uses the plugin's built-in read-only arXiv MCP tool \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 65,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-arxiv-search",
       "path": "authored-skills/arxiv-search",
@@ -138,7 +138,7 @@
     {
       "description": "Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category \u2014 not for open-ended keyword discovery. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 76,
       "license": "Apache-2.0",
       "name": "cx-biorxiv-search",
       "path": "authored-skills/biorxiv-search",
@@ -522,7 +522,7 @@
     {
       "description": "Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 68,
+      "instruction_line_count": 70,
       "license": "Apache-2.0",
       "name": "cx-europepmc-search",
       "path": "authored-skills/europepmc-search",
@@ -978,7 +978,7 @@
     {
       "description": "Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 67,
+      "instruction_line_count": 70,
       "license": "Apache-2.0",
       "name": "cx-openalex-search",
       "path": "authored-skills/openalex-search",
@@ -990,7 +990,7 @@
     {
       "description": "Query the openFDA API for drugs, devices, foods, and more: adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, and NDC lookups. Use for FDA safety/regulatory data. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 67,
+      "instruction_line_count": 68,
       "license": "Apache-2.0",
       "name": "cx-openfda-search",
       "path": "authored-skills/openfda-search",
@@ -1110,7 +1110,7 @@
     {
       "description": "Restore, attribute, date, and contextualize ancient inscriptions with DeepMind's Aeneas (Latin) and Ithaca (Ancient Greek) models. Use for epigraphic text restoration, geographic attribution, or dating of ancient texts.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 70,
       "license": "Apache-2.0",
       "name": "cx-predicting-the-past",
       "path": "authored-skills/predicting-the-past",
@@ -1338,7 +1338,7 @@
     {
       "description": "Guide new-method development or an unexplained scientific bottleneck from observed failure through competing explanations, falsifiable predictions, a concrete method, the smallest discriminating experiment, and evidence-driven revision. Do not use for routine retrieval, reproduction, or a fixed analysis whose method is already specified.",
       "executable_count": 0,
-      "instruction_line_count": 85,
+      "instruction_line_count": 98,
       "license": "MIT",
       "name": "cx-research-discovery",
       "path": "authored-skills/research-discovery",

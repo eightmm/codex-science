@@ -22,10 +22,11 @@ and editorial conventions as supplied; do not silently normalize or repair.
 
 1. **Gates (ask before proceeding).** On first use in a workspace, tell the
    user to review the source's terms of use and record the notice. Use read-only
-   public access; follow current rate guidance. If helper code is needed, use
+   public access; be polite about rate limits and follow current rate guidance.
+   Write large responses to a file and parse them. If helper code is needed, use
    `uv run`, never bare `python3`. Ask before package installation or large
    model-weight downloads.
-2. Inspect input encoding, language, length, missing spans, and provenance.
+2. Run the model via its published interface. Inspect input encoding, language, length, missing spans, and provenance.
    Record a verbatim input artifact and hash, mark uncertain readings, and stop
    on unsupported language or ambiguous task. The published interface is
    available at `https://predictingthepast.com` (Aeneas / Ithaca; see the

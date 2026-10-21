@@ -31,7 +31,7 @@ result cannot determine personal eligibility or establish intervention benefit.
    `RECRUITING`), `query.locn`, and phase filters. Count first with
    `countTotal=true`. Restrict `fields=` (for example
    `NCTId,BriefTitle,OverallStatus,Phase,Conditions,InterventionName`); full
-   study JSON is very large. Fetch one record at
+   study JSON is very large. Write responses to a file and parse them. Fetch one record at
    `https://clinicaltrials.gov/api/v2/studies/<NCTId>`.
 3. Paginate with `pageSize` and `nextPageToken`; record the exact serialized
    query, filters, fields, token/page, access time, total, returned count, and

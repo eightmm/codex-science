@@ -34,6 +34,8 @@ the graph as retrieved, not scholarly quality or complete coverage.
    `https://api.openalex.org/works?filter=author.id:<A...>,publication_year:2024`.
    Use `select=` to reduce response size, `group_by=` for aggregate counts, and
    `https://api.openalex.org/works/https://doi.org/<DOI>` for DOI lookup.
+   Entity types include works, authors, institutions, sources, topics, and
+   funders. Write large responses to a file and parse them.
 3. Record exact query/URL, entity IDs, access time, page parameters, counts, and
    reported release/update time. Paginate to source completion or a declared
    cap; the MCP search is not paginated. Validate response shape and IDs, detect
@@ -41,8 +43,9 @@ the graph as retrieved, not scholarly quality or complete coverage.
    at most twice with backoff. Do not silently substitute another source.
 4. Apply stated criteria and preserve returned and excluded IDs with reasons.
    Report the returned `cited_by_count`/`works_count` or group counts with
-   source-reported date; do not infer missing metrics as zero. Cite only IDs,
-   DOI, and URLs returned. Respect each work's license before reproducing text.
+   source-reported date; citation counts are field- and age-biased; do not
+   infer missing metrics as zero. Cite only IDs, DOI, and URLs returned. List
+   the URLs of every paper used. Respect each work's license before reproducing text.
 5. Save exact queries, records, exclusions, and hashes with
    `$science-provenance`; use `$science-review` before material conclusions.
 
