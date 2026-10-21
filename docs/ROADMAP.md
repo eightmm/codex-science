@@ -263,16 +263,22 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 
 - Sample claim-type reviews by reliability (Kosmos reports accuracy of 85.5%
   for data, 82.1% for literature, and 57.9% for synthesis).
+- FACT-style statement-to-URL retrieval.
 - SessionStart hook `fork` matcher (bootstrap change; requires approval).
 
 ### Research-derived items implemented on the local branch (unevaluated)
 
-- Weighted rubric tree partial-credit metric in literature evaluation reports.
+- Equal-weight rubric-tree partial-credit metric in literature evaluation
+  reports, as a secondary metric.
+- Weighted rubric grading via `scripts/grade_rubric.py`.
 - Trajectory consensus and Bradley-Terry ranking.
 - Claim-type review ordering and evidence sufficiency counts.
 - Opt-in completion-record cross-check against Codex `--output-schema`.
-- DOI/PMID/arXiv identifier resolution and offline statement-to-excerpt support
-  checks (lexical heuristic; not semantic verification).
+- DOI/PMID/arXiv resolution provides a live, opt-in, non-deciding existence
+  signal.
+- Offline statement-to-saved-excerpt support is implemented (lexical
+  heuristic; not semantic verification). FACT-style statement-to-URL retrieval
+  is not implemented.
 
 1. Land and use the native-skill standard and strengthened tier-1 skills.
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema.

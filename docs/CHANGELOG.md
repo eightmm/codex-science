@@ -12,7 +12,8 @@
   matching saved studies by `persistent_id`. Its lexical overlap heuristic
   checks excerpt availability and lexical relation only; semantic support
   still requires independent review. Old-style arXiv identifiers with subject
-  classes are accepted.
+  classes, such as `math.GT/0309136`, normalize to `arxiv:math/0309136`, so
+  extraction, resolution, and statement-support matching agree.
 - Hardened the literature runner and resume driver: private mode-0600 outputs
   and receipts, refusal of symlinked or pre-existing turn paths before side
   effects, atomic dry-run plan replacement, absolute `CODEX_HOME` for each
@@ -24,7 +25,6 @@
   handoffs): the maturity audit now reports 0 L1 and 118 L2 skills (previously
   112 L1). Existing endpoints, attribution, and gates were preserved; one
   retired ChEBI link was replaced.
-- Exposed the reviewer packet ordering tier through `science_reviewer.py prepare --tier` and documented its advisory, coverage-preserving behavior.
 - Added a bounded resume driver, weighted rubric grading, trajectory consensus
   and ranking, claim evidence-count checks, opt-in citation existence lookup,
   and an opt-in completion-record schema cross-check. These mechanisms report

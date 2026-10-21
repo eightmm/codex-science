@@ -10,16 +10,20 @@
   reviewer CLI `--tier`. An offline statement-support check matches cited
   statements to saved excerpts by study `persistent_id` and reports lexical
   overlap only, not semantic entailment.
+- Identifier normalization maps old-style arXiv IDs with subject classes, such
+  as `math.GT/0309136`, to `arxiv:math/0309136`, so extraction, resolution, and
+  statement-support matching agree.
 - Runner and resume-driver outputs and receipts use mode 0600. They refuse
   symlinked and pre-existing turn paths before side effects, atomically replace
   dry-run plans, pass each child an absolute `CODEX_HOME`, cap per-line and
   total output, and clean up process groups on exceptions. A cap is recorded as
-  `output_cap`; runner `last_message_present` is false for empty or capped
-  output. Old-style arXiv identifiers with subject classes are accepted.
-- All 118 first-party authored skills now meet the L2 native-skill contract
+  `output_cap`; the resume driver stops with code `turn_failed` and reason
+  `output_cap`, while runner receipts use `last_message_present` for empty or
+  capped last-message output.
+- All 135 first-party skills meet the L2 native-skill contract or higher
   (Decision contract, Workflow, Outputs, Boundaries, provenance, and review
-  handoffs); the audit reports 0 L1 skills, down from 112. Existing endpoints,
-  attribution, and gates remain, with one retired ChEBI link replaced.
+  handoffs); the audit reports 0 L1 skills, 118 L2, 11 L3, and 6 L4, down from
+  112 L1. Existing endpoints, attribution, and gates remain, with one retired ChEBI link replaced.
 - Implemented rigor classification and completion reporting, a frozen
   literature-review task set with dry-run-first runner and receipt grader,
   saturation estimation, and citation provenance tracing.

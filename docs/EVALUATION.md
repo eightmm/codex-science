@@ -59,8 +59,8 @@ counts and may overcount cumulative resume usage.
 Driver outputs and receipts are created privately (mode 0600). Each child gets
 an explicit absolute `CODEX_HOME`; symlinked or pre-existing turn paths are
 refused before launch. Per-line and total output caps stop a turn with
-`output_cap`, and process-group cleanup also runs on exceptions. Empty or
-capped last-message output is recorded as `last_message_present: false`.
+`output_cap`, and process-group cleanup also runs on exceptions. Capped
+output stops the driver with code `turn_failed` and reason `output_cap`.
 
 The real-run harness writes private receipts and output files (mode 0600),
 refuses symlinked or pre-existing task output paths before execution, and
