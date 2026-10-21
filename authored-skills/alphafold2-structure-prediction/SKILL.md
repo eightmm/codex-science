@@ -6,33 +6,26 @@ license: MIT
 
 # AlphaFold2 Structure Prediction
 
-## Gate
+## Decision contract
 
-Ask once before installing or pulling a pinned container, downloading model
-parameters or sequence databases, querying remote MSA services, and using GPU
-compute. State that a full official setup can require hundreds of GB of downloads
-and several TB of disk. Prefer an existing validated installation. Never upload
-private sequences without explicit approval. Follow `$cx-compute-environment`.
+Role: executor, with structure-quality analysis of model outputs.
+
+Before a run, record the intended structural question and claim IDs; exact sequences and constructs; organism, chain stoichiometry, oligomeric state, modifications, and ligand state; template cutoff; and intended use. State whether the result is exploratory or decision-bearing, what structural observation would change the conclusion, and what input or model limitation would make the result inconclusive. Use `$cx-alphafold-structure-analysis` when AlphaFold DB already contains the desired canonical monomer.
 
 ## Workflow
 
-1. Resolve exact sequences, constructs, oligomeric state, chain stoichiometry,
-   modifications, and template cutoff. Use `$cx-alphafold-structure-analysis`
-   instead when AlphaFold DB already contains the desired canonical monomer.
-2. Pin the AlphaFold repository/container digest, model parameters, database
-   snapshots, model preset, template date, MSA mode, recycle count, relaxation,
-   seeds, GPU, and numerical precision.
-3. Smoke-test the pinned environment on a tiny known input. Run monomer or
-   multimer inference into `artifacts/<run-id>/alphafold2/`; retain FASTA, MSAs,
-   template hits, ranked structures, PAE, confidence JSON, timings, and logs.
-4. Report per-residue pLDDT, PAE, pTM/ipTM where available, chain/interface
-   uncertainty, disordered regions, template dependence, and model diversity.
-5. Record the complete run with `$science-provenance` and review claims with
-   `$science-review`.
+1. Inspect and normalize sequences, chain IDs, construct boundaries, stoichiometry, modifications, and template/date assumptions. Preserve the submitted input and its hash.
+2. Prefer an existing validated installation. Before installing or pulling a pinned container, downloading model parameters or sequence databases, querying remote MSA services, or using GPU compute, ask once and state that a full official setup can require hundreds of GB of downloads and several TB of disk. Never upload private sequences without explicit approval. Follow `$cx-compute-environment`.
+3. Pin the AlphaFold repository/container digest, model parameters, database snapshots, model preset, template date, MSA mode, recycle count, relaxation setting, seeds, GPU, and numerical precision. Record versions actually reported by the environment; do not assume a floating tag is immutable.
+4. Smoke-test the pinned environment on a tiny known input and validate expected files and nonempty structures before the real run. Run monomer or multimer inference into `artifacts/<run-id>/alphafold2/`. Retain FASTA, MSAs, template hits, ranked structures, PAE, confidence JSON, timings, logs, and failures. Keep a failure record if the process stops or produces invalid output.
+5. Classify input, configuration, resource, and infrastructure failures; do not retry invalid inputs, bound transient retries, and preserve cancellation and failure logs.
+6. Inspect per-residue pLDDT, PAE, pTM/ipTM where available, chain/interface uncertainty, disordered regions, template dependence, and model diversity. Compare an appropriate baseline or independent evidence when required by the claim; do not treat a second model as independent if it shares data or methods.
+7. Record inputs, environment, command, outputs, failures, and hashes with `$science-provenance`. Run `$science-review` before presenting material structural conclusions.
+
+## Outputs
+
+Return a concise interpretation plus a machine-readable execution/evidence table with claim ID and status (`supported`, `contradicted`, `inconclusive`, or `unavailable`), input and model/database revisions, settings, output paths and hashes, observed metrics, failure/null state, and limitations. Include the intended inference level, uncertainty and applicability, template/database overlap assessment for benchmarks, and the smallest falsifiable next action. Do not equate process completion with scientific validation.
 
 ## Boundaries
 
-- Prediction confidence is not experimental validation or proof of interaction.
-- Audit template/database overlap for benchmarks and keep apo/holo assumptions
-  explicit. Do not compare runs with different database snapshots as identical.
-
+Prediction confidence is not experimental validation or proof of interaction. Keep apo/holo assumptions explicit. Do not compare runs with different database snapshots as identical. Preserve failed runs and missing metrics rather than silently substituting defaults. Stop if essential entity/stoichiometry information is unresolved, an approval gate is unmet, or the pinned setup cannot represent the input; report an inconclusive or unavailable claim when evidence is insufficient.

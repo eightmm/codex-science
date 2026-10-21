@@ -4,7 +4,7 @@
     {
       "description": "Retrieve an AlphaFold predicted structure from the AlphaFold Database for a given UniProt accession and analyze its confidence (pLDDT), intrinsically disordered regions, and rigid domain boundaries (PAE). Use when the user has a UniProt ID and wants structural confidence, disorder assessment, or domain layout. Public data, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 71,
+      "instruction_line_count": 39,
       "license": "Apache-2.0",
       "name": "cx-alphafold-structure-analysis",
       "path": "authored-skills/alphafold-structure-analysis",
@@ -16,7 +16,7 @@
     {
       "description": "Run reproducible AlphaFold2 monomer or multimer inference with pinned code, parameters, sequence databases, template cutoff, and seeds. Use when a local AlphaFold2 installation or approved container/database setup is available; use AlphaFold DB lookup instead for an existing canonical model.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-alphafold2-structure-prediction",
       "path": "authored-skills/alphafold2-structure-prediction",
@@ -28,7 +28,7 @@
     {
       "description": "Run the official AlphaFold3 inference pipeline for approved theoretical modeling of proteins, nucleic acids, ligands, modifications, and covalent complexes. Use only when the user has legitimately obtained model parameters and accepts the source, weight, output, and non-commercial terms.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-alphafold3-structure-prediction",
       "path": "authored-skills/alphafold3-structure-prediction",
@@ -162,7 +162,7 @@
     {
       "description": "Predict 3D biomolecular structures and binding affinity with the open-source Boltz model \u2014 proteins, complexes, nucleic acids, and protein-ligand systems from sequence. Use when the user wants a predicted structure or affinity from sequence (not an experimental structure or a database lookup). Downloads and installs Boltz into an isolated uv environment and runs it.",
       "executable_count": 0,
-      "instruction_line_count": 65,
+      "instruction_line_count": 39,
       "license": "MIT",
       "name": "cx-boltz-structure-prediction",
       "path": "authored-skills/boltz-structure-prediction",
@@ -186,7 +186,7 @@
     {
       "description": "Synthesize public cancer genomic alterations across genes, cohorts, molecular profiles, clinical annotations, and literature. Use for somatic landscape, biomarker, resistance, or translational oncology research.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 22,
       "license": "MIT",
       "name": "cx-cancer-genomics-evidence",
       "path": "authored-skills/cancer-genomics-evidence",
@@ -198,7 +198,7 @@
     {
       "description": "Resolve cancer genes and plan public cBioPortal cohort queries. Use for somatic alteration, cancer cohort, co-alteration, survival, or translational oncology evidence.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 24,
       "license": "MIT",
       "name": "cx-cbioportal-search",
       "path": "authored-skills/cbioportal-search",
@@ -210,7 +210,7 @@
     {
       "description": "Run pinned Chai-1 inference for proteins, complexes, nucleic acids, ligands, covalent bonds, templates, or restraints. Use when multimolecular structure prediction needs Chai-1-specific inputs and confidence outputs.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-chai1-structure-prediction",
       "path": "authored-skills/chai1-structure-prediction",
@@ -498,7 +498,7 @@
     {
       "description": "Run the legacy public ESMFold v1 single-sequence structure model reproducibly for proteins or simple multimers. Use for the 2022 ESM-2-based model; use the separate ESMFold2 skill for Biohub's 2026 diffusion/all-atom model.",
       "executable_count": 0,
-      "instruction_line_count": 37,
+      "instruction_line_count": 35,
       "license": "MIT",
       "name": "cx-esmfold-structure-prediction",
       "path": "authored-skills/esmfold-structure-prediction",
@@ -510,7 +510,7 @@
     {
       "description": "Run Biohub ESMFold2 locally from the released Hugging Face weights or through the approved Biohub Platform. Use for all-atom prediction of proteins, complexes, DNA, modifications, and ligands with optional MSA input and diffusion sampling; distinct from the legacy ESMFold v1 model.",
       "executable_count": 0,
-      "instruction_line_count": 50,
+      "instruction_line_count": 34,
       "license": "MIT",
       "name": "cx-esmfold2-structure-prediction",
       "path": "authored-skills/esmfold2-structure-prediction",
@@ -558,7 +558,7 @@
     {
       "description": "Reconcile gene expression across GTEx, Human Protein Atlas, Bgee, cell atlases, and disease datasets. Use for tissue, cell-type, developmental, baseline-versus-disease, or target-expression questions.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 22,
       "license": "MIT",
       "name": "cx-expression-cell-context",
       "path": "authored-skills/expression-cell-context",
@@ -594,7 +594,7 @@
     {
       "description": "Assess rare-variant gene burden evidence with explicit cohort, ancestry, mask, frequency threshold, model, phenotype, and multiple-testing semantics. Use for gene-level human genetic support and locus-to-gene follow-up.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 22,
       "license": "MIT",
       "name": "cx-gene-burden-evidence",
       "path": "authored-skills/gene-burden-evidence",
@@ -690,7 +690,7 @@
     {
       "description": "Build an evidence-traceable indication dossier for a disease, target, mechanism, drug, biomarker, or therapeutic hypothesis. Use for landscape assessment, target-indication rationale, clinical pipeline review, translational gaps, and evidence-backed go/no-go questions; not for patient-specific advice.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 27,
       "license": "MIT",
       "name": "cx-indication-dossier",
       "path": "authored-skills/indication-dossier",
@@ -822,7 +822,7 @@
     {
       "description": "Integrate public metabolite, reaction, protein, proteomics, and study evidence. Use for pathway mechanism, biomarker context, multi-omics follow-up, or dataset selection.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 22,
       "license": "MIT",
       "name": "cx-metabolomics-proteomics-context",
       "path": "authored-skills/metabolomics-proteomics-context",
@@ -1014,7 +1014,7 @@
     {
       "description": "Run pinned OpenFold3 preview inference for proteins, nucleic acids, noncanonical residues, and small-molecule complexes. Use when an open AlphaFold3-style workflow is wanted and preview-status limitations are acceptable.",
       "executable_count": 0,
-      "instruction_line_count": 34,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-openfold3-structure-prediction",
       "path": "authored-skills/openfold3-structure-prediction",
@@ -1038,7 +1038,7 @@
     {
       "description": "Query the Open Targets Platform for target-disease associations, tractability/safety, genetic/omics evidence, and known drugs, for therapeutic target identification. Public GraphQL API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 32,
       "license": "Apache-2.0",
       "name": "cx-opentargets-search",
       "path": "authored-skills/opentargets-search",
@@ -1086,7 +1086,7 @@
     {
       "description": "Compare one normalized variant across FinnGen, BioBank Japan, and UKB/TOPMed PheWAS evidence. Use for phenotype-wide replication, ancestry heterogeneity, pleiotropy screening, or cohort comparison.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 22,
       "license": "MIT",
       "name": "cx-phewas-replication-analysis",
       "path": "authored-skills/phewas-replication-analysis",
@@ -1122,7 +1122,7 @@
     {
       "description": "Discover public proteomics projects through PRIDE Archive. Use for mass-spectrometry datasets, reanalysis candidates, protein evidence, or public-study discovery.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 24,
       "license": "MIT",
       "name": "cx-pride-search",
       "path": "authored-skills/pride-search",
@@ -1194,7 +1194,7 @@
     {
       "description": "Run pinned Protenix structure prediction for protein, nucleic-acid, ligand, antibody-antigen, template, MSA, or constrained complexes. Use Protenix-v2 or another explicitly selected released model with a recorded training-data cutoff and inference budget.",
       "executable_count": 0,
-      "instruction_line_count": 32,
+      "instruction_line_count": 33,
       "license": "MIT",
       "name": "cx-protenix-structure-prediction",
       "path": "authored-skills/protenix-structure-prediction",
@@ -1206,7 +1206,7 @@
     {
       "description": "Resolve a known PXD accession through ProteomeXchange. Use for cross-repository accession verification and proteomics reanalysis planning; use PRIDE for keyword discovery.",
       "executable_count": 0,
-      "instruction_line_count": 19,
+      "instruction_line_count": 24,
       "license": "MIT",
       "name": "cx-proteomexchange-search",
       "path": "authored-skills/proteomexchange-search",
@@ -1386,7 +1386,7 @@
     {
       "description": "Run RoseTTAFold All-Atom for proteins, nucleic acids, small molecules, metals, covalent modifications, and higher-order assemblies. Use when its Hydra input model and confidence metrics fit the problem and licensed dependencies are available.",
       "executable_count": 0,
-      "instruction_line_count": 32,
+      "instruction_line_count": 33,
       "license": "MIT",
       "name": "cx-rosettafold-all-atom",
       "path": "authored-skills/rosettafold-all-atom",
@@ -1422,7 +1422,7 @@
     {
       "description": "Run Apple's released SimpleFold flow-matching protein structure models with PyTorch or MLX. Use for single-protein folding, conformer ensembles, or Apple-silicon inference when model-size and model-license constraints are acceptable.",
       "executable_count": 0,
-      "instruction_line_count": 31,
+      "instruction_line_count": 34,
       "license": "MIT",
       "name": "cx-simplefold-structure-prediction",
       "path": "authored-skills/simplefold-structure-prediction",
