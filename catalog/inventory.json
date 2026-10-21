@@ -66,7 +66,7 @@
     {
       "description": "Construct and validate asymptotic and perturbative approximations. Use for dominant balance, regular or singular perturbations, boundary layers, matched expansions, multiple scales, WKB, Laplace methods, and stationary phase.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 50,
       "license": "MIT",
       "name": "cx-asymptotic-perturbation-methods",
       "path": "authored-skills/asymptotic-perturbation-methods",
@@ -222,7 +222,7 @@
     {
       "description": "Analyze nonlinear dynamical systems, bifurcations, and deterministic chaos. Use for flows and maps, phase portraits, fixed points, limit cycles, Lyapunov exponents, Poincare sections, attractors, continuation, and distinguishing chaos from noise or numerical artifacts.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 45,
       "license": "MIT",
       "name": "cx-chaos-nonlinear-dynamics",
       "path": "authored-skills/chaos-nonlinear-dynamics",
@@ -318,7 +318,7 @@
     {
       "description": "Solve and verify complex-variable and Fourier-analysis problems. Use for analytic functions, contour integrals, residues, branch cuts, Fourier series and transforms, convolution, spectral methods, sampling, and dispersion relations.",
       "executable_count": 0,
-      "instruction_line_count": 40,
+      "instruction_line_count": 46,
       "license": "MIT",
       "name": "cx-complex-fourier-analysis",
       "path": "authored-skills/complex-fourier-analysis",
@@ -378,7 +378,7 @@
     {
       "description": "Model dynamical systems, analyze stability, and design or verify feedback controllers. Use for state-space and transfer-function models, controllability, observability, PID, state feedback, estimation, optimal control, robustness, discretization, and nonlinear control.",
       "executable_count": 0,
-      "instruction_line_count": 44,
+      "instruction_line_count": 49,
       "license": "MIT",
       "name": "cx-control-dynamical-systems",
       "path": "authored-skills/control-dynamical-systems",
@@ -606,7 +606,7 @@
     {
       "description": "Formulate and verify geometry and topology arguments. Use for metric and topological spaces, continuity, compactness, connectedness, manifolds, curves and surfaces, homotopy, covering spaces, Euler characteristic, and geometric invariants.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 45,
       "license": "MIT",
       "name": "cx-geometry-topology",
       "path": "authored-skills/geometry-topology",
@@ -714,7 +714,7 @@
     {
       "description": "Formulate and solve inverse problems with stable regularization and calibrated uncertainty. Use for parameter or field recovery, deconvolution, tomography, system identification, data assimilation, Bayesian inversion, and learned inverse models.",
       "executable_count": 0,
-      "instruction_line_count": 43,
+      "instruction_line_count": 49,
       "license": "MIT",
       "name": "cx-inverse-problems-regularization",
       "path": "authored-skills/inverse-problems-regularization",
@@ -750,7 +750,7 @@
     {
       "description": "Solve exact and numerical linear algebra problems with explicit field, dimensions, bases, rank structure, conditioning, and residual checks. Use for linear systems, vector spaces, linear maps, eigenproblems, least squares, SVD, quadratic forms, and matrix factorizations.",
       "executable_count": 0,
-      "instruction_line_count": 56,
+      "instruction_line_count": 61,
       "license": "MIT",
       "name": "cx-linear-algebra-problem-solving",
       "path": "authored-skills/linear-algebra-problem-solving",
@@ -846,7 +846,7 @@
     {
       "description": "Drive a concrete scientific modeling problem from supplied inputs through model selection, falsifiable plan, one-time approval, environment setup, smoke test, full execution, downstream analysis, provenance, and review. Use when the user provides sequences, structures, molecules, omics data, trajectories, or a specific modeling objective and expects an actual result rather than instructions.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 80,
       "license": "MIT",
       "name": "cx-modeling-problem-execution",
       "path": "authored-skills/modeling-problem-execution",
@@ -954,7 +954,7 @@
     {
       "description": "Classify, solve, approximate, and verify ordinary and partial differential equations with explicit domains, initial or boundary data, well-posedness, residuals, and convergence checks. Use for IVPs, BVPs, dynamical systems, eigenvalue problems, Fourier methods, diffusion, waves, Laplace or Poisson equations, and nonlinear differential equations.",
       "executable_count": 0,
-      "instruction_line_count": 53,
+      "instruction_line_count": 59,
       "license": "MIT",
       "name": "cx-ode-pde-solving",
       "path": "authored-skills/ode-pde-solving",
@@ -1062,7 +1062,7 @@
     {
       "description": "Formulate, solve, and verify finite-dimensional optimization and calculus-of-variations problems. Use for convex programs, constrained extrema, KKT systems, duality, optimal control, Euler-Lagrange equations, and numerical optimization.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 50,
       "license": "MIT",
       "name": "cx-optimization-variational-methods",
       "path": "authored-skills/optimization-variational-methods",
@@ -1134,7 +1134,7 @@
     {
       "description": "Formulate, solve, simulate, and verify probability and stochastic-process problems. Use for conditional probability, random variables, limit theorems, Markov chains, Poisson processes, martingales, stochastic simulation, and uncertainty in random systems.",
       "executable_count": 0,
-      "instruction_line_count": 50,
+      "instruction_line_count": 55,
       "license": "MIT",
       "name": "cx-probability-stochastic-processes",
       "path": "authored-skills/probability-stochastic-processes",
@@ -1482,7 +1482,7 @@
     {
       "description": "Compute and verify tensor-calculus and differential-geometry results. Use for coordinate transformations, metrics, differential forms, covariant derivatives, connections, geodesics, curvature, Lie derivatives, and coordinate-independent geometric identities.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 45,
       "license": "MIT",
       "name": "cx-tensor-calculus-differential-geometry",
       "path": "authored-skills/tensor-calculus-differential-geometry",
