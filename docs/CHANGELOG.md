@@ -20,6 +20,17 @@
   child, bounded per-line and total output (`output_cap`), and exception-safe
   process-group cleanup. Runner receipts may report `launch_error: output_cap`;
   `last_message_present` is false for empty or capped output.
+- Further hardened execution and evidence lookups: the resume driver rejects
+  any existing `turn-<ASCII digits>` entry numbered 1 through `max_turns`,
+  including zero-padded names, before mutation using one directory scan;
+  runner pipes are buffered and stderr is flushed while the child runs.
+  Bradley-Terry ranking iterates only over played pairs and preserves
+  bit-identical scores. Citation lookup follows redirects only to HTTPS on its
+  three lookup hosts at port 443, and marks arXiv responses containing
+  `DOCTYPE` or `ENTITY` declarations unavailable. Connector HTTP paths refuse
+  redirects to non-HTTP(S) schemes or from HTTPS to HTTP, and cross-origin
+  redirects when requests carry redacted headers; `connectors.py` caps
+  responses at 16 MiB.
 - Enriched all first-party authored skills to the L2 native-skill contract
   (Decision contract, Workflow, Outputs, Boundaries, provenance, and review
   handoffs): the maturity audit now reports 0 L1 and 118 L2 skills (previously
