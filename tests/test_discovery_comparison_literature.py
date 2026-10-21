@@ -145,6 +145,30 @@ class LiteratureReportTests(unittest.TestCase):
                 graded = grade_run(standard_receipt, standard, run)
             self.assertEqual("no_artifacts", graded["stop_reason"])
 
+    def test_partial_credit_is_secondary_equal_weight_and_excludes_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, task, run, receipt = self.fixture(Path(tmp))
+            outcomes = [
+                [{"id": "citation", "passed": True}, {"id": "quick-label", "passed": True}],
+                [{"id": "citation", "passed": True}, {"id": "quick-label", "passed": False}],
+            ]
+            with mock.patch("codex_science.literature_evaluation_report.evaluate_criteria", side_effect=outcomes):
+                all_pass = grade_run(receipt, task, run)
+                half = grade_run(receipt, task, run)
+            rejected = grade_run(dict(receipt, task_digest="bad"), task, run)
+        self.assertEqual(1.0, all_pass["partial_credit"])
+        self.assertEqual(0.5, half["partial_credit"])
+        self.assertIsNone(rejected["partial_credit"])
+        report = summarize([dict(all_pass, set_digest="a"), dict(half, set_digest="a"),
+                            dict(rejected, set_digest="a")])
+        self.assertEqual(2, report["overall"]["n"])
+        self.assertEqual(1, report["overall"]["completed"])
+        self.assertEqual(0.75, report["partial_credit_secondary"]["overall"]["mean"])
+        self.assertEqual(2, report["partial_credit_secondary"]["overall"]["n"])
+        markdown = render_markdown(report)
+        self.assertIn("## Partial credit (secondary)", markdown)
+        self.assertIn("not used for the completion rate", markdown)
+
     def test_unrecorded_regular_artifact_is_rejected_before_criteria(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); _, task, run, receipt = self.fixture(root)

@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping
 
 from .literature_evaluation_runner import RECEIPT_SCHEMA, evaluate_criteria
+from .rubric_tree import grade as grade_rubric
 
 
 def _sha(data: bytes) -> str:
@@ -152,6 +153,17 @@ def _trace_citations(receipt: Mapping[str, Any], run_dir: Path) -> dict[str, Any
             "citations_traced": traced, "orphan_citations": orphans}
 
 
+def _partial_credit(criteria: list[Mapping[str, Any]]) -> float | None:
+    """Score criterion coverage with an equal-weight secondary rubric."""
+    tree = {"schema": "rubric-tree-v1", "id": "literature-partial-credit", "root": {
+        "id": "criteria", "title": "Automated task criteria", "weight": 1,
+        "children": [{"id": f"criterion-{row['id']}", "title": str(row["id"]), "weight": 1,
+                      "check": {"kind": "criterion", "criterion_id": str(row["id"])}}
+                     for row in criteria]}}
+    result = grade_rubric(tree, {str(row["id"]): row["passed"] for row in criteria})
+    return result["score"]
+
+
 def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
     """Grade one receipt against its frozen task, retaining rejection reasons."""
     task_spec = task.get("spec")
@@ -174,24 +186,25 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
         return {"schema": "literature-eval-graded-run-v1", "task_id": task.get("id"),
                 "task_digest": task.get("digest"), "set_digest": receipt.get("set_digest") if isinstance(receipt, Mapping) else None,
                 "outcome": "rejected", "stop_reason": "digest_mismatch" if any("digest" in e for e in errors) else "invalid_receipt",
-                "errors": errors, "criteria": [], "citations": {"status": "unavailable"}}
+                "errors": errors, "criteria": [], "partial_credit": None, "citations": {"status": "unavailable"}}
     assert isinstance(task_spec, Mapping)
     integrity_ok, receipt_hash, last_bytes = _integrity_ok(receipt, Path(run_dir))
     if not integrity_ok:
         return {"schema": "literature-eval-graded-run-v1", "task_id": task.get("id"),
                 "task_digest": task.get("digest"), "set_digest": receipt.get("set_digest"),
                 "outcome": "rejected", "stop_reason": "artifact_hash_mismatch", "errors": ["artifact_hash_mismatch"],
-                "criteria": [], "citations": {"status": "unavailable"}, "executed": receipt.get("executed") is True,
+                "criteria": [], "partial_credit": None, "citations": {"status": "unavailable"}, "executed": receipt.get("executed") is True,
                 "receipt_sha256": receipt_hash}
     if _has_unrecorded_artifact(receipt, Path(run_dir)):
         return {"schema": "literature-eval-graded-run-v1", "task_id": task.get("id"),
                 "task_digest": task.get("digest"), "set_digest": receipt.get("set_digest"),
                 "outcome": "rejected", "stop_reason": "unrecorded_artifact", "errors": ["unrecorded_artifact"],
-                "criteria": [], "citations": {"status": "unavailable"}, "executed": receipt.get("executed") is True,
+                "criteria": [], "partial_credit": None, "citations": {"status": "unavailable"}, "executed": receipt.get("executed") is True,
                 "receipt_sha256": receipt_hash}
     project = Path(run_dir) / "project"
     last_message = (last_bytes or b"").decode("utf-8", errors="replace")
     criteria = evaluate_criteria(task_spec["criteria"], project, last_message)
+    partial_credit = _partial_credit(criteria)
     citations = _trace_citations(receipt, Path(run_dir))
     completion = receipt.get("completion_report", {})
     completion_codes = set()
@@ -246,6 +259,7 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
     return {"schema": "literature-eval-graded-run-v1", "task_id": task["id"], "task_digest": task["digest"],
             "set_digest": receipt["set_digest"], "tier": task_spec.get("expected_tier"), "outcome": outcome,
             "stop_reason": stop_reason, "criteria": criteria, "citations": citations,
+            "partial_credit": partial_credit,
             "loaded_runtime": loaded_runtime, "branch_runtime_version": branch_runtime_version,
             "executed": receipt.get("executed") is True,
             "codex_version": receipt.get("preflight", {}).get("codex_version", "unknown") if isinstance(receipt.get("preflight"), Mapping) else "unknown",
@@ -275,6 +289,12 @@ def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
                                  "citations_traced": traced, "ratio": traced/citations if citations else None}}
 
 
+def _partial_credit_stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
+    values = [row["partial_credit"] for row in rows
+              if isinstance(row.get("partial_credit"), (int, float)) and not isinstance(row.get("partial_credit"), bool)]
+    return {"n": len(values), "mean": sum(values) / len(values) if values else None}
+
+
 def summarize(graded_runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     all_rows = list(graded_runs)
     rejected = [{"task_id": row.get("task_id"), "reason": row.get("stop_reason", "rejected")}
@@ -289,8 +309,13 @@ def summarize(graded_runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
                      else None)
     versions = sorted({r["branch_runtime_version"] for r in all_rows
                        if isinstance(r.get("branch_runtime_version"), str) and r["branch_runtime_version"]})
+    partial_credit_rows = [r for r in all_rows if r.get("outcome") != "rejected"]
     return {"schema": "literature-eval-report-v1", "set_digest": next(iter(digests), None),
             "overall": _stats(rows), "by_tier": {tier: _stats([r for r in rows if r.get("tier") == tier]) for tier in ("quick", "standard", "full")},
+            "partial_credit_secondary": {"label": "Partial credit (secondary)",
+                "overall": _partial_credit_stats(partial_credit_rows),
+                "by_tier": {tier: _partial_credit_stats([r for r in partial_credit_rows if r.get("tier") == tier])
+                            for tier in ("quick", "standard", "full")}},
             "loaded_runtime": {"runtime_under_test_matches_branch": runtime_match},
             "branch_runtime_version": versions[0] if len(versions) == 1 else None,
             "branch_runtime_versions": versions,
@@ -312,4 +337,13 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         runtime_status = "Branch runtime match could not be established from receipts."
     lines = ["# Literature evaluation report", "", "## Status", f"Completion rate: {rate}; completed {s['completed']}/{s['n']}.", runtime_status, "", "## Current", f"Answered coverage: {percent(s['coverage'])}; precision among answered: {percent(s['precision'])}.", "", "## Next", "Inspect unsure and failed runs before drawing conclusions.", "", "## Evidence", f"{report['claim_boundary']}", "", "Stop reasons:"]
     lines += [f"- {k}: {v}" for k, v in s["stop_reasons"].items()]
+    secondary = report.get("partial_credit_secondary", {})
+    overall_partial = secondary.get("overall", {})
+    partial_mean = overall_partial.get("mean")
+    lines += ["", "## Partial credit (secondary)",
+              "This secondary metric is not used for the completion rate.",
+              f"Overall mean: {percent(partial_mean)} (n={overall_partial.get('n', 0)}).",
+              "", "| Tier | Mean partial credit (secondary) | n |", "|---|---:|---:|"]
+    for tier, stats in secondary.get("by_tier", {}).items():
+        lines.append(f"| {tier} | {percent(stats.get('mean'))} | {stats.get('n', 0)} |")
     return "\n".join(lines) + "\n"
