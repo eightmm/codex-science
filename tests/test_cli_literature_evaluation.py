@@ -55,6 +55,8 @@ if "--version" in sys.argv:
  print("codex-cli fake-1"); raise SystemExit(0)
 if os.environ.get("FAKE_INVOCATIONS"):
  pathlib.Path(os.environ["FAKE_INVOCATIONS"]).open("a").write(json.dumps(sys.argv[1:])+"\\n")
+if os.environ.get("FAKE_CODEX_HOME_RECORD"):
+ pathlib.Path(os.environ["FAKE_CODEX_HOME_RECORD"]).write_text(os.environ.get("CODEX_HOME", "<unset>"))
 assert sys.stdin.read() == ""
 if os.environ.get("FAKE_SLEEP"): time.sleep(float(os.environ["FAKE_SLEEP"]))
 argv=sys.argv[1:]
@@ -86,7 +88,7 @@ else:
 if os.environ.get("FAKE_NO_LAST") != "1":
  last.write_text("unreviewed quick answer DOI:10.1000/example")
 if os.environ.get("FAKE_COMMAND"):
- print(json.dumps({{"type":"item.completed","item":{{"type":"command_execution","command":os.environ["FAKE_COMMAND"],"status":"completed"}}}}))
+ print(json.dumps({{"type":"item.completed","item":{{"type":"command_execution","command":os.environ["FAKE_COMMAND"],"status":"completed","exit_code":int(os.environ.get("FAKE_EXIT", "0"))}}}}))
 print(json.dumps({{"type":"thread.started","thread_id":"fake-thread"}}))
 if int(os.environ.get("FAKE_EXIT", "0")) == 0:
  print(json.dumps({{"type":"turn.completed","usage":{{"input_tokens":40,"cached_input_tokens":10,"output_tokens":12,"reasoning_tokens":3}}}}))
@@ -141,7 +143,8 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             invocations = root / "exec-invocations.jsonl"
             result = self._run("--tasks", str(TASKS), "--out", str(out), "--codex-bin", str(binary),
                                "--codex-home", str(codex_home),
-                               extra_env={"FAKE_INVOCATIONS": str(invocations)})
+                               extra_env={"FAKE_INVOCATIONS": str(invocations),
+                                          "FAKE_CODEX_HOME_RECORD": str(root / "codex-home-seen")})
             self.assertEqual(0, result.returncode, result.stderr)
             plan = json.loads((out / "plan.json").read_text(encoding="utf-8"))
             self.assertEqual(6, len(plan["tasks"]))
@@ -154,6 +157,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertEqual([True, False], [item["enabled"] for item in plan["preflight"]["codex_science_hooks_state"]])
             self.assertNotIn(str(codex_home), json.dumps(plan))
             self.assertFalse(invocations.exists(), "dry run must not execute any codex task")
+            self.assertFalse((root / "codex-home-seen").exists())
             self.assertFalse((out / "quick-doi").exists())
             for entry in plan["tasks"]:
                 argv = entry["argv"]
@@ -205,13 +209,16 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                      ("quick-doi", "empty-message", {"FAKE_NO_LAST": "1"}, 0, False, False)]
             for task_id, name, extra, expected_exit, timed_out, has_artifact in cases:
                 out = root / name
-                env = {"PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1", **extra}
+                home_seen = root / f"{name}-codex-home-seen"
+                env = {"PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1",
+                       "FAKE_CODEX_HOME_RECORD": str(home_seen), **extra}
                 result = subprocess.run([sys.executable, str(ROOT / "scripts/run_literature_evaluation.py"),
                                          "--tasks", str(TASKS), "--out", str(out), "--task", task_id,
                                          "--execute", "--timeout-seconds", "1", "--codex-bin", str(binary),
                                          "--codex-home", str(home)], cwd=ROOT, env=dict(os.environ, **env),
                                         text=True, capture_output=True, check=False)
                 self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(str(home), home_seen.read_text(encoding="utf-8"))
                 task_dir = out / task_id
                 receipt = json.loads((task_dir / "receipt.json").read_text(encoding="utf-8"))
                 self.assertTrue(receipt["executed"])
@@ -247,6 +254,21 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertIsNone(receipt["exit_code"])
             self.assertFalse(receipt["last_message_present"])
 
+    def test_non_executable_codex_binary_records_launch_error_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "non-executable-codex"
+            binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            binary.chmod(0o644)
+            out = root / "out"
+            home = self._codex_home(root)
+            result = self._run("--tasks", str(TASKS), "--out", str(out), "--task", "quick-doi", "--execute",
+                               "--codex-bin", str(binary), "--codex-home", str(home))
+            self.assertEqual(0, result.returncode, result.stderr)
+            receipt = json.loads((out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
+            self.assertTrue(receipt["launch_error"])
+            self.assertIsNone(receipt["exit_code"])
+
     def test_loaded_runtime_comes_only_from_command_event_paths(self) -> None:
         from codex_science.literature_evaluation_runner import _loaded_runtime
 
@@ -277,10 +299,18 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             matching_events = root / "matching-events.jsonl"
             matching_events.write_text(json.dumps({"event": {
                 "type": "item.completed", "item": {"type": "command_execution",
+                    "exit_code": 0,
                     "command": ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
                     f"{branch_version}/skills/codex-science/SKILL.md")}},
                 "t": 0.0}) + "\n", encoding="utf-8")
+            with matching_events.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"event": {"type": "item.completed", "item": {
+                    "type": "command_execution", "exit_code": 1,
+                    "command": "cat ~/.codex/plugins/cache/codex-science/codex-science/9.9.9/skills/failed/SKILL.md"}},
+                    "t": 0.0}) + "\n")
             matching = _loaded_runtime(matching_events, branch_version)
+            self.assertEqual([branch_version], matching["plugin_cache_versions"])
+            self.assertEqual(["skills/codex-science/SKILL.md"], matching["skill_paths"])
             self.assertTrue(matching["runtime_under_test_matches_branch"])
             unknown = _loaded_runtime(matching_events, "unknown")
             self.assertFalse(unknown["runtime_under_test_matches_branch"])

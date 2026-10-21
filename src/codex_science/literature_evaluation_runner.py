@@ -224,7 +224,7 @@ def evaluate_criteria(criteria: Iterable[Mapping[str, Any]], project: Path, last
 
 def _codex_home(path: Path | None) -> Path:
     if path is not None:
-        return Path(path).expanduser()
+        return Path(path).expanduser().absolute()
     return Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser()
 
 
@@ -285,7 +285,8 @@ def _loaded_runtime(events_path: Path, branch_runtime_version: str) -> dict[str,
                 if not isinstance(event, dict) or not str(event.get("type", "")).startswith("item."):
                     continue
                 item = event.get("item")
-                if not isinstance(item, dict) or item.get("type") != "command_execution":
+                if (not isinstance(item, dict) or item.get("type") != "command_execution"
+                        or item.get("exit_code") != 0):
                     continue
                 command = item.get("command")
                 commands = command if isinstance(command, list) else [command]
@@ -451,7 +452,8 @@ def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
             pass
 
 
-def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int) -> tuple[int | None, bool, str | None, float, bool]:
+def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
+             codex_home: Path | None = None) -> tuple[int | None, bool, str | None, float, bool]:
     events_path, stderr_path = task_dir / "events.jsonl", task_dir / "stderr.log"
     last_path = task_dir / "last.md"
     last_path.unlink(missing_ok=True)
@@ -461,10 +463,14 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int) -> tu
     exit_code: int | None = None
     with events_path.open("w", encoding="utf-8") as event_file, stderr_path.open("w", encoding="utf-8") as stderr_file:
         try:
+            child_env = os.environ.copy()
+            if codex_home is not None:
+                child_env["CODEX_HOME"] = str(codex_home)
             process = subprocess.Popen(argv, cwd=project, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                       stderr=stderr_file, start_new_session=True, bufsize=0)
-        except FileNotFoundError:
-            launch_error = "Codex executable not found"
+                                       stderr=stderr_file, start_new_session=True, bufsize=0, env=child_env)
+        except OSError as error:
+            launch_error = ("Codex executable not found" if isinstance(error, FileNotFoundError)
+                            else f"Codex executable could not be launched: {error.strerror or type(error).__name__}")
         else:
             assert process.stdout is not None
             lines: queue.Queue[tuple[float, bytes | None]] = queue.Queue()
@@ -665,7 +671,8 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
         subprocess.run(["git", "init", "-q"], cwd=project, check=True, capture_output=True)
         started = datetime.now(timezone.utc)
         exit_code, timed_out, launch_error, wall_seconds, last_message_present = _execute(
-            entry["argv"], project, task_dir, entry["timeout_seconds"])
+            entry["argv"], project, task_dir, entry["timeout_seconds"],
+            codex_home=home if codex_home is not None else None)
         ended = datetime.now(timezone.utc)
         last_path = task_dir / "last.md"
         artifacts = project / "artifacts"

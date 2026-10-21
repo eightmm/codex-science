@@ -15,7 +15,7 @@ from codex_science.literature_v2 import normalize_identifier
 
 MAX_FILE_BYTES = 8 * 1024 * 1024
 _ID = re.compile(
-    r"(?i)(?:(?<!\w)(?:https?://(?:dx\.)?doi\.org/|doi:\s*)|(?<![\w/.\-]))(10\.\d{4,9}/[^\s<>\]\[\"'{}]+)"
+    r"(?i)(?:(?<!\w)(?:https?://(?:dx\.)?doi\.org/|doi:\s*)|(?<![\w/.\-]))(10\.\d{4,9}/[^\s<>\]\[\"'{}|]+)"
     r"|(?<!\w)(?:https?://pubmed\.ncbi\.nlm\.nih\.gov/|pmid:\s*)(\d{5,9})(?!\w)"
     r"|\b(PMC\d+)\b|(?<!\w)(?:https?://arxiv\.org/(?:abs|pdf)/|arxiv:\s*)([a-z][a-z0-9.-]*/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?(?!\w)",
 )

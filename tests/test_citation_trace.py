@@ -27,7 +27,8 @@ class CitationTraceTests(unittest.TestCase):
         text = ("[x](https://doi.org/10.1234/abc), (doi:10.1234/abc), "
                 "`doi:10.1234/abc`, **doi:10.1234/abc**, "
                 "doi:10.1016/S0146-6736(20)30183-5. "
-                "https://dx.doi.org/10.5678/Other_ID>`")
+                "https://dx.doi.org/10.5678/Other_ID>` |10.1234/abc| "
+                "|[paper](https://doi.org/10.1234/abc)|")
         ids = [item["identifier"] for item in extract_identifiers(text)]
         self.assertEqual(ids, ["doi:10.1234/abc", "doi:10.1016/s0146-6736(20)30183-5", "doi:10.5678/other_id"])
 
