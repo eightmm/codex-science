@@ -264,15 +264,15 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 - Sample claim-type reviews by reliability (Kosmos reports accuracy of 85.5%
   for data, 82.1% for literature, and 57.9% for synthesis).
 - SessionStart hook `fork` matcher (bootstrap change; requires approval).
-- DeepResearch Bench FACT-style statement-to-URL support checks.
 
 ### Research-derived items implemented on the local branch (unevaluated)
 
-- Weighted rubric tree grader for partial task credit.
+- Weighted rubric tree partial-credit metric in literature evaluation reports.
 - Trajectory consensus and Bradley-Terry ranking.
+- Claim-type review ordering and evidence sufficiency counts.
 - Opt-in completion-record cross-check against Codex `--output-schema`.
-- Live DOI resolution as a non-deciding existence signal.
-- Evidence-count threshold through claim sufficiency checks.
+- DOI/PMID/arXiv identifier resolution and offline statement-to-excerpt support
+  checks (lexical heuristic; not semantic verification).
 
 1. Land and use the native-skill standard and strengthened tier-1 skills.
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema.

@@ -2,6 +2,24 @@
 
 ## Stage 7/8 (unreleased)
 
+- The literature evaluation report adds equal-weight `rubric_tree` partial
+  credit as a secondary metric. Budget deadlines are rejected if already past,
+  and budget status reports floored remaining seconds.
+- Reviewer packets provide deterministic `review_priority` and an advisory
+  `review_order_policy`; callers may supply an optional tier, including through
+  reviewer CLI `--tier`. An offline statement-support check matches cited
+  statements to saved excerpts by study `persistent_id` and reports lexical
+  overlap only, not semantic entailment.
+- Runner and resume-driver outputs and receipts use mode 0600. They refuse
+  symlinked and pre-existing turn paths before side effects, atomically replace
+  dry-run plans, pass each child an absolute `CODEX_HOME`, cap per-line and
+  total output, and clean up process groups on exceptions. A cap is recorded as
+  `output_cap`; runner `last_message_present` is false for empty or capped
+  output. Old-style arXiv identifiers with subject classes are accepted.
+- All 118 first-party authored skills now meet the L2 native-skill contract
+  (Decision contract, Workflow, Outputs, Boundaries, provenance, and review
+  handoffs); the audit reports 0 L1 skills, down from 112. Existing endpoints,
+  attribution, and gates remain, with one retired ChEBI link replaced.
 - Implemented rigor classification and completion reporting, a frozen
   literature-review task set with dry-run-first runner and receipt grader,
   saturation estimation, and citation provenance tracing.

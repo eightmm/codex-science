@@ -56,6 +56,17 @@ preflight evidence. The checkpoint remains the source of truth; the driver
 does not depend on Goal state. Token totals sum per-invocation input and output
 counts and may overcount cumulative resume usage.
 
+Driver outputs and receipts are created privately (mode 0600). Each child gets
+an explicit absolute `CODEX_HOME`; symlinked or pre-existing turn paths are
+refused before launch. Per-line and total output caps stop a turn with
+`output_cap`, and process-group cleanup also runs on exceptions. Empty or
+capped last-message output is recorded as `last_message_present: false`.
+
+The real-run harness writes private receipts and output files (mode 0600),
+refuses symlinked or pre-existing task output paths before execution, and
+atomically replaces dry-run plans. Per-line and total output caps may set
+`launch_error` to `output_cap`; in that case `last_message_present` is false.
+
 ### Rubric tree grader
 
 `scripts/grade_rubric.py` scores a bounded weighted `rubric-tree-v1` against
