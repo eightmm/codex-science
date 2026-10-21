@@ -25,6 +25,9 @@ _TERMINAL = {"completed", "terminal_inconclusive", "abandoned"}
 _HUMAN = {"approval_required", "waiting_external", "blocked", "stale_active", "invalid"}
 _KILL_WAIT_SECONDS = 0.25
 _READER_JOIN_SECONDS = 0.25
+_MAX_LINE_BYTES = 1 << 20
+_MAX_OUTPUT_BYTES = 64 << 20
+_OUTPUT_MARKER = b"\n[output truncated: line limit exceeded]\n"
 
 
 def _report(project: Path) -> dict[str, Any]:
@@ -103,6 +106,8 @@ def _argv(codex: str, project: Path, prompt: str, last: Path, thread_id: str | N
 def _resolve_paths(project: Path, run_dir: Path) -> tuple[Path, Path]:
     project = Path(project).expanduser().resolve()
     requested = Path(os.path.abspath(Path(run_dir).expanduser()))
+    if requested.is_symlink():
+        raise ValueError("output directory is a symlink")
     run_dir = requested.resolve()
     artifact_roots = {Path(os.path.abspath(project / "artifacts")), (project / "artifacts").resolve()}
     for candidate in {requested, run_dir}:
@@ -122,9 +127,7 @@ def _write_receipt(path: Path, receipt: dict[str, Any]) -> None:
             stream.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
-        current_umask = os.umask(0)
-        os.umask(current_umask)
-        os.chmod(temporary, 0o644 & ~current_umask)
+        os.chmod(temporary, 0o600)
         os.replace(temporary, path)
     finally:
         try:
@@ -133,7 +136,24 @@ def _write_receipt(path: Path, receipt: dict[str, Any]) -> None:
             pass
 
 
-def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -> tuple[list[dict[str, Any]], int | None, bool, str | None, float, bool]:
+def _create_private(path: Path, *, binary: bool = False):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    return os.fdopen(fd, "wb" if binary else "w", **({} if binary else {"encoding": "utf-8"}))
+
+
+def _count_truncated_lines(path: Path) -> int:
+    count = 0
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            try:
+                count += json.loads(line).get("line_truncated") is True
+            except (json.JSONDecodeError, AttributeError):
+                continue
+    return count
+
+
+def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *, event_stream=None,
+              codex_home: Path | None = None) -> tuple[list[dict[str, Any]], int | None, bool, str | None, float, bool]:
     started = time.monotonic()
     timed_out = False
     launch_error = None
@@ -144,8 +164,19 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -
     reader_started = False
     reader_abandoned = False
     stdout_done = False
-    kill_deadline: float | None = None
     kill_requested = False
+    output_capped = threading.Event()
+    stop_reader = threading.Event()
+    total_bytes = [0]
+    byte_lock = threading.Lock()
+
+    def account(size: int) -> int:
+        with byte_lock:
+            available = max(0, _MAX_OUTPUT_BYTES - total_bytes[0])
+            total_bytes[0] += size
+            if size > available:
+                output_capped.set()
+            return available
 
     def kill_and_wait() -> None:
         nonlocal kill_requested
@@ -169,41 +200,87 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -
                 pass
 
     try:
-        with (directory / "stderr.log").open("wb") as stderr_stream:
-            try:
-                process = subprocess.Popen(argv, cwd=project, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                           stderr=stderr_stream, start_new_session=True)
-            except OSError as error:
-                launch_error = str(error)
-                stderr_stream.write((launch_error + "\n").encode("utf-8", errors="replace"))
+        stderr_path = directory / "stderr.log"
+        if stderr_path.is_symlink() or stderr_path.exists():
+            raise FileExistsError("turn stderr.log already exists or is a symlink")
+        stderr_stream = _create_private(stderr_path, binary=True)
+        if "-o" in argv:
+            last_path = Path(argv[argv.index("-o") + 1])
+            if last_path.is_symlink() or last_path.exists():
+                raise FileExistsError("turn last-message file already exists or is a symlink")
+            _create_private(last_path).close()
+        try:
+            child_env = os.environ.copy()
+            if codex_home is not None:
+                child_env["CODEX_HOME"] = str(codex_home.absolute())
+            process = subprocess.Popen(argv, cwd=project, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, start_new_session=True, env=child_env)
+        except OSError as error:
+            launch_error = str(error)
+            stderr_stream.write((launch_error + "\n").encode("utf-8", errors="replace"))
 
         if process is not None:
             assert process.stdout is not None
-            lines: queue.Queue[tuple[float, bytes | None]] = queue.Queue()
+            lines: queue.Queue[tuple[float, bytes | None, bool]] = queue.Queue(maxsize=16)
 
             def capture_stdout() -> None:
                 try:
-                    for line in iter(process.stdout.readline, b""):
-                        lines.put((time.monotonic(), line))
+                    while not stop_reader.is_set():
+                        line = process.stdout.readline(_MAX_LINE_BYTES + 1)
+                        if not line:
+                            break
+                        available = account(len(line))
+                        too_long = len(line) > _MAX_LINE_BYTES and not line.endswith(b"\n")
+                        if too_long:
+                            prefix = line[:_MAX_LINE_BYTES]
+                            while line and not line.endswith(b"\n") and not output_capped.is_set():
+                                line = process.stdout.readline(_MAX_LINE_BYTES + 1)
+                                if line:
+                                    account(len(line))
+                            line = prefix + _OUTPUT_MARKER
+                        payload = line[:min(len(line), available)]
+                        if payload:
+                            runner._queue_put_until_stopped(
+                                lines, (time.monotonic(), payload, too_long), stop_reader)
                 except (OSError, ValueError):
                     pass
                 finally:
-                    lines.put((time.monotonic(), None))
+                    runner._queue_put_until_stopped(lines, (time.monotonic(), None, False), stop_reader)
+
+            def capture_stderr() -> None:
+                assert process is not None and process.stderr is not None
+                while not stop_reader.is_set():
+                    chunk = process.stderr.read(65536)
+                    if not chunk:
+                        break
+                    available = account(len(chunk))
+                    if available:
+                        try:
+                            stderr_stream.write(chunk[:available])
+                        except (OSError, ValueError):
+                            return
 
             reader = threading.Thread(target=capture_stdout, name="codex-driver-event-reader", daemon=True)
             reader.start()
+            if getattr(process, "stderr", None) is not None:
+                stderr_reader = threading.Thread(target=capture_stderr, name="codex-driver-stderr-reader", daemon=True)
+                stderr_reader.start()
             reader_started = True
             deadline = started + timeout
+            killed_at = None
             while not stdout_done or process.poll() is None:
                 now = time.monotonic()
-                if not timed_out and now >= deadline and (process.poll() is None or not stdout_done):
-                    timed_out = True
-                    kill_deadline = now + 0.5
+                if (output_capped.is_set() or (not timed_out and now >= deadline and (process.poll() is None or not stdout_done))) and killed_at is None:
+                    if output_capped.is_set():
+                        launch_error = "output_cap"
+                    else:
+                        timed_out = True
+                    killed_at = now
                     kill_and_wait()
-                if timed_out and kill_deadline is not None and time.monotonic() >= kill_deadline:
+                if killed_at is not None and time.monotonic() >= killed_at + _READER_JOIN_SECONDS:
                     break
                 try:
-                    arrived, line = lines.get(timeout=0.05)
+                    arrived, line, line_truncated = lines.get(timeout=0.05)
                 except queue.Empty:
                     continue
                 if line is None:
@@ -214,7 +291,13 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -
                     event: Any = json.loads(text)
                 except json.JSONDecodeError:
                     event = text
-                events.append({"t": round(max(0.0, arrived - started), 6), "event": event})
+                record = {"t": round(max(0.0, arrived - started), 6), "event": event,
+                          "line_truncated": line_truncated}
+                if event_stream is None:
+                    events.append(record)
+                else:
+                    event_stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    event_stream.flush()
             exit_code = process.returncode
     except BaseException:
         # A signal or parser/read error must not leave the Codex process group running.
@@ -226,6 +309,12 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -
         if reader_started and reader is not None:
             reader.join(timeout=_READER_JOIN_SECONDS)
             reader_abandoned = reader.is_alive()
+        stop_reader.set()
+        stderr_thread = locals().get("stderr_reader")
+        if stderr_thread is not None:
+            stderr_thread.join(timeout=_READER_JOIN_SECONDS)
+        if output_capped.is_set():
+            launch_error = "output_cap"
         if kill_requested and process is not None and not reader_abandoned:
             try:
                 process.communicate(timeout=_KILL_WAIT_SECONDS)
@@ -241,6 +330,14 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -
                 process.stdout.close()
             except (OSError, ValueError):
                 pass
+        if process is not None and getattr(process, "stderr", None) is not None and stderr_thread is not None and not stderr_thread.is_alive():
+            try:
+                process.stderr.close()
+            except (OSError, ValueError):
+                pass
+        if ('stderr_stream' in locals() and not stderr_stream.closed
+                and (stderr_thread is None or not stderr_thread.is_alive())):
+            stderr_stream.close()
     return events, exit_code, timed_out, launch_error, time.monotonic() - started, reader_abandoned
 
 
@@ -258,14 +355,19 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
     for name, value in (("prompt", prompt), ("continuation_prompt", continuation_prompt)):
         if value.startswith("-"):
             raise ValueError(f"{name} beginning with '-' is unsupported by this Codex CLI; use a non-dash-leading prompt")
+    existing_turn = next((run_dir / f"turn-{number}" for number in range(1, max_turns + 1)
+                          if (run_dir / f"turn-{number}").exists()
+                          or (run_dir / f"turn-{number}").is_symlink()), None)
+    if existing_turn is not None:
+        raise FileExistsError(f"turn directory already exists or is a symlink: {existing_turn.name}")
     receipt_path = run_dir / "run-driver-receipt.json"
-    if receipt_path.exists() or receipt_path.is_symlink():
+    if run_dir.is_symlink() or receipt_path.exists() or receipt_path.is_symlink():
         raise FileExistsError(
             f"output directory already contains run-driver-receipt.json; choose a new --out directory: {run_dir}"
         )
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
-        receipt_fd = os.open(receipt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        receipt_fd = os.open(receipt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     except FileExistsError as error:
         raise FileExistsError(
             f"output directory already contains run-driver-receipt.json; choose a new --out directory: {run_dir}"
@@ -285,14 +387,18 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
     report: dict[str, Any] = {"schema": "completion-report-v1", "runs": []}
 
     def make_receipt() -> dict[str, Any]:
+        # Receipts/logs are 0600; output caps use launch_error/stop reason "output_cap"; child CODEX_HOME is absolute.
+        # The receipt records only the home kind, not its path.
         return {"schema": RECEIPT_SCHEMA, "stop": stop, "turns": turns,
                 "completion_report": report, "usage_mode_observed": "unverified",
                 "raw_token_totals": raw_token_totals, "tokens_counted": tokens_counted,
                 # Keep the original receipt field as a compatibility alias for the conservative sum.
-                "token_total": tokens_counted, "preflight": preflight}
+                "token_total": tokens_counted, "preflight": preflight,
+                "codex_home_kind": "explicit" if codex_home is not None else "ambient"}
 
     try:
-        preflight = runner._preflight(codex_bin, runner._codex_home(codex_home))
+        effective_home = runner._codex_home(codex_home)
+        preflight = runner._preflight(codex_bin, effective_home)
         baseline_runs = _snapshot_runs(artifacts)
         initial_hashes = runner._artifact_hashes(artifacts)
         prior_hashes = initial_hashes
@@ -306,17 +412,19 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
                 stop = {"code": "wall_cap"}
                 break
             directory = run_dir / f"turn-{number}"
-            directory.mkdir(parents=True, exist_ok=True)
+            if directory.exists() or directory.is_symlink():
+                raise FileExistsError(f"turn directory already exists or is a symlink: {directory.name}")
+            directory.mkdir(mode=0o700)
             last = directory / "last.md"
-            last.unlink(missing_ok=True)
             argv = _argv(codex_bin, project, prompt if number == 1 else continuation_prompt, last,
                          thread_id if number > 1 else None)
-            events, exit_code, timed_out, launch_error, wall, reader_abandoned = _run_turn(argv, project, directory, remaining)
-            with (directory / "events.jsonl").open("w", encoding="utf-8") as stream:
-                for event in events:
-                    stream.write(json.dumps(event, ensure_ascii=False) + "\n")
+            events_path = directory / "events.jsonl"
+            with _create_private(events_path) as event_stream:
+                _, exit_code, timed_out, launch_error, wall, reader_abandoned = _run_turn(
+                    argv, project, directory, remaining, event_stream=event_stream, codex_home=effective_home)
             if not last.exists():
-                last.write_text("", encoding="utf-8")
+                with _create_private(last):
+                    pass
             with (directory / "events.jsonl").open(encoding="utf-8") as stream:
                 metrics = runner.parse_exec_events(stream, exit_code=exit_code, timed_out=timed_out, wall_seconds=wall)
             if thread_id is None:
@@ -340,12 +448,16 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
             no_progress_turns = 0 if progressed else no_progress_turns + 1
             turns.append({"turn": number, "argv": argv, "exit_code": exit_code,
                           "stop_reason": metrics["terminal_stop_reason"], "metrics": metrics,
+                          "truncated_lines": _count_truncated_lines(events_path),
                           "wall_seconds": wall, "token_delta": reported_tokens,
                           "raw_token_total": reported_tokens, "tokens_counted": tokens_counted,
                           "usage_mode_observed": "unverified", "reader_abandoned": reader_abandoned,
                           "launch_error": launch_error})
             prior_hashes = after_hashes
 
+            if launch_error == "output_cap":
+                stop = {"code": "turn_failed", "reason": "output_cap"}
+                break
             if launch_error is not None:
                 stop = {"code": "turn_failed", "reason": "launch_error"}
                 break

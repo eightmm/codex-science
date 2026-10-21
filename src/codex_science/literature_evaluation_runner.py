@@ -23,6 +23,11 @@ RECEIPT_SCHEMA = "literature-eval-run-receipt-v1"
 _CRITERION_KINDS = {"final_message_regex", "artifact_exists", "json_field", "min_count"}
 _UNKNOWN = "unknown"
 _COMPLETION_RECORD_PROMPT = "Return the final message as the JSON completion record required by the output schema."
+_MAX_LINE_BYTES = 1 << 20
+_MAX_OUTPUT_BYTES = 64 << 20
+_OUTPUT_MARKER = b"\n[output truncated: line limit exceeded]\n"
+_KILL_WAIT_SECONDS = 0.5
+_READER_JOIN_SECONDS = 0.5
 _PLUGIN_CACHE_ROOT = r"plugins/cache/codex-science/codex-science/"
 _PLUGIN_CACHE_VERSION = re.compile(
     re.escape(_PLUGIN_CACHE_ROOT) + r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
@@ -226,7 +231,34 @@ def evaluate_criteria(criteria: Iterable[Mapping[str, Any]], project: Path, last
 def _codex_home(path: Path | None) -> Path:
     if path is not None:
         return Path(path).expanduser().absolute()
-    return Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser()
+    return Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser().absolute()
+
+
+def _create_private(path: Path, *, binary: bool = False):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    return os.fdopen(fd, "wb" if binary else "w", **({} if binary else {"encoding": "utf-8"}))
+
+
+def _count_truncated_lines(path: Path) -> int:
+    count = 0
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            try:
+                count += json.loads(line).get("line_truncated") is True
+            except (json.JSONDecodeError, AttributeError):
+                continue
+    return count
+
+
+def _queue_put_until_stopped(target: queue.Queue[Any], item: Any,
+                             stop_event: threading.Event) -> bool:
+    while not stop_event.is_set():
+        try:
+            target.put(item, timeout=0.1)
+            return True
+        except queue.Full:
+            continue
+    return False
 
 
 def _codex_version(codex: str) -> str:
@@ -534,44 +566,96 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
              codex_home: Path | None = None) -> tuple[int | None, bool, str | None, float, bool]:
     events_path, stderr_path = task_dir / "events.jsonl", task_dir / "stderr.log"
     last_path = task_dir / "last.md"
-    last_path.unlink(missing_ok=True)
+    if any(path.is_symlink() or path.exists() for path in (events_path, stderr_path, last_path)):
+        raise FileExistsError("task output entry already exists or is a symlink")
     start = time.monotonic()
     timed_out = False
     launch_error = None
     exit_code: int | None = None
-    with events_path.open("w", encoding="utf-8") as event_file, stderr_path.open("w", encoding="utf-8") as stderr_file:
+    process = None
+    reader = stderr_reader = None
+    capped = threading.Event()
+    stop_reader = threading.Event()
+    total = [0]
+    lock = threading.Lock()
+    def account(size: int) -> int:
+        with lock:
+            available = max(0, _MAX_OUTPUT_BYTES - total[0])
+            total[0] += size
+            if size > available:
+                capped.set()
+            return available
+    with _create_private(events_path) as event_file, _create_private(stderr_path, binary=True) as stderr_file:
+        _create_private(last_path).close()
         try:
             child_env = os.environ.copy()
             if codex_home is not None:
-                child_env["CODEX_HOME"] = str(codex_home)
+                child_env["CODEX_HOME"] = str(codex_home.absolute())
             process = subprocess.Popen(argv, cwd=project, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                       stderr=stderr_file, start_new_session=True, bufsize=0, env=child_env)
+                                       stderr=subprocess.PIPE, start_new_session=True, bufsize=0, env=child_env)
         except OSError as error:
             launch_error = ("Codex executable not found" if isinstance(error, FileNotFoundError)
                             else f"Codex executable could not be launched: {error.strerror or type(error).__name__}")
         else:
-            assert process.stdout is not None
-            lines: queue.Queue[tuple[float, bytes | None]] = queue.Queue()
+            assert process.stdout is not None and process.stderr is not None
+            lines: queue.Queue[tuple[float, bytes | None, bool]] = queue.Queue(maxsize=16)
 
             def capture_stdout() -> None:
                 try:
-                    for line in iter(process.stdout.readline, b""):
-                        lines.put((time.monotonic(), line))
+                    while not stop_reader.is_set():
+                        line = process.stdout.readline(_MAX_LINE_BYTES + 1)
+                        if not line:
+                            break
+                        available = account(len(line))
+                        too_long = len(line) > _MAX_LINE_BYTES and not line.endswith(b"\n")
+                        if too_long:
+                            prefix = line[:_MAX_LINE_BYTES]
+                            while line and not line.endswith(b"\n") and not capped.is_set():
+                                line = process.stdout.readline(_MAX_LINE_BYTES + 1)
+                                if line:
+                                    account(len(line))
+                            line = prefix + _OUTPUT_MARKER
+                        payload = line[:min(len(line), available)]
+                        if payload:
+                            _queue_put_until_stopped(lines, (time.monotonic(), payload, too_long), stop_reader)
                 finally:
-                    lines.put((time.monotonic(), None))
+                    _queue_put_until_stopped(lines, (time.monotonic(), None, False), stop_reader)
+
+            def capture_stderr() -> None:
+                while not stop_reader.is_set():
+                    chunk = process.stderr.read(65536)
+                    if not chunk:
+                        break
+                    available = account(len(chunk))
+                    if available:
+                        try:
+                            stderr_file.write(chunk[:available])
+                        except (OSError, ValueError):
+                            return
 
             reader = threading.Thread(target=capture_stdout, name="codex-event-reader", daemon=True)
             reader.start()
+            stderr_reader = threading.Thread(target=capture_stderr, name="codex-stderr-reader", daemon=True)
+            stderr_reader.start()
             stdout_done = False
             deadline = start + timeout
+            killed_at = None
             while not stdout_done or process.poll() is None:
                 current = time.monotonic()
-                if not timed_out and current >= deadline:
-                    timed_out = True
+                if (capped.is_set() or (not timed_out and current >= deadline)) and killed_at is None:
+                    timed_out = not capped.is_set()
+                    if capped.is_set():
+                        launch_error = "output_cap"
                     _kill_process_group(process)
-                    process.wait()
+                    killed_at = current
+                    try:
+                        process.wait(timeout=_KILL_WAIT_SECONDS)
+                    except subprocess.TimeoutExpired:
+                        pass
+                if killed_at is not None and current >= killed_at + _READER_JOIN_SECONDS:
+                    break
                 try:
-                    arrived, line = lines.get(timeout=0.05)
+                    arrived, line, line_truncated = lines.get(timeout=0.05)
                 except queue.Empty:
                     continue
                 if line is None:
@@ -582,15 +666,40 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
                     event: Any = json.loads(text)
                 except json.JSONDecodeError:
                     event = text
-                envelope = {"t": round(max(0.0, arrived - start), 6), "event": event}
+                envelope = {"t": round(max(0.0, arrived - start), 6), "event": event,
+                            "line_truncated": line_truncated}
                 event_file.write(json.dumps(envelope, sort_keys=True, ensure_ascii=False) + "\n")
                 event_file.flush()
-            reader.join()
-            exit_code = process.wait()
+            reader.join(timeout=_READER_JOIN_SECONDS)
+            stderr_reader.join(timeout=_READER_JOIN_SECONDS)
+            if capped.is_set():
+                launch_error = "output_cap"
+            exit_code = process.poll()
+        finally:
+            if process is not None and process.poll() is None:
+                _kill_process_group(process)
+                try:
+                    process.wait(timeout=_KILL_WAIT_SECONDS)
+                except subprocess.TimeoutExpired:
+                    pass
+            stop_reader.set()
+            for thread in (reader, stderr_reader):
+                if thread is not None:
+                    thread.join(timeout=_READER_JOIN_SECONDS)
+            if process is not None:
+                for stream, thread in ((process.stdout, reader), (process.stderr, stderr_reader)):
+                    if thread is not None and thread.is_alive():
+                        continue
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except (OSError, ValueError):
+                            pass
     wall_seconds = time.monotonic() - start
-    last_message_present = last_path.is_file()
+    last_message_present = launch_error is None and last_path.is_file() and last_path.stat().st_size > 0
     if not last_path.exists():
-        last_path.write_text("", encoding="utf-8")
+        with _create_private(last_path):
+            pass
     return exit_code, timed_out, launch_error, wall_seconds, last_message_present
 
 
@@ -685,8 +794,32 @@ def _token_value(value: Any) -> int:
 
 def _write_plan(out: Path, plan: dict[str, Any], *, execute: bool) -> Path:
     plan_path = out / "plan.json"
+    if out.is_symlink() or plan_path.is_symlink():
+        raise ValueError("output directory or plan.json is a symlink")
     if not execute:
-        plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary = None
+        fd = None
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        for _ in range(10):
+            temporary = out / f".{plan_path.name}.{os.urandom(8).hex()}.tmp"
+            try:
+                fd = os.open(temporary, flags, 0o600)
+                break
+            except FileExistsError:
+                continue
+        if fd is None or temporary is None:
+            raise FileExistsError("could not reserve a private temporary plan file")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(plan, indent=2, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, plan_path)
+        finally:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
         return plan_path
     if plan_path.exists():
         try:
@@ -700,7 +833,7 @@ def _write_plan(out: Path, plan: dict[str, Any], *, execute: bool) -> Path:
         while plan_path.exists():
             plan_path = out / f"plan-{stamp}-{suffix}.json"
             suffix += 1
-    with plan_path.open("x", encoding="utf-8") as handle:
+    with _create_private(plan_path) as handle:
         handle.write(json.dumps(plan, indent=2, sort_keys=True) + "\n")
     return plan_path
 
@@ -717,11 +850,13 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
             raise ValueError(f"unknown task id(s): {sorted(unknown)}")
         tasks = [task for task in tasks if task["id"] in selected]
     out = Path(out).expanduser().absolute()
+    if out.is_symlink():
+        raise ValueError("output directory is a symlink")
     if execute:
-        collisions = [task["id"] for task in tasks if (out / task["id"]).exists()]
+        collisions = [task["id"] for task in tasks if (out / task["id"]).exists() or (out / task["id"]).is_symlink()]
         if collisions:
             raise FileExistsError(f"task directory {collisions[0]!r} already exists; pass a new --out")
-    out.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True, mode=0o700)
     home = _codex_home(codex_home)
     preflight = _preflight(codex_bin, home)
     plan = {"schema": "literature-eval-plan-v1", "set_digest": task_set["set_digest"],
@@ -748,14 +883,13 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
         return plan
     for task, entry in zip(tasks, plan["tasks"]):
         task_dir = out / task["id"]
-        task_dir.mkdir()
+        task_dir.mkdir(mode=0o700)
         project = task_dir / "project"
-        project.mkdir()
+        project.mkdir(mode=0o700)
         subprocess.run(["git", "init", "-q"], cwd=project, check=True, capture_output=True)
         started = datetime.now(timezone.utc)
         exit_code, timed_out, launch_error, wall_seconds, last_message_present = _execute(
-            entry["argv"], project, task_dir, entry["timeout_seconds"],
-            codex_home=home if codex_home is not None else None)
+            entry["argv"], project, task_dir, entry["timeout_seconds"], codex_home=home)
         ended = datetime.now(timezone.utc)
         last_path = task_dir / "last.md"
         artifacts = project / "artifacts"
@@ -763,12 +897,15 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
             event_metrics = parse_exec_events(event_handle, exit_code=exit_code,
                                               timed_out=timed_out, wall_seconds=wall_seconds)
         completion_report = _completion_report(artifacts, now=ended)
+        # last_message_present requires non-empty last.md and no launch error; caps set launch_error="output_cap".
         receipt = {"schema": RECEIPT_SCHEMA, "executed": True, "task_id": task["id"],
                    "task_digest": task["digest"], "set_digest": task_set["set_digest"],
                    "argv": entry["argv"], "preflight": preflight,
                    "started_utc": started.isoformat(), "ended_utc": ended.isoformat(),
                    "wall_seconds": wall_seconds, "exit_code": exit_code, "timed_out": timed_out,
-                   "launch_error": launch_error, "event_metrics": event_metrics,
+                   "launch_error": launch_error, "output_capped": launch_error == "output_cap",
+                   "truncated_lines": _count_truncated_lines(task_dir / "events.jsonl"),
+                   "event_metrics": event_metrics,
                    "events_sha256": _sha((task_dir / "events.jsonl").read_bytes()),
                    "stderr_sha256": _sha((task_dir / "stderr.log").read_bytes()),
                    "last_message_present": last_message_present,
@@ -784,5 +921,6 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
             receipt["output_schema_sha256"] = plan["output_schema_sha256"]
             receipt["completion_record"] = record
             receipt["completion_record_consistent"] = _completion_consistency(record, completion_report)
-        (task_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        with _create_private(task_dir / "receipt.json") as receipt_file:
+            receipt_file.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return plan

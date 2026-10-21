@@ -5,9 +5,11 @@ import json
 import os
 import re
 import subprocess
+import stat
 import sys
 import tempfile
 import types
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -176,6 +178,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertFalse(invocations.exists(), "dry run must not execute any codex task")
             self.assertFalse((root / "codex-home-seen").exists())
             self.assertFalse((out / "quick-doi").exists())
+            self.assertEqual(0o600, stat.S_IMODE((out / "plan.json").stat().st_mode))
             for entry in plan["tasks"]:
                 argv = entry["argv"]
                 self.assertTrue(FORBIDDEN.isdisjoint(argv))
@@ -214,6 +217,24 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                                "--codex-bin", str(binary), "--codex-home", str(home))
             self.assertEqual(2, result.returncode)
             self.assertIn("pass a new --out", result.stderr)
+
+    def test_dry_runs_atomically_replace_plan_in_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = self._fake_codex(root)
+            home = self._codex_home(root)
+            out = root / "out"
+            args = ["--tasks", str(TASKS), "--out", str(out), "--codex-bin", str(binary),
+                    "--codex-home", str(home)]
+            first = self._run(*args, "--task", "quick-doi")
+            self.assertEqual(0, first.returncode, first.stderr)
+            first_plan = json.loads((out / "plan.json").read_text(encoding="utf-8"))
+            self.assertEqual(["quick-doi"], [task["task_id"] for task in first_plan["tasks"]])
+            second = self._run(*args, "--task", "quick-arxiv")
+            self.assertEqual(0, second.returncode, second.stderr)
+            second_plan = json.loads((out / "plan.json").read_text(encoding="utf-8"))
+            self.assertEqual(["quick-arxiv"], [task["task_id"] for task in second_plan["tasks"]])
+            self.assertNotEqual(first_plan, second_plan)
 
     def test_output_schema_opt_in_and_completion_record_cross_check(self) -> None:
         schema = ROOT / "benchmarks/literature-review/completion-record.schema.json"
@@ -309,6 +330,9 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertEqual(str(home), home_seen.read_text(encoding="utf-8"))
                 task_dir = out / task_id
+                for path in (task_dir / "receipt.json", task_dir / "events.jsonl",
+                             task_dir / "stderr.log", task_dir / "last.md"):
+                    self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode), path)
                 receipt = json.loads((task_dir / "receipt.json").read_text(encoding="utf-8"))
                 self.assertTrue(receipt["executed"])
                 self.assertEqual(timed_out, receipt["timed_out"])
@@ -417,6 +441,170 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
         with patch("codex_science.literature_evaluation_runner.os.killpg",
                    side_effect=ProcessLookupError):
             _kill_process_group(ExitedProcess())  # type: ignore[arg-type]
+
+    def test_symlinked_plan_and_task_directory_are_refused(self) -> None:
+        from codex_science.literature_evaluation_runner import _write_plan, run_evaluation
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "out"
+            out.mkdir()
+            target = root / "victim"
+            target.write_text("keep", encoding="utf-8")
+            (out / "plan.json").symlink_to(target)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                _write_plan(out, {"schema": "test"}, execute=False)
+            self.assertEqual("keep", target.read_text(encoding="utf-8"))
+            (out / "plan.json").unlink()
+            external = root / "external-task"
+            external.mkdir()
+            (out / "quick-doi").symlink_to(external, target_is_directory=True)
+            with self.assertRaisesRegex(FileExistsError, "already exists"):
+                run_evaluation(TASKS, out, selected=["quick-doi"], execute=True, codex_bin="unused")
+            self.assertEqual([], list(external.iterdir()))
+
+    def test_execute_oversized_line_is_truncated_and_counted(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'x'*(2*1024*1024)+b'\\n'+b'y'*(1024*1024)+b'\\n'+b'z'*(2*1024*1024))\nsys.stdout.flush()\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            _, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+            self.assertFalse(timed_out)
+            self.assertIsNone(launch_error)
+            self.assertIn(b"output truncated", (task_dir / "events.jsonl").read_bytes())
+            records = [json.loads(line) for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual("x" * (1024 * 1024) + "\n[output truncated: line limit exceeded]", records[0]["event"])
+            self.assertTrue(records[0]["line_truncated"])
+            self.assertEqual("y" * (1024 * 1024), records[1]["event"])
+            self.assertFalse(records[1]["line_truncated"])
+            self.assertEqual("z" * (1024 * 1024) + "\n[output truncated: line limit exceeded]", records[2]["event"])
+            self.assertTrue(records[2]["line_truncated"])
+            from codex_science.literature_evaluation_runner import _count_truncated_lines
+            self.assertEqual(2, _count_truncated_lines(task_dir / "events.jsonl"))
+
+    def test_execute_end_marker_survives_full_line_queue(self) -> None:
+        from codex_science import literature_evaluation_runner as runner
+
+        class SlowQueue(runner.queue.Queue):
+            def get(self, *args, **kwargs):
+                item = super().get(*args, **kwargs)
+                if item[1] is not None:
+                    time.sleep(0.12)
+                return item
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nfor index in range(17): print('{\"type\":\"item.completed\",\"id\":%d}' % index)\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            deadline = 6
+            with patch("codex_science.literature_evaluation_runner.queue.Queue", SlowQueue):
+                exit_code, timed_out, _, wall_seconds, _ = runner._execute([str(binary)], root, task_dir, deadline)
+            self.assertEqual(0, exit_code)
+            self.assertFalse(timed_out)
+            self.assertLess(wall_seconds, deadline / 2)
+
+    def test_execute_total_output_cap_kills_child(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nimport sys,time\nsys.stdout.write('{}\\n{}\\n'); sys.stdout.flush(); time.sleep(2)\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            with patch("codex_science.literature_evaluation_runner._MAX_OUTPUT_BYTES", 3):
+                _, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+            self.assertFalse(timed_out)
+            self.assertEqual("output_cap", launch_error)
+            records = [json.loads(line) for line in (task_dir / "events.jsonl").read_text().splitlines()]
+            self.assertEqual([{}], [record["event"] for record in records])
+
+    def test_execute_stderr_cap_is_reported_after_child_exit(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nimport sys\nsys.stderr.write('x'*4096); sys.stderr.flush()\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            with patch("codex_science.literature_evaluation_runner._MAX_OUTPUT_BYTES", 1024):
+                _, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+            self.assertFalse(timed_out)
+            self.assertEqual("output_cap", launch_error)
+
+    def test_execute_keyboard_interrupt_kills_child_group(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        import io
+
+        class InterruptQueue:
+            def put(self, item, **kwargs):
+                pass
+            def get(self, timeout):
+                raise KeyboardInterrupt()
+
+        class LiveProcess:
+            pid = 123
+            stdout = io.BytesIO(b"event\n")
+            stderr = io.BytesIO()
+            returncode = None
+            def poll(self): return self.returncode
+            def wait(self, timeout):
+                self.returncode = -9
+                return self.returncode
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            process = LiveProcess()
+            with patch("codex_science.literature_evaluation_runner.subprocess.Popen", return_value=process), \
+                 patch("codex_science.literature_evaluation_runner.queue.Queue", return_value=InterruptQueue()), \
+                 patch("codex_science.literature_evaluation_runner._kill_process_group") as kill:
+                with self.assertRaises(KeyboardInterrupt):
+                    _execute(["fake"], root, task_dir, 5)
+            kill.assert_called_once_with(process)
+
+    def test_execute_timeout_with_unclosed_stdout_is_bounded(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        import io
+        read_fd, write_fd = os.pipe()
+
+        class PipeProcess:
+            pid = 123
+            def __init__(self):
+                self.stdout = os.fdopen(read_fd, "rb", buffering=0)
+                self.stderr = io.BytesIO()
+                self.returncode = None
+            def poll(self): return self.returncode
+            def wait(self, timeout):
+                self.returncode = -9
+                return self.returncode
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            process = PipeProcess()
+            started = time.monotonic()
+            try:
+                with patch("codex_science.literature_evaluation_runner.subprocess.Popen", return_value=process), \
+                     patch("codex_science.literature_evaluation_runner._kill_process_group"):
+                    _, timed_out, _, _, _ = _execute(["fake"], root, task_dir, 0.01)
+            finally:
+                os.close(write_fd)
+            self.assertTrue(timed_out)
+            self.assertLess(time.monotonic() - started, 2)
 
     def test_frozen_criteria_pass_realistic_run_and_fail_broken_checkpoint(self) -> None:
         from codex_science.literature_evaluation_runner import evaluate_criteria

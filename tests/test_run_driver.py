@@ -34,11 +34,16 @@ if "--version" in sys.argv:
     print("codex-cli fake-1")
     raise SystemExit(0)
 args = sys.argv[1:]
+if os.environ.get("FAKE_CODEX_HOME_RECORD"):
+    pathlib.Path(os.environ["FAKE_CODEX_HOME_RECORD"]).write_text(os.environ.get("CODEX_HOME", "<unset>"))
 scenario = json.loads(pathlib.Path(os.environ["FAKE_PLAN"]).read_text())
 counter = pathlib.Path(os.environ["FAKE_COUNTER"])
 number = int(counter.read_text()) + 1 if counter.exists() else 1
 counter.write_text(str(number))
 step = scenario[min(number - 1, len(scenario) - 1)]
+if step.get("stderr_bytes"):
+    sys.stderr.write("x" * step["stderr_bytes"])
+    sys.stderr.flush()
 last = pathlib.Path(args[args.index("-o") + 1])
 if os.environ.get("FAKE_ARG_LOG"):
     with pathlib.Path(os.environ["FAKE_ARG_LOG"]).open("a") as stream:
@@ -261,8 +266,12 @@ class RunDriverTests(unittest.TestCase):
             binary, env = self._fake(root, [{}])
             events = [{"t":0.001, "event":{"type":"thread.started", "thread_id":"fixture"}},
                       {"t":0.002, "event":{"type":"turn.completed", "usage":{"input_tokens":1,"output_tokens":0}}}]
+            def completed_turn(argv, project, directory, timeout, *, event_stream, **kwargs):
+                for event in events:
+                    event_stream.write(json.dumps(event) + "\n")
+                return [], 0, False, None, 0.01, False
             with patch.dict(os.environ, env), patch("codex_science.run_driver.time", Clock), \
-                 patch("codex_science.run_driver._run_turn", return_value=(events, 0, False, None, 0.01, False)) as turn:
+                 patch("codex_science.run_driver._run_turn", side_effect=completed_turn) as turn:
                 receipt = drive(project, "task", run_dir=root / "out", codex_bin=str(binary), max_turns=3, wall_seconds=1)
             self.assertEqual("wall_cap", receipt["stop"]["code"])
             self.assertEqual(1, len(receipt["turns"]))
@@ -274,14 +283,14 @@ class RunDriverTests(unittest.TestCase):
             project = self._project(root)
             binary, env = self._fake(root, [{}])
 
-            def wall_timeout(argv, project, directory, timeout):
+            def wall_timeout(argv, project, directory, timeout, **kwargs):
                 return [], None, True, None, timeout, False
 
             with patch.dict(os.environ, env), patch("codex_science.run_driver._run_turn", side_effect=wall_timeout):
                 wall_receipt = drive(project, "task", run_dir=root / "wall-out", codex_bin=str(binary), wall_seconds=10)
             self.assertEqual("wall_cap", wall_receipt["stop"]["code"])
 
-            def shorter_timeout(argv, project, directory, timeout):
+            def shorter_timeout(argv, project, directory, timeout, **kwargs):
                 return [], None, True, None, min(0.01, timeout / 2), False
 
             with patch.dict(os.environ, env), patch("codex_science.run_driver._run_turn", side_effect=shorter_timeout):
@@ -371,7 +380,7 @@ class RunDriverTests(unittest.TestCase):
             self.assertEqual(1, len(receipt["turns"]))
             self.assertNotIn("resume", receipt["turns"][0]["argv"])
 
-    def test_stale_last_message_is_removed_before_each_turn(self):
+    def test_preexisting_turn_directory_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             project = self._project(root)
@@ -380,14 +389,23 @@ class RunDriverTests(unittest.TestCase):
             stale = out / "turn-2" / "last.md"
             stale.parent.mkdir(parents=True)
             stale.write_text("stale output")
-            observe = root / "last-observations.jsonl"
-            env["FAKE_LAST_OBSERVATIONS"] = str(observe)
             with patch.dict(os.environ, env):
-                receipt = drive(project, "task", run_dir=out, codex_bin=str(binary), max_turns=3)
-            observations = [json.loads(line) for line in observe.read_text().splitlines()]
-            self.assertGreaterEqual(len(observations), 2)
-            self.assertTrue(all(not row["existed"] for row in observations))
-            self.assertEqual("stalled", receipt["stop"]["code"])
+                with self.assertRaisesRegex(FileExistsError, "turn directory already exists"):
+                    drive(project, "task", run_dir=out, codex_bin=str(binary), max_turns=3)
+            self.assertEqual("stale output", stale.read_text())
+
+    def test_preexisting_turn_is_refused_before_receipt_or_codex_invocation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            binary, env = self._fake(root, [{"last":"answer"}])
+            out = root / "out"
+            (out / "turn-1").mkdir(parents=True)
+            with patch.dict(os.environ, env):
+                with self.assertRaisesRegex(FileExistsError, "turn directory already exists"):
+                    drive(project, "task", run_dir=out, codex_bin=str(binary))
+            self.assertFalse((out / "run-driver-receipt.json").exists())
+            self.assertFalse((root / "counter").exists())
 
     def test_output_directory_with_receipt_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -414,6 +432,132 @@ class RunDriverTests(unittest.TestCase):
             with patch.dict(os.environ, env):
                 receipt = drive(self._project(root), "task", run_dir=root / "out", codex_bin=str(binary), codex_home=None)
             self.assertTrue(receipt["preflight"]["codex_science_enabled"])
+            self.assertEqual("ambient", receipt["codex_home_kind"])
+
+    def test_explicit_codex_home_is_passed_to_child_and_receipt_records_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "explicit-home"
+            home.mkdir()
+            (home / "config.toml").write_text('[plugins."codex-science@codex-science"]\nenabled = true\n')
+            binary, env = self._fake(root, [{"last":"answer"}])
+            seen = root / "home-seen"
+            env["FAKE_CODEX_HOME_RECORD"] = str(seen)
+            with patch.dict(os.environ, env):
+                receipt = drive(self._project(root), "task", run_dir=root / "out", codex_bin=str(binary),
+                                codex_home=home)
+            self.assertEqual(str(home.absolute()), seen.read_text())
+            self.assertEqual("explicit", receipt["codex_home_kind"])
+
+    def test_turn_symlink_is_refused_without_writing_through_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            out = root / "out"
+            out.mkdir()
+            target = root / "target"
+            target.mkdir()
+            (out / "turn-1").symlink_to(target, target_is_directory=True)
+            binary, env = self._fake(root, [{"last":"answer"}])
+            with patch.dict(os.environ, env):
+                with self.assertRaisesRegex(FileExistsError, "turn directory already exists"):
+                    drive(project, "task", run_dir=out, codex_bin=str(binary))
+            self.assertEqual([], list(target.iterdir()))
+
+    def test_output_cap_stops_turn_with_explicit_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            binary, env = self._fake(root, [{"last":"answer"}])
+            with patch.dict(os.environ, env), patch("codex_science.run_driver._MAX_OUTPUT_BYTES", 1):
+                receipt = drive(project, "task", run_dir=root / "out", codex_bin=str(binary))
+            self.assertEqual({"code": "turn_failed", "reason": "output_cap"}, receipt["stop"])
+            self.assertEqual("output_cap", receipt["turns"][0]["launch_error"])
+
+    def test_run_turn_output_cap_skips_empty_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nimport sys,time\nsys.stdout.write('{}\\n{}\\n'); sys.stdout.flush(); time.sleep(2)\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            stream = io.StringIO()
+            with patch("codex_science.run_driver._MAX_OUTPUT_BYTES", 3):
+                events, exit_code, timed_out, launch_error, _, _ = _run_turn(
+                    [str(binary)], root, directory, 5, event_stream=stream)
+            self.assertEqual([], events)
+            self.assertFalse(timed_out)
+            self.assertEqual("output_cap", launch_error)
+            records = [json.loads(line) for line in stream.getvalue().splitlines()]
+            self.assertEqual([{}], [record["event"] for record in records])
+
+    def test_stderr_output_cap_is_reported_after_child_exit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary, env = self._fake(root, [{"last":"answer", "stderr_bytes":4096}])
+            with patch.dict(os.environ, env), patch("codex_science.run_driver._MAX_OUTPUT_BYTES", 1024):
+                receipt = drive(self._project(root), "task", run_dir=root / "out", codex_bin=str(binary))
+            self.assertEqual({"code": "turn_failed", "reason": "output_cap"}, receipt["stop"])
+
+    def test_run_turn_keeps_truncated_prefix_and_exact_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            script = root / "fake-codex"
+            script.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'x'*(2*1024*1024)+b'\\n'+b'y'*(1024*1024)+b'\\n'+b'z'*(2*1024*1024))\n",
+                              encoding="utf-8")
+            script.chmod(0o755)
+            last = directory / "last.md"
+            stream = io.StringIO()
+            _run_turn([str(script), "-o", str(last)], root, directory, 5, event_stream=stream)
+            records = [json.loads(line) for line in stream.getvalue().splitlines()]
+            self.assertEqual("x" * (1024 * 1024) + "\n[output truncated: line limit exceeded]", records[0]["event"])
+            self.assertTrue(records[0]["line_truncated"])
+            self.assertEqual("y" * (1024 * 1024), records[1]["event"])
+            self.assertFalse(records[1]["line_truncated"])
+            self.assertEqual("z" * (1024 * 1024) + "\n[output truncated: line limit exceeded]", records[2]["event"])
+            self.assertTrue(records[2]["line_truncated"])
+
+    def test_run_turn_end_marker_survives_full_line_queue(self):
+        import codex_science.run_driver as driver
+
+        class SlowQueue(driver.queue.Queue):
+            def get(self, *args, **kwargs):
+                item = super().get(*args, **kwargs)
+                if item[1] is not None:
+                    time.sleep(0.12)
+                return item
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nfor index in range(17): print('{\"type\":\"item.completed\",\"id\":%d}' % index)\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            deadline = 6
+            started = time.monotonic()
+            with patch("codex_science.run_driver.queue.Queue", SlowQueue):
+                events, exit_code, timed_out, _, wall_seconds, _ = _run_turn(
+                    [str(binary)], root, directory, deadline, event_stream=io.StringIO())
+            self.assertEqual([], events)
+            self.assertEqual(0, exit_code)
+            self.assertFalse(timed_out)
+            self.assertLess(wall_seconds, deadline / 2)
+            self.assertLess(time.monotonic() - started, deadline / 2)
+
+    def test_receipt_and_turn_outputs_are_private(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._drive(root, [{"last":"answer"}])
+            output_dir = root / "out"
+            for path in (output_dir / "run-driver-receipt.json", output_dir / "turn-1" / "events.jsonl",
+                         output_dir / "turn-1" / "stderr.log", output_dir / "turn-1" / "last.md"):
+                self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode), path)
 
     def test_popen_oserror_is_recorded_in_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -465,7 +609,7 @@ class RunDriverTests(unittest.TestCase):
 
     def test_keyboard_interrupt_kills_live_process_group(self):
         class InterruptQueue:
-            def put(self, item):
+            def put(self, item, **kwargs):
                 pass
 
             def get(self, timeout):
@@ -540,8 +684,11 @@ class RunDriverTests(unittest.TestCase):
             binary, env = self._fake(root, [{}])
             events = [{"t":0.001, "event":{"type":"thread.started", "thread_id":"fixture"}},
                       {"t":0.002, "event":{"type":"turn.completed", "usage":{"input_tokens":1,"output_tokens":0}}}]
-            with patch.dict(os.environ, env), patch("codex_science.run_driver._run_turn",
-                                                    return_value=(events, 0, False, None, 0.01, True)):
+            def abandoned_turn(argv, project, directory, timeout, *, event_stream, **kwargs):
+                for event in events:
+                    event_stream.write(json.dumps(event) + "\n")
+                return [], 0, False, None, 0.01, True
+            with patch.dict(os.environ, env), patch("codex_science.run_driver._run_turn", side_effect=abandoned_turn):
                 receipt = drive(project, "task", run_dir=root / "out", codex_bin=str(binary), max_turns=1)
             self.assertTrue(receipt["turns"][0]["reader_abandoned"])
 
@@ -649,7 +796,7 @@ class RunDriverTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "receipt.json"
             _write_receipt(path, {"ok": True})
-            self.assertEqual(0o644 & ~current_umask, stat.S_IMODE(path.stat().st_mode))
+            self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
 
     def test_cli_dry_run_uses_same_absolute_argv_as_execute(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -709,7 +856,7 @@ class RunDriverTests(unittest.TestCase):
             self.assertIn("run-driver-receipt.json", second.stderr)
             self.assertIn("choose a new --out directory", second.stderr)
 
-    def test_cli_driver_error_exits_two_and_receipt_matches(self):
+    def test_cli_preexisting_turn_exits_two_without_receipt_or_codex_invocation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             project = self._project(root)
@@ -720,9 +867,9 @@ class RunDriverTests(unittest.TestCase):
                        str(out), "--codex-bin", str(binary), "--execute"]
             result = subprocess.run(command, env=env, capture_output=True, text=True, check=False)
             self.assertEqual(2, result.returncode, result.stderr)
-            receipt = json.loads((out / "run-driver-receipt.json").read_text())
-            self.assertEqual("driver_error", receipt["stop"]["code"])
-            self.assertTrue(receipt["stop"]["error"].startswith("IsADirectoryError:"))
+            self.assertIn("turn directory already exists", result.stderr)
+            self.assertFalse((out / "run-driver-receipt.json").exists())
+            self.assertFalse((root / "counter").exists())
 
     def test_cli_refuses_output_inside_project_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
