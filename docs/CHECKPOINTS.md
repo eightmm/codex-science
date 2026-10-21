@@ -52,9 +52,12 @@ creates a run with an explicitly marked `session_binding` and exclusive
 admission, without claiming or rotating the native session marker and without
 creating a native Goal.
 
-Budgets are opt-in with `init --budget-policy tier-v1`; `budget-status` reports
-the current limits and exhaustion without writing. A deadline freezes new
-attempts and reviews, while allowing checkpoint inspection and finalization.
+Budgets are opt-in with `init --budget-policy tier-v1`; `init --deadline-at`
+refuses a deadline that is not in the future before writing checkpoint state.
+`budget-status` reports the current limits and exhaustion without writing, and
+includes `remaining_seconds` as floored whole seconds (or `null` when no
+deadline is set). A deadline freezes new attempts and reviews, while allowing
+checkpoint inspection and finalization.
 `finish-partial` validates `partial-result.json` against exactly these keys:
 `schema_version` (1), `status` (`partial`), `result_refs`, `unmet_criteria`,
 `unfinished_steps`, `caveats`, and `review_status`. No additional keys are

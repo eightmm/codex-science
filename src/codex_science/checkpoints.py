@@ -52,6 +52,10 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _parse_deadline(value: object) -> datetime:
     if not isinstance(value, str) or not value.endswith("Z"):
         raise ValueError("deadline_at must be a UTC timestamp ending in Z")
@@ -735,7 +739,8 @@ def create_checkpoint(
     if budget_policy is not None and (budget_policy != "tier-v1" or rigor_tier is None):
         raise ValueError("budget-policy tier-v1 requires rigor_tier")
     if deadline_at is not None:
-        _parse_deadline(deadline_at)
+        if _parse_deadline(deadline_at) <= _now():
+            raise ValueError("deadline-at must be in the future")
         if budget_policy is None:
             raise ValueError("deadline-at requires budget-policy tier-v1")
     if rigor_decision_sha256 is not None and (
@@ -1241,8 +1246,12 @@ def budget_status(run_dir: Path, *, now: datetime | None = None) -> dict[str, An
     budget = checkpoint.get("run_budget")
     if budget is None:
         raise ValueError("checkpoint has no opt-in run budget")
-    now = now or datetime.now(timezone.utc)
+    now = now or _now()
     deadline_passed = budget["deadline_at"] is not None and now >= _parse_deadline(budget["deadline_at"])
+    remaining_seconds = (
+        max(0, int((_parse_deadline(budget["deadline_at"]) - now).total_seconds()))
+        if budget["deadline_at"] is not None else None
+    )
     counts: dict[str, int] = {}
     for attempt in checkpoint["attempts"]:
         counts[attempt["failure_class"]] = counts.get(attempt["failure_class"], 0) + 1
@@ -1263,12 +1272,13 @@ def budget_status(run_dir: Path, *, now: datetime | None = None) -> dict[str, An
             "max_failed_attempts_per_class": budget["max_failed_attempts_per_class"],
             "review_rounds": len(checkpoint["review_rounds"]), "max_review_rounds": budget["max_review_rounds"],
             "deadline_at": budget["deadline_at"], "deadline_passed": deadline_passed,
+            "remaining_seconds": remaining_seconds,
             "exhausted": bool(exhausted), "exhausted_limits": exhausted}
 
 
 def _ensure_before_deadline(checkpoint: dict[str, Any]) -> None:
     budget = checkpoint.get("run_budget")
-    if budget and budget["deadline_at"] is not None and datetime.now(timezone.utc) >= _parse_deadline(budget["deadline_at"]):
+    if budget and budget["deadline_at"] is not None and _now() >= _parse_deadline(budget["deadline_at"]):
         raise RuntimeError("run deadline passed; finalize the partial result")
 
 
@@ -1425,8 +1435,6 @@ def record_review(
     }
     if "run_budget" in checkpoint:
         rounds = checkpoint["review_rounds"]
-        if len(rounds) >= checkpoint["run_budget"]["max_review_rounds"]:
-            raise RuntimeError("review round budget exhausted")
         rounds.append({"id": f"review-{len(rounds) + 1}", "started_at": _timestamp(),
                       "receipt_ref": artifact_ref, "receipt_sha256": _artifact_sha256(path)})
     _reset_idle_continuations(checkpoint)

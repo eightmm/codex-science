@@ -92,12 +92,14 @@ if os.environ.get("FAKE_CHECKPOINT") == "active":
    done_criteria=["Evidence is checked"], steps=[("review", "Review evidence")], next_action="Review evidence",
    session_key=hashlib.sha256(str(project).encode()).hexdigest(), rigor_tier="standard")
 elif os.environ.get("FAKE_CHECKPOINT") == "partial":
- from codex_science.checkpoints import create_checkpoint, finish_partial
+ from codex_science.checkpoints import create_checkpoint, finish_partial, record_attempt
  run_dir=project/"artifacts"/"fixture-run"
  create_checkpoint(run_dir, goal="Fixture research question", deliverable="Reviewed report",
    done_criteria=["Evidence is checked"], steps=[("review", "Review evidence")], next_action="Review evidence",
    session_key=hashlib.sha256(str(project).encode()).hexdigest(), rigor_tier="standard",
-   budget_policy="tier-v1", deadline_at="2020-01-01T00:00:00Z")
+   budget_policy="tier-v1")
+ record_attempt(run_dir, failure_class="network", approach="route-1", outcome="failed", next_action="try another route")
+ record_attempt(run_dir, failure_class="network", approach="route-2", outcome="failed", next_action="finish with partial result")
  (run_dir/"partial-result.json").write_text('{{"schema_version":1,"status":"partial","result_refs":[],"unmet_criteria":["criterion-1"],"unfinished_steps":["review"],"caveats":["incomplete"],"review_status":"not reviewed"}}')
  finish_partial(run_dir, artifact_ref="partial-result.json")
 if os.environ.get("FAKE_NO_LAST") != "1":

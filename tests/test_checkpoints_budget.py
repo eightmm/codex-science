@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -33,12 +34,35 @@ class BudgetTests(unittest.TestCase):
         return artifact
 
     def test_opt_in_budget_defaults_and_deadline(self):
-        cp = self.create(deadline_at="2020-01-01T00:00:00Z")
+        with patch("codex_science.checkpoints._now", return_value=datetime(2019, 1, 1, tzinfo=timezone.utc)):
+            cp = self.create(deadline_at="2020-01-01T00:00:00Z")
         self.assertEqual((2, 1), (cp["run_budget"]["max_failed_attempts_per_class"], cp["run_budget"]["max_review_rounds"]))
         self.assertTrue(budget_status(self.run)["deadline_passed"])
 
+    def test_init_rejects_deadline_at_or_before_now_without_writing(self):
+        fixed_now = datetime(2026, 10, 21, tzinfo=timezone.utc)
+        for deadline in ("2026-10-20T23:59:59Z", "2026-10-21T00:00:00Z"):
+            with self.subTest(deadline=deadline), patch("codex_science.checkpoints._now", return_value=fixed_now):
+                with self.assertRaisesRegex(ValueError, "deadline-at must be in the future"):
+                    self.create(deadline_at=deadline)
+                self.assertFalse((self.run / "checkpoint.json").exists())
+
+    def test_remaining_seconds_is_floored_and_null_without_deadline(self):
+        fixed_now = datetime(2026, 10, 21, tzinfo=timezone.utc)
+        with patch("codex_science.checkpoints._now", return_value=fixed_now):
+            self.create(deadline_at="2026-10-21T00:00:03.900000Z")
+        status = budget_status(self.run, now=fixed_now)
+        self.assertEqual(3, status["remaining_seconds"])
+        self.assertEqual(0, budget_status(self.run, now=datetime(2026, 10, 21, 0, 0, 4, tzinfo=timezone.utc))["remaining_seconds"])
+        self.temp.cleanup()
+        self.temp = tempfile.TemporaryDirectory()
+        self.run = Path(self.temp.name) / "run"
+        self.create()
+        self.assertIsNone(budget_status(self.run, now=fixed_now)["remaining_seconds"])
+
     def test_partial_finish_and_report_hash_tampering(self):
-        self.create(deadline_at="2020-01-01T00:00:00Z")
+        with patch("codex_science.checkpoints._now", return_value=datetime(2019, 1, 1, tzinfo=timezone.utc)):
+            self.create(deadline_at="2020-01-01T00:00:00Z")
         artifact = self.run / "partial-result.json"
         artifact.write_text(json.dumps({"schema_version": 1, "status": "partial", "result_refs": [],
             "unmet_criteria": ["criterion-1"], "unfinished_steps": ["s"], "caveats": ["incomplete"], "review_status": "not reviewed"}))
@@ -51,7 +75,8 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual("invalid", report["runs"][0]["outcome"])
 
     def test_report_rejects_tampered_partial_even_when_rehashed(self):
-        self.create(deadline_at="2020-01-01T00:00:00Z")
+        with patch("codex_science.checkpoints._now", return_value=datetime(1999, 1, 1, tzinfo=timezone.utc)):
+            self.create(deadline_at="2000-01-01T00:00:00Z")
         artifact = self.write_partial_artifact()
         finish_partial(self.run, artifact_ref="partial-result.json")
         changed = json.dumps({"schema_version": 1, "status": "partial", "result_refs": [],
@@ -136,7 +161,8 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual("active", load_checkpoint(self.run)["state"])
 
     def test_termination_requires_schema_v4_and_run_budget(self):
-        checkpoint = self.create(deadline_at="2000-01-01T00:00:00Z")
+        with patch("codex_science.checkpoints._now", return_value=datetime(1999, 1, 1, tzinfo=timezone.utc)):
+            checkpoint = self.create(deadline_at="2000-01-01T00:00:00Z")
         checkpoint["state"] = "abandoned"
         checkpoint["current_step"] = None
         checkpoint["steps"][0]["status"] = "pending"
@@ -160,7 +186,8 @@ class BudgetTests(unittest.TestCase):
             validate_checkpoint(old_schema)
 
     def test_budget_cli_returns_json_and_expected_exit_codes(self):
-        self.create(deadline_at="2000-01-01T00:00:00Z")
+        with patch("codex_science.checkpoints._now", return_value=datetime(1999, 1, 1, tzinfo=timezone.utc)):
+            self.create(deadline_at="2000-01-01T00:00:00Z")
         cli = Path(__file__).resolve().parents[1] / "scripts" / "science_checkpoint.py"
         status = subprocess.run([sys.executable, str(cli), "budget-status", str(self.run)], capture_output=True, text=True)
         self.assertEqual(0, status.returncode, status.stderr)
