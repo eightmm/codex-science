@@ -56,15 +56,17 @@ For each included study save a machine-readable row containing, where applicable
 - claim IDs supported or contradicted, independence group, and exact source locations.
 
 Do not infer an unreported method, denominator, result, or uncertainty from an abstract or portal summary.
+Save retrieved abstracts or full-text passages supporting key claims as hashed run artifacts; record verbatim study-table `support_excerpts` entries `{claim_id, text (20–2000 characters), source_artifact (run-relative path), source_sha256, locator?}`, never paraphrasing `text`.
 
 ### Evidence graph and synthesis
 
 1. Save `claims.json` as a `claim-register`, `evidence_graph.json` as an `evidence-graph`, study extraction as a `study-table`, and each independent search or extraction lane as a `lane-receipt` artifact.
-2. Represent support, contradiction, derivation, duplication, shared cohort or samples, source propagation, and model-training dependence explicitly.
-3. Grade directness, independence, precision, applicability, risk of bias, publication state, consistency, and missingness. Do not collapse them into an unexplained score.
-4. Separate direct evidence, reasonable inference, contradiction, unavailable results, and absence of evidence.
-5. A replicated claim requires independent evidence groups. Multiple papers from one cohort, mirrored portal records, or repeated analysis of the same sample do not count as replication.
-6. The final confidence cannot exceed the weakest essential evidence link. Withdraw or downgrade a conclusion when its required support is absent.
+2. Give each material claim a `kind` (`descriptive`, `associational`, `causal`, or `confirmatory`) matching its permitted inference.
+3. Represent support, contradiction, derivation, duplication, shared cohort or samples, source propagation, and model-training dependence explicitly.
+4. Grade directness, independence, precision, applicability, risk of bias, publication state, consistency, and missingness. Do not collapse them into an unexplained score.
+5. Separate direct evidence, reasonable inference, contradiction, unavailable results, and absence of evidence.
+6. A replicated claim requires independent evidence groups. Multiple papers from one cohort, mirrored portal records, or repeated analysis of the same sample do not count as replication.
+7. The final confidence cannot exceed the weakest essential evidence link. Withdraw or downgrade a conclusion when its required support is absent.
 
 ### Living-update mode
 
@@ -86,7 +88,7 @@ Return and save:
 - bounded narrative synthesis and the smallest discriminating next evidence;
 - current snapshot, prior-to-current diff when updating, and review receipt.
 
-Record every artifact and hash with `$science-provenance`. Run `$science-review` in `record`, `source`, and `method` modes before delivery; use `reproduction` only when a separate worker actually re-executes the searches and extraction.
+Record every artifact and hash with `$science-provenance`. Before `$science-review`, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/trace_citations.py" --run-dir <run-dir> --require-traced`; resolve every orphan by adding provenance or removing the citation. This checks internal traceability only, not whether a source exists or supports a claim. Then run `$science-review` in `record`, `source`, and `method` modes before delivery; use `reproduction` only when a separate worker actually re-executes the searches and extraction.
 
 ## Boundaries
 
