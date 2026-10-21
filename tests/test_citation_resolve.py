@@ -3,6 +3,7 @@ import http.client
 import importlib.util
 import subprocess
 import sys
+import urllib.request
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
@@ -11,9 +12,36 @@ from unittest.mock import Mock
 
 from codex_science.citation_resolve import (EVIDENCE_BOUNDARY, normalize_identifiers, resolve_identifiers,
                                             supported_identifiers_from_text)
+from codex_science.citation_resolve import _CitationRedirectHandler
 
 
 class CitationResolveTests(unittest.TestCase):
+    def test_redirect_handler_allows_https_lookup_host(self):
+        request = urllib.request.Request("https://api.crossref.org/works/10.1234/example")
+        redirected = _CitationRedirectHandler().redirect_request(
+            request, None, 302, "Found", {}, "https://api.crossref.org/works/10.1234/other"
+        )
+        self.assertEqual(redirected.full_url, "https://api.crossref.org/works/10.1234/other")
+
+    def test_redirect_handler_refuses_downgrade_and_unlisted_host(self):
+        request = urllib.request.Request("https://api.crossref.org/works/10.1234/example")
+        handler = _CitationRedirectHandler()
+        for target in ("http://api.crossref.org/works/10.1234/other",
+                       "https://example.com/works/10.1234/other"):
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, "redirect"):
+                handler.redirect_request(request, None, 302, "Found", {}, target)
+
+    def test_arxiv_xml_declarations_are_unavailable(self):
+        for declaration in ("<!DOCTYPE feed><feed/>", "<!ENTITY x 'y'><feed/>",
+                            "<!doctype feed><feed/>", "<!entity x 'y'><feed/>"):
+            with self.subTest(declaration=declaration):
+                result = resolve_identifiers(
+                    ["arxiv:2301.12345"],
+                    fetch=lambda *args, **kwargs: (200, declaration.encode()),
+                    delay=lambda _: None,
+                )["results"][0]
+                self.assertEqual("unavailable", result["status"])
+
     def test_statuses_and_metadata(self):
         replies = [
             (200, json.dumps({"message": {"title": ["A paper"], "published-print": {"date-parts": [[2020]]}}})),
@@ -119,7 +147,9 @@ class CitationResolveTests(unittest.TestCase):
             def __enter__(self): return self
             def __exit__(self, *args): return False
             def read(self, size): return b"x" * size
-        with unittest.mock.patch.object(citation_resolve.urllib.request, "urlopen", return_value=Response()):
+        class Opener:
+            def open(self, request, *, timeout): return Response()
+        with unittest.mock.patch.object(citation_resolve.urllib.request, "build_opener", return_value=Opener()):
             self.assertEqual("unavailable", resolve_identifiers(["doi:10.1234/example"])["results"][0]["status"])
 
     def test_recorded_fixture_shape(self):

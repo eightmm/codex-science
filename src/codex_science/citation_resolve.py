@@ -19,6 +19,7 @@ EVIDENCE_BOUNDARY = "Existence lookup does not establish citation accuracy, rele
 MAX_IDS = 50
 MAX_BODY_BYTES = 2 * 1024 * 1024
 SUPPORTED_KINDS = {"doi", "pmid", "arxiv"}
+_REDIRECT_HOSTS = frozenset({"api.crossref.org", "eutils.ncbi.nlm.nih.gov", "export.arxiv.org"})
 _LABELED_ID = re.compile(r"\b(doi|pmid|arxiv)\s*:\s*([^\s,;]+)", re.IGNORECASE)
 
 
@@ -39,10 +40,20 @@ def _clean_labeled_identifier(kind: str, value: str) -> str:
     return normalize_identifier(f"{kind}:{value}")
 
 
+class _CitationRedirectHandler(urllib.request.HTTPRedirectHandler):
+    # Keep urllib's default max_redirections limit (10 hops).
+    def redirect_request(self, request, fp, code, message, headers, newurl):
+        target = urllib.parse.urlsplit(newurl)
+        if target.scheme.lower() != "https" or target.hostname not in _REDIRECT_HOSTS or target.port not in (None, 443):
+            raise ValueError("refused citation redirect")
+        return super().redirect_request(request, fp, code, message, headers, newurl)
+
+
 def _http_fetch(url: str, timeout: float) -> tuple[int, bytes]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, application/atom+xml"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        opener = urllib.request.build_opener(_CitationRedirectHandler())
+        with opener.open(request, timeout=timeout) as response:
             body = response.read(MAX_BODY_BYTES + 1)
             if len(body) > MAX_BODY_BYTES:
                 raise ValueError("citation response exceeds 2 MiB")
@@ -82,6 +93,8 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
             return result
         text = body.decode("utf-8") if isinstance(body, bytes) else str(body)
         if kind == "arxiv":
+            if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
+                return result
             root = ET.fromstring(text)
             ns = {"a": "http://www.w3.org/2005/Atom"}
             entries = root.findall("a:entry", ns)
