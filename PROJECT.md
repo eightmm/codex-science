@@ -11,7 +11,7 @@
 - Stage 3 execution: Verify an end-to-end research flow in a fresh Codex task, including skill routing, analysis artifacts, execution provenance, environment capture, independent review, and smoke tests against at least three public scientific data sources.
 - Stage 4 confirmed manuscript scope: Add a first-party `write-scientific-manuscript` skill that turns reviewed scientific artifacts or an existing draft into a traceable manuscript and submission package without external credentials or mandatory generated figures.
 - Stage 5 confirmed decision-analysis scope: Add a first-party finite statistical decision-analysis skill that keeps actions, exogenous states, value scale, priors, information timing, criterion choice, EVPI/EVSI, experiment cost, and sensitivity explicit without expanding into sequential control or high-stakes prescriptive advice.
-- Open decisions: None.
+- Open decisions: None. Stage 7 real-run evaluation: 6 literature-review tasks (2 per tier), 30 minutes each, approved 2026-10-21.
 - Stage 6 confirmed discovery scope (2026-09-18): Implement the Research
   Discovery Loop described in the user's shared conversation and the local
   architecture assessment. The user authorized Terra/Luna implementation and
@@ -57,6 +57,55 @@
   matched-comparison evaluator. Terra/Luna implement bounded components; the
   parent integrates and verifies them. Existing dirty source-snapshot work stays
   intact. No publication, remote execution, or new dependency is included.
+
+## Stage 7: Proportional rigor and measured completion (confirmed 2026-10-21)
+
+- Intent: make Codex apply Claude Science-style research flexibly and carry a
+  question through to a reviewed result. "Flexible" means proportional rigor,
+  not weaker gates; "result" means measured completion in real Codex tasks,
+  not deterministic fixtures. First empirical vertical: literature review.
+  Authority: specification, plan, worker implementation, and verification
+  through `scripts/check.sh fast`; commit, push, and release need separate
+  approval. Real `codex exec` evaluation runs need a separately approved
+  task count and time cap.
+- Rigor tiers. A deterministic, side-effect-free classifier maps declared
+  request features to a minimum tier with machine-readable reasons:
+  - `quick`: a bounded answer from at most a few read-only sources with
+    primary citations; no checkpoint or artifact bundle; labeled as an
+    unreviewed quick answer; never presents a finding as reviewed; offers
+    escalation.
+  - `standard`: checkpoint, provenance bundle, deterministic validation, and
+    independent record-mode `$science-review`.
+  - `full`: the existing complete research contract, claim/evidence graph,
+    lanes, and all applicable review modes.
+  Escalation triggers include durable or reviewed deliverables, computation,
+  multi-source synthesis, causal or confirmatory claim strength, clinical or
+  other high-stakes domains, approval-gated actions, and explicit user request.
+  The agent may raise a tier but never go below the floor; escalation within a
+  run is monotonic and recorded. Tiers never relax the audit gate, approval
+  gates, inactive-skill acknowledgement, or claim boundaries.
+- Compatibility: existing checkpoints (schema 1-4), manifests, and receipts
+  stay valid. The tier is an optional recorded field; absence means legacy
+  behavior. Only runtime-affecting files change; bootstrap files (`skills/`,
+  hooks, plugin manifest) stay unchanged so no migration install is needed.
+  Runtime version is bumped once at integration.
+- Completion record. A read-only reporter derives run outcomes from existing
+  checkpoints and artifacts (no second database): completed, terminal
+  inconclusive, gated, waiting, blocked, abandoned, or stale active, with a
+  stop-reason taxonomy, tier, and evidence references.
+- Real-run harness. A frozen literature-review task set (questions, expected
+  tier, done criteria, digest) and a runner that executes each task in a fresh
+  scratch research project through `codex exec` with the installed plugin,
+  bounded wall-clock, captured runtime identity, and a receipt per run. The
+  default is a dry run; real execution requires an explicit flag. The report
+  gives completion rate with a Wilson interval and stop-reason counts and makes
+  no claim beyond the observed runs. Results append to `docs/EXPERIMENTS.jsonl`.
+- Acceptance: classifier tests (floors, monotonic escalation, gate
+  invariance, malformed input), coordinator instruction tests for tier
+  routing, reporter tests over fixture checkpoints in every state, harness
+  dry-run and receipt-validation tests, documentation of tiers and the
+  evaluation protocol, and `scripts/check.sh fast`. Measured completion is
+  reported only after approved real runs.
 - Preserve v1 cycle compatibility; an explicit strict design policy requires a
   computational method contract before experiment reservation. Exploratory ideas
   remain admissible without pretending they are implementation-ready.
@@ -276,37 +325,23 @@
   - An independent reviewer checks claims against the approved plan, artifacts, citations, and execution record.
   - At least three public read-only scientific sources pass deterministic smoke tests.
   - Blocked skills cannot be used silently and provide an actionable reason.
-- Required checks:
+- Required checks: `bash scripts/check.sh fast`
+- Required check coverage:
   - Manifest and skill-schema validation.
   - Inventory reproducibility check against the pinned revision.
   - License and risk-policy tests.
   - Secret-pattern and unsafe-instruction checks.
   - Focused unit tests for routing, artifact metadata, and reviewer inputs.
   - End-to-end Codex installation and example-workflow smoke test.
-  - Native manuscript skill validation, active catalog routing, and reference
-    index audit.
-  - Deterministic manuscript-package tests covering new drafting, revision,
-    rebuttal, unsupported claims, citation mismatch, untraceable numerical
-    values, and unresolved declaration fields.
-  - One fixture that produces Markdown, LaTeX/BibTeX, traceability sidecars, a
-    reporting checklist, and a reviewable submission package without network
-    credentials.
-  - Deterministic finite decision-analysis tests covering Bayes/minimax
-    conflicts, dominance, regret, EVPI/EVSI bounds, net experiment value,
-    unreachable outcomes, decision thresholds, input-order invariance, and
-    malformed probability or value contracts.
-  - One lifecycle fixture proving that an A-to-B automatic update dispatches
-    B's session runtime in the initiating task, while failed, offline, concurrent,
-    and interrupted updates continue on A or recover it.
-  - One MCP handoff fixture proving that discovery can hand off to the task's
-    pinned runtime, while external or explicit updates do not switch an active
-    generation.
-  - Human-output fixtures proving concise hook notices, suppressed successful
-    candidate logs, and a human-first Markdown index without changing machine
-    JSON or JSON-RPC stdout.
-  - CI must reject a runtime-affecting diff whose runtime version was not
-    changed relative to the pull-request base, and reject a bootstrap-affecting
-    diff whose host plugin version was not changed.
+  - Native manuscript skill validation, active catalog routing, and reference index audit.
+  - Deterministic manuscript-package tests covering new drafting, revision, rebuttal, unsupported claims, citation mismatch, untraceable numerical values, and unresolved declaration fields.
+  - One fixture that produces Markdown, LaTeX/BibTeX, traceability sidecars, a reporting checklist, and a reviewable submission package without network credentials.
+  - Deterministic finite decision-analysis tests covering Bayes/minimax conflicts, dominance, regret, EVPI/EVSI bounds, net experiment value, unreachable outcomes, decision thresholds, input-order invariance, and malformed probability or value contracts.
+  - One lifecycle fixture proving that an A-to-B automatic update dispatches B's session runtime in the initiating task, while failed, offline, concurrent, and interrupted updates continue on A or recover it.
+  - One MCP handoff fixture proving that discovery can hand off to the task's pinned runtime, while external or explicit updates do not switch an active generation.
+  - Human-output fixtures proving concise hook notices, suppressed successful candidate logs, and a human-first Markdown index without changing machine JSON or JSON-RPC stdout.
+  - CI must reject a runtime-affecting diff whose runtime version was not changed relative to the pull-request base, and reject a bootstrap-affecting diff whose host plugin version was not changed.
+  - Stage 7 rigor-tier classifier, coordinator tier routing, completion reporter, and real-run harness dry-run tests.
 - Baseline/metric: 100% catalog inventory coverage; zero silently enabled blocked skills; all required checks pass; one reviewed end-to-end research run; three public-source smoke tests.
 
 ## References
