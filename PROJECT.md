@@ -124,7 +124,7 @@
   adds malformed design, stale review, duplicate history, unmatched comparison,
   and observation-to-decision linkage cases, followed by the required fast gate.
 
-## Stage 8: Research-derived drive-to-result mechanisms (authorized by user directive 2026-10-21; scope confirmation pending at return)
+## Stage 8: Research-derived drive-to-result mechanisms (authorized by user directive 2026-10-21; implemented on local branch, scope confirmation pending at return)
 
 - Source: three surveys (AI-scientist platforms, research-agent benchmarks,
   Codex 0.163 extension surface). Adopted items are the smallest ones that
@@ -153,6 +153,9 @@
 - Hookless fallback: when plugin hooks are unavailable, the coordinator has a
   documented way to obtain a run-local session key so standard/full runs can
   still checkpoint; the run records that it is not hook-bound.
+- Citation tracing: offline check that report identifiers trace to the run's own study/query/lane provenance; internal traceability only.
+- Support excerpts: optional verbatim study-table excerpts verified against hashed saved source records.
+- Claim-kind review routing: optional claim `kind` adds kind-specific reviewer questions.
 - Acceptance: deterministic tests for each item (golden JSONL fixtures, fake
   codex for resume loops, synthetic saturation curves, partial-completion
   fixtures, hookless init), `scripts/check.sh fast`, and documentation.
@@ -374,7 +377,7 @@
   - One MCP handoff fixture proving that discovery can hand off to the task's pinned runtime, while external or explicit updates do not switch an active generation.
   - Human-output fixtures proving concise hook notices, suppressed successful candidate logs, and a human-first Markdown index without changing machine JSON or JSON-RPC stdout.
   - CI must reject a runtime-affecting diff whose runtime version was not changed relative to the pull-request base, and reject a bootstrap-affecting diff whose host plugin version was not changed.
-  - Stage 7 rigor-tier classifier, coordinator tier routing, completion reporter, and real-run harness dry-run tests.
+  - Stage 7 rigor-tier classifier, coordinator tier routing, completion reporter, and real-run harness dry-run tests; Stage 8 resume driver (pending), saturation, hookless, budgets, citation tracing, and excerpts.
 - Baseline/metric: 100% catalog inventory coverage; zero silently enabled blocked skills; all required checks pass; one reviewed end-to-end research run; three public-source smoke tests.
 
 ## References

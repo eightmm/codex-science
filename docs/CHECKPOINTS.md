@@ -44,6 +44,27 @@ budget.
 rule. Resume it only when that interval/event has arrived, then perform one
 bounded status check. It exists specifically to prevent a Stop-hook polling loop.
 
+## Rigor, hookless sessions, and budgets
+
+Schema-v4 checkpoints may record an optional rigor tier. `escalate` raises the
+tier monotonically; it cannot lower the recorded floor. `init --hookless`
+creates a run with an explicitly marked `session_binding` and exclusive
+admission, without claiming or rotating the native session marker and without
+creating a native Goal.
+
+Budgets are opt-in with `init --budget-policy tier-v1`; `budget-status` reports
+the current limits and exhaustion without writing. A deadline freezes new
+attempts and reviews, while allowing checkpoint inspection and finalization.
+`finish-partial` validates `partial-result.json` against exactly these keys:
+`schema_version` (1), `status` (`partial`), `result_refs`, `unmet_criteria`,
+`unfinished_steps`, `caveats`, and `review_status`. No additional keys are
+allowed; `caveats` and `review_status` must be non-empty. It records the
+artifact SHA-256 and puts the termination reason and exhausted limits in the
+checkpoint's `termination` record, then sets checkpoint state to `abandoned`.
+The completion reporter derives outcome `terminal_inconclusive` with reason
+`budget_exhausted`. This does not imply that the scientific question was
+answered.
+
 ## Verified completion
 
 Each schema-v4 done criterion is structured as an ID, text, status, and evidence

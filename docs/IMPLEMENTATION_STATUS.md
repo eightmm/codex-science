@@ -1,5 +1,17 @@
 # Platform implementation status
 
+## Stage 7/8 (unreleased)
+
+- Implemented rigor classification and completion reporting, a frozen
+  literature-review task set with dry-run-first runner and receipt grader,
+  saturation estimation, and citation provenance tracing.
+- Checkpoint support includes hookless session binding, tier-based optional
+  budgets and partial termination, verified support excerpts, and
+  claim-kind-specific review questions.
+- These are local runtime contracts and deterministic checks. No real
+  literature evaluation has established measured completion or agent
+  improvement; the resume driver remains under review.
+
 ## Completed in 0.3.0
 
 ### Release and update safety

@@ -259,6 +259,18 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 
 ## Immediate next backlog
 
+### Research-derived backlog (not implemented)
+
+- PaperBench-style weighted rubric tree for partial task credit.
+- k-trajectory consensus and Bradley-Terry ranking (Robin; Sakana).
+- Sample claim-type reviews by reliability (Kosmos reports accuracy of 85.5%
+  for data, 82.1% for literature, and 57.9% for synthesis).
+- PaperQA2-style evidence-count abstention threshold.
+- Cross-check completion records against Codex `--output-schema`.
+- SessionStart hook `fork` matcher (bootstrap change; requires approval).
+- Live Crossref/DOI resolution as a non-deciding signal.
+- DeepResearch Bench FACT-style statement-to-URL support checks.
+
 1. Land and use the native-skill standard and strengthened tier-1 skills.
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema.
 3. Build the SBDD acceptance example and seeded leakage review cases.

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added proportional rigor tiers and a read-only completion reporter.
+- Added a frozen literature evaluation harness and receipt grader with
+  dry-run planning, runtime identity receipts, and append-only reporting.
+- Added a saturation estimator for evidence collection.
+- Added hookless checkpoint initialization with explicit session binding.
+- Added opt-in tier budgets and artifact-backed partial termination.
+- Added offline citation tracing against run-local study and query provenance.
+- Added verified support excerpts from hashed saved source records.
+- Added claim-kind-specific review routing questions.
+
 - Completed discovery development support: optional strict assumption-to-method
   design and observation-linked revision lessons, conditional cross-run memory,
   next-action synthesis, prediction graph export, separate review axes, and

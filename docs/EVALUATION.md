@@ -1,5 +1,49 @@
 # Evaluation
 
+## Stage 7/8: proportional rigor and measured completion
+
+`scripts/classify_rigor.py` classifies a request into a minimum `quick`,
+`standard`, or `full` rigor tier with machine-readable reasons. The
+read-only `scripts/report_completion.py` derives run outcomes and stop reasons
+from checkpoints and artifacts; it does not create a second run database.
+
+The frozen task set in `benchmarks/literature-review/` records each task's
+expected tier, criteria, digest, and the set digest. The dry-run-first
+`scripts/run_literature_evaluation.py` writes a plan by default; `--execute`
+starts Codex runs. It pins task digests, Codex execution arguments, timeout,
+and `--codex-home`; it does not accept arbitrary argv passthrough, and its
+execution tests reject `--ephemeral`, `--ignore-user-config`,
+`--dangerously-bypass-approvals-and-sandbox`, `--approve-for-me`, and `-a`.
+Receipts capture preflight configuration, `loaded_runtime` observed in run
+events, and `branch_runtime_version`, so a result can be distinguished from a
+run using the installed plugin. This identity is evidence, not a claim of
+runtime equivalence.
+
+`scripts/report_literature_evaluation.py` grades saved receipts against every
+frozen criterion. A task is complete only when all criteria pass, following
+the CORE-Bench all-criteria rule. It reports completion with a 95% Wilson
+interval and answered coverage and precision; `unsure` outcomes are excluded
+from answered precision and reduce coverage. Ledger append requires executed,
+non-rejected receipts, skips receipt hashes already present, and appends
+per-run rows plus a summary. It never overwrites prior ledger entries.
+
+The opt-in `scripts/estimate_saturation.py` estimates remaining discovery from
+logged checkpoints; `scripts/trace_citations.py` checks report identifiers
+against the run's own study, query, and lane provenance. Citation tracing is
+offline internal traceability, not external DOI resolution or source support.
+
+```bash
+scripts/python_runtime.sh scripts/classify_rigor.py --help
+scripts/python_runtime.sh scripts/report_completion.py --help
+scripts/python_runtime.sh scripts/estimate_saturation.py --help
+scripts/python_runtime.sh scripts/trace_citations.py --help
+scripts/python_runtime.sh scripts/run_literature_evaluation.py --tasks benchmarks/literature-review/tasks.json --out /tmp/literature-run
+scripts/python_runtime.sh scripts/run_literature_evaluation.py --tasks benchmarks/literature-review/tasks.json --out /tmp/literature-run --execute
+scripts/python_runtime.sh scripts/report_literature_evaluation.py --tasks benchmarks/literature-review/tasks.json --runs /tmp/literature-run --format markdown
+```
+
+Resume driver: pending
+
 ## Acceptance
 
 - 284 skills (149 K-Dense + 3 DeepMind infra pointers + 132 Codex-native authored) appear in the deterministic inventory.
