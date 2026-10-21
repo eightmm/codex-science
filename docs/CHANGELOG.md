@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Model receipt v2 validation can compare caller-supplied current code, weight,
+  and database revisions (`validate_model_registry_v2.py --receipt --current-revisions`).
 - Literature evaluation reports now include equal-weight `rubric_tree` partial
   credit as a secondary metric. Budgeted checkpoints reject past deadlines
   before writing and report floored remaining seconds. Reviewer packets expose
