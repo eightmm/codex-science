@@ -52,6 +52,18 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _parse_deadline(value: object) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ValueError("deadline_at must be a UTC timestamp ending in Z")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("deadline_at must be a UTC timestamp") from exc
+    if parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        raise ValueError("deadline_at must be UTC")
+    return parsed
+
+
 def _nonempty(value: object, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field} must be a non-empty string")
@@ -346,6 +358,57 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
         if not isinstance(checkpoint["termination_reason"], str):
             raise ValueError("termination_reason must be a string")
 
+    if "run_budget" in checkpoint:
+        budget = checkpoint["run_budget"]
+        fields = {"policy_version", "tier", "max_failed_attempts_per_class", "max_review_rounds", "deadline_at"}
+        if schema_version != 4 or not isinstance(budget, dict) or set(budget) != fields:
+            raise ValueError("run_budget is invalid")
+        if budget["policy_version"] != 1 or budget["tier"] not in {"standard", "full"}:
+            raise ValueError("run_budget policy or tier is invalid")
+        if checkpoint.get("rigor", {}).get("tier") != budget["tier"]:
+            raise ValueError("run_budget tier must match rigor tier")
+        _positive_integer(budget["max_failed_attempts_per_class"], "max_failed_attempts_per_class")
+        _positive_integer(budget["max_review_rounds"], "max_review_rounds")
+        expected_limits = (2, 1) if budget["tier"] == "standard" else (3, 2)
+        if (budget["max_failed_attempts_per_class"] < expected_limits[0]
+                or budget["max_review_rounds"] < expected_limits[1]):
+            raise ValueError("run_budget limits are below tier-v1 defaults")
+        if budget["deadline_at"] is not None:
+            _parse_deadline(budget["deadline_at"])
+        rounds = checkpoint.get("review_rounds")
+        if not isinstance(rounds, list):
+            raise ValueError("budgeted checkpoints require review_rounds")
+        round_ids: set[str] = set()
+        for item in rounds:
+            if not isinstance(item, dict) or set(item) != {"id", "started_at", "receipt_ref", "receipt_sha256"}:
+                raise ValueError("review_rounds entry is invalid")
+            _nonempty(item.get("id"), "review round id")
+            if item["id"] in round_ids: raise ValueError("review round ids must be unique")
+            round_ids.add(item["id"])
+            _nonempty(item.get("started_at"), "review round started_at")
+            _nonempty(item.get("receipt_ref"), "review receipt ref")
+            if not isinstance(item.get("receipt_sha256"), str) or not SHA256_PATTERN.fullmatch(item["receipt_sha256"]):
+                raise ValueError("review receipt hash is invalid")
+    elif "review_rounds" in checkpoint:
+        raise ValueError("review_rounds requires run_budget")
+    termination = checkpoint.get("termination")
+    if "termination" in checkpoint:
+        if (
+            schema_version != 4
+            or "run_budget" not in checkpoint
+            or not isinstance(termination, dict)
+            or checkpoint["state"] != "abandoned"
+            or termination.get("kind") != "partial"
+            or termination.get("reason_code") not in {"budget_exhausted", "deadline_passed"}
+        ):
+            raise ValueError("partial termination is invalid")
+        for field in ("exhausted_limit", "recorded_at", "artifact_ref"):
+            _nonempty(termination.get(field), f"termination {field}")
+        if not isinstance(termination.get("artifact_sha256"), str) or not SHA256_PATTERN.fullmatch(termination["artifact_sha256"]):
+            raise ValueError("termination artifact hash is invalid")
+        if checkpoint["termination_reason"] != termination["reason_code"]:
+            raise ValueError("termination_reason must match termination.reason_code")
+
     if state == "active" and not checkpoint["next_action"].strip():
         raise ValueError("an active checkpoint requires next_action")
     if state == "approval_required" and not checkpoint["pending_decisions"]:
@@ -636,6 +699,8 @@ def create_checkpoint(
     rigor_tier: str | None = None,
     rigor_decision_sha256: str | None = None,
     hookless: bool = False,
+    budget_policy: str | None = None,
+    deadline_at: str | None = None,
 ) -> dict[str, Any]:
     """Create a schema-v4 checkpoint and start its first planned step."""
     run_dir = Path(run_dir)
@@ -667,6 +732,12 @@ def create_checkpoint(
         not isinstance(rigor_tier, str) or rigor_tier not in {"standard", "full"}
     ):
         raise ValueError("rigor_tier must be standard or full")
+    if budget_policy is not None and (budget_policy != "tier-v1" or rigor_tier is None):
+        raise ValueError("budget-policy tier-v1 requires rigor_tier")
+    if deadline_at is not None:
+        _parse_deadline(deadline_at)
+        if budget_policy is None:
+            raise ValueError("deadline-at requires budget-policy tier-v1")
     if rigor_decision_sha256 is not None and (
         not isinstance(rigor_decision_sha256, str) or not SHA256_PATTERN.fullmatch(rigor_decision_sha256)
     ):
@@ -724,6 +795,12 @@ def create_checkpoint(
             if rigor_decision_sha256 is not None:
                 history["decision_sha256"] = rigor_decision_sha256
             checkpoint["rigor"] = {"tier": rigor_tier, "history": [history]}
+        if budget_policy == "tier-v1":
+            checkpoint["run_budget"] = {"policy_version": 1, "tier": rigor_tier,
+                "max_failed_attempts_per_class": 2 if rigor_tier == "standard" else 3,
+                "max_review_rounds": 1 if rigor_tier == "standard" else 2,
+                "deadline_at": deadline_at}
+            checkpoint["review_rounds"] = []
         if hookless:
             checkpoint["session_binding"] = {
                 "mode": "hookless", "hook_bound": False,
@@ -759,6 +836,12 @@ def escalate_checkpoint(
         entry["decision_sha256"] = rigor_decision_sha256
     history = checkpoint.get("rigor", {}).get("history", [])
     checkpoint["rigor"] = {"tier": tier, "history": [*history, entry]}
+    if "run_budget" in checkpoint:
+        budget = checkpoint["run_budget"]
+        budget["tier"] = tier
+        failed_limit, review_limit = (2, 1) if tier == "standard" else (3, 2)
+        budget["max_failed_attempts_per_class"] = max(budget["max_failed_attempts_per_class"], failed_limit)
+        budget["max_review_rounds"] = max(budget["max_review_rounds"], review_limit)
     _touch(checkpoint)
     return _write_checkpoint(Path(run_dir), checkpoint)
 
@@ -1011,11 +1094,13 @@ def record_attempt(
     checkpoint = load_checkpoint(Path(run_dir))
     if checkpoint["state"] != "active":
         raise ValueError("only an active checkpoint can record an attempt")
+    _ensure_before_deadline(checkpoint)
     failure_class = _nonempty(failure_class, "failure_class")
     count = sum(item.get("failure_class") == failure_class for item in checkpoint["attempts"])
-    if count >= MAX_ATTEMPTS_PER_FAILURE:
+    maximum = checkpoint.get("run_budget", {}).get("max_failed_attempts_per_class", MAX_ATTEMPTS_PER_FAILURE)
+    if count >= maximum:
         raise RuntimeError(
-            f"retry budget exhausted for {failure_class}; change the hypothesis or open a decision gate"
+            f"retry budget exhausted for {failure_class}; change the hypothesis to a different route, open a decision gate, or finish-partial if no in-scope route remains"
         )
     checkpoint["attempts"].append(
         {
@@ -1150,6 +1235,127 @@ def abandon_checkpoint(run_dir: Path, *, reason: str) -> dict[str, Any]:
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+def budget_status(run_dir: Path, *, now: datetime | None = None) -> dict[str, Any]:
+    """Return budget consumption and exhaustion without changing checkpoint state."""
+    checkpoint = load_checkpoint(Path(run_dir))
+    budget = checkpoint.get("run_budget")
+    if budget is None:
+        raise ValueError("checkpoint has no opt-in run budget")
+    now = now or datetime.now(timezone.utc)
+    deadline_passed = budget["deadline_at"] is not None and now >= _parse_deadline(budget["deadline_at"])
+    counts: dict[str, int] = {}
+    for attempt in checkpoint["attempts"]:
+        counts[attempt["failure_class"]] = counts.get(attempt["failure_class"], 0) + 1
+    exhausted = [f"failed_attempts_per_class:{key}" for key, count in sorted(counts.items()) if count >= budget["max_failed_attempts_per_class"]]
+    review = checkpoint.get("review_receipt")
+    passing_review = bool(
+        review
+        and review.get("verdict") == "passed"
+        and review.get("independence_attested") is True
+    )
+    if len(checkpoint["review_rounds"]) >= budget["max_review_rounds"] and (
+        not passing_review
+    ):
+        exhausted.append("review_rounds")
+    if deadline_passed:
+        exhausted.append("deadline")
+    return {"run_id": Path(run_dir).name, "tier": budget["tier"], "failed_attempts": counts,
+            "max_failed_attempts_per_class": budget["max_failed_attempts_per_class"],
+            "review_rounds": len(checkpoint["review_rounds"]), "max_review_rounds": budget["max_review_rounds"],
+            "deadline_at": budget["deadline_at"], "deadline_passed": deadline_passed,
+            "exhausted": bool(exhausted), "exhausted_limits": exhausted}
+
+
+def _ensure_before_deadline(checkpoint: dict[str, Any]) -> None:
+    budget = checkpoint.get("run_budget")
+    if budget and budget["deadline_at"] is not None and datetime.now(timezone.utc) >= _parse_deadline(budget["deadline_at"]):
+        raise RuntimeError("run deadline passed; finalize the partial result")
+
+
+def _read_validated_partial_artifact(
+    run_dir: Path,
+    checkpoint: dict[str, Any],
+    artifact_ref: str,
+) -> tuple[dict[str, Any], str]:
+    """Read and validate partial evidence once, returning its content and digest."""
+    path = _artifact_path(run_dir, artifact_ref, "partial artifact")
+    artifact_bytes = path.read_bytes()
+    try:
+        result = json.loads(artifact_bytes.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeError):
+        raise ValueError("partial artifact must be valid JSON") from None
+    expected = {
+        "schema_version", "status", "result_refs", "unmet_criteria",
+        "unfinished_steps", "caveats", "review_status",
+    }
+    if (
+        not isinstance(result, dict)
+        or set(result) != expected
+        or result.get("schema_version") != 1
+        or result.get("status") != "partial"
+    ):
+        raise ValueError("partial artifact schema is invalid")
+    for field in ("result_refs", "unmet_criteria", "unfinished_steps", "caveats"):
+        if not isinstance(result[field], list) or any(
+            not isinstance(item, str) or not item.strip() for item in result[field]
+        ):
+            raise ValueError(f"partial artifact {field} must be a list of non-empty strings")
+    if not result["caveats"] or not isinstance(result["review_status"], str) or not result["review_status"].strip():
+        raise ValueError("partial artifact requires caveats and review_status")
+    for ref in result["result_refs"]:
+        _artifact_path(run_dir, ref, "partial result ref")
+    criterion_ids = {item["id"] for item in checkpoint["done_criteria"]}
+    step_ids = {item["id"] for item in checkpoint["steps"]}
+    expected_unmet = {item["id"] for item in checkpoint["done_criteria"] if item["status"] != "satisfied"}
+    expected_unfinished = {item["id"] for item in checkpoint["steps"] if item["status"] != "completed"}
+    if set(result["unmet_criteria"]) != expected_unmet or not expected_unmet <= criterion_ids:
+        raise ValueError("partial artifact unmet_criteria is inconsistent")
+    if set(result["unfinished_steps"]) != expected_unfinished or not expected_unfinished <= step_ids:
+        raise ValueError("partial artifact unfinished_steps is inconsistent")
+    return result, hashlib.sha256(artifact_bytes).hexdigest()
+
+
+def finish_partial(run_dir: Path, *, artifact_ref: str) -> dict[str, Any]:
+    """Validate partial evidence and atomically abandon an exhausted budgeted run."""
+    run_dir = Path(run_dir)
+    checkpoint = load_checkpoint(run_dir)
+    if "run_budget" not in checkpoint:
+        raise ValueError("checkpoint has no opt-in run budget")
+    if checkpoint["state"] not in NONTERMINAL_STATES:
+        raise ValueError("only a nonterminal checkpoint can finish partially")
+    if checkpoint["state"] in {"approval_required", "waiting_external"}:
+        raise ValueError("partial completion cannot override an approval gate or external wait")
+    if checkpoint["outer_goal"]["phase"] == "completion_pending":
+        raise ValueError("native Goal completion_pending cannot finish partially")
+    status = budget_status(run_dir)
+    if not status["exhausted"]:
+        raise ValueError("run budget is not exhausted and deadline has not passed")
+    try:
+        _check_local_completion(checkpoint)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("run satisfies local completion checks; complete it instead of finishing partially")
+    reason = "deadline_passed" if status["deadline_passed"] else "budget_exhausted"
+    _, artifact_sha256 = _read_validated_partial_artifact(run_dir, checkpoint, artifact_ref)
+    _nonempty(artifact_ref, "artifact_ref")
+    checkpoint["state"] = "abandoned"
+    checkpoint["current_step"] = None
+    for step in checkpoint["steps"]:
+        if step["status"] == "in_progress": step["status"] = "pending"
+    checkpoint["next_action"] = ""
+    checkpoint["pending_decisions"] = []
+    checkpoint["blocker"] = ""
+    checkpoint["wait"] = None
+    checkpoint["termination_reason"] = reason
+    checkpoint["termination"] = {"kind": "partial", "reason_code": reason,
+        "exhausted_limit": ",".join(status["exhausted_limits"]), "recorded_at": _timestamp(),
+        "artifact_ref": artifact_ref, "artifact_sha256": artifact_sha256}
+    _reset_idle_continuations(checkpoint)
+    _touch(checkpoint)
+    return _write_checkpoint(run_dir, checkpoint)
+
+
 def verify_criterion(
     run_dir: Path,
     criterion_id: str,
@@ -1189,6 +1395,9 @@ def record_review(
     checkpoint = load_checkpoint(Path(run_dir))
     if checkpoint["schema_version"] < 4 or checkpoint["state"] != "active":
         raise ValueError("only an active schema-v4 checkpoint can record review")
+    _ensure_before_deadline(checkpoint)
+    if "run_budget" in checkpoint and len(checkpoint["review_rounds"]) >= checkpoint["run_budget"]["max_review_rounds"]:
+        raise RuntimeError("review round budget exhausted")
     path = _artifact_path(Path(run_dir), artifact_ref, "review artifact")
     try:
         receipt = json.loads(path.read_text(encoding="utf-8"))
@@ -1214,6 +1423,12 @@ def record_review(
         "independence_attested": independent,
         "recorded_at": _timestamp(),
     }
+    if "run_budget" in checkpoint:
+        rounds = checkpoint["review_rounds"]
+        if len(rounds) >= checkpoint["run_budget"]["max_review_rounds"]:
+            raise RuntimeError("review round budget exhausted")
+        rounds.append({"id": f"review-{len(rounds) + 1}", "started_at": _timestamp(),
+                      "receipt_ref": artifact_ref, "receipt_sha256": _artifact_sha256(path)})
     _reset_idle_continuations(checkpoint)
     _touch(checkpoint)
     return _write_checkpoint(Path(run_dir), checkpoint)

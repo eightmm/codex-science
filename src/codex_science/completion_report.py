@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-STOP_CODES = {"done", "inconclusive_result", "approval_gate", "external_wait", "blocker", "abandoned", "no_progress", "in_progress", "invalid_record"}
+STOP_CODES = {"done", "inconclusive_result", "budget_exhausted", "approval_gate", "external_wait", "blocker", "abandoned", "no_progress", "in_progress", "invalid_record"}
 RIGOR_TIERS = {"standard", "full"}
 
 
@@ -98,6 +98,15 @@ def report_completion(artifacts_root: Path, *, now: datetime, stale_after: timed
 
 def _summarize_run(run_dir: Path, checkpoint: dict[str, Any], tier: str, root: Path, now: datetime, stale_after: timedelta) -> dict[str, Any]:
         state = checkpoint["state"]
+        termination = checkpoint.get("termination")
+        partial = termination is not None
+        if partial:
+            from codex_science.checkpoints import _read_validated_partial_artifact
+            _, artifact_sha256 = _read_validated_partial_artifact(
+                run_dir, checkpoint, termination["artifact_ref"]
+            )
+            if artifact_sha256 != termination["artifact_sha256"]:
+                raise ValueError("partial artifact hash mismatch")
         manifest = run_dir / "manifest.json"
         inconclusive = manifest.is_file() and not manifest.is_symlink() and _safe_child(manifest, root) and _manifest_inconclusive(manifest)
         updated = checkpoint["updated_at"]
@@ -107,7 +116,7 @@ def _summarize_run(run_dir: Path, checkpoint: dict[str, Any], tier: str, root: P
             stale = state == "active" and stamp < reference_now - stale_after
         except (ValueError, TypeError, OverflowError):
             stale = False
-        outcome = ("terminal_inconclusive" if inconclusive else "completed") if state == "complete" else state
+        outcome = "terminal_inconclusive" if partial else (("terminal_inconclusive" if inconclusive else "completed") if state == "complete" else state)
         if stale:
             outcome = "stale_active"
         blocker = checkpoint.get("blocker")
@@ -124,6 +133,7 @@ def _summarize_run(run_dir: Path, checkpoint: dict[str, Any], tier: str, root: P
         elif state == "approval_required": code, detail = "approval_gate", decisions
         elif state == "waiting_external": code, detail = "external_wait", wait_detail
         elif state == "blocked": code, detail = "blocker", blocker
+        elif partial: code, detail = "budget_exhausted", termination["reason_code"]
         elif state == "abandoned": code, detail = "abandoned", termination_reason
         elif state == "active" and stale: code, detail = "no_progress", blocker
         elif state == "active": code, detail = "in_progress", checkpoint.get("next_action", "")
@@ -140,6 +150,7 @@ def _summarize_run(run_dir: Path, checkpoint: dict[str, Any], tier: str, root: P
                 ref = ref.split("#", 1)[0]
                 candidate = run_dir / ref
                 if _safe_child(candidate, root) and candidate.is_file() and not candidate.is_symlink(): refs.append(ref)
+        if partial and termination["artifact_ref"] not in refs: refs.append(termination["artifact_ref"])
         binding = checkpoint.get("session_binding")
         record = {"run_id": run_dir.name, "outcome": outcome, "stop_reason": {"code": code, "detail": _short(detail)}, "tier": tier, "schema_version": checkpoint.get("schema_version"), "state": state, "steps_completed": sum(s.get("status") == "completed" for s in checkpoint.get("steps", [])), "steps_total": len(checkpoint.get("steps", [])), "criteria_satisfied": sum((c.get("status") == "satisfied" if isinstance(c, dict) else False) for c in checkpoint.get("done_criteria", [])), "criteria_total": len(checkpoint.get("done_criteria", [])), "review_attached": review_attached, "updated_at": updated, "evidence_refs": refs}
         if isinstance(binding, dict):

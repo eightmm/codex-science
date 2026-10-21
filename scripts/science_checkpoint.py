@@ -25,6 +25,8 @@ from codex_science.checkpoints import (  # noqa: E402
     load_checkpoint,
     record_review,
     record_attempt,
+    budget_status,
+    finish_partial,
     request_decision,
     resume_checkpoint,
     verify_criterion,
@@ -55,6 +57,8 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--continuation-budget", type=int, default=100)
     init.add_argument("--rigor-tier", choices=("standard", "full"))
     init.add_argument("--rigor-decision-sha256")
+    init.add_argument("--budget-policy", choices=("tier-v1",))
+    init.add_argument("--deadline-at")
     init_group = init.add_mutually_exclusive_group(required=True)
     init_group.add_argument("--session-key")
     init_group.add_argument("--hookless", action="store_true")
@@ -137,6 +141,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     confirm.add_argument("run_dir", type=Path)
     confirm.add_argument("--receipt", required=True, dest="receipt_ref")
+    status = commands.add_parser("budget-status", help="show opt-in run budget without writing")
+    status.add_argument("run_dir", type=Path)
+    partial = commands.add_parser("finish-partial", help="finish an exhausted budgeted run as partial")
+    partial.add_argument("run_dir", type=Path)
+    partial.add_argument("--artifact-ref", required=True)
     return parser
 
 
@@ -159,6 +168,8 @@ def main() -> int:
                 continuation_budget=args.continuation_budget,
                 rigor_tier=args.rigor_tier,
                 rigor_decision_sha256=args.rigor_decision_sha256,
+                budget_policy=args.budget_policy,
+                deadline_at=args.deadline_at,
             )
         elif args.command == "escalate":
             result = escalate_checkpoint(
@@ -224,6 +235,10 @@ def main() -> int:
             result = abandon_checkpoint(args.run_dir, reason=args.reason)
         elif args.command == "complete":
             result = complete_checkpoint(args.run_dir)
+        elif args.command == "budget-status":
+            result = budget_status(args.run_dir)
+        elif args.command == "finish-partial":
+            result = finish_partial(args.run_dir, artifact_ref=args.artifact_ref)
         else:
             result = confirm_goal_complete(args.run_dir, receipt_ref=args.receipt_ref)
     except (FileExistsError, FileNotFoundError, RuntimeError, ValueError, OSError, TimeoutError, json.JSONDecodeError) as error:
