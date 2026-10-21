@@ -8,9 +8,14 @@ bundles stay valid and newer bundles gain machine-readable claim lineage.
 from __future__ import annotations
 
 import json
+import hashlib
+import stat
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+from codex_science.rigor import CLAIM_STRENGTHS
 
 
 SIDECAR_KINDS = {
@@ -64,6 +69,7 @@ CLAIM_STATUSES = {
 QUERY_STATUSES = {"complete", "partial", "failed", "unavailable"}
 EVIDENCE_TYPES = {"primary", "secondary", "preprint", "registry", "dataset", "computed"}
 CONFIDENCE_LEVELS = {"high", "moderate", "low", "very-low", "unrated"}
+MAX_SUPPORT_SOURCE_BYTES = 10 * 1024 * 1024
 
 
 def _mapping(value: Any, label: str) -> dict[str, Any]:
@@ -100,6 +106,12 @@ def _schema_one(payload: dict[str, Any], label: str) -> None:
 
 def _valid_sha256(value: str) -> bool:
     return len(value) == 64 and all(character in "0123456789abcdefABCDEF" for character in value)
+
+
+def _validate_claim_kind(claim_id: str, claim: dict[str, Any]) -> None:
+    kind = claim.get("kind")
+    if "kind" in claim and (not isinstance(kind, str) or kind not in CLAIM_STRENGTHS):
+        raise ValueError(f"Invalid claim kind for {claim_id}: {kind}")
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -142,6 +154,7 @@ def _validate_claim_register(payload: dict[str, Any]) -> dict[str, dict[str, Any
         _text(claim.get("falsifier"), f"claim {claim_id} falsifier")
         _text(claim.get("uncertainty"), f"claim {claim_id} uncertainty")
         _text(claim.get("next_action"), f"claim {claim_id} next_action")
+        _validate_claim_kind(claim_id, claim)
         required_support = claim.get("required_support", 1)
         if (
             not isinstance(required_support, int)
@@ -211,7 +224,36 @@ def _validate_query_records(records: list[dict[str, Any]]) -> dict[str, dict[str
     return by_id
 
 
-def _validate_study_table(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _normalise_excerpt(value: str) -> str:
+    return " ".join(unicodedata.normalize("NFC", value).split())
+
+
+def _support_source_path(run_dir: Path, artifact: Any, study_id: str, claim_id: str) -> Path:
+    label = f"Study {study_id} claim {claim_id}"
+    relative = Path(_text(artifact, f"{label} source_artifact"))
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"{label} excerpt_source_missing: source_artifact must be run-relative")
+    root = run_dir.resolve()
+    candidate = run_dir / relative
+    try:
+        current = run_dir
+        for part in relative.parts:
+            current = current / part
+            metadata = current.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                raise ValueError("symlink")
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(root)
+        metadata = candidate.stat()
+    except (FileNotFoundError, OSError, RuntimeError, ValueError) as error:
+        raise ValueError(f"{label} excerpt_source_missing: source_artifact is missing or unsafe") from error
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_SUPPORT_SOURCE_BYTES:
+        raise ValueError(f"{label} excerpt_source_missing: source_artifact must be a regular file under 10 MiB")
+    return resolved
+
+
+def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) -> dict[str, dict[str, Any]]:
+    """Validate excerpt shape always; verify source content when run_dir is available."""
     _schema_one(payload, "study table")
     studies = _list(payload.get("studies"), "study table studies")
     by_id: dict[str, dict[str, Any]] = {}
@@ -228,7 +270,42 @@ def _validate_study_table(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if not isinstance(study.get("included"), bool):
             raise ValueError(f"study {study_id} included must be boolean")
         for field in ("supports_claim_ids", "contradicts_claim_ids"):
-            _string_list(study.get(field, []), f"study {study_id} {field}")
+            study[field] = _string_list(study.get(field, []), f"study {study_id} {field}")
+        if "support_excerpts" in study:
+            excerpts = _list(study["support_excerpts"], f"study {study_id} support_excerpts")
+            linked_claims = set(study.get("supports_claim_ids", [])) | set(study.get("contradicts_claim_ids", []))
+            for index, raw_excerpt in enumerate(excerpts):
+                excerpt = _mapping(raw_excerpt, f"study {study_id} support excerpt {index}")
+                claim_id = _text(excerpt.get("claim_id"), f"study {study_id} excerpt claim_id")
+                label = f"Study {study_id} claim {claim_id}"
+                if claim_id not in linked_claims:
+                    raise ValueError(f"{label} excerpt claim is not linked to this study")
+                text = _text(excerpt.get("text"), f"{label} excerpt text")
+                if not 20 <= len(text) <= 2000:
+                    raise ValueError(f"{label} excerpt text length must be 20..2000 characters")
+                try:
+                    source_artifact = _text(excerpt["source_artifact"], f"{label} source_artifact")
+                except (KeyError, ValueError) as error:
+                    raise ValueError(f"{label} excerpt_source_missing: source_artifact is required") from error
+                try:
+                    digest = _text(excerpt.get("source_sha256"), f"{label} source_sha256")
+                except ValueError as error:
+                    raise ValueError(f"{label} excerpt_hash_mismatch: source_sha256 is required") from error
+                if not _valid_sha256(digest):
+                    raise ValueError(f"{label} excerpt_hash_mismatch: invalid source_sha256")
+                if "locator" in excerpt:
+                    _mapping(excerpt["locator"], f"{label} locator")
+                if run_dir is not None:
+                    path = _support_source_path(run_dir, source_artifact, study_id, claim_id)
+                    content = path.read_bytes()
+                    if hashlib.sha256(content).hexdigest() != digest.lower():
+                        raise ValueError(f"{label} excerpt_hash_mismatch: source_sha256 does not match")
+                    try:
+                        source_text = content.decode("utf-8")
+                    except UnicodeDecodeError as error:
+                        raise ValueError(f"{label} excerpt_source_missing: source is not UTF-8") from error
+                    if _normalise_excerpt(text) not in _normalise_excerpt(source_text):
+                        raise ValueError(f"{label} excerpt_not_found: text does not occur in source")
         by_id[study_id] = study
     return by_id
 
@@ -322,7 +399,14 @@ def validate_sidecars(
     """Validate optional sidecars and their cross-file references."""
 
     loaded = load_sidecars(manifest, run_dir, verified)
-    manifest_claim_ids = {str(claim["id"]) for claim in manifest.get("claims", [])}
+    manifest_claims = {
+        str(claim["id"]).strip(): claim
+        for claim in manifest.get("claims", [])
+        if isinstance(claim, dict) and claim.get("id") is not None
+    }
+    manifest_claim_ids = set(manifest_claims)
+    for claim_id, claim in manifest_claims.items():
+        _validate_claim_kind(claim_id, claim)
     artifact_paths = set(verified)
 
     claim_by_id: dict[str, dict[str, Any]] = {}
@@ -335,6 +419,15 @@ def validate_sidecars(
                 "Manifest and claim register IDs differ: "
                 f"missing={missing or 'none'} extra={extra or 'none'}"
             )
+        for claim_id, registered_claim in claim_by_id.items():
+            manifest_claim = manifest_claims.get(claim_id)
+            if (
+                manifest_claim is not None
+                and "kind" in manifest_claim
+                and "kind" in registered_claim
+                and manifest_claim["kind"] != registered_claim["kind"]
+            ):
+                raise ValueError(f"Claim {claim_id} kind differs between manifest and claim register")
 
     node_by_id: dict[str, dict[str, Any]] = {}
     edges: list[dict[str, Any]] = []
@@ -354,7 +447,7 @@ def validate_sidecars(
 
     study_by_id: dict[str, dict[str, Any]] = {}
     if loaded["study_table"] is not None:
-        study_by_id = _validate_study_table(loaded["study_table"])
+        study_by_id = _validate_study_table(loaded["study_table"], run_dir)
         known_claims = set(claim_by_id) or manifest_claim_ids
         for study_id, study in study_by_id.items():
             for field in ("supports_claim_ids", "contradicts_claim_ids"):

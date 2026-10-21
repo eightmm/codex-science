@@ -18,6 +18,7 @@ from typing import Any, Mapping
 from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
 from codex_science.review_receipts import build_review_receipt, canonical_sha256, validate_review_receipt
+from codex_science.rigor import CLAIM_STRENGTHS
 
 
 REVIEW_MODES = {"record", "source", "method", "reproduction"}
@@ -128,13 +129,45 @@ def build_review_packet(
     if not isinstance(claims, list):
         claims = [dict(item) for item in manifest.get("claims", []) if isinstance(item, Mapping)]
     graph = sidecars.get("graph_v2") or sidecars.get("evidence_graph")
-    questions = review_questions or [
+    use_default_questions = review_questions is None
+    questions = list(review_questions) if review_questions is not None else [
         "Does each material claim have direct, correctly attributed evidence?",
         "Do the design, controls, splits, metrics, uncertainty, and inference level support the claim?",
         "Are duplicated sources, shared cohorts or samples, and model-training overlap represented correctly?",
         "Do reported figures, tables, and values agree with the saved artifacts and execution record?",
         "Which alternative explanations or counterevidence remain unresolved?"
     ]
+    kind_questions = {
+        "causal": [
+            "Is the causal effect identified by the study design and assumptions?",
+            "Could confounding explain the reported causal relationship?",
+            "Does the evidence establish temporality from cause to outcome?",
+        ],
+        "confirmatory": [
+            "Was the hypothesis prespecified before outcome inspection?",
+            "Was the analysis prespecified, including outcomes and exclusions?",
+            "Was multiplicity controlled or otherwise addressed?",
+        ],
+        "associational": [
+            "Does the claim text avoid causal language unsupported by an associational claim?",
+        ],
+        "descriptive": [
+            "Is the denominator for each descriptive result stated?",
+            "Is the sampling frame stated and adequate for the described population?",
+        ],
+    }
+    seen_kinds: set[str] = set()
+    for claim in claims:
+        kind = claim.get("kind") if isinstance(claim, Mapping) else None
+        if (
+            use_default_questions
+            and isinstance(kind, str)
+            and kind in CLAIM_STRENGTHS
+            and kind in kind_questions
+            and kind not in seen_kinds
+        ):
+            questions.extend(kind_questions[kind])
+            seen_kinds.add(kind)
     material = {
         "schema_version": 1,
         "source_run_id": str(manifest["run_id"]),

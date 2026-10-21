@@ -9,6 +9,7 @@ from typing import Any
 REQUEST_SCHEMA = "rigor-request-v1"
 DECISION_SCHEMA = "rigor-decision-v1"
 TIERS = ("quick", "standard", "full")
+CLAIM_STRENGTHS = ("descriptive", "associational", "causal", "confirmatory")
 
 _FIELDS = {
     "schema", "deliverable", "source_count", "synthesis", "computation",
@@ -45,7 +46,7 @@ def _validate(request: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError(f"schema must be {REQUEST_SCHEMA}")
     enums = {
         "deliverable": ("answer", "durable_artifact", "reviewed_package"),
-        "claim_strength": ("descriptive", "associational", "causal", "confirmatory"),
+        "claim_strength": CLAIM_STRENGTHS,
         "domain_risk": ("general", "high_stakes"),
         "requested_tier": TIERS,
         "current_tier": TIERS,

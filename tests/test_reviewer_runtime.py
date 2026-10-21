@@ -33,6 +33,40 @@ def make_reviewed_run(root: Path) -> Path:
 
 
 class ReviewerRuntimeTests(unittest.TestCase):
+    def test_manifest_claim_kind_must_be_a_known_string(self) -> None:
+        for kind in ("predictive", ["causal"]):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tempdir:
+                manifest = make_reviewed_run(Path(tempdir))
+                payload = json.loads(manifest.read_text(encoding="utf-8"))
+                payload["claims"][0]["kind"] = kind
+                manifest.write_text(json.dumps(payload), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Invalid claim kind for C1"):
+                    build_review_packet(manifest, review_modes=["record"])
+
+    def test_kind_routing_does_not_mutate_custom_questions_or_duplicate_on_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest = make_reviewed_run(Path(tempdir))
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["claims"][0]["kind"] = "causal"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            first = build_review_packet(manifest, review_modes=["record"], created_at="2026-10-21T00:00:00Z")
+            questions = list(first["review_questions"])
+            second = build_review_packet(
+                manifest, review_modes=["record"], review_questions=questions,
+                created_at="2026-10-21T00:00:00Z",
+            )
+            self.assertEqual(first["review_questions"], second["review_questions"])
+            self.assertEqual(first["review_questions"], questions)
+
+            custom = ["Check the custom review protocol."]
+            custom_packet = build_review_packet(
+                manifest, review_modes=["record"], review_questions=custom,
+                created_at="2026-10-21T00:00:00Z",
+            )
+            self.assertEqual(["Check the custom review protocol."], custom_packet["review_questions"])
+            self.assertEqual(["Check the custom review protocol."], custom)
+
     def test_packet_is_hash_bound_and_excludes_producer_only_context(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             manifest = make_reviewed_run(Path(tempdir))
