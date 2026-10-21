@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "completion-record-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "run_id", "deliverables", "citations", "caveats", "summary"],
+  "properties": {
+    "status": {"type": "string", "enum": ["completed", "partial", "inconclusive", "needs_human", "quick_answer"]},
+    "run_id": {"type": ["string", "null"]},
+    "deliverables": {"type": "array", "items": {"type": "string"}},
+    "citations": {"type": "array", "items": {"type": "string"}},
+    "caveats": {"type": "array", "items": {"type": "string"}},
+    "summary": {"type": "string"}
+  }
+}

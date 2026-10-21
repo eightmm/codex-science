@@ -85,8 +85,23 @@ else:
  if os.environ.get("FAKE_SAMPLE_ARTIFACT") == "1":
   (project/"artifacts").mkdir(exist_ok=True)
   (project/"artifacts"/"sample.json").write_text('{{"ok":true}}')
+if os.environ.get("FAKE_CHECKPOINT") == "active":
+ from codex_science.checkpoints import create_checkpoint
+ run_dir=project/"artifacts"/"fixture-run"
+ create_checkpoint(run_dir, goal="Fixture research question", deliverable="Reviewed report",
+   done_criteria=["Evidence is checked"], steps=[("review", "Review evidence")], next_action="Review evidence",
+   session_key=hashlib.sha256(str(project).encode()).hexdigest(), rigor_tier="standard")
+elif os.environ.get("FAKE_CHECKPOINT") == "partial":
+ from codex_science.checkpoints import create_checkpoint, finish_partial
+ run_dir=project/"artifacts"/"fixture-run"
+ create_checkpoint(run_dir, goal="Fixture research question", deliverable="Reviewed report",
+   done_criteria=["Evidence is checked"], steps=[("review", "Review evidence")], next_action="Review evidence",
+   session_key=hashlib.sha256(str(project).encode()).hexdigest(), rigor_tier="standard",
+   budget_policy="tier-v1", deadline_at="2020-01-01T00:00:00Z")
+ (run_dir/"partial-result.json").write_text('{{"schema_version":1,"status":"partial","result_refs":[],"unmet_criteria":["criterion-1"],"unfinished_steps":["review"],"caveats":["incomplete"],"review_status":"not reviewed"}}')
+ finish_partial(run_dir, artifact_ref="partial-result.json")
 if os.environ.get("FAKE_NO_LAST") != "1":
- last.write_text("unreviewed quick answer DOI:10.1000/example")
+ last.write_text(os.environ.get("FAKE_LAST_CONTENT", "unreviewed quick answer DOI:10.1000/example"))
 if os.environ.get("FAKE_COMMAND"):
  print(json.dumps({{"type":"item.completed","item":{{"type":"command_execution","command":os.environ["FAKE_COMMAND"],"status":"completed","exit_code":int(os.environ.get("FAKE_EXIT", "0"))}}}}))
 print(json.dumps({{"type":"thread.started","thread_id":"fake-thread"}}))
@@ -197,6 +212,65 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                                "--codex-bin", str(binary), "--codex-home", str(home))
             self.assertEqual(2, result.returncode)
             self.assertIn("pass a new --out", result.stderr)
+
+    def test_output_schema_opt_in_and_completion_record_cross_check(self) -> None:
+        schema = ROOT / "benchmarks/literature-review/completion-record.schema.json"
+        valid = json.dumps({"status": "quick_answer", "run_id": None, "deliverables": [],
+                            "citations": ["DOI:10.1000/example"], "caveats": [], "summary": "Answer"})
+        inconsistent = json.dumps({"status": "completed", "run_id": "missing-run", "deliverables": [],
+                                   "citations": [], "caveats": [], "summary": "Answer"})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary, home = self._fake_codex(root), self._codex_home(root)
+            dry = root / "dry"
+            result = self._run("--tasks", str(TASKS), "--out", str(dry), "--task", "quick-doi",
+                               "--codex-bin", str(binary), "--codex-home", str(home), "--output-schema")
+            self.assertEqual(0, result.returncode, result.stderr)
+            plan = json.loads((dry / "plan.json").read_text(encoding="utf-8"))
+            argv = plan["tasks"][0]["argv"]
+            self.assertEqual(str(schema.resolve()), argv[argv.index("--output-schema") + 1])
+            self.assertEqual(hashlib.sha256(schema.read_bytes()).hexdigest(), plan["output_schema_sha256"])
+            self.assertIn("final message as the JSON completion record", argv[-1])
+
+            for name, body, expected_valid, expected_mismatches, extra in [
+                ("valid", valid, True, [], {}),
+                ("inconsistent", inconsistent, True,
+                 ["completed status requires the named run to be completed in completion_report"],
+                 {"FAKE_CHECKPOINT": "active"}),
+                ("invalid-json", "not json", False, ["not_checked: completion record invalid"], {}),
+                ("partial-consistent", json.dumps({"status": "partial", "run_id": "fixture-run",
+                    "deliverables": [], "citations": [], "caveats": [], "summary": "Partial"}), True, [],
+                 {"FAKE_CHECKPOINT": "partial"}),
+                ("partial-inconsistent", json.dumps({"status": "partial", "run_id": "other-run",
+                    "deliverables": [], "citations": [], "caveats": [], "summary": "Partial"}), True,
+                 ["partial requires the named run to be terminal_inconclusive with budget_exhausted"],
+                 {"FAKE_CHECKPOINT": "partial"}),
+                ("quick-with-checkpoint", valid, True, ["quick_answer requires no checkpoint runs"],
+                 {"FAKE_CHECKPOINT": "active"}),
+                ("completed-active", inconsistent.replace("missing-run", "fixture-run"), True,
+                 ["completed status requires the named run to be completed in completion_report"],
+                 {"FAKE_CHECKPOINT": "active"}),
+                ("completed-consistent", inconsistent.replace("missing-run", "fixture-run"), True, [],
+                 {"FAKE_REALISTIC": "1"}),
+            ]:
+                out = root / name
+                result = self._run("--tasks", str(TASKS), "--out", str(out), "--task", "quick-doi",
+                                   "--execute", "--output-schema", "--codex-bin", str(binary),
+                                   "--codex-home", str(home), extra_env={"FAKE_LAST_CONTENT": body, **extra})
+                self.assertEqual(0, result.returncode, result.stderr)
+                receipt = json.loads((out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
+                self.assertEqual(expected_valid, receipt["completion_record"]["valid"])
+                self.assertEqual(expected_mismatches, receipt["completion_record_consistent"])
+                self.assertEqual(hashlib.sha256(schema.read_bytes()).hexdigest(), receipt["output_schema_sha256"])
+                if name == "invalid-json":
+                    self.assertTrue(receipt["completion_record"]["errors"])
+            from codex_science.literature_evaluation_runner import _completion_consistency
+            valid_record = json.loads(valid)
+            valid_record["valid"] = True
+            for report_status in ("unavailable", "invalid"):
+                with self.subTest(completion_report_status=report_status):
+                    self.assertEqual(["completion_report_unavailable"], _completion_consistency(
+                        valid_record, {"schema": "completion-report-v1", "status": report_status, "runs": []}))
 
     def test_fake_completed_failed_timeout_empty_message_and_receipts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
