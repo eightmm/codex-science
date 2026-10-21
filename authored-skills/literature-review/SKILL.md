@@ -35,6 +35,7 @@ A material change to eligibility, outcome, cutoff, or permitted inference create
 2. Translate the question into source-specific exact queries. Record query strings, filters, date ranges, pagination, access times, result counts, source releases or update timestamps, and response hashes in `queries.jsonl`.
 3. Preserve source availability separately from scientific evidence. A failed query is `unavailable`, not a negative result.
 4. Search references, citations, registries, or related datasets only when the protocol permits snowballing. Label records found outside the prespecified electronic search.
+5. Log cumulative `(evaluated, relevant)` counts for each screening batch in the run record. After each batch, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/estimate_saturation.py" --input <saturation-log.json> --hard-cap N`; the `--hard-cap N` flag overrides the input's `hard_cap` field. Input keys: `schema="saturation-log-v1"`, `checkpoints: [{evaluated, relevant}]`, `hard_cap`, optional `remaining_threshold` and `min_evaluated`. Treat the recommendation only as an aid under that prespecified cap. Record the estimate as a hashed artifact with `$science-provenance`; never describe it as complete recall.
 
 ### Study identity and eligibility
 
