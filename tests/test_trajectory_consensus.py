@@ -1,15 +1,18 @@
 import importlib.util
 import io
 import json
+import math
 import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from codex_science import trajectory_consensus
 from codex_science.trajectory_consensus import build_consensus, plan_comparisons
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +26,89 @@ def trajectories(n=4):
     ]} for i in range(n)]
 
 
+def dense_rank_reference(comparisons):
+    """Original dense MM loop, retained as an exact regression oracle."""
+    ids = sorted({item["winner"] for item in comparisons} | {item["loser"] for item in comparisons})
+    wins = {candidate: {other: 0 for other in ids if other != candidate} for candidate in ids}
+    for item in comparisons:
+        wins[item["winner"]][item["loser"]] += 1
+    components = trajectory_consensus._components(ids, wins)
+    warnings = [{"code": "not_strongly_connected", "component": component}
+                for component in components if not trajectory_consensus._strongly_connected(component, wins)]
+    result = {"candidates": [], "disconnected_components": components if len(components) > 1 else [],
+              "warnings": warnings, "converged": False, "iterations": 0}
+    for candidate in ids:
+        result["candidates"].append({"candidate_id": candidate,
+                                     "wins": sum(wins[candidate].values()),
+                                     "losses": sum(wins[other][candidate] for other in ids if other != candidate)})
+    if len(components) != 1:
+        result["ranking"] = None
+        return result
+    has_mle = not warnings
+    strengths = {candidate: 1.0 for candidate in ids}
+    converged = False
+    for iteration in range(1, trajectory_consensus._MAX_ITERATIONS + 1):
+        updated = {}
+        for candidate in ids:
+            numerator = sum(wins[candidate].values())
+            if numerator == 0:
+                updated[candidate] = 0.0
+                continue
+            denominator = 0.0
+            for other in ids:
+                if other == candidate:
+                    continue
+                games = wins[candidate][other] + wins[other][candidate]
+                if not games:
+                    continue
+                strength_sum = strengths[candidate] + strengths[other]
+                if strength_sum == 0:
+                    denominator = math.inf
+                    break
+                denominator += games / strength_sum
+            updated[candidate] = numerator / denominator if denominator else strengths[candidate]
+        scale = max(updated.values())
+        scaled = {key: value / scale for key, value in updated.items()}
+        normalizer = sum(scaled.values())
+        updated = {key: value / normalizer for key, value in scaled.items()}
+        delta = max(abs(updated[key] - strengths[key]) for key in ids)
+        strengths = updated
+        result["iterations"] = iteration
+        if has_mle and delta < trajectory_consensus._TOLERANCE:
+            converged = True
+            break
+    result["converged"] = converged
+    if not converged and result["iterations"] == trajectory_consensus._MAX_ITERATIONS:
+        result["warnings"].append({"code": "iteration_cap_reached", "limit": trajectory_consensus._MAX_ITERATIONS})
+    result["ranking"] = [{"candidate_id": candidate, "score": strengths[candidate]}
+                         for candidate in sorted(ids, key=lambda key: (-strengths[key], key))]
+    return result
+
+
 class ConsensusTests(unittest.TestCase):
+    def test_rank_matches_dense_reference(self):
+        cases = [
+            [{"winner": "a", "loser": "b"}, {"winner": "b", "loser": "c"},
+             {"winner": "c", "loser": "a"}],
+            [{"winner": "a", "loser": "b"}, {"winner": "b", "loser": "c"}],
+            [{"winner": "a", "loser": "b"}, {"winner": "c", "loser": "d"}],
+            ([{"winner": "a", "loser": "b"}] * 4 + [{"winner": "b", "loser": "a"}] * 4 +
+             [{"winner": "a", "loser": "c"}] * 3 + [{"winner": "c", "loser": "a"}] * 2 +
+             [{"winner": "b", "loser": "c"}] * 2 + [{"winner": "c", "loser": "b"}] * 3),
+        ]
+        for comparisons in cases:
+            with self.subTest(comparisons=comparisons):
+                self.assertEqual(trajectory_consensus._rank(comparisons), dense_rank_reference(comparisons))
+
+    def test_200_candidate_chain_ranks_under_eight_seconds(self):
+        comparisons = [{"winner": f"c{i:03d}", "loser": f"c{i + 1:03d}"} for i in range(199)]
+        start = time.perf_counter()
+        result = trajectory_consensus._rank(comparisons)
+        elapsed = time.perf_counter() - start
+        self.assertLess(elapsed, 8.0, f"200-candidate chain took {elapsed:.3f}s")
+        self.assertEqual(result["iterations"], 10_000)
+        self.assertIn({"code": "iteration_cap_reached", "limit": 10_000}, result["warnings"])
+
     def test_majority_is_strict_and_status_disagreement_is_reported(self):
         result = build_consensus({"schema": "trajectory-set-v1", "trajectories": trajectories()})
         self.assertEqual([x["key"] for x in result["consensus_claims"]], ["shared claim"])

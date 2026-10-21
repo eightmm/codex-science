@@ -92,23 +92,24 @@ def _rank(comparisons):
         result["ranking"] = None
         return result
     has_mle = not warnings
+    opponents = {
+        candidate: [(other, wins[candidate][other] + wins[other][candidate])
+                    for other in ids if other != candidate
+                    and wins[candidate][other] + wins[other][candidate] > 0]
+        for candidate in ids
+    }
+    numerators = {candidate: sum(wins[candidate].values()) for candidate in ids}
     strengths = {candidate: 1.0 for candidate in ids}
     converged = False
     for iteration in range(1, _MAX_ITERATIONS + 1):
         updated = {}
         for candidate in ids:
-            numerator = sum(wins[candidate].values())
+            numerator = numerators[candidate]
             if numerator == 0:
                 updated[candidate] = 0.0
                 continue
             denominator = 0.0
-            for other in ids:
-                if other == candidate:
-                    continue
-                games = wins[candidate][other] + wins[other][candidate]
-                # Nonmeeting pairs contribute neither likelihood nor MM weight.
-                if not games:
-                    continue
+            for other, games in opponents[candidate]:
                 strength_sum = strengths[candidate] + strengths[other]
                 if strength_sum == 0:
                     # A boundary iterate can underflow for a separated graph.
