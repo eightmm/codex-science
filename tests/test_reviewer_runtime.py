@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
-from codex_science.reviewer_runtime import build_review_packet, finalize_review_response, validate_review_packet
+from codex_science.reviewer_runtime import _fingerprint, _review_order_policy, _review_priority, build_review_packet, finalize_review_response, validate_review_packet
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
 
@@ -33,6 +33,148 @@ def make_reviewed_run(root: Path) -> Path:
 
 
 class ReviewerRuntimeTests(unittest.TestCase):
+    def test_priority_order_ties_and_coverage_tiers(self) -> None:
+        manifest = {"claims": [], "artifacts": [{"path": "analysis.json"}], "executions": [{"id": "run-analysis", "exit_code": 0}]}
+        claims = [
+            {"id": "D", "kind": "descriptive", "evidence": ["analysis.json"]},
+            {"id": "B", "kind": "descriptive", "evidence": ["study-1"]},
+            {"id": "A", "kind": "causal", "evidence": []},
+            {"id": "C", "kind": "descriptive", "evidence": []},
+            {"id": "E", "kind": "descriptive", "evidence": ["study-2"]},
+        ]
+        sidecars = {
+            "claim_by_id": {claim["id"]: claim for claim in claims},
+            "claim_register": {"claims": claims},
+            "graph_v2": {
+                "nodes": [
+                    {"id": "study-1", "type": "study"},
+                    {"id": "study-2", "type": "study"},
+                    {"id": "analysis.json", "type": "artifact", "path": "analysis.json"},
+                ],
+                "edges": [
+                    {"source": "study-1", "target": "B", "relation": "supports"},
+                    {"source": "study-2", "target": "E", "relation": "supports"},
+                    {"source": "analysis.json", "target": "D", "relation": "supports"},
+                ],
+            },
+        }
+        priority = _review_priority(manifest, claims, sidecars)
+        self.assertEqual(
+            [{"claim_id": "A", "basis": "synthesis", "priority": 1},
+             {"claim_id": "B", "basis": "literature", "priority": 2},
+             {"claim_id": "E", "basis": "literature", "priority": 2},
+             {"claim_id": "C", "basis": "unknown", "priority": 3},
+             {"claim_id": "D", "basis": "data", "priority": 4}],
+            priority,
+        )
+        self.assertEqual(["A", "B", "E", "C", "D"], [row["claim_id"] for row in priority])
+        self.assertEqual(["A", "B"], _review_order_policy(priority, "quick", "caller")["suggested_first_claim_ids"])
+        self.assertEqual(["A", "B", "E", "C"], _review_order_policy(priority, "standard", "caller")["suggested_first_claim_ids"])
+        self.assertEqual(["A", "B", "E", "C", "D"], _review_order_policy(priority, "full", "caller")["suggested_first_claim_ids"])
+
+    def test_unresolvable_and_contradicts_only_supports_are_unknown(self) -> None:
+        claims = [
+            {"id": "C1", "kind": "descriptive"},
+            {"id": "C2", "kind": "descriptive"},
+            {"id": "C3", "kind": "descriptive", "evidence": ["result.json"]},
+        ]
+        manifest = {"claims": claims, "artifacts": [{"path": "result.json"}], "executions": [{"exit_code": 0}]}
+        sidecars = {
+            "claim_by_id": {claim["id"]: claim for claim in claims},
+            "graph_v2": {
+                "nodes": [
+                    {"id": "study-1", "type": "study"},
+                    {"id": "orphan-artifact", "type": "artifact"},
+                ],
+                "edges": [
+                    {"source": "orphan-artifact", "target": "C1", "relation": "supports"},
+                    {"source": "study-1", "target": "C2", "relation": "contradicts"},
+                ],
+            },
+        }
+        self.assertEqual(
+            [
+                {"claim_id": "C1", "basis": "unknown", "priority": 3},
+                {"claim_id": "C2", "basis": "unknown", "priority": 3},
+                {"claim_id": "C3", "basis": "unknown", "priority": 3},
+            ],
+            _review_priority(manifest, claims, sidecars),
+        )
+
+    def test_tier_validation_provenance_and_suggestions(self) -> None:
+        with self.assertRaisesRegex(ValueError, "tier must be one of"):
+            build_review_packet(Path("missing-manifest.json"), review_modes=["record"], tier="invalid")
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest = make_reviewed_run(Path(tempdir))
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["claims"] = [
+                {"id": f"C{index}", "text": f"Claim {index}", "evidence": []}
+                for index in range(1, 6)
+            ]
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            quick = build_review_packet(manifest, review_modes=["record"], tier="quick", created_at="2026-10-21T00:00:00Z")
+            standard = build_review_packet(manifest, review_modes=["record"], tier="standard", created_at="2026-10-21T00:00:00Z")
+            full = build_review_packet(manifest, review_modes=["record"], tier="full", created_at="2026-10-21T00:00:00Z")
+            default = build_review_packet(manifest, review_modes=["record"], created_at="2026-10-21T00:00:00Z")
+            self.assertEqual({"tier": "quick", "tier_source": "caller", "suggested_first_claim_ids": ["C1"], "scope": "Advisory ordering only; every material claim must still be reviewed."}, quick["review_order_policy"])
+            self.assertEqual(["C1", "C2", "C3"], standard["review_order_policy"]["suggested_first_claim_ids"])
+            self.assertEqual(["C1", "C2", "C3", "C4", "C5"], full["review_order_policy"]["suggested_first_claim_ids"])
+            self.assertEqual("caller", standard["review_order_policy"]["tier_source"])
+            self.assertEqual("default", default["review_order_policy"]["tier_source"])
+            bad_tier_packet = dict(quick)
+            bad_policy = dict(quick["review_order_policy"])
+            bad_policy["tier"] = "legacy"
+            bad_tier_packet["review_order_policy"] = bad_policy
+            with self.assertRaisesRegex(ValueError, "invalid review_order_policy"):
+                validate_review_packet(bad_tier_packet)
+            duplicate_priority_packet = dict(quick)
+            duplicate_priority_packet["review_priority"] = [
+                *quick["review_priority"], dict(quick["review_priority"][0])
+            ]
+            with self.assertRaisesRegex(ValueError, "claim IDs must be non-empty and unique"):
+                validate_review_packet(duplicate_priority_packet)
+
+    def test_quick_tier_does_not_relax_full_response_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest = make_reviewed_run(Path(tempdir))
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["claims"].append({"id": "C2", "text": "Second claim.", "evidence": []})
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            packet = build_review_packet(manifest, review_modes=["record"], tier="quick", created_at="2026-10-21T00:00:00Z")
+            artifact = packet["artifacts"][0]
+            response = {
+                "schema_version": 1,
+                "review_task_id": packet["review_task_id"],
+                "packet_fingerprint": packet["fingerprint"],
+                "reviewer": "reviewer",
+                "independent": True,
+                "review_modes": ["record"],
+                "reviewed_claim_ids": ["C1"],
+                "reviewed_artifacts": [{"path": artifact["path"], "sha256": artifact["sha256"]}],
+                "findings": [],
+                "limitations": ["Review is incomplete."],
+            }
+            with self.assertRaisesRegex(ValueError, "omits material claims"):
+                finalize_review_response(packet, response)
+
+    def test_packet_fields_are_deterministic_and_legacy_packets_validate(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest = make_reviewed_run(Path(tempdir))
+            first = build_review_packet(manifest, review_modes=["record"], created_at="2026-10-21T00:00:00Z")
+            second = build_review_packet(manifest, review_modes=["record"], created_at="2026-10-21T00:00:00Z")
+            self.assertEqual(first, second)
+            self.assertEqual(["C1"], first["review_order_policy"]["suggested_first_claim_ids"])
+            self.assertEqual("default", first["review_order_policy"]["tier_source"])
+            legacy = dict(first)
+            legacy.pop("review_priority")
+            legacy.pop("review_order_policy")
+            legacy.pop("review_task_id")
+            legacy.pop("fingerprint")
+            fingerprint = _fingerprint(legacy)
+            legacy["review_task_id"] = f"review-task-{fingerprint[:20]}"
+            legacy["fingerprint"] = fingerprint
+            validate_review_packet(legacy)
+
     def test_manifest_claim_kind_must_be_a_known_string(self) -> None:
         for kind in ("predictive", ["causal"]):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tempdir:

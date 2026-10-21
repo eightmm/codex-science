@@ -18,13 +18,38 @@ from typing import Any, Mapping
 from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
 from codex_science.review_receipts import build_review_receipt, canonical_sha256, validate_review_receipt
-from codex_science.rigor import CLAIM_STRENGTHS
+from codex_science.rigor import CLAIM_STRENGTHS, TIERS
 
 
 REVIEW_MODES = {"record", "source", "method", "reproduction"}
 SEVERITIES = {"critical", "major", "minor", "suggestion"}
 SENSITIVE_FRAGMENTS = {"token", "password", "secret", "credential", "private_key", "api_key", "apikey", "chain_of_thought", "hidden_rationale"}
 EXCLUDED_PRODUCER_FIELDS = {"intended_conclusion", "producer_rationale", "chain_of_thought", "private_scratchpad", "hidden_answer", "suspected_bug"}
+
+
+class _DefaultTier(str):
+    """String sentinel that preserves a string-valued public default."""
+
+
+_DEFAULT_TIER = _DefaultTier("standard")
+
+# Kosmos reported lower statement accuracy for synthesis/interpretation than
+# data-analysis or literature statements. This is only a review-order heuristic:
+# it does not estimate claim reliability. Categories use recorded claim/evidence
+# links only; unseen or unlinked evidence is not inferred.
+REVIEW_PRIORITY_POLICY = {
+    "source_note": "Kosmos preprint/vendor report: reported statement accuracy was ~85.5% for data analysis, ~82.1% for literature, and ~57.9% for synthesis/interpretation.",
+    "basis": {
+        "synthesis": "2+ distinct resolved sources/artifacts on supports edges, or claim kind causal/confirmatory",
+        "literature": "all resolved supports links point to literature/source records",
+        "data": "resolved supports links include executed analysis artifacts",
+        "unknown": "otherwise",
+    },
+    "support_relations": ["supports"],
+    "ignored_relations": ["contradicts"],
+    "order": ["synthesis", "literature", "unknown", "data"],
+    "evidence_boundary": "Heuristic ordering from recorded claim fields and resolvable supports links; unresolvable references remain unknown. This is not a reliability estimate.",
+}
 
 
 def _now() -> str:
@@ -102,6 +127,64 @@ def _material_claim_ids(manifest: Mapping[str, Any], sidecars: Mapping[str, Any]
     return sorted(str(item.get("id")) for item in manifest.get("claims", []) if isinstance(item, Mapping) and item.get("id"))
 
 
+def _review_priority(manifest: Mapping[str, Any], claims: list[Any], sidecars: Mapping[str, Any]) -> list[dict[str, str | int]]:
+    claim_by_id = {str(claim.get("id")): claim for claim in claims if isinstance(claim, Mapping) and claim.get("id")}
+    graph = sidecars.get("graph_v2") or sidecars.get("evidence_graph")
+    nodes = {str(node.get("id")): node for node in graph.get("nodes", []) if isinstance(node, Mapping)} if isinstance(graph, Mapping) else {}
+    edges = graph.get("edges", []) if isinstance(graph, Mapping) else []
+    artifact_paths = {str(item.get("path")) for item in manifest.get("artifacts", []) if isinstance(item, Mapping)}
+    executions = [item for item in manifest.get("executions", []) if isinstance(item, Mapping)]
+    has_successful_execution = any(item.get("exit_code") == 0 for item in executions)
+    support: dict[str, set[str]] = {claim_id: set() for claim_id in _material_claim_ids(manifest, sidecars)}
+    for edge in edges:
+        if isinstance(edge, Mapping) and edge.get("relation") == "supports" and str(edge.get("target")) in support:
+            support[str(edge["target"])].add(str(edge.get("source", "")))
+    rows = []
+    order = {basis: index for index, basis in enumerate(REVIEW_PRIORITY_POLICY["order"])}
+    for claim_id in _material_claim_ids(manifest, sidecars):
+        claim = claim_by_id.get(claim_id, {})
+        refs = support.get(claim_id, set())
+        source_nodes = [nodes.get(ref) for ref in refs]
+        unresolved = any(node is None for node in source_nodes)
+        if claim.get("kind") in {"causal", "confirmatory"}:
+            basis = "synthesis"
+        elif unresolved:
+            basis = "unknown"
+        elif len(refs) >= 2:
+            basis = "synthesis"
+        elif refs and all(node.get("type") == "study" for node in source_nodes if node is not None):
+            basis = "literature"
+        elif refs and all(
+            node is not None
+            and (
+                node.get("type") == "execution" and has_successful_execution
+                or (
+                    node.get("type") == "artifact"
+                    and (str(node.get("path", ref)) in artifact_paths or ref in artifact_paths)
+                    and has_successful_execution
+                )
+            )
+            for ref, node in ((ref, nodes.get(ref)) for ref in refs)
+        ):
+            basis = "data"
+        else:
+            basis = "unknown"
+        rows.append({"claim_id": claim_id, "basis": basis, "priority": order[basis] + 1})
+    return sorted(rows, key=lambda row: (order[row["basis"]], row["claim_id"]))
+
+
+def _review_order_policy(priority: list[dict[str, str | int]], tier: str, tier_source: str) -> dict[str, Any]:
+    ranked = [row["claim_id"] for row in priority]
+    synthesis = [row["claim_id"] for row in priority if row["basis"] == "synthesis"]
+    suggested = ranked if tier == "full" else synthesis + [claim_id for claim_id in ranked if claim_id not in synthesis][: (1 if tier == "quick" else 3)]
+    return {
+        "tier": tier,
+        "tier_source": tier_source,
+        "suggested_first_claim_ids": sorted(set(suggested), key=lambda claim_id: (ranked.index(claim_id), claim_id)),
+        "scope": "Advisory ordering only; every material claim must still be reviewed.",
+    }
+
+
 def build_review_packet(
     manifest_path: Path,
     *,
@@ -109,7 +192,13 @@ def build_review_packet(
     independent_required: bool = True,
     review_questions: list[str] | None = None,
     created_at: str | None = None,
+    tier: str = _DEFAULT_TIER,
 ) -> dict[str, Any]:
+    """Build a review packet with advisory ordering; every material claim remains required for review."""
+    tier_source = "default" if tier is _DEFAULT_TIER else "caller"
+    if not isinstance(tier, str) or tier not in TIERS:
+        raise ValueError(f"tier must be one of {TIERS!r}")
+    tier = str(tier)
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
@@ -168,6 +257,7 @@ def build_review_packet(
         ):
             questions.extend(kind_questions[kind])
             seen_kinds.add(kind)
+    review_priority = _review_priority(manifest, claims, sidecars)
     material = {
         "schema_version": 1,
         "source_run_id": str(manifest["run_id"]),
@@ -187,6 +277,8 @@ def build_review_packet(
         },
         "claims": _redact(claims),
         "material_claim_ids": _material_claim_ids(manifest, sidecars),
+        "review_priority": review_priority,
+        "review_order_policy": _review_order_policy(review_priority, tier, tier_source),
         "artifacts": artifact_hashes,
         "evidence_graph": _redact(graph) if isinstance(graph, Mapping) else None,
         "study_table": _redact(sidecars.get("study_table")) if sidecars.get("study_table") else None,
@@ -228,6 +320,40 @@ def validate_review_packet(payload: Mapping[str, Any]) -> None:
         raise ValueError("invalid review packet modes")
     if not isinstance(payload.get("artifacts"), list) or not isinstance(payload.get("material_claim_ids"), list):
         raise ValueError("review packet artifacts and material_claim_ids must be lists")
+    if "review_priority" in payload:
+        rows = payload["review_priority"]
+        if not isinstance(rows, list) or any(not isinstance(row, Mapping) or set(row) != {"claim_id", "basis", "priority"} or row.get("basis") not in REVIEW_PRIORITY_POLICY["order"] or type(row.get("priority")) is not int or row.get("priority") != REVIEW_PRIORITY_POLICY["order"].index(row["basis"]) + 1 for row in rows):
+            raise ValueError("invalid review_priority")
+        claim_ids = [row.get("claim_id") for row in rows]
+        if any(not isinstance(claim_id, str) or not claim_id.strip() for claim_id in claim_ids) or len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("review_priority claim IDs must be non-empty and unique")
+        expected_order = sorted(rows, key=lambda row: (REVIEW_PRIORITY_POLICY["order"].index(row["basis"]), row["claim_id"]))
+        if rows != expected_order:
+            raise ValueError("review_priority is not deterministically ordered")
+        if set(claim_ids) != set(map(str, payload["material_claim_ids"])):
+            raise ValueError("review_priority must cover material claims")
+    if "review_order_policy" in payload:
+        policy = payload["review_order_policy"]
+        if (
+            not isinstance(policy, Mapping)
+            or not isinstance(policy.get("tier"), str)
+            or policy.get("tier") not in TIERS
+            or not isinstance(policy.get("tier_source"), str)
+            or policy.get("tier_source") not in {"caller", "default"}
+            or not isinstance(policy.get("suggested_first_claim_ids"), list)
+            or policy.get("scope") != "Advisory ordering only; every material claim must still be reviewed."
+        ):
+            raise ValueError("invalid review_order_policy")
+        suggested = policy["suggested_first_claim_ids"]
+        if (
+            any(not isinstance(claim_id, str) or not claim_id.strip() for claim_id in suggested)
+            or len(suggested) != len(set(suggested))
+            or not set(suggested).issubset(set(map(str, payload["material_claim_ids"])))
+            or (policy["tier_source"] == "default" and policy["tier"] != "standard")
+        ):
+            raise ValueError("invalid suggested review order claim IDs")
+        if "review_priority" in payload and dict(policy) != _review_order_policy(payload["review_priority"], str(policy["tier"]), str(policy["tier_source"])):
+            raise ValueError("review_order_policy does not match review_priority")
     material = dict(payload)
     task_id = str(material.pop("review_task_id"))
     fingerprint = str(material.pop("fingerprint", "")).lower()
