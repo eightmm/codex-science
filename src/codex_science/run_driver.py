@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import tempfile
 import os
 import queue
 import subprocess
@@ -87,6 +88,8 @@ def _signature(run: dict[str, Any] | None, artifacts: Path) -> tuple[Any, ...]:
 
 
 def _argv(codex: str, project: Path, prompt: str, last: Path, thread_id: str | None = None) -> list[str]:
+    if prompt.startswith("-"):
+        raise ValueError("prompts beginning with '-' are unsupported by this Codex CLI; use a prompt file with a non-dash-leading prompt")
     args = [codex, "exec"]
     if thread_id:
         args += ["resume", thread_id]
@@ -113,7 +116,21 @@ def _resolve_paths(project: Path, run_dir: Path) -> tuple[Path, Path]:
 
 
 def _write_receipt(path: Path, receipt: dict[str, Any]) -> None:
-    path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        current_umask = os.umask(0)
+        os.umask(current_umask)
+        os.chmod(temporary, 0o644 & ~current_umask)
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
 
 
 def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float) -> tuple[list[dict[str, Any]], int | None, bool, str | None, float, bool]:
@@ -237,10 +254,15 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
           wall_seconds: float = 1800, max_total_tokens: int | None = None,
           continuation_prompt: str = DEFAULT_CONTINUATION, codex_home: Path | None = None) -> dict[str, Any]:
     project, run_dir = _resolve_paths(project, run_dir)
-    if (max_turns < 1 or not math.isfinite(wall_seconds) or wall_seconds <= 0
-            or (max_total_tokens is not None and max_total_tokens < 0)):
-        raise ValueError("turn and wall caps must be positive; token cap must be non-negative")
+    _validate_caps(max_turns, wall_seconds, max_total_tokens)
+    for name, value in (("prompt", prompt), ("continuation_prompt", continuation_prompt)):
+        if value.startswith("-"):
+            raise ValueError(f"{name} beginning with '-' is unsupported by this Codex CLI; use a non-dash-leading prompt")
     receipt_path = run_dir / "run-driver-receipt.json"
+    if receipt_path.exists() or receipt_path.is_symlink():
+        raise FileExistsError(
+            f"output directory already contains run-driver-receipt.json; choose a new --out directory: {run_dir}"
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
     try:
         receipt_fd = os.open(receipt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -275,7 +297,7 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
         initial_hashes = runner._artifact_hashes(artifacts)
         prior_hashes = initial_hashes
         report = _report(project)
-        baseline_had_nonterminal_run = any(row.get("outcome") not in _TERMINAL for row in report.get("runs", []))
+        baseline_has_active_run = any(row.get("outcome") == "active" for row in report.get("runs", []))
         started = time.monotonic()
 
         for number in range(1, max_turns + 1):
@@ -342,7 +364,7 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
             if outcome in _HUMAN:
                 stop = {"code": "needs_human", "reason": "invalid_record" if outcome == "invalid" else selected.get("stop_reason", {}).get("code", outcome)}
                 break
-            if (not baseline_had_nonterminal_run and selected is None and not changed_checkpoint_paths
+            if (not baseline_has_active_run and selected is None and not changed_checkpoint_paths
                     and after_hashes == initial_hashes and last.read_text(encoding="utf-8").strip()):
                 stop = {"code": "quick_answer"}
                 break
@@ -370,3 +392,12 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
         stop = {"code": "driver_error", "error": f"{type(error).__name__}: {error}"}
         _write_receipt(receipt_path, make_receipt())
         raise
+
+
+def _validate_caps(max_turns: int, wall_seconds: float, max_total_tokens: int | None) -> None:
+    if (isinstance(max_turns, bool) or not isinstance(max_turns, int) or max_turns < 1
+            or isinstance(wall_seconds, bool) or not isinstance(wall_seconds, (int, float))
+            or not math.isfinite(wall_seconds) or wall_seconds <= 0
+            or (max_total_tokens is not None and (isinstance(max_total_tokens, bool)
+                or not isinstance(max_total_tokens, int) or max_total_tokens < 0))):
+        raise ValueError("turn and wall caps must be positive; token cap must be non-negative")

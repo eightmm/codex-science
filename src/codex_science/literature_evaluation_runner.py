@@ -483,23 +483,24 @@ def _completion_consistency(record: Mapping[str, Any], report: Mapping[str, Any]
     if not isinstance(report, Mapping):
         return ["completion_report_unavailable"]
     status, run_id = record["status"], record["run_id"]
-    if report.get("status") == "no_artifacts":
-        if status == "quick_answer" and report.get("runs", []) == []:
-            return []
-        return ["completion_report_unavailable"]
-    runs = report.get("runs")
-    if (report.get("schema") != "completion-report-v1" or not isinstance(runs, list)
-            or "status" in report):
+    no_artifacts = report.get("status") == "no_artifacts"
+    runs = [] if no_artifacts else report.get("runs")
+    if (not no_artifacts and (report.get("schema") != "completion-report-v1" or not isinstance(runs, list)
+            or "status" in report)):
         return ["completion_report_unavailable"]
     by_id = {run.get("run_id"): run for run in runs if isinstance(run, dict)}
     mismatches = []
     if status == "completed":
-        if run_id not in by_id or by_id[run_id].get("outcome") != "completed":
+        if not runs:
+            mismatches.append("claimed_run_missing")
+        elif run_id not in by_id or by_id[run_id].get("outcome") != "completed":
             mismatches.append("completed status requires the named run to be completed in completion_report")
     elif status == "quick_answer":
         if runs:
             mismatches.append("quick_answer requires no checkpoint runs")
     elif status == "partial":
+        if not runs:
+            return ["claimed_run_missing"]
         candidates = ([by_id[run_id]] if run_id is not None and run_id in by_id else
                       [] if run_id is not None else [run for run in runs if isinstance(run, dict)])
         if not any(run.get("outcome") == "terminal_inconclusive"
@@ -507,6 +508,13 @@ def _completion_consistency(record: Mapping[str, Any], report: Mapping[str, Any]
                    and run["stop_reason"].get("code") == "budget_exhausted"
                    for run in candidates):
             mismatches.append("partial requires the named run to be terminal_inconclusive with budget_exhausted")
+    elif status in {"inconclusive", "needs_human"}:
+        if run_id is None:
+            return ["not_checked: no run_id"]
+        if run_id not in by_id:
+            mismatches.append("claimed_run_missing")
+        elif by_id[run_id].get("outcome") == "completed":
+            mismatches.append(f"{status} status names a completed run")
     return mismatches
 
 

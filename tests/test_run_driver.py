@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import stat
 import tempfile
 import threading
 import time
@@ -21,7 +22,7 @@ from codex_science.checkpoints import (
     record_review,
     verify_criterion,
 )
-from codex_science.run_driver import _argv, _run_turn, drive
+from codex_science.run_driver import _argv, _run_turn, _write_receipt, drive
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -204,6 +205,15 @@ class RunDriverTests(unittest.TestCase):
     def test_quick_answer_without_checkpoint_stops_after_one_turn(self):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = self._drive(Path(tmp), [{"last":"a short answer"}, {}], max_turns=4)
+            self.assertEqual("quick_answer", receipt["stop"]["code"])
+            self.assertEqual(1, len(receipt["turns"]))
+
+    def test_old_blocked_run_does_not_prevent_quick_answer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            self._make_prior(project, "old-blocked", "blocked")
+            receipt = self._drive(root, [{"last": "answer"}], max_turns=3)
             self.assertEqual("quick_answer", receipt["stop"]["code"])
             self.assertEqual(1, len(receipt["turns"]))
 
@@ -578,6 +588,69 @@ class RunDriverTests(unittest.TestCase):
             self.assertNotIn("timeout", plan["stop_table"])
             self.assertFalse(log.exists())
 
+    def test_cli_dry_run_validates_caps_receipts_and_dash_prompts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            binary, env = self._fake(root, [{}])
+            base = [sys.executable, str(CLI), "--project", str(project), "--prompt", "task", "--out",
+                    str(root / "out"), "--codex-bin", str(binary)]
+            for extra in (("--max-turns", "0"), ("--wall-seconds", "nan"),
+                          ("--max-total-tokens", "-1")):
+                result = subprocess.run([*base, *extra], env=env, capture_output=True, text=True)
+                self.assertEqual(2, result.returncode)
+            (root / "out").mkdir()
+            (root / "out" / "run-driver-receipt.json").write_text("{}")
+            result = subprocess.run(base, env=env, capture_output=True, text=True)
+            self.assertEqual(2, result.returncode)
+            self.assertIn("run-driver-receipt.json", result.stderr)
+            dangling_out = root / "dangling-out"
+            dangling_out.mkdir()
+            dangling_receipt = dangling_out / "run-driver-receipt.json"
+            dangling_receipt.symlink_to(root / "missing-receipt-target")
+            dangling = [*base]
+            dangling[dangling.index(str(root / "out"))] = str(dangling_out)
+            result = subprocess.run(dangling, env=env, capture_output=True, text=True)
+            self.assertEqual(2, result.returncode)
+            self.assertIn("run-driver-receipt.json", result.stderr)
+            self.assertTrue(dangling_receipt.is_symlink())
+            dash = [sys.executable, str(CLI), "--project", str(project), "--prompt", "-leading", "--out",
+                    str(root / "dash"), "--codex-bin", str(binary)]
+            result = subprocess.run(dash, env=env, capture_output=True, text=True)
+            self.assertEqual(2, result.returncode)
+            self.assertFalse((root / "dash").exists())
+
+    def test_drive_refuses_dash_prompt_and_existing_receipt_before_turn_setup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            dash_out = root / "dash-out"
+            with self.assertRaisesRegex(ValueError, "beginning with '-'"):
+                drive(project, "-leading", run_dir=dash_out, codex_bin="not-launched")
+            self.assertFalse(dash_out.exists())
+            continuation_out = root / "continuation-out"
+            with self.assertRaisesRegex(ValueError, "continuation_prompt.*beginning with '-'"):
+                drive(project, "task", run_dir=continuation_out, continuation_prompt="-continue",
+                      codex_bin="not-launched")
+            self.assertFalse(continuation_out.exists())
+
+            receipt_out = root / "receipt-out"
+            receipt_out.mkdir()
+            receipt_path = receipt_out / "run-driver-receipt.json"
+            receipt_path.write_text("reserved\n")
+            with self.assertRaisesRegex(FileExistsError, "run-driver-receipt.json"):
+                drive(project, "task", run_dir=receipt_out, codex_bin="not-launched")
+            self.assertEqual("reserved\n", receipt_path.read_text())
+            self.assertFalse((receipt_out / "turn-1").exists())
+
+    def test_atomic_receipt_mode_matches_write_text_umask(self):
+        current_umask = os.umask(0)
+        os.umask(current_umask)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "receipt.json"
+            _write_receipt(path, {"ok": True})
+            self.assertEqual(0o644 & ~current_umask, stat.S_IMODE(path.stat().st_mode))
+
     def test_cli_dry_run_uses_same_absolute_argv_as_execute(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -621,6 +694,8 @@ class RunDriverTests(unittest.TestCase):
         self.assertIn("5 turn_failed or interrupted", " ".join(help_result.stdout.split()))
         self.assertIn("2 usage errors and driver_error", " ".join(help_result.stdout.split()))
         self.assertIn("may overcount cumulative resume usage", " ".join(help_result.stdout.split()))
+        self.assertIn("failure, timeout, turn failure/interruption, outcome", " ".join(help_result.stdout.split()))
+        self.assertIn("completion report is always recorded", " ".join(help_result.stdout.split()))
         usage = subprocess.run([sys.executable, str(CLI)], capture_output=True, text=True, check=False)
         self.assertEqual(2, usage.returncode)
 

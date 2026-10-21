@@ -271,6 +271,19 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                 with self.subTest(completion_report_status=report_status):
                     self.assertEqual(["completion_report_unavailable"], _completion_consistency(
                         valid_record, {"schema": "completion-report-v1", "status": report_status, "runs": []}))
+            from codex_science.literature_evaluation_runner import _completion_consistency
+            empty_report = {"schema": "completion-report-v1", "runs": []}
+            for claim in ("completed", "partial"):
+                record = {**valid_record, "status": claim, "run_id": "missing"}
+                self.assertEqual(["claimed_run_missing"], _completion_consistency(record, empty_report))
+            for claim in ("inconclusive", "needs_human"):
+                record = {**valid_record, "status": claim, "run_id": None}
+                self.assertEqual(["not_checked: no run_id"], _completion_consistency(record, empty_report))
+                record["run_id"] = "missing"
+                self.assertEqual(["claimed_run_missing"], _completion_consistency(record, empty_report))
+                record["run_id"] = "done"
+                report = {"schema": "completion-report-v1", "runs": [{"run_id": "done", "outcome": "completed"}]}
+                self.assertEqual([f"{claim} status names a completed run"], _completion_consistency(record, report))
 
     def test_fake_completed_failed_timeout_empty_message_and_receipts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

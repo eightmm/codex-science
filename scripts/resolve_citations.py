@@ -17,7 +17,8 @@ from codex_science.citation_resolve import (
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=(__doc__ or "") + " Text input resolves the first 50 supported identifiers "
+        "in sorted order; additional supported identifiers are listed as skipped with reason over_cap.")
     parser.add_argument("--input")
     parser.add_argument("--ids", nargs="*")
     parser.add_argument("--network", action="store_true")

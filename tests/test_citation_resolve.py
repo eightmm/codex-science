@@ -9,7 +9,8 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import Mock
 
-from codex_science.citation_resolve import EVIDENCE_BOUNDARY, normalize_identifiers, resolve_identifiers
+from codex_science.citation_resolve import (EVIDENCE_BOUNDARY, normalize_identifiers, resolve_identifiers,
+                                            supported_identifiers_from_text)
 
 
 class CitationResolveTests(unittest.TestCase):
@@ -36,6 +37,70 @@ class CitationResolveTests(unittest.TestCase):
         self.assertEqual(first, second)
         with self.assertRaises(ValueError):
             resolve_identifiers([f"doi:10.1234/{i}" for i in range(51)], fetch=lambda *a, **k: None)
+
+    def test_identifier_patterns_refuse_malformed_ids_before_fetch(self):
+        fetch = Mock()
+        for identifier in ("pmid:abc", "doi:FOO", "arxiv:../x"):
+            with self.subTest(identifier=identifier), self.assertRaisesRegex(ValueError, "malformed"):
+                resolve_identifiers([identifier], fetch=fetch)
+        fetch.assert_not_called()
+        self.assertEqual(["doi:10.1234/foo"], normalize_identifiers(["DOI:10.1234/FOO", "doi:10.1234/foo"]))
+
+    def test_old_style_arxiv_identifier_is_supported(self):
+        identifier = "arxiv:hep-th/9901001"
+        self.assertEqual([identifier], normalize_identifiers([identifier]))
+        self.assertEqual(([identifier], []), supported_identifiers_from_text("arXiv:hep-th/9901001"))
+
+    def test_labelled_scan_reports_malformed_without_adding_lookups(self):
+        identifiers, skipped = supported_identifiers_from_text("(doi:10.1234/foo). PMID: 1234")
+        self.assertEqual(["doi:10.1234/foo"], identifiers)
+        self.assertEqual([{"identifier": "pmid:1234", "reason": "malformed"}], skipped)
+        fetched = []
+        resolve_identifiers(identifiers, fetch=lambda url, **kwargs: (fetched.append(url) or (404, b"{}")),
+                            delay=lambda _: None)
+        self.assertEqual(1, len(fetched))
+
+    def test_labelled_scan_uses_identifier_span_overlap_and_keeps_only_malformed(self):
+        for text, identifiers in (
+            ("DOI: https://doi.org/10.1038/nature12373", ["doi:10.1038/nature12373"]),
+            ("arXiv: arXiv:2101.00001", ["arxiv:2101.00001"]),
+        ):
+            with self.subTest(text=text):
+                got_ids, skipped = supported_identifiers_from_text(text)
+                self.assertEqual(identifiers, got_ids)
+                self.assertEqual([], skipped)
+        self.assertEqual(([], [{"identifier": "doi:garbage", "reason": "malformed"}]),
+                         supported_identifiers_from_text("doi:garbage"))
+
+    def test_skipped_identifiers_deduplicate_case_insensitively_in_first_order(self):
+        _, skipped = supported_identifiers_from_text("PMID: AbC pmid: abc")
+        self.assertEqual([{"identifier": "pmid:AbC", "reason": "malformed"}], skipped)
+
+    def test_text_input_skips_malformed_and_over_cap_in_sorted_order(self):
+        text = " ".join([f"doi:10.1234/{i:02}" for i in reversed(range(52))] +
+                        ["pmid:abc", "arxiv:../x"])
+        identifiers, skipped = supported_identifiers_from_text(text)
+        self.assertEqual([f"doi:10.1234/{i:02}" for i in range(50)], identifiers)
+        self.assertEqual({"over_cap", "malformed"}, {item["reason"] for item in skipped})
+        over_cap = [item["identifier"] for item in skipped if item["reason"] == "over_cap"]
+        self.assertEqual(["doi:10.1234/50", "doi:10.1234/51"], over_cap)
+
+    def test_crossref_malformed_optional_date_still_resolves_without_year(self):
+        for key in ("published-print", "issued"):
+            result = resolve_identifiers(["doi:10.1234/example"], fetch=lambda *a, **k: (
+                200, json.dumps({"message": {key: "not a date"}}).encode()), delay=lambda _: None)["results"][0]
+            self.assertEqual("resolved", result["status"])
+            self.assertNotIn("year", result)
+
+    def test_oversized_http_body_is_unavailable(self):
+        from codex_science import citation_resolve
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, size): return b"x" * size
+        with unittest.mock.patch.object(citation_resolve.urllib.request, "urlopen", return_value=Response()):
+            self.assertEqual("unavailable", resolve_identifiers(["doi:10.1234/example"])["results"][0]["status"])
 
     def test_recorded_fixture_shape(self):
         fixture = Path(__file__).parent / "fixtures/citation_resolve/doi_10.1234_example.json"
