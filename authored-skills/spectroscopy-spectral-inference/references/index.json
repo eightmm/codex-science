@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "spectroscopy-spectral-inference",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "spectroscopy-modalities",
+      "path": "references/modalities.md",
+      "purpose": "Acquisition conditions, modality-specific corrections and checks, and reference-comparison controls for UV-Vis, fluorescence, infrared, and Raman spectra.",
+      "read_when": [
+        "analyzing UV-Vis, fluorescence, infrared, or Raman spectra",
+        "choosing modality-specific acquisition checks or corrections",
+        "comparing a spectrum with reference-library data"
+      ],
+      "required_before": [
+        "modality-specific spectral interpretation",
+        "reference-library comparison"
+      ],
+      "search_patterns": [
+        "## UV-Vis absorption",
+        "## Fluorescence and emission",
+        "## Infrared absorption",
+        "## Raman scattering",
+        "## Shared reference comparisons"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Modality guidance and library similarity support candidate interpretations only; similarity is not identity proof, and assignments alone do not establish mechanism or composition."
+    }
+  ]
+}

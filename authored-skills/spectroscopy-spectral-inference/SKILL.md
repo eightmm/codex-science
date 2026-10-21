@@ -7,7 +7,7 @@ license: MIT
 # Spectroscopy and Spectral Inference
 
 ## Decision contract
-Act as an analyzer. Define sample/state, matrix, concentration, modality, question, evidence cutoff, intended inference, and candidate claim IDs. Record axis/ordinate units, reference conditions, calibration, model-selection rule, uncertainty, and a falsifier before interpreting desired assignments. Use the matching branch in [references/modalities.md](references/modalities.md).
+Act as an analyzer. Define sample/state, matrix, concentration, modality, question, evidence cutoff, intended inference, and candidate claim IDs. Record axis/ordinate units, reference conditions, calibration, model-selection rule, uncertainty, and a falsifier before interpreting desired assignments.
 
 ## Workflow
 1. Preserve raw intensities, metadata, and checksum. Record path length/geometry, temperature, atmosphere, instrument/accessory, detector, acquisition mode, axis and units, resolution, scans, reference, blank, calibration. State whether intensity is absorbance, transmittance, reflectance, counts, radiance, or normalized intensity; conversions are not interchangeable.
@@ -20,6 +20,9 @@ Provide normalized sample/acquisition inputs, raw-data lineage, processing/calib
 
 ## Boundaries
 Separate instrumental resolution from intrinsic width and random uncertainty from model ambiguity. Stop if the ordinate/axis meaning, reference, calibration, or raw-data lineage cannot be established. Do not silently repair clipping, drift, baseline, or outliers; report missing and excluded data with reasons. Library similarity cannot establish identity, and band assignment alone does not prove mechanism or composition. Retain non-unique fits and failed/null results as inconclusive.
+
+## Reference usage
+Read the matching UV-Vis, fluorescence, IR, or Raman branch in [references/modalities.md](references/modalities.md) before modality-specific interpretation or reference-library comparison; the reference guides procedure and is not spectral evidence.
 
 ## Source basis
 Original workflow informed by NIST spectral-data practice and the official sources and overlap audit in `../../docs/ANALYTICAL_SOURCES.md`.

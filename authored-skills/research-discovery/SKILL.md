@@ -25,12 +25,7 @@ probabilities.
 
 1. If ProjectStore exists, read relevant `discovery memory`; reuse evidence
    only for matching frozen evaluation and method identities; heterogeneous
-   contexts remain separate. Read [RDL
-   contract](references/rdl-contract.md) before authoring a cycle, method,
-   prediction, or revision, and [comparison/toy
-   protocol](references/comparison-and-toys.md) before acceptance scenarios or
-   P4 comparison. Record material reference hashes in the existing ledger;
-   references guide procedure, not scientific evidence.
+   contexts remain separate.
 2. Reproduce the smallest reliable symptom. Audit representation, objective,
    optimization, evaluation, data, and execution; preserve raw-data lineage and
    transformations. Classify implementation/measurement failures separately;
@@ -68,6 +63,10 @@ probabilities.
    implementation makes a null result non-refuting. Append revisions linked to
    artifacts, receipts, and review findings, preserving original predictions.
    End with supported, conditional, failed, or inconclusive status and next act.
+
+## Reference usage
+
+Read [the RDL contract](references/rdl-contract.md) before authoring a cycle, method, prediction, or revision. Read [the comparison and toy protocol](references/comparison-and-toys.md) before planning acceptance scenarios or a P4 comparison. Record the reference hash in the existing reference-use ledger for material work; references guide procedure and do not constitute scientific evidence.
 
 ## Outputs
 
