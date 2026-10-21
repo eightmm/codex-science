@@ -43,6 +43,38 @@ def _redact_url(url: str) -> str:
     )
 
 
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep redirects within safe schemes and protect sensitive request headers."""
+
+    @staticmethod
+    def _origin(url: str) -> tuple[str, str, int] | None:
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            scheme = parsed.scheme.lower()
+            hostname = parsed.hostname
+            if scheme not in {"http", "https"} or hostname is None:
+                return None
+            port = parsed.port
+        except ValueError:
+            return None
+        return (scheme, hostname.lower(), port if port is not None else (443 if scheme == "https" else 80))
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urllib.parse.urljoin(req.full_url, newurl)
+        source_origin = self._origin(req.full_url)
+        target_origin = self._origin(target)
+        if source_origin is None or target_origin is None:
+            return None
+        if source_origin[0] == "https" and target_origin[0] == "http":
+            return None
+        carries_secret = any(
+            name.lower() in SECRET_KEYS for name, _value in req.header_items()
+        )
+        if carries_secret and source_origin != target_origin:
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, target)
+
+
 def _safe_headers(headers: Mapping[str, str]) -> dict[str, str]:
     return {
         str(key).lower(): "[REDACTED]" if str(key).lower() in SECRET_KEYS else str(value)
@@ -133,7 +165,8 @@ class UrllibTransport:
                 method=request.method.upper(),
             )
             try:
-                with urllib.request.urlopen(urllib_request, timeout=self.policy.timeout_seconds) as response:
+                opener = urllib.request.build_opener(SafeRedirectHandler())
+                with opener.open(urllib_request, timeout=self.policy.timeout_seconds) as response:
                     body = response.read(self.policy.max_response_bytes + 1)
                     if len(body) > self.policy.max_response_bytes:
                         raise TransportError("response exceeded max_response_bytes")

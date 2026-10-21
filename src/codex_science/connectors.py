@@ -12,8 +12,23 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from typing import Any
 
+from codex_science.transport_v3 import SafeRedirectHandler
+
 
 USER_AGENT = "codex-science/0.1 (+https://github.com/)"
+MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+
+
+def _open(request: urllib.request.Request):
+    opener = urllib.request.build_opener(SafeRedirectHandler())
+    return opener.open(request, timeout=20)
+
+
+def _read_limited(response) -> bytes:
+    body = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(body) > MAX_RESPONSE_BYTES:
+        raise ValueError("response exceeded 16 MiB limit")
+    return body
 
 
 def _validate(query: str, limit: int) -> tuple[str, int]:
@@ -29,8 +44,8 @@ def _validate(query: str, limit: int) -> tuple[str, int]:
 
 def fetch_json(url: str) -> Any:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    with _open(request) as response:
+        return json.loads(_read_limited(response).decode("utf-8"))
 
 
 def post_json(url: str, payload: dict[str, Any]) -> Any:
@@ -40,14 +55,14 @@ def post_json(url: str, payload: dict[str, Any]) -> Any:
         headers={"User-Agent": USER_AGENT, "Accept": "application/json", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    with _open(request) as response:
+        return json.loads(_read_limited(response).decode("utf-8"))
 
 
 def fetch_text(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/atom+xml"})
-    with urllib.request.urlopen(request, timeout=20) as response:
-        return response.read().decode("utf-8")
+    with _open(request) as response:
+        return _read_limited(response).decode("utf-8")
 
 
 class PubMedConnector:

@@ -2,6 +2,7 @@ import json
 import math
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from codex_science.connectors import (
     AlphaFoldConnector,
@@ -38,10 +39,37 @@ from codex_science.connectors import (
     STRINGConnector,
     UKBTopMedConnector,
     UniProtConnector,
+    fetch_json,
 )
 
 
 class ConnectorTests(unittest.TestCase):
+    def test_fetch_json_rejects_response_over_16_mib(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, size: int) -> bytes:
+                self.read_size = size
+                return b"x" * size
+
+        response = FakeResponse()
+
+        class FakeOpener:
+            def open(self, _request, timeout):
+                self.timeout = timeout
+                return response
+
+        opener = FakeOpener()
+        with patch("codex_science.connectors.urllib.request.build_opener", return_value=opener):
+            with self.assertRaisesRegex(ValueError, "16 MiB"):
+                fetch_json("https://example.org/data")
+
+        self.assertEqual(16 * 1024 * 1024 + 1, response.read_size)
+
     def test_documented_connector_catalog_is_complete_and_conservative(self) -> None:
         path = Path(__file__).resolve().parents[1] / "connectors" / "public.json"
         payload = json.loads(path.read_text(encoding="utf-8"))

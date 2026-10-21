@@ -1,14 +1,19 @@
 import json
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
+from unittest.mock import patch
 
 from codex_science.connector_contract import QueryRequest
 from codex_science.source_operations_v3 import EuropePMCSearchV3, PubMedSearchV3
 from codex_science.transport_v3 import (
     PageRequest,
+    SafeRedirectHandler,
     TransportError,
     TransportResponse,
+    UrllibTransport,
     execute_paginated,
     replay_snapshot_directory,
 )
@@ -37,6 +42,48 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_redirect_handler_enforces_scheme_downgrade_and_sensitive_origin_policy(self) -> None:
+        handler = SafeRedirectHandler()
+
+        def redirect(url: str, headers: dict[str, str] | None = None):
+            request = urllib.request.Request("https://example.org/start", headers=headers or {})
+            return handler.redirect_request(request, None, 302, "Found", {}, url)
+
+        self.assertIsNotNone(redirect("https://example.org/next"))
+        self.assertIsNotNone(redirect("https://example.org:443/next"))
+        self.assertIsNone(redirect("http://example.org/next"))
+        self.assertIsNone(redirect("file:///tmp/data"))
+        self.assertIsNone(redirect("ftp://example.org/data"))
+        self.assertIsNone(redirect("https://other.example/next", {"X-API-Key": "secret-value"}))
+        self.assertIsNone(redirect("https://example.org:444/next", {"Authorization": "secret-value"}))
+        self.assertIsNotNone(redirect("https://other.example/next"))
+
+    def test_send_maps_refused_redirect_to_non_retryable_redacted_transport_error(self) -> None:
+        request = PageRequest(
+            "GET", "https://example.org/start?token=query-secret",
+            {"X-API-Key": "header-secret"},
+        )
+        handler = SafeRedirectHandler()
+
+        class RefusingOpener:
+            def open(self, req, timeout):
+                redirected = handler.redirect_request(
+                    req, None, 302, "Found", {}, "https://other.example/next"
+                )
+                if redirected is None:
+                    raise urllib.error.HTTPError(
+                        "https://other.example/next", 302, "Found", {}, None
+                    )
+                raise AssertionError("cross-origin redirect was allowed")
+
+        with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=RefusingOpener()):
+            with self.assertRaises(TransportError) as caught:
+                UrllibTransport().send(request)
+
+        self.assertFalse(caught.exception.retryable)
+        self.assertNotIn("header-secret", str(caught.exception))
+        self.assertNotIn("query-secret", str(caught.exception))
+
     def test_pubmed_fetches_all_pages_and_replays_raw_bodies(self) -> None:
         request = QueryRequest(
             "pubmed", "search", {"query": "protein folding"},
