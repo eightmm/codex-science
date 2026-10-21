@@ -52,9 +52,9 @@
       "status": "inactive"
     },
     {
-      "description": "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics. Uses the plugin's built-in read-only arXiv MCP tool \u2014 no credential or install needed.",
+      "description": "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics; use another source for peer-review status or complete coverage. Uses the plugin's built-in read-only arXiv MCP tool \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 65,
       "license": "Apache-2.0",
       "name": "cx-arxiv-search",
       "path": "authored-skills/arxiv-search",
@@ -88,9 +88,9 @@
       "status": "active"
     },
     {
-      "description": "Find ontology-aware healthy wild-type gene expression context with Bgee. Use for cross-species, anatomical, developmental-stage, or baseline-expression questions.",
+      "description": "Find ontology-aware healthy wild-type gene expression context with Bgee. Use for cross-species, anatomical, developmental-stage, or baseline-expression questions; not for disease-specific inference or proof of no expression.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 29,
       "license": "MIT",
       "name": "cx-bgee-expression-search",
       "path": "authored-skills/bgee-expression-search",
@@ -138,7 +138,7 @@
     {
       "description": "Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category \u2014 not for open-ended keyword discovery. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 53,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-biorxiv-search",
       "path": "authored-skills/biorxiv-search",
@@ -148,9 +148,9 @@
       "status": "active"
     },
     {
-      "description": "Discover public life-science studies and associated archive records through EMBL-EBI BioStudies. Use for ArrayExpress, supplementary-data, accession, and public dataset discovery.",
+      "description": "Discover public life-science studies and associated archive records through EMBL-EBI BioStudies. Use for ArrayExpress, supplementary-data, accession, and public dataset discovery; not as evidence of study quality or reuse permission.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 30,
       "license": "MIT",
       "name": "cx-biostudies-search",
       "path": "authored-skills/biostudies-search",
@@ -294,7 +294,7 @@
     {
       "description": "Search ClinicalTrials.gov (API v2) for trials by condition, intervention, status, phase, location, or sponsor; fetch a trial by NCT ID; check eligibility; and count trials. Use for trial discovery, pipeline/portfolio analysis, or patient-matching context. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 50,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-clinical-trials-search",
       "path": "authored-skills/clinical-trials-search",
@@ -306,7 +306,7 @@
     {
       "description": "Look up clinical significance and pathogenicity classifications (Pathogenic, Benign, VUS) and supporting evidence for human genomic variants in NCBI ClinVar. Use for variant clinical interpretation or benchmark controls. Public NCBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 27,
       "license": "Apache-2.0",
       "name": "cx-clinvar-search",
       "path": "authored-skills/clinvar-search",
@@ -390,7 +390,7 @@
     {
       "description": "Look up and map short human variants (SNPs, indels) in NCBI dbSNP: resolve between rsIDs, GRCh38 coordinates, and HGVS, and get variant type, gene, clinical significance, and allele frequencies. Public NCBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 36,
+      "instruction_line_count": 27,
       "license": "Apache-2.0",
       "name": "cx-dbsnp-search",
       "path": "authored-skills/dbsnp-search",
@@ -448,9 +448,9 @@
       "status": "active"
     },
     {
-      "description": "Query the ENCODE Registry of candidate cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, and ENCODE experiments/files via the ENCODE Portal REST API, across human cell types. Public APIs, no credential needed.",
+      "description": "Query the ENCODE Registry of candidate cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, and ENCODE experiments/files via the ENCODE Portal REST API, across human cell types. Public APIs, no credential needed. Use for cell-type-specific regulatory annotations, not causal claims.",
       "executable_count": 0,
-      "instruction_line_count": 36,
+      "instruction_line_count": 46,
       "license": "Apache-2.0",
       "name": "cx-encode-ccres-search",
       "path": "authored-skills/encode-ccres-search",
@@ -462,7 +462,7 @@
     {
       "description": "Resolve gene/transcript/protein IDs, fetch genomic or protein sequences, retrieve gene structure (exons), and predict variant consequences (VEP) via the Ensembl REST API. Use as an ID translator, sequence source, and variant-effect tool. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 27,
       "license": "Apache-2.0",
       "name": "cx-ensembl-search",
       "path": "authored-skills/ensembl-search",
@@ -522,7 +522,7 @@
     {
       "description": "Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 47,
+      "instruction_line_count": 68,
       "license": "Apache-2.0",
       "name": "cx-europepmc-search",
       "path": "authored-skills/europepmc-search",
@@ -630,7 +630,7 @@
     {
       "description": "Query gnomAD for variant allele frequency/rarity, gene constraint metrics (pLI, LOEUF), variants in a region or gene, and structural variants. Use to assess variant rarity or loss-of-function intolerance. Not for individual patient genomes or somatic cancer variants. Public GraphQL API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 27,
       "license": "Apache-2.0",
       "name": "cx-gnomad-search",
       "path": "authored-skills/gnomad-search",
@@ -652,9 +652,9 @@
       "status": "active"
     },
     {
-      "description": "Retrieve quantitative RNA expression and variant eQTL data from GTEx across 54 non-diseased tissue sites. Use for tissue expression profiles or eQTL lookups. Public API, no credential needed.",
+      "description": "Retrieve quantitative RNA expression and variant eQTL data from GTEx across 54 non-diseased tissue sites. Use for tissue expression profiles or eQTL lookups; not for disease tissue, causal claims, or calibrated expression comparisons. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 45,
       "license": "Apache-2.0",
       "name": "cx-gtex-search",
       "path": "authored-skills/gtex-search",
@@ -666,7 +666,7 @@
     {
       "description": "Resolve traits and discover curated human genetic association evidence with GWAS Catalog REST API v2. Use for trait, locus, variant, ancestry, study, and locus-to-gene research.",
       "executable_count": 0,
-      "instruction_line_count": 19,
+      "instruction_line_count": 27,
       "license": "MIT",
       "name": "cx-gwas-catalog-search",
       "path": "authored-skills/gwas-catalog-search",
@@ -676,9 +676,9 @@
       "status": "active"
     },
     {
-      "description": "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein. Public API, no credential needed.",
+      "description": "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein; not for causal or clinical claims. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 36,
+      "instruction_line_count": 46,
       "license": "Apache-2.0",
       "name": "cx-hpa-search",
       "path": "authored-skills/hpa-search",
@@ -724,9 +724,9 @@
       "status": "active"
     },
     {
-      "description": "Retrieve transcription-factor binding profiles (PFMs/PWMs) from JASPAR, resolve gene symbols to JASPAR matrix IDs, and get TF metadata in multiple formats (MEME, TRANSFAC, PFM, JASPAR). Public API, no credential needed.",
+      "description": "Retrieve transcription-factor binding profiles (PFMs/PWMs) from JASPAR, resolve gene symbols to JASPAR matrix IDs, and get TF metadata in multiple formats (MEME, TRANSFAC, PFM, JASPAR). Public API, no credential needed. Use for motif resources, not binding claims.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 45,
       "license": "Apache-2.0",
       "name": "cx-jaspar-search",
       "path": "authored-skills/jaspar-search",
@@ -832,9 +832,9 @@
       "status": "active"
     },
     {
-      "description": "Discover public microbiome and metagenomics studies through MGnify. Use for biome, sample, assembly, taxonomic, functional, or public microbiome dataset questions.",
+      "description": "Discover public microbiome and metagenomics studies through MGnify. Use for biome, sample, assembly, taxonomic, functional, or public microbiome dataset questions; not for unadjusted cross-study abundance comparisons.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 30,
       "license": "MIT",
       "name": "cx-mgnify-search",
       "path": "authored-skills/mgnify-search",
@@ -870,7 +870,7 @@
     {
       "description": "Normalize human gene symbols and aliases to Entrez, Ensembl, and taxonomic identifiers with MyGene.info. Use before cross-database gene, target, expression, or variant research when identifiers are incomplete or inconsistent.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 26,
       "license": "MIT",
       "name": "cx-mygene-search",
       "path": "authored-skills/mygene-search",
@@ -882,7 +882,7 @@
     {
       "description": "Resolve human genes through NCBI Entrez Gene and preserve links to sequence, literature, variation, and GEO resources. Use for NCBI-centered gene and identifier research.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 26,
       "license": "MIT",
       "name": "cx-ncbi-gene-search",
       "path": "authored-skills/ncbi-gene-search",
@@ -894,7 +894,7 @@
     {
       "description": "Run bounded NCBI-centered research across Gene, PubMed/PMC, sequence, variation, and GEO-linked records. Use when a gene, accession, sequence, or literature question requires traceable NCBI cross-links.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 25,
       "license": "MIT",
       "name": "cx-ncbi-integrated-research",
       "path": "authored-skills/ncbi-integrated-research",
@@ -906,7 +906,7 @@
     {
       "description": "Retrieve protein and nucleotide sequences from NCBI via E-utilities: by accession, CDS translation, gene+organism search, locus lookup, PubMed-linked sequences, or patent proteins. Use to fetch biological sequences. Public NCBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 27,
       "license": "Apache-2.0",
       "name": "cx-ncbi-sequence-fetch",
       "path": "authored-skills/ncbi-sequence-fetch",
@@ -964,9 +964,9 @@
       "status": "active"
     },
     {
-      "description": "Search EMBL-EBI Ontology Lookup Service (OLS) for biomedical ontology terms, definitions, and hierarchies across 250+ ontologies (GO, DOID, HP, UBERON, CL). Use for term search, term details, or navigating parents/children/ancestors. Public API, no credential needed.",
+      "description": "Search EMBL-EBI Ontology Lookup Service (OLS) for biomedical ontology terms, definitions, and hierarchies across 250+ ontologies (GO, DOID, HP, UBERON, CL). Use for term search, term details, or navigating parents/children/ancestors; labels alone are not stable identifiers. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 48,
       "license": "Apache-2.0",
       "name": "cx-ols-search",
       "path": "authored-skills/ols-search",
@@ -978,7 +978,7 @@
     {
       "description": "Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 51,
+      "instruction_line_count": 67,
       "license": "Apache-2.0",
       "name": "cx-openalex-search",
       "path": "authored-skills/openalex-search",
@@ -990,7 +990,7 @@
     {
       "description": "Query the openFDA API for drugs, devices, foods, and more: adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, and NDC lookups. Use for FDA safety/regulatory data. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 67,
       "license": "Apache-2.0",
       "name": "cx-openfda-search",
       "path": "authored-skills/openfda-search",
@@ -1110,7 +1110,7 @@
     {
       "description": "Restore, attribute, date, and contextualize ancient inscriptions with DeepMind's Aeneas (Latin) and Ithaca (Ancient Greek) models. Use for epigraphic text restoration, geographic attribution, or dating of ancient texts.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-predicting-the-past",
       "path": "authored-skills/predicting-the-past",
@@ -1240,9 +1240,9 @@
       "status": "active"
     },
     {
-      "description": "Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references. Uses the plugin's built-in read-only PubMed MCP tool for discovery \u2014 no credential or install needed.",
+      "description": "Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references; PubMed indexing does not guarantee peer review. Uses the plugin's built-in read-only PubMed MCP tool for discovery \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 41,
+      "instruction_line_count": 65,
       "license": "Apache-2.0",
       "name": "cx-pubmed-search",
       "path": "authored-skills/pubmed-search",
@@ -1338,7 +1338,7 @@
     {
       "description": "Guide new-method development or an unexplained scientific bottleneck from observed failure through competing explanations, falsifiable predictions, a concrete method, the smallest discriminating experiment, and evidence-driven revision. Do not use for routine retrieval, reproduction, or a fixed analysis whose method is already specified.",
       "executable_count": 0,
-      "instruction_line_count": 107,
+      "instruction_line_count": 85,
       "license": "MIT",
       "name": "cx-research-discovery",
       "path": "authored-skills/research-discovery",
@@ -1372,9 +1372,9 @@
       "status": "active"
     },
     {
-      "description": "Resolve non-coding RNA identifiers, sequences, types, and cross-references through RNAcentral. Use for RNA annotation, accession normalization, ncRNA, or sequence-context research.",
+      "description": "Resolve non-coding RNA identifiers, sequences, types, and cross-references through RNAcentral. Use for RNA annotation, accession normalization, ncRNA, or sequence-context research; not as experimental function validation.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 30,
       "license": "MIT",
       "name": "cx-rnacentral-search",
       "path": "authored-skills/rnacentral-search",
@@ -1518,7 +1518,7 @@
     {
       "description": "Fetch evolutionary conservation scores (phyloP, phastCons) and transcription-factor binding sites (ENCODE, JASPAR, ReMap) from the UCSC Genome Browser. Use to assess whether variants/regions are conserved or TF-bound. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 27,
       "license": "Apache-2.0",
       "name": "cx-ucsc-conservation",
       "path": "authored-skills/ucsc-conservation",
@@ -1528,9 +1528,9 @@
       "status": "active"
     },
     {
-      "description": "Query UniBind for experimentally validated transcription-factor binding sites: retrieve TF-DNA datasets, download binding-site coordinates (BED/FASTA), and list datasets by species, cell line, or TF. Public API, no credential needed.",
+      "description": "Query UniBind for experimentally validated transcription-factor binding sites: retrieve TF-DNA datasets, download binding-site coordinates (BED/FASTA), and list datasets by species, cell line, or TF. Public API, no credential needed. Use for assay-specific binding evidence, not universal occupancy.",
       "executable_count": 0,
-      "instruction_line_count": 35,
+      "instruction_line_count": 45,
       "license": "Apache-2.0",
       "name": "cx-unibind-search",
       "path": "authored-skills/unibind-search",
