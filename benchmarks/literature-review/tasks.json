@@ -19,7 +19,7 @@
             "id": "citation",
             "kind": "final_message_regex",
             "path": "last.md",
-            "arg": "(doi:|PMID:|arXiv:\\d)"
+            "arg": "(10\\.\\d{4,9}/[^\\s)\\]>*]+|PMID:?\\s*\\d{1,9}|PMCID:?\\s*[A-Z0-9]+|arXiv:?\\s*\\d{4}\\.\\d{4,5})"
           },
           {
             "id": "quick-label",
@@ -35,7 +35,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "aafb2140f3a8853139c52d74a8a192a7eef75e5ef91bc99264fc310296a00d8c"
+      "digest": "79807cb714c889c1749c1cd37016f6f0c07a2511936af634d4acce43773dd037"
     },
     {
       "id": "quick-arxiv",
@@ -54,7 +54,7 @@
             "id": "citation",
             "kind": "final_message_regex",
             "path": "last.md",
-            "arg": "(doi:|PMID:|arXiv:\\d)"
+            "arg": "(10\\.\\d{4,9}/[^\\s)\\]>*]+|PMID:?\\s*\\d{1,9}|PMCID:?\\s*[A-Z0-9]+|arXiv:?\\s*\\d{4}\\.\\d{4,5})"
           },
           {
             "id": "quick-label",
@@ -70,7 +70,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "44a9aa13121466e03ffc17969d2438b1d951b1d111707b9619917522fe004795"
+      "digest": "04371e9e6a0888041b34161f77f432024deef27bdc27df6826f1b653c3923f83"
     },
     {
       "id": "standard-mrna",
@@ -89,7 +89,7 @@
             "id": "citation",
             "kind": "final_message_regex",
             "path": "last.md",
-            "arg": "(doi:|PMID:|arXiv:\\d)"
+            "arg": "(10\\.\\d{4,9}/[^\\s)\\]>*]+|PMID:?\\s*\\d{1,9}|PMCID:?\\s*[A-Z0-9]+|arXiv:?\\s*\\d{4}\\.\\d{4,5})"
           },
           {
             "id": "complete-checkpoint",
@@ -123,7 +123,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "dd2328efd1d620ad060ba038aa768d4edeeefae417f48ecc1f5c1797c1efa72d"
+      "digest": "9cb414c2e7192f0acaecc74178af50abf6f76004bcc553ecf368ec2be823a26a"
     },
     {
       "id": "standard-single-cell",
@@ -142,7 +142,7 @@
             "id": "citation",
             "kind": "final_message_regex",
             "path": "last.md",
-            "arg": "(doi:|PMID:|arXiv:\\d)"
+            "arg": "(10\\.\\d{4,9}/[^\\s)\\]>*]+|PMID:?\\s*\\d{1,9}|PMCID:?\\s*[A-Z0-9]+|arXiv:?\\s*\\d{4}\\.\\d{4,5})"
           },
           {
             "id": "complete-checkpoint",
@@ -176,7 +176,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "ee46f5f0c573c6f1efb8d3d402b51aa33b673331a744a93d6ec0fc4772069489"
+      "digest": "09669838eb4d3cae7f8d768085beb6cb9e5fd28d770e1f33688bdc3292fcc3be"
     },
     {
       "id": "full-microbiome",
@@ -195,7 +195,7 @@
             "id": "citation",
             "kind": "final_message_regex",
             "path": "last.md",
-            "arg": "(doi:|PMID:|arXiv:\\d)"
+            "arg": "(10\\.\\d{4,9}/[^\\s)\\]>*]+|PMID:?\\s*\\d{1,9}|PMCID:?\\s*[A-Z0-9]+|arXiv:?\\s*\\d{4}\\.\\d{4,5})"
           },
           {
             "id": "complete-checkpoint",
@@ -247,7 +247,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "fbd0b9269f7af0be7b4461596e091809f436b544b1e49f5bc06beb0113a57233"
+      "digest": "9567ecab2266f63eee8c1c962d57570335faea5249838518a54f3b9cb6fc02bd"
     },
     {
       "id": "full-protein-folding",
@@ -266,7 +266,7 @@
             "id": "citation",
             "kind": "final_message_regex",
             "path": "last.md",
-            "arg": "(doi:|PMID:|arXiv:\\d)"
+            "arg": "(10\\.\\d{4,9}/[^\\s)\\]>*]+|PMID:?\\s*\\d{1,9}|PMCID:?\\s*[A-Z0-9]+|arXiv:?\\s*\\d{4}\\.\\d{4,5})"
           },
           {
             "id": "complete-checkpoint",
@@ -318,8 +318,8 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "b22a07ac2442b9aba1c80615a1cc536fa83bf64cdeb95b964ffc4444d791c10c"
+      "digest": "a190de32af59463f5b2d37b4d12d82bfcc1ca6cb353006b8d44a414f4d1a5c4e"
     }
   ],
-  "set_digest": "28457db7ac1a431b6001dfa6f3ef90cc64f1467619f4e41335dce1e1ce692539"
+  "set_digest": "6a3651c989d634ff84b0ae07e6e5f6a72b3aa5a510b8590c9d962b7a8a60efac"
 }

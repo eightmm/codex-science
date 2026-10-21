@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -84,6 +85,8 @@ else:
   (project/"artifacts"/"sample.json").write_text('{{"ok":true}}')
 if os.environ.get("FAKE_NO_LAST") != "1":
  last.write_text("unreviewed quick answer DOI:10.1000/example")
+if os.environ.get("FAKE_COMMAND"):
+ print(json.dumps({{"type":"item.completed","item":{{"type":"command_execution","command":os.environ["FAKE_COMMAND"],"status":"completed"}}}}))
 print(json.dumps({{"type":"thread.started","thread_id":"fake-thread"}}))
 if int(os.environ.get("FAKE_EXIT", "0")) == 0:
  print(json.dumps({{"type":"turn.completed","usage":{{"input_tokens":40,"cached_input_tokens":10,"output_tokens":12,"reasoning_tokens":3}}}}))
@@ -117,6 +120,18 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             with self.assertRaisesRegex(ValueError, "criterion kind"):
                 load_task_set(path)
 
+    def test_citation_criteria_match_common_identifier_forms(self) -> None:
+        data = json.loads(TASKS.read_text(encoding="utf-8"))
+        examples = ["**10.1126/science.1232033**",
+                    "[10.1126/science.1231143](https://doi.org/10.1126/science.1231143)",
+                    "PMID 12345678", "pmid: 12345678", "PMCID PMC1234567",
+                    "arXiv 2401.12345", "arXiv:2401.12345"]
+        for task in data["tasks"]:
+            criterion = next(item for item in task["spec"]["criteria"] if item["id"] == "citation")
+            for citation in examples:
+                self.assertRegex(citation, re.compile(criterion["arg"], re.IGNORECASE),
+                                 f"{task['id']} did not match {citation!r}")
+
     def test_dry_run_records_preflight_and_executes_no_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -135,6 +150,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertEqual("0.5.0-test", plan["preflight"]["installed_plugin_version"])
             self.assertEqual("danger-full-access", plan["preflight"]["configured"]["sandbox_mode"])
             self.assertEqual("workspace-write", plan["preflight"]["argv_overrides"]["sandbox_mode"])
+            self.assertIn("installed_runtime_differs_from_branch", plan["preflight"]["warnings"])
             self.assertEqual([True, False], [item["enabled"] for item in plan["preflight"]["codex_science_hooks_state"]])
             self.assertNotIn(str(codex_home), json.dumps(plan))
             self.assertFalse(invocations.exists(), "dry run must not execute any codex task")
@@ -230,6 +246,58 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertEqual("Codex executable not found", receipt["launch_error"])
             self.assertIsNone(receipt["exit_code"])
             self.assertFalse(receipt["last_message_present"])
+
+    def test_loaded_runtime_comes_only_from_command_event_paths(self) -> None:
+        from codex_science.literature_evaluation_runner import _loaded_runtime
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = self._fake_codex(root)
+            home = self._codex_home(root)
+            out = root / "out"
+            command = ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
+                       "0.5.0+installed/skills/codex-science/SKILL.md; cat "
+                       "~/.codex/plugins/cache/codex-science/codex-science/0.5.1+other/"
+                       "skills/literature-review/SKILL.md; echo private-command")
+            result = self._run("--tasks", str(TASKS), "--out", str(out), "--task", "quick-doi", "--execute",
+                               "--codex-bin", str(binary), "--codex-home", str(home),
+                               extra_env={"FAKE_COMMAND": command})
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("warning: installed_runtime_differs_from_branch", result.stderr)
+            receipt = json.loads((out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
+            loaded = receipt["loaded_runtime"]
+            self.assertEqual(["0.5.0+installed", "0.5.1+other"], loaded["plugin_cache_versions"])
+            self.assertEqual(["skills/codex-science/SKILL.md", "skills/literature-review/SKILL.md"],
+                             loaded["skill_paths"])
+            branch_version = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+            self.assertEqual(branch_version, loaded["branch_runtime_version"])
+            self.assertFalse(loaded["runtime_under_test_matches_branch"])
+            self.assertNotIn("private-command", json.dumps(loaded))
+            self.assertNotIn("cat", json.dumps(loaded))
+            matching_events = root / "matching-events.jsonl"
+            matching_events.write_text(json.dumps({"event": {
+                "type": "item.completed", "item": {"type": "command_execution",
+                    "command": ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
+                    f"{branch_version}/skills/codex-science/SKILL.md")}},
+                "t": 0.0}) + "\n", encoding="utf-8")
+            matching = _loaded_runtime(matching_events, branch_version)
+            self.assertTrue(matching["runtime_under_test_matches_branch"])
+            unknown = _loaded_runtime(matching_events, "unknown")
+            self.assertFalse(unknown["runtime_under_test_matches_branch"])
+
+    def test_process_group_kill_tolerates_disappeared_process(self) -> None:
+        from codex_science.literature_evaluation_runner import _kill_process_group
+
+        class ExitedProcess:
+            pid = 12345
+
+            @staticmethod
+            def poll() -> int:
+                return 0
+
+        with patch("codex_science.literature_evaluation_runner.os.killpg",
+                   side_effect=ProcessLookupError):
+            _kill_process_group(ExitedProcess())  # type: ignore[arg-type]
 
     def test_frozen_criteria_pass_realistic_run_and_fail_broken_checkpoint(self) -> None:
         from codex_science.literature_evaluation_runner import evaluate_criteria

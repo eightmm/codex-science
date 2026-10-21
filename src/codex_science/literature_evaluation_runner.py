@@ -8,6 +8,7 @@ import queue
 import re
 import signal
 import subprocess
+import sys
 import threading
 import time
 import tomllib
@@ -21,6 +22,14 @@ TASK_SET_SCHEMA = "literature-eval-tasks-v1"
 RECEIPT_SCHEMA = "literature-eval-run-receipt-v1"
 _CRITERION_KINDS = {"final_message_regex", "artifact_exists", "json_field", "min_count"}
 _UNKNOWN = "unknown"
+_PLUGIN_CACHE_ROOT = r"plugins/cache/codex-science/codex-science/"
+_PLUGIN_CACHE_VERSION = re.compile(
+    re.escape(_PLUGIN_CACHE_ROOT) + r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
+)
+_PLUGIN_CACHE_SKILL = re.compile(
+    re.escape(_PLUGIN_CACHE_ROOT)
+    + r"(?P<version>[^/\s\"'<>;|&]+)/(?P<skill_path>skills/[^\s\"'<>;|&]*)"
+)
 
 
 def _canonical(value: Any) -> bytes:
@@ -248,6 +257,54 @@ def _installed_plugin_version(codex_home: Path) -> str:
     return next(iter(versions)) if len(versions) == 1 else _UNKNOWN
 
 
+def _branch_runtime_version() -> str:
+    manifest = Path(__file__).resolve().parents[2] / "release" / "manifest.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return _UNKNOWN
+    version = data.get("runtime_version") if isinstance(data, dict) else None
+    return version if isinstance(version, str) and version else _UNKNOWN
+
+
+def _loaded_runtime(events_path: Path, branch_runtime_version: str) -> dict[str, Any]:
+    versions: set[str] = set()
+    skill_paths: set[str] = set()
+    try:
+        lines = events_path.open(encoding="utf-8")
+    except OSError:
+        lines = None
+    if lines is not None:
+        with lines:
+            for line in lines:
+                try:
+                    record = json.loads(line)
+                except (json.JSONDecodeError, UnicodeError):
+                    continue
+                event = record.get("event", record) if isinstance(record, dict) else record
+                if not isinstance(event, dict) or not str(event.get("type", "")).startswith("item."):
+                    continue
+                item = event.get("item")
+                if not isinstance(item, dict) or item.get("type") != "command_execution":
+                    continue
+                command = item.get("command")
+                commands = command if isinstance(command, list) else [command]
+                for command_text in commands:
+                    if not isinstance(command_text, str):
+                        continue
+                    versions.update(match.group("version") for match in _PLUGIN_CACHE_VERSION.finditer(command_text))
+                    for match in _PLUGIN_CACHE_SKILL.finditer(command_text):
+                        skill_path = match.group("skill_path").rstrip(".,)")
+                        if skill_path:
+                            skill_paths.add(skill_path)
+    matches_branch = bool(versions) and branch_runtime_version != _UNKNOWN and all(
+        version == branch_runtime_version for version in versions
+    )
+    return {"plugin_cache_versions": sorted(versions), "skill_paths": sorted(skill_paths),
+            "branch_runtime_version": branch_runtime_version,
+            "runtime_under_test_matches_branch": matches_branch}
+
+
 def _simple_config_value(config: Mapping[str, Any], key: str) -> Any:
     value = config.get(key, _UNKNOWN)
     return value if isinstance(value, (str, bool, int, float)) else _UNKNOWN
@@ -289,6 +346,11 @@ def _preflight(codex: str, codex_home: Path) -> dict[str, Any]:
     plugins = config.get("plugins", {})
     plugin = plugins.get("codex-science@codex-science", {}) if isinstance(plugins, dict) else {}
     enabled = plugin.get("enabled", _UNKNOWN) if isinstance(plugin, dict) else _UNKNOWN
+    installed_version = _installed_plugin_version(codex_home)
+    branch_version = _branch_runtime_version()
+    warnings = []
+    if installed_version != _UNKNOWN and branch_version != _UNKNOWN and installed_version != branch_version:
+        warnings.append("installed_runtime_differs_from_branch")
     return {
         "codex_version": _codex_version(codex),
         "codex_science_enabled": enabled if isinstance(enabled, bool) else _UNKNOWN,
@@ -297,7 +359,9 @@ def _preflight(codex: str, codex_home: Path) -> dict[str, Any]:
                        for key in ("sandbox_mode", "approval_policy", "approvals_reviewer")},
         "argv_overrides": {"sandbox_mode": "workspace-write", "network_access": True,
                            "approval_policy": "never", "approvals_reviewer": "user"},
-        "installed_plugin_version": _installed_plugin_version(codex_home),
+        "installed_plugin_version": installed_version,
+        "branch_runtime_version": branch_version,
+        "warnings": warnings,
         "config_status": config_status,
     }
 
@@ -588,6 +652,9 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
                               "stderr": str(task_dir / "stderr.log")})
     plan_path = _write_plan(out, plan, execute=execute)
     plan["_plan_path"] = str(plan_path)
+    if execute:
+        for warning in preflight["warnings"]:
+            print(f"warning: {warning}", file=sys.stderr)
     if not execute:
         return plan
     for task, entry in zip(tasks, plan["tasks"]):
@@ -618,6 +685,8 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
                    "last_message_sha256": _sha(last_path.read_bytes()),
                    "artifact_files": _artifact_hashes(artifacts),
                    "runtime_identities": _read_runtime_identities(artifacts),
+                   "loaded_runtime": _loaded_runtime(task_dir / "events.jsonl",
+                                                     preflight["branch_runtime_version"]),
                    "completion_report": _completion_report(artifacts, now=ended)}
         (task_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return plan

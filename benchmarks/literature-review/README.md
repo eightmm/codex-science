@@ -13,3 +13,5 @@ is exactly one of `equals`, `exists`, or `contains`. `final_message_regex`
 uses `arg` as a regular expression over `last.md`. For `min_count`, an integer
 `arg` counts matched files; `{ "regex": "...", "minimum": N }` counts text
 matches across matched files.
+
+Calibration note: the citation matcher was corrected after the probe run and before the frozen set was used for any reported result; the probe is harness calibration, not an evaluation result.
