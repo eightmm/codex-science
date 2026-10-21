@@ -6,46 +6,20 @@ license: MIT
 
 # NMR Structure Analysis
 
-## Define the experiment
+## Decision contract
+Act as an analyzer. Define sample, formula/charge and exchangeable-site assumptions, solution state, structural question, evidence cutoff, and permitted level (assignment, connectivity, regio-, relative stereo, absolute stereo). Prespecify what evidence would distinguish candidates, integration/assignment uncertainty, and a falsifier. Ask when missing sample or acquisition information could alter assignments.
 
-Record sample, solvent, concentration, temperature, field strength, nucleus, probe, pulse sequence, acquisition
-parameters, scans, relaxation delay, reference compound and convention, processing software/version, and whether
-the input is raw FID or processed data. Preserve vendor data and acquisition parameters; export nmrML or another
-documented interchange form when practical.
+## Workflow
+1. Record sample, solvent, concentration, temperature, field strength, nucleus, probe, pulse sequence, acquisition parameters, scans, relaxation delay, reference compound/convention, processing software/version, and raw FID versus processed input. Preserve vendor data and parameters; export nmrML or another documented interchange form when practical.
+2. Correct digital-filter/group-delay effects before interpreting early points. Declare apodization, zero filling, Fourier convention, phase correction, baseline method, and chemical-shift reference. Compare with minimally processed data; do not erase weak peaks or create resolution by smoothing. Flag solvent/water, sidebands, truncation, folding, radiation damping, exchange, and concentration artifacts. Use `$cx-complex-fourier-analysis` for transform diagnostics and `$cx-experimental-uncertainty-propagation` for quantitative NMR/calibration/integration uncertainty. Use an approved isolated environment for `nmrglue`; do not install it silently.
+3. Start from formula, charge, exchangeable sites, and unsaturation when known. Build an atom-to-signal table with shift, integral, multiplicity, coupling, confidence, and competing assignments. Use COSY for coupled networks, HSQC for direct heteronuclear pairs, HMBC for longer-range constraints, and NOE/ROE for proximity only under a declared mixing and motion regime. Treat calculated shifts, database matches, and `$kdense-rowan` predictions as comparisons, not experimental proof.
+4. Reconcile proton/carbon counts, symmetry, integrations, couplings, and every claimed 2D correlation. Test alternative referencing, phase, baseline, overlap, exchange, and impurity explanations. Require an independent diagnostic signal/experiment for uniqueness if plausible isomers remain; record absent or ambiguous expected signals without treating non-observation as definitive absence.
 
-## Process the signal
+## Outputs
+Save a processing record, atom-to-signal assignment table, evidence graph, candidate structure identifiers, unresolved overlaps, and per-claim status (`supported`, `contradicted`, `inconclusive`, `unavailable`). Include normalized inputs, dependencies, uncertainty, limitations, smallest experiment separating candidates, raw-data/artifact paths and hashes via `$science-provenance`. Run `$science-review` before a material structural assignment.
 
-1. Correct digital-filter and group-delay effects before interpreting early points.
-2. Declare apodization, zero filling, Fourier convention, phase correction, baseline method, and chemical-shift reference.
-3. Compare processed results with a minimally processed spectrum; do not erase weak peaks or create resolution by smoothing.
-4. Flag solvent, water, spinning sidebands, truncation, folding, radiation damping, exchange, and concentration artifacts.
-
-Use `$cx-complex-fourier-analysis` for transform diagnostics and `$cx-experimental-uncertainty-propagation` for
-quantitative NMR, calibration, and integration uncertainty. Use an approved isolated environment for `nmrglue`;
-do not install it silently.
-
-## Assign structure evidence
-
-- Start from formula, charge, exchangeable sites, and degree of unsaturation when known.
-- Build an atom-to-signal table with shift, integral, multiplicity, coupling, confidence, and competing assignments.
-- Use COSY for coupled networks, HSQC for direct heteronuclear pairs, HMBC for longer-range constraints, and NOE/ROE
-  for proximity only under a declared mixing and motion regime.
-- Treat calculated shifts, database matches, and `$kdense-rowan` predictions as supporting comparisons, not experimental proof.
-
-## Verify
-
-- Reconcile proton and carbon counts, symmetry, integrations, couplings, and every claimed 2D correlation.
-- Check assignments under alternative referencing, phase, baseline, overlap, exchange, and impurity explanations.
-- Distinguish constitutional, regio-, relative-stereo-, and absolute-stereo evidence; do not infer chirality from achiral NMR alone.
-- Require an independent diagnostic signal or experiment for a unique assignment when plausible isomers remain.
-- Report absent or ambiguous expected signals without treating non-observation as definitive absence.
-
-## Deliver
-
-Provide the processing log, assignment table, evidence graph, unresolved overlaps, candidate structures, confidence by
-claim, and the next experiment that best separates remaining candidates.
+## Boundaries
+Achiral NMR alone does not establish chirality or absolute stereochemistry. Predicted shifts and database matches are not experimental evidence. Overlap, exchange, impurity, truncation, referencing, and processing ambiguity limit claims; do not silently repair or omit peaks. Stop if essential raw/acquisition data or sample state is unavailable, and retain unresolved assignments as inconclusive. Preserve failed and null observations.
 
 ## Source basis
-
-Original workflow informed by the nmrML standard and open NMR processing practice recorded in
-`../../docs/ANALYTICAL_SOURCES.md`.
+Original workflow informed by the nmrML standard and open NMR processing practice recorded in `../../docs/ANALYTICAL_SOURCES.md`.

@@ -6,49 +6,20 @@ license: MIT
 
 # X-ray Diffraction and Scattering
 
-## Define the measurement
+## Decision contract
+Act as an analyzer. Define sample history/composition/form, measurement type, question and claim level (candidate phase, phase identification, unit cell, structural model, size/strain, or scattering parameters), evidence cutoff, and intended use. Prespecify calibration/uncertainty, peak/intensity inclusion rules, fit acceptance, applicability, and falsifier. For SAXS/WAXS state model assumptions and non-uniqueness.
 
-Record sample history, composition and form, radiation and wavelength, geometry, detector, polarization, slit and
-resolution settings, angular or `q` calibration, scan range and step, exposure, rotation, environment, blank or
-container, standard, and raw-file checksum. State whether the axis is `2theta`, `q`, or reciprocal length and whether
-intensity is raw, corrected, normalized, or absolute.
+## Workflow
+1. Record radiation/wavelength, geometry, detector, polarization, slit/resolution, angular or `q` calibration, scan range/step, exposure, rotation, environment, blank/container, standard, and raw checksum. State whether axis is `2theta`, `q`, or reciprocal length, and whether intensity is raw, corrected, normalized, or absolute.
+2. For phase search pin reference database, entry/card or CIF, snapshot, radiation, and calculated-pattern settings. Define peak-position tolerance from calibrated instrument resolution and zero-shift uncertainty and prespecify intensity inclusion. Indexing proposes cells: test alternatives, impurities, and unindexed peaks. Rietveld tests a declared structural model against the full pattern. Size/microstrain need instrumental-broadening and line-shape assumptions. SAXS/WAXS fitting must report contrast, resolution smearing, background, and covariance.
+3. Use `$kdense-pymatgen` to calculate a pattern from a known structure, not as an experimental refinement engine. Use `$cx-experimental-uncertainty-propagation` for calibration/parameter uncertainty and `$cx-condensed-matter-solid-state` for physical interpretation.
+4. Verify by correcting/modeling background, zero shift, displacement, absorption, fluorescence, polarization, preferred orientation, and instrument response only when justified. Add phases/free parameters based on residual structure and independent evidence, not solely a lower fit statistic. Preserve observed, calculated, background, and difference curves. Check standard calibration and repeat peak positions across scans/preparations; account for strong observed and calculated peaks. Report match statistic, scan coverage, missing expected and unmatched observed peaks, and sensitivity to thresholds. Inspect difference curves, parameter correlations, boundary hits, physical constraints, and plausible model stability. Validate CIF syntax/chemistry; for quantitative phases test standards, absorption, and amorphous contributions.
 
-## Choose the claim level
+## Outputs
+Return normalized inputs and a machine-readable evidence/fit table with candidate phases/models, reference snapshot, corrections, refinement strategy, diagnostics, covariance, unassigned features, claim IDs/status (`supported`, `contradicted`, `inconclusive`, `unavailable`), uncertainty, dependencies, applicability limits, rejected alternatives, and smallest falsifiable next action. Preserve raw and derived curves, paths and hashes via `$science-provenance`. Run `$science-review` before material phase/structure or quantitative phase claims.
 
-- Phase search identifies candidates; it does not prove purity or a refined structure.
-- Pin the reference database, entry/card or CIF, snapshot, radiation, and calculated-pattern settings. Define peak-position
-  tolerance from calibrated instrument resolution and zero-shift uncertainty, and predefine the intensity inclusion rule.
-- Indexing proposes unit cells; test alternatives, impurities, and unindexed peaks.
-- Rietveld refinement tests a declared structural model against the full pattern.
-- Size and microstrain estimates require instrumental broadening and line-shape assumptions.
-- SAXS/WAXS model fitting is often non-unique; report contrast, resolution smearing, background, and parameter covariance.
-
-Use `$kdense-pymatgen` to calculate a pattern from a known structure, not as an experimental refinement engine.
-Use `$cx-experimental-uncertainty-propagation` for calibration and parameter uncertainty, and
-`$cx-condensed-matter-solid-state` for physical interpretation.
-
-## Analyze
-
-Correct or model background, zero shift, displacement, absorption, fluorescence, polarization, preferred orientation,
-and instrument response only when justified. Add phases or free parameters based on residual structure and independent
-evidence, not solely a lower fit statistic. Preserve the observed, calculated, background, and difference curves.
-
-## Verify
-
-- Check calibration against a standard and reproduce peak positions across scans or sample preparations.
-- Account for every strong observed peak and every strong calculated peak; retain unidentified features.
-- Report the peak or full-pattern match statistic, scan-range coverage, missing expected peaks, unmatched observed peaks,
-  and sensitivity to the position and intensity thresholds; no universal match score proves phase identity.
-- Inspect difference curves, parameter correlations, boundary hits, and physical constraints, not only `R` factors.
-- Repeat plausible background, profile, orientation, size/strain, and phase models; report stability of conclusions.
-- Validate CIF syntax and chemistry and, for quantitative phases, test standards, absorption, and amorphous contributions.
-
-## Deliver
-
-Report raw-data provenance, corrections, candidate phases or model, refinement strategy, fit diagnostics, covariance,
-unassigned features, claim level, uncertainty, and files needed to reproduce the result.
+## Boundaries
+Phase search is not proof of purity or refined structure; no universal match score proves phase identity. Indexing is not unique structural determination. SAXS/WAXS fits can be non-unique, and size/strain depends on instrument and line-shape assumptions. Stop if calibration, radiation, reference identity, or raw intensity semantics are unresolved. Retain unidentified peaks and failed/inconclusive fits; do not add phases or silently correct data only to improve fit statistics.
 
 ## Source basis
-
-Original workflow informed by IUCr powder-CIF and Rietveld guidance and the tool audit in
-`../../docs/ANALYTICAL_SOURCES.md`.
+Original workflow informed by IUCr powder-CIF and Rietveld guidance and the tool audit in `../../docs/ANALYTICAL_SOURCES.md`.

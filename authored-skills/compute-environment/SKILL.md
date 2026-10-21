@@ -6,89 +6,18 @@ license: Apache-2.0
 
 # Local Scientific Compute
 
-Use the existing computer to produce a result, not merely a tutorial. Keep work
-isolated, inspectable, and reproducible.
+## Decision contract
+Act as an executor. Define the scientific task, inputs and sensitivity, expected outputs, baseline/invariants and scientific acceptance criterion separately from process success. Record code/notebook path and hash, intended backend, expected runtime/disk/resource envelope, smallest smoke input, and falsifier. Use the existing computer to produce an inspectable, reproducible result, not merely a tutorial. Resolve `<plugin-root>` as two directories above this `SKILL.md`; load `$science-provenance` and `$science-review` when their schemas or review procedure are needed.
 
-Resolve `<plugin-root>` as two directories above this `SKILL.md`. Load the
-plugin's `$science-provenance` and `$science-review` core skills when their
-schemas or review procedure are needed.
+## Workflow
+1. Resolve project root from workspace or nearest version-control root. Inspect inputs/storage without copying sensitive data. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/compute_probe.py"` for a read-only capability report; once a run exists, save it with `--output artifacts/<run-id>/compute-environment.json`.
+2. Select the smallest adequate backend: shell/existing executable for simple transformations; isolated Python, R, or Julia project for analysis; Jupyter only when an inspectable notebook is required; digest-pinned container for system dependencies or stronger isolation; GPU only when it materially benefits and memory fits. Reuse project contracts: Python honors `pyproject.toml`, `uv.lock`, `.venv`, and uses `uv run --locked` when locked, otherwise an isolated run environment without changing global Python; R honors `renv.lock`/project library and records `sessionInfo()`; Julia uses matching `Project.toml`/`Manifest.toml`; bind the Jupyter kernel to the selected project environment and record its runtime identity; containers honor reviewed definitions and pinned digests. Never silently rewrite locks or mix project environments.
+3. Read-only inspection and a small CPU calculation in an existing environment need no extra gate. Request approval before adding dependencies/changing a lock, package installation, GPU workload beyond capability/version inspection, a new network host/container image, large download, privileged container flags, heavy CPU work, or sensitive-data movement. Present one approval packet: local target/GPU, code path/hash, inputs/sensitivity, pinned environment/image, smoke/full commands, package/download/network changes, CPU/GPU/memory/time/disk, output path, validation criterion, cancellation/checkpoint plan. Approval covers only that envelope. Ask again if data boundary, environment, resources, or method changes. After approval, continue through reversible steps without re-asking.
+4. Create `artifacts/<run-id>/`; hash inputs or record approved external paths. Preserve base environments: use run-scoped pinned Python environment; R project library and `sessionInfo()` (use `renv` when present); run-scoped Julia project with project/manifest; shell scripts for non-trivial commands with `set -euo pipefail`; notebook plus exported script or executed-cell log; containers pinned by digest, limited mounts, no privileged mode, full invocation recorded.
+5. Run the smallest falsifying/representative smoke first, then only the approved full workload. Capture commands, exit codes, stdout/stderr paths, package/runtime versions, model/weight/database revisions, CPU/GPU details, seeds, wall time, peak resources when available, and output hashes via `$science-provenance`. Validate against a baseline, invariant, or independent implementation. Preserve failures and inconclusive attempts. Finish material results with `$science-review`.
 
-## Preflight
-
-1. Resolve the project root from the current workspace or nearest version-control
-   root. Inspect relevant inputs and storage needs without copying sensitive data.
-2. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/compute_probe.py"`
-   for a read-only capability report. Save it under the run directory with
-   `--output artifacts/<run-id>/compute-environment.json` once a run exists.
-3. Select the smallest adequate backend:
-   - shell or an existing executable for simple transformations;
-   - an isolated Python, R, or Julia project for analysis;
-   - Jupyter only when an inspectable notebook is a required deliverable;
-   - a digest-pinned container for system dependencies or stronger isolation;
-   - a GPU only when the method benefits materially and its memory need fits.
-4. State inputs, outputs, expected runtime/disk, and the smallest smoke test.
-
-## Project environment
-
-Reuse a project's existing environment contract before creating anything:
-
-- Python: honor `pyproject.toml`, `uv.lock`, and an existing project `.venv`;
-  use `uv run --locked` when a lock exists, otherwise create an isolated run
-  environment without changing global Python.
-- R: honor `renv.lock` and the project library; record `sessionInfo()`.
-- Julia: honor `Project.toml` and `Manifest.toml`; run with the matching project.
-- Jupyter: bind the Jupyter kernel to the selected project environment and record
-  the kernel/runtime identity with the executed notebook.
-- Containers: honor a reviewed project container definition and pinned digest.
-
-Do not silently rewrite a lockfile or mix environments from another project.
-Request approval before adding dependencies or changing a project lock.
-
-Read-only inspection and a small CPU calculation in an existing environment need
-no extra gate. Any GPU workload beyond capability/version inspection requires the
-approval packet below, as does package installation, a new network host or
-container image, a large download, privileged container flags, heavy CPU work,
-or sensitive-data movement. After approval, continue through reversible steps.
-
-## One-time approval packet
-
-Before gated work, present one approval packet containing the local target and
-GPU selection; code/notebook path and hash; inputs and sensitivity; pinned
-environment or image; smoke and full commands; package/download/network changes;
-CPU/GPU/memory/time/disk envelope; output path; validation criterion; and the
-cancellation and checkpoint plan. Approval applies only to that envelope.
-
-For cancellation, identify the process launched by this run, request graceful
-checkpoint/interrupt first, and never kill unrelated processes. Ask again when
-the data boundary, environment, resource envelope, or method changes.
-
-## Execute
-
-1. Create `artifacts/<run-id>/`; hash inputs or record approved external paths.
-2. Preserve the user's base environment:
-   - Python: use a run-scoped `uv` environment and pin packages.
-   - R: use a project library and record `sessionInfo()`; use `renv` when present.
-   - Julia: activate a run-scoped project and preserve `Project.toml` and
-     `Manifest.toml`.
-   - Shell: save non-trivial commands in a script with `set -euo pipefail`.
-   - Jupyter: save the notebook plus an exported script or executed cell log.
-   - Container: pin the image by digest, mount only required paths, avoid
-     privileged mode, and record the full invocation.
-3. Run the smallest falsifying or representative smoke input first. Then run the
-   full workload within the approved resource envelope.
-4. Capture commands, exit codes, stdout/stderr paths, package/runtime versions,
-   CPU/GPU details, seeds, wall time, peak resource use when available, and all
-   output hashes with `$science-provenance`.
-5. Validate outputs against a baseline, invariant, or independent implementation.
-   Preserve failed and inconclusive attempts. Finish with `$science-review`.
+## Outputs
+Return normalized inputs/assumptions, execution table (commands, environment/model/revision, resources, status, outputs), claim IDs/status (`supported`, `contradicted`, `inconclusive`, `unavailable`), scientific acceptance result distinct from exit status, uncertainty, limitations, smallest falsifiable next action, and artifact paths/hashes via `$science-provenance`. Include logs, outputs, environment capture, and failed attempts. A completed process alone is not scientific validation.
 
 ## Boundaries
-
-- Do not modify system packages, the global Python/R/Julia environment, shell
-  startup files, or unrelated user files.
-- Do not expose environment variables, credential files, SSH keys, tokens, or
-  private dataset contents in logs or artifacts.
-- Do not use a GPU merely because one exists; report CPU and GPU assumptions.
-- Do not run untrusted repository scripts or container entrypoints before review.
-- Route SSH, Slurm, cloud GPU, or remote object storage work to
-  `$cx-remote-scientific-compute`.
+Do not modify system packages, global Python/R/Julia environments, shell startup files, or unrelated user files. Do not expose environment variables, credential files, SSH keys, tokens, or private dataset contents in logs/artifacts. Do not use a GPU merely because one exists; report CPU/GPU assumptions. Do not run untrusted repository scripts or container entrypoints before review. Route SSH, Slurm, cloud GPU, or remote object-storage work to `$cx-remote-scientific-compute`. For cancellation identify only the process launched by this run, request graceful checkpoint/interrupt first, and never kill unrelated processes. Do not treat process completion, exit code, or model confidence as scientific acceptance without the declared validation.

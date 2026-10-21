@@ -6,50 +6,20 @@ license: MIT
 
 # Chemical Structure Elucidation
 
-## Establish identity boundaries
+## Decision contract
+Act as a conductor: combine at most two modality workflows at a time, then reconcile their evidence centrally. Define the identity question, sample and mixture state, evidence cutoff, formula/charge and stereochemical scope, and intended claim level (formula, class, connectivity, relative stereo, absolute structure). Keep constitutional, regio-, stereo-, tautomeric, salt, solvate, and mixture alternatives distinct. Set the evidence threshold and falsifier before ranking; ask only if a missing sample or claim choice changes interpretation.
 
-Record sample source, isolation, purity, mixture evidence, salt and solvate state, formula and charge evidence, stereochemical
-scope, and every raw dataset with acquisition conditions. Standardize candidate structures without discarding isotopes,
-stereochemistry, formal charge, tautomer, or component identity. Use `$cx-molecular-input-preparation` when candidates
-must be converted between molecular formats.
+## Workflow
+1. Preserve sample source, isolation, purity, raw data, acquisition conditions, and checksums. Standardize candidate structures without dropping isotope, stereochemistry, formal charge, tautomer, or component identity. Use `$cx-molecular-input-preparation` when converting molecular formats.
+2. Generate formula and unsaturation constraints before searching. Choose the two most discriminating workflows: `$cx-nmr-structure-analysis` for connectivity/stereochemistry; `$cx-mass-spectrometry-identification` for formula/isotope/fragments/library evidence; `$cx-spectroscopy-spectral-inference` for IR/Raman/UV-Vis/fluorescence; `$cx-xray-diffraction-scattering` for crystalline evidence; `$cx-chromatography-quantification` for mixture/purity/retention. Use `$cx-experimental-uncertainty-propagation` for quantitative comparisons.
+3. Create stable claim IDs and an evidence matrix: observation, raw-data reference, method/preprocessing, units and uncertainty, predicted candidate outcome, support or contradiction, and dependence group. Separate evidence used to generate candidates from evidence reserved to test them. Track included and excluded signals with reasons; do not count correlated measurements as independent.
+4. Verify by reconciling atom counts, charge, isotope pattern, NMR integrals/correlations, functional groups, fragments, diffraction, and purity. Examine matrix, phase, solvent, temperature, ionization, concentration, and instrument mismatches. Test at least one plausible alternative and state the observation that distinguishes it, or that none does. Report failed, null, missing, and ambiguous measurements separately. Rank with transparent rules and sensitivity; do not silently repair inputs.
 
-## Compose at most two modality workflows
+## Outputs
+Save a machine-readable claim register and evidence table with normalized structures/identifiers, claim type and status (`supported`, `contradicted`, `inconclusive`, `unavailable`), evidence links, dependencies, uncertainty, inclusion/exclusion rationale, rejected alternatives, and applicability limits. Include ranked structures, source/library snapshots, unresolved mixture/isomer questions, the smallest falsifiable next experiment, and artifact paths and hashes via `$science-provenance`. Preserve the raw inputs and processing records. Run `$science-review` before presenting any material identification or structural claim.
 
-Use this conductor with the two most discriminating available modality skills:
-
-- `$cx-nmr-structure-analysis` for connectivity and stereochemical constraints.
-- `$cx-mass-spectrometry-identification` for formula, isotope, fragment, and library evidence.
-- `$cx-spectroscopy-spectral-inference` for IR, Raman, UV-Vis, or fluorescence evidence.
-- `$cx-xray-diffraction-scattering` for crystalline phase or structure evidence.
-- `$cx-chromatography-quantification` for mixture separation, purity, and retention evidence.
-
-Use `$cx-experimental-uncertainty-propagation` for all quantitative comparisons.
-
-## Build and test candidates
-
-1. Create an evidence matrix with each observation, uncertainty, preprocessing, candidate prediction, support, contradiction,
-   and whether the evidence is independent.
-2. Generate formula and unsaturation constraints before database search; keep constitutional, regio-, stereo-, tautomeric,
-   salt, solvate, and mixture alternatives distinct.
-3. Rank candidates by total evidence, penalizing unexplained strong signals and impossible absences more than weak similarities.
-4. Separate evidence used to retrieve or generate candidates from evidence reserved to test them.
-5. Never treat a database or predicted-spectrum match as confirmation of a structure already used to select the candidate.
-
-## Verify
-
-- Reconcile atom counts, charge, isotope pattern, NMR integrals and correlations, functional groups, fragments, and purity.
-- Search explicitly for one plausible alternative and identify the observation that rules it out—or state that none does.
-- Check whether matrix, phase, solvent, temperature, ionization, concentration, and instrument differences explain mismatches.
-- Label conclusions as formula-level, class-level, connectivity-level, relative-stereo, or absolute-structure evidence.
-- If candidates remain, propose the smallest feasible experiment with distinct predicted outcomes before claiming uniqueness.
-
-## Deliver
-
-Report ranked structures, machine-readable identifiers, evidence matrix, contradictions, confidence by structural level,
-unresolved mixture or isomer issues, source/library snapshots, and the next discriminating experiment. Say “not uniquely
-identified” when the evidence does not isolate one structure.
+## Boundaries
+Never treat a database or predicted-spectrum match as confirmation when it selected the candidate. State “not uniquely identified” when evidence does not isolate one structure. A missing signal is not definitive absence; MS generally cannot distinguish isomers without discriminating evidence; achiral NMR alone does not establish chirality. Stop if sample identity, essential raw data, or an interpretation-changing state is unavailable; retain the conclusion as inconclusive if candidates remain. Do not claim purity from area percent alone or infer absolute structure from an unsupported modality.
 
 ## Source basis
-
-Original workflow synthesizing the modality standards, NIST reference-data practice, and overlap audit in
-`../../docs/ANALYTICAL_SOURCES.md`.
+Original workflow synthesizing the modality standards, NIST reference-data practice, and overlap audit in `../../docs/ANALYTICAL_SOURCES.md`.
