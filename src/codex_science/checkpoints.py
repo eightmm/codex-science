@@ -151,6 +151,35 @@ def _validate_attempts_and_decisions(checkpoint: dict[str, Any]) -> None:
         _nonempty(decision.get("reason"), "decision reason")
 
 
+def _validate_rigor(rigor: object) -> None:
+    if not isinstance(rigor, dict):
+        raise ValueError("rigor must be an object")
+    if not isinstance(rigor.get("tier"), str) or rigor["tier"] not in {"standard", "full"}:
+        raise ValueError("rigor tier must be standard or full")
+    history = rigor.get("history")
+    if not isinstance(history, list) or not history:
+        raise ValueError("rigor history must contain at least one item")
+    tiers = {"standard": 0, "full": 1}
+    previous = -1
+    for entry in history:
+        if not isinstance(entry, dict):
+            raise ValueError("each rigor history item must be an object")
+        tier = entry.get("tier")
+        if not isinstance(tier, str) or tier not in tiers:
+            raise ValueError("rigor history tier must be standard or full")
+        current = tiers[tier]
+        if current < previous:
+            raise ValueError("rigor history tiers must be non-decreasing")
+        previous = current
+        _nonempty(entry.get("at"), "rigor history at")
+        _nonempty(entry.get("reason"), "rigor history reason")
+        digest = entry.get("decision_sha256")
+        if digest is not None and (not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest)):
+            raise ValueError("rigor history decision_sha256 must be a SHA-256 digest")
+    if history[-1]["tier"] != rigor["tier"]:
+        raise ValueError("rigor tier must match the last history tier")
+
+
 def _validate_outer_goal(outer_goal: object, state: str, schema_version: int) -> None:
     if not isinstance(outer_goal, dict):
         raise ValueError("outer_goal must be an object")
@@ -223,6 +252,8 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
     missing = sorted(required - checkpoint.keys())
     if missing:
         raise ValueError(f"missing checkpoint fields: {', '.join(missing)}")
+    if "rigor" in checkpoint:
+        _validate_rigor(checkpoint["rigor"])
     schema_version = checkpoint["schema_version"]
     if schema_version not in {1, 2, 3, 4}:
         raise ValueError("unsupported checkpoint schema version")
@@ -482,6 +513,8 @@ def create_checkpoint(
     outer_goal: str = "none",
     goal_task_key: str | None = None,
     continuation_budget: int = DEFAULT_CONTINUATION_BUDGET,
+    rigor_tier: str | None = None,
+    rigor_decision_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Create a schema-v4 checkpoint and start its first planned step."""
     run_dir = Path(run_dir)
@@ -497,6 +530,14 @@ def create_checkpoint(
     elif goal_task_key is not None:
         raise ValueError("goal_task_key is only valid for native outer_goal")
     _positive_integer(continuation_budget, "continuation_budget")
+    if rigor_tier is not None and (
+        not isinstance(rigor_tier, str) or rigor_tier not in {"standard", "full"}
+    ):
+        raise ValueError("rigor_tier must be standard or full")
+    if rigor_decision_sha256 is not None and (
+        not isinstance(rigor_decision_sha256, str) or not SHA256_PATTERN.fullmatch(rigor_decision_sha256)
+    ):
+        raise ValueError("rigor_decision_sha256 must be a SHA-256 digest")
     _ensure_single_nonterminal(run_dir, session_key)
     planned = [
         {"id": identifier.strip(), "title": title.strip(), "status": "pending"}
@@ -544,7 +585,43 @@ def create_checkpoint(
         "created_at": now,
         "updated_at": now,
     }
+    if rigor_tier is not None:
+        history = {"tier": rigor_tier, "at": now, "reason": "requested at initialization"}
+        if rigor_decision_sha256 is not None:
+            history["decision_sha256"] = rigor_decision_sha256
+        checkpoint["rigor"] = {"tier": rigor_tier, "history": [history]}
     return _write_checkpoint(run_dir, checkpoint)
+
+
+def escalate_checkpoint(
+    run_dir: Path,
+    *,
+    tier: str,
+    reason: str,
+    rigor_decision_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Record a monotonic rigor escalation for an active run."""
+    if not isinstance(tier, str) or tier not in {"standard", "full"}:
+        raise ValueError("tier must be standard or full")
+    reason = _nonempty(reason, "reason")
+    if rigor_decision_sha256 is not None and (
+        not isinstance(rigor_decision_sha256, str) or not SHA256_PATTERN.fullmatch(rigor_decision_sha256)
+    ):
+        raise ValueError("rigor_decision_sha256 must be a SHA-256 digest")
+    checkpoint = load_checkpoint(Path(run_dir))
+    if checkpoint["state"] not in NONTERMINAL_STATES:
+        raise ValueError("cannot escalate a terminal checkpoint")
+    current = checkpoint.get("rigor", {}).get("tier")
+    tier_order = {"standard": 0, "full": 1}
+    if current is not None and tier_order[tier] <= tier_order[current]:
+        raise ValueError("escalation tier must be higher than the current tier")
+    entry: dict[str, str] = {"tier": tier, "at": _timestamp(), "reason": reason}
+    if rigor_decision_sha256 is not None:
+        entry["decision_sha256"] = rigor_decision_sha256
+    history = checkpoint.get("rigor", {}).get("history", [])
+    checkpoint["rigor"] = {"tier": tier, "history": [*history, entry]}
+    _touch(checkpoint)
+    return _write_checkpoint(Path(run_dir), checkpoint)
 
 
 def _upgrade_checkpoint(

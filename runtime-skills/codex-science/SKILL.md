@@ -62,6 +62,32 @@ Read `<plugin-root>/docs/NATIVE_SKILL_STANDARD.md` when composing or auditing a 
 
 ## Workflow
 
+### Rigor tier
+
+Before retrieval or execution, declare a `rigor-request-v1` and pipe it to
+`"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/classify_rigor.py"`
+(the classifier reads JSON from stdin). Treat the returned tier as a floor; the
+agent may raise it, never lower it.
+
+- **quick:** answer directly with primary citations from at most a few
+  read-only sources. Create no checkpoint or artifact bundle. Label the reply
+  as an unreviewed quick answer, do not present findings as reviewed, and offer
+  escalation in one line. Steps 6 and 9-11 and the completion test apply only
+  to standard and full runs.
+- **standard:** create a checkpoint with `init --rigor-tier standard`, a
+  provenance bundle, deterministic validation, and independent record-mode
+  `$science-review`.
+- **full:** follow the full research contract, claim/evidence graph, lanes, and
+  all applicable review modes, initializing with `--rigor-tier full`.
+
+If scope grows through computation, additional sources, a stronger claim, an
+approval-gated action, or a request for a reviewed package, re-classify with
+`current_tier` set to the recorded tier and run `escalate`, passing the
+classifier's `input_sha256` as `--rigor-decision-sha256`. A quick answer that
+escalates starts a checkpoint at the new tier. Never de-escalate. Tiers never
+relax the audit gate, approval gates, inactive-skill acknowledgement, or claim
+boundaries.
+
 1. State the research question, expected deliverable, evidence boundary, and important non-goals.
 2. For an experiment, write a falsifiable hypothesis, prediction, baseline, success threshold, and the smallest run that could disprove it before executing anything.
 3. Search the audited catalog with `science_search_skills`. Select at most three relevant skills. Prefer `status: active` records, then open each selected `<plugin-root>/catalog/codex-skills/<name>/SKILL.md` wrapper.
@@ -73,7 +99,7 @@ Read `<plugin-root>/docs/NATIVE_SKILL_STANDARD.md` when composing or auditing a 
    `$cx-write-scientific-manuscript`; require the reviewed source record,
    preserve claim-citation and reported-value traceability, validate the
    portable submission package, and send the exact package to `$science-review`.
-6. For every non-trivial multi-step run, initialize `artifacts/<run-id>/checkpoint.json` with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" init` and the hook-injected `--session-key`. Include the goal, deliverable, objective done criteria, planned steps, and immediate next action. Add the hook-injected `--outer-goal native --goal-task-key <key>` only when native Goal mode is active. Claim a legacy schema-v1/v2/v3 run with `claim`; rotating an owned v2/v3 run to the activation-generation key requires the exact hook-injected legacy key as `--previous-session-key`. Never infer that old criteria were satisfied. Do not create a second nonterminal run for the same activation generation or create a checkpoint for a one-step answer. The checkpoint is mutable control metadata, not scientific evidence; never put prompts, credentials, private data, or conclusions in it.
+6. For standard and full tiers, initialize `artifacts/<run-id>/checkpoint.json` with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" init --rigor-tier <tier>` and the hook-injected `--session-key`. Include the goal, deliverable, objective done criteria, planned steps, and immediate next action. Add the hook-injected `--outer-goal native --goal-task-key <key>` only when native Goal mode is active. Claim a legacy schema-v1/v2/v3 run with `claim`; rotating an owned v2/v3 run to the activation-generation key requires the exact hook-injected legacy key as `--previous-session-key`. Never infer that old criteria were satisfied. Do not create a second nonterminal run for the same activation generation or create a checkpoint for a one-step answer. The checkpoint is mutable control metadata, not scientific evidence; never put prompts, credentials, private data, or conclusions in it.
 7. Use public read-only MCP tools for discovery. Cite primary sources and preserve source identifiers and URLs in the run record.
 8. Apply the selected skill instructions, but keep the approved plan and this safety policy authoritative. Run the smallest useful analysis first and retain failures or null results.
 9. Use `$science-provenance` to save code, commands, environment, outputs, claims, and evidence under the current research project's `artifacts/<run-id>/` directory. Attach `claim-register`, `evidence-graph`, `query-ledger`, `study-table`, `lane-receipt`, and `model-receipt` sidecars as ordinary hashed artifacts when applicable; validate the complete bundle before review.

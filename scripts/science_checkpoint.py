@@ -20,6 +20,7 @@ from codex_science.checkpoints import (  # noqa: E402
     complete_checkpoint,
     confirm_goal_complete,
     create_checkpoint,
+    escalate_checkpoint,
     heartbeat_checkpoint,
     load_checkpoint,
     record_review,
@@ -53,6 +54,14 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--outer-goal", choices=("none", "native"), default="none")
     init.add_argument("--goal-task-key")
     init.add_argument("--continuation-budget", type=int, default=100)
+    init.add_argument("--rigor-tier", choices=("standard", "full"))
+    init.add_argument("--rigor-decision-sha256")
+
+    escalate = commands.add_parser("escalate", help="raise the recorded rigor tier")
+    escalate.add_argument("run_dir", type=Path)
+    escalate.add_argument("--tier", required=True, choices=("standard", "full"))
+    escalate.add_argument("--reason", required=True)
+    escalate.add_argument("--rigor-decision-sha256")
 
     claim = commands.add_parser("claim", help="attach a legacy run to this Codex task")
     claim.add_argument("run_dir", type=Path)
@@ -145,6 +154,15 @@ def main() -> int:
                 outer_goal=args.outer_goal,
                 goal_task_key=args.goal_task_key,
                 continuation_budget=args.continuation_budget,
+                rigor_tier=args.rigor_tier,
+                rigor_decision_sha256=args.rigor_decision_sha256,
+            )
+        elif args.command == "escalate":
+            result = escalate_checkpoint(
+                args.run_dir,
+                tier=args.tier,
+                reason=args.reason,
+                rigor_decision_sha256=args.rigor_decision_sha256,
             )
         elif args.command == "claim":
             result = claim_checkpoint(
