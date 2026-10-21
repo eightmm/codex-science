@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-import json
+import fcntl
 import hashlib
+import json
 import os
 import re
+import secrets
 import stat
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from codex_science.runtime_identity import record_runtime_identity, validate_runtime_history
 
@@ -257,6 +261,20 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
     schema_version = checkpoint["schema_version"]
     if schema_version not in {1, 2, 3, 4}:
         raise ValueError("unsupported checkpoint schema version")
+    if "session_binding" in checkpoint:
+        if schema_version != 4:
+            raise ValueError("session_binding is supported only on schema-v4 checkpoints")
+        binding = checkpoint["session_binding"]
+        if not isinstance(binding, dict) or set(binding) != {"mode", "hook_bound", "key_source", "created_at"}:
+            raise ValueError("session_binding must contain exactly mode, hook_bound, key_source, and created_at")
+        if binding["mode"] != "hookless" or binding["hook_bound"] is not False or binding["key_source"] != "random_run_local":
+            raise ValueError("session_binding values are invalid")
+        if not isinstance(binding["created_at"], str) or not binding["created_at"].endswith("Z"):
+            raise ValueError("session_binding.created_at must be a UTC timestamp")
+        try:
+            datetime.fromisoformat(binding["created_at"].replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("session_binding.created_at must be a UTC timestamp") from exc
     if schema_version >= 2:
         version_two_fields = {"session_key", "continuation_count", "idle_continuations"}
         missing_v2 = sorted(version_two_fields - checkpoint.keys())
@@ -394,19 +412,39 @@ def load_checkpoint(run_dir: Path) -> dict[str, Any]:
     return checkpoint
 
 
-def _iter_checkpoints(artifacts: Path) -> Iterable[tuple[Path, dict[str, Any]]]:
+def _iter_checkpoints(artifacts: Path, *, strict: bool = False) -> Iterable[tuple[Path, dict[str, Any]]]:
     if artifacts.is_symlink():
+        if strict:
+            raise ValueError(f"cannot safely scan symlink artifact root: {artifacts}")
         return
     try:
-        run_dirs = tuple(artifacts.iterdir())
-    except (FileNotFoundError, NotADirectoryError, PermissionError):
+        entries = tuple(artifacts.iterdir())
+    except FileNotFoundError:
         return
-    for index, run_dir in enumerate(run_dirs):
-        if index >= MAX_AUTOCONTINUE_RUNS:
-            break
-        if run_dir.is_symlink() or not run_dir.is_dir():
+    except (NotADirectoryError, PermissionError, OSError) as exc:
+        if strict:
+            raise ValueError(f"cannot safely scan artifact root: {exc}") from exc
+        return
+    run_dirs = []
+    for entry in entries:
+        try:
+            metadata = entry.lstat()
+        except OSError as exc:
+            if strict:
+                raise ValueError(f"cannot safely scan artifact entry {entry}: {exc}") from exc
             continue
+        if stat.S_ISLNK(metadata.st_mode):
+            if strict:
+                raise ValueError(f"cannot safely scan symlink run directory: {entry}")
+            continue
+        if stat.S_ISDIR(metadata.st_mode) and not entry.name.startswith("."):
+            run_dirs.append(entry)
+    if strict and len(run_dirs) > MAX_AUTOCONTINUE_RUNS:
+        raise ValueError("project artifact-root scan limit exceeded")
+    for run_dir in run_dirs[:MAX_AUTOCONTINUE_RUNS]:
         path = run_dir / CHECKPOINT_FILE
+        if not path.exists() and not path.is_symlink():
+            continue
         try:
             metadata = path.lstat()
             if (
@@ -414,9 +452,13 @@ def _iter_checkpoints(artifacts: Path) -> Iterable[tuple[Path, dict[str, Any]]]:
                 or not stat.S_ISREG(metadata.st_mode)
                 or metadata.st_size > MAX_AUTOCONTINUE_CHECKPOINT_BYTES
             ):
+                if strict:
+                    raise ValueError(f"cannot safely scan checkpoint path: {path}")
                 continue
             checkpoint = load_checkpoint(run_dir)
-        except (FileNotFoundError, PermissionError, OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        except (FileNotFoundError, PermissionError, OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+            if strict:
+                raise ValueError(f"cannot safely scan checkpoint {path}: {exc}") from exc
             continue
         yield run_dir, checkpoint
 
@@ -461,10 +503,12 @@ def _project_root(workspace: Path) -> Path:
     return current
 
 
-def _related_artifact_roots(workspace: Path) -> Iterable[Path]:
+def _related_artifact_roots(workspace: Path, *, strict: bool = False) -> Iterable[Path]:
     """Yield ancestor and descendant artifact roots, bounded and without symlink traversal."""
     seen: set[Path] = set()
     for artifacts in _artifact_roots(workspace):
+        if strict and artifacts.is_symlink():
+            raise ValueError(f"cannot safely scan symlink artifact root: {artifacts}")
         resolved = artifacts.resolve()
         if resolved not in seen:
             seen.add(resolved)
@@ -489,7 +533,11 @@ def _related_artifact_roots(workspace: Path) -> Iterable[Path]:
         retained: list[str] = []
         for name in directory_names:
             candidate = parent / name
-            if name in IGNORED_ARTIFACT_SCAN_DIRECTORIES or candidate.is_symlink():
+            if candidate.is_symlink():
+                if strict and name == "artifacts":
+                    raise ValueError(f"cannot safely scan symlink artifact root: {candidate}")
+                continue
+            if name in IGNORED_ARTIFACT_SCAN_DIRECTORIES:
                 continue
             if name == "artifacts":
                 resolved = candidate.resolve()
@@ -501,6 +549,78 @@ def _related_artifact_roots(workspace: Path) -> Iterable[Path]:
         directory_names[:] = retained
 
 
+def _validate_hookless_run_path(run_dir: Path) -> Path:
+    """Require a visible run directly under an artifact root included in scans."""
+    run_dir = Path(run_dir)
+    if run_dir.parent.name != "artifacts" or run_dir.name.startswith("."):
+        raise ValueError("hookless runs must use a visible run directory directly under artifacts/")
+    workspace = run_dir.parent.parent
+    covered_roots = {root.resolve() for root in _artifact_roots(workspace)}
+    if run_dir.parent.resolve() not in covered_roots:
+        raise ValueError("hookless artifacts directory is not covered by the project artifact scan")
+    return run_dir
+
+
+def _scan_init_admission(run_dir: Path, workspace: Path, *, hookless: bool) -> None:
+    for artifacts in _related_artifact_roots(workspace, strict=hookless):
+        for candidate, checkpoint in _iter_checkpoints(artifacts, strict=hookless):
+            if candidate.resolve() == run_dir.resolve() or checkpoint.get("state") not in NONTERMINAL_STATES:
+                continue
+            if hookless or checkpoint.get("session_binding", {}).get("mode") == "hookless":
+                raise ValueError(f"cannot initialize while a nonterminal checkpoint exists: {candidate}")
+
+
+@contextmanager
+def _initialization_admission(
+    run_dir: Path, *, hookless: bool, timeout: float = 10.0
+) -> Iterator[None]:
+    """Serialize hookless admission and hold its artifact-root lock through writing."""
+    run_dir = Path(run_dir)
+    workspace = run_dir.parent.parent if run_dir.parent.name == "artifacts" else run_dir.parent
+    if not hookless:
+        # Preserve hook-bound init's prior filesystem behavior; it may race a concurrent hookless init.
+        _scan_init_admission(run_dir, workspace, hookless=False)
+        yield
+        return
+
+    _validate_hookless_run_path(run_dir)
+    _scan_init_admission(run_dir, workspace, hookless=True)
+    artifacts_root = run_dir.parent
+    artifacts_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = artifacts_root.lstat()
+    if artifacts_root.is_symlink() or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("checkpoint artifact root is not a regular directory")
+    lock_path = artifacts_root / ".checkpoint-init.lock"
+    flags = os.O_CREAT | os.O_RDWR
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(lock_path, flags, 0o600)
+    handle = os.fdopen(descriptor, "r+")
+    deadline = time.monotonic() + max(timeout, 0.0)
+    locked = False
+    try:
+        os.fchmod(handle.fileno(), 0o600)
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+                break
+            except BlockingIOError as exc:
+                if time.monotonic() >= deadline:
+                    raise ValueError("checkpoint initialization is busy; retry after the active initialization finishes") from exc
+                time.sleep(0.05)
+        if (run_dir / CHECKPOINT_FILE).exists() or (run_dir / CHECKPOINT_FILE).is_symlink():
+            raise FileExistsError(f"checkpoint already exists: {run_dir / CHECKPOINT_FILE}")
+        _scan_init_admission(run_dir, workspace, hookless=True)
+        yield
+    finally:
+        try:
+            if locked:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
+
 def create_checkpoint(
     run_dir: Path,
     *,
@@ -509,18 +629,31 @@ def create_checkpoint(
     done_criteria: Iterable[str],
     steps: Iterable[tuple[str, str]],
     next_action: str,
-    session_key: str,
+    session_key: str | None = None,
     outer_goal: str = "none",
     goal_task_key: str | None = None,
     continuation_budget: int = DEFAULT_CONTINUATION_BUDGET,
     rigor_tier: str | None = None,
     rigor_decision_sha256: str | None = None,
+    hookless: bool = False,
 ) -> dict[str, Any]:
     """Create a schema-v4 checkpoint and start its first planned step."""
     run_dir = Path(run_dir)
-    if (run_dir / CHECKPOINT_FILE).exists():
+    checkpoint_path = run_dir / CHECKPOINT_FILE
+    if checkpoint_path.exists() or checkpoint_path.is_symlink():
         raise FileExistsError(f"checkpoint already exists: {run_dir / CHECKPOINT_FILE}")
-    if not SESSION_KEY_PATTERN.fullmatch(session_key):
+    if hookless:
+        _validate_hookless_run_path(run_dir)
+        if rigor_tier not in {"standard", "full"}:
+            raise ValueError("hookless initialization requires rigor_tier standard or full")
+        if outer_goal == "native":
+            raise ValueError("hookless initialization does not support native outer_goal")
+        if session_key is not None:
+            raise ValueError("hookless initialization cannot accept an explicit session_key")
+        session_key = secrets.token_hex(32)
+    elif session_key is None:
+        raise ValueError("init requires either --session-key or --hookless")
+    elif not isinstance(session_key, str) or not SESSION_KEY_PATTERN.fullmatch(session_key):
         raise ValueError("session_key must be a 64-character lowercase SHA-256 digest")
     if outer_goal not in {"none", "native"}:
         raise ValueError("outer_goal must be none or native")
@@ -538,59 +671,65 @@ def create_checkpoint(
         not isinstance(rigor_decision_sha256, str) or not SHA256_PATTERN.fullmatch(rigor_decision_sha256)
     ):
         raise ValueError("rigor_decision_sha256 must be a SHA-256 digest")
-    _ensure_single_nonterminal(run_dir, session_key)
-    planned = [
-        {"id": identifier.strip(), "title": title.strip(), "status": "pending"}
-        for identifier, title in steps
-    ]
-    if planned:
-        planned[0]["status"] = "in_progress"
-    criteria = [
-        {
-            "id": f"criterion-{index}",
-            "text": criterion.strip(),
-            "status": "pending",
-            "evidence_refs": [],
-            "evidence_sha256": {},
+    with _initialization_admission(run_dir, hookless=hookless):
+        _ensure_single_nonterminal(run_dir, session_key)
+        planned = [
+            {"id": identifier.strip(), "title": title.strip(), "status": "pending"}
+            for identifier, title in steps
+        ]
+        if planned:
+            planned[0]["status"] = "in_progress"
+        criteria = [
+            {
+                "id": f"criterion-{index}",
+                "text": criterion.strip(),
+                "status": "pending",
+                "evidence_refs": [],
+                "evidence_sha256": {},
+            }
+            for index, criterion in enumerate(done_criteria, start=1)
+        ]
+        now = _timestamp()
+        checkpoint: dict[str, Any] = {
+            "schema_version": 4,
+            "session_key": session_key,
+            "continuation_count": 0,
+            "idle_continuations": 0,
+            "continuation_budget": continuation_budget,
+            "revision": 0,
+            "goal": goal.strip(),
+            "deliverable": deliverable.strip(),
+            "done_criteria": criteria,
+            "steps": planned,
+            "state": "active",
+            "current_step": planned[0]["id"] if planned else None,
+            "next_action": next_action.strip(),
+            "attempts": [],
+            "pending_decisions": [],
+            "blocker": "",
+            "wait": None,
+            "termination_reason": "",
+            "review_receipt": None,
+            "outer_goal": {
+                "mode": outer_goal,
+                "phase": "running" if outer_goal == "native" else "not_applicable",
+                "task_key": goal_task_key,
+                "receipt": None,
+            },
+            "created_at": now,
+            "updated_at": now,
         }
-        for index, criterion in enumerate(done_criteria, start=1)
-    ]
-    now = _timestamp()
-    checkpoint: dict[str, Any] = {
-        "schema_version": 4,
-        "session_key": session_key,
-        "continuation_count": 0,
-        "idle_continuations": 0,
-        "continuation_budget": continuation_budget,
-        "revision": 0,
-        "goal": goal.strip(),
-        "deliverable": deliverable.strip(),
-        "done_criteria": criteria,
-        "steps": planned,
-        "state": "active",
-        "current_step": planned[0]["id"] if planned else None,
-        "next_action": next_action.strip(),
-        "attempts": [],
-        "pending_decisions": [],
-        "blocker": "",
-        "wait": None,
-        "termination_reason": "",
-        "review_receipt": None,
-        "outer_goal": {
-            "mode": outer_goal,
-            "phase": "running" if outer_goal == "native" else "not_applicable",
-            "task_key": goal_task_key,
-            "receipt": None,
-        },
-        "created_at": now,
-        "updated_at": now,
-    }
-    if rigor_tier is not None:
-        history = {"tier": rigor_tier, "at": now, "reason": "requested at initialization"}
-        if rigor_decision_sha256 is not None:
-            history["decision_sha256"] = rigor_decision_sha256
-        checkpoint["rigor"] = {"tier": rigor_tier, "history": [history]}
-    return _write_checkpoint(run_dir, checkpoint)
+        if rigor_tier is not None:
+            history = {"tier": rigor_tier, "at": now, "reason": "requested at initialization"}
+            if rigor_decision_sha256 is not None:
+                history["decision_sha256"] = rigor_decision_sha256
+            checkpoint["rigor"] = {"tier": rigor_tier, "history": [history]}
+        if hookless:
+            checkpoint["session_binding"] = {
+                "mode": "hookless", "hook_bound": False,
+                "key_source": "random_run_local", "created_at": now,
+            }
+        return _write_checkpoint(run_dir, checkpoint)
 
 
 def escalate_checkpoint(
@@ -676,6 +815,10 @@ def claim_checkpoint(
 ) -> dict[str, Any]:
     """Attach a legacy run to this task and upgrade it to schema v4."""
     checkpoint = load_checkpoint(Path(run_dir))
+    if checkpoint.get("session_binding", {}).get("mode") == "hookless":
+        raise ValueError(
+            "hookless checkpoints do not support claim or key rotation; continue the same run directory with checkpoint commands that do not require --session-key"
+        )
     if not SESSION_KEY_PATTERN.fullmatch(session_key):
         raise ValueError("session_key must be a 64-character lowercase SHA-256 digest")
     if outer_goal not in {"none", "native"}:

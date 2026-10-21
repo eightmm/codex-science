@@ -50,12 +50,14 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--done", action="append", required=True, dest="done_criteria")
     init.add_argument("--step", action="append", required=True, type=_step, dest="steps")
     init.add_argument("--next-action", required=True)
-    init.add_argument("--session-key", required=True)
     init.add_argument("--outer-goal", choices=("none", "native"), default="none")
     init.add_argument("--goal-task-key")
     init.add_argument("--continuation-budget", type=int, default=100)
     init.add_argument("--rigor-tier", choices=("standard", "full"))
     init.add_argument("--rigor-decision-sha256")
+    init_group = init.add_mutually_exclusive_group(required=True)
+    init_group.add_argument("--session-key")
+    init_group.add_argument("--hookless", action="store_true")
 
     escalate = commands.add_parser("escalate", help="raise the recorded rigor tier")
     escalate.add_argument("run_dir", type=Path)
@@ -151,6 +153,7 @@ def main() -> int:
                 steps=args.steps,
                 next_action=args.next_action,
                 session_key=args.session_key,
+                hookless=args.hookless,
                 outer_goal=args.outer_goal,
                 goal_task_key=args.goal_task_key,
                 continuation_budget=args.continuation_budget,
@@ -223,7 +226,7 @@ def main() -> int:
             result = complete_checkpoint(args.run_dir)
         else:
             result = confirm_goal_complete(args.run_dir, receipt_ref=args.receipt_ref)
-    except (FileExistsError, FileNotFoundError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+    except (FileExistsError, FileNotFoundError, RuntimeError, ValueError, OSError, TimeoutError, json.JSONDecodeError) as error:
         parser.error(str(error))
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0

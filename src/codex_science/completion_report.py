@@ -62,7 +62,7 @@ def report_completion(artifacts_root: Path, *, now: datetime, stale_after: timed
     runs = []
     for checkpoint_path in sorted(Path(artifacts_root).glob("*/checkpoint.json")):
         run_dir = checkpoint_path.parent
-        if run_dir.is_symlink() or checkpoint_path.is_symlink() or not _safe_child(checkpoint_path, root):
+        if run_dir.name.startswith(".") or run_dir.is_symlink() or not run_dir.is_dir() or checkpoint_path.is_symlink() or not _safe_child(checkpoint_path, root):
             continue
         checkpoint = None
         try:
@@ -140,7 +140,11 @@ def _summarize_run(run_dir: Path, checkpoint: dict[str, Any], tier: str, root: P
                 ref = ref.split("#", 1)[0]
                 candidate = run_dir / ref
                 if _safe_child(candidate, root) and candidate.is_file() and not candidate.is_symlink(): refs.append(ref)
-        return {"run_id": run_dir.name, "outcome": outcome, "stop_reason": {"code": code, "detail": _short(detail)}, "tier": tier, "schema_version": checkpoint.get("schema_version"), "state": state, "steps_completed": sum(s.get("status") == "completed" for s in checkpoint.get("steps", [])), "steps_total": len(checkpoint.get("steps", [])), "criteria_satisfied": sum((c.get("status") == "satisfied" if isinstance(c, dict) else False) for c in checkpoint.get("done_criteria", [])), "criteria_total": len(checkpoint.get("done_criteria", [])), "review_attached": review_attached, "updated_at": updated, "evidence_refs": refs}
+        binding = checkpoint.get("session_binding")
+        record = {"run_id": run_dir.name, "outcome": outcome, "stop_reason": {"code": code, "detail": _short(detail)}, "tier": tier, "schema_version": checkpoint.get("schema_version"), "state": state, "steps_completed": sum(s.get("status") == "completed" for s in checkpoint.get("steps", [])), "steps_total": len(checkpoint.get("steps", [])), "criteria_satisfied": sum((c.get("status") == "satisfied" if isinstance(c, dict) else False) for c in checkpoint.get("done_criteria", [])), "criteria_total": len(checkpoint.get("done_criteria", [])), "review_attached": review_attached, "updated_at": updated, "evidence_refs": refs}
+        if isinstance(binding, dict):
+            record["session_binding_mode"] = binding["mode"]
+        return record
 
 
 def render_markdown(report: dict[str, Any]) -> str:
