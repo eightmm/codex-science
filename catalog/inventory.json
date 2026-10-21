@@ -282,7 +282,7 @@
     {
       "description": "Formulate, solve, simulate, and verify classical mechanics problems using Newtonian, Lagrangian, Hamiltonian, conservation-law, oscillation, rotation, and central-force methods. Use for particles, rigid bodies, constrained systems, collisions, orbital motion, and small oscillations.",
       "executable_count": 0,
-      "instruction_line_count": 54,
+      "instruction_line_count": 70,
       "license": "MIT",
       "name": "cx-classical-mechanics",
       "path": "authored-skills/classical-mechanics",
@@ -330,7 +330,7 @@
     {
       "description": "Verify computational physics software, quantify numerical uncertainty, and validate models against experiments. Use for convergence studies, manufactured solutions, conservation audits, code-to-code comparisons, calibration, uncertainty quantification, and simulation credibility.",
       "executable_count": 0,
-      "instruction_line_count": 43,
+      "instruction_line_count": 59,
       "license": "MIT",
       "name": "cx-computational-physics-validation",
       "path": "authored-skills/computational-physics-validation",
@@ -354,7 +354,7 @@
     {
       "description": "Analyze condensed-matter and solid-state models and computations. Use for crystal symmetry, reciprocal space, electronic bands, density of states, Fermi surfaces, phonons, transport, magnetism, superconductivity, defects, and phase behavior.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 55,
       "license": "MIT",
       "name": "cx-condensed-matter-solid-state",
       "path": "authored-skills/condensed-matter-solid-state",
@@ -366,7 +366,7 @@
     {
       "description": "Formulate, solve, and verify continuum models for solids and fluids. Use for deformation, stress, strain, conservation laws, constitutive equations, elasticity, viscosity, boundary conditions, weak forms, and finite-element or finite-volume analysis.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 61,
       "license": "MIT",
       "name": "cx-continuum-mechanics",
       "path": "authored-skills/continuum-mechanics",
@@ -438,7 +438,7 @@
     {
       "description": "Formulate, solve, simulate, and verify electrostatics, magnetostatics, circuits, induction, electromagnetic waves, and boundary-value problems using Maxwell's equations, potentials, constitutive relations, and conservation laws.",
       "executable_count": 0,
-      "instruction_line_count": 54,
+      "instruction_line_count": 70,
       "license": "MIT",
       "name": "cx-electromagnetism",
       "path": "authored-skills/electromagnetism",
@@ -930,7 +930,7 @@
     {
       "description": "Formulate and verify nuclear and particle physics calculations. Use for reactions, decays, relativistic kinematics, conservation laws, cross sections, lifetimes, quantum numbers, detector yields, backgrounds, and statistical significance.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 55,
       "license": "MIT",
       "name": "cx-nuclear-particle-physics",
       "path": "authored-skills/nuclear-particle-physics",
@@ -1050,7 +1050,7 @@
     {
       "description": "Model and verify optical and wave phenomena. Use for ray optics, wave propagation, polarization, interference, diffraction, coherence, resonators, dispersion, scattering, imaging, and electromagnetic boundary problems.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 55,
       "license": "MIT",
       "name": "cx-optics-wave-physics",
       "path": "authored-skills/optics-wave-physics",
@@ -1278,7 +1278,7 @@
     {
       "description": "Formulate, solve, simulate, and verify nonrelativistic quantum mechanics problems using states, operators, boundary conditions, symmetries, stationary and time-dependent evolution, approximation methods, measurement, and open-system dynamics.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 71,
       "license": "MIT",
       "name": "cx-quantum-mechanics",
       "path": "authored-skills/quantum-mechanics",
@@ -1314,7 +1314,7 @@
     {
       "description": "Formulate and verify special- and general-relativity problems. Use for Lorentz transformations, four-vectors, relativistic kinematics, metrics, geodesics, curvature, gravitational fields, horizons, and stress-energy dynamics.",
       "executable_count": 0,
-      "instruction_line_count": 41,
+      "instruction_line_count": 57,
       "license": "MIT",
       "name": "cx-relativity-spacetime",
       "path": "authored-skills/relativity-spacetime",
@@ -1494,7 +1494,7 @@
     {
       "description": "Solve and verify equilibrium thermodynamics and statistical mechanics problems using explicit systems, sign conventions, equations of state, thermodynamic potentials, ensembles, partition functions, fluctuations, and phase-equilibrium conditions.",
       "executable_count": 0,
-      "instruction_line_count": 51,
+      "instruction_line_count": 67,
       "license": "MIT",
       "name": "cx-thermodynamics-statistical-mechanics",
       "path": "authored-skills/thermodynamics-statistical-mechanics",
