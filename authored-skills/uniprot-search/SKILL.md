@@ -11,31 +11,63 @@ Inspired by Google DeepMind's `uniprot-database`
 ([science-skills](https://github.com/google-deepmind/science-skills), Apache-2.0);
 the MCP integration is Codex Science's own.
 
-## How to run
+## Decision contract
 
-1. **Search** with the plugin MCP tool `science_search_uniprot`:
-   - arguments: `query` (protein/gene/organism/keyword, ≤500 chars; UniProt query
-     syntax like `gene:TP53 AND organism_id:9606` works), `limit` (1–10,
-     default 5).
-   - returns a JSON list of `{id, title, url}` — `id` is the **primary
-     accession**, `title` the recommended protein name, `url` the entry page.
-2. **Disambiguate**: if several accessions match, prefer the reviewed
-   (Swiss-Prot) canonical entry for the intended organism; state which you chose.
-3. **Fetch details** for a kept accession from the UniProt REST API, e.g.
-   `https://rest.uniprot.org/uniprotkb/<ACC>.json` (or `.txt`/`.fasta`) for
-   function, subcellular location, domains/features, cross-references, and
-   sequence. Ask before large batch fetches.
-4. **Report** the accession, protein and gene names, organism, and the requested
-   annotation, with the entry URL.
-5. **Hand off** cleanly: for 3D structure of an accession use
-   `$cx-alphafold-structure-analysis`; for structural homologs use
-   `$cx-foldseek-structural-search`.
-6. **Provenance & review**: record queries, tool, and cited accessions with
-   `$science-provenance`; check claims with `$science-review` before presenting.
+Return source-grounded UniProtKB records for the requested protein, gene,
+organism, sequence, or annotation question. Record the organism/taxon, query,
+identifier type, evidence cutoff, and requested fields. Treat gene symbols as
+species-dependent and resolve ambiguous names before selecting an accession.
+Do not infer function beyond the retrieved record or the evidence supporting
+its annotation.
+
+## Workflow
+
+1. Normalize the query and include an organism or taxon where possible. The
+   built-in `science_search_uniprot` accepts `query` (1–500 characters) and
+   optional `limit` (1–10, default 5); it returns `{id,title,url}` records,
+   where `id` is a primary accession. This connector is an initial search
+   option, not a replacement for direct source access. UniProt query syntax such as `gene:TP53 AND organism_id:9606` works in both paths.
+2. Search with the MCP tool or UniProt REST API. For direct access, use
+   `https://rest.uniprot.org/uniprotkb/search` with URL-encoded query, `format=json`,
+   and `size`; fetch a selected record at
+   `https://rest.uniprot.org/uniprotkb/<ACC>.json` (or `.txt`/`.fasta`).
+   Preserve the exact serialized query, endpoint, access time, response status,
+   result count, page/continuation state, and any release/update information
+   reported by the response. Follow pagination only to a declared bounded limit.
+3. Validate response structure and accession format; detect API errors,
+   malformed records, and truncation before interpreting. Record returned
+   accessions and excluded candidates with reasons. Empty results mean no
+   matching records were returned for this query, not that the protein or
+   function is absent.
+4. Disambiguate candidates by organism and reviewed status. Prefer a reviewed
+   (Swiss-Prot) canonical entry only when it matches the requested entity;
+   distinguish reviewed from unreviewed (TrEMBL) records. Fetch details only
+   for selected accessions; ask before large batch fetches.
+5. Report accession, protein and gene names, organism, reviewed status, requested
+   annotation, source URL, and null or missing fields explicitly. Keep sequence,
+   domains/features, subcellular location, and cross-references tied to the
+   selected accession. For 3D structure use `$cx-alphafold-structure-analysis`;
+   for structural homologs use `$cx-foldseek-structural-search`.
+6. Save query and response provenance with `$science-provenance`; use
+   `$science-review` before presenting material functional claims.
+
+## Outputs
+
+Provide normalized query and assumptions; an evidence table with accession,
+name, organism, reviewed status, fields, URL, and inclusion/exclusion reason;
+claim IDs marked supported, contradicted, inconclusive, or unavailable;
+query/release/access-time and pagination details; uncertainty, limitations, and
+the smallest next lookup that could resolve ambiguity. Preserve response or
+record artifacts and hashes through `$science-provenance`.
 
 ## Boundaries
 
-- Cite only accessions actually returned by the tool; never invent accessions or
-  annotation. Distinguish reviewed (Swiss-Prot) from unreviewed (TrEMBL) entries.
-- Report the organism explicitly — gene names are ambiguous across species.
-- This tool searches metadata; it does not align sequences or predict structure.
+- Cite only accessions and annotations actually returned. Never invent records.
+- Report organism explicitly; a gene name alone does not establish identity.
+- A reviewed entry is curated status, not proof that every annotation is
+  experimentally established. Preserve evidence qualifiers and missingness.
+- This skill searches metadata; it does not align sequences or predict structure.
+- Stop when organism or accession ambiguity changes the conclusion. Keep failed
+  or truncated responses unavailable, not negative. Respect source terms and
+  redistribution restrictions; use only read-only public access. `$science-review`
+  is mandatory for material function or mechanism claims.

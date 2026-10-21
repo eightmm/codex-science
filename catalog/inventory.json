@@ -234,7 +234,7 @@
     {
       "description": "Resolve chemical entities, ontology identifiers, formulae, and structures through ChEBI. Use before chemistry, metabolite, reaction, or pharmacology workflows when names or identifiers are ambiguous.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 61,
       "license": "MIT",
       "name": "cx-chebi-search",
       "path": "authored-skills/chebi-search",
@@ -246,7 +246,7 @@
     {
       "description": "Query the ChEMBL database for bioactive molecules, drug targets, bioactivity measurements (IC50/Ki/EC50), approved drugs, and mechanisms. Use when the user asks about compounds, targets, potency values, or drug mechanisms. Public REST API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 59,
+      "instruction_line_count": 75,
       "license": "Apache-2.0",
       "name": "cx-chembl-search",
       "path": "authored-skills/chembl-search",
@@ -702,7 +702,7 @@
     {
       "description": "Identify protein domains, families, and sites; find proteins sharing a domain/family; explore species distribution; and get domain architectures via InterPro (integrating Pfam, CDD, and more). Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 71,
       "license": "Apache-2.0",
       "name": "cx-interpro-search",
       "path": "authored-skills/interpro-search",
@@ -1074,7 +1074,7 @@
     {
       "description": "Search and retrieve experimentally-determined 3D biomolecular structures from the RCSB Protein Data Bank by sequence, structure, ligand, or attribute, and fetch entry metadata or coordinate files. Use when the user wants experimental structures (X-ray, cryo-EM, NMR), not predicted models. Public REST API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 63,
+      "instruction_line_count": 78,
       "license": "Apache-2.0",
       "name": "cx-pdb-search",
       "path": "authored-skills/pdb-search",
@@ -1218,7 +1218,7 @@
     {
       "description": "Query PubChem by name, CID, or SMILES; retrieve properties; run similarity/substructure searches; and get bioactivity. Use for cheminformatics on a specific chemical, drug, or molecule. Public PUG-REST API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-pubchem-search",
       "path": "authored-skills/pubchem-search",
@@ -1290,7 +1290,7 @@
     {
       "description": "Query QuickGO and the Evidence & Conclusion Ontology (ECO): map genes to GO biological processes, molecular functions, and cellular components; find genes for a GO term; and explore the GO hierarchy. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-quickgo-search",
       "path": "authored-skills/quickgo-search",
@@ -1302,7 +1302,7 @@
     {
       "description": "Query Reactome Content and Analysis Services: pathway enrichment of a gene list, identifier mapping, reaction participants, pathway hierarchy, and knowledgebase search. Use for pathway analysis and enrichment. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 68,
       "license": "Apache-2.0",
       "name": "cx-reactome-search",
       "path": "authored-skills/reactome-search",
@@ -1362,7 +1362,7 @@
     {
       "description": "Search curated biochemical reactions and participants through Rhea. Use for enzyme, pathway, metabolite, reaction-direction, or mechanism context.",
       "executable_count": 0,
-      "instruction_line_count": 16,
+      "instruction_line_count": 62,
       "license": "MIT",
       "name": "cx-rhea-search",
       "path": "authored-skills/rhea-search",
@@ -1470,7 +1470,7 @@
     {
       "description": "Query STRING for protein-protein interactions, interaction confidence/evidence, interaction partners, and functional enrichment. Use for PPI networks and enrichment of a protein set. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 38,
+      "instruction_line_count": 69,
       "license": "Apache-2.0",
       "name": "cx-string-ppi-search",
       "path": "authored-skills/string-ppi-search",
@@ -1542,7 +1542,7 @@
     {
       "description": "Search UniProtKB for proteins by name, gene, organism, or keyword and retrieve accessions plus functional annotation. Use when the user wants protein metadata, function, sequence, or identifier mapping. Uses the plugin's built-in read-only UniProt MCP tool for discovery \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 41,
+      "instruction_line_count": 73,
       "license": "Apache-2.0",
       "name": "cx-uniprot-search",
       "path": "authored-skills/uniprot-search",
