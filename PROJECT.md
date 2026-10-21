@@ -134,7 +134,9 @@
   reviewer closure and abstention and are not rebuilt.
 - Resume driver: `codex exec` runs one turn per invocation. A bounded driver
   records `thread_id`, parses JSONL events (terminal-event stop reasons,
-  item/tool counts, cumulative token deltas, arrival-stamped wall time), and
+  item/tool counts, per-invocation token totals kept raw and summed
+  conservatively until a real run confirms resume usage semantics,
+  arrival-stamped wall time), and
   calls `codex exec resume` with a fixed continuation prompt until the
   completion reporter shows a terminal outcome or a turn, wall-clock, or token
   cap is reached. It pins the sandbox, approval, and network flags, never uses
