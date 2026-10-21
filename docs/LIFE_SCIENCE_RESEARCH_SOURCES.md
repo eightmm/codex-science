@@ -28,7 +28,7 @@ capability categories; its proprietary skill text and scripts are not copied.
 | `science_search_bgee` | [Bgee API](https://www.bgee.org/support/tutorial-api) | Healthy expression context | Preserve species/stage/ontology |
 | `science_search_biostudies` | [BioStudies](https://www.ebi.ac.uk/biostudies/help) | Study discovery | Inspect files and reuse terms |
 | `science_search_cbioportal` | [cBioPortal](https://www.cbioportal.org/api/swagger-ui/index.html) | Cancer genes/cohorts | Denominator and assay coverage matter |
-| `science_search_chebi` | [ChEBI](https://www.ebi.ac.uk/chebi/webServicesForward.do) | Chemical identity | Preserve form, charge, stereochemistry |
+| `science_search_chebi` | [ChEBI](https://www.ebi.ac.uk/chebi/backend/api/docs/) | Chemical identity | Preserve form, charge, stereochemistry |
 | `science_search_rhea` | [Rhea](https://www.rhea-db.org/help/download) | Biochemical reactions | Reaction presence is not cellular flux |
 | `science_search_pride` | [PRIDE](https://www.ebi.ac.uk/pride/ws/archive/v3/swagger-ui.html) | Proteomics studies | Registration is not identification evidence |
 | `science_search_proteomexchange` | [ProteomeXchange](https://proteomecentral.proteomexchange.org/) | PXD accession resolution | Keyword discovery uses PRIDE; verify repository-of-record metadata |

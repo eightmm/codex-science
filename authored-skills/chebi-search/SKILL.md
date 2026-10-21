@@ -20,7 +20,7 @@ match is a candidate identity, not a confirmed chemical equivalence.
    `science_search_chebi` with a name, synonym, or ChEBI identifier (`query`,
    `limit` 1–10, default 5); it returns identifier, title, formula, SMILES, and
    URL. Public ChEBI web services are also available at
-   https://www.ebi.ac.uk/chebi/webServicesForward.do. The repository connector
+   https://www.ebi.ac.uk/chebi/backend/api/docs/. The repository connector
    is an additional discovery option, not a condition for public-source access.
 2. For direct connector search, the implementation queries
    `https://www.ebi.ac.uk/chebi/backend/api/public/es_search/` with URL-encoded
@@ -58,4 +58,4 @@ queries are not negative evidence. Stop if structure/state ambiguity changes a
 downstream interpretation. Respect source terms and redistribution limits;
 `$science-review` is mandatory for material chemistry or pharmacology claims.
 
-Source basis: [ChEBI web services](https://www.ebi.ac.uk/chebi/webServicesForward.do).
+Source basis: [ChEBI public API documentation](https://www.ebi.ac.uk/chebi/backend/api/docs/).
