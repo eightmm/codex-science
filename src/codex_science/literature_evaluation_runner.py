@@ -592,7 +592,7 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
             if codex_home is not None:
                 child_env["CODEX_HOME"] = str(codex_home.absolute())
             process = subprocess.Popen(argv, cwd=project, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE, start_new_session=True, bufsize=0, env=child_env)
+                                       stderr=subprocess.PIPE, start_new_session=True, env=child_env)
         except OSError as error:
             launch_error = ("Codex executable not found" if isinstance(error, FileNotFoundError)
                             else f"Codex executable could not be launched: {error.strerror or type(error).__name__}")
@@ -617,19 +617,21 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
                             line = prefix + _OUTPUT_MARKER
                         payload = line[:min(len(line), available)]
                         if payload:
-                            _queue_put_until_stopped(lines, (time.monotonic(), payload, too_long), stop_reader)
+                            _queue_put_until_stopped(
+                                lines, (time.monotonic(), payload, too_long or len(line) > available), stop_reader)
                 finally:
                     _queue_put_until_stopped(lines, (time.monotonic(), None, False), stop_reader)
 
             def capture_stderr() -> None:
                 while not stop_reader.is_set():
-                    chunk = process.stderr.read(65536)
+                    chunk = process.stderr.read1(65536)
                     if not chunk:
                         break
                     available = account(len(chunk))
                     if available:
                         try:
                             stderr_file.write(chunk[:available])
+                            stderr_file.flush()
                         except (OSError, ValueError):
                             return
 

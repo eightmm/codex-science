@@ -8,6 +8,7 @@ import subprocess
 import stat
 import sys
 import tempfile
+import threading
 import types
 import time
 import unittest
@@ -485,6 +486,80 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertTrue(records[2]["line_truncated"])
             from codex_science.literature_evaluation_runner import _count_truncated_lines
             self.assertEqual(2, _count_truncated_lines(task_dir / "events.jsonl"))
+
+    def test_execute_marks_and_counts_line_cut_by_total_output_cap(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute, _count_truncated_lines
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'abcdefghij')\nsys.stdout.flush()\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            with patch("codex_science.literature_evaluation_runner._MAX_OUTPUT_BYTES", 4):
+                _execute([str(binary)], root, task_dir, 5)
+            records = [json.loads(line) for line in (task_dir / "events.jsonl").read_text().splitlines()]
+            self.assertTrue(records[0]["line_truncated"])
+            self.assertEqual(1, _count_truncated_lines(task_dir / "events.jsonl"))
+
+    def test_execute_reads_twenty_thousand_short_json_lines_quickly(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text(
+                "#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'{\\\"i\\\":1}\\n' * 20000)\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            started = time.monotonic()
+            exit_code, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+            self.assertEqual(0, exit_code)
+            self.assertFalse(timed_out)
+            self.assertIsNone(launch_error)
+            self.assertEqual(20000, len((task_dir / "events.jsonl").read_text().splitlines()))
+            self.assertLess(time.monotonic() - started, 3.0)
+
+    def test_execute_flushes_early_stderr_while_child_sleeps(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text(
+                "#!/usr/bin/env python3\nimport sys,time\nsys.stderr.write('early marker\\n')\nsys.stderr.flush()\ntime.sleep(2)\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            result = []
+            errors = []
+
+            def execute() -> None:
+                try:
+                    result.append(_execute([str(binary)], root, task_dir, 5))
+                except BaseException as error:
+                    errors.append(error)
+
+            worker = threading.Thread(target=execute)
+            started = time.monotonic()
+            worker.start()
+            stderr_path = task_dir / "stderr.log"
+            prompt_deadline = started + 1.5
+            visible = False
+            while time.monotonic() < prompt_deadline:
+                if stderr_path.exists() and b"early marker" in stderr_path.read_bytes():
+                    visible = True
+                    break
+                time.sleep(0.01)
+            worker.join(timeout=4)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual([], errors)
+            self.assertTrue(visible)
+            self.assertEqual(0, result[0][0])
 
     def test_execute_end_marker_survives_full_line_queue(self) -> None:
         from codex_science import literature_evaluation_runner as runner

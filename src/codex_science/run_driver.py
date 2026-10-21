@@ -161,6 +161,8 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
     exit_code: int | None = None
     process = None
     reader = None
+    stderr_reader = None
+    stderr_stream = None
     reader_started = False
     reader_abandoned = False
     stdout_done = False
@@ -241,7 +243,7 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
                         payload = line[:min(len(line), available)]
                         if payload:
                             runner._queue_put_until_stopped(
-                                lines, (time.monotonic(), payload, too_long), stop_reader)
+                                lines, (time.monotonic(), payload, too_long or len(line) > available), stop_reader)
                 except (OSError, ValueError):
                     pass
                 finally:
@@ -250,13 +252,14 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
             def capture_stderr() -> None:
                 assert process is not None and process.stderr is not None
                 while not stop_reader.is_set():
-                    chunk = process.stderr.read(65536)
+                    chunk = process.stderr.read1(65536)
                     if not chunk:
                         break
                     available = account(len(chunk))
                     if available:
                         try:
                             stderr_stream.write(chunk[:available])
+                            stderr_stream.flush()
                         except (OSError, ValueError):
                             return
 
@@ -310,7 +313,7 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
             reader.join(timeout=_READER_JOIN_SECONDS)
             reader_abandoned = reader.is_alive()
         stop_reader.set()
-        stderr_thread = locals().get("stderr_reader")
+        stderr_thread = stderr_reader
         if stderr_thread is not None:
             stderr_thread.join(timeout=_READER_JOIN_SECONDS)
         if output_capped.is_set():
@@ -335,7 +338,7 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
                 process.stderr.close()
             except (OSError, ValueError):
                 pass
-        if ('stderr_stream' in locals() and not stderr_stream.closed
+        if (stderr_stream is not None and not stderr_stream.closed
                 and (stderr_thread is None or not stderr_thread.is_alive())):
             stderr_stream.close()
     return events, exit_code, timed_out, launch_error, time.monotonic() - started, reader_abandoned
@@ -355,9 +358,19 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
     for name, value in (("prompt", prompt), ("continuation_prompt", continuation_prompt)):
         if value.startswith("-"):
             raise ValueError(f"{name} beginning with '-' is unsupported by this Codex CLI; use a non-dash-leading prompt")
-    existing_turn = next((run_dir / f"turn-{number}" for number in range(1, max_turns + 1)
-                          if (run_dir / f"turn-{number}").exists()
-                          or (run_dir / f"turn-{number}").is_symlink()), None)
+    existing_turn = None
+    if run_dir.exists():
+        with os.scandir(run_dir) as entries:
+            for entry in entries:
+                if not entry.name.startswith("turn-"):
+                    continue
+                suffix = entry.name[5:]
+                if not (suffix.isascii() and suffix.isdecimal()):
+                    continue
+                number = int(suffix)
+                if 1 <= number <= max_turns:
+                    existing_turn = run_dir / entry.name
+                    break
     if existing_turn is not None:
         raise FileExistsError(f"turn directory already exists or is a symlink: {existing_turn.name}")
     receipt_path = run_dir / "run-driver-receipt.json"

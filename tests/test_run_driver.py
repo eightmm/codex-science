@@ -407,6 +407,40 @@ class RunDriverTests(unittest.TestCase):
             self.assertFalse((out / "run-driver-receipt.json").exists())
             self.assertFalse((root / "counter").exists())
 
+    def test_unicode_turn_suffix_is_ignored_before_existing_receipt_refusal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            out = root / "out"
+            (out / "turn-²").mkdir(parents=True)
+            (out / "run-driver-receipt.json").write_text("prior", encoding="utf-8")
+            with self.assertRaisesRegex(FileExistsError, "run-driver-receipt.json"):
+                drive(project, "task", run_dir=out, max_turns=1)
+
+    def test_huge_turn_limit_reaches_existing_receipt_without_iterating_range(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = self._project(root)
+            out = root / "out"
+            out.mkdir()
+            (out / "run-driver-receipt.json").write_text("prior", encoding="utf-8")
+            original_exists = Path.exists
+            exists_calls = 0
+
+            def bounded_exists(path: Path) -> bool:
+                nonlocal exists_calls
+                exists_calls += 1
+                if exists_calls > 8:
+                    raise AssertionError("driver performed a per-turn existence scan")
+                return original_exists(path)
+
+            started = time.monotonic()
+            with patch.object(Path, "exists", bounded_exists):
+                with self.assertRaisesRegex(FileExistsError, "run-driver-receipt.json"):
+                    drive(project, "task", run_dir=out, max_turns=100_000_000)
+            self.assertLess(time.monotonic() - started, 1.0)
+            self.assertLessEqual(exists_calls, 8)
+
     def test_output_directory_with_receipt_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -520,6 +554,79 @@ class RunDriverTests(unittest.TestCase):
             self.assertFalse(records[1]["line_truncated"])
             self.assertEqual("z" * (1024 * 1024) + "\n[output truncated: line limit exceeded]", records[2]["event"])
             self.assertTrue(records[2]["line_truncated"])
+
+    def test_run_turn_marks_and_counts_line_cut_by_total_output_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            script = root / "fake-codex"
+            script.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'abcdefghij')\nsys.stdout.flush()\n",
+                              encoding="utf-8")
+            script.chmod(0o755)
+            events_path = directory / "events.jsonl"
+            with patch("codex_science.run_driver._MAX_OUTPUT_BYTES", 4):
+                with events_path.open("w", encoding="utf-8") as stream:
+                    _run_turn([str(script)], root, directory, 5, event_stream=stream)
+            record = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+            self.assertTrue(record["line_truncated"])
+            from codex_science.run_driver import _count_truncated_lines
+            self.assertEqual(1, _count_truncated_lines(events_path))
+
+    def test_run_turn_reads_twenty_thousand_short_json_lines_quickly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            script = root / "fake-codex"
+            script.write_text(
+                "#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'{\\\"i\\\":1}\\n' * 20000)\n",
+                encoding="utf-8",
+            )
+            script.chmod(0o755)
+            started = time.monotonic()
+            events, exit_code, timed_out, _, _, _ = _run_turn([str(script)], root, directory, 5)
+            self.assertEqual(0, exit_code)
+            self.assertFalse(timed_out)
+            self.assertEqual(20000, len(events))
+            self.assertLess(time.monotonic() - started, 3.0)
+
+    def test_run_turn_flushes_early_stderr_while_child_sleeps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            script = root / "fake-codex"
+            script.write_text(
+                "#!/usr/bin/env python3\nimport sys,time\nsys.stderr.write('early marker\\n')\nsys.stderr.flush()\ntime.sleep(2)\n",
+                encoding="utf-8",
+            )
+            script.chmod(0o755)
+            result = []
+            errors = []
+
+            def run_turn() -> None:
+                try:
+                    result.append(_run_turn([str(script)], root, directory, 5))
+                except BaseException as error:
+                    errors.append(error)
+
+            worker = threading.Thread(target=run_turn)
+            started = time.monotonic()
+            worker.start()
+            stderr_path = directory / "stderr.log"
+            prompt_deadline = started + 1.5
+            visible = False
+            while time.monotonic() < prompt_deadline:
+                if stderr_path.exists() and b"early marker" in stderr_path.read_bytes():
+                    visible = True
+                    break
+                time.sleep(0.01)
+            worker.join(timeout=4)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual([], errors)
+            self.assertTrue(visible)
+            self.assertEqual(0, result[0][1])
 
     def test_run_turn_end_marker_survives_full_line_queue(self):
         import codex_science.run_driver as driver
