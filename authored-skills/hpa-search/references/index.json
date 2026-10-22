@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "hpa-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "hpa-assay-reliability",
+      "path": "references/hpa-assay-and-reliability.md",
+      "purpose": "HPA-specific RNA, protein, localization, antibody reliability, release, and source-dependence semantics.",
+      "read_when": ["interpreting RNA or protein evidence", "reporting antibody reliability", "comparing HPA modalities or releases"],
+      "required_before": ["rna-claim", "protein-claim", "localization-claim"],
+      "search_patterns": ["## Claim classes", "## Assays and normalization", "## Antibody reliability and uncertainty"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines assay-specific interpretation of HPA records; it does not validate antibodies independently or equate RNA with protein."
+    },
+    {
+      "id": "hpa-controls-sensitivity",
+      "path": "references/hpa-controls-and-sensitivity.md",
+      "purpose": "HPA-specific controls, reliability and score sensitivity, tissue grouping, and failure detection.",
+      "read_when": ["filtering by score or reliability", "comparing tissue groups", "interpreting missing or incomplete responses"],
+      "required_before": ["reliability-filter", "tissue-comparison", "result-status"],
+      "search_patterns": ["## Controls and sanity checks", "## Sensitivity analyses", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Sensitivity checks expose fragile summaries but do not prove assay accuracy, biological function, or absence of expression."
+    }
+  ]
+}

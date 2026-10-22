@@ -90,7 +90,7 @@
     {
       "description": "Find ontology-aware healthy wild-type gene expression context with Bgee. Use for cross-species, anatomical, developmental-stage, or baseline-expression questions; not for disease-specific inference or proof of no expression.",
       "executable_count": 0,
-      "instruction_line_count": 29,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-bgee-expression-search",
       "path": "authored-skills/bgee-expression-search",
@@ -654,7 +654,7 @@
     {
       "description": "Retrieve quantitative RNA expression and variant eQTL data from GTEx across 54 non-diseased tissue sites. Use for tissue expression profiles or eQTL lookups; not for disease tissue, causal claims, or calibrated expression comparisons. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 46,
       "license": "Apache-2.0",
       "name": "cx-gtex-search",
       "path": "authored-skills/gtex-search",
@@ -678,7 +678,7 @@
     {
       "description": "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein; not for causal or clinical claims. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 46,
+      "instruction_line_count": 47,
       "license": "Apache-2.0",
       "name": "cx-hpa-search",
       "path": "authored-skills/hpa-search",
@@ -1290,7 +1290,7 @@
     {
       "description": "Query QuickGO and the Evidence & Conclusion Ontology (ECO): map genes to GO biological processes, molecular functions, and cellular components; find genes for a GO term; and explore the GO hierarchy. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 100,
       "license": "Apache-2.0",
       "name": "cx-quickgo-search",
       "path": "authored-skills/quickgo-search",
@@ -1302,14 +1302,16 @@
     {
       "description": "Query Reactome Content and Analysis Services: pathway enrichment of a gene list, identifier mapping, reaction participants, pathway hierarchy, and knowledgebase search. Use for pathway analysis and enrichment. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 68,
+      "instruction_line_count": 99,
       "license": "Apache-2.0",
       "name": "cx-reactome-search",
       "path": "authored-skills/reactome-search",
       "physical_lab": false,
-      "reasons": [],
+      "reasons": [
+        "credentials-required"
+      ],
       "source": "cx",
-      "status": "active"
+      "status": "inactive"
     },
     {
       "description": "Formulate and verify special- and general-relativity problems. Use for Lorentz transformations, four-vectors, relativistic kinematics, metrics, geodesics, curvature, gravitational fields, horizons, and stress-energy dynamics.",
@@ -1470,7 +1472,7 @@
     {
       "description": "Query STRING for protein-protein interactions, interaction confidence/evidence, interaction partners, and functional enrichment. Use for PPI networks and enrichment of a protein set. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 93,
       "license": "Apache-2.0",
       "name": "cx-string-ppi-search",
       "path": "authored-skills/string-ppi-search",
@@ -3709,8 +3711,8 @@
     }
   ],
   "summary": {
-    "active": 172,
-    "inactive": 112,
+    "active": 171,
+    "inactive": 113,
     "total": 284
   }
 }

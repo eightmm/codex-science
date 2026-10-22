@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "gtex-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["gtex-expression-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "GTEx tissue records are bulk measurements from sampled non-diseased donors and cannot resolve cell-specific expression.",
+    "The public response may omit donor counts, covariates, or release details needed for a desired comparison.",
+    "Expression and eQTL associations do not establish protein abundance, disease mechanism, or causality."
+  ]
+}

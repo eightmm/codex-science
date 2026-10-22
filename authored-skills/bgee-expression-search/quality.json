@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "bgee-expression-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["bgee-expression-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Bgee calls depend on the experiments, evidence integration, and ontology coverage in the pinned release.",
+    "Ontology-propagated calls are not direct measurements in every target condition.",
+    "An absent call does not establish biological non-expression outside the evidence and detection domain."
+  ]
+}

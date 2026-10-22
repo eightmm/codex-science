@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "hpa-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["hpa-expression-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "HPA protein evidence is assay- and antibody-dependent and may be semi-quantitative.",
+    "RNA and protein records can represent different samples, evidence sources, and measurement scales.",
+    "HPA coverage and response metadata vary by release and endpoint."
+  ]
+}

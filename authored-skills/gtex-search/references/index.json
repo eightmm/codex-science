@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "gtex-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "gtex-measurement-dependence",
+      "path": "references/gtex-measurement-and-dependence.md",
+      "purpose": "GTEx-specific measurement semantics, donor and tissue dependence, postmortem context, controls, and claim boundaries.",
+      "read_when": ["interpreting expression values or eQTL associations", "comparing tissues or releases", "mapping GTEx labels to anatomy terms"],
+      "required_before": ["expression-claim", "tissue-comparison", "eqtl-association"],
+      "search_patterns": ["## Claim classes", "## Measurement and normalization", "## Source dependence and release"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines bounded interpretation of returned GTEx records; it does not establish disease, cell-specific, or causal claims."
+    },
+    {
+      "id": "gtex-sensitivity-failures",
+      "path": "references/gtex-sensitivity-and-failures.md",
+      "purpose": "GTEx-specific robustness checks, controls, response validation, and failure detection.",
+      "read_when": ["choosing expression or eQTL thresholds", "grouping tissues", "handling missing, zero, or truncated results"],
+      "required_before": ["threshold-filter", "tissue-grouping", "result-status"],
+      "search_patterns": ["## Sensitivity analyses", "## Failure modes and detection", "## Evidence boundary"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Sensitivity checks identify fragile conclusions but do not validate GTEx pipeline correctness or prove biological truth."
+    }
+  ]
+}

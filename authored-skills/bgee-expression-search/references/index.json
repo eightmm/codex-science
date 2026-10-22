@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "bgee-expression-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "bgee-call-integration",
+      "path": "references/bgee-calls-and-integration.md",
+      "purpose": "Bgee-specific present/absent call, rank, score, propagation, condition, and source-dependence semantics.",
+      "read_when": ["interpreting a Bgee call or rank", "using propagated evidence", "comparing conditions or releases"],
+      "required_before": ["present-call", "absent-call", "propagated-call"],
+      "search_patterns": ["## Claim classes", "## Units, calls, and condition integration", "## Source dependence and release"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation of release-specific Bgee evidence; it does not prove true biological absence or exhaustive condition coverage."
+    },
+    {
+      "id": "bgee-controls-sensitivity",
+      "path": "references/bgee-controls-and-sensitivity.md",
+      "purpose": "Bgee-specific control choices, confidence and ontology sensitivity, and failure detection.",
+      "read_when": ["filtering by call quality or score", "grouping anatomy or stages", "distinguishing absent calls from missing evidence"],
+      "required_before": ["call-quality-filter", "ontology-grouping", "result-status"],
+      "search_patterns": ["## Controls and sanity checks", "## Sensitivity analyses", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Sensitivity checks identify fragile interpretations but do not validate all source experiments or establish expression outside represented evidence."
+    }
+  ]
+}

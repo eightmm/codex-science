@@ -11,9 +11,9 @@ Use this Codex adapter for the pinned upstream scientific skill.
 
 ## Catalog status
 
-- Status: `active`
+- Status: `inactive`
 - Source: `cx`
-- Audit reasons: none
+- Audit reasons: `credentials-required`
 - Upstream license: `Apache-2.0`
 - Inventory: `../../inventory.json`
 - Upstream instructions: `../../../authored-skills/reactome-search/SKILL.md`
@@ -22,7 +22,7 @@ Use this Codex adapter for the pinned upstream scientific skill.
 
 1. Resolve the plugin root as three directories above this skill directory.
 2. Read the matching inventory record and verify its status, reasons, source path, and pinned revision.
-3. Read the upstream instructions only after confirming this record is still active in the current inventory.
+3. Do not read the upstream instructions until the user has seen every audit reason and given explicit acknowledgement. Acknowledgement permits instruction inspection only.
 4. Treat upstream frontmatter as source metadata, not as Codex configuration. Follow the instruction body only where it is compatible with available Codex tools and the current user-approved plan.
 5. Treat tools named for another agent runtime as capability requests. Map them to an available Codex tool only when the behavior is equivalent; otherwise report the unavailable capability.
 6. Ask before credentials, package installation, new network hosts, remote compute, writes, paid services, destructive actions, or imported executable code.
