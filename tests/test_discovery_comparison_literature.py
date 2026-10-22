@@ -57,6 +57,18 @@ class LiteratureReportTests(unittest.TestCase):
             self.assertEqual("timeout", grade_run(dict(inconclusive, timed_out=True), task, run)["stop_reason"])
             self.assertEqual("nonzero_exit", grade_run(dict(receipt, exit_code=1), task, run)["stop_reason"])
             self.assertEqual("nonzero_exit", grade_run(dict(inconclusive, exit_code=1), task, run)["stop_reason"])
+            capacity = dict(receipt, exit_code=1, event_metrics={
+                "error_message": "Selected model is at capacity. Please try a different model."})
+            self.assertEqual(("failed", "provider_unavailable"),
+                             (grade_run(capacity, task, run)["outcome"], grade_run(capacity, task, run)["stop_reason"]))
+            self.assertEqual("timeout", grade_run(dict(capacity, timed_out=True), task, run)["stop_reason"])
+            for message in ("The service is overloaded", "rate limit exceeded", "HTTP 429",
+                            "503 Service Unavailable"):
+                graded = grade_run(dict(receipt, exit_code=1, event_metrics={"error_message": message}), task, run)
+                self.assertEqual("provider_unavailable", graded["stop_reason"], message)
+            for malformed in (None, [], {"error_message": 429}, {"error_message": "tool failed at line 429"}):
+                graded = grade_run(dict(receipt, exit_code=1, event_metrics=malformed), task, run)
+                self.assertEqual("nonzero_exit", graded["stop_reason"])
             self.assertEqual("unsure", grade_run(inconclusive, task, run)["outcome"])
             for completion_row in ({"outcome": "terminal_inconclusive"}, {"state": "approval_required"},
                                    {"state": "waiting_external"}):
@@ -236,6 +248,26 @@ class LiteratureReportTests(unittest.TestCase):
         markdown = render_markdown(report)
         self.assertIn("## Partial credit (secondary)", markdown)
         self.assertIn("not used for the completion rate", markdown)
+
+    def test_provider_failures_have_secondary_completion_rate(self):
+        rows = [
+            {"set_digest": "a", "tier": "standard", "outcome": "completed", "stop_reason": "done"},
+            {"set_digest": "a", "tier": "standard", "outcome": "failed", "stop_reason": "provider_unavailable"},
+            {"set_digest": "a", "tier": "standard", "outcome": "failed", "stop_reason": "nonzero_exit"},
+        ]
+        report = summarize(rows)
+        overall = report["overall"]
+        self.assertEqual(3, overall["n"])
+        self.assertEqual(1, overall["completed"])
+        self.assertEqual(1, overall["infrastructure_failures"])
+        self.assertEqual(0.5, overall["completion_rate_excluding_infrastructure"])
+        self.assertEqual(wilson_interval(1, 2), overall["completion_interval_excluding_infrastructure_95"])
+        markdown = render_markdown(report)
+        self.assertIn("excluding infrastructure failures: 50.0%", markdown)
+        self.assertIn("re-run", markdown)
+        empty = summarize([{"set_digest": "a", "outcome": "failed", "stop_reason": "provider_unavailable"}])["overall"]
+        self.assertIsNone(empty["completion_rate_excluding_infrastructure"])
+        self.assertIsNone(empty["completion_interval_excluding_infrastructure_95"])
 
     def test_unrecorded_regular_artifact_is_rejected_before_criteria(self):
         with tempfile.TemporaryDirectory() as tmp:

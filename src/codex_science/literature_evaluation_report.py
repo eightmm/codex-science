@@ -239,10 +239,15 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
     avoids_fabrication = re.search(r"\b(no result|result unavailable|not fabricated|without fabricating|"
                                   r"(?:without|not|never|cannot|can't|won't|do not|don't)\s+(?:fabricat\w+|invent\w+))\b", text)
     unsure = bool(unsure_reasons) or bool(offers_escalation and avoids_fabrication)
+    event_metrics = receipt.get("event_metrics")
+    error_message = event_metrics.get("error_message") if isinstance(event_metrics, Mapping) else None
+    provider_unavailable = isinstance(error_message, str) and re.search(
+        r"\b(?:at capacity|overloaded|rate[- ]limit(?:ed)?|(?:http|status|error)\s*429|429\s+too many requests|503\s+(?:service\s+)?unavailable)\b",
+        error_message, re.IGNORECASE)
     if timed_out is True:
         outcome, stop_reason = "failed", "timeout"
     elif exit_code != 0:
-        outcome, stop_reason = "failed", "nonzero_exit"
+        outcome, stop_reason = "failed", "provider_unavailable" if provider_unavailable else "nonzero_exit"
     elif unsure:
         outcome, stop_reason = "unsure", next(iter(sorted(unsure_reasons or {"escalation_offered"})))
     elif statuses - {"done", "completed", "complete", ""}: outcome, stop_reason = "failed", sorted(statuses - {"done", "completed", "complete", ""})[0]
@@ -280,12 +285,17 @@ def wilson_interval(successes: int, n: int, z: float = 1.959963984540054) -> lis
 
 def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     n = len(rows); completed = sum(r.get("outcome") == "completed" for r in rows)
+    infrastructure_failures = sum(r.get("stop_reason") == "provider_unavailable" for r in rows)
+    adjusted_n = n - infrastructure_failures
     answered = sum(r.get("outcome") != "unsure" for r in rows)
     total = sum(isinstance(r.get("citations"), Mapping) and r["citations"].get("status") != "unavailable" for r in rows)
     traced = sum((r.get("citations") or {}).get("citations_traced", 0) for r in rows if isinstance(r.get("citations"), Mapping))
     citations = sum((r.get("citations") or {}).get("citations_total", 0) for r in rows if isinstance(r.get("citations"), Mapping))
     return {"n": n, "completed": completed, "completion_rate": completed/n if n else None,
             "completion_interval_95": wilson_interval(completed, n), "answered": answered,
+            "infrastructure_failures": infrastructure_failures,
+            "completion_rate_excluding_infrastructure": completed/adjusted_n if adjusted_n else None,
+            "completion_interval_excluding_infrastructure_95": wilson_interval(completed, adjusted_n),
             "coverage": answered/n if n else None, "precision": completed/answered if answered else None,
             "stop_reasons": dict(sorted((reason, sum(r.get("stop_reason") == reason for r in rows)) for reason in {r.get("stop_reason") for r in rows})),
             "citation_tracing": {"runs_available": total, "citations_total": citations,
@@ -329,6 +339,10 @@ def summarize(graded_runs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
 def render_markdown(report: Mapping[str, Any]) -> str:
     s = report["overall"]; interval = s["completion_interval_95"]
     rate = "n/a" if s["completion_rate"] is None else f"{s['completion_rate']:.1%} ({interval[0]:.1%}–{interval[1]:.1%} 95% Wilson interval)"
+    adjusted_interval = s["completion_interval_excluding_infrastructure_95"]
+    adjusted_rate = ("n/a" if s["completion_rate_excluding_infrastructure"] is None else
+                     f"{s['completion_rate_excluding_infrastructure']:.1%} "
+                     f"({adjusted_interval[0]:.1%}–{adjusted_interval[1]:.1%} 95% Wilson interval)")
     percent = lambda value: "n/a" if value is None else f"{value:.1%}"
     matches = report.get("loaded_runtime", {}).get("runtime_under_test_matches_branch")
     version = report.get("branch_runtime_version")
@@ -338,7 +352,12 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         runtime_status = f"Runs used the branch runtime{f' {version}' if version else ''}."
     else:
         runtime_status = "Branch runtime match could not be established from receipts."
-    lines = ["# Literature evaluation report", "", "## Status", f"Completion rate: {rate}; completed {s['completed']}/{s['n']}.", runtime_status, "", "## Current", f"Answered coverage: {percent(s['coverage'])}; precision among answered: {percent(s['precision'])}.", "", "## Next", "Inspect unsure and failed runs before drawing conclusions.", "", "## Evidence", f"{report['claim_boundary']}", "", "Stop reasons:"]
+    lines = ["# Literature evaluation report", "", "## Status",
+             f"Completion rate: {rate}; completed {s['completed']}/{s['n']}.",
+             f"Secondary completion rate excluding infrastructure failures: {adjusted_rate}; "
+             f"provider infrastructure failures {s['infrastructure_failures']}. Runs failed by provider capacity "
+             "should be re-run and not counted as product evidence.",
+             runtime_status, "", "## Current", f"Answered coverage: {percent(s['coverage'])}; precision among answered: {percent(s['precision'])}.", "", "## Next", "Inspect unsure and failed runs before drawing conclusions.", "", "## Evidence", f"{report['claim_boundary']}", "", "Stop reasons:"]
     lines += [f"- {k}: {v}" for k, v in s["stop_reasons"].items()]
     secondary = report.get("partial_credit_secondary", {})
     overall_partial = secondary.get("overall", {})
