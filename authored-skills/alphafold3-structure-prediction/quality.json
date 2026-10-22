@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "alphafold3-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["alphafold3-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Confidence and ranking outputs do not establish experimental correctness, binding, affinity, efficacy, or safety.",
+    "Training cutoff and overlap must be verified for the exact parameter release; unavailable provenance precludes a held-out claim.",
+    "Restricted parameter and output terms can limit reproducibility artifacts and independent evaluation."
+  ]
+}

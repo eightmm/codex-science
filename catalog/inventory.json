@@ -16,7 +16,7 @@
     {
       "description": "Run reproducible AlphaFold2 monomer or multimer inference with pinned code, parameters, sequence databases, template cutoff, and seeds. Use when a local AlphaFold2 installation or approved container/database setup is available; use AlphaFold DB lookup instead for an existing canonical model.",
       "executable_count": 0,
-      "instruction_line_count": 31,
+      "instruction_line_count": 37,
       "license": "MIT",
       "name": "cx-alphafold2-structure-prediction",
       "path": "authored-skills/alphafold2-structure-prediction",
@@ -28,7 +28,7 @@
     {
       "description": "Run the official AlphaFold3 inference pipeline for approved theoretical modeling of proteins, nucleic acids, ligands, modifications, and covalent complexes. Use only when the user has legitimately obtained model parameters and accepts the source, weight, output, and non-commercial terms.",
       "executable_count": 0,
-      "instruction_line_count": 31,
+      "instruction_line_count": 37,
       "license": "MIT",
       "name": "cx-alphafold3-structure-prediction",
       "path": "authored-skills/alphafold3-structure-prediction",
@@ -1014,7 +1014,7 @@
     {
       "description": "Run pinned OpenFold3 preview inference for proteins, nucleic acids, noncanonical residues, and small-molecule complexes. Use when an open AlphaFold3-style workflow is wanted and preview-status limitations are acceptable.",
       "executable_count": 0,
-      "instruction_line_count": 31,
+      "instruction_line_count": 37,
       "license": "MIT",
       "name": "cx-openfold3-structure-prediction",
       "path": "authored-skills/openfold3-structure-prediction",

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "openfold3-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["openfold3-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The preview release and its outputs do not establish AlphaFold3 parity or validated prediction accuracy.",
+    "Confidence fields, training cutoff, and supported chemistry vary by release and may be undocumented.",
+    "A small sample set and shared training or database dependencies cannot establish independent replication or broad benchmark performance."
+  ]
+}

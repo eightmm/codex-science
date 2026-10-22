@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "openfold3-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "openfold3-preview-evidence",
+      "path": "references/openfold3-evidence.md",
+      "purpose": "OpenFold3 preview-specific claim classes, release-bound confidence semantics, data dependence, controls, sensitivity, and applicability limits.",
+      "read_when": [
+        "interpreting preview confidence or ranking fields",
+        "making structure, interface, chemistry, or benchmark claims",
+        "assessing MSA, template, PDB, or training-data dependence",
+        "planning controls or sensitivity analyses"
+      ],
+      "required_before": [
+        "step-7-confidence-assessment",
+        "step-8-controls-and-sensitivity",
+        "claim-experimental-agreement"
+      ],
+      "search_patterns": [
+        "## Claim classes",
+        "## Confidence and uncertainty",
+        "## Controls and sensitivity",
+        "## Applicability and failure detection"
+      ],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Guides interpretation of the pinned OpenFold3 preview only; it does not establish AlphaFold3 parity, experimental correctness, binding, or performance beyond the evaluated release."
+    }
+  ]
+}

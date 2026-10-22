@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "alphafold2-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["alphafold2-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Confidence metrics and sample stability do not establish experimental structure, binding, or biological function.",
+    "Training-set cutoffs and overlap may be unavailable for a particular parameter release; unknown cutoffs cannot support a held-out claim.",
+    "Benchmark conclusions remain limited by target selection, homolog/template overlap, and the pinned database snapshots."
+  ]
+}

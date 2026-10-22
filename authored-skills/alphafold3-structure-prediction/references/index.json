@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "alphafold3-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "alphafold3-claim-evidence",
+      "path": "references/alphafold3-evidence.md",
+      "purpose": "AF3-specific claim classes, confidence and ranking semantics, asset/data dependence, controls, sensitivity, and applicability limits.",
+      "read_when": [
+        "interpreting AF3 confidence, ranking, or chemistry outputs",
+        "making structure, interface, ligand, or benchmark claims",
+        "assessing MSA, template, PDB, or training-data dependence",
+        "planning controls or sensitivity analyses"
+      ],
+      "required_before": [
+        "step-7-confidence-assessment",
+        "step-8-controls-and-sensitivity",
+        "claim-experimental-agreement"
+      ],
+      "search_patterns": [
+        "## Claim classes",
+        "## Confidence and uncertainty",
+        "## Controls and sensitivity",
+        "## Applicability and failure detection"
+      ],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Guides interpretation of the pinned AF3 release; it does not validate a specific prediction, grant asset rights, or establish binding or clinical claims."
+    }
+  ]
+}

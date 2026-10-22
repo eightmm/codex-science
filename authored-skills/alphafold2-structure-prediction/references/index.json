@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "alphafold2-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "alphafold2-claim-evidence",
+      "path": "references/alphafold2-evidence.md",
+      "purpose": "AF2-specific claim classes, confidence semantics, data dependence, controls, sensitivity, and applicability limits.",
+      "read_when": [
+        "interpreting AF2 confidence or ranking outputs",
+        "making structural, interface, or benchmark claims",
+        "assessing MSA, template, PDB, or training-data dependence",
+        "planning controls or sensitivity analyses"
+      ],
+      "required_before": [
+        "step-7-confidence-assessment",
+        "step-8-controls-and-sensitivity",
+        "claim-experimental-agreement"
+      ],
+      "search_patterns": [
+        "## Claim classes",
+        "## Confidence and uncertainty",
+        "## Controls and sensitivity",
+        "## Applicability and failure detection"
+      ],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Guides AF2 output interpretation; it does not establish experimental correctness, biological interaction, or performance beyond the inspected inputs and controls."
+    }
+  ]
+}
