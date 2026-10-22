@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "skill": "chemical-structure-elucidation",
+  "roles": [
+    "conductor",
+    "analyzer",
+    "reviewer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "structure-elucidation-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The result is limited by the weakest essential measurement and by sample representativeness.",
+    "Cross-modal agreement is not independent when modalities share sample preparation, reference data, assumptions or candidate-selection evidence.",
+    "Absolute stereochemistry, mixture composition and solid-state form require suitable modality-specific evidence."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "nmr-structure-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "nmr-assignment-and-correlation-criteria",
+      "path": "references/nmr-evidence-interpretation.md",
+      "purpose": "NMR evidence interpretation domain criteria, controls, uncertainty and failure interpretation.",
+      "read_when": [
+        "before assignment, processing changes, stereochemical claims, or when overlap/exchange affects candidate ranking."
+      ],
+      "required_before": [
+        "process-conservatively",
+        "build-candidates",
+        "test-correlations",
+        "challenge-assignments",
+        "verify-and-downgrade"
+      ],
+      "evidence_boundary": "Defines a domain-specific interpretation and reporting procedure; it cannot establish identity or validation beyond recorded sample, method, controls and applicability evidence."
+    }
+  ]
+}

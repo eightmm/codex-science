@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "nmr-structure-analysis",
+  "roles": [
+    "analyzer",
+    "reviewer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "nmr-assignment-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Overlapping or exchanging signals can make assignments non-identifiable from the available spectra.",
+    "A finite set of NMR correlations supports only the tested sample state and acquisition conditions.",
+    "Absolute stereochemistry requires an appropriate chiral or orthogonal evidence source."
+  ]
+}

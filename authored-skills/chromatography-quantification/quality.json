@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "chromatography-quantification",
+  "roles": [
+    "analyzer",
+    "reviewer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "chromatographic-quantification-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Validation applies to the declared analyte, matrix, instrument, range and intended use.",
+    "Area normalization does not account for unequal detector response or establish mass or mole purity.",
+    "Unresolved coelution and uncharacterized matrix effects can dominate the stated measurement uncertainty."
+  ]
+}

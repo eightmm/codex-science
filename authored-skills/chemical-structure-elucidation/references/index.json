@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "chemical-structure-elucidation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "orthogonal-structure-evidence-reconciliation",
+      "path": "references/structure-elucidation-evidence.md",
+      "purpose": "Structure elucidation evidence reconciliation domain criteria, controls, uncertainty and failure interpretation.",
+      "read_when": [
+        "before cross-modal ranking, interpreting contradictions, or claiming uniqueness/stereochemistry."
+      ],
+      "required_before": [
+        "select-modalities",
+        "build-evidence-graph",
+        "verify-and-reconcile-predictions",
+        "challenge-ranking",
+        "report-and-hand-off"
+      ],
+      "evidence_boundary": "Defines a domain-specific interpretation and reporting procedure; it cannot establish identity or validation beyond recorded sample, method, controls and applicability evidence."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "mass-spectrometry-identification",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ms-confidence-and-error-criteria",
+      "path": "references/ms-identification-evidence.md",
+      "purpose": "Mass spectrometry identification evidence domain criteria, controls, uncertainty and failure interpretation.",
+      "read_when": [
+        "before assigning identification level, comparing libraries, making FDR claims, or reporting quantitative results."
+      ],
+      "required_before": [
+        "pin-processing",
+        "audit-background",
+        "compare-compatible-evidence",
+        "calibrate-error",
+        "verify-and-classify"
+      ],
+      "evidence_boundary": "Defines a domain-specific interpretation and reporting procedure; it cannot establish identity or validation beyond recorded sample, method, controls and applicability evidence."
+    }
+  ]
+}

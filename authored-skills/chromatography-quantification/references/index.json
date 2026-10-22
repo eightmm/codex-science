@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "chromatography-quantification",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "chromatography-calibration-and-batch-criteria",
+      "path": "references/chromatographic-quantification-evidence.md",
+      "purpose": "Chromatographic quantification evidence domain criteria, controls, uncertainty and failure interpretation.",
+      "read_when": [
+        "before calibration, integration, batch decisions, or interpreting coelution, matrix effects, or limits."
+      ],
+      "required_before": [
+        "assess-controls",
+        "lock-calibration",
+        "validate-performance",
+        "challenge-integration",
+        "verify-range-and-batch"
+      ],
+      "evidence_boundary": "Defines a domain-specific interpretation and reporting procedure; it cannot establish identity or validation beyond recorded sample, method, controls and applicability evidence."
+    }
+  ]
+}

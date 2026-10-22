@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "mass-spectrometry-identification",
+  "roles": [
+    "analyzer",
+    "reviewer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "ms-identification-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Library matches depend on coverage, preprocessing, collision conditions and instrument compatibility.",
+    "Many constitutional and stereochemical isomers are not distinguishable by mass spectra alone.",
+    "FDR and error estimates apply only to the declared search space, decoys, filters and evaluation set."
+  ]
+}
