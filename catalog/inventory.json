@@ -198,7 +198,7 @@
     {
       "description": "Resolve cancer genes and plan public cBioPortal cohort queries. Use for somatic alteration, cancer cohort, co-alteration, survival, or translational oncology evidence.",
       "executable_count": 0,
-      "instruction_line_count": 24,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-cbioportal-search",
       "path": "authored-skills/cbioportal-search",
@@ -258,7 +258,7 @@
     {
       "description": "Integrate molecular formula, NMR, MS, IR, Raman, UV-Vis, chromatography, and diffraction evidence into ranked chemical structures with explicit contradictions and confidence. Use for unknown identification, structure confirmation, isomer discrimination, impurity analysis, and planning the smallest discriminating analytical experiment.",
       "executable_count": 0,
-      "instruction_line_count": 25,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-chemical-structure-elucidation",
       "path": "authored-skills/chemical-structure-elucidation",
@@ -270,7 +270,7 @@
     {
       "description": "Quantify analytes from chromatographic data with validated integration, calibration, quality controls, and uncertainty. Use for HPLC, UHPLC, GC, LC-MS, GC-MS, UV or fluorescence detection, targeted assays, purity estimates, retention data, and batch acceptance.",
       "executable_count": 0,
-      "instruction_line_count": 25,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-chromatography-quantification",
       "path": "authored-skills/chromatography-quantification",
@@ -786,7 +786,7 @@
     {
       "description": "Identify and quantify support for analytes from mass spectrometry with explicit acquisition context, calibration, false-discovery control, and isomer-aware evidence. Use for GC-MS, LC-MS, MS/MS, accurate mass, isotope patterns, adducts, fragments, library searching, proteomics, metabolomics, and unknown identification.",
       "executable_count": 0,
-      "instruction_line_count": 25,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-mass-spectrometry-identification",
       "path": "authored-skills/mass-spectrometry-identification",
@@ -918,7 +918,7 @@
     {
       "description": "Process, assign, and verify molecular NMR evidence. Use for 1D or 2D solution NMR, FID processing, chemical shifts, multiplicities, couplings, integrations, COSY, HSQC, HMBC, NOE or ROE evidence, mixture assessment, and molecular structure or stereochemical analysis.",
       "executable_count": 0,
-      "instruction_line_count": 25,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-nmr-structure-analysis",
       "path": "authored-skills/nmr-structure-analysis",
@@ -1122,7 +1122,7 @@
     {
       "description": "Discover public proteomics projects through PRIDE Archive. Use for mass-spectrometry datasets, reanalysis candidates, protein evidence, or public-study discovery.",
       "executable_count": 0,
-      "instruction_line_count": 24,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-pride-search",
       "path": "authored-skills/pride-search",
@@ -1206,7 +1206,7 @@
     {
       "description": "Resolve a known PXD accession through ProteomeXchange. Use for cross-repository accession verification and proteomics reanalysis planning; use PRIDE for keyword discovery.",
       "executable_count": 0,
-      "instruction_line_count": 24,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-proteomexchange-search",
       "path": "authored-skills/proteomexchange-search",

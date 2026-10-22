@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "cbioportal-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "cbioportal-cohort-claims",
+      "path": "references/cbioportal-cohort-claims.md",
+      "purpose": "Cohort and claim assignment, dependency analysis, controls, sensitivity, and cBioPortal evidence limits.",
+      "read_when": ["assigning claim status", "estimating or comparing cohort frequencies", "interpreting association or survival output"],
+      "required_before": ["cohort-estimate", "association-claim", "survival-claim"],
+      "search_patterns": ["## Claim classes", "## Source dependencies", "## Sensitivity analysis", "## Common failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines retrieval and interpretation controls; it does not establish biological truth, clinical validity, or population representativeness."
+    }
+  ]
+}

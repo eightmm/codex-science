@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "pride-search",
+  "roles": [
+    "retriever"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "pride-dataset-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "PRIDE metadata are submitter supplied and may not fully describe sample design, processing, or assay quality.",
+    "A project search does not inspect spectra or independently validate peptide/protein identifications.",
+    "Repository file availability, access terms, and metadata fields can vary across projects and over time.",
+    "No domain-specific acceptance fixtures or seeded failure cases are included, so this declaration does not establish L4."
+  ]
+}

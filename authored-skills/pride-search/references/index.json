@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "pride-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "pride-project-evidence",
+      "path": "references/pride-project-evidence.md",
+      "purpose": "PRIDE project/file evidence classes, provenance dependencies, controls, candidate sensitivity, and limits.",
+      "read_when": ["ranking candidate projects", "checking file availability or reuse", "planning or interpreting reanalysis"],
+      "required_before": ["dataset-suitability", "file-selection", "identification-claim"],
+      "search_patterns": ["## Claim classes", "## Source dependencies", "## Sensitivity analysis", "## Common failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Guides archive retrieval and evidence classification; it does not validate experimental quality or biological conclusions."
+    }
+  ]
+}

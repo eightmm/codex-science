@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "cbioportal-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["cbioportal-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The skill reports source-visible cohort metadata and cannot establish that a portal cohort represents a target population.",
+    "Some studies do not expose immutable release identifiers, complete missingness, sample overlap, or full survival-analysis details.",
+    "The workflow does not independently validate variant calls, survival models, or clinical utility."
+  ]
+}

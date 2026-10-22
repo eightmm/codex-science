@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "proteomexchange-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "proteomexchange-registration",
+      "path": "references/proteomexchange-registration.md",
+      "purpose": "Accession registration semantics, repository relationships, provenance dependencies, controls, and availability boundaries.",
+      "read_when": ["verifying a PXD accession", "comparing ProteomeCentral and a member repository", "assessing reprocessing lineage or availability"],
+      "required_before": ["registration-claim", "repository-availability", "reanalysis-claim"],
+      "search_patterns": ["## Claim classes", "## Source dependencies", "## Sensitivity analysis", "## Common failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines registration and provenance checks; it does not establish experimental quality, identification correctness, or biological support."
+    }
+  ]
+}

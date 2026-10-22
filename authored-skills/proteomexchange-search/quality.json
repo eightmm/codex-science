@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "proteomexchange-search",
+  "roles": [
+    "retriever"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "proteomexchange-accession-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "A registration can be discoverable while its member repository or files are unavailable.",
+    "Portal and repository records may differ or omit stable release identifiers and complete dataset lineage.",
+    "Accession verification does not inspect raw spectra or validate reanalysis and identification quality.",
+    "No domain-specific acceptance fixtures or seeded failure cases are included, so this declaration does not establish L4."
+  ]
+}
