@@ -18,6 +18,7 @@ from typing import Any, Mapping
 from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
 from codex_science.review_receipts import build_review_receipt, canonical_sha256, validate_review_receipt
+from codex_science.review import evidence_node_has_successful_execution
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS
 
 
@@ -153,8 +154,6 @@ def _review_priority(manifest: Mapping[str, Any], claims: list[Any], sidecars: M
     nodes = {str(node.get("id")): node for node in graph.get("nodes", []) if isinstance(node, Mapping)} if isinstance(graph, Mapping) else {}
     edges = graph.get("edges", []) if isinstance(graph, Mapping) else []
     artifact_paths = {str(item.get("path")) for item in manifest.get("artifacts", []) if isinstance(item, Mapping)}
-    executions = [item for item in manifest.get("executions", []) if isinstance(item, Mapping)]
-    has_successful_execution = any(item.get("exit_code") == 0 for item in executions)
     support: dict[str, set[str]] = {claim_id: set() for claim_id in _material_claim_ids(manifest, sidecars)}
     for edge in edges:
         if isinstance(edge, Mapping) and edge.get("relation") == "supports" and str(edge.get("target")) in support:
@@ -177,11 +176,11 @@ def _review_priority(manifest: Mapping[str, Any], claims: list[Any], sidecars: M
         elif refs and all(
             node is not None
             and (
-                node.get("type") == "execution" and has_successful_execution
+                node.get("type") == "execution" and evidence_node_has_successful_execution(manifest, ref, node)
                 or (
                     node.get("type") == "artifact"
                     and (str(node.get("path", ref)) in artifact_paths or ref in artifact_paths)
-                    and has_successful_execution
+                    and evidence_node_has_successful_execution(manifest, ref, node)
                 )
             )
             for ref, node in ((ref, nodes.get(ref)) for ref in refs)

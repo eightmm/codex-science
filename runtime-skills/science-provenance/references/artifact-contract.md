@@ -18,6 +18,8 @@ The manifest remains schema version `1`. It is the stable index for one scientif
 - `claims`: stable claim IDs and minimal evidence links retained for backward-compatible navigation.
 - `review`: review status, receipt path and hash, findings, and resolution state.
 
+Execution records may optionally include `id` and `outputs` (artifact paths, optionally with SHA-256); new computed-claim producers should record both to link graph executions and artifacts to successful runs. When no execution has an `id`, execution nodes use the legacy any-successful-execution fallback; when no execution has `outputs`, artifact nodes use that same fallback.
+
 ## Validated sidecars
 
 Store these as ordinary manifest artifacts. The `kind` controls schema validation and index rendering.

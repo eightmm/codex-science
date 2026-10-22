@@ -124,6 +124,51 @@ class ReviewerRuntimeTests(unittest.TestCase):
             _review_priority(manifest, claims, sidecars),
         )
 
+    def test_unrelated_successful_execution_does_not_make_claim_data(self) -> None:
+        claims = [{"id": "C1", "kind": "descriptive"}]
+        sidecars = {
+            "claim_by_id": {"C1": claims[0]},
+            "graph_v2": {
+                "nodes": [{"id": "analysis-run", "type": "execution"}, {"id": "C1", "type": "claim"}],
+                "edges": [{"source": "analysis-run", "target": "C1", "relation": "supports"}],
+            },
+        }
+        manifest = {"claims": claims, "artifacts": [], "executions": [{"id": "unrelated-run", "exit_code": 0}]}
+
+        self.assertEqual("unknown", _review_priority(manifest, claims, sidecars)[0]["basis"])
+
+    def test_claim_supported_by_matching_successful_execution_is_data(self) -> None:
+        claims = [{"id": "C1", "kind": "descriptive"}]
+        sidecars = {
+            "claim_by_id": {"C1": claims[0]},
+            "graph_v2": {
+                "nodes": [{"id": "analysis-run", "type": "execution"}, {"id": "C1", "type": "claim"}],
+                "edges": [{"source": "analysis-run", "target": "C1", "relation": "supports"}],
+            },
+        }
+        manifest = {"claims": claims, "artifacts": [], "executions": [{"id": "analysis-run", "exit_code": 0}]}
+
+        self.assertEqual("data", _review_priority(manifest, claims, sidecars)[0]["basis"])
+
+    def test_artifact_requires_a_matching_successful_output_path_and_hash(self) -> None:
+        claims = [{"id": "C1", "kind": "descriptive"}]
+        sidecars = {
+            "claim_by_id": {"C1": claims[0]},
+            "graph_v2": {
+                "nodes": [{"id": "result.json", "type": "artifact", "path": "result.json", "sha256": "a" * 64}, {"id": "C1", "type": "claim"}],
+                "edges": [{"source": "result.json", "target": "C1", "relation": "supports"}],
+            },
+        }
+        manifest = {
+            "claims": claims,
+            "artifacts": [{"path": "result.json", "sha256": "a" * 64}],
+            "executions": [{"id": "analysis-run", "exit_code": 0, "outputs": [{"path": "result.json", "sha256": "b" * 64}]}],
+        }
+
+        self.assertEqual("unknown", _review_priority(manifest, claims, sidecars)[0]["basis"])
+        manifest["executions"][0]["outputs"][0]["sha256"] = "a" * 64
+        self.assertEqual("data", _review_priority(manifest, claims, sidecars)[0]["basis"])
+
     def test_tier_validation_provenance_and_suggestions(self) -> None:
         with self.assertRaisesRegex(ValueError, "tier must be one of"):
             build_review_packet(Path("missing-manifest.json"), review_modes=["record"], tier="invalid")

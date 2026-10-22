@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Computed-claim review validates execution IDs and output paths/hashes when recorded, while retaining the legacy fallback for older manifests.
 - Connector catalog marks the 15 typed-registry sources as MCP tools and records each tool's maturity.
 - Literature evaluation reports per-task wall time and token usage, with unknown usage preserved and no monetary cost estimate.
 - Passed review receipts may disclose non-blocking findings, and quick answers end with a fixed unreviewed label.

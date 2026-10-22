@@ -51,6 +51,7 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
             review = review_manifest(manifest, output, sidecars=validate_bundle(manifest, output))
             self.assertEqual("findings", review["status"])
             self.assertIn("acceptance-metric-failed", {item["code"] for item in review["findings"]})
+            self.assertNotIn("computed-claim-without-execution", {item["code"] for item in review["findings"]})
 
     def test_acceptance_receipts_describe_the_actual_local_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

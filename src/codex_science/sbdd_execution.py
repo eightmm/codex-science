@@ -247,7 +247,15 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     ])
     manifest["inputs"] = [{"path": str(input_path), "sha256": file_sha256(input_path)}]
     manifest["code"] = [{"module": "codex_science.sbdd_execution", "revision": "deterministic-translation-baseline-v1"}]
-    manifest["executions"] = [{"command": f"python scripts/run_sbdd_acceptance.py {input_path} {output_dir}", "exit_code": 0}]
+    manifest["executions"] = [{
+        "id": "execution-sbdd-baseline",
+        "command": f"python scripts/run_sbdd_acceptance.py {input_path} {output_dir}",
+        "exit_code": 0,
+        "outputs": [
+            "poses.json", "metrics.json", "claims.json", "evidence_graph.json",
+            "evidence_graph_v2.json", "model_receipt.json", "report.md", "review_receipt.json",
+        ],
+    }]
     manifest["environment"] = {"python": ">=3.11", "random_seed": 0, "model_registry_sha256": registry_sha256(registry)}
     manifest["claims"] = [{"id": "claim-sbdd-acceptance", "text": claims["claims"][0]["text"], "evidence": ["metrics.json", "poses.json", "report.md"]}]
     manifest["review"] = {"status": "passed" if all_passed else "findings", "findings": review_findings}
