@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "clinvar-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "assertion-reconciliation",
+      "path": "references/clinvar-assertions.md",
+      "purpose": "ClinVar claim scope, review status, submitter dependence, controls, uncertainty, sensitivity, and failure handling.",
+      "read_when": ["assigning claim status", "interpreting star levels", "comparing submitters or conflicting classifications", "treating a query as absent"],
+      "required_before": ["workflow-step-3", "workflow-step-6", "claim-aggregate-classification"],
+      "search_patterns": ["## Claim semantics", "## Review status and star interpretation", "## Sensitivity and applicability", "## Common failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines how returned ClinVar submissions support database-record claims; it does not establish clinical or functional truth or provide diagnosis."
+    }
+  ]
+}

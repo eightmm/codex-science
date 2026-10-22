@@ -306,7 +306,7 @@
     {
       "description": "Look up clinical significance and pathogenicity classifications (Pathogenic, Benign, VUS) and supporting evidence for human genomic variants in NCBI ClinVar. Use for variant clinical interpretation or benchmark controls. Public NCBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 27,
+      "instruction_line_count": 93,
       "license": "Apache-2.0",
       "name": "cx-clinvar-search",
       "path": "authored-skills/clinvar-search",
@@ -390,7 +390,7 @@
     {
       "description": "Look up and map short human variants (SNPs, indels) in NCBI dbSNP: resolve between rsIDs, GRCh38 coordinates, and HGVS, and get variant type, gene, clinical significance, and allele frequencies. Public NCBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 27,
+      "instruction_line_count": 92,
       "license": "Apache-2.0",
       "name": "cx-dbsnp-search",
       "path": "authored-skills/dbsnp-search",
@@ -630,7 +630,7 @@
     {
       "description": "Query gnomAD for variant allele frequency/rarity, gene constraint metrics (pLI, LOEUF), variants in a region or gene, and structural variants. Use to assess variant rarity or loss-of-function intolerance. Not for individual patient genomes or somatic cancer variants. Public GraphQL API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 27,
+      "instruction_line_count": 95,
       "license": "Apache-2.0",
       "name": "cx-gnomad-search",
       "path": "authored-skills/gnomad-search",

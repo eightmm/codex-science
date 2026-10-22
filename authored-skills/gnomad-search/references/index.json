@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "gnomad-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "population-frequency-evidence",
+      "path": "references/gnomad-frequency.md",
+      "purpose": "Frequency and constraint claim semantics, AC/AN, ancestry, coverage, QC, dependence, controls, and failure handling.",
+      "read_when": ["interpreting variant frequency", "using ancestry-specific values", "assessing allele number or coverage", "evaluating filters, flags, or absent results"],
+      "required_before": ["workflow-step-3", "workflow-step-6", "claim-frequency"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies, population, and release", "## Sensitivity and applicability", "## Common failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines what retrieved gnomAD frequency and constraint data support; it does not establish an individual genotype, clinical classification, causality, or penetrance."
+    }
+  ]
+}

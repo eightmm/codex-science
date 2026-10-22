@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "dbsnp-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["dbsnp-identity-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow checks returned identifier and allele mappings but does not independently validate dbSNP source submissions.",
+    "Normalization and annotation fields depend on endpoint, reference assembly, and release metadata returned by NCBI."
+  ]
+}

@@ -11,17 +11,83 @@ Codex-native adaptation of Google DeepMind's `clinvar-database` skill
 Uses the public API directly through Codex's own tools.
 
 ## Decision contract
-Record the variant query (rsID, HGVS, or gene), species, any supplied assembly, condition/phenotype, evidence cutoff, and whether the task asks for a record lookup or an interpretation summary. Preserve ambiguous variants as unresolved until normalized to a returned ClinVar record. ClinVar assertions are submissions with review-status metadata; do not collapse distinct conditions or submissions into one label.
+
+Record the variant query (rsID, HGVS, or gene), species, supplied assembly,
+condition or phenotype, evidence cutoff, and whether the task asks for a record
+lookup or an interpretation summary. Preserve ambiguous variants as unresolved
+until normalized to a returned ClinVar record. Treat every classification as a
+submitter assertion about a specified variant-condition pair, not clinical or
+functional truth. Do not collapse distinct conditions or submissions into one
+label.
+
+## Reference usage
+
+- Read [references/clinvar-assertions.md](references/clinvar-assertions.md)
+  before assigning claim status, comparing submitters, or interpreting star
+  levels or conflicting classifications.
+- Read [references/clinvar-assertions.md](references/clinvar-assertions.md)
+  before excluding a record, treating an absent result as evidence, or reporting
+  uncertainty and applicability limits.
 
 ## Workflow
-**Gates (ask before proceeding):** on first use in a workspace, tell the user to review the source's terms of use and record the notice in provenance. Read-only public access; be polite about rate limits. Write large responses to a file and parse them; if you write helper code, run it via `uv run`, never bare `python3`. Ask before installs or large downloads.
 
-Use NCBI E-utilities `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/` (`esearch`, `esummary`, `efetch`, `db=clinvar`). Search, retain the exact query and returned identifiers, then retrieve the selected record. Validate that the returned variant and condition match the request; record response truncation or failed pages and do not treat them as empty results. If the Codex Science MCP source is enabled, `science_query_source_v2` with `source="clinvar"` is an additional route; its arguments are `source`, `parameters`, optional `operation`, `page_size`, `max_pages`, `evidence_cutoff`, and `include_snapshot`. Consult `science_list_source_contracts` and use only the parameter schema it reports.
-
-Capture query, endpoint/tool, access time, response or artifact hash, record identifiers, returned and excluded counts, exclusion reasons, and release/version metadata when reported. Distinguish no matching record, unavailable service, omitted field, and explicit null. Bound retries to transient failures, honor service responses, and do not substitute broad web search for a failed structured query. Record queries, endpoints, and cited identifiers with `$science-provenance`; check claims with `$science-review` before presenting.
+1. **Gates (ask before proceeding).** On first use in a workspace, ask the user
+   to review the source's terms of use and wait for confirmation; record the
+   notice in provenance. Ask before installs or large downloads. Write large
+   responses to a file and parse them; run helper code via `uv run`, never bare
+   `python3`. Continue only after required notice and approvals; record them.
+   Access remains read-only and rate-limit polite.
+2. Normalize the query and fix species, assembly, condition, evidence cutoff,
+   and lookup-versus-summary scope; if allele, build, or condition is ambiguous,
+   stop classification and record unresolved identifiers.
+3. Read the reference rules and select a supported claim class; distinguish a
+   ClinVar database assertion from clinical truth, and record claim IDs, status,
+   and support criteria.
+4. Search NCBI E-utilities at
+   `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/` (`esearch`, `esummary`,
+   `efetch`, `db=clinvar`), retain the exact query and returned IDs, then fetch
+   selected records; if using Codex Science MCP, use
+   `science_query_source_v2(source="clinvar")` with only the top-level
+   arguments `source`, `parameters`, optional `operation`, `page_size`,
+   `max_pages`, `evidence_cutoff`, and `include_snapshot`, and first consult
+   `science_list_source_contracts` for its parameter schema. Record query,
+   endpoint/tool, access time, and release/version when reported.
+5. Verify variant allele, assembly, condition, accession, and response
+   completeness against the request; mismatch or truncation prevents a positive
+   mapping, and the record is retained as unresolved with its reason.
+6. Compare the returned SCV submissions and VCV/RCV aggregate for the same
+   assertion type; account for review status/stars, classification conflicts,
+   and submitter/dependency overlap, then record included/excluded records,
+   counts, and reasons.
+7. When feasible within rate limits (at least once per run, not per lookup), check positive and negative controls and the smallest relevant sensitivity
+   changes described in the reference; record control outcomes and whether the
+   conclusion changes.
+8. **Verify** that status is supported, contradicted, inconclusive, or
+   unavailable, that missing/null/no-match/service-failure states remain
+   distinct, and that artifact/hash, timestamp, identifiers, and claim
+   dependencies are present; retain response or hash-bound artifact and hand
+   query, endpoint, and cited IDs to `$science-provenance`, then claims to
+   `$science-review` before presentation.
 
 ## Outputs
-Return normalized query and assembly, ClinVar VCV/RCV accessions actually returned, condition, classification, review status/star rating, supporting and conflicting evidence, retrieval timestamp/version, and an inclusion/exclusion table. Mark each requested conclusion supported, contradicted, inconclusive, or unavailable, with uncertainty, limitations and the smallest next lookup that could resolve ambiguity. Preserve the raw response or a hash-bound saved artifact.
+
+Produce `clinvar-assertion-evidence-v1` with required fields: query and
+normalized variant; species and assembly; condition; claim IDs and claim class;
+status (`supported`, `contradicted`, `inconclusive`, or `unavailable`);
+ClinVar VCV/RCV/SCV accessions actually returned; classification; review status
+and star rating; supporting and conflicting evidence; submitters and known
+dependencies; evidence cutoff; retrieval timestamp and release/version;
+included/excluded counts and reasons; uncertainty and limitations; smallest
+next lookup; response artifact path or hash; and provenance/review references.
 
 ## Boundaries
-Clinical significance and review status vary in confidence; report the star rating. This is not clinical or diagnostic advice. Cite only ClinVar accessions (VCV/RCV) actually returned. A missing record or blank field is not evidence of benignity; a classification is not an individual diagnosis. Stop interpretation when allele, build, condition, or record identity cannot be resolved.
+
+Clinical significance and review status vary in confidence; report the star
+rating and its underlying review-status text. This is not clinical or diagnostic
+advice. Cite only ClinVar accessions (VCV/RCV) actually returned. A missing
+record or blank field is not evidence of benignity; a classification is not an
+individual diagnosis or functional proof. Stop interpretation when allele,
+build, condition, or record identity cannot be resolved. Do not replace a failed
+structured query with broad web search. Preserve exact queries, bound retries to
+transient failures, honor service responses, and report no match, unavailable
+service, omitted field, explicit null, failed page, and truncation separately.

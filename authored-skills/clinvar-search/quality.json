@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "clinvar-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["clinvar-assertion-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow reconciles database assertions and review metadata; it does not validate the underlying clinical evidence independently.",
+    "ClinVar release metadata and submitter-level dependencies may be incomplete in a selected response."
+  ]
+}

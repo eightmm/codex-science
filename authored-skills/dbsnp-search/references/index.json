@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "dbsnp-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "identifier-allele-reconciliation",
+      "path": "references/dbsnp-identity.md",
+      "purpose": "rsID merge, allele representation, assembly, HGVS/VCF normalization, annotations, controls, and mapping failure handling.",
+      "read_when": ["mapping an rsID", "reconciling VCF and HGVS", "checking a build or merge", "interpreting missing annotations"],
+      "required_before": ["workflow-step-3", "workflow-step-5", "claim-allele-identity"],
+      "search_patterns": ["## Claim semantics", "## Representation, merges, and release pinning", "## Sensitivity and applicability", "## Common failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Supports only scoped database identifier and annotation claims from returned records; it does not prove clinical truth, pathogenicity, or an individual's genotype."
+    }
+  ]
+}

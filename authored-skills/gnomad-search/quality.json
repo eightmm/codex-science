@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "gnomad-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["gnomad-frequency-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow reports source estimates and QC context but does not independently validate cohort composition or variant calling.",
+    "Coverage, flag, and population fields vary by dataset and may not be available from every query route."
+  ]
+}
