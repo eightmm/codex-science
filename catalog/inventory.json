@@ -762,7 +762,7 @@
     {
       "description": "Run a protocol-driven, updateable literature review with exact multi-source queries, study-level deduplication, structured extraction, evidence dependency tracking, bounded synthesis, provenance, and independent review. Use for systematic, scoping, rapid, living, or evidence-landscape reviews where discovery alone is insufficient.",
       "executable_count": 0,
-      "instruction_line_count": 103,
+      "instruction_line_count": 105,
       "license": "MIT",
       "name": "cx-literature-review",
       "path": "authored-skills/literature-review",

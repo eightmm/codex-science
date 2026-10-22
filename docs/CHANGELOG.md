@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Documented the rigor request fields and directed literature reviews to the
+  validated sidecar example bundle.
 - PDB search treats an empty HTTP 204 on the first page as a negative result
   with a replayable snapshot; other empty or later-page 204s stay schema drift.
 - Skills now run the deterministic artifact review before preparing the

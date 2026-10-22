@@ -1,6 +1,9 @@
 import json
+import re
 import unittest
 from pathlib import Path
+
+from codex_science.rigor import CLAIM_STRENGTHS, TIERS, classify_rigor
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +82,30 @@ REQUIRED_SECTIONS = (
 
 
 class NativeSkillQualityTests(unittest.TestCase):
+    def test_rigor_request_documentation_matches_classifier_contract(self) -> None:
+        text = (ROOT / "runtime-skills" / "codex-science" / "SKILL.md").read_text(encoding="utf-8")
+        match = re.search(r"Example: `([^`]+)`", text)
+        self.assertIsNotNone(match, "documented rigor request JSON example is required")
+        example = json.loads(match.group(1))
+        classify_rigor(example)
+        field_reference = re.search(r"Fields: required .*?Example: `[^`]+`", text)
+        self.assertIsNotNone(field_reference, "rigor request field and enum reference is required")
+        documented = field_reference.group(0)
+
+        for value in (*CLAIM_STRENGTHS, *TIERS):
+            with self.subTest(value=value):
+                self.assertIn(value, documented)
+        for value in ("answer", "durable_artifact", "reviewed_package", "general", "high_stakes"):
+            with self.subTest(value=value):
+                self.assertIn(value, documented)
+        self.assertIn("Unknown keys are rejected", documented)
+
+    def test_literature_review_points_to_validated_example_bundle(self) -> None:
+        text = (AUTHORED / "literature-review" / "SKILL.md").read_text(encoding="utf-8")
+        example = "examples/literature-review-reviewed-run/"
+        self.assertIn(example, text)
+        self.assertTrue((ROOT / example).is_dir())
+
     def test_tier1_skills_expose_complete_decision_contract(self) -> None:
         for name in TIER1_SKILLS:
             text = (AUTHORED / name / "SKILL.md").read_text(encoding="utf-8")

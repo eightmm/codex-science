@@ -71,6 +71,8 @@ Before retrieval or execution, declare a `rigor-request-v1` and pipe it to
 (the classifier reads JSON from stdin). Treat the returned tier as a floor; the
 agent may raise it, never lower it.
 
+Fields: required `schema`, `deliverable`, `source_count`, `claim_strength`; optional `synthesis=false`, `computation=false`, `domain_risk="general"`, `approval_gated_actions=false`, `requested_tier=null`, `current_tier=null`. Allowed values: `deliverable` = `answer|durable_artifact|reviewed_package`; `claim_strength` = `descriptive|associational|causal|confirmatory`; `domain_risk` = `general|high_stakes`; tiers (`requested_tier`, `current_tier`) = `quick|standard|full`; `schema` = `rigor-request-v1`; `source_count` is a non-negative integer and the flags are JSON booleans. Unknown keys are rejected. Example: `{"schema":"rigor-request-v1","deliverable":"answer","source_count":1,"claim_strength":"descriptive"}`
+
 - **quick:** answer directly with primary citations from at most a few
   read-only sources. Create no checkpoint or artifact bundle. Label the reply
   as an unreviewed quick answer, do not present findings as reviewed, and offer

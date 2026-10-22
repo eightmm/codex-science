@@ -78,6 +78,8 @@ Report added, removed, and changed queries, studies, eligibility decisions, and 
 
 ## Outputs
 
+For exact sidecar shapes, copy the structure of `<plugin-root>/examples/literature-review-reviewed-run/` (`manifest.json` artifact kinds, `claims.json`, `evidence_graph.json`, `studies.json`, `queries.jsonl`, `lanes/*.json`) and fill it with this run's own content; never copy its scientific content or review receipt. Check shapes with `validate_artifact.py` instead of reading plugin source.
+
 Return and save:
 
 - protocol and source plan;
