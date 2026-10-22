@@ -112,7 +112,10 @@
             "path": "project/artifacts/*/manifest.json",
             "arg": {
               "path": "artifacts.*.kind",
-              "contains": "review-receipt"
+              "in": [
+                "review-receipt",
+                "review-receipt-v2"
+              ]
             }
           }
         ],
@@ -123,7 +126,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "9cb414c2e7192f0acaecc74178af50abf6f76004bcc553ecf368ec2be823a26a"
+      "digest": "976959b870fb09bd318b89cdc7b0059a8541f8fee2804290bc92b14824296965"
     },
     {
       "id": "standard-single-cell",
@@ -165,7 +168,10 @@
             "path": "project/artifacts/*/manifest.json",
             "arg": {
               "path": "artifacts.*.kind",
-              "contains": "review-receipt"
+              "in": [
+                "review-receipt",
+                "review-receipt-v2"
+              ]
             }
           }
         ],
@@ -176,7 +182,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "09669838eb4d3cae7f8d768085beb6cb9e5fd28d770e1f33688bdc3292fcc3be"
+      "digest": "61657d02dac0e579e9240c813ce6ab5297e10888cf11d9f1ce2d47c456038108"
     },
     {
       "id": "full-microbiome",
@@ -218,7 +224,10 @@
             "path": "project/artifacts/*/manifest.json",
             "arg": {
               "path": "artifacts.*.kind",
-              "contains": "review-receipt"
+              "in": [
+                "review-receipt",
+                "review-receipt-v2"
+              ]
             }
           },
           {
@@ -247,7 +256,7 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "9567ecab2266f63eee8c1c962d57570335faea5249838518a54f3b9cb6fc02bd"
+      "digest": "7e225b35ebae50fdb0eeacf1b87d1f77ff441354f87918fd3d572266e4a1b834"
     },
     {
       "id": "full-protein-folding",
@@ -289,7 +298,10 @@
             "path": "project/artifacts/*/manifest.json",
             "arg": {
               "path": "artifacts.*.kind",
-              "contains": "review-receipt"
+              "in": [
+                "review-receipt",
+                "review-receipt-v2"
+              ]
             }
           },
           {
@@ -318,8 +330,8 @@
         ],
         "time_cap_seconds": 1800
       },
-      "digest": "a190de32af59463f5b2d37b4d12d82bfcc1ca6cb353006b8d44a414f4d1a5c4e"
+      "digest": "690b876a50db84eb742a6f498f0ed3f90324aa64db3482eb0f77aba07efad737"
     }
   ],
-  "set_digest": "6a3651c989d634ff84b0ae07e6e5f6a72b3aa5a510b8590c9d962b7a8a60efac"
+  "set_digest": "b4ed72cbf5d61860d8e46eb92e3f94a0d11ac87822ccff203df12ee68d0bb753"
 }

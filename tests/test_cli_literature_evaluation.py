@@ -146,6 +146,69 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             with self.assertRaisesRegex(ValueError, "criterion kind"):
                 load_task_set(path)
 
+    def test_json_field_in_membership_and_validation(self) -> None:
+        from codex_science.literature_evaluation_runner import evaluate_criteria, load_task_set, task_digest
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            artifact = project / "artifacts/run-1"
+            artifact.mkdir(parents=True)
+            manifest = artifact / "manifest.json"
+            manifest.write_text(json.dumps({"artifacts": [{"kind": "review-receipt-v2"}]}), encoding="utf-8")
+            path = "project/artifacts/*/manifest.json"
+            def criterion(assertion: dict[str, object]) -> dict[str, object]:
+                return {"id": "review", "kind": "json_field", "path": path,
+                        "arg": {"path": "artifacts.*.kind", **assertion}}
+            self.assertTrue(evaluate_criteria([criterion({"in": ["review-receipt", "review-receipt-v2"]})], project)[0]["passed"])
+            self.assertFalse(evaluate_criteria([criterion({"contains": "review-receipt"})], project)[0]["passed"])
+            manifest.write_text(json.dumps({"artifacts": [{"kind": "review-receipt"}]}), encoding="utf-8")
+            self.assertTrue(evaluate_criteria([criterion({"in": ["review-receipt", "review-receipt-v2"]})], project)[0]["passed"])
+            manifest.write_text(json.dumps({"artifacts": [{"kind": "review-snapshot"}]}), encoding="utf-8")
+            self.assertFalse(evaluate_criteria([criterion({"in": ["review-receipt", "review-receipt-v2"]})], project)[0]["passed"])
+
+            base = json.loads(TASKS.read_text(encoding="utf-8"))
+            with tempfile.TemporaryDirectory() as sets:
+                set_path = Path(sets) / "tasks.json"
+                for assertion in ({"in": ["a"], "exists": True}, {"in": []}, {"in": "a"}):
+                    tampered = json.loads(json.dumps(base))
+                    task = tampered["tasks"][0]
+                    task["spec"]["criteria"][0].update(kind="json_field", path="project/artifacts/*/manifest.json",
+                                                          arg={"path": "x.y", **assertion})
+                    task["digest"] = task_digest(task["spec"])
+                    tampered["set_digest"] = hashlib.sha256(json.dumps(
+                        {"task_digests": [row["digest"] for row in tampered["tasks"]], "canary": tampered["canary"]},
+                        sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()).hexdigest()
+                    set_path.write_text(json.dumps(tampered), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "json_field"):
+                        load_task_set(set_path)
+
+    def test_v1_task_set_digest_preserved_and_v2_review_receipt_public_grading(self) -> None:
+        from codex_science.literature_evaluation_report import grade_run
+        from codex_science.literature_evaluation_runner import load_task_set
+        v1 = load_task_set(ROOT / "benchmarks/literature-review/tasks-v1.json")
+        v2 = load_task_set(TASKS)
+        self.assertEqual("6a3651c989d634ff84b0ae07e6e5f6a72b3aa5a510b8590c9d962b7a8a60efac", v1["set_digest"])
+        self.assertNotEqual(v1["set_digest"], v2["set_digest"])
+        task = next(row for row in v2["tasks"] if any(c["id"] == "review-receipt" for c in row["spec"]["criteria"]))
+        review = next(c for c in task["spec"]["criteria"] if c["id"] == "review-receipt")
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            artifacts = run / "project/artifacts/run-1"
+            artifacts.mkdir(parents=True)
+            manifest = artifacts / "manifest.json"
+            manifest_bytes = json.dumps({"artifacts": [{"kind": "review-receipt-v2", "path": "review.json"}]}).encode()
+            manifest.write_bytes(manifest_bytes)
+            last = run / "last.md"
+            last.write_text("Completed", encoding="utf-8")
+            receipt = {"schema": "literature-eval-run-receipt-v1", "task_id": task["id"],
+                       "task_digest": task["digest"], "set_digest": v2["set_digest"], "executed": True,
+                       "timed_out": False, "exit_code": 0, "last_message_sha256": hashlib.sha256(last.read_bytes()).hexdigest(),
+                       "artifact_files": [{"path": "run-1/manifest.json", "sha256": hashlib.sha256(manifest_bytes).hexdigest()}]}
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+            with patch("codex_science.literature_evaluation_report._trace_citations",
+                       return_value={"status": "unavailable"}):
+                result = grade_run(receipt, {**task, "set_digest": v2["set_digest"]}, run)
+            self.assertTrue(next(row["passed"] for row in result["criteria"] if row["id"] == review["id"]), result)
+
     def test_citation_criteria_match_common_identifier_forms(self) -> None:
         data = json.loads(TASKS.read_text(encoding="utf-8"))
         examples = ["**10.1126/science.1232033**",

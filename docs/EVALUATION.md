@@ -14,6 +14,15 @@ starts Codex runs. It pins task digests, Codex execution arguments, timeout,
 and `--codex-home`; it does not accept arbitrary argv passthrough, and its
 execution tests reject `--ephemeral`, `--ignore-user-config`,
 `--dangerously-bypass-approvals-and-sandbox`, `--approve-for-me`, and `-a`.
+
+The v2 task set accepts both `review-receipt` and `review-receipt-v2`, as
+defined by [the review receipt contract](PLATFORM_CONTRACTS.md#review-receipt-contract);
+the frozen v1 set is preserved as `benchmarks/literature-review/tasks-v1.json`.
+Each receipt carries the set digest it ran under, so runs from different sets
+are graded and reported separately rather than aggregated: grade a v1 run with
+`--tasks benchmarks/literature-review/tasks-v1.json`; the report rejects a run
+whose set or task digest does not match the supplied task set.
+
 Receipts capture preflight configuration, `loaded_runtime` observed in run
 events, and `branch_runtime_version`, so a result can be distinguished from a
 run using the installed plugin. This identity is evidence, not a claim of

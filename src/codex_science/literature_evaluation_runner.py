@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import queue
 import re
@@ -118,13 +119,21 @@ def load_task_set(path: Path) -> dict[str, Any]:
                 raise ValueError(f"task {task['id']} artifact_exists arg must be boolean")
             if criterion["kind"] == "json_field":
                 arg = criterion["arg"]
+                assertions = ("equals", "exists", "contains", "in")
                 if (not isinstance(arg, dict) or not isinstance(arg.get("path"), str)
-                        or not arg["path"] or sum(key in arg for key in ("equals", "exists", "contains")) != 1):
+                        or not arg["path"] or sum(key in arg for key in assertions) != 1):
                     raise ValueError(f"task {task['id']} json_field arg requires a dotted path and one assertion")
                 if any(not part for part in arg["path"].split(".")):
                     raise ValueError(f"task {task['id']} json_field path must be a dotted selector")
                 if "exists" in arg and type(arg["exists"]) is not bool:
                     raise ValueError(f"task {task['id']} json_field exists must be boolean")
+                if "in" in arg:
+                    choices = arg["in"]
+                    if (not isinstance(choices, list) or not choices
+                            or any(type(value) not in {str, int, float, bool, type(None)}
+                                   or isinstance(value, float) and not math.isfinite(value)
+                                   for value in choices)):
+                        raise ValueError(f"task {task['id']} json_field in must be a non-empty list of JSON scalars")
             if criterion["kind"] == "min_count":
                 arg = criterion["arg"]
                 if isinstance(arg, int) and not isinstance(arg, bool) and arg > 0:
@@ -213,6 +222,13 @@ def evaluate_criteria(criteria: Iterable[Mapping[str, Any]], project: Path, last
                 passed = bool(values) is arg["exists"]
             elif "equals" in arg:
                 passed = any(value == arg["equals"] for value in values)
+            elif "in" in arg:
+                choices = arg["in"]
+                passed = any(value in choices for value in values) or any(
+                    choice in value for value in values
+                    if isinstance(value, (list, tuple, set, dict))
+                    for choice in choices
+                )
             else:
                 needle = arg["contains"]
                 passed = needle in values or any(
