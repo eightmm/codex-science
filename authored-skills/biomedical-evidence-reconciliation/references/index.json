@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "biomedical-evidence-reconciliation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "reconciliation-method",
+      "path": "references/reconciliation-method.md",
+      "purpose": "Claim status, evidence dependence, uncertainty, controls, sensitivity, and scope criteria for biomedical reconciliation.",
+      "read_when": ["assigning a biomedical claim status", "resolving source or cohort dependence", "comparing conflicting evidence"],
+      "required_before": ["claim-status-assignment", "evidence-reconciliation"],
+      "evidence_boundary": "Defines synthesis procedure and status vocabulary; it is not primary biological evidence and cannot establish truth or clinical actionability."
+    }
+  ]
+}

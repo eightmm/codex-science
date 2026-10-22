@@ -126,7 +126,7 @@
     {
       "description": "Reconcile conflicting multi-source biomedical evidence with explicit entity, release, cohort, assay, independence, and claim semantics. Use before final conclusions from multiple databases or evidence lanes.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-biomedical-evidence-reconciliation",
       "path": "authored-skills/biomedical-evidence-reconciliation",
@@ -774,7 +774,7 @@
     {
       "description": "Prioritize candidate genes at human genetic loci using curated association, credible-set/L2G, colocalization, eQTL, coding, burden, expression, and pathway evidence. Use for GWAS follow-up and target prioritization.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-locus-to-gene-prioritization",
       "path": "authored-skills/locus-to-gene-prioritization",
@@ -1506,7 +1506,7 @@
     {
       "description": "Synthesize target, ligand, mechanism, exposure, safety, pharmacogenomic, trial, and regulatory evidence for translational pharmacology questions. Use for target-drug-indication landscapes, not prescribing.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-translational-pharmacology-evidence",
       "path": "authored-skills/translational-pharmacology-evidence",
@@ -1554,7 +1554,7 @@
     {
       "description": "Synthesize population, clinical, functional, regulatory, expression, and cohort evidence for a genomic variant. Use for research interpretation of rsIDs or genomic alleles, not patient-specific diagnosis or treatment.",
       "executable_count": 0,
-      "instruction_line_count": 18,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-variant-evidence-synthesis",
       "path": "authored-skills/variant-evidence-synthesis",

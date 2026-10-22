@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "translational-pharmacology-evidence",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "translational-evidence",
+      "path": "references/translational-evidence.md",
+      "purpose": "Claim classes, exposure chain, evidence dependencies, uncertainty, controls, sensitivity, and translational scope.",
+      "read_when": ["classifying pharmacology or clinical claims", "connecting exposure to response", "evaluating a go/no-go decision"],
+      "required_before": ["translational-claim-classification", "go-no-go-assessment"],
+      "evidence_boundary": "Defines evidence synthesis and decision procedure; it does not establish clinical benefit, regulatory status beyond dated records, or patient-specific treatment advice."
+    }
+  ]
+}

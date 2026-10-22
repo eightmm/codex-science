@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "biomedical-evidence-reconciliation",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["biomedical-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow depends on accessible and sufficiently documented source records; unreported cohort overlap remains uncertain.",
+    "Claim status is conditional on the declared population, endpoint, evidence cutoff, and source coverage.",
+    "The method does not establish causality or clinical actionability by itself."
+  ]
+}

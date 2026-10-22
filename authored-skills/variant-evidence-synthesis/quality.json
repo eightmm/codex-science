@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "variant-evidence-synthesis",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["variant-evidence-synthesis-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Allele normalization, LD resolution, and cohort overlap can remain uncertain when source records are incomplete.",
+    "Evidence is conditional on build, phenotype, ancestry, transcript, tissue, and source release.",
+    "This research synthesis does not diagnose, recommend treatment, or establish clinical actionability."
+  ]
+}

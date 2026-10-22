@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "locus-to-gene-prioritization",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "locus-to-gene-method",
+      "path": "references/locus-to-gene-method.md",
+      "purpose": "Gene-link claim classes, dependence-aware lane evidence, ranking uncertainty, controls, sensitivity, and scope.",
+      "read_when": ["building locus-to-gene evidence lanes", "ranking candidate genes", "interpreting fine-mapping, QTL, or colocalization evidence"],
+      "required_before": ["gene-link-claim-assignment", "candidate-ranking"],
+      "evidence_boundary": "Provides ranking and interpretation criteria; it does not establish a causal gene or mechanism without direct evidence."
+    }
+  ]
+}

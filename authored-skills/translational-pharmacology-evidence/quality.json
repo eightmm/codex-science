@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "translational-pharmacology-evidence",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["translational-pharmacology-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Exposure and target-engagement links may be modeled or absent, limiting translation across systems.",
+    "Program and cohort dependence can be difficult to resolve when primary reports are incomplete.",
+    "Decision status depends on explicit thresholds and does not constitute patient-specific advice."
+  ]
+}

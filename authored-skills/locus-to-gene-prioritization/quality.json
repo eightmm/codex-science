@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "locus-to-gene-prioritization",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["locus-to-gene-prioritization-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Candidate ranks depend on completeness and calibration of ancestry-, tissue-, and assay-specific evidence sources.",
+    "LD, sample overlap, correlated annotations, and unavailable sensitivity references can limit independence and robustness assessment.",
+    "A rank is a prioritization result and does not establish causal mediation or therapeutic validity."
+  ]
+}

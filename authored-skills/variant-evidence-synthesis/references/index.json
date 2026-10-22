@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "variant-evidence-synthesis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "variant-interpretation",
+      "path": "references/variant-interpretation.md",
+      "purpose": "Allele-specific claim classes, source dependence, uncertainty, controls, sensitivity, and applicability limits.",
+      "read_when": ["harmonizing variant alleles", "classifying variant evidence", "synthesizing clinical, functional, association, or regulatory evidence"],
+      "required_before": ["allele-level-synthesis", "variant-claim-classification"],
+      "evidence_boundary": "Provides interpretation procedure; it is not a clinical classification, patient-specific recommendation, or primary evidence record."
+    }
+  ]
+}
