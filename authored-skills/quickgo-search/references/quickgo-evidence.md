@@ -8,8 +8,9 @@ accession, taxon, aspect, evidence code, qualifier, reference, and assigned-by
 fields when available. A **curated-experimental** claim uses an experimental
 evidence code and is still limited to the experiment, gene product, and
 assertion recorded. An **IEA-inferred** claim uses Inferred from Electronic
-Annotation and must be labeled computationally assigned; do not report it as
-experimentally validated. Other non-IEA codes retain their exact code and
+Annotation, corresponding to ECO:0000501 and its descendants, and must be
+labeled computationally assigned; do not report it as experimentally validated.
+Other non-IEA codes retain their exact code and
 source and must not be collapsed into a generic “experimental” label without
 checking their defined evidence meaning. A **propagated-ancestor** claim is a
 logical consequence of an annotation and ontology relation under the
@@ -44,17 +45,16 @@ are overlapping views, not independent replications.
 
 ## Uncertainty and controls
 
-Carry uncertainty from identifier mapping, taxon, evidence code, qualifier,
-reference, assigned-by source, ontology release, relation traversal, and page
-completeness. Preserve missing fields as unknown. Separate experimental and
-IEA counts and report the gene-product denominator for each filter.
+Keep mapping, taxon, evidence code, qualifier, reference, assigned-by source,
+ontology release, relation traversal, and page completeness explicit. Missing
+fields remain unknown. Separate experimental and IEA counts, each with its
+gene-product denominator.
 
-Use a well-characterized gene product expected to have the selected GO term
-as a positive retrieval control; verify identifier, taxon, aspect, and
-evidence class. Use a random same-size set from the eligible gene-product
-universe as a negative sanity control and record its sampling rule. A random
-set is not a biological null model and a failed control may indicate query,
-coverage, or annotation problems. Retain both control results.
+For a positive retrieval control, choose a well-annotated gene product known
+to carry the selected term and confirm its accession, taxon, aspect, and evidence
+class. For a negative retrieval check, query an obsolete or nonexistent GO ID
+and verify that it is reported as such; a failure can expose stale-ID handling
+or an incomplete response.
 
 ## Sensitivity and applicability
 
@@ -82,16 +82,18 @@ or a complete mechanistic pathway.
   relation path; count the source assertion once.
 - **Wrong taxon or identifier:** validate accession mapping and taxon on every
   page; stop when alternatives change interpretation.
-- **Qualifier/relation ignored:** inspect qualifier and ontology edge type;
-  do not treat `NOT` or distinct relations as positive equivalent support.
-- **Study/annotation bias:** compare evidence-source coverage and random-set
-  control, and report well-studied-gene bias.
+- **Qualifier/relation ignored:** inspect qualifier and ontology edge type.
+  `NOT` annotations are not positive evidence; their propagation applies to
+  descendants, not ancestors.
+- **Study/annotation bias:** report well-studied-gene bias and compare evidence
+  source coverage across the selected gene products.
 - **Circular selection:** determine whether genes or terms were selected from
   the same GO release/query; treat resulting support as descriptive rather
   than independent confirmation.
 - **Incomplete pagination or release drift:** validate page completion and
   release; mark unavailable or keep snapshots separate.
-- **Background or filter sensitivity:** repeat the prespecified alternatives;
+- **Filter sensitivity:** repeat the prespecified evidence-code, qualifier, and
+  relation alternatives;
   downgrade when claim class or status changes.
 
 ## Sources

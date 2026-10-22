@@ -46,22 +46,24 @@ filters, ontology release, and reference use with the retrieval receipt.
    `https://www.ebi.ac.uk/QuickGO/api` (for example,
    `/annotation/search?geneProductId=<ACC>` and `/ontology/go/terms/<GO_ID>`);
    preserve original IDs and mapping alternatives.
-4. Serialize taxon, aspect, evidence-code, qualifier, and source filters; pin
+4. Serialize taxon, aspect, evidence-code, qualifier, and source filters; IEA
+   filtering corresponds to ECO:0000501 and its descendants. Pin
    reported QuickGO/GO release and record endpoint, encoded query, page size,
    page links, pages read, access time, and result limits. Bound pages and
    records before expanding the hierarchy.
 5. Validate status, identifiers, fields, and all pages. Retain null fields and
    excluded records with reasons; retry transient failures a bounded number of
-   times. Mark failed or incomplete retrieval unavailable, not a negative
-   annotation result.
-6. For returned annotations, preserve evidence code, reference, assigned-by,
-   qualifier, taxon, aspect, and source. Distinguish experimental codes from
-   IEA; trace ancestor annotations through the true-path rule and do not count
-   propagated terms as independent evidence. Record each source assertion once.
-7. Use a well-characterized gene product expected to carry the selected term
-   as a positive control and a random same-size gene set from the eligible
-   universe as a negative sanity control. Vary evidence-code filters and
-   prespecified thresholds; report fragility if the claim class/status changes.
+   times with backoff. Mark failed or incomplete retrieval unavailable, not a
+   negative annotation result.
+6. Traverse ontology relationships only for the requested direction and depth;
+   retain relation type. For returned annotations preserve evidence code,
+   reference, assigned-by, qualifier, taxon, aspect, and source; count each
+   source assertion once. A `NOT` qualifier is not positive evidence and
+   propagates to descendants, not ancestors.
+7. Use a well-annotated gene product expected to carry the selected term as a
+   positive retrieval control. Query an obsolete or nonexistent GO ID as a
+   negative control; do not use a random gene set for plain annotation retrieval.
+   Vary evidence-code filters and report material claim changes.
 8. Report uncertainty and applicable taxa/contexts, save raw responses and
    query receipts through `$science-provenance`, and use `$science-review` for
    material functional claims. For drug targets, use `$cx-opentargets-search`
@@ -80,8 +82,8 @@ query, and release (`filters`, `query`, `release`); included/excluded records
 and reasons (`records`, `excluded_records`); controls and sensitivity
 (`controls`, `sensitivity`); uncertainty and applicability (`uncertainty`,
 `applicability`); source URLs, access time, and artifact hashes (`source_urls`,
-`accessed_at`, `artifact_hashes`, `next_query`). Include the smallest
-falsifiable next query and preserve raw responses with `$science-provenance`.
+`accessed_at`, `artifact_hashes`). List the smallest falsifiable next query
+(`next_query`) separately and preserve raw responses with `$science-provenance`.
 
 ## Boundaries
 

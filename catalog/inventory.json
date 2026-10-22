@@ -1290,7 +1290,7 @@
     {
       "description": "Query QuickGO and the Evidence & Conclusion Ontology (ECO): map genes to GO biological processes, molecular functions, and cellular components; find genes for a GO term; and explore the GO hierarchy. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 100,
+      "instruction_line_count": 102,
       "license": "Apache-2.0",
       "name": "cx-quickgo-search",
       "path": "authored-skills/quickgo-search",
@@ -1302,7 +1302,7 @@
     {
       "description": "Query Reactome Content and Analysis Services: pathway enrichment of a gene list, identifier mapping, reaction participants, pathway hierarchy, and knowledgebase search. Use for pathway analysis and enrichment. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 99,
+      "instruction_line_count": 100,
       "license": "Apache-2.0",
       "name": "cx-reactome-search",
       "path": "authored-skills/reactome-search",
@@ -1472,7 +1472,7 @@
     {
       "description": "Query STRING for protein-protein interactions, interaction confidence/evidence, interaction partners, and functional enrichment. Use for PPI networks and enrichment of a protein set. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 93,
+      "instruction_line_count": 97,
       "license": "Apache-2.0",
       "name": "cx-string-ppi-search",
       "path": "authored-skills/string-ppi-search",

@@ -11,8 +11,9 @@ neighborhood, fusion, co-occurrence, or another available channel. A
 **predicted-association** claim is an inference based on computational or
 transferred evidence, not a direct observation in the target assay. A
 **physical-interaction** claim requires an appropriate experimental record and
-assay context; an integrated or channel score alone does not establish direct
-binding. A **causal-mechanism** claim requires intervention or temporal evidence
+assay context; request `network_type=physical` for this claim class, but neither
+the network type nor an integrated/channel score establishes binding
+probability. A **causal-mechanism** claim requires intervention or temporal evidence
 outside a STRING edge. An **enrichment-association** is over-representation in
 a named input set relative to a defensible universe and reported correction.
 
@@ -42,17 +43,16 @@ cluster unless independence is established.
 
 ## Uncertainty and controls
 
-Carry uncertainty from protein mapping, taxon, version, threshold, missing
-channels, evidence provenance, assay context, network truncation, and
-enrichment universe. Distinguish score scale from probability and preserve
-returned values without rescaling or inventing missing fields.
+Report uncertainty for protein mapping, taxon, version, threshold, missing
+channels, evidence provenance, assay context, network truncation, and enrichment
+universe. Preserve returned scores at their native scale; do not invent missing
+channel values or treat scores as probabilities.
 
-For a positive control, query a well-characterized partner in the same taxon
-with known evidence relevant to the requested channel; verify its ID, edge, and
-channel record. For a negative sanity control, query a random same-size protein
-set from the eligible universe and record the sampling rule. Controls check
-query behavior and background plausibility; they do not calibrate a universal
-false-positive rate. Record failed controls explicitly.
+Check a well-characterized partner in the same taxon with evidence relevant to
+the requested channel; verify its ID, edge, and channel record. For enrichment,
+also query a random same-size protein set from the eligible universe. Preserve
+its sampling rule and result as a sanity check, not as a universal false-positive
+rate estimate. Record failed controls explicitly.
 
 ## Enrichment and sensitivity
 
@@ -105,6 +105,3 @@ causality.
 - Benjamini and Hochberg (1995), “Controlling the False Discovery Rate,”
   provides a multiple-testing correction framework; it does not validate any
   STRING score or biological interpretation.
-- Gene Ontology Consortium (2021), “The Gene Ontology resource: enriching a
-  GOld mine,” describes annotation and evidence distinctions relevant to
-  functional enrichment, not STRING's channel calibration.

@@ -38,13 +38,17 @@ limits; record the selected threshold and release in the query receipt.
    experimentally measured physical interaction, or enrichment; if a causal or
    direct-binding claim exceeds the returned evidence, narrow it and record why.
 3. Resolve proteins with optional `science_search_string` (`query`, `limit`
-   1–10, default 5), or STRING `/json/get_string_ids`; preserve original names,
-   canonical STRING IDs, taxon, mapping alternatives, and unresolved ambiguity.
-   Stop if alternatives materially change the network.
+   1–10, default 5), then, before any network or enrichment query, map identifiers via
+   `/json/get_string_ids`; preserve original names, canonical STRING IDs,
+   taxon, mapping alternatives, and unresolved ambiguity. Stop if alternatives
+   materially change the network.
 4. Prespecify taxon, `required_score`, queried channels, and background universe
-   for enrichment. Use `https://string-db.org/api` endpoints
-   `/json/network`, `/json/interaction_partners`, or `/json/enrichment`; record
-   exact serialization, release/version, access time, page state, and result cap.
+   for enrichment. Use `network_type=physical` for physical-interaction claims;
+   this does not make a STRING score a binding probability. Use
+   `https://string-db.org/api` endpoints `/json/network`,
+   `/json/interaction_partners`; POST the set to `/json/enrichment` when doing
+   enrichment. Record exact serialization, release/version, access time, page
+   state, result cap, and returned count.
 5. Validate status, response shape, IDs, species, score scale, channels, and
    completeness. Retain missing fields and excluded edges with reasons; bound
    query size, pages, and transient retries. Failed or truncated responses are

@@ -8,7 +8,7 @@
       "path": "references/string-evidence.md",
       "purpose": "STRING channel semantics, source dependence, controls, enrichment sensitivity, and interpretation limits.",
       "read_when": ["interpreting an interaction score", "comparing evidence channels", "analyzing functional enrichment or mechanism"],
-      "required_before": ["step-7", "claim-functional-association", "claim-enrichment-association"],
+      "required_before": ["step-6", "claim-integrated-functional-association", "claim-enrichment-association"],
       "search_patterns": ["## Claim classes and assignment", "## Channel and source dependence", "## Enrichment and sensitivity", "## Applicability and failure modes"],
       "authority": "repository-contract",
       "version": "1",

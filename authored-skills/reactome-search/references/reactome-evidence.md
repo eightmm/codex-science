@@ -39,31 +39,34 @@ independent support from a second experiment. If another source reuses
 Reactome-derived records, record that shared provenance before describing
 replication.
 
+Reactome human events are manually curated; computational inference uses
+orthology to transfer events to non-human species.
+
 ## Uncertainty and controls
 
-Carry uncertainty from identifier mapping, unmapped list members, background
-choice, pathway hierarchy, inferred status, release, and query completeness.
-Report submitted, mapped, and tested counts separately. Do not interpret a
-server-reported p-value without naming the test and correction fields actually
-returned; if the universe or correction is absent, mark the enrichment claim
-inconclusive.
+Track identifier mapping, unmapped list members, pathway hierarchy, inferred
+status, release, and query completeness as separate uncertainty sources. AnalysisService
+uses all Reactome-annotated entities for the species as its background. Report
+that universe and the submitted, mapped, and tested counts separately. Do not
+interpret a server-reported p-value without naming the test and correction
+fields actually returned; if the universe or correction is absent, mark the
+enrichment claim inconclusive.
 
-For a positive control, include a well-characterized pathway member expected
-to map in the chosen species and confirm that its returned stable ID and
-membership are sensible. For a negative sanity control, query a random gene
-set of similar size drawn from the same eligible universe; retain its result
-and avoid treating a single null set as proof of calibration. Record each
-control's source, sampling rule, and result.
+Check a well-characterized pathway member expected to map in the chosen species
+and confirm its stable ID and membership. Also run a random gene set of similar
+size from the eligible universe as an enrichment sanity check; retain its
+sampling rule and result without treating one null set as calibration.
 
 ## Sensitivity and applicability
 
-Recompute enrichment across defensible background universes (for example,
-the assayed genes versus all genes eligible for the experiment), the
-prespecified evidence-code/record filters when available, and nearby
-predeclared score or inclusion thresholds. Record a result as fragile when
-the leading pathway, corrected significance classification, direction of the
-reported interpretation, or claim status changes under a defensible choice.
-Do not select the most favorable setting after seeing results.
+AnalysisService does not accept a custom background. Its background is all
+Reactome-annotated entities for the species. To assess another universe, use
+downloaded Reactome gene sets offline, such as assayed genes versus all genes
+eligible for the experiment. Also vary projection to human through
+`/projection`, the interactors option, species, and identifier mapping. Record
+a result as fragile when the leading pathway, corrected significance
+classification, or claim status changes under a defensible alternative; do not
+select settings after seeing results.
 
 Reactome is a curated knowledgebase, not a complete assay of every organism,
 cell type, perturbation, or time point. Enrichment is biased by pathway
@@ -76,8 +79,8 @@ flux, activation, or causal effect.
 
 - **Wrong species or namespace:** inspect returned taxon and mapping table;
   stop if alternatives change the interpretation.
-- **Background mismatch:** compare the eligible measured universe with the
-  submitted background and rerun defensible alternatives.
+- **Background mismatch:** document the species-wide Reactome-annotated API
+  background; compare another universe offline using downloaded gene sets.
 - **Hierarchy double-counting:** inspect parent/child relationships and dedupe
   genes before treating hits as independent.
 - **Orthology mistaken for observation:** inspect the returned inferred-event
@@ -93,9 +96,6 @@ flux, activation, or causal effect.
 ## Sources
 
 - Croft et al. (2014), “The Reactome pathway knowledgebase,” describes the
-  curated pathway resource and its computationally inferred human reactions.
+  curated pathway resource.
 - Benjamini and Hochberg (1995), “Controlling the False Discovery Rate,”
   supports false-discovery-rate correction as a multiple-testing procedure.
-- Gene Ontology Consortium (2021), “The Gene Ontology resource: enriching a
-  GOld mine,” describes ontology annotation and evidence distinctions; it does
-  not validate Reactome-specific records.

@@ -9,7 +9,7 @@
   "test_files": [],
   "limitations": [
     "Reactome coverage and orthology inference do not establish activity in a specific sample or condition.",
-    "Enrichment interpretation depends on identifier mapping, universe choice, release, and multiple-testing details.",
+    "The API uses all Reactome-annotated entities for the species as the enrichment background; alternative universes require offline analysis of downloaded Reactome gene sets.",
     "The public response may omit evidence or release metadata; unknown fields remain unknown."
   ]
 }
