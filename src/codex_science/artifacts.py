@@ -191,9 +191,23 @@ def verify_bundle_artifacts(manifest: dict[str, Any], run_dir: Path) -> dict[str
 def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     verified = verify_bundle_artifacts(manifest, run_dir)
     from codex_science.evidence import validate_sidecars
-    base = validate_sidecars(manifest, run_dir, verified)
     from codex_science.advanced_sidecars import review_advanced_sidecars, validate_advanced_sidecars
-    advanced = validate_advanced_sidecars(manifest, run_dir, verified, base_sidecars=base)
+    # Run both independent sidecar passes so users see all artifact-local schema
+    # failures at once. Each validator labels its own artifact failures.
+    errors: list[str] = []
+    base = advanced = None
+    try:
+        base = validate_sidecars(manifest, run_dir, verified)
+    except ValueError as error:
+        errors.extend(str(error).splitlines())
+    try:
+        advanced = validate_advanced_sidecars(manifest, run_dir, verified)
+    except ValueError as error:
+        errors.extend(str(error).splitlines())
+    if errors:
+        raise ValueError("Sidecar validation failed:\n" + "\n".join(errors))
+    assert base is not None and advanced is not None
+    advanced["base_sidecars"] = base
     advanced["advanced_findings"] = review_advanced_sidecars(advanced)
     base.update(advanced)
     from codex_science.discovery import cycle_artifacts

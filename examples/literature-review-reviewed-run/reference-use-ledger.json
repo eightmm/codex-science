@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "skill": "science-review",
+  "uses": [
+    {
+      "reference_id": "review-checklist",
+      "path": "references/review-checklist.md",
+      "sha256": "9b3957c88263433c16af8df46a4de29d186d8bc173b233767cc79167d6e73c46",
+      "read_reason": "Apply the repository's review checklist to the example bundle.",
+      "loaded_at": "2026-10-22T00:00:00Z",
+      "used_for": [
+        "record",
+        "source",
+        "method"
+      ],
+      "schema_version": 1
+    }
+  ]
+}

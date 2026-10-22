@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bundle validation reports independent sidecar schema errors together and the literature-review example includes a valid reference-use ledger.
 - Bounded independent-review correction rounds by batching findings, scoping re-reviews, and disclosing decision-irrelevant minor findings.
 - Codex Science now builds artifact bundles incrementally and saves progress after major files to reduce lost work when long generations stall and reconnect.
 - Added event stream reconnect and idle-gap diagnostics to literature evaluation reports without changing run outcomes.

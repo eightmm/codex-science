@@ -183,7 +183,10 @@ def _validate_evidence_graph(
             raise ValueError(f"Duplicate evidence node id: {node_id}")
         node_type = _text(node.get("type"), f"evidence node {node_id} type")
         if node_type not in NODE_TYPES:
-            raise ValueError(f"Invalid evidence node type for {node_id}: {node_type}")
+            raise ValueError(
+                f"Invalid evidence node type for {node_id}: {node_type}; "
+                f"allowed types: {', '.join(sorted(NODE_TYPES))}"
+            )
         by_id[node_id] = node
 
     seen_edges: set[tuple[str, str, str]] = set()
@@ -294,7 +297,8 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                 if not _valid_sha256(digest):
                     raise ValueError(f"{label} excerpt_hash_mismatch: invalid source_sha256")
                 if "locator" in excerpt:
-                    _mapping(excerpt["locator"], f"{label} locator")
+                    if not isinstance(excerpt["locator"], dict):
+                        raise ValueError(f"{label} locator must be an object")
                 if run_dir is not None:
                     path = _support_source_path(run_dir, source_artifact, study_id, claim_id)
                     content = path.read_bytes()

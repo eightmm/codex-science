@@ -54,6 +54,11 @@
       "kind": "review-receipt",
       "path": "review.json",
       "sha256": "9598b43fcc74652db3deba247854179e09a22e64ffdef0c9dff7168108ef571a"
+    },
+    {
+      "kind": "reference-use-ledger",
+      "path": "reference-use-ledger.json",
+      "sha256": "72d888c9374b2d9b4ccee7d05fa0bb9ddf0f6b3eb4df5d73e9961511e42ff124"
     }
   ],
   "claims": [

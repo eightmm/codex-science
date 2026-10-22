@@ -38,6 +38,25 @@ class EvidenceSidecarTests(unittest.TestCase):
         self.assertNotIn("status=supported", rendered)
         self.assertNotIn("SHA-256 `", rendered)
 
+    def test_bundle_reports_base_and_advanced_sidecar_errors_together(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            graph_path = run_dir / "evidence_graph.json"
+            graph = json.loads(graph_path.read_text(encoding="utf-8"))
+            graph["nodes"][0]["type"] = "source"
+            graph_path.write_text(json.dumps(graph), encoding="utf-8")
+            self._rehash(manifest, run_dir, "evidence_graph.json")
+            ledger_path = run_dir / "invalid-ledger.json"
+            ledger_path.write_text(json.dumps({"schema_version": 1, "skill": "science-review", "uses": []}))
+            manifest["artifacts"].append({
+                "kind": "reference-use-ledger", "path": "invalid-ledger.json",
+                "sha256": hashlib.sha256(ledger_path.read_bytes()).hexdigest(),
+            })
+            with self.assertRaises(ValueError) as raised:
+                validate_bundle(manifest, run_dir)
+            self.assertIn("Invalid evidence node type", str(raised.exception))
+            self.assertIn("reference use ledger requires a non-empty uses list", str(raised.exception))
+
     def test_markdown_relationship_counts_use_readable_pluralized_phrases(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             run_dir, manifest = self._copy_example(Path(tempdir))
