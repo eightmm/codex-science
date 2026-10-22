@@ -206,7 +206,9 @@ Codex Science 종료
 
 ## Updates
 
-Older installations need the acknowledged bootstrap migration shown above.
+Older installations need the acknowledged bootstrap migration shown above. A
+pre-August legacy install is backed up to `~/.codex-science.legacy-<sha>` during
+that acknowledged migration.
 After that, the default `apply` mode checks the official GitHub `main` branch at
 `SessionStart` and again on the first Codex Science activation when needed.
 

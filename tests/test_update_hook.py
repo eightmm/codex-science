@@ -163,6 +163,54 @@ class ScienceUpdateHookTests(unittest.TestCase):
             check=True,
         )
 
+    def _legacy_installer_setup(
+        self, manifest_contents: str = '{"schema_version": 1}\n'
+    ) -> tuple[Path, Path, dict[str, str]]:
+        fixture, fake_bin = self._fresh_installer_fixture()
+        target = self.root / "legacy-installed"
+        target.mkdir()
+        (target / "release").mkdir()
+        (target / "release" / "manifest.json").write_text(
+            manifest_contents, encoding="utf-8"
+        )
+        (target / "legacy-marker").write_text("preserve me", encoding="utf-8")
+        self.make_trusted_checkout(target)
+
+        real_git = shutil.which("git")
+        assert real_git is not None
+        (fake_bin / "git").write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = ls-remote ]; then\n"
+            "  printf '%s\\trefs/heads/main\\n' \"$FAKE_OFFICIAL_MAIN_COMMIT\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = clone ]; then\n"
+            "  for value in \"$@\"; do destination=\"$value\"; done\n"
+            "  cp -a \"$FAKE_CANDIDATE\" \"$destination\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"${FAIL_GIT_STATUS:-}\" = 1 ]; then\n"
+            "  for value in \"$@\"; do\n"
+            "    if [ \"$value\" = status ]; then exit 23; fi\n"
+            "  done\n"
+            "fi\n"
+            f"exec {real_git} \"$@\"\n",
+            encoding="utf-8",
+        )
+        (fake_bin / "curl").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        for path in fake_bin.iterdir():
+            path.chmod(0o755)
+        environment = {
+            **os.environ,
+            "CODEX_SCIENCE_HOME": str(target),
+            "CODEX_SCIENCE_RUNTIME_FILE": str(self.root / "runtime-python"),
+            "CODEX_SCIENCE_PYTHON": sys.executable,
+            "FAKE_CANDIDATE": str(fixture),
+            "FAKE_OFFICIAL_MAIN_COMMIT": "f" * 40,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        }
+        return target, fixture, environment
+
     def test_update_prompt_patterns_are_narrow(self) -> None:
         positives = (
             "Codex Science 업데이트",
@@ -2346,14 +2394,271 @@ class ScienceUpdateHookTests(unittest.TestCase):
         self.assertEqual("protected-data", victim.read_text(encoding="utf-8"))
         self.assertTrue(lock_path.is_symlink())
 
-    def test_successful_fresh_installer_releases_lock(self) -> None:
+    def test_legacy_installer_requires_acknowledgement_without_moving_checkout(
+        self,
+    ) -> None:
+        target, _, environment = self._legacy_installer_setup()
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("acknowledged migration", result.stderr)
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertTrue(target.is_dir())
+
+    def test_legacy_installer_requires_both_release_policy_lists(self) -> None:
+        target, _, environment = self._legacy_installer_setup(
+            '{"cache_neutral_files": []}\n'
+        )
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("acknowledged migration", result.stderr)
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertTrue(target.is_dir())
+
+    def test_acknowledged_legacy_installer_backs_up_and_uses_fresh_path(
+        self,
+    ) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        original_sha = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        collision = target.with_name(f"{target.name}.legacy-{original_sha}")
+        collision.mkdir()
+        (collision / "existing-backup").write_text("preserve", encoding="utf-8")
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **environment,
+                "CODEX_SCIENCE_HOME": f"{target}/",
+                "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+            },
+        )
+
+        backup = target.with_name(f"{target.name}.legacy-{original_sha}-1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(str(backup), result.stdout)
+        self.assertEqual("preserve me", (backup / "legacy-marker").read_text())
+        self.assertEqual("preserve", (collision / "existing-backup").read_text())
+        self.assertFalse((target / "legacy-marker").exists())
+        self.assertTrue((target / "scripts" / "science_update_hook.py").is_file())
+
+    def test_legacy_installer_restores_checkout_when_fresh_bootstrap_fails(
+        self,
+    ) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        original_sha = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **environment,
+                "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+                "FAIL_CANDIDATE_BOOTSTRAP": "1",
+                "FRESH_BOOTSTRAP_MARKER": str(self.root / "fresh-bootstrap-ran"),
+            },
+        )
+
+        backup = target.with_name(f"{target.name}.legacy-{original_sha}")
+        self.assertNotEqual(0, result.returncode)
+        self.assertTrue(target.is_dir())
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertFalse(backup.exists())
+        self.assertTrue((self.root / "fresh-bootstrap-ran").is_file())
+
+    def test_legacy_installer_preserves_backup_when_restore_target_is_dangling_symlink(
+        self,
+    ) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        original_sha = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        backup = target.with_name(f"{target.name}.legacy-{original_sha}")
+        dangling_target = self.root / "missing-target"
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **environment,
+                "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+                "FAIL_CANDIDATE_BOOTSTRAP": "1",
+                "CANDIDATE_DANGLING_TARGET": str(target),
+                "CANDIDATE_DANGLING_LINK_TARGET": str(dangling_target),
+            },
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            f"could not restore legacy install because {target} already exists",
+            result.stderr,
+        )
+        self.assertIn(str(backup), result.stderr)
+        self.assertTrue(target.is_symlink())
+        self.assertFalse(target.exists())
+        self.assertEqual("preserve me", (backup / "legacy-marker").read_text())
+
+    def test_legacy_installer_refuses_backup_destination_symlink(self) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        original_sha = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        backup_link = target.with_name(f"{target.name}.legacy-{original_sha}")
+        backup_target = self.root / "backup-target"
+        backup_target.mkdir()
+        (backup_target / "keep").write_text("preserve", encoding="utf-8")
+        backup_link.symlink_to(backup_target, target_is_directory=True)
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **environment,
+                "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+            },
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("backup", result.stderr.lower())
+        self.assertTrue(target.is_dir())
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertTrue(backup_link.is_symlink())
+        self.assertFalse((backup_target / target.name).exists())
+        self.assertEqual("preserve", (backup_target / "keep").read_text())
+
+    def test_legacy_installer_refuses_when_git_status_fails(self) -> None:
+        target, _, environment = self._legacy_installer_setup()
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **environment,
+                "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+                "FAIL_GIT_STATUS": "1",
+            },
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("could not inspect legacy install status", result.stderr)
+        self.assertTrue(target.is_dir())
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertEqual([], list(target.parent.glob(f"{target.name}.legacy-*")))
+
+    def test_legacy_installer_acquires_lock_before_backup_rename(self) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        lock_path = target.parent / ".codex-science-update.lock"
+        lock_path.touch()
+        real_mv = shutil.which("mv")
+        assert real_mv is not None
+        fake_bin = Path(environment["PATH"].split(os.pathsep, 1)[0])
+        rename_marker = self.root / "legacy-rename-attempted"
+        (fake_bin / "mv").write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = -T ] && [ \"$2\" = \"$LEGACY_MOVE_SOURCE\" ]; then\n"
+            "  case \"$3\" in \"$LEGACY_MOVE_SOURCE\".legacy-*) : > \"$LEGACY_RENAME_MARKER\" ;; esac\n"
+            "fi\n"
+            f"exec {real_mv} \"$@\"\n",
+            encoding="utf-8",
+        )
+        (fake_bin / "mv").chmod(0o755)
+        with lock_path.open("r+") as lock_handle:
+            fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = subprocess.run(
+                ["bash", str(self.repository_root / "scripts" / "install.sh")],
+                capture_output=True,
+                text=True,
+                check=False,
+                env={
+                    **environment,
+                    "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+                    "LEGACY_MOVE_SOURCE": str(target),
+                    "LEGACY_RENAME_MARKER": str(rename_marker),
+                },
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("another Codex Science install or update is running", result.stderr)
+        self.assertTrue(target.is_dir())
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertFalse(rename_marker.exists())
+        self.assertEqual([], list(target.parent.glob(f"{target.name}.legacy-*")))
+
+    def test_dirty_legacy_installer_refuses_acknowledged_migration_untouched(
+        self,
+    ) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        (target / "legacy-marker").write_text("dirty", encoding="utf-8")
+
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**environment, "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed"},
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("dirty", result.stderr)
+        self.assertEqual("dirty", (target / "legacy-marker").read_text())
+        self.assertEqual([], list(target.parent.glob(f"{target.name}.legacy-*")))
+
+    def _fresh_installer_fixture(self) -> tuple[Path, Path]:
         fixture = self.root / "fixture"
         scripts = fixture / "scripts"
         catalog = fixture / "catalog"
         scripts.mkdir(parents=True)
         catalog.mkdir()
         (catalog / "inventory.json").write_text("{}", encoding="utf-8")
-        (scripts / "bootstrap.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (scripts / "bootstrap.sh").write_text(
+            "#!/bin/sh\n"
+            "[ -z \"${FRESH_BOOTSTRAP_MARKER:-}\" ] || : > \"$FRESH_BOOTSTRAP_MARKER\"\n"
+            "[ -z \"${CANDIDATE_DANGLING_TARGET:-}\" ] || ln -s \"$CANDIDATE_DANGLING_LINK_TARGET\" \"$CANDIDATE_DANGLING_TARGET\"\n"
+            "[ -z \"${FAIL_CANDIDATE_BOOTSTRAP:-}\" ] || exit 19\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
         (scripts / "python_runtime.sh").write_text("#!/bin/sh\nexec python3 \"$@\"\n", encoding="utf-8")
         (scripts / "science_update_hook.py").write_text(
             "import sys\n"
@@ -2448,6 +2753,10 @@ class ScienceUpdateHookTests(unittest.TestCase):
         for path in fake_bin.iterdir():
             path.chmod(0o755)
 
+        return fixture, fake_bin
+
+    def test_successful_fresh_installer_releases_lock(self) -> None:
+        fixture, fake_bin = self._fresh_installer_fixture()
         target = self.root / "installed"
         result = subprocess.run(
             ["bash", str(self.repository_root / "scripts" / "install.sh")],

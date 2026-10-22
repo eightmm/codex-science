@@ -108,19 +108,151 @@ select_python() {
 
 STAGING=""
 LOCKER_PID=""
+LOCK_PATH=""
 HOOK_DATA=""
 RECOVERY_DIR=""
 UPDATE_HOOK=""
+LEGACY_BACKUP=""
+release_installer_lock() {
+  if [ -n "$LOCKER_PID" ]; then
+    kill "$LOCKER_PID" 2>/dev/null || true
+    wait "$LOCKER_PID" 2>/dev/null || true
+    LOCKER_PID=""
+  fi
+}
+
+acquire_installer_lock() {
+  INSTALL_PARENT="$(dirname "$INSTALL_DIR")"
+  mkdir -p "$INSTALL_PARENT"
+  LOCK_PATH="$INSTALL_PARENT/.codex-science-update.lock"
+  coproc CODEX_SCIENCE_LOCKER {
+    exec "$PYTHON" - "$LOCK_PATH" <<'PY'
+import fcntl
+import os
+import sys
+import time
+
+flags = os.O_CREAT | os.O_RDWR
+if hasattr(os, "O_NOFOLLOW"):
+    flags |= os.O_NOFOLLOW
+try:
+    descriptor = os.open(sys.argv[1], flags, 0o600)
+    os.fchmod(descriptor, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except (OSError, BlockingIOError):
+    print("rejected", flush=True)
+    raise SystemExit(1)
+print("locked", flush=True)
+while True:
+    time.sleep(60)
+PY
+  }
+  LOCKER_PID="$CODEX_SCIENCE_LOCKER_PID"
+  read -r LOCK_STATE <&"${CODEX_SCIENCE_LOCKER[0]}" || LOCK_STATE="rejected"
+  if [ "$LOCK_STATE" != "locked" ]; then
+    wait "$LOCKER_PID" 2>/dev/null || true
+    LOCKER_PID=""
+    err "another Codex Science install or update is running, or the lock path is unsafe"
+    exit 1
+  fi
+}
+
 cleanup() {
   if [ -n "$HOOK_DATA" ]; then rm -rf "$HOOK_DATA"; fi
   if [ -n "$RECOVERY_DIR" ]; then rm -rf "$RECOVERY_DIR"; fi
   if [ -n "$STAGING" ]; then rm -rf "$STAGING"; fi
-  if [ -n "$LOCKER_PID" ]; then
-    kill "$LOCKER_PID" 2>/dev/null || true
-    wait "$LOCKER_PID" 2>/dev/null || true
+  if [ -n "$LEGACY_BACKUP" ] && { [ -e "$LEGACY_BACKUP" ] || [ -L "$LEGACY_BACKUP" ]; }; then
+    if [ ! -e "$INSTALL_DIR" ] && [ ! -L "$INSTALL_DIR" ]; then
+      if mv -T "$LEGACY_BACKUP" "$INSTALL_DIR"; then
+        info "Restored legacy install to $INSTALL_DIR"
+      else
+        err "could not restore legacy install; backup remains at $LEGACY_BACKUP"
+      fi
+    else
+      err "could not restore legacy install because $INSTALL_DIR already exists; backup remains at $LEGACY_BACKUP"
+    fi
   fi
+  release_installer_lock
 }
 trap cleanup EXIT
+
+legacy_release_policy_missing() {
+  [ -e "$INSTALL_DIR/.git" ] || [ -L "$INSTALL_DIR/.git" ] || return 1
+  "$PYTHON" - "$INSTALL_DIR" <<'PY'
+import json
+import subprocess
+import sys
+
+result = subprocess.run(
+    ["git", "-C", sys.argv[1], "show", "HEAD:release/manifest.json"],
+    capture_output=True,
+    text=True,
+    check=False,
+)
+if result.returncode:
+    raise SystemExit(1)
+try:
+    manifest = json.loads(result.stdout)
+except json.JSONDecodeError:
+    raise SystemExit(1)
+if not isinstance(manifest, dict):
+    raise SystemExit(1)
+if not isinstance(manifest.get("cache_neutral_files"), list) or not isinstance(
+    manifest.get("cache_neutral_prefixes"), list
+):
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+backup_legacy_install() {
+  [ "${CODEX_SCIENCE_MIGRATION_ACK:-}" = "all-codex-tasks-closed" ] || {
+    err "this legacy install needs the acknowledged migration command"
+    exit 1
+  }
+
+  legacy_release_policy_missing || {
+    err "legacy release policy changed; refusing acknowledged migration"
+    exit 1
+  }
+  remote="$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || true)"
+  case "${remote%/}" in
+    https://github.com/eightmm/codex-science.git|https://github.com/eightmm/codex-science|git@github.com:eightmm/codex-science.git|ssh://git@github.com/eightmm/codex-science.git) ;;
+    *) err "legacy install is not an official Codex Science checkout"; exit 1 ;;
+  esac
+  if ! status="$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null)"; then
+    err "could not inspect legacy install status; refusing acknowledged migration"
+    exit 1
+  fi
+  if [ -n "$status" ]; then
+    err "legacy install is dirty; refusing acknowledged migration (commit, stash or discard changes in $INSTALL_DIR, then re-run)"
+    exit 1
+  fi
+
+  short_sha="$(git -C "$INSTALL_DIR" rev-parse --short=7 HEAD 2>/dev/null || true)"
+  case "$short_sha" in
+    ???????) ;;
+    *) err "could not identify legacy install commit"; exit 1 ;;
+  esac
+  case "$short_sha" in
+    *[!0-9a-f]*) err "legacy install commit is invalid"; exit 1 ;;
+  esac
+  backup_base="${INSTALL_DIR%/}.legacy-$short_sha"
+  backup_candidate="$backup_base"
+  suffix=1
+  while :; do
+    if [ -L "$backup_candidate" ]; then
+      err "legacy backup destination is a symlink: $backup_candidate"
+      exit 1
+    fi
+    [ -e "$backup_candidate" ] || break
+    backup_candidate="$backup_base-$suffix"
+    suffix="$((suffix + 1))"
+  done
+  mv -T "$INSTALL_DIR" "$backup_candidate"
+  LEGACY_BACKUP="$backup_candidate"
+  info "Backed up legacy install to $LEGACY_BACKUP"
+}
 
 managed_updater_is_trusted() {
   [ -d "$INSTALL_DIR/.git" ] || return 1
@@ -185,6 +317,13 @@ select_trusted_updater() {
   fi
 }
 
+select_python
+acquire_installer_lock
+
+if legacy_release_policy_missing; then
+  backup_legacy_install
+fi
+
 # 1. Clone into staging or update through the transactional updater.
 if [ ! -d "$INSTALL_DIR/.git" ]; then
   [ "$REPO_URL" = "$OFFICIAL_REPO" ] || {
@@ -196,7 +335,6 @@ if [ ! -d "$INSTALL_DIR/.git" ]; then
     exit 1
   fi
 fi
-select_python
 
 case "$HANDOFF_COUNT" in
   0|1|2|3) ;;
@@ -215,43 +353,12 @@ PY
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
+  release_installer_lock
   select_trusted_updater
   info "Safely updating $INSTALL_DIR"
   "$PYTHON" "$UPDATE_HOOK" \
     --manual-update "$INSTALL_DIR" "$BRANCH"
 else
-  INSTALL_PARENT="$(dirname "$INSTALL_DIR")"
-  mkdir -p "$INSTALL_PARENT"
-  LOCK_PATH="$INSTALL_PARENT/.codex-science-update.lock"
-  coproc CODEX_SCIENCE_LOCKER {
-    exec "$PYTHON" - "$LOCK_PATH" <<'PY'
-import fcntl
-import os
-import sys
-import time
-
-flags = os.O_CREAT | os.O_RDWR
-if hasattr(os, "O_NOFOLLOW"):
-    flags |= os.O_NOFOLLOW
-try:
-    descriptor = os.open(sys.argv[1], flags, 0o600)
-    os.fchmod(descriptor, 0o600)
-    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-except (OSError, BlockingIOError):
-    print("rejected", flush=True)
-    raise SystemExit(1)
-print("locked", flush=True)
-while True:
-    time.sleep(60)
-PY
-  }
-  LOCKER_PID="$CODEX_SCIENCE_LOCKER_PID"
-  read -r LOCK_STATE <&"${CODEX_SCIENCE_LOCKER[0]}" || LOCK_STATE="rejected"
-  if [ "$LOCK_STATE" != "locked" ]; then
-    wait "$LOCKER_PID" 2>/dev/null || true
-    err "another Codex Science install or update is running, or the lock path is unsafe"
-    exit 1
-  fi
   STAGING="$(mktemp -d "$INSTALL_PARENT/.codex-science-install.XXXXXX")"
   info "Cloning and validating in staging"
   git clone --quiet --branch "$BRANCH" --single-branch "$REPO_URL" "$STAGING/candidate"
@@ -259,6 +366,7 @@ PY
   "$PYTHON" "$STAGING/candidate/scripts/science_update_hook.py" \
     --candidate-check "$STAGING/candidate"
   mv -T "$STAGING/candidate" "$INSTALL_DIR"
+  LEGACY_BACKUP=""
   rm -rf "$STAGING"
   STAGING=""
 fi
