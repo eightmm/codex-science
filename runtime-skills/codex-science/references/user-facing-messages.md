@@ -47,7 +47,7 @@ scientific information.
 ## Completion messages
 
 1. Lead with the scientific answer in one to three sentences.
-2. List key findings as bullets, each with a citation link.
+2. List key findings as bullets. Cite each finding that rests on published sources with a visible persistent identifier (DOI, PMID, PMCID, or arXiv ID); link computation-only findings to the saved output instead.
 3. State caveats that affect interpretation or generalization.
 4. Link to the human summary (`index.md`) and the main output files.
 

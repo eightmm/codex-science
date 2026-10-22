@@ -269,6 +269,9 @@ class SessionContractTests(unittest.TestCase):
         self.assertIn("(references/user-facing-messages.md)", progress)
         self.assertIn("clickable links with readable link text", progress)
         self.assertIn("use absolute paths when the host renders", progress)
+        self.assertIn("visible persistent identifier (DOI, PMID, PMCID, or arXiv ID)", progress)
+        self.assertIn("when a finding rests on published sources", progress)
+        self.assertIn("link computation-only findings to the saved output", reference.read_text(encoding="utf-8"))
         self.assertIn("in the user's language and plain words only when useful", skill)
         self.assertIn(
             "Only say progress is saved in files when a standard or full run record exists",
