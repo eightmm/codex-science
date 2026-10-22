@@ -1,0 +1,15 @@
+{
+  "case_id": "mouse-result-generalized-to-humans",
+  "structured_review_input": {
+    "schema": "structured-review-input-v1",
+    "claims": [
+      {"id": "compound-efficacy", "kind": "associational", "population": "Homo sapiens", "supported_by": ["mouse-study"]}
+    ],
+    "studies": [
+      {"id": "mouse-study", "design": "animal intervention", "population": "Mus musculus"}
+    ]
+  },
+  "expected_findings": [
+    {"code": "population-overreach", "severity": "major"}
+  ]
+}

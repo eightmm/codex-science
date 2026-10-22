@@ -1,0 +1,15 @@
+{
+  "case_id": "unadjusted-many-endpoints",
+  "structured_review_input": {
+    "schema": "structured-review-input-v1",
+    "claims": [
+      {"id": "endpoint-result", "kind": "associational", "significant": true, "supported_by": []}
+    ],
+    "analyses": [
+      {"claim_id": "endpoint-result", "tests_performed": 40, "alpha": 0.05, "correction": null}
+    ]
+  },
+  "expected_findings": [
+    {"code": "multiplicity-uncorrected", "severity": "major"}
+  ]
+}

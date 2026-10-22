@@ -1,0 +1,36 @@
+{
+  "case_id": "clean-bounded-association-control",
+  "structured_review_input": {
+    "schema": "structured-review-input-v1",
+    "claims": [
+      {
+        "id": "bounded-efficacy-claim",
+        "kind": "causal",
+        "population": "adults with condition X",
+        "supported_by": ["randomized-study"],
+        "significant": true
+      }
+    ],
+    "studies": [
+      {"id": "randomized-study", "design": "randomized controlled trial", "population": "adults with condition X"}
+    ],
+    "analyses": [
+      {"claim_id": "bounded-efficacy-claim", "tests_performed": 12, "alpha": 0.05, "correction": "Holm"}
+    ],
+    "model_evaluations": [
+      {
+        "train_ids": ["patient-01", "patient-02"],
+        "test_ids": ["patient-03"],
+        "train_groups": {"patient": ["group-01", "group-02"]},
+        "test_groups": {"patient": ["group-03"]}
+      }
+    ],
+    "source_records": [
+      {"id": "dose-difference", "value": 250, "unit": "mg"}
+    ],
+    "reported_quantities": [
+      {"source_id": "dose-difference", "value": 0.25, "unit": "g"}
+    ]
+  },
+  "expected_findings": []
+}

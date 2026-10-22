@@ -7,12 +7,16 @@ from typing import Any, Iterable
 
 from codex_science.evidence_graph_v2 import independent_support_groups, validate_graph_payload
 from codex_science.review_receipts import review_receipt_findings
+from codex_science.structured_defects import structured_review_findings
 
 WEIGHTS = {"critical": 3.0, "major": 2.0, "minor": 1.0, "suggestion": 0.25}
 
 
 def evaluate_case(case: dict[str, Any]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
+    has_structured_input = "structured_review_input" in case
+    if has_structured_input:
+        findings.extend(structured_review_findings(case["structured_review_input"]))
     graph = case.get("evidence_graph_v2")
     nodes: dict[str, dict[str, Any]] = {}
     edges: list[dict[str, Any]] = []
@@ -25,9 +29,10 @@ def evaluate_case(case: dict[str, Any]) -> list[dict[str, str]]:
     receipt = case.get("review_receipt")
     if isinstance(receipt, dict):
         findings.extend(review_receipt_findings(receipt, case.get("artifact_hashes", {}), registry_sha256=case.get("registry_sha256")))
-    for item in case.get("additional_findings", []):
-        if isinstance(item, dict):
-            findings.append({"code": str(item.get("code", "")), "severity": str(item.get("severity", "major")), "message": str(item.get("message", item.get("code", "")))})
+    if not has_structured_input:
+        for item in case.get("additional_findings", []):
+            if isinstance(item, dict):
+                findings.append({"code": str(item.get("code", "")), "severity": str(item.get("severity", "major")), "message": str(item.get("message", item.get("code", "")))})
     unique = {(item["code"], item.get("message", "")): item for item in findings}
     return sorted(unique.values(), key=lambda item: (item.get("severity", ""), item["code"], item.get("message", "")))
 

@@ -1,0 +1,18 @@
+{
+  "case_id": "train-test-sample-id-overlap",
+  "structured_review_input": {
+    "schema": "structured-review-input-v1",
+    "claims": [
+      {"id": "classifier-performance", "kind": "predictive", "supported_by": []}
+    ],
+    "model_evaluations": [
+      {
+        "train_ids": ["patient-01", "patient-02"],
+        "test_ids": ["patient-02", "patient-03"]
+      }
+    ]
+  },
+  "expected_findings": [
+    {"code": "train-test-leakage", "severity": "major"}
+  ]
+}

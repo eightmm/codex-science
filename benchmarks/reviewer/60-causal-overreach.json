@@ -1,0 +1,15 @@
+{
+  "case_id": "causal-claim-from-observational-data",
+  "structured_review_input": {
+    "schema": "structured-review-input-v1",
+    "claims": [
+      {"id": "infection-claim", "kind": "causal", "supported_by": ["registry-study"]}
+    ],
+    "studies": [
+      {"id": "registry-study", "design": "cohort", "population": "adults choosing supplement X"}
+    ]
+  },
+  "expected_findings": [
+    {"code": "causal-overreach", "severity": "major"}
+  ]
+}

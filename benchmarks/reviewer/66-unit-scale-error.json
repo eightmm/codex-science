@@ -1,0 +1,15 @@
+{
+  "case_id": "milligrams-reported-as-grams",
+  "structured_review_input": {
+    "schema": "structured-review-input-v1",
+    "source_records": [
+      {"id": "dose-difference", "value": 250, "unit": "mg"}
+    ],
+    "reported_quantities": [
+      {"source_id": "dose-difference", "value": 250, "unit": "g"}
+    ]
+  },
+  "expected_findings": [
+    {"code": "unit-scale-mismatch", "severity": "major"}
+  ]
+}

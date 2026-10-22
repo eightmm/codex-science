@@ -1,3 +1,4 @@
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -99,11 +100,36 @@ class EvidenceReviewV2Tests(unittest.TestCase):
             validate_review_receipt(receipt)
 
     def test_seeded_reviewer_benchmark_has_zero_unsafe_passes(self) -> None:
-        report = score_cases(load_cases(self.root / "benchmarks" / "reviewer"))
+        cases = load_cases(self.root / "benchmarks" / "reviewer")
+        report = score_cases(cases)
+        self.assertEqual(12, report["case_count"])
         self.assertEqual(0.0, report["unsafe_pass_rate"], json.dumps(report, indent=2))
         self.assertEqual(1.0, report["critical_recall"])
         self.assertEqual(1.0, report["major_recall"])
         self.assertEqual(1.0, report["severity_weighted_precision"])
+        self.assertEqual(1.0, report["severity_weighted_recall"])
+        self.assertEqual(0.0, report["false_positive_case_rate"])
+        self.assertTrue(all(item["passed"] for item in report["details"]), json.dumps(report, indent=2))
+
+    def test_train_test_case_id_matches_sample_overlap(self) -> None:
+        case_ids = {item["case_id"] for item in load_cases(self.root / "benchmarks" / "reviewer")}
+        self.assertIn("train-test-sample-id-overlap", case_ids)
+
+    def test_duplicate_shared_cohort_case_is_not_in_corpus(self) -> None:
+        case_ids = {item["case_id"] for item in load_cases(self.root / "benchmarks" / "reviewer")}
+        self.assertNotIn("same-cohort-counted-as-independent-replication", case_ids)
+
+    def test_structured_case_mutation_removes_finding_without_echoing_seeded_answers(self) -> None:
+        cases = load_cases(self.root / "benchmarks" / "reviewer")
+        case = copy.deepcopy(next(item for item in cases if item["case_id"] == "train-test-sample-id-overlap"))
+        case["structured_review_input"]["model_evaluations"][0]["test_ids"] = ["held-out-only"]
+        case["additional_findings"] = [{"code": "train-test-leakage", "severity": "major"}]
+
+        report = score_cases([case])
+        detail = report["details"][0]
+        self.assertFalse(detail["passed"], json.dumps(detail, indent=2))
+        self.assertEqual([], detail["actual"])
+        self.assertEqual([("train-test-leakage", "major")], detail["missing"])
 
 
 if __name__ == "__main__":
