@@ -140,6 +140,22 @@ results. `metadata_check` is advisory and never changes the command's exit
 status. Non-Latin titles and organisation author names may not normalize to a
 comparable form and therefore produce `uncertain` or `unverified` results.
 
+An optional `scripts/fetch_open_fulltext.py --run-dir RUN` workflow previews
+cited PMCID, PMID, and DOI identifiers from declared reports by default. When a
+study table exists, report citations are limited to identifiers found in rows
+not marked excluded. Candidates are sorted and capped at 30 by default;
+`--max-candidates` can lower or raise this selection cap up to 50, and the
+summary reports truncation and the number dropped. Network retrieval requires
+`--execute`; the matching Europe PMC record must report open access and a
+license before full text is requested. The workflow is capped at 10 unique
+articles, 60 seconds, and 8 MiB per response. Retrieval requests append to the
+separate `fulltext/fetch-ledger.jsonl`, never to the manifest-declared query
+ledger or `queries.jsonl`; the fetch ledger records retrieval activity and is
+not search provenance. The time budget is checked between requests, each
+bounded by a 10-second socket timeout; it is not a hard wall-clock kill.
+Retrieved text remains untrusted and does not establish that it supports a
+claim.
+
 ### Completion record
 
 The evaluation runner's opt-in `--output-schema` validates Codex output against
