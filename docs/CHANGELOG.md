@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added event stream reconnect and idle-gap diagnostics to literature evaluation reports without changing run outcomes.
 - Documented the rigor request fields and directed literature reviews to the
   validated sidecar example bundle.
 - PDB search treats an empty HTTP 204 on the first page as a negative result

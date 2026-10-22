@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -264,7 +265,7 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
         branch_runtime_version = loaded_runtime.get("branch_runtime_version")
     if not isinstance(branch_runtime_version, str) and isinstance(preflight, Mapping):
         branch_runtime_version = preflight.get("branch_runtime_version")
-    return {"schema": "literature-eval-graded-run-v1", "task_id": task["id"], "task_digest": task["digest"],
+    result = {"schema": "literature-eval-graded-run-v1", "task_id": task["id"], "task_digest": task["digest"],
             "set_digest": receipt["set_digest"], "tier": task_spec.get("expected_tier"), "outcome": outcome,
             "stop_reason": stop_reason, "criteria": criteria, "citations": citations,
             "partial_credit": partial_credit,
@@ -273,6 +274,11 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
             "codex_version": receipt.get("preflight", {}).get("codex_version", "unknown") if isinstance(receipt.get("preflight"), Mapping) else "unknown",
             "runtime_identity": receipt.get("runtime_identities", []),
             "receipt_sha256": receipt_hash}
+    for key in ("stream_reconnects", "max_idle_gap_seconds", "idle_gap_seconds_over_300"):
+        value = event_metrics.get(key) if isinstance(event_metrics, Mapping) else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            result[key] = value
+    return result
 
 
 def wilson_interval(successes: int, n: int, z: float = 1.959963984540054) -> list[float] | None:
@@ -286,6 +292,10 @@ def wilson_interval(successes: int, n: int, z: float = 1.959963984540054) -> lis
 def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     n = len(rows); completed = sum(r.get("outcome") == "completed" for r in rows)
     infrastructure_failures = sum(r.get("stop_reason") == "provider_unavailable" for r in rows)
+    stall_affected_timeouts = sum(r.get("stop_reason") == "timeout" and
+                                  (r.get("stream_reconnects", 0) > 0 or
+                                   r.get("idle_gap_seconds_over_300", 0) > 0) for r in rows)
+    stream_reconnects_total = sum(r.get("stream_reconnects", 0) for r in rows)
     adjusted_n = n - infrastructure_failures
     answered = sum(r.get("outcome") != "unsure" for r in rows)
     total = sum(isinstance(r.get("citations"), Mapping) and r["citations"].get("status") != "unavailable" for r in rows)
@@ -294,6 +304,8 @@ def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     return {"n": n, "completed": completed, "completion_rate": completed/n if n else None,
             "completion_interval_95": wilson_interval(completed, n), "answered": answered,
             "infrastructure_failures": infrastructure_failures,
+            "stall_affected_timeouts": stall_affected_timeouts,
+            "stream_reconnects_total": stream_reconnects_total,
             "completion_rate_excluding_infrastructure": completed/adjusted_n if adjusted_n else None,
             "completion_interval_excluding_infrastructure_95": wilson_interval(completed, adjusted_n),
             "coverage": answered/n if n else None, "precision": completed/answered if answered else None,
@@ -357,6 +369,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
              f"Secondary completion rate excluding infrastructure failures: {adjusted_rate}; "
              f"provider infrastructure failures {s['infrastructure_failures']}. Runs failed by provider capacity "
              "should be re-run and not counted as product evidence.",
+             f"Diagnostic stream stalls: {s['stall_affected_timeouts']} timeout runs affected; "
+             f"{s['stream_reconnects_total']} stream reconnects.",
              runtime_status, "", "## Current", f"Answered coverage: {percent(s['coverage'])}; precision among answered: {percent(s['precision'])}.", "", "## Next", "Inspect unsure and failed runs before drawing conclusions.", "", "## Evidence", f"{report['claim_boundary']}", "", "Stop reasons:"]
     lines += [f"- {k}: {v}" for k, v in s["stop_reasons"].items()]
     secondary = report.get("partial_credit_secondary", {})

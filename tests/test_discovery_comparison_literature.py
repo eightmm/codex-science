@@ -269,6 +269,46 @@ class LiteratureReportTests(unittest.TestCase):
         self.assertIsNone(empty["completion_rate_excluding_infrastructure"])
         self.assertIsNone(empty["completion_interval_excluding_infrastructure_95"])
 
+    def test_stream_stall_metrics_are_diagnostic_and_bad_receipt_values_are_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, task, run, receipt = self.fixture(Path(tmp))
+            legacy = grade_run(dict(receipt, timed_out=True), task, run)
+            measured_receipt = dict(receipt, timed_out=True, event_metrics={
+                "stream_reconnects": 2, "max_idle_gap_seconds": 600.2,
+                "idle_gap_seconds_over_300": 900.1})
+            measured = grade_run(measured_receipt, task, run)
+            self.assertEqual(("failed", "timeout"), (measured["outcome"], measured["stop_reason"]))
+            self.assertEqual({"stream_reconnects": 2, "max_idle_gap_seconds": 600.2,
+                              "idle_gap_seconds_over_300": 900.1},
+                             {key: measured[key] for key in ("stream_reconnects", "max_idle_gap_seconds",
+                                                            "idle_gap_seconds_over_300")})
+            self.assertNotIn("stream_reconnects", legacy)
+
+            malformed_rows = []
+            for value in (None, "3"):
+                bad = grade_run(dict(receipt, timed_out=True, event_metrics={"stream_reconnects": value}), task, run)
+                malformed_rows.append(bad)
+                self.assertNotIn("stream_reconnects", bad)
+                self.assertEqual((legacy["outcome"], legacy["stop_reason"]), (bad["outcome"], bad["stop_reason"]))
+
+        baseline = summarize([dict(legacy, set_digest="a")])
+        measured_only = summarize([dict(measured, set_digest="a")])
+        report = summarize([dict(measured, set_digest="a"),
+                            {"set_digest": "a", "tier": "standard", "outcome": "failed",
+                             "stop_reason": "timeout", "stream_reconnects": 1,
+                             "idle_gap_seconds_over_300": 0},
+                            *[dict(row, set_digest="a") for row in malformed_rows]])
+        self.assertEqual(0, baseline["overall"]["stall_affected_timeouts"])
+        self.assertEqual(0, baseline["overall"]["stream_reconnects_total"])
+        self.assertEqual(2, report["overall"]["stall_affected_timeouts"])
+        self.assertEqual(3, report["overall"]["stream_reconnects_total"])
+        self.assertEqual(1, report["by_tier"]["quick"]["stall_affected_timeouts"])
+        self.assertEqual(2, report["by_tier"]["quick"]["stream_reconnects_total"])
+        self.assertEqual(1, report["by_tier"]["standard"]["stall_affected_timeouts"])
+        self.assertEqual(1, report["by_tier"]["standard"]["stream_reconnects_total"])
+        for key in ("completion_rate", "completion_rate_excluding_infrastructure"):
+            self.assertEqual(baseline["overall"][key], measured_only["overall"][key])
+
     def test_unrecorded_regular_artifact_is_rejected_before_criteria(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); _, task, run, receipt = self.fixture(root)

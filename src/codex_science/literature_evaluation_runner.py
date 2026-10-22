@@ -33,15 +33,15 @@ _DEFAULT_PLUGIN = "codex-science@codex-science"
 _PLUGIN_RE = re.compile(r"^codex-science@[A-Za-z0-9][A-Za-z0-9._-]*$")
 _ANY_PLUGIN_CACHE_PATH = re.compile(
     r"plugins/cache/(?P<marketplace>[A-Za-z0-9][A-Za-z0-9._-]*)/codex-science/"
-    r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
+    r"(?P<version>[^/\\\s\"'<>;|&]+)(?=/|$|[\\\s\"'<>;|&])"
 )
 
 
 def _plugin_cache_patterns(plugin: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
     marketplace = plugin.split("@", 1)[1]
     root = f"plugins/cache/{marketplace}/codex-science/"
-    version = re.escape(root) + r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
-    skill = (re.escape(root) + r"(?P<version>[^/\s\"'<>;|&]+)/"
+    version = re.escape(root) + r"(?P<version>[^/\\\s\"'<>;|&]+)(?=/|$|[\\\s\"'<>;|&])"
+    skill = (re.escape(root) + r"(?P<version>[^/\\\s\"'<>;|&]+)/"
              r"(?P<skill_path>skills/[^\s\"'<>;|&]*)")
     return re.compile(version), re.compile(skill)
 
@@ -800,6 +800,8 @@ def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_
     usage: dict[str, int] = {"input_tokens": 0, "cached_input_tokens": 0,
                              "output_tokens": 0, "reasoning_tokens": 0}
     max_t = 0.0
+    timestamps: list[float] = []
+    stream_reconnects = 0
     for line in lines:
         try:
             record = line if isinstance(line, Mapping) else json.loads(line)
@@ -809,12 +811,19 @@ def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_
             offset = record.get("t", 0)
             if isinstance(offset, (int, float)) and not isinstance(offset, bool):
                 max_t = max(max_t, float(offset))
+                if math.isfinite(float(offset)) and float(offset) >= 0:
+                    timestamps.append(float(offset))
             event = record["event"]
         else:
             event = record
         if not isinstance(event, Mapping):
             event = {"type": "unknown_event", "raw": event}
         event_type = event.get("type")
+        message = event.get("message")
+        if event_type == "error" and isinstance(message, str) and (
+                re.search(r"Reconnecting\.\.\. \d+/\d+", message)
+                or "stream disconnected before completion" in message):
+            stream_reconnects += 1
         if not isinstance(event_type, str) or not event_type:
             event_type = "unknown_event"
         event_counts[event_type] = event_counts.get(event_type, 0) + 1
@@ -866,7 +875,12 @@ def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_
         stop_reason = "completed"
     else:
         stop_reason = "interrupted"
+    timestamps.sort()
+    gaps = [right-left for left, right in zip(timestamps, timestamps[1:])]
     return {"thread_id": thread_id, "terminal_stop_reason": stop_reason, "error_message": error_message,
+            "stream_reconnects": stream_reconnects,
+            "max_idle_gap_seconds": round(max(gaps, default=0.0), 1),
+            "idle_gap_seconds_over_300": round(sum(gap for gap in gaps if gap > 300), 1),
             "event_counts": dict(sorted(event_counts.items())),
             "item_counts_by_type_and_status": {key: dict(sorted(value.items())) for key, value in sorted(item_counts.items())},
             "mcp_tool_call_counts_by_tool": {key: dict(sorted(value.items())) for key, value in sorted(mcp_tools.items())},

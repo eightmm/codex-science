@@ -23,6 +23,29 @@ FORBIDDEN = {"--ephemeral", "--ignore-user-config", "--dangerously-bypass-approv
 
 
 class LiteratureEvaluationTests(unittest.TestCase):
+    def test_plugin_cache_version_stops_at_escaped_quote(self) -> None:
+        from codex_science.literature_evaluation_runner import _plugin_cache_patterns, _ANY_PLUGIN_CACHE_PATH
+
+        command = 'echo "~/.codex/plugins/cache/codex-science-branch/codex-science/0.5.0+codex.20260803040515\\\""'
+        expected = "0.5.0+codex.20260803040515"
+        version_pattern, _ = _plugin_cache_patterns("codex-science@codex-science-branch")
+        self.assertEqual(expected, version_pattern.search(command).group("version"))
+        self.assertEqual(expected, _ANY_PLUGIN_CACHE_PATH.search(command).group("version"))
+
+    def test_event_metrics_measure_gaps_and_reconnects(self) -> None:
+        from codex_science.literature_evaluation_runner import parse_exec_events
+
+        events = [
+            {"t": 0, "event": {"type": "turn.started"}},
+            {"t": 301.04, "event": {"type": "error", "message": "Reconnecting... 2/5 (idle)"}},
+            {"t": 901.06, "event": {"type": "error", "message": "stream disconnected before completion"}},
+            {"t": "bad", "event": {"type": "turn.completed"}},
+        ]
+        result = parse_exec_events(events)
+        self.assertEqual(2, result["stream_reconnects"])
+        self.assertEqual(600.0, result["max_idle_gap_seconds"])
+        self.assertEqual(901.1, result["idle_gap_seconds_over_300"])
+
     def _run(self, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), PYTHONDONTWRITEBYTECODE="1")
         env.update(extra_env or {})
