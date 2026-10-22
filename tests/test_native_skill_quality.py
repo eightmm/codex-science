@@ -82,6 +82,12 @@ REQUIRED_SECTIONS = (
 
 
 class NativeSkillQualityTests(unittest.TestCase):
+    def test_incremental_bundle_writing_guidance_is_present(self) -> None:
+        coordinator = (ROOT / "runtime-skills" / "codex-science" / "SKILL.md").read_text(encoding="utf-8")
+        literature = (AUTHORED / "literature-review" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Build artifacts incrementally", coordinator)
+        self.assertIn("Build these bundle files incrementally", literature)
+
     def test_rigor_request_documentation_matches_classifier_contract(self) -> None:
         text = (ROOT / "runtime-skills" / "codex-science" / "SKILL.md").read_text(encoding="utf-8")
         match = re.search(r"Example: `([^`]+)`", text)

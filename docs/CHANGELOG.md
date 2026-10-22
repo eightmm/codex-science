@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Codex Science now builds artifact bundles incrementally and saves progress after major files to reduce lost work when long generations stall and reconnect.
 - Added event stream reconnect and idle-gap diagnostics to literature evaluation reports without changing run outcomes.
 - Documented the rigor request fields and directed literature reviews to the
   validated sidecar example bundle.

@@ -79,6 +79,7 @@ Report added, removed, and changed queries, studies, eligibility decisions, and 
 ## Outputs
 
 For exact sidecar shapes, copy the structure of `<plugin-root>/examples/literature-review-reviewed-run/` (`manifest.json` artifact kinds, `claims.json`, `evidence_graph.json`, `studies.json`, `queries.jsonl`, `lanes/*.json`) and fill it with this run's own content; never copy its scientific content or review receipt. Check shapes with `validate_artifact.py` instead of reading plugin source.
+Build these bundle files incrementally under the `$codex-science` "Persistence and autonomy" rule: long single generations can stall the event stream and be discarded on reconnect.
 
 Return and save:
 
