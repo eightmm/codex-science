@@ -30,10 +30,11 @@ propagated labels from crossing train and evaluation partitions. Do not count
 different tracks, tissues, related variants or duplicate source records as
 independent observations.
 
-Record genome build (`hg38`, `hg19` or another supported assembly), coordinate
-system, annotation release, track metadata, SDK/model release and evaluation
-dataset version. Do not lift coordinates silently. For historical comparisons,
-preserve the original build and mapping procedure and flag ambiguous or
+Record the supported genome build (`hg38` for human or `mm10` for mouse),
+coordinate system, annotation release, track metadata, SDK/model release and
+evaluation dataset version. AlphaGenome does not support `hg19` input directly;
+require a recorded, checked liftover from `hg19` to a supported build before
+scoring. Preserve the source build and mapping procedure and flag ambiguous or
 multi-mapped loci. A changed API release can change outputs even when the client
 code is unchanged.
 
@@ -84,6 +85,8 @@ effect. Use orthogonal experiments for a measured claim.
   AlphaGenome,” *Nature* (2026), for the published evaluation design and model
   limits. AlphaGenome API/scoring documentation is versioned at execution time.
 - GTEx Consortium (2015), for multi-tissue eQTL context; Melnikov et al. (2012),
-  for MPRA context; Tewhey et al. (2016), for CRISPR tiling perturbation. A
+  for MPRA context; Tewhey et al., “Direct identification of hundreds of
+  expression-modulating variants using a multiplexed reporter assay,” *Cell*
+  (2016), for MPRA-based evidence about expression-modulating variants. A
   benchmark citation supports its described benchmark only; it does not validate
   a new target locus.

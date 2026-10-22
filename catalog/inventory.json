@@ -40,7 +40,7 @@
     {
       "description": "Analyze how a single non-coding genetic variant affects gene expression, chromatin accessibility, histone marks, transcription factors, and splicing using the AlphaGenome API. Use when the user gives a variant in chr:pos:ref/alt form and asks about regulatory or splicing effects, tissue-specific impact, or pathogenicity of a non-coding change. Requires an AlphaGenome API key.",
       "executable_count": 0,
-      "instruction_line_count": 104,
+      "instruction_line_count": 109,
       "license": "Apache-2.0",
       "name": "cx-alphagenome-variant-analysis",
       "path": "authored-skills/alphagenome-variant-analysis",
@@ -174,7 +174,7 @@
     {
       "description": "Run pinned Borzoi models to predict RNA-seq and regulatory tracks from long DNA sequence and compare reference versus alternate alleles. Use for regulatory variant hypotheses with explicit genome assembly, sequence-window, tissue, and track provenance.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 92,
       "license": "MIT",
       "name": "cx-borzoi-regulatory-prediction",
       "path": "authored-skills/borzoi-regulatory-prediction",
@@ -1520,7 +1520,7 @@
     {
       "description": "Fetch evolutionary conservation scores (phyloP, phastCons) and transcription-factor binding sites (ENCODE, JASPAR, ReMap) from the UCSC Genome Browser. Use to assess whether variants/regions are conserved or TF-bound. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 27,
+      "instruction_line_count": 103,
       "license": "Apache-2.0",
       "name": "cx-ucsc-conservation",
       "path": "authored-skills/ucsc-conservation",

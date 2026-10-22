@@ -30,6 +30,8 @@ to unseen cell types or distal elements.
    `$cx-compute-environment`. Record the user's decision and what was authorized.
 2. Normalize assembly, coordinates, strand, reference/alternate alleles and
    annotation release; verify the reference allele and coordinate map or stop.
+   Borzoi was trained on hg38 and mm10; do not treat hg19 as a supported input
+   build. For hg19 input, require a recorded, checked liftover to hg38 or mm10.
    Record all inputs and validation results.
 3. Freeze model commit, ensemble/checkpoint checksums, preprocessing, target
    metadata, shifts/reverse-complement ensemble, precision, hardware, seeds,
@@ -64,8 +66,9 @@ Write one `borzoi-regulatory-evidence-v1` record with these required fields:
   (`coordinate_convention`), reference check (`reference_check`) and
   annotation release (`annotation_release`).
 - Model commit (`model_commit`), ensemble/checkpoint checksums
-  (`ensemble_and_checkpoint_checksums`), preprocessing (`preprocessing`), track
-  IDs (`track_ids`) and tissue/cell type (`tissue_or_cell_type`).
+  (`ensemble_and_checkpoint_checksums`), checkpoint replicate used
+  (`checkpoint_replicate`), preprocessing (`preprocessing`), track IDs
+  (`track_ids`) and tissue/cell type (`tissue_or_cell_type`).
 - Window/mask (`window_and_mask`), aggregation (`aggregation`), reference and
   alternate tracks (`reference_and_alternate_tracks`), predicted effects
   (`predicted_effects`) and evaluation split (`evaluation_split`).

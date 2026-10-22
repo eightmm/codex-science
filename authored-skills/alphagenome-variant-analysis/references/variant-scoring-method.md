@@ -50,6 +50,37 @@ site score answer different questions and are not interchangeable. State
 coordinate convention, input interval and exact mask boundaries, especially for
 indels and windows clipped at sequence ends.
 
+### Broad discovery scan (reference client usage)
+
+Run as a `uv run` script after the gates in SKILL.md step 1. It scores the
+recommended *differential* scorers over a 1 Mb window, keeps gene-strand-matched
+rows, and ranks by absolute effect:
+
+```python
+import os, dotenv, pandas as pd
+from alphagenome.models import dna_client, variant_scorers
+from alphagenome.data import genome
+
+dotenv.load_dotenv(os.path.expanduser("~/.env"))
+model = dna_client.create(api_key=os.environ["ALPHAGENOME_API_KEY"],
+                          address="dns:///gdmscience.googleapis.com:443")
+
+chrom, pos_s, ref_alt = "chr2:1234:A>C".replace("/", ">").split(":")
+ref, alt = ref_alt.split(">"); pos = int(pos_s)
+L = 2**20
+interval = genome.Interval(chrom, pos - L // 2, pos + L // 2)
+variant = genome.Variant(chrom, pos, ref, alt)
+scorers = [variant_scorers.RECOMMENDED_VARIANT_SCORERS[m]
+           for m in variant_scorers.RECOMMENDED_VARIANT_SCORERS
+           if all(t not in m for t in ("ACTIVE", "CAGE", "PROCAP"))]
+dfs = [variant_scorers.tidy_scores([a], match_gene_strand=True)
+       for a in model.score_variant(interval=interval, variant=variant,
+                                     variant_scorers=scorers)]
+df = pd.concat([d for d in dfs if d is not None])
+top = df[df["quantile_score"].abs() > 0.995].sort_values("raw_score", key=abs, ascending=False)
+print(top[["biosample_name", "gene_name", "output_type", "quantile_score", "raw_score"]])
+```
+
 ## Source dependencies and independence
 
 Pin the reported model release and SDK/client version, API endpoint, request
@@ -123,6 +154,6 @@ at execution time and do not extrapolate beyond the returned track metadata.
 - Melnikov et al., “A systematic dissection and optimization of inducible
   enhancers in human cells using a massively parallel reporter assay,” *Nature
   Biotechnology* (2012), for MPRA assay context.
-- Tewhey et al., “Direct identification of hundreds of causal regulatory
-  variants using CRISPR/Cas9 tiling screens,” *Nature Genetics* (2016), for
-  experimental perturbation context.
+- Tewhey et al., “Direct identification of hundreds of expression-modulating
+  variants using a multiplexed reporter assay,” *Cell* (2016), for MPRA-based
+  experimental validation of expression-modulating variants.

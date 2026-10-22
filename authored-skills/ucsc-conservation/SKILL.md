@@ -36,12 +36,16 @@ before fetching tracks, choosing controls or comparing intervals/assemblies.
 2. Normalize species, assembly, interval and coordinate convention; verify the
    chromosome and boundaries against the selected assembly and record the
    normalized query.
-3. List available tracks for that assembly and choose exact phyloP, phastCons
-   and/or TFBS tracks before interpretation. Record list query, returned IDs,
-   release metadata and selected tracks; a listed track is not an observation.
-4. Fetch the declared region using UCSC's public Genome Browser API. Retain exact
-   endpoint, parameters, access time, raw response or hash, and all returned,
-   absent and excluded records with reasons.
+3. List available tracks with `https://api.genome.ucsc.edu/list/tracks?genome=<assembly>`
+   and choose the exact phyloP, phastCons and/or TFBS track name before
+   interpretation. For human conservation, available alignment sets include
+   hg38 100-way vertebrate and 470-way mammal, and hg19 100-way and 46-way.
+   Record the exact track name, list query, release metadata and selected IDs;
+   a listed track is not an observation.
+4. Fetch the declared region with
+   `https://api.genome.ucsc.edu/getData/track?genome=<assembly>;track=<track>;chrom=<chrom>;start=<start>;end=<end>`.
+   Retain exact endpoint and parameters, access time, raw response or hash, and
+   all returned, absent and excluded records with reasons.
 5. Verify returned assembly, track, interval, response completeness and score
    type; distinguish no overlap, missing score, null, unavailable track,
    truncation and service failure. Record check results; retrieval failure is
@@ -85,7 +89,7 @@ a hash-bound artifact.
 
 ## Boundaries
 
-- State assembly (`hg38`/`hg19); coordinates and tracks are assembly-specific.
+- State assembly (`hg38`/`hg19`); coordinates and tracks are assembly-specific.
   Cite exact track and source. Do not mix builds or silently lift coordinates.
 - phyloP measures substitution-rate departure under a neutral model; phastCons
   estimates conserved-element probability. Neither is a functional assay.

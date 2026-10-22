@@ -39,6 +39,11 @@ phastCons additionally uses a conserved-element model and local transition
 assumptions. Scores from different alignments, taxa, models or releases are not
 directly comparable without a stated harmonization method.
 
+For human conservation tracks, named alignment sets include hg38 100-way
+vertebrate and 470-way mammal, and hg19 100-way and 46-way. Record the exact
+track name returned by UCSC, since available names and metadata can vary by
+assembly and release.
+
 The same multi-species alignment, reference assembly and upstream annotation may
 underlie many adjacent scores. Adjacent bases/windows, phyloP and phastCons from
 one alignment, and multiple UCSC mirrors are not independent evidence. Preserve

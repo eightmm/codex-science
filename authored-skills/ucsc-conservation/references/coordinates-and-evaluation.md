@@ -28,10 +28,12 @@ documented, checked coordinate mapping.
 
 Use the public base `https://api.genome.ucsc.edu`. List tracks with
 `/list/tracks?genome=<assembly>` before retrieval and retain the exact selected
-track IDs. Fetch with `/getData/track`; verify returned assembly, chromosome,
-interval and track. Inspect response item limits and page or truncation
-indications. A track list only proves that a track is available for query, not
-that it has records over the requested interval.
+track name and IDs. Human conservation sets include hg38 100-way vertebrate
+and 470-way mammal, and hg19 100-way and 46-way; these are distinct alignments,
+so record the exact selected track name. Fetch with `/getData/track`; verify
+returned assembly, chromosome, interval and track. Inspect response item limits
+and page or truncation indications. A track list only proves that a track is
+available for query, not that it has records over the requested interval.
 
 For each score, record source alignment and species coverage when known, track
 release and neutral model. For TFBS tracks, retain the source database, assay or

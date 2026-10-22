@@ -41,12 +41,10 @@ allows. Use matched random or common variants as background negatives, matched
 on allele class, local sequence composition/context, distance to a gene and
 frequency/context variables when known.
 
-For sequence and conservation sanity checks, compare a known conserved coding
-exon and a neutral region with matched window processing. Confirm the expected
-sequence/track behavior only at the level of the named track. A coding exon
-control does not calibrate enhancer effects and conservation is not functional
-evidence. Record control source, ascertainment, matching balance, split and
-whether the control cohort may overlap training.
+For regulatory controls, use a known strong promoter or validated eQTL/MPRA
+locus, together with a matched random or common variant. Match tissue and assay
+context where metadata allow. Record control source, ascertainment, matching
+balance, split and whether the control cohort may overlap training.
 
 ## Uncertainty and sensitivity
 
@@ -90,4 +88,6 @@ are extrapolations. No prediction covers all regulatory mechanisms.
   the pinned repository and data manifests for the run-specific provenance.
 - GTEx Consortium (2015), for multi-tissue eQTL study context.
 - Melnikov et al. (2012), for massively parallel reporter assay context.
-- Tewhey et al. (2016), for CRISPR tiling perturbation context.
+- Tewhey et al., “Direct identification of hundreds of expression-modulating
+  variants using a multiplexed reporter assay,” *Cell* (2016), for MPRA-based
+  evidence about expression-modulating variants.

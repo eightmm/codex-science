@@ -39,10 +39,13 @@ across loci, tissues or modalities.
    ask the user to register at the model terms URL above.
 2. Parse the variant and reject malformed coordinates, unsupported alleles or
    reference mismatch; record the normalized allele, assembly and validation.
+   The supported human and mouse assemblies are hg38 and mm10; for hg19 input,
+   require a recorded, checked liftover to a supported assembly before scoring.
 3. Freeze tissue/cell type, modality/output type, track selection, scorer,
    window/mask, aggregation, model release and allowed claim; record each choice
    and its rationale before querying.
-4. Run the API with matched reference and alternate sequence predictions; retain
+4. Score the variant with the selected scorers (differential scorers compare
+   matched REF and ALT predictions; use the scan in the reference); retain
    endpoint, request settings, returned outputs and failures. Treat requested
    modalities without returned records as unavailable, not negative.
 5. Check returned schema and score direction against the reference method; rank
@@ -55,7 +58,7 @@ across loci, tissues or modalities.
    available; call the effect fragile when sign, rank or claim class changes
    materially and record the comparison.
 8. **Verify** the normalized input, assembly, reference allele, selected
-   reference/alternate outputs, score table and artifact hashes; record check
+   scorer outputs, score table and artifact hashes; record check
    results and unresolved failures.
 9. Write `report.md` with the normalized variant, top-hits table, per-tissue
    interpretation, caveats and notice that AlphaGenome was used; preserve the
@@ -76,8 +79,11 @@ Write one `alphagenome-variant-evidence-v1` record with these required fields:
   (`tissue_or_cell_type`), output modality (`modality`) and track identifiers
   (`track_ids`).
 - Scorer (`scorer`), spatial window and mask (`window_and_mask`), aggregation
-  (`aggregation`), reference/alternate scores (`reference_and_alternate_scores`)
-  and direction (`score_direction`).
+  (`aggregation`), ALT-minus-REF scores (`alt_minus_ref_scores`) and direction
+  (`score_direction`). With the recommended differential scorers,
+  `score_variant` returns ALT-minus-REF raw and quantile scores; active-allele
+  scorers (`ACTIVE_*`) return allele activity and must be recorded with their
+  scorer semantics; separate REF and ALT track values require `predict_variant`.
 - Returned/excluded records and reasons (`returned_and_excluded_records`),
   controls (`controls`), sensitivity results (`sensitivity`) and uncertainty/
   limitations (`uncertainty_and_limits`).

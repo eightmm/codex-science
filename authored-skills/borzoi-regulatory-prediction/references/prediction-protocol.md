@@ -23,18 +23,20 @@ target track, tissue, coordinate window and aggregation.
 
 ## Input, tracks and aggregation
 
-Pin hg38 or hg19 explicitly (or another supported genome build); record
-zero-based/one-based conventions, chromosome naming, strand, REF/ALT alleles,
-reference-validation source, boundary policy and transcript annotation release.
-The assembly, gene annotation and target metadata must describe compatible
-coordinates. Do not change the build to make a variant fit without documenting
-and validating the mapping.
+Use the training assemblies hg38 or mm10 and record zero-based/one-based
+conventions, chromosome naming, strand, REF/ALT alleles, reference-validation
+source, boundary policy and transcript annotation release. Borzoi does not
+support hg19 inputs directly; require a recorded, checked liftover from hg19 to
+hg38 or mm10 before prediction. The assembly, gene annotation and target
+metadata must describe compatible coordinates.
 
-Record code commit, model/checkpoint checksums, ensemble members, target metadata
-release, preprocessing, sequence length, output bin size, shift/reverse-complement
-ensembling, precision, device, deterministic settings and seeds. Store target
-IDs as supplied by the model metadata and preserve mapping to their assay/cell
-labels. Do not infer labels from output order.
+Record code commit, model/checkpoint checksums, checkpoint replicate used,
+ensemble members, target metadata release, preprocessing, sequence length,
+output bin size, shift/reverse-complement ensembling, precision, device,
+deterministic settings and seeds. Borzoi uses about 524 kb of input sequence
+and 32 bp output bins; its targets include RNA-seq, CAGE, DNase/ATAC and ChIP
+tracks. Store target IDs as supplied by the model metadata and preserve mapping
+to assay/cell labels. Do not infer labels from output order.
 
 For each target, retain raw reference and alternate tracks and their aligned
 coordinate maps. Define whether the variant-centered local window, transcript
@@ -69,15 +71,12 @@ assay variability. If no predictive interval is available, do not create one
 from deterministic track outputs. Report ensemble variation as a model
 sensitivity measure, not a confidence interval for biology.
 
-Use known eQTL or MPRA-validated variants as modality-appropriate positive
-controls when independent outcome data are available. Compare to matched random
-or common variants as background controls; match allele class, local sequence
-context, gene distance and measurement context where possible. Use a conserved
-coding exon and a neutral region as sanity controls for conservation-associated
-sequence behavior, but do not treat either as proof of regulatory prediction
-calibration. Record source cohort, matching rules, missingness and any sharing
-with model training data. Controls drawn from the same training/benchmark source
-do not establish independent validation.
+Use a known strong promoter or validated eQTL/MPRA locus as a positive
+regulatory control, together with a matched random or common variant as a
+background control. Match allele class, local sequence context, gene distance
+and measurement context where possible. Record source cohort, matching rules,
+missingness and any sharing with model training data. Controls drawn from the
+same training/benchmark source do not establish independent validation.
 
 ## Sensitivity and applicability domain
 
@@ -124,6 +123,6 @@ uncertain.
   multitissue gene regulation in humans,” *Science* (2015); Melnikov et al., “A
   systematic dissection and optimization of inducible enhancers in human cells
   using a massively parallel reporter assay,” *Nature Biotechnology* (2012); and
-  Tewhey et al., “Direct identification of hundreds of causal regulatory
-  variants using CRISPR/Cas9 tiling screens,” *Nature Genetics* (2016), for
-  eQTL, MPRA and perturbation control context.
+  Tewhey et al., “Direct identification of hundreds of expression-modulating
+  variants using a multiplexed reporter assay,” *Cell* (2016), for MPRA-based
+  evidence about expression-modulating variants.
