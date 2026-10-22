@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "skill": "cancer-genomics-evidence",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "cancer-genomics-evidence-calibration",
+      "path": "references/cancer-genomics-evidence-calibration.md",
+      "purpose": "Domain-specific claim semantics, provenance dependence, uncertainty, controls, sensitivity, applicability, and failure detection.",
+      "read_when": [
+        "before claim classification, cross-source synthesis, or interpreting missing and null evidence"
+      ],
+      "required_before": [
+        "claim-classification",
+        "cross-source-synthesis"
+      ],
+      "evidence_boundary": "Provides an evidence-calibration procedure; it does not establish biological causality, clinical utility, or source completeness."
+    }
+  ]
+}

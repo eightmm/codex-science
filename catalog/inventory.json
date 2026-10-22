@@ -186,7 +186,7 @@
     {
       "description": "Synthesize public cancer genomic alterations across genes, cohorts, molecular profiles, clinical annotations, and literature. Use for somatic landscape, biomarker, resistance, or translational oncology research.",
       "executable_count": 0,
-      "instruction_line_count": 22,
+      "instruction_line_count": 36,
       "license": "MIT",
       "name": "cx-cancer-genomics-evidence",
       "path": "authored-skills/cancer-genomics-evidence",
@@ -594,7 +594,7 @@
     {
       "description": "Assess rare-variant gene burden evidence with explicit cohort, ancestry, mask, frequency threshold, model, phenotype, and multiple-testing semantics. Use for gene-level human genetic support and locus-to-gene follow-up.",
       "executable_count": 0,
-      "instruction_line_count": 22,
+      "instruction_line_count": 36,
       "license": "MIT",
       "name": "cx-gene-burden-evidence",
       "path": "authored-skills/gene-burden-evidence",
@@ -1086,7 +1086,7 @@
     {
       "description": "Compare one normalized variant across FinnGen, BioBank Japan, and UKB/TOPMed PheWAS evidence. Use for phenotype-wide replication, ancestry heterogeneity, pleiotropy screening, or cohort comparison.",
       "executable_count": 0,
-      "instruction_line_count": 22,
+      "instruction_line_count": 36,
       "license": "MIT",
       "name": "cx-phewas-replication-analysis",
       "path": "authored-skills/phewas-replication-analysis",

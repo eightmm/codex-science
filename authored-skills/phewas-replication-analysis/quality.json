@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "skill": "phewas-replication-analysis",
+  "roles": [
+    "analyzer",
+    "reviewer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "phewas-reconciliation-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No domain-specific acceptance fixtures or seeded failure cases are included, so this declaration does not establish L4 validation.",
+    "Source coverage, cohort independence, and reported uncertainty depend on underlying records and may remain unresolved."
+  ]
+}
