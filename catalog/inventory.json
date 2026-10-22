@@ -234,7 +234,7 @@
     {
       "description": "Resolve chemical entities, ontology identifiers, formulae, and structures through ChEBI. Use before chemistry, metabolite, reaction, or pharmacology workflows when names or identifiers are ambiguous.",
       "executable_count": 0,
-      "instruction_line_count": 61,
+      "instruction_line_count": 94,
       "license": "MIT",
       "name": "cx-chebi-search",
       "path": "authored-skills/chebi-search",
@@ -246,7 +246,7 @@
     {
       "description": "Query the ChEMBL database for bioactive molecules, drug targets, bioactivity measurements (IC50/Ki/EC50), approved drugs, and mechanisms. Use when the user asks about compounds, targets, potency values, or drug mechanisms. Public REST API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 75,
+      "instruction_line_count": 99,
       "license": "Apache-2.0",
       "name": "cx-chembl-search",
       "path": "authored-skills/chembl-search",
@@ -1218,7 +1218,7 @@
     {
       "description": "Query PubChem by name, CID, or SMILES; retrieve properties; run similarity/substructure searches; and get bioactivity. Use for cheminformatics on a specific chemical, drug, or molecule. Public PUG-REST API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 100,
       "license": "Apache-2.0",
       "name": "cx-pubchem-search",
       "path": "authored-skills/pubchem-search",

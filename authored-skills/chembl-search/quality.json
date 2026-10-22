@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "chembl-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["chembl-activity-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Public ChEMBL records may be incomplete, revised, or dependent on shared source documents and assays.",
+    "Assay context and target mapping limit cross-assay potency comparisons even when pChEMBL is present.",
+    "The skill documents retrieval and evidence qualification; it does not independently reproduce underlying experiments."
+  ]
+}

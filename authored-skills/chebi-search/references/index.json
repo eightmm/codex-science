@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "chebi-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "chebi-ontology-identity-method",
+      "path": "references/chebi-identity-and-ontology.md",
+      "purpose": "Classify ChEBI records, chemical entities, ontology relations, and their evidential limits.",
+      "read_when": ["resolving a name", "interpreting an ontology role or hierarchy edge", "making a chemical identity claim"],
+      "required_before": ["step-3", "claim-ontology-classification", "claim-chemical-identity"],
+      "search_patterns": ["## Claim semantics", "## Entity structure and role interpretation", "## Applicability and failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A curated entry or ontology role supports the stated record/relation only; it does not establish measured activity or context-specific mechanism."
+    },
+    {
+      "id": "chebi-structure-cross-source-method",
+      "path": "references/chemical-identity-and-sensitivity.md",
+      "purpose": "ChEBI-specific structure matching, cross-reference dependencies, and downstream comparison sensitivity.",
+      "read_when": ["matching ChEBI with external chemistry records", "normalizing structures", "varying hierarchy or activity rules"],
+      "required_before": ["step-4", "step-6", "claim-cross-source-mapping"],
+      "search_patterns": ["## Structure normalization", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A cross-reference is a versioned mapping candidate and cannot establish exact tested-material identity or independent corroboration."
+    }
+  ]
+}

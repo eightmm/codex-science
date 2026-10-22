@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "pubchem-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["pubchem-chemical-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Depositor coverage, assay detail, and structure standardization success vary across records.",
+    "A CID can link many SIDs without making their provenance or experimental outcomes independent.",
+    "The skill qualifies retrieved records and does not establish experimental material identity or reproduce assays."
+  ]
+}

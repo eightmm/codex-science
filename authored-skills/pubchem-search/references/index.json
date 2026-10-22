@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "pubchem-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "pubchem-record-assay-method",
+      "path": "references/pubchem-records-and-assays.md",
+      "purpose": "Separate Substance, Compound, and BioAssay evidence and preserve depositor and record dependencies.",
+      "read_when": ["interpreting a PubChem property", "following a bioassay result", "joining SIDs and CIDs"],
+      "required_before": ["step-4", "claim-record", "claim-bioassay-outcome"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and versioning", "## Failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Explains PubChem record provenance and reported outcomes; it does not validate a property or mechanism in a new context."
+    },
+    {
+      "id": "pubchem-structure-sensitivity-method",
+      "path": "references/chemical-identity-and-sensitivity.md",
+      "purpose": "PubChem-specific structure matching, standardized record relationships, and search sensitivity.",
+      "read_when": ["resolving a name or structure", "running similarity/substructure", "changing identity or activity criteria"],
+      "required_before": ["step-5", "step-6", "claim-chemical-identity"],
+      "search_patterns": ["## Structure comparison", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Similarity and standardized structure links support only the declared comparison rule, not sample equivalence or biological activity."
+    }
+  ]
+}

@@ -12,11 +12,23 @@ Uses the public ChEMBL REST API directly through Codex's own tools.
 
 ## Decision contract
 
-Specify the compound/target and question (identity, activity, mechanism, or
-indication), species, assay/evidence cutoff, and requested endpoints. Preserve
-ChEMBL molecule/target/activity identifiers and distinguish a target record
-from its UniProt component. For activity comparisons, define compatible assay,
-target, organism, type, units, and confidence criteria before interpreting.
+Specify compound/target, question (identity, measured activity, mechanism, or
+indication), species, evidence cutoff, and endpoints. Assign claim IDs and classify
+each claim as a deposited/curated record, a reported measurement, a validated
+property, or a mechanistic/clinical inference. A returned activity is a reported
+measurement, not by itself a validated property or mechanism. Before comparing
+measurements, fix structure identity, assay/target/organism, activity type, units,
+confidence, aggregation rule, and uncertainty; stop if any unresolved choice
+changes the conclusion.
+
+## Reference usage
+
+- Read [references/chembl-activity-evidence.md](references/chembl-activity-evidence.md)
+  before interpreting activities, pChEMBL, assay confidence, validity comments,
+  duplicate records, or aggregating measurements.
+- Read [references/chemical-identity-and-sensitivity.md](references/chemical-identity-and-sensitivity.md)
+  before matching structures, changing a threshold/unit conversion, or making a
+  cross-source or scope claim.
 
 ## Workflow
 
@@ -25,51 +37,63 @@ target, organism, type, units, and confidence criteria before interpreting.
    (https://chembl.gitbook.io/chembl-interface-documentation/about) and record
    the notice in provenance. Public read-only HTTP: be polite about rate limits.
    Write responses to a file and parse them; run helper code via `uv run`, never
-   bare `python3`. Ask before installs or large downloads.
-2. Search molecules with optional `science_search_chembl` (`query`, `limit`
-   1–10, default 5; returns ChEMBL ID, title, canonical SMILES, URL). Direct API
-   base: `https://www.ebi.ac.uk/chembl/api/data/` (append `?format=json`).
-   Endpoints: `molecule` — compounds by ChEMBL ID, name, or structure;
-   `target` — drug targets (link to a UniProt accession via `target_components`);
-   `activity` — bioactivity measurements for a molecule/target pair;
-   `mechanism` / `drug_indication` — mechanism of action and indications.
-3. Resolve identifiers first (compound name to ChEMBL ID; gene/protein to target
-   via `$cx-uniprot-search` then `target` search). Record exact URL-encoded
-   query, filters, access time, response-reported release/update, pagination
-   links and pages, and result count. Write large JSON to a file and parse with
-   `jq` or a short `uv run` script. Responses are often wrapped in endpoint
-   lists such as `molecules` or `activities`; validate shape and completeness.
-4. Bound page traversal and retries. Record returned and excluded records with
-   reasons; preserve null values and unmapped inputs. Detect malformed or
-   truncated responses. A failed endpoint is unavailable, not evidence of no
-   activity. Keep raw record IDs and assay provenance for every measurement.
-5. Report `standard_type` (IC50, Ki, EC50, …), `standard_value`, and
-   `standard_units` together. A value without type/unit is uninterpretable.
-   Prefer `pchembl_value` for cross-assay comparison, but it remains
-   assay-dependent. Do not average or compare across different assays, targets,
-   or organisms as if equivalent; check `assay_type`/confidence and target.
-   Separate strong evidence from single low-confidence assays.
-6. Record queries, endpoints, cited IDs and response artifacts with
-   `$science-provenance`; check material bioactivity/mechanism claims with
-   `$science-review` before presentation.
+   bare `python3`. Ask before installs or large downloads. Record gate completion.
+2. Define claim IDs, compound/target and species; resolve gene/protein to target
+   via `$cx-uniprot-search` when needed. Use optional `science_search_chembl`
+   (`query`, `limit` 1–10, default 5) or direct API at
+   `https://www.ebi.ac.uk/chembl/api/data/` with `?format=json`. Record the exact
+   query, candidates, and identity-selection rationale.
+3. Retrieve relevant `molecule`, `target`, `activity`, `assay`, `mechanism`, or
+   `drug_indication` records. Follow only bounded pagination; retain exact
+   URL-encoded query, filters, access time, release/update if reported, pages,
+   result count, and response artifacts. Verify response shape and completeness.
+4. Resolve structure and target identity before comparison. Keep salts,
+   tautomers, stereoisomers, target components, and species distinct unless an
+   explicit normalization justifies joining them; record included and excluded
+   IDs with reasons and retain unmapped inputs.
+5. Classify evidence using [references/chembl-activity-evidence.md](references/chembl-activity-evidence.md):
+   preserve `standard_type`, `standard_value`, and `standard_units` together;
+   inspect assay type, confidence, validity comments, activity comments, and
+   duplicates. Compare pChEMBL only within stated compatible contexts; record
+   how assay heterogeneity affects each claim.
+6. Run a known reference-compound check and a decoy name-collision check. Vary
+   the activity cutoff, unit conversion, and aggregation choice; record changes
+   to included records and claim status. Failed or truncated endpoints are
+   unavailable, not evidence of no activity.
+7. Return the required `chembl-activity-evidence-v1` fields, preserve queries,
+   cited IDs, and response artifact hashes with `$science-provenance`, then use
+   `$science-review` before material potency, mechanism, or indication claims.
+   Record unresolved uncertainty and the smallest falsifiable follow-up.
 
 ## Outputs
 
-Return normalized compound and target IDs; an evidence table with ChEMBL IDs,
-assay IDs, target/species, standard type/value/units, pChEMBL if returned,
-assay type/confidence, URL, and inclusion/exclusion reason; claim IDs marked
-supported/contradicted/inconclusive/unavailable; query/release/access time;
-uncertainty, assay heterogeneity and limitations; and smallest falsifiable
-follow-up. Save artifacts and hashes with `$science-provenance`.
+Return one `chembl-activity-evidence-v1` record with: claim identifier
+(`claim_id`); claim class and status (`claim_class`, `status`); normalized
+compound/target/species (`entity_ids`); source, release, exact query, access
+time, pages, and result count (`source_receipt`); activity ID, assay ID/type,
+target confidence, reported type/value/unit, pChEMBL, validity/activity
+comments, and duplicate relationship (`measurements`); inclusions and
+exclusions with reasons (`record_decisions`); shared-source/cohort/record
+dependencies (`dependencies`); control outcomes (`controls`); threshold,
+conversion, and aggregation variants (`sensitivity`); uncertainty and
+applicability domain (`uncertainty`, `applicability`); limitations, next
+falsifiable action, artifact paths and hashes (`limitations`, `next_action`,
+`artifacts`). Use status values supported, contradicted, inconclusive,
+unavailable, or withdrawn.
 
 ## Boundaries
 
-- Cite only ChEMBL IDs and values actually returned; never invent IDs, potencies,
-  or units.
-- Bioactivity data are heterogeneous and assay-dependent; state confidence and
-  never present them as clinical or dosing guidance.
-- Approved-drug/indication data describe the record, not medical advice.
-- Stop when identity, species, assay, or unit ambiguity changes interpretation.
-  Preserve failed/truncated retrieval as unavailable. Respect ChEMBL terms and
-  redistribution limits. `$science-review` is mandatory for material potency,
-  mechanism, or indication conclusions.
+- Cite only ChEMBL IDs and values actually returned; never invent IDs,
+  potencies, or units. Keep raw activity IDs and assay provenance for each
+  measurement.
+- A value without type and unit is uninterpretable. pChEMBL is assay-dependent,
+  not a universal cross-assay scale; do not average or compare incompatible
+  assays, targets, or organisms as equivalent. Do not treat one low-confidence
+  record as strong evidence.
+- Bioactivity and mechanism records do not alone validate a property, establish
+  mechanism, or support clinical/dosing guidance. Approved-drug and indication
+  records describe the database record, not medical advice.
+- Stop if identity, species, assay, or unit ambiguity changes interpretation.
+  Preserve nulls, failed/truncated retrieval as unavailable, and all exclusions.
+  Respect ChEMBL terms and redistribution limits. `$science-review` is mandatory
+  for material potency, mechanism, or indication conclusions.

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "chebi-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["chebi-entity-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "ChEBI ontology coverage and structure detail vary by entity and release.",
+    "Ontology roles and cross-references do not establish context-specific experimental activity or mechanism.",
+    "The skill resolves curated records and does not confirm sample composition or experimental material identity."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "chembl-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "chembl-activity-evidence-method",
+      "path": "references/chembl-activity-evidence.md",
+      "purpose": "Claim classification, assay provenance, activity quality, controls, and aggregation limits.",
+      "read_when": ["interpreting an activity row", "using pChEMBL", "aggregating or comparing assays"],
+      "required_before": ["step-5", "claim-measured-activity", "claim-comparable-potency"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Sensitivity analysis"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation of returned ChEMBL records; it does not validate an assay result or establish biological or clinical truth."
+    },
+    {
+      "id": "chembl-chemical-identity-sensitivity",
+      "path": "references/chemical-identity-and-sensitivity.md",
+      "purpose": "ChEMBL structure matching, release provenance, name collision controls, and sensitivity of comparisons.",
+      "read_when": ["resolving a compound", "matching structures", "joining records or changing comparison rules"],
+      "required_before": ["step-4", "step-6", "claim-chemical-identity"],
+      "search_patterns": ["## Identity checks", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A structure mapping supports only the stated identity rule and cannot prove the experimental sample or biological equivalence."
+    }
+  ]
+}
