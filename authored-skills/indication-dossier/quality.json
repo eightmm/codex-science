@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "indication-dossier",
+  "roles": ["conductor", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["indication-evidence-dossier-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Public evidence may omit unpublished or incompletely reported studies and pipeline changes.",
+    "Evidence classification does not estimate clinical treatment effect or replace qualified clinical and regulatory judgment."
+  ]
+}

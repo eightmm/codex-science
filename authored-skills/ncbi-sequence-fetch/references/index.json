@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "ncbi-sequence-fetch",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ncbi-sequence-record-handling",
+      "path": "references/ncbi-sequence-records.md",
+      "purpose": "Sequence record class and version semantics, search ambiguity, fetch validation, translation checks, request etiquette, and failure interpretation.",
+      "read_when": ["selecting an NCBI record or query route", "fetching or translating a CDS", "validating FASTA or GenBank output"],
+      "required_before": ["record-selection", "sequence-fetch", "cds-translation"],
+      "search_patterns": ["## Claim semantics and record classes", "## Source dependencies and versioning", "## Controls and sanity checks", "## Applicability domain and failure modes"],
+      "authority": "source-documentation",
+      "version": "1",
+      "evidence_boundary": "Supports retrieval and validation of database records only; it does not establish expression, function, disease relevance, or patient genotype."
+    }
+  ]
+}

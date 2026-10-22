@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "modeling-problem-execution",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "model-execution-evidence",
+      "path": "references/model-execution-evidence.md",
+      "purpose": "Model selection, scientific claim semantics, execution states, dependencies, controls, sensitivity, and model applicability boundaries.",
+      "read_when": ["selecting a model for a claim-bearing task", "planning controls or sensitivity analysis", "distinguishing process completion from scientific acceptance"],
+      "required_before": ["model-selection", "execution-plan", "scientific-acceptance"],
+      "search_patterns": ["## Claim semantics and model selection", "## Source dependencies and independence", "## Controls and sanity checks", "## Applicability domain and failure modes"],
+      "authority": "domain-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines a claim and execution evidence contract; it does not validate a model, dataset, or scientific result by itself."
+    }
+  ]
+}

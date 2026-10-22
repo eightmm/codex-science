@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "ncbi-sequence-fetch",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["ncbi-sequence-record-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Search results and record annotations can change as NCBI databases are updated.",
+    "Record retrieval cannot verify biological expression or functional consequences."
+  ]
+}

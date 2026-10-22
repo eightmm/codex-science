@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "compute-environment",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "compute-reproducibility-controls",
+      "path": "references/compute-reproducibility.md",
+      "purpose": "Environment capture, resource checks, seed and hardware uncertainty, clean-environment reproduction, safe output handling, and failure detection.",
+      "read_when": ["capturing a scientific runtime", "planning a heavy CPU or GPU run", "making reproducibility or durability claims"],
+      "required_before": ["environment-capture", "resource-preflight", "reproducibility-assessment"],
+      "search_patterns": ["## Environment and source dependencies", "## Resource controls and uncertainty", "## Sensitivity and reproducibility analysis", "## Applicability domain and failure modes"],
+      "authority": "domain-guidance",
+      "version": "1",
+      "evidence_boundary": "Improves execution auditability but cannot establish code correctness, scientific validity, or generalization."
+    }
+  ]
+}

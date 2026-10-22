@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "compute-environment",
+  "roles": ["executor", "infrastructure", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["compute-environment-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Recorded environments cannot capture every host-level or hardware-specific source of variation.",
+    "Clean-environment reproduction does not prove scientific validity or generalization."
+  ]
+}

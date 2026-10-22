@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "indication-dossier",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "indication-evidence-reconciliation",
+      "path": "references/indication-evidence-reconciliation.md",
+      "purpose": "Claim-class semantics, source dependencies, indication directness, uncertainty, controls, sensitivity, and applicability limits for therapeutic evidence dossiers.",
+      "read_when": ["classifying indication evidence", "reconciling trial status and published results", "assessing target-indication support or go/no-go criteria"],
+      "required_before": ["claim-classification", "evidence-reconciliation", "go-no-go-synthesis"],
+      "search_patterns": ["## Claim classes and assignment", "## Source dependencies and independence", "## Sensitivity analyses", "## Applicability domain and failure modes"],
+      "authority": "domain-guidance",
+      "version": "1",
+      "evidence_boundary": "Structures and qualifies public evidence; it does not estimate treatment effect, establish patient benefit, or replace clinical or regulatory review."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "modeling-problem-execution",
+  "roles": ["conductor", "executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["model-execution-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow cannot establish that a selected model is scientifically valid without domain-specific acceptance evidence.",
+    "Access to external model weights, databases, and compute can be unavailable or require separate approval."
+  ]
+}
