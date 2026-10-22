@@ -357,17 +357,27 @@ def execute_paginated(
             terminal_status = _status_from_error(error)
             warnings.append(str(error))
             break
-        try:
-            payload = response.json()
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError(f"schema-drift: source returned invalid JSON on page {page_index}") from error
-        try:
-            page_records = operation.normalize(payload)
-        except (KeyError, TypeError, ValueError) as error:
-            raise ValueError(f"normalization-failed on page {page_index}: {error}") from error
-        if not isinstance(page_records, list) or not all(isinstance(item, dict) for item in page_records):
-            raise ValueError("normalization-failed: operation must return record objects")
-        next_request = operation.next_request(request, page_request, payload, page_index)
+        is_declared_empty = (
+            page_index == 0
+            and response.status_code in getattr(operation, "empty_status_codes", ())
+            and not response.body
+        )
+        if is_declared_empty:
+            page_records = []
+            next_request = None
+            payload = None
+        else:
+            try:
+                payload = response.json()
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError(f"schema-drift: source returned invalid JSON on page {page_index}") from error
+            try:
+                page_records = operation.normalize(payload)
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(f"normalization-failed on page {page_index}: {error}") from error
+            if not isinstance(page_records, list) or not all(isinstance(item, dict) for item in page_records):
+                raise ValueError("normalization-failed: operation must return record objects")
+            next_request = operation.next_request(request, page_request, payload, page_index)
         next_exists = next_request is not None
         source_release = source_release or operation.source_release(payload, response.headers)
         body_path, metadata_path = _snapshot_page(
@@ -453,7 +463,11 @@ def replay_snapshot_directory(snapshot_dir: Path, query_id: str) -> list[dict[st
         body = body_path.read_bytes()
         if hashlib.sha256(body).hexdigest() != metadata["response"]["body_sha256"]:
             raise ValueError(f"snapshot body digest mismatch: {body_path.name}")
-        pages.append({"metadata": metadata, "payload": json.loads(body.decode("utf-8"))})
+        if not body and metadata["response"]["status_code"] == 204:
+            payload = None
+        else:
+            payload = json.loads(body.decode("utf-8"))
+        pages.append({"metadata": metadata, "payload": payload})
     if not pages:
         raise ValueError(f"no snapshot pages found for query: {query_id}")
     return pages

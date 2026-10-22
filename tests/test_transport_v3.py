@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -35,12 +36,17 @@ class FakeTransport:
         response = self.responses.pop(0)
         if isinstance(response, Exception):
             raise response
-        payload, headers = response
+        if len(response) == 3 and isinstance(response[0], int):
+            status_code, body, headers = response
+        else:
+            payload, headers = response
+            status_code = 200
+            body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         return TransportResponse(
-            200,
+            status_code,
             request.url,
             headers,
-            json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            body,
             "application/json",
             "2026-07-20T00:00:00Z",
             1,
@@ -48,6 +54,28 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_pdb_204_empty_body_is_negative_with_receipt(self) -> None:
+        request = QueryRequest("pdb", "search", {"query": "no results"}, source_contract_version="3")
+        result = execute_paginated(PDBSearchV3(), request, transport=FakeTransport([(204, b"", {})]))
+
+        self.assertEqual("negative", result.receipt.status)
+        self.assertEqual(1, result.receipt.fetched_pages)
+        page = result.receipt.pages[0]
+        self.assertEqual(204, page.status_code)
+        self.assertEqual(0, page.normalized_record_count)
+        self.assertEqual(0, page.response_bytes)
+        self.assertEqual(hashlib.sha256(b"").hexdigest(), page.response_sha256)
+
+    def test_pdb_204_nonempty_body_remains_schema_drift(self) -> None:
+        request = QueryRequest("pdb", "search", {"query": "fixture"}, source_contract_version="3")
+        with self.assertRaisesRegex(ValueError, "schema-drift: source returned invalid JSON"):
+            execute_paginated(PDBSearchV3(), request, transport=FakeTransport([(204, b"not empty", {})]))
+
+    def test_pubmed_204_empty_body_remains_schema_drift(self) -> None:
+        request = QueryRequest("pubmed", "search", {"query": "fixture"}, source_contract_version="3")
+        with self.assertRaisesRegex(ValueError, "schema-drift: source returned invalid JSON"):
+            execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([(204, b"", {})]))
+
     def test_pubmed_page_fixtures_replay_stably(self) -> None:
         fixture_dir = Path(__file__).parent / "fixtures" / "pubmed_v3"
         pages = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(fixture_dir.glob("page-*.json"))]
@@ -79,6 +107,32 @@ class TransportV3Tests(unittest.TestCase):
             [page.response_sha256 for page in first.receipt.pages],
             [page.response_sha256 for page in second.receipt.pages],
         )
+
+    def test_pdb_empty_204_snapshot_replays_as_negative(self) -> None:
+        request = QueryRequest("pdb", "search", {"query": "no results"}, source_contract_version="3")
+        with tempfile.TemporaryDirectory() as tempdir:
+            result = execute_paginated(
+                PDBSearchV3(), request, transport=FakeTransport([(204, b"", {})]),
+                snapshot_dir=Path(tempdir),
+            )
+            replayed = replay_snapshot_directory(Path(tempdir), request.query_id)
+
+        self.assertEqual("negative", result.receipt.status)
+        self.assertEqual(0, result.receipt.records_returned)
+        self.assertEqual(1, len(replayed))
+        self.assertEqual(204, replayed[0]["metadata"]["response"]["status_code"])
+        self.assertIsNone(replayed[0]["payload"])
+
+    def test_pdb_empty_204_on_later_page_remains_schema_drift(self) -> None:
+        request = QueryRequest(
+            "pdb", "search", {"query": "fixture"}, max_pages=2, source_contract_version="3"
+        )
+        first_page = {"result_set": [{"identifier": "1"}], "total_count": 2}
+        with self.assertRaisesRegex(ValueError, "schema-drift: source returned invalid JSON"):
+            execute_paginated(
+                PDBSearchV3(), request,
+                transport=FakeTransport([(first_page, {}), (204, b"", {})]),
+            )
 
     def test_v2_classifier_reports_rehashed_normalized_record_change(self) -> None:
         fixture_dir = Path(__file__).parent / "fixtures" / "pubmed_v3"

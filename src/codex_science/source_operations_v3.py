@@ -245,6 +245,7 @@ class ChEMBLMoleculeSearchV3:
 class PDBSearchV3:
     source: str = "pdb"
     operation: str = "search"
+    empty_status_codes: frozenset[int] = frozenset({204})
 
     def _body(self, request: QueryRequest, start: int) -> bytes:
         payload = {
