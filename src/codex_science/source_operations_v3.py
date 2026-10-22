@@ -24,6 +24,63 @@ def _integer(value: Any, label: str, *, minimum: int = 0) -> int:
     return result
 
 
+def _required_value(payload: Any, key: str) -> Any:
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"invalid response object while reading {key}")
+    if key not in payload:
+        raise ValueError(f"missing {key}")
+    return payload[key]
+
+
+def _required_mapping(payload: Any, key: str) -> Mapping[str, Any]:
+    value = _required_value(payload, key)
+    if not isinstance(value, Mapping):
+        raise ValueError(f"invalid {key}: expected object")
+    return value
+
+
+def _required_list(payload: Any, key: str) -> list[Any]:
+    value = _required_value(payload, key)
+    if not isinstance(value, list):
+        raise ValueError(f"invalid {key}: expected list")
+    return value
+
+
+def _required_integer(payload: Any, key: str, *, minimum: int = 0) -> int:
+    value = _required_value(payload, key)
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError(f"invalid {key}: expected integer")
+    try:
+        result = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"invalid {key}: expected integer") from error
+    if result < minimum:
+        raise ValueError(f"invalid {key}: must be >= {minimum}")
+    return result
+
+
+def _pagination_drift(source: str, error: ValueError) -> ValueError:
+    detail = str(error)
+    if not detail.startswith(("missing ", "invalid ")):
+        detail = f"invalid response: {detail}"
+    return ValueError(f"schema-drift: {source} pagination {detail}")
+
+
+def _pubmed_result(payload: Any) -> Mapping[str, Any]:
+    result = _required_mapping(payload, "esearchresult")
+    _required_list(result, "idlist")
+    return result
+
+
+def _europepmc_results(payload: Any) -> list[Any]:
+    result_list = _required_mapping(payload, "resultList")
+    return _required_list(result_list, "result")
+
+
+def _pdb_results(payload: Any) -> list[Any]:
+    return _required_list(payload, "result_set")
+
+
 @dataclass(frozen=True)
 class PubMedSearchV3:
     source: str = "pubmed"
@@ -47,12 +104,16 @@ class PubMedSearchV3:
         return PageRequest("GET", url, {}, cursor="0")
 
     def next_request(self, request: QueryRequest, page_request: PageRequest, payload: Any, page_index: int) -> PageRequest | None:
-        result = payload.get("esearchresult")
-        if not isinstance(result, dict):
-            raise ValueError("missing esearchresult")
-        count = _integer(result.get("count", 0), "count")
-        current = _integer(result.get("retstart", page_index * request.page_size), "retstart")
-        returned = len(result.get("idlist") or [])
+        try:
+            result = _pubmed_result(payload)
+            count = _required_integer(result, "count")
+            current = (
+                _required_integer(result, "retstart")
+                if "retstart" in result else page_index * request.page_size
+            )
+        except ValueError as error:
+            raise _pagination_drift(self.source, error) from error
+        returned = len(result["idlist"])
         next_start = current + returned
         if returned == 0 or next_start >= count:
             return None
@@ -63,12 +124,10 @@ class PubMedSearchV3:
         return PageRequest("GET", url, {}, cursor=str(next_start))
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
-        result = payload.get("esearchresult")
-        if not isinstance(result, dict):
-            raise ValueError("missing esearchresult")
+        result = _pubmed_result(payload)
         return [
             {"id": str(identifier), "title": "", "url": f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"}
-            for identifier in result.get("idlist", [])
+            for identifier in result["idlist"]
         ]
 
     def source_release(self, payload: Any, headers: Mapping[str, str]) -> str | None:
@@ -95,9 +154,19 @@ class EuropePMCSearchV3:
         return PageRequest("GET", url, {}, cursor="*")
 
     def next_request(self, request: QueryRequest, page_request: PageRequest, payload: Any, page_index: int) -> PageRequest | None:
-        cursor = payload.get("nextCursorMark")
-        returned = payload.get("resultList", {}).get("result", []) if isinstance(payload.get("resultList"), dict) else []
-        if not isinstance(cursor, str) or not cursor or not returned or cursor == page_request.cursor:
+        try:
+            returned = _europepmc_results(payload)
+        except ValueError as error:
+            raise _pagination_drift(self.source, error) from error
+        if not returned:
+            return None
+        try:
+            cursor = _required_value(payload, "nextCursorMark")
+            if not isinstance(cursor, str):
+                raise ValueError("invalid nextCursorMark: expected string")
+        except ValueError as error:
+            raise _pagination_drift(self.source, error) from error
+        if not cursor or cursor == page_request.cursor:
             return None
         parsed = urllib.parse.urlsplit(page_request.url)
         params = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
@@ -106,11 +175,9 @@ class EuropePMCSearchV3:
         return PageRequest("GET", url, {}, cursor=cursor)
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
-        result_list = payload.get("resultList")
-        if not isinstance(result_list, dict):
-            raise ValueError("missing resultList")
+        results = _europepmc_results(payload)
         records = []
-        for item in result_list.get("result", []):
+        for item in results:
             identifier = str(item.get("id") or "")
             source = str(item.get("source") or "")
             if identifier:
@@ -139,11 +206,14 @@ class ChEMBLMoleculeSearchV3:
         return PageRequest("GET", url, {}, cursor="0")
 
     def next_request(self, request: QueryRequest, page_request: PageRequest, payload: Any, page_index: int) -> PageRequest | None:
-        page_meta = payload.get("page_meta")
-        if not isinstance(page_meta, dict):
-            raise ValueError("missing page_meta")
-        next_url = page_meta.get("next")
-        if not isinstance(next_url, str) or not next_url:
+        try:
+            page_meta = _required_mapping(payload, "page_meta")
+            next_url = _required_value(page_meta, "next")
+            if next_url is not None and next_url != "" and not isinstance(next_url, str):
+                raise ValueError("invalid page_meta.next: expected string or null")
+        except ValueError as error:
+            raise _pagination_drift(self.source, error) from error
+        if next_url is None or next_url == "":
             return None
         if next_url.startswith("/"):
             next_url = "https://www.ebi.ac.uk" + next_url
@@ -152,9 +222,7 @@ class ChEMBLMoleculeSearchV3:
         return PageRequest("GET", next_url, {}, cursor=cursor)
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
-        molecules = payload.get("molecules")
-        if not isinstance(molecules, list):
-            raise ValueError("missing molecules")
+        molecules = _required_list(payload, "molecules")
         records = []
         for item in molecules:
             identifier = str(item.get("molecule_chembl_id") or "")
@@ -196,10 +264,11 @@ class PDBSearchV3:
         )
 
     def next_request(self, request: QueryRequest, page_request: PageRequest, payload: Any, page_index: int) -> PageRequest | None:
-        result_set = payload.get("result_set")
-        if not isinstance(result_set, list):
-            raise ValueError("missing result_set")
-        total = _integer(payload.get("total_count", len(result_set)), "total_count")
+        try:
+            result_set = _pdb_results(payload)
+            total = _required_integer(payload, "total_count")
+        except ValueError as error:
+            raise _pagination_drift(self.source, error) from error
         start = _integer(page_request.cursor or 0, "cursor")
         next_start = start + len(result_set)
         if not result_set or next_start >= total:
@@ -213,9 +282,7 @@ class PDBSearchV3:
         )
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
-        result_set = payload.get("result_set")
-        if not isinstance(result_set, list):
-            raise ValueError("missing result_set")
+        result_set = _pdb_results(payload)
         return [
             {
                 "id": str(item["identifier"]),

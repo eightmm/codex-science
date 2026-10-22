@@ -6,8 +6,14 @@ import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_science.connector_contract import QueryRequest
-from codex_science.source_operations_v3 import EuropePMCSearchV3, PubMedSearchV3
+from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, sha256_json
+from codex_science.connectors import PubMedConnector
+from codex_science.source_operations_v3 import (
+    ChEMBLMoleculeSearchV3,
+    EuropePMCSearchV3,
+    PDBSearchV3,
+    PubMedSearchV3,
+)
 from codex_science.transport_v3 import (
     PageRequest,
     SafeRedirectHandler,
@@ -42,6 +48,132 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_pubmed_page_fixtures_replay_stably(self) -> None:
+        fixture_dir = Path(__file__).parent / "fixtures" / "pubmed_v3"
+        pages = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(fixture_dir.glob("page-*.json"))]
+        self.assertEqual(2, len(pages))
+        request = QueryRequest(
+            "pubmed", "search", {"query": "fixture query"},
+            page_size=2, max_pages=3, source_contract_version="3",
+        )
+
+        results = []
+        replayed = None
+        for run_index in range(2):
+            transport = FakeTransport([(payload, {}) for payload in pages])
+            with tempfile.TemporaryDirectory() as tempdir:
+                result = execute_paginated(
+                    PubMedSearchV3(), request, transport=transport, snapshot_dir=Path(tempdir)
+                )
+                if run_index == 0:
+                    replayed = replay_snapshot_directory(Path(tempdir), request.query_id)
+                results.append(result)
+        first, second = results
+        self.assertEqual("complete", first.receipt.completeness)
+        self.assertEqual(2, first.receipt.fetched_pages)
+        self.assertEqual(["101", "102", "103"], [record["id"] for record in first.records])
+        self.assertEqual(2, len(replayed))
+        self.assertEqual(pages, [page["payload"] for page in replayed])
+        self.assertEqual(first.receipt.normalized_records_sha256, second.receipt.normalized_records_sha256)
+        self.assertEqual(
+            [page.response_sha256 for page in first.receipt.pages],
+            [page.response_sha256 for page in second.receipt.pages],
+        )
+
+    def test_v2_classifier_reports_rehashed_normalized_record_change(self) -> None:
+        fixture_dir = Path(__file__).parent / "fixtures" / "pubmed_v3"
+        first_page = json.loads((fixture_dir / "page-0000.json").read_text(encoding="utf-8"))
+        legacy_request = QueryRequest("pubmed", "search", {"query": "fixture query"})
+        baseline = execute_connector(
+            PubMedConnector(fetch_json=lambda _url: first_page),
+            legacy_request,
+            include_snapshot=True,
+            retrieved_at="2026-07-20T00:00:00Z",
+        ).snapshot()
+        # This mutates a v2 normalized snapshot; source-side v3 drift is tested separately.
+        drifted = json.loads(json.dumps(baseline))
+        drifted["records"][0].pop("title")
+        drifted["receipt"]["normalized_records_sha256"] = sha256_json(drifted["records"])
+        self.assertIn("semantic-drift", classify_drift(baseline, drifted)["drift_types"])
+
+    def test_pubmed_renamed_idlist_field_raises_named_normalization_error(self) -> None:
+        fixture_dir = Path(__file__).parent / "fixtures" / "pubmed_v3"
+        payload = json.loads((fixture_dir / "drift-idlist.json").read_text(encoding="utf-8"))
+        request = QueryRequest(
+            "pubmed", "search", {"query": "fixture query"},
+            page_size=2, max_pages=3, source_contract_version="3",
+        )
+
+        with self.assertRaisesRegex(ValueError, "normalization-failed.*idlist"):
+            execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([(payload, {})]))
+
+    def test_pubmed_present_empty_idlist_remains_negative(self) -> None:
+        fixture_dir = Path(__file__).parent / "fixtures" / "pubmed_v3"
+        payload = json.loads((fixture_dir / "empty-result.json").read_text(encoding="utf-8"))
+        request = QueryRequest("pubmed", "search", {"query": "no results"}, source_contract_version="3")
+
+        result = execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([(payload, {})]))
+        self.assertEqual("negative", result.receipt.status)
+        self.assertEqual("negative", result.receipt.missingness)
+
+    def test_europepmc_empty_page_without_cursor_remains_negative(self) -> None:
+        request = QueryRequest(
+            "europepmc", "search", {"query": "no results"}, source_contract_version="3"
+        )
+        result = execute_paginated(
+            EuropePMCSearchV3(),
+            request,
+            transport=FakeTransport([({"hitCount": 0, "resultList": {"result": []}}, {})]),
+        )
+        self.assertEqual("negative", result.receipt.status)
+        self.assertEqual("negative", result.receipt.missingness)
+
+    def test_v3_pagination_missing_keys_have_schema_drift_labels(self) -> None:
+        cases = (
+            (
+                PubMedSearchV3(),
+                QueryRequest("pubmed", "search", {"query": "fixture"}, source_contract_version="3"),
+                {"esearchresult": {"idlist": []}},
+                "count",
+            ),
+            (
+                EuropePMCSearchV3(),
+                QueryRequest("europepmc", "search", {"query": "fixture"}, source_contract_version="3"),
+                {"resultList": {"result": [{"id": "PMC1", "source": "MED"}]}},
+                "nextCursorMark",
+            ),
+            (
+                ChEMBLMoleculeSearchV3(),
+                QueryRequest("chembl", "search", {"query": "fixture"}, source_contract_version="3"),
+                {"molecules": [], "page_meta": {}},
+                "next",
+            ),
+            (
+                PDBSearchV3(),
+                QueryRequest("pdb", "search", {"query": "fixture"}, source_contract_version="3"),
+                {"result_set": []},
+                "total_count",
+            ),
+        )
+        for operation, request, payload, missing_key in cases:
+            with self.subTest(source=operation.source, key=missing_key):
+                message = rf"^schema-drift: {operation.source} pagination missing {missing_key}$"
+                with self.assertRaisesRegex(ValueError, message):
+                    execute_paginated(operation, request, transport=FakeTransport([(payload, {})]))
+
+    def test_missing_record_identifiers_are_skipped_and_pdb_ids_are_stringified(self) -> None:
+        europepmc = EuropePMCSearchV3().normalize({
+            "resultList": {"result": [{"title": "no id"}, {"id": "PMC1", "source": "MED"}]}
+        })
+        chembl = ChEMBLMoleculeSearchV3().normalize({
+            "molecules": [{"pref_name": "no id"}, {"molecule_chembl_id": "CHEMBL1"}]
+        })
+        pdb = PDBSearchV3().normalize({"result_set": [{}, {"identifier": 1234}]})
+
+        self.assertEqual(["PMC1"], [record["id"] for record in europepmc])
+        self.assertEqual(["CHEMBL1"], [record["id"] for record in chembl])
+        self.assertEqual(["1234"], [record["id"] for record in pdb])
+
     def test_redirect_handler_enforces_scheme_downgrade_and_sensitive_origin_policy(self) -> None:
         handler = SafeRedirectHandler()
 
