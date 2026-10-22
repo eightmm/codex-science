@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "pdb-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["pdb-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Resolution and validation measures are method-specific and cannot be reduced to one universal quality threshold.",
+    "Entry metadata and coordinates do not establish the physiological state or biological interpretation of the structure.",
+    "Search completeness depends on query scope, archive version, pagination and entity-to-chain mapping."
+  ]
+}

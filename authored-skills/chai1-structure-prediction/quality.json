@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "chai1-structure-prediction",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["chai1-complex-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The procedure does not validate Chai-1 on a target or calibrate its confidence scores.",
+    "Training-data and complex-level overlap may be unavailable for the pinned release.",
+    "Experimental binding and affinity require evidence beyond predicted structures and pose-validity filters."
+  ]
+}

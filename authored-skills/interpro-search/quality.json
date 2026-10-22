@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "interpro-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["interpro-domain-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Member database signatures may share methods, source sequences or annotation lineage and are not necessarily independent evidence.",
+    "Match coverage depends on sequence quality, model scope, taxonomy, integration state and source release.",
+    "A database match alone does not establish biochemical function, and a missing match does not establish biological absence."
+  ]
+}

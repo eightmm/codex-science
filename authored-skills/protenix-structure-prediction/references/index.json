@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "protenix-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "protenix-complex-evidence-method",
+      "path": "references/protenix-complex-evidence.md",
+      "purpose": "Protenix-version-specific cutoff, weight terms, pairwise confidence, ligand validity, controls, sensitivity, and complex-evaluation boundaries.",
+      "read_when": ["interpreting complex confidence", "evaluating ligand plausibility", "comparing MSA/template or restraint conditions", "assessing model cutoff and benchmark overlap"],
+      "required_before": ["workflow-6", "claim-interface-plausibility", "claim-binding-or-affinity"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Describes analysis and dependency checks; does not provide target validation, experimental interaction evidence, or a confidence calibration."
+    }
+  ]
+}

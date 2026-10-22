@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "pdb-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "pdb-experimental-record-assessment",
+      "path": "references/pdb-record-evidence.md",
+      "purpose": "Claim classes, experimental metadata and validation, entity mapping, entry history, dependencies, controls, sensitivity, and failure semantics.",
+      "read_when": ["assessing method or structure quality", "mapping entities, chains or assemblies", "handling obsolete or replaced entries", "interpreting search completeness"],
+      "required_before": ["step-5 record-verification", "step-6 structural-claim-assessment", "claim-experimental-structure"],
+      "search_patterns": ["## Claim classes", "## Identity, dependencies, and version pinning", "## Sensitivity and applicability", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Guides assessment of archived experimental-structure records; it does not prove biological function, physiological assembly, or independent reproducibility of a deposited model."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "quantum-mechanics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "quantum-claim-calibration",
+      "path": "references/quantum-claim-calibration.md",
+      "purpose": "Quantum claim classes, operator/state checks, dependency tracking, sensitivity, and approximation limits.",
+      "read_when": [
+        "classifying exact, approximate, numerical, or heuristic quantum claims",
+        "choosing a truncation or interpreting a spectrum, measurement, or open-system calculation"
+      ],
+      "required_before": ["step-2", "step-4", "step-7", "claim-applicability"],
+      "evidence_boundary": "Calibrates predictions conditional on a stated quantum model; it does not validate state preparation, Hamiltonian adequacy, or experimental interpretation."
+    }
+  ]
+}

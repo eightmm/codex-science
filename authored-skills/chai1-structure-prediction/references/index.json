@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "chai1-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "chai1-complex-evidence-method",
+      "path": "references/chai1-complex-evidence.md",
+      "purpose": "Chai-specific claim classification, chain-pair interpretation, ligand plausibility, dependencies, controls, sensitivity, and applicability limits.",
+      "read_when": ["interpreting any multimolecular prediction", "using MSA or single-sequence comparison", "evaluating a ligand pose", "checking training overlap or controls"],
+      "required_before": ["workflow-6", "claim-interface-plausibility", "claim-ligand-pose-plausibility"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and checks; does not validate a prediction, establish binding, or calibrate confidence."
+    }
+  ]
+}

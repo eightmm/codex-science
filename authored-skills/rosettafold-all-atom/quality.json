@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "rosettafold-all-atom",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["rfaa-complex-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The procedure does not validate RFAA on a target or calibrate model confidence metrics.",
+    "Checkpoint, database, SignalP, and training-overlap terms or provenance may be incomplete for a local installation.",
+    "Predicted all-atom geometry cannot establish experimental interaction or affinity."
+  ]
+}

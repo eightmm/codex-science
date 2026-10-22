@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "electromagnetism",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "electromagnetic-claim-calibration",
+      "path": "references/electromagnetic-claim-calibration.md",
+      "purpose": "Electromagnetic claim classes, convention checks, source dependence, sensitivity, and field/circuit regime limits.",
+      "read_when": [
+        "classifying exact, approximate, numerical, or heuristic electromagnetic claims",
+        "choosing units or gauge, reducing Maxwell equations, or interpreting a field solver"
+      ],
+      "required_before": ["step-2", "step-3", "step-7", "claim-applicability"],
+      "evidence_boundary": "Calibrates claims conditional on declared sources, constitutive laws, and boundaries; it does not establish material parameters or empirical field validity."
+    }
+  ]
+}

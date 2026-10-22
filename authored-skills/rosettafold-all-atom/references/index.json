@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "rosettafold-all-atom",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "rfaa-complex-evidence-method",
+      "path": "references/rfaa-complex-evidence.md",
+      "purpose": "RFAA-specific chain/atom and chemistry validation, pairwise confidence, training overlap, separate dependency terms, controls, and sensitivity.",
+      "read_when": ["interpreting a complex or ligand claim", "checking covalent or metal geometry", "reviewing confidence or training overlap", "comparing seeds, restraints, or MSA conditions"],
+      "required_before": ["workflow-6", "claim-interface-plausibility", "claim-ligand-covalent-plausibility"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines checks and claim limits; does not establish that predicted geometry is experimental or that a ligand binds."
+    }
+  ]
+}

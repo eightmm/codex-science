@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "uniprot-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["uniprot-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "A database annotation and its cited publication may share one evidence lineage and do not constitute independent confirmations.",
+    "Search completeness depends on query syntax, source release, pagination limits, identifier mapping and returned fields.",
+    "The workflow does not validate annotations against a particular biological sample or assay."
+  ]
+}

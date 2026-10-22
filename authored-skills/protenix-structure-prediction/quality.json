@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "protenix-structure-prediction",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["protenix-complex-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The procedure does not validate a Protenix release on a target or calibrate its confidence scores.",
+    "Training overlap and exact weight terms must be checked for the selected release and may remain unknown.",
+    "Predicted complex and ligand geometry do not establish experimental binding or affinity."
+  ]
+}

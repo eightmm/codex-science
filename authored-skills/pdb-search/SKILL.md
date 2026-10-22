@@ -13,66 +13,92 @@ Uses the public RCSB APIs directly through Codex's own tools.
 ## Decision contract
 
 Specify the macromolecule/ligand, organism, requested structure evidence,
-sequence or structural query if any, and evidence cutoff. Distinguish entry,
-polymer entity, chain/instance, and assembly identifiers. The target evidence
-is experimentally determined structure; do not mix predicted models into that
-set. Define what structural resolution or method is adequate for the intended
-interpretation.
+sequence or structural query, and evidence cutoff. Distinguish entry, polymer
+entity, chain/instance, and assembly identifiers. The target is experimentally
+determined structure; do not mix predicted models into that set. Define
+acceptable experimental method and resolution/validation evidence for the
+intended interpretation. A PDB record's metadata is not itself the underlying
+experimental evidence or proof of biological function.
+
+## Reference usage
+
+Read [references/pdb-record-evidence.md](references/pdb-record-evidence.md) before
+classifying structure claims, comparing methods or validation, mapping chains
+and assemblies, handling obsolete/replaced entries, or interpreting empty or
+truncated search results.
 
 ## Workflow
 
-1. **Use when:** retrieving experimentally-determined structures and metadata
-   (proteins, nucleic acids, bound ligands), or searching by sequence/structure
-   similarity, ligand, or attribute. **Do not use** for predicted models (use
-   `$cx-alphafold-structure-analysis`), structural-homolog search from a file
-   (use `$cx-foldseek-structural-search`), or protein annotation from an
-   accession (use `$cx-uniprot-search`).
-2. **Gates (ask before proceeding).** On first use in a workspace, tell the
+1. **Gates (ask before proceeding).** On first use in a workspace, tell the
    user to review the RCSB usage policy
-   (https://www.rcsb.org/pages/usage-policy) and record the notice in provenance.
-   Public HTTP is read-only; be polite about rate limits. Prefer a short
-   `uv run` script or an HTTP fetch tool; if you write helper code, run it via
-   `uv run`, never bare `python3`. Ask before large coordinate downloads.
-3. Search first with `science_search_pdb` (`query`, `limit` 1–10, default 5),
-   which returns PDB ID, score and URL. For advanced queries use Search API
-   `https://search.rcsb.org/rcsbsearch/v2/query` (POST JSON; set `return_type`
-   to `entry`, `polymer_entity`, `assembly`, etc.). Fetch metadata through Data
-   API `https://data.rcsb.org/rest/v1/core/entry/<PDB_ID>` (also
+   (https://www.rcsb.org/pages/usage-policy) and record the notice in
+   provenance. Public HTTP is read-only; respect rate limits. Ask before large
+   coordinate downloads.
+2. Confirm the route: use this skill for experimentally determined structures
+   and metadata, including sequence/structure similarity, ligand, or attribute
+   searches. For predicted models use `$cx-alphafold-structure-analysis`, for
+   file-based structural homologs use `$cx-foldseek-structural-search`, and
+   for accession annotation use `$cx-uniprot-search`; record the selected
+   scope. Prefer a short `uv run` script or an HTTP fetch tool; if helper code
+   is needed, run it with `uv run`, never bare `python3`.
+3. Define target entity, organism, intended inference, method/resolution
+   criteria, and query. Discover attributes before an attribute query; name the
+   chosen field and record the exact decision threshold and exclusions.
+4. Search first with `science_search_pdb` (`query`, `limit` 1–10, default 5;
+   returns PDB ID, score and URL). For advanced searches use Search API
+   `https://search.rcsb.org/rcsbsearch/v2/query` (POST JSON, set `return_type`
+   to `entry`, `polymer_entity`, `assembly`, etc.). Fetch metadata from
+   `https://data.rcsb.org/rest/v1/core/entry/<PDB_ID>` (also
    `polymer_entity`, `nonpolymer_entity`) and coordinates from
-   `https://files.rcsb.org/download/<PDB_ID>.cif`.
-4. Discover attributes before composing an attribute query: choose the best
-   matching field and state it. Record query JSON, endpoint, return type,
-   pagination, access time, response-reported release/update, result count, and
-   exclusions. Write large responses to a file and parse with `jq` or a short
-   `uv run` script. Validate IDs, status, response shape, and truncation; bound
-   pages/retries, and preserve failed or incomplete retrieval as unavailable.
-5. Explain the query in plain language. Report top structures with PDB ID, title,
-   method, resolution, organism, bound ligands, and entry URL. Distinguish
-   entity vs instance/chain vs assembly; note experimental method and
-   resolution/R-free when assessing reliability; a deposited structure is not
-   always the biological assembly. Missing residues/loops are common; do not
-   assume completeness.
-6. To search homologs, download the `.cif` then use
-   `$cx-foldseek-structural-search`. Record queries, endpoints, cited PDB IDs,
-   coordinate-file hashes, and exclusions with `$science-provenance`; use
-   `$science-review` before material structural interpretation.
+   `https://files.rcsb.org/download/<PDB_ID>.cif`. Record query JSON, endpoint,
+   access time, response release/update, return type and pagination. Write
+   large responses to a file and parse with `jq` or a short `uv run` script.
+5. **Verify/check:** validate IDs, entry status, response shape and
+   completeness; bound pages/retries and mark failed or truncated retrievals
+   unavailable. Resolve entity-to-chain/instance and assembly mapping, plus
+   obsolete/replaced identifiers, before treating matches as the same target.
+   Record result count and exclusions with reasons.
+6. Assess each claim from the record's experimental method, resolution and
+   validation report (including R-free when relevant), associated experimental
+   data and chain coverage. Keep experimental observations distinct from
+   deposition metadata and downstream structural interpretation. Compare a
+   known positive entry and a negative query when feasible; record claim status,
+   metrics and control outcomes.
+7. Explain the query in plain language. Vary synonyms, sequence/query
+   thresholds, taxonomy and filters; record
+   whether candidate identity, method, resolution or conclusion changes. Report
+   top structures with title, method, resolution, organism, ligand and URL;
+   distinguish unresolved residues and biological assembly assumptions. Save
+   query, endpoints, PDB IDs, coordinate hashes and exclusions with
+   `$science-provenance`; use `$science-review` before material structural
+   interpretation.
+8. For structural homolog search, download the selected `.cif` coordinate file
+   and pass it to `$cx-foldseek-structural-search`; retain its file hash and
+   mapping assumptions.
 
 ## Outputs
 
-Return normalized query and entity assumptions; evidence table with PDB ID,
-entry/entity/chain/assembly scope, title, method, resolution/R-free where
-reported, organism, ligand, URL, and inclusion/exclusion reason; claim IDs
-marked supported/contradicted/inconclusive/unavailable; query/release/access
-time and artifact hashes; uncertainty, missing-coordinate and applicability
-limits; and the smallest next structural check.
+Return one `pdb-structure-evidence-v1` record with these required fields:
+normalized query and entity assumptions (`normalized_query`); an evidence
+table with PDB ID, entry/entity/chain/assembly scope, title, method,
+resolution/R-free when reported, validation, organism, ligand, URL and
+inclusion/exclusion reason (`records`); claim IDs, claim class and status from
+supported, contradicted, inconclusive or unavailable (`claims`); exact query,
+release/version and access time (`source_snapshot`); artifact hashes and
+pagination (`artifact_hashes` and `pagination`); uncertainty (`uncertainty`),
+missing-coordinate and applicability limits (`limitations`); the smallest next
+structural check (`next_check`); and provenance/review receipts when required
+(`provenance_receipt` and `review_receipt`).
 
 ## Boundaries
 
-- Cite only PDB IDs actually returned; never invent IDs or metadata.
-- Experimental resolution and method bound trustworthy detail; state them.
-  Missing residues/loops are common — do not assume completeness.
-- Keep experimental structures distinct from predicted models. A deposited
-  assembly or ligand pose does not by itself establish the biological assembly
-  or functional state. Stop when entity/chain mapping changes the conclusion.
+- Cite only returned PDB IDs and metadata; never invent IDs or values.
+- Experimental method and resolution bound the structural detail supported;
+  missing residues/loops are common and do not imply a complete structure.
+- Keep experimental structures separate from predicted models. A deposited
+  assembly or ligand pose alone does not establish biological assembly or
+  functional state. Stop when entity/chain mapping changes interpretation.
+- Empty results mean no match for the query and source snapshot, not absence.
+  Preserve API errors and truncation as unavailable.
 - Respect the RCSB usage policy and redistribution terms. `$science-review` is
   mandatory for material structural or mechanistic conclusions.

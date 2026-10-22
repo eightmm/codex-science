@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "uniprot-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "uniprot-annotation-provenance",
+      "path": "references/uniprot-record-evidence.md",
+      "purpose": "Claim classes, reviewed status, annotation provenance, identifier history, versioning, controls, sensitivity, and failure semantics.",
+      "read_when": ["classifying protein annotation evidence", "resolving accession or isoform identity", "comparing reviewed status", "assessing empty or conflicted results"],
+      "required_before": ["step-4 identity-resolution", "step-5 annotation-classification", "claim-functional-annotation"],
+      "search_patterns": ["## Claim classes", "## Identity, dependencies, and version pinning", "## Sensitivity and applicability", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Guides interpretation of retrieved UniProtKB records; it does not establish that a record annotation applies to an experimental sample or independently validate the underlying biology."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "quantum-mechanics",
+  "roles": ["analyzer", "executor"],
+  "declared_maturity": "L3",
+  "output_schemas": ["quantum-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No domain-specific numerical verifier or acceptance fixture is bundled with this skill.",
+    "Model validity and state-preparation uncertainty require experimental or domain-specific evidence."
+  ]
+}

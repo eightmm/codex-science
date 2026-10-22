@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "classical-mechanics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "mechanics-claim-calibration",
+      "path": "references/mechanics-claim-calibration.md",
+      "purpose": "Mechanical claim classes, uncertainty, independent checks, sensitivity, and regime limits.",
+      "read_when": [
+        "classifying exact, approximate, numerical, or heuristic mechanics claims",
+        "selecting a model or interpreting solver convergence and physical validity"
+      ],
+      "required_before": ["step-6", "step-7", "claim-applicability"],
+      "evidence_boundary": "Calibrates claims conditional on a stated mechanics model; it does not validate empirical force laws or measured system parameters."
+    }
+  ]
+}

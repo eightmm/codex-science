@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "interpro-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "interpro-signature-evidence",
+      "path": "references/interpro-record-evidence.md",
+      "purpose": "Integrated-entry and member-signature claim classes, sequence mapping, source dependence, release pinning, controls, sensitivity, and failure semantics.",
+      "read_when": ["interpreting InterPro entry or member matches", "comparing proteins or domain architectures", "pinning source releases", "evaluating a missing match"],
+      "required_before": ["step-4 response-verification", "step-5 match-classification", "claim-domain-membership"],
+      "search_patterns": ["## Claim classes", "## Identity, dependencies, and version pinning", "## Sensitivity and applicability", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Guides interpretation of integrated entries and member-database matches; it does not independently validate the target protein's experimental function or establish biological absence from no match."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "classical-mechanics",
+  "roles": ["analyzer", "executor"],
+  "declared_maturity": "L3",
+  "output_schemas": ["mechanics-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No domain-specific numerical verifier or acceptance fixture is bundled with this skill.",
+    "Model-form and empirical force uncertainty require system-specific evidence beyond equation checks."
+  ]
+}

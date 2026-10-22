@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "electromagnetism",
+  "roles": ["analyzer", "executor"],
+  "declared_maturity": "L3",
+  "output_schemas": ["electromagnetism-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No domain-specific numerical verifier or acceptance fixture is bundled with this skill.",
+    "Material response, source calibration, and boundary-model adequacy require problem-specific evidence."
+  ]
+}
