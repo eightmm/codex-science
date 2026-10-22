@@ -793,7 +793,8 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
 
 def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_code: int | None = 0,
                       timed_out: bool = False, wall_seconds: float | None = None,
-                      trailing_idle_seconds: float | None = None) -> dict[str, Any]:
+                      trailing_idle_seconds: float | None = None,
+                      unknown_usage_as_none: bool = False) -> dict[str, Any]:
     """Summarize Codex JSONL events, retaining unknown event and item types."""
     event_counts: dict[str, int] = {}
     item_counts: dict[str, dict[str, int]] = {}
@@ -801,8 +802,8 @@ def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_
     thread_id = None
     terminal = None
     error_message = None
-    usage: dict[str, int] = {"input_tokens": 0, "cached_input_tokens": 0,
-                             "output_tokens": 0, "reasoning_tokens": 0}
+    usage: dict[str, int] | None = (None if unknown_usage_as_none else {
+        "input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0})
     max_t = 0.0
     timestamps: list[float] = []
     stream_reconnects = 0
@@ -1007,7 +1008,8 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
         with (task_dir / "events.jsonl").open(encoding="utf-8") as event_handle:
             event_metrics = parse_exec_events(event_handle, exit_code=exit_code,
                                               timed_out=timed_out, wall_seconds=wall_seconds,
-                                              trailing_idle_seconds=stopped_offset)
+                                              trailing_idle_seconds=stopped_offset,
+                                              unknown_usage_as_none=True)
         completion_report = _completion_report(artifacts, now=ended)
         # last_message_present requires non-empty last.md and no launch error; caps set launch_error="output_cap".
         receipt = {"schema": RECEIPT_SCHEMA, "executed": True, "task_id": task["id"],

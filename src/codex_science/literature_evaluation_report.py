@@ -7,6 +7,7 @@ import math
 import os
 import re
 import stat
+import statistics
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping
@@ -278,6 +279,16 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
             "codex_version": receipt.get("preflight", {}).get("codex_version", "unknown") if isinstance(receipt.get("preflight"), Mapping) else "unknown",
             "runtime_identity": receipt.get("runtime_identities", []),
             "receipt_sha256": receipt_hash}
+    metrics = receipt.get("event_metrics")
+    wall_seconds = receipt.get("wall_seconds")
+    if wall_seconds is None and isinstance(metrics, Mapping):
+        wall_seconds = metrics.get("wall_seconds")
+    result["wall_seconds"] = wall_seconds
+    usage = metrics.get("usage") if isinstance(metrics, Mapping) else None
+    event_counts = metrics.get("event_counts") if isinstance(metrics, Mapping) else None
+    completed_count = event_counts.get("turn.completed") if isinstance(event_counts, Mapping) else None
+    has_completed_event = isinstance(completed_count, int) and not isinstance(completed_count, bool) and completed_count > 0
+    result["usage"] = dict(usage) if has_completed_event and isinstance(usage, Mapping) else None
     for key in ("stream_reconnects", "max_idle_gap_seconds", "idle_gap_seconds_over_300",
                 "trailing_idle_seconds"):
         value = event_metrics.get(key) if isinstance(event_metrics, Mapping) else None
@@ -307,7 +318,15 @@ def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     total = sum(isinstance(r.get("citations"), Mapping) and r["citations"].get("status") != "unavailable" for r in rows)
     traced = sum((r.get("citations") or {}).get("citations_traced", 0) for r in rows if isinstance(r.get("citations"), Mapping))
     citations = sum((r.get("citations") or {}).get("citations_total", 0) for r in rows if isinstance(r.get("citations"), Mapping))
+    wall = [r["wall_seconds"] for r in rows if isinstance(r.get("wall_seconds"), (int, float)) and not isinstance(r.get("wall_seconds"), bool) and math.isfinite(r["wall_seconds"])]
+    usage_rows = [r["usage"] for r in rows if isinstance(r.get("usage"), Mapping)]
+    token_totals = {key: sum(u[key] for u in usage_rows if isinstance(u.get(key), int) and not isinstance(u.get(key), bool))
+                    for key in ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens")}
     return {"n": n, "completed": completed, "completion_rate": completed/n if n else None,
+            "wall_seconds_median": statistics.median(wall) if wall else None,
+            "wall_seconds_max": max(wall) if wall else None,
+            "token_totals_known_usage": token_totals,
+            "unknown_usage_runs": n - len(usage_rows),
             "completion_interval_95": wilson_interval(completed, n), "answered": answered,
             "infrastructure_failures": infrastructure_failures,
             "provider_policy_blocks": provider_policy_blocks,
@@ -371,6 +390,10 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         runtime_status = f"Runs used the branch runtime{f' {version}' if version else ''}."
     else:
         runtime_status = "Branch runtime match could not be established from receipts."
+    wall_median = s["wall_seconds_median"]
+    wall_max = s["wall_seconds_max"]
+    wall_median_text = "unknown" if wall_median is None else str(wall_median)
+    wall_max_text = "unknown" if wall_max is None else str(wall_max)
     lines = ["# Literature evaluation report", "", "## Status",
              f"Completion rate: {rate}; completed {s['completed']}/{s['n']}.",
              f"Secondary completion rate excluding infrastructure failures: {adjusted_rate}; "
@@ -380,7 +403,21 @@ def render_markdown(report: Mapping[str, Any]) -> str:
              "should be re-run and not counted as product evidence.",
              f"Diagnostic stream stalls: {s['stall_affected_timeouts']} timeout runs affected; "
              f"{s['stream_reconnects_total']} stream reconnects.",
-             runtime_status, "", "## Current", f"Answered coverage: {percent(s['coverage'])}; precision among answered: {percent(s['precision'])}.", "", "## Next", "Inspect unsure and failed runs before drawing conclusions.", "", "## Evidence", f"{report['claim_boundary']}", "", "Stop reasons:"]
+             runtime_status, "", "## Current", f"Answered coverage: {percent(s['coverage'])}; precision among answered: {percent(s['precision'])}.",
+             f"Wall time median/max: {wall_median_text} / {wall_max_text} s; known-usage token totals: {s['token_totals_known_usage']}; unknown usage: {s['unknown_usage_runs']} runs.",
+             "Monetary cost is not computed because no pricing source is specified.", "", "## Per task",
+             "| Task | Outcome | Stop reason | Wall s | Tokens |", "|---|---|---|---:|---:|"]
+    for row in report.get("runs", []):
+        usage = row.get("usage")
+        input_tokens = usage.get("input_tokens") if isinstance(usage, Mapping) else None
+        output_tokens = usage.get("output_tokens") if isinstance(usage, Mapping) else None
+        known_token_counts = all(isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                                 for value in (input_tokens, output_tokens))
+        tokens = input_tokens + output_tokens if known_token_counts else "unknown"
+        wall_seconds = row.get("wall_seconds")
+        wall_text = "unknown" if wall_seconds is None else str(wall_seconds)
+        lines.append(f"| {row.get('task_id')} | {row.get('outcome')} | {row.get('stop_reason')} | {wall_text} | {tokens} |")
+    lines += ["", "## Next", "Inspect unsure and failed runs before drawing conclusions.", "", "## Evidence", f"{report['claim_boundary']}", "", "Stop reasons:"]
     lines += [f"- {k}: {v}" for k, v in s["stop_reasons"].items()]
     secondary = report.get("partial_credit_secondary", {})
     overall_partial = secondary.get("overall", {})

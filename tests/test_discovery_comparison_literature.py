@@ -19,6 +19,34 @@ TASKS = ROOT / "benchmarks/literature-review/tasks.json"
 
 
 class LiteratureReportTests(unittest.TestCase):
+    def test_wall_and_token_summary_preserves_completion_counts(self):
+        report = summarize([
+            {"task_id": "a", "tier": "quick", "outcome": "completed", "stop_reason": "done", "set_digest": "x", "wall_seconds": 2, "usage": {"input_tokens": 10, "cached_input_tokens": 1, "output_tokens": 4, "reasoning_tokens": 2}},
+            {"task_id": "b", "tier": "quick", "outcome": "failed", "stop_reason": "timeout", "set_digest": "x", "wall_seconds": 6, "usage": None},
+            {"task_id": "c", "tier": "quick", "outcome": "completed", "stop_reason": "done", "set_digest": "x", "wall_seconds": 4, "usage": {"input_tokens": 20, "cached_input_tokens": 2, "output_tokens": 5, "reasoning_tokens": 3}},
+        ])
+        stats = report["by_tier"]["quick"]
+        self.assertEqual((2, 4, 6), (stats["completed"], stats["wall_seconds_median"], stats["wall_seconds_max"]))
+        self.assertEqual(1, stats["unknown_usage_runs"])
+        self.assertEqual(30, stats["token_totals_known_usage"]["input_tokens"])
+        report["runs"] = [
+            {"task_id": "a", "outcome": "completed", "stop_reason": "done", "wall_seconds": 2,
+             "usage": {"input_tokens": 10, "cached_input_tokens": 1,
+                       "output_tokens": 4, "reasoning_tokens": 2}},
+            {"task_id": "b", "outcome": "failed", "stop_reason": "timeout", "wall_seconds": None,
+             "usage": None},
+        ]
+        markdown = render_markdown(report)
+        self.assertIn("| a | completed | done | 2 | 14 |", markdown)
+        self.assertIn("| b | failed | timeout | unknown | unknown |", markdown)
+        unknown_wall_report = summarize([
+            {"task_id": "b", "tier": "quick", "outcome": "failed", "stop_reason": "timeout",
+             "set_digest": "x", "wall_seconds": None, "usage": None},
+        ])
+        unknown_wall_report["runs"] = [{"task_id": "b", "outcome": "failed", "stop_reason": "timeout",
+                                        "wall_seconds": None, "usage": None}]
+        self.assertIn("Wall time median/max: unknown / unknown s", render_markdown(unknown_wall_report))
+
     def fixture(self, root: Path, *, exit_code=0, timed_out=False, inconclusive=False):
         task_set = load_task_set(TASKS)
         task = dict(task_set["tasks"][0], set_digest=task_set["set_digest"])
@@ -195,6 +223,30 @@ class LiteratureReportTests(unittest.TestCase):
             artifact.write_text("tampered", encoding="utf-8")
             integrity = grade_run(standard_receipt, standard, run)
             self.assertEqual(("rejected", "artifact_hash_mismatch"), (integrity["outcome"], integrity["stop_reason"]))
+
+    def test_legacy_timeout_zero_usage_without_completed_event_is_unknown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, task, run, receipt = self.fixture(Path(tmp), timed_out=True)
+            receipt["wall_seconds"] = None
+            receipt["event_metrics"] = {
+                "event_counts": {"turn.failed": 1},
+                "wall_seconds": 8.5,
+                "usage": {"input_tokens": 0, "cached_input_tokens": 0,
+                          "output_tokens": 0, "reasoning_tokens": 0},
+            }
+            graded = grade_run(receipt, task, run)
+            self.assertIsNone(graded["usage"])
+            self.assertEqual(8.5, graded["wall_seconds"])
+            self.assertEqual(1, summarize([graded])["overall"]["unknown_usage_runs"])
+
+            completed_receipt = dict(receipt, event_metrics={
+                "event_counts": {"turn.completed": 1},
+                "usage": {"input_tokens": 10, "cached_input_tokens": 1,
+                          "output_tokens": 4, "reasoning_tokens": 2},
+            })
+            self.assertEqual({"input_tokens": 10, "cached_input_tokens": 1,
+                              "output_tokens": 4, "reasoning_tokens": 2},
+                             grade_run(completed_receipt, task, run)["usage"])
 
     def test_citation_trace_reports_orphans_with_real_module(self):
         with tempfile.TemporaryDirectory() as tmp:

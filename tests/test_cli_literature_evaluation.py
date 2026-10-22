@@ -1016,9 +1016,12 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
         self.assertEqual("completed", parse_exec_events(empty_final_message, exit_code=0)["terminal_stop_reason"])
         failed = parse_exec_events(['{"type":"turn.failed","error":{"message":"x"}}'], exit_code=0)
         self.assertEqual("failed", failed["terminal_stop_reason"])
+        self.assertIsNone(parse_exec_events(['{"type":"turn.failed","error":{"message":"x"}}'],
+                                            unknown_usage_as_none=True)["usage"])
         self.assertEqual("x", failed["error_message"])
         self.assertEqual("interrupted", parse_exec_events(['{"type":"thread.started"}'], exit_code=2)["terminal_stop_reason"])
         self.assertEqual("timeout", parse_exec_events([], timed_out=True)["terminal_stop_reason"])
+        self.assertIsNone(parse_exec_events([], timed_out=True, unknown_usage_as_none=True)["usage"])
 
 
 if __name__ == "__main__":

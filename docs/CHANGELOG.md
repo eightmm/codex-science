@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Literature evaluation reports per-task wall time and token usage, with unknown usage preserved and no monetary cost estimate.
 - Passed review receipts may disclose non-blocking findings, and quick answers end with a fixed unreviewed label.
 - Checkpoint review recording now rejects only malformed or unresolved critical and major findings on passed receipts.
 - Bundle validation reports independent sidecar schema errors together and the literature-review example includes a valid reference-use ledger.

@@ -52,6 +52,11 @@ interval and answered coverage and precision; `unsure` outcomes are excluded
 from answered precision and reduce coverage. Ledger append requires executed,
 non-rejected receipts, skips receipt hashes already present, and appends
 per-run rows plus a summary. It never overwrites prior ledger entries.
+Reports also expose per-run wall seconds and token usage, with tier and overall
+medians, maxima, and totals. Missing usage remains unknown and is never shown as
+zero; per-task token totals add input and output tokens, while cached input and
+reasoning tokens are reported as sub-counts of those totals. Monetary cost is
+not computed without a specified pricing source.
 
 Provider safety-filter errors on nonzero exits use the `provider_policy_block`
 stop reason. This is diagnostic only: the run remains a failure in both
