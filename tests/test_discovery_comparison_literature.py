@@ -77,25 +77,65 @@ class LiteratureReportTests(unittest.TestCase):
             bundle.mkdir(parents=True)
             manifest = bundle / "manifest.json"
             manifest.write_text(json.dumps({"artifacts": []}), encoding="utf-8")
-            relative = manifest.relative_to(run / "project" / "artifacts").as_posix()
-            receipt["artifact_files"] = [{"path": relative, "sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}]
-            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
-
-            graded = grade_run(receipt, task, run)
-            self.assertEqual(("failed", "timeout"), (graded["outcome"], graded["stop_reason"]))
-            self.assertEqual({"status": "unavailable", "reason": "bundle_input_unavailable"}, graded["citations"])
+            receipt["artifact_files"] = [{
+                "path": manifest.relative_to(run / "project" / "artifacts").as_posix(),
+                "sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+            }]
 
             runs = root / "runs"
             runs.mkdir()
             run.rename(runs / task["id"])
             (runs / "plan.json").write_text(json.dumps({"execute": True, "tasks": [{"task_id": task["id"]}]}),
                                             encoding="utf-8")
+            run = runs / task["id"]
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+
+            graded = grade_run(receipt, task, run)
+            self.assertEqual(("failed", "timeout"), (graded["outcome"], graded["stop_reason"]))
+            self.assertEqual({"status": "unavailable", "reason": "bundle_input_unavailable"}, graded["citations"])
             result = self._cli(TASKS, runs)
             self.assertEqual(0, result.returncode, result.stderr)
             report = json.loads(result.stdout)
             self.assertEqual(1, report["overall"]["stop_reasons"]["timeout"])
             row = next(item for item in report["runs"] if item["task_id"] == task["id"])
             self.assertEqual("unavailable", row["citations"]["status"])
+
+            bundle = run / "project" / "artifacts" / "partial-bundle"
+            manifest = bundle / "manifest.json"
+            study_path = bundle / "studies.json"
+            query_path = bundle / "queries.jsonl"
+            lane_dir = bundle / "lanes"
+            lane_dir.mkdir()
+            lane_path = lane_dir / "pubmed-search.json"
+            study_path.write_text(json.dumps({"studies": []}), encoding="utf-8")
+            manifest.write_text(json.dumps({"artifacts": [
+                {"kind": "study-table", "path": "studies.json"},
+                {"kind": "query-ledger", "path": "queries.jsonl"},
+                {"kind": "lane-receipt", "path": "lanes/pubmed-search.json"},
+            ]}), encoding="utf-8")
+            query_path.write_text("", encoding="utf-8")
+            lane_path.write_text("{}", encoding="utf-8")
+            artifact_root = run / "project" / "artifacts"
+            paths = [manifest, study_path, query_path, lane_path]
+            receipt["artifact_files"] = [
+                {"path": path.relative_to(artifact_root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                for path in paths
+            ]
+
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+            for malformed_studies in ({"studies": None}, [], {"studies": "x"}):
+                study_path.write_text(json.dumps(malformed_studies), encoding="utf-8")
+                receipt["artifact_files"][1]["sha256"] = hashlib.sha256(study_path.read_bytes()).hexdigest()
+                (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+                graded = grade_run(receipt, task, run)
+                self.assertEqual(("failed", "timeout"), (graded["outcome"], graded["stop_reason"]))
+                self.assertEqual({"status": "unavailable", "reason": "bundle_input_unavailable"}, graded["citations"])
+                result = self._cli(TASKS, runs)
+                self.assertEqual(0, result.returncode, result.stderr)
+                report = json.loads(result.stdout)
+                self.assertEqual(1, report["overall"]["stop_reasons"]["timeout"])
+                row = next(item for item in report["runs"] if item["task_id"] == task["id"])
+                self.assertEqual("unavailable", row["citations"]["status"])
 
     def test_criteria_failure_symlink_escape_and_set_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -382,6 +422,69 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':1,'output_toke
             self.assertEqual(0, second.returncode, second.stderr)
             self.assertIn("all receipts already present", second.stderr)
             self.assertEqual(original_lines, ledger.read_text(encoding="utf-8").splitlines())
+
+            # Rendezvous at ledger EOF so both unlocked reporters finish the
+            # same read before either appends this still-new receipt.
+            barrier = root / "barrier"
+            barrier.mkdir()
+            worker = root / "concurrent_report.py"
+            worker.write_text("""import fcntl, os, sys, time
+from pathlib import Path
+ledger = Path(sys.argv[1]).resolve()
+markers = Path(sys.argv[2])
+cli, tasks, runs = sys.argv[3:]
+ledger_stat = os.stat(ledger)
+original_read = os.read
+def synchronized_read(descriptor, size):
+    contents = original_read(descriptor, size)
+    metadata = os.fstat(descriptor)
+    if not contents and (metadata.st_dev, metadata.st_ino) == (ledger_stat.st_dev, ledger_stat.st_ino):
+        deadline = time.monotonic() + 1
+        while True:
+            probe = os.open(ledger, os.O_RDONLY)
+            try:
+                try:
+                    fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        (markers / ("locked-" + str(os.getpid()))).touch()
+                        return contents
+                else:
+                    fcntl.flock(probe, fcntl.LOCK_UN)
+                    (markers / ("unlocked-" + str(os.getpid()))).touch()
+                    break
+            finally:
+                os.close(probe)
+            time.sleep(0.01)
+        deadline = time.monotonic() + 10
+        while len(list(markers.glob("unlocked-*"))) < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if len(list(markers.glob("unlocked-*"))) < 2:
+            raise RuntimeError("both unlocked reporters did not reach the ledger read")
+    return contents
+os.read = synchronized_read
+sys.argv = [cli, "--tasks", tasks, "--runs", runs, "--append-ledger", str(ledger)]
+exec(compile(Path(cli).read_text(encoding="utf-8"), cli, "exec"), {"__name__": "__main__", "__file__": cli})
+""", encoding="utf-8")
+            race_ledger = root / "race-ledger.jsonl"
+            with race_ledger.open("w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"receipt_sha256": "preexisting"}) + "\n")
+            racing_receipt_hash = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+            self.assertNotIn(racing_receipt_hash, {
+                json.loads(line).get("receipt_sha256") for line in race_ledger.read_text(encoding="utf-8").splitlines()
+            })
+            cli = ROOT / "scripts/report_literature_evaluation.py"
+            workers = [subprocess.Popen([sys.executable, str(worker), str(race_ledger), str(barrier), str(cli), str(tasks_path), str(runs)],
+                                        env=dict(os.environ, PYTHONPATH=str(ROOT / "src"), PYTHONDONTWRITEBYTECODE="1"),
+                                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                       for _ in range(2)]
+            concurrent = [process.communicate(timeout=15) + (process.returncode,) for process in workers]
+            self.assertEqual([0, 0], [row[2] for row in concurrent], concurrent)
+            concurrent_rows = [json.loads(line) for line in race_ledger.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(3, len(concurrent_rows), concurrent_rows)
+            self.assertEqual(1, sum("task_id" in row for row in concurrent_rows), concurrent_rows)
+            lock_states = sorted(path.name.split("-", 1)[0] for path in barrier.iterdir())
+            self.assertEqual(["locked", "locked"], lock_states, lock_states)
 
     def test_cli_json_markdown_and_ledger_refusal_then_append(self):
         with tempfile.TemporaryDirectory() as tmp:

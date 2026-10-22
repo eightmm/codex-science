@@ -121,6 +121,11 @@ def trace_citations(run_dir: str | Path, report_paths: list[str | Path] | None =
     study_name = next((name for kind, name in declarations if kind == "study-table"), _FALLBACK["study-table"])
     study_path = _safe_file(root, study_name)
     study = json.loads(study_path.read_text(encoding="utf-8"))
+    if not isinstance(study, dict):
+        raise ValueError("study table must be an object")
+    studies = study.get("studies", [])
+    if not isinstance(studies, list):
+        raise ValueError("study table studies must be a list")
     sources.append((study_name, study))
     manifest_refs = [(kind, name) for kind, name in declarations if kind in {"lane-receipt", "query-ledger", "connector-receipt"}]
     if not manifest_refs:
@@ -133,7 +138,6 @@ def trace_citations(run_dir: str | Path, report_paths: list[str | Path] | None =
         else:
             sources.append((name, json.loads(path.read_text(encoding="utf-8"))))
     known: set[str] = set()
-    studies = study.get("studies", []) if isinstance(study, dict) else []
     study_by_key: dict[str, set[str]] = {}
     included_study_keys: set[str] = set()
     for record in studies:
