@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.evidence import _validate_claim_register, _validate_study_table, validate_sidecars
+from codex_science.artifacts import add_artifact, write_manifest
 from codex_science.reviewer_runtime import build_review_packet
 from tests.test_reviewer_runtime import make_reviewed_run
 
@@ -121,6 +122,40 @@ class EvidenceSupportExcerptTests(unittest.TestCase):
                     path, review_modes=["record"], created_at="2026-10-21T00:00:00Z"
                 )["review_questions"]
                 self.assertTrue(any(expected in question for question in questions))
+
+    def test_reviewer_kind_falls_back_to_manifest_when_register_omits_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = make_reviewed_run(Path(temp))
+            manifest = json.loads(path.read_text())
+            manifest["claims"][0]["kind"] = "causal"
+            register_path = path.parent / "claims.json"
+            register_path.write_text(json.dumps(claim()), encoding="utf-8")
+            add_artifact(
+                manifest, "claims.json", kind="claim-register",
+                sha256=hashlib.sha256(register_path.read_bytes()).hexdigest(),
+            )
+            write_manifest(manifest, path)
+
+            routed = build_review_packet(path, review_modes=["record"], created_at="2026-10-21T00:00:00Z")
+
+            self.assertEqual("causal", routed["claims"][0].get("kind"))
+            self.assertTrue(any("confounding" in question for question in routed["review_questions"]))
+            fallback_priority = routed["review_priority"]
+            self.assertEqual("synthesis", fallback_priority[0]["basis"])
+
+            register = claim()
+            register["claims"][0]["kind"] = "causal"
+            register_path.write_text(json.dumps(register), encoding="utf-8")
+            manifest["artifacts"] = [item for item in manifest["artifacts"] if item.get("path") != "claims.json"]
+            add_artifact(
+                manifest, "claims.json", kind="claim-register",
+                sha256=hashlib.sha256(register_path.read_bytes()).hexdigest(),
+            )
+            write_manifest(manifest, path)
+            explicit_priority = build_review_packet(
+                path, review_modes=["record"], created_at="2026-10-21T00:00:00Z"
+            )["review_priority"]
+            self.assertEqual(explicit_priority, fallback_priority)
 
 
 if __name__ == "__main__":

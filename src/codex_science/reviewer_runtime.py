@@ -127,7 +127,27 @@ def _material_claim_ids(manifest: Mapping[str, Any], sidecars: Mapping[str, Any]
     return sorted(str(item.get("id")) for item in manifest.get("claims", []) if isinstance(item, Mapping) and item.get("id"))
 
 
+def _claim_kinds_with_manifest_fallback(claims: list[Any], manifest: Mapping[str, Any]) -> list[Any]:
+    manifest_claims = {
+        str(claim["id"]): claim
+        for claim in manifest.get("claims", [])
+        if isinstance(claim, Mapping) and claim.get("id")
+    }
+    resolved = []
+    for claim in claims:
+        if not isinstance(claim, Mapping):
+            resolved.append(claim)
+            continue
+        item = dict(claim)
+        manifest_claim = manifest_claims.get(str(claim.get("id", "")))
+        if "kind" not in item and manifest_claim is not None and "kind" in manifest_claim:
+            item["kind"] = manifest_claim["kind"]
+        resolved.append(item)
+    return resolved
+
+
 def _review_priority(manifest: Mapping[str, Any], claims: list[Any], sidecars: Mapping[str, Any]) -> list[dict[str, str | int]]:
+    claims = _claim_kinds_with_manifest_fallback(claims, manifest)
     claim_by_id = {str(claim.get("id")): claim for claim in claims if isinstance(claim, Mapping) and claim.get("id")}
     graph = sidecars.get("graph_v2") or sidecars.get("evidence_graph")
     nodes = {str(node.get("id")): node for node in graph.get("nodes", []) if isinstance(node, Mapping)} if isinstance(graph, Mapping) else {}
@@ -217,6 +237,7 @@ def build_review_packet(
     claims = sidecars.get("claim_register", {}).get("claims") if isinstance(sidecars.get("claim_register"), Mapping) else None
     if not isinstance(claims, list):
         claims = [dict(item) for item in manifest.get("claims", []) if isinstance(item, Mapping)]
+    claims = _claim_kinds_with_manifest_fallback(claims, manifest)
     graph = sidecars.get("graph_v2") or sidecars.get("evidence_graph")
     use_default_questions = review_questions is None
     questions = list(review_questions) if review_questions is not None else [
