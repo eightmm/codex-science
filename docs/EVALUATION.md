@@ -53,6 +53,10 @@ from answered precision and reduce coverage. Ledger append requires executed,
 non-rejected receipts, skips receipt hashes already present, and appends
 per-run rows plus a summary. It never overwrites prior ledger entries.
 
+Provider safety-filter errors on nonzero exits use the `provider_policy_block`
+stop reason. This is diagnostic only: the run remains a failure in both
+completion rates and is never automatically retried or rephrased.
+
 Event diagnostics record stream reconnect errors, the largest gap between valid
 event timestamps, the total of gaps over 300 seconds, and trailing silence until
 a timed-out process is stopped. Reports count timeouts with these signals as

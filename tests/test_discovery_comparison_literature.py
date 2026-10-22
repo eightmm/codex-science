@@ -62,6 +62,12 @@ class LiteratureReportTests(unittest.TestCase):
             self.assertEqual(("failed", "provider_unavailable"),
                              (grade_run(capacity, task, run)["outcome"], grade_run(capacity, task, run)["stop_reason"]))
             self.assertEqual("timeout", grade_run(dict(capacity, timed_out=True), task, run)["stop_reason"])
+            policy = dict(receipt, exit_code=1, event_metrics={
+                "error_message": "This content was flagged for possible biological risk."})
+            graded_policy = grade_run(policy, task, run)
+            self.assertEqual(("failed", "provider_policy_block"),
+                             (graded_policy["outcome"], graded_policy["stop_reason"]))
+            self.assertEqual("nonzero_exit", grade_run(dict(receipt, exit_code=1), task, run)["stop_reason"])
             for message in ("The service is overloaded", "rate limit exceeded", "HTTP 429",
                             "503 Service Unavailable"):
                 graded = grade_run(dict(receipt, exit_code=1, event_metrics={"error_message": message}), task, run)
@@ -253,18 +259,22 @@ class LiteratureReportTests(unittest.TestCase):
         rows = [
             {"set_digest": "a", "tier": "standard", "outcome": "completed", "stop_reason": "done"},
             {"set_digest": "a", "tier": "standard", "outcome": "failed", "stop_reason": "provider_unavailable"},
+            {"set_digest": "a", "tier": "standard", "outcome": "failed", "stop_reason": "provider_policy_block"},
             {"set_digest": "a", "tier": "standard", "outcome": "failed", "stop_reason": "nonzero_exit"},
         ]
         report = summarize(rows)
         overall = report["overall"]
-        self.assertEqual(3, overall["n"])
+        self.assertEqual(4, overall["n"])
         self.assertEqual(1, overall["completed"])
         self.assertEqual(1, overall["infrastructure_failures"])
-        self.assertEqual(0.5, overall["completion_rate_excluding_infrastructure"])
-        self.assertEqual(wilson_interval(1, 2), overall["completion_interval_excluding_infrastructure_95"])
+        self.assertEqual(1, overall["provider_policy_blocks"])
+        self.assertAlmostEqual(1 / 3, overall["completion_rate_excluding_infrastructure"])
+        self.assertEqual(wilson_interval(1, 3), overall["completion_interval_excluding_infrastructure_95"])
         markdown = render_markdown(report)
-        self.assertIn("excluding infrastructure failures: 50.0%", markdown)
+        self.assertIn("excluding infrastructure failures: 33.3%", markdown)
         self.assertIn("re-run", markdown)
+        self.assertIn("provider policy blocks 1", markdown)
+        self.assertIn("remain failures in both rates", markdown)
         empty = summarize([{"set_digest": "a", "outcome": "failed", "stop_reason": "provider_unavailable"}])["overall"]
         self.assertIsNone(empty["completion_rate_excluding_infrastructure"])
         self.assertIsNone(empty["completion_interval_excluding_infrastructure_95"])

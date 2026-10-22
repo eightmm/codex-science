@@ -33,6 +33,8 @@
 - Literature evaluation grading reports provider capacity, overload, and
   rate-limit failures as `provider_unavailable` and adds a secondary completion
   rate that excludes them; the primary rate is unchanged.
+- Literature evaluation reports classify provider safety-filter failures as
+  `provider_policy_block` diagnostics; these remain failures in both rates.
 - Model receipt v2 validation can compare caller-supplied current code, weight,
   and database revisions (`validate_model_registry_v2.py --receipt --current-revisions`).
 - Literature evaluation reports now include equal-weight `rubric_tree` partial

@@ -245,10 +245,14 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
     provider_unavailable = isinstance(error_message, str) and re.search(
         r"\b(?:at capacity|overloaded|rate[- ]limit(?:ed)?|(?:http|status|error)\s*429|429\s+too many requests|503\s+(?:service\s+)?unavailable)\b",
         error_message, re.IGNORECASE)
+    provider_policy_block = isinstance(error_message, str) and re.search(
+        r"\b(?:flagged for possible|content\s+(?:was\s+)?flagged|violat\w*\s+(?:our|the)\s+usage polic\w*)\b",
+        error_message, re.IGNORECASE)
     if timed_out is True:
         outcome, stop_reason = "failed", "timeout"
     elif exit_code != 0:
-        outcome, stop_reason = "failed", "provider_unavailable" if provider_unavailable else "nonzero_exit"
+        outcome, stop_reason = "failed", ("provider_unavailable" if provider_unavailable else
+                                            "provider_policy_block" if provider_policy_block else "nonzero_exit")
     elif unsure:
         outcome, stop_reason = "unsure", next(iter(sorted(unsure_reasons or {"escalation_offered"})))
     elif statuses - {"done", "completed", "complete", ""}: outcome, stop_reason = "failed", sorted(statuses - {"done", "completed", "complete", ""})[0]
@@ -293,6 +297,7 @@ def wilson_interval(successes: int, n: int, z: float = 1.959963984540054) -> lis
 def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     n = len(rows); completed = sum(r.get("outcome") == "completed" for r in rows)
     infrastructure_failures = sum(r.get("stop_reason") == "provider_unavailable" for r in rows)
+    provider_policy_blocks = sum(r.get("stop_reason") == "provider_policy_block" for r in rows)
     stall_affected_timeouts = sum(r.get("stop_reason") == "timeout" and
                                   (r.get("stream_reconnects", 0) > 0 or
                                    r.get("idle_gap_seconds_over_300", 0) > 0) for r in rows)
@@ -305,6 +310,7 @@ def _stats(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     return {"n": n, "completed": completed, "completion_rate": completed/n if n else None,
             "completion_interval_95": wilson_interval(completed, n), "answered": answered,
             "infrastructure_failures": infrastructure_failures,
+            "provider_policy_blocks": provider_policy_blocks,
             "stall_affected_timeouts": stall_affected_timeouts,
             "stream_reconnects_total": stream_reconnects_total,
             "completion_rate_excluding_infrastructure": completed/adjusted_n if adjusted_n else None,
@@ -368,7 +374,9 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines = ["# Literature evaluation report", "", "## Status",
              f"Completion rate: {rate}; completed {s['completed']}/{s['n']}.",
              f"Secondary completion rate excluding infrastructure failures: {adjusted_rate}; "
-             f"provider infrastructure failures {s['infrastructure_failures']}. Runs failed by provider capacity "
+             f"provider infrastructure failures {s['infrastructure_failures']}; "
+             f"provider policy blocks {s['provider_policy_blocks']}. Policy blocks remain failures in both rates. "
+             "Runs failed by provider capacity "
              "should be re-run and not counted as product evidence.",
              f"Diagnostic stream stalls: {s['stall_affected_timeouts']} timeout runs affected; "
              f"{s['stream_reconnects_total']} stream reconnects.",
