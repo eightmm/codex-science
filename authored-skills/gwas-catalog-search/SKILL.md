@@ -7,21 +7,90 @@ license: MIT
 # GWAS Catalog Search
 
 ## Decision contract
-Before searching, record the question, trait and ontology scope, variant/locus or gene, species and assembly, ancestry, evidence cutoff, and whether the requested evidence is curated lead associations or full summary statistics. Define relevant study designs and the distinction between association evidence and a causal claim.
+
+Before searching, record the question, trait and ontology scope, variant/locus
+or gene, species and genome assembly, ancestry, evidence cutoff, and whether
+the requested evidence is curated lead associations or full summary statistics.
+Define relevant study designs and distinguish a reported association from a
+causal claim. Assign claim status as supported, contradicted, inconclusive, or
+unavailable under the GWAS reference criteria.
+
+## Reference usage
+
+Read [references/gwas-association-evidence.md](references/gwas-association-evidence.md)
+before resolving traits, harmonizing variants or alleles, comparing studies or
+ancestries, or interpreting association claims. It defines curated-record
+semantics, cohort dependencies, uncertainty, controls, sensitivity, and the
+catalog's applicability domain.
 
 ## Workflow
-1. Resolve free-text traits with `science_search_gwas_catalog`; retain the selected EFO/MONDO ID and rejected alternatives. This legacy MCP tool accepts `query` (required) and `limit` (1–10, default 5). For paginated structured retrieval, use `science_query_source_v2` with `source="gwas_catalog"` only after checking `science_list_source_contracts`; supported top-level options include `parameters`, `operation`, `page_size`, `max_pages`, `evidence_cutoff`, and `include_snapshot`.
-2. Use the current v2 API and prefer ontology IDs over labels for downstream association queries. Serialize the exact query, filters and pagination; preserve the response and note any truncation or page cap. A failed or partial request is unavailable/incomplete, not a null association.
-3. Preserve rsID, assembly, effect allele, p-value, effect estimate, study accession, ancestry, sample size, publication, and access date. Validate allele/build alignment and separate records that do not satisfy the specified trait or population scope.
-4. Distinguish curated lead associations from full summary statistics; record dataset-specific terms and release metadata. Record returned and excluded counts and reasons, and distinguish missing fields, explicit nulls, no matching records, and unavailable responses.
-5. Compose `$cx-biomedical-entity-normalization`, `$cx-phewas-replication-analysis`, or `$cx-locus-to-gene-prioritization` when synthesis is requested. Capture release/version or last-updated metadata reported by the source; bound retries to transient failures and respect service limits.
 
-Store exact query, association table, source releases, exclusions, response artifact/hash, and access time with `$science-provenance`; run `$science-review` on causal claims. Do not count portal mirrors or multiple reports of the same study as independent evidence.
+1. Resolve free-text traits with `science_search_gwas_catalog`; retain the
+   selected EFO/MONDO ID and rejected alternatives. Use this legacy MCP tool
+   with `query` (required) and `limit` (1–10, default 5). Record the chosen
+   concept and why it matches the intended phenotype.
+2. For structured paginated retrieval, check `science_list_source_contracts`
+   before `science_query_source_v2` with `source="gwas_catalog"`. Supported
+   top-level options include `parameters`, `operation`, `page_size`,
+   `max_pages`, `evidence_cutoff`, and `include_snapshot`. Use the current v2
+   API, prefer ontology IDs for downstream queries, and record the exact
+   contract and parameters. If trait identity is ambiguous, stop and
+   return alternatives instead of choosing silently.
+3. Define evidence scope before retrieval: association endpoint, study or
+   ancestry criteria, build, evidence cutoff, and whether lead associations or
+   summary statistics are required. Record dataset-specific terms, excluded
+   designs, and why the available catalog endpoint can or cannot answer the
+   question.
+4. Serialize exact query, filters, pagination, and cutoff. Preserve the
+   response and note truncation or page caps. A failed or partial request is
+   unavailable or incomplete, not a null association; bound retries to
+   transient failures and respect service limits. Record page status and
+   source-reported release/last-updated metadata when returned.
+5. Preserve rsID, assembly, effect allele, p-value, effect estimate, study
+   accession, ancestry, sample size, publication, and access date when
+   available. Validate build and allele alignment; distinguish absent,
+   explicit null, and unavailable fields. Record returned and excluded counts,
+   candidates, and reasons when trait/population scope does not match.
+6. Separate curated lead associations from full summary statistics. Classify
+   each statement using the reference: report a catalog association as such;
+   do not infer causality, cross-population portability, or locus-to-gene
+   mechanism from a lead record alone. Record study and cohort dependencies.
+7. Run the domain controls and sensitivity checks from the reference. If
+   plausible trait mapping, build, ancestry, cutoff, or query choices change
+   inclusion or direction materially, mark the claim inconclusive and retain
+   each comparison.
+8. For synthesis, compose `$cx-biomedical-entity-normalization`,
+   `$cx-phewas-replication-analysis`, or `$cx-locus-to-gene-prioritization`
+   as appropriate. Store exact query, association table, source releases,
+   exclusions, response artifact/hash, and access time with
+   `$science-provenance`; run `$science-review` on causal claims.
 
 ## Outputs
-Return normalized trait and ontology ID, assembly, query ledger, included association records, excluded candidates with reasons, and study/evidence dependencies. For every claim provide a stable ID and status (supported, contradicted, inconclusive, or unavailable), effect estimate and uncertainty when returned, ancestry limitations, conflicts, and the smallest falsifiable next query or analysis.
+
+Return one `gwas-association-evidence-v1` record with required fields:
+`question`, `normalized_trait`, `ontology_id`, `species`, `assembly`,
+`ancestry_scope`, `evidence_scope`, `evidence_cutoff`, `query_ledger`,
+`included_associations`, `excluded_candidates`, `claim_register`,
+`study_dependencies`, `source_release_metadata`, `missingness`, `uncertainty`,
+`limitations`, `next_falsifiable_action`, `artifact_paths`, and
+`artifact_hashes`. Each claim has a stable ID and status: supported,
+contradicted, inconclusive, or unavailable. Each association row preserves
+returned variant, allele, effect, significance, study, population, and source
+fields without filling unavailable values. For every claim, include the effect
+estimate and uncertainty when returned, ancestry limitations, conflicts, and
+the smallest falsifiable next query or analysis.
 
 ## Boundaries
-Association does not establish causality. Do not pool ancestries, traits, or effect directions without harmonization. Curated lead associations are not a substitute for full summary statistics; missing catalog records are not evidence of no association. Stop when trait identity, build, or allele harmonization is unresolved.
+
+- Association does not establish causality. Do not pool ancestries, traits, or
+  effect directions without harmonization.
+- Curated lead associations are not a substitute for full summary statistics;
+  missing catalog records are not evidence of no association.
+- Stop when trait identity, build, or allele harmonization is unresolved.
+- Do not count portal mirrors or multiple reports of the same study as
+  independent evidence.
+
+Use `$science-review` for causal claims and preserve all query and response
+provenance with `$science-provenance`.
 
 Source basis: [GWAS Catalog API v2](https://www.ebi.ac.uk/gwas/rest/api/v2/docs).

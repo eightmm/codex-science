@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "openfda-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "openfda-evidence",
+      "path": "references/openfda-evidence.md",
+      "purpose": "Classify openFDA records, resolve product identity, report spontaneous-event uncertainty, and check dataset-specific completeness.",
+      "read_when": [
+        "choosing an openFDA endpoint",
+        "interpreting adverse-event counts or regulatory records",
+        "joining product evidence across endpoints",
+        "making safety or regulatory claims"
+      ],
+      "required_before": [
+        "openfda-query",
+        "product-identity-resolution",
+        "safety-claim-classification"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Controls and sanity checks",
+        "## Sensitivity analysis",
+        "## Applicability domain and failure modes"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Supports interpretation of retrieved regulatory and submitted records only; does not establish event causality, incidence, comprehensive absence of risk, or comparative clinical benefit."
+    }
+  ]
+}

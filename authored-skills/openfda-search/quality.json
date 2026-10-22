@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "openfda-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["openfda-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "openFDA record coverage and update timing vary by endpoint and do not provide a complete census of adverse events.",
+    "Spontaneous adverse-event reports do not establish causation or incidence without a suitable denominator and design.",
+    "Product identity and duplicate-event resolution may remain unavailable in returned records."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "clinical-trials-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "clinical-trial-evidence",
+      "path": "references/clinical-trial-evidence.md",
+      "purpose": "Interpret registry status, results, coverage, cohort dependencies, and uncertainty without making clinical claims from registration metadata.",
+      "read_when": [
+        "designing trial registry queries",
+        "interpreting trial counts or retrieval completeness",
+        "comparing trial records, results, or cohorts",
+        "using records in eligibility context"
+      ],
+      "required_before": [
+        "trial-query",
+        "trial-claim-classification",
+        "coverage-claim"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Controls and sanity checks",
+        "## Sensitivity analysis",
+        "## Applicability domain and failure modes"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Supports interpretation of retrieved registry snapshots and query coverage only; does not establish efficacy, safety, comprehensive trial absence, or individual eligibility."
+    }
+  ]
+}

@@ -294,7 +294,7 @@
     {
       "description": "Search ClinicalTrials.gov (API v2) for trials by condition, intervention, status, phase, location, or sponsor; fetch a trial by NCT ID; check eligibility; and count trials. Use for trial discovery, pipeline/portfolio analysis, or patient-matching context. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 98,
       "license": "Apache-2.0",
       "name": "cx-clinical-trials-search",
       "path": "authored-skills/clinical-trials-search",
@@ -666,7 +666,7 @@
     {
       "description": "Resolve traits and discover curated human genetic association evidence with GWAS Catalog REST API v2. Use for trait, locus, variant, ancestry, study, and locus-to-gene research.",
       "executable_count": 0,
-      "instruction_line_count": 27,
+      "instruction_line_count": 96,
       "license": "MIT",
       "name": "cx-gwas-catalog-search",
       "path": "authored-skills/gwas-catalog-search",
@@ -990,7 +990,7 @@
     {
       "description": "Query the openFDA API for drugs, devices, foods, and more: adverse events, recalls, labeling, approvals, shortages, 510(k) clearances, and NDC lookups. Use for FDA safety/regulatory data. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 68,
+      "instruction_line_count": 93,
       "license": "Apache-2.0",
       "name": "cx-openfda-search",
       "path": "authored-skills/openfda-search",

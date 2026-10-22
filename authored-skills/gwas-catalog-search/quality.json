@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "gwas-catalog-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["gwas-association-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Curated lead associations are not a complete substitute for full summary statistics or individual-level data.",
+    "Trait mapping, build harmonization, ancestry representation, and cohort overlap may remain unresolved in returned records.",
+    "A catalog association does not establish causality, mechanism, clinical utility, or exhaustive absence of an association."
+  ]
+}

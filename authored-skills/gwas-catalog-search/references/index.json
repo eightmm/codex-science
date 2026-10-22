@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "gwas-catalog-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "gwas-association-evidence",
+      "path": "references/gwas-association-evidence.md",
+      "purpose": "Interpret curated association records, harmonize variants and traits, track cohort dependencies, and bound ancestry and causal claims.",
+      "read_when": [
+        "resolving traits or querying GWAS Catalog",
+        "harmonizing variants, alleles, builds, or effect estimates",
+        "comparing studies or ancestries",
+        "interpreting association, locus, or replication claims"
+      ],
+      "required_before": [
+        "gwas-query",
+        "variant-harmonization",
+        "association-claim-classification"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Controls and sanity checks",
+        "## Sensitivity analysis",
+        "## Applicability domain and failure modes"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Supports interpretation of retrieved curated association records only; does not establish exhaustive absence, causality, replication independence, gene mechanism, or clinical actionability."
+    }
+  ]
+}

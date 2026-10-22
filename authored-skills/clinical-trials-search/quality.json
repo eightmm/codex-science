@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "clinical-trials-search",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["clinical-trial-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The method reports retrieved registry snapshots and does not adjudicate the accuracy or currency of submitted study information.",
+    "Registry search completeness depends on query wording, filters, pagination, and service availability.",
+    "Registration records cannot determine clinical benefit, safety, or an individual's eligibility."
+  ]
+}
