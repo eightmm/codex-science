@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "rnacentral-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "sequence-annotation-evidence",
+      "path": "references/rnacentral-evidence-semantics.md",
+      "purpose": "URS identity, expert-database provenance, sequence versus annotation evidence, uncertainty, and function-claim limits.",
+      "read_when": ["matching RNA records", "resolving member-database disagreement", "interpreting RNA function"],
+      "required_before": ["sequence-identity-claim", "rna-function-claim"],
+      "evidence_boundary": "Sequence identity and integrated annotations are database evidence; they do not demonstrate biological function or activity."
+    },
+    {
+      "id": "rna-retrieval-release-sensitivity",
+      "path": "references/rnacentral-retrieval-sensitivity.md",
+      "purpose": "RNAcentral retrieval validation, release and member-database pinning, controls, sensitivity, and failure detection.",
+      "read_when": ["retrieving sequence or cross-reference details", "checking accessions", "testing database-selection sensitivity"],
+      "required_before": ["rnacentral-api-retrieval", "member-database-sensitivity"],
+      "evidence_boundary": "Confirms records returned by selected RNAcentral and member-database releases; it does not establish completeness or experimental function."
+    }
+  ]
+}

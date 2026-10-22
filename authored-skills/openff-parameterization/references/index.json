@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "openff-parameterization",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "openff-parameterization-evidence",
+      "path": "references/parameterization-evidence.md",
+      "purpose": "Define assignment and physical-validation claims, dependencies, controls, charge sensitivity, and chemical applicability limits.",
+      "read_when": ["assigning parameters", "making a charge or transferability claim", "interpreting minimization or benchmark evidence"],
+      "required_before": ["step-4-parameter-assignment", "claim-physical-behavior", "claim-transferability"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sanity checks", "## Sensitivity and fragility", "## Applicability domain and failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A reference guides the audit procedure; parameter files and documented checks are evidence, and neither assignment nor a smoke test proves physical accuracy."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "simplefold-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "simplefold-structure-evidence",
+      "path": "references/structure-evidence.md",
+      "purpose": "Define structure, confidence, leakage, ensemble, control, and applicability claims for a pinned SimpleFold run.",
+      "read_when": ["reporting model confidence", "comparing to known structures", "making ensemble or generalization claims"],
+      "required_before": ["step-6-interpretation", "claim-structural-agreement", "claim-generalization"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and checks", "## Sensitivity and fragility", "## Applicability domain and failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "The reference defines interpretation checks; actual run artifacts and valid held-out comparisons provide evidence, and confidence alone is not accuracy validation."
+    }
+  ]
+}

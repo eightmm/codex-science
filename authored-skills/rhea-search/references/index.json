@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "rhea-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "reaction-claim-dependencies",
+      "path": "references/rhea-claim-semantics.md",
+      "purpose": "Reaction claim classes, quartet direction semantics, propagated annotations, uncertainty, and limits.",
+      "read_when": ["identifying a reaction", "interpreting direction", "making enzyme or pathway claims"],
+      "required_before": ["reaction-identity-claim", "enzyme-claim"],
+      "evidence_boundary": "Curated reaction identity and cross-references do not establish organism-specific catalysis, flux, kinetics, or mechanism."
+    },
+    {
+      "id": "reaction-retrieval-controls",
+      "path": "references/rhea-retrieval-validation.md",
+      "purpose": "Rhea retrieval validation, positive/negative controls, release pinning, sensitivity, and failure detection.",
+      "read_when": ["querying Rhea or linked databases", "checking a reaction quartet", "varying database selection"],
+      "required_before": ["rhea-api-retrieval", "reaction-sensitivity-analysis"],
+      "evidence_boundary": "Validates the returned curated database records for a pinned release; it does not turn database curation into experimental evidence."
+    }
+  ]
+}

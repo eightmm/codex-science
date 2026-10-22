@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "pymol-visualize",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["pymol-visualization-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Reproducible scene records do not resolve uncertainty in the underlying structure or establish biological truth.",
+    "Visual controls detect scene and selection errors but do not validate the molecular model."
+  ]
+}

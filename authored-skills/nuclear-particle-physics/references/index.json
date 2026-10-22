@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "nuclear-particle-physics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "nuclear-calculation-evidence",
+      "path": "references/calculation-evidence.md",
+      "purpose": "Define exact, approximate, numerical, and heuristic claims with physics-specific conventions, normalization checks, uncertainty, and limits.",
+      "read_when": ["solving a reaction or decay", "computing cross sections or yields", "interpreting approximation or significance"],
+      "required_before": ["step-5-verification", "claim-cross-section", "claim-approximation-validity"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies, conventions, and independence", "## Controls and sanity checks", "## Applicability domain and failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Procedural checks establish internal consistency only; empirical claims still require traceable measured or evaluated evidence and domain-specific review."
+    }
+  ]
+}

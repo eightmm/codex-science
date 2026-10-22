@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "mgnify-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "profile-claim-interpretation",
+      "path": "references/mgnify-evidence-interpretation.md",
+      "purpose": "Claim classes, source dependence, uncertainty, compositional interpretation, and applicability boundaries for MGnify profiles.",
+      "read_when": ["interpreting taxonomic or functional profiles", "comparing studies", "assigning claim status"],
+      "required_before": ["profile-claim", "cross-study-comparison"],
+      "evidence_boundary": "Defines interpretation of database records and pipeline outputs; it does not establish biological activity, absolute abundance, or causality."
+    },
+    {
+      "id": "retrieval-controls-sensitivity",
+      "path": "references/mgnify-retrieval-sensitivity.md",
+      "purpose": "Accessions, retrieval validation, controls, version pinning, sensitivity checks, and common retrieval failures.",
+      "read_when": ["retrieving sample or analysis detail", "validating search behavior", "testing pipeline or filter sensitivity"],
+      "required_before": ["api-retrieval", "sensitivity-analysis"],
+      "evidence_boundary": "A validated retrieval establishes what the selected MGnify release returned, not completeness of the underlying environment or validity of downstream biological claims."
+    }
+  ]
+}

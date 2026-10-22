@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "pymol-visualize",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "pymol-scene-evidence",
+      "path": "references/pymol-rendering-and-measurement.md",
+      "purpose": "Claim classes, reproducible scene records, structure provenance, visual controls, sensitivity, and limits on measurement and rendering claims.",
+      "read_when": ["rendering a claim-bearing figure", "measuring or comparing structures", "coloring by confidence or B-factor", "interpreting visible contacts"],
+      "required_before": ["rendered-claim", "coordinate-measurement", "structure-comparison"],
+      "search_patterns": ["## Reproducible scene record", "## Sensitivity and visual failure modes", "## Applicability domain and failure detection"],
+      "authority": "method-reference",
+      "version": "1",
+      "evidence_boundary": "Supports reproducible descriptions of rendered scenes and supplied-coordinate measurements; it does not validate a model or establish binding, function, or mechanism."
+    }
+  ]
+}

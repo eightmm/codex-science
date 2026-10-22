@@ -222,7 +222,7 @@
     {
       "description": "Analyze nonlinear dynamical systems, bifurcations, and deterministic chaos. Use for flows and maps, phase portraits, fixed points, limit cycles, Lyapunov exponents, Poincare sections, attractors, continuation, and distinguishing chaos from noise or numerical artifacts.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 34,
       "license": "MIT",
       "name": "cx-chaos-nonlinear-dynamics",
       "path": "authored-skills/chaos-nonlinear-dynamics",
@@ -378,7 +378,7 @@
     {
       "description": "Model dynamical systems, analyze stability, and design or verify feedback controllers. Use for state-space and transfer-function models, controllability, observability, PID, state feedback, estimation, optimal control, robustness, discretization, and nonlinear control.",
       "executable_count": 0,
-      "instruction_line_count": 49,
+      "instruction_line_count": 34,
       "license": "MIT",
       "name": "cx-control-dynamical-systems",
       "path": "authored-skills/control-dynamical-systems",
@@ -834,7 +834,7 @@
     {
       "description": "Discover public microbiome and metagenomics studies through MGnify. Use for biome, sample, assembly, taxonomic, functional, or public microbiome dataset questions; not for unadjusted cross-study abundance comparisons.",
       "executable_count": 0,
-      "instruction_line_count": 30,
+      "instruction_line_count": 40,
       "license": "MIT",
       "name": "cx-mgnify-search",
       "path": "authored-skills/mgnify-search",
@@ -858,7 +858,7 @@
     {
       "description": "Prepare receptors and small molecules for docking or simulation with explicit stereochemistry, protonation, tautomer, charge, conformer, cofactor, water, and pocket provenance. Use before AutoDock Vina, GNINA, DiffDock, OpenMM, GROMACS, or any protein-ligand modeling run.",
       "executable_count": 0,
-      "instruction_line_count": 30,
+      "instruction_line_count": 38,
       "license": "MIT",
       "name": "cx-molecular-input-preparation",
       "path": "authored-skills/molecular-input-preparation",
@@ -930,7 +930,7 @@
     {
       "description": "Formulate and verify nuclear and particle physics calculations. Use for reactions, decays, relativistic kinematics, conservation laws, cross sections, lifetimes, quantum numbers, detector yields, backgrounds, and statistical significance.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 39,
       "license": "MIT",
       "name": "cx-nuclear-particle-physics",
       "path": "authored-skills/nuclear-particle-physics",
@@ -1002,7 +1002,7 @@
     {
       "description": "Parameterize drug-like small molecules for molecular simulation with pinned OpenFF Toolkit/force fields and explicit charge, stereochemistry, and coverage checks. Use before OpenMM or GROMACS when ligands or nonstandard organic molecules need parameters.",
       "executable_count": 0,
-      "instruction_line_count": 28,
+      "instruction_line_count": 33,
       "license": "MIT",
       "name": "cx-openff-parameterization",
       "path": "authored-skills/openff-parameterization",
@@ -1062,7 +1062,7 @@
     {
       "description": "Formulate, solve, and verify finite-dimensional optimization and calculus-of-variations problems. Use for convex programs, constrained extrema, KKT systems, duality, optimal control, Euler-Lagrange equations, and numerical optimization.",
       "executable_count": 0,
-      "instruction_line_count": 50,
+      "instruction_line_count": 34,
       "license": "MIT",
       "name": "cx-optimization-variational-methods",
       "path": "authored-skills/optimization-variational-methods",
@@ -1098,7 +1098,7 @@
     {
       "description": "Profile noncovalent protein-ligand interactions with a pinned PLIP release and compare interaction fingerprints across experimental structures, docking poses, or trajectory representatives. Use after structure preparation or pose generation.",
       "executable_count": 0,
-      "instruction_line_count": 28,
+      "instruction_line_count": 38,
       "license": "MIT",
       "name": "cx-plip-interaction-analysis",
       "path": "authored-skills/plip-interaction-analysis",
@@ -1254,7 +1254,7 @@
     {
       "description": "Visualize, analyze, and render protein/molecular structures with PyMOL: images, structural alignment/superposition, distance/contact measurement, binding-site highlighting, and coloring by B-factor/pLDDT. Not for docking, MD, or sequence-only analysis. Local tool.",
       "executable_count": 0,
-      "instruction_line_count": 37,
+      "instruction_line_count": 40,
       "license": "Apache-2.0",
       "name": "cx-pymol-visualize",
       "path": "authored-skills/pymol-visualize",
@@ -1364,7 +1364,7 @@
     {
       "description": "Search curated biochemical reactions and participants through Rhea. Use for enzyme, pathway, metabolite, reaction-direction, or mechanism context.",
       "executable_count": 0,
-      "instruction_line_count": 62,
+      "instruction_line_count": 53,
       "license": "MIT",
       "name": "cx-rhea-search",
       "path": "authored-skills/rhea-search",
@@ -1376,7 +1376,7 @@
     {
       "description": "Resolve non-coding RNA identifiers, sequences, types, and cross-references through RNAcentral. Use for RNA annotation, accession normalization, ncRNA, or sequence-context research; not as experimental function validation.",
       "executable_count": 0,
-      "instruction_line_count": 30,
+      "instruction_line_count": 40,
       "license": "MIT",
       "name": "cx-rnacentral-search",
       "path": "authored-skills/rnacentral-search",
@@ -1424,7 +1424,7 @@
     {
       "description": "Run Apple's released SimpleFold flow-matching protein structure models with PyTorch or MLX. Use for single-protein folding, conformer ensembles, or Apple-silicon inference when model-size and model-license constraints are acceptable.",
       "executable_count": 0,
-      "instruction_line_count": 34,
+      "instruction_line_count": 37,
       "license": "MIT",
       "name": "cx-simplefold-structure-prediction",
       "path": "authored-skills/simplefold-structure-prediction",

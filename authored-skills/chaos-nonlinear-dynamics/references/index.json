@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "chaos-nonlinear-dynamics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "nonlinear-dynamics-evidence-method",
+      "path": "references/nonlinear-dynamics-evidence.md",
+      "purpose": "Claim classes, numerical dependence, chaos diagnostics, controls, sensitivity, and applicability limits for nonlinear dynamics.",
+      "read_when": ["classifying fixed-point stability or a bifurcation", "estimating Lyapunov exponents, Poincare sections, or attractor dimension", "distinguishing chaos from numerical error or noise"],
+      "required_before": ["fixed-point-stability", "bifurcation-type", "chaos-claim"],
+      "evidence_boundary": "Defines interpretation and numerical checks; it is not evidence that a particular system has the claimed dynamics."
+    }
+  ]
+}

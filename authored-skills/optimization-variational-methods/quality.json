@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "optimization-variational-methods",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["optimization-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No general executable certificate is provided for feasibility, global optimality, or variational minima.",
+    "KKT, curvature, and Euler-Lagrange conclusions depend on problem-specific regularity and qualification assumptions.",
+    "Numerical optimization evidence remains conditional on the discretization, solver, tolerances, and initialization."
+  ]
+}

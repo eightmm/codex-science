@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "rhea-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["rhea-reaction-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Rhea and linked annotations establish curated reaction knowledge, not in vivo enzyme activity or flux.",
+    "Cross-database records may share curation and propagation paths, so source agreement is not automatically independent.",
+    "Organism, compartment, and condition applicability require evidence beyond a reaction equation."
+  ]
+}

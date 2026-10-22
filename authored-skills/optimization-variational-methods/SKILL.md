@@ -7,42 +7,26 @@ license: MIT
 # Optimization and Variational Methods
 
 ## Decision contract
-State variables or admissible functions, objective, domain, constraints, units, and whether a local or global optimum is sought. State feasibility and existence assumptions before selecting an optimization method.
+State variables or admissible functions, objective, domain, constraints, units, and whether a local or global optimum is sought. State feasibility and existence assumptions before selecting an optimization method. Solver termination is evidence about an algorithm run, not proof of optimality.
+
+## Reference usage
+Read [references/optimization-evidence.md](references/optimization-evidence.md) before using KKT conditions, making a global-optimum claim, or deriving Euler-Lagrange equations and second variations. It defines regularity, conditioning, and numerical verification requirements.
 
 ## Workflow
-1. **Formulate the problem.**
-   Write the objective, variables or admissible functions, domain, equality and inequality constraints,
-   boundary conditions, regularity class, units, and whether the task seeks a local or global optimum. Remove
-   arbitrary scale or gauge freedom. Check feasibility and existence before choosing an algorithm.
-
-2. **Select a route.**
-   - For smooth unconstrained problems, derive first- and second-order conditions and inspect curvature.
-   - For convex problems, state the convexity argument and a constraint qualification before using KKT sufficiency.
-   - For constrained nonconvex problems, use KKT as necessary conditions and compare multiple feasible starts.
-   - For functionals, derive the first variation, natural boundary terms, and Euler-Lagrange equations.
-   - Use a dual formulation when it supplies a bound, decomposition, or numerical advantage.
-
-3. **Solve.**
-   Scale variables and residuals, choose tolerances tied to the scientific question, and retain iteration history.
-   For discretized functionals, distinguish discretization error from optimizer termination. Do not infer a global
-   optimum from a single local solver run unless a theorem or valid bound supports it.
-
-4. **Verify.**
-   - Check feasibility, stationarity, complementary slackness, and primal-dual gap where applicable.
-   - Compare analytic derivatives with finite differences or automatic differentiation at test points.
-   - Test perturbations around the candidate and verify second-order or convexity conditions.
-   - Refine discretization and solver tolerances independently; inspect sensitivity to initialization and scaling.
-   - Substitute the result into the original objective and constraints, not only transformed equations.
-
-5. **Deliver.**
-   Report formulation, existence or convexity conditions, solver and initialization, residuals, bounds, sensitivity,
-   and whether the conclusion is local, global, or heuristic.
+1. Write the objective, variables or admissible functions, domain, equality/inequality constraints, boundary conditions, regularity class, units, and local/global target; record normalized formulation and claim.
+2. Check feasibility and existence conditions before solving; record constraint qualification candidates and any assumptions not established.
+3. Assess convexity or curvature, remove arbitrary scale or gauge freedom, and scale variables and residuals; for smooth unconstrained problems derive first- and second-order conditions, and for nonconvex constrained problems treat KKT as necessary only unless stronger assumptions or bounds apply, recording the argument.
+4. For constrained problems, verify the applicable constraint qualification and KKT residuals; for functionals derive the first variation, boundary terms, and Euler-Lagrange equations, recording each condition.
+5. Select and run a solver with tolerances tied to the scientific question, scaling, starts, discretization, and stopping rule; consider a dual formulation when it supplies a bound, decomposition, or numerical advantage. Use multiple feasible starts for nonconvex problems and preserve iteration histories and failures.
+6. Verify gradients by finite differences at representative points, feasibility, stationarity, complementarity, duality gap or valid bound where applicable; perturb candidates to inspect local curvature, and for functionals check boundary conditions and second variation.
+7. Vary starts, scaling, finite-difference step, solver tolerance, mesh/resolution, and model parameters; report changes that affect feasibility, candidate value, or local/global classification.
+8. Assign claims supported, contradicted, inconclusive, or unavailable; report uncertainty, applicability domain, local/global/heuristic status, and smallest falsifiable next action; verify artifacts and hand off with `$science-provenance` and `$science-review`.
 
 ## Outputs
-Return normalized inputs and assumptions; a machine-readable evidence or execution table; claim IDs marked supported, contradicted, inconclusive, or unavailable; uncertainty and limitations; and the smallest falsifiable next action. Record commands or derivations and artifact paths and hashes with `$science-provenance`; preserve failures and nulls. Run `$science-review` before material or consequential scientific conclusions.
+Return `optimization-evidence-v1` with required fields: claim identifier (`claim_id`), claim class (`claim_class`), status (`status`: supported, contradicted, inconclusive, or unavailable), problem formulation (`formulation`), feasibility and existence assessment (`feasibility_and_existence`), convexity or curvature assessment (`convexity_or_curvature`), constraint qualification (`constraint_qualification`), solver and initialization (`solver_and_initialization`), optimality residuals or bounds (`optimality_residuals_or_bounds`), uncertainty (`uncertainty`), sensitivity results (`sensitivity`), applicability domain (`applicability_domain`), and evidence artifact paths and hashes (`evidence_artifacts`). Include normalized inputs and assumptions, commands or derivations, preserved failures and nulls, and the smallest falsifiable next action. Run `$science-review` before material or consequential scientific conclusions.
 
 ## Boundaries
-A local solver result is not a global optimum absent a theorem or valid bound; optimizer termination does not establish discretization accuracy. Stop global claims when feasibility, existence, or constraint qualification is unsupported.
+A local solver result is not a global optimum absent a theorem or valid bound; optimizer termination does not establish discretization accuracy. Stop global claims when feasibility, existence, or constraint qualification is unsupported. A discretized Euler-Lagrange solution inherits approximation and boundary-condition error and does not alone establish a minimizer.
 
 ## Source basis
 

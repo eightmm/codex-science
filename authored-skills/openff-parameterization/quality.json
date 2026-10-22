@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "openff-parameterization",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["openff-parameterization-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "This workflow specifies evidence checks but does not execute parameter assignment or validate a force field against an experimental series.",
+    "Force-field applicability and benchmark evidence depend on the exact molecular domain and pinned release.",
+    "Charge and conformer sensitivity may not capture all sampling or model discrepancy."
+  ]
+}

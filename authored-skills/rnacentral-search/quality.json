@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "rnacentral-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["rnacentral-identity-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "An RNAcentral URS identifies a sequence record and does not by itself establish organism-specific function.",
+    "Expert-database accessions and annotations may be incomplete, versioned, or disagree across contributing resources.",
+    "Sequence similarity supports sequence-level comparisons only and cannot substitute for functional experiments."
+  ]
+}

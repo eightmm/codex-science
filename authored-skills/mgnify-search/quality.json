@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "mgnify-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["mgnify-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow interprets reported database records and pipeline outputs; it does not validate underlying sample measurements.",
+    "Cross-study comparison remains limited when metadata, assay, pipeline, or reference database versions cannot be harmonized.",
+    "The skill does not estimate absolute microbial load without a compatible independent measurement."
+  ]
+}

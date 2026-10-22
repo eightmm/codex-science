@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "plip-interaction-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "plip-geometric-evidence",
+      "path": "references/plip-geometry-and-evidence.md",
+      "purpose": "Interaction type semantics, coordinate dependencies, controls, sensitivity, uncertainty, and limits on binding interpretation.",
+      "read_when": ["running PLIP", "comparing interaction fingerprints", "estimating trajectory occupancy", "interpreting interaction types or geometry"],
+      "required_before": ["plip-run", "fingerprint-comparison", "occupancy-claim"],
+      "search_patterns": ["## Interaction typing and geometric rules", "## Sensitivity and fragility", "## Applicability domain and failure detection"],
+      "authority": "method-reference",
+      "version": "1",
+      "evidence_boundary": "Defines coordinate-based interaction annotation and its sensitivity; it does not establish binding, affinity, energetic importance, or mechanism."
+    }
+  ]
+}

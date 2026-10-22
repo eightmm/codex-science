@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "control-dynamical-systems",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["control-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Numerical rank and margin results depend on representation, scaling, and tolerances.",
+    "Simulation does not establish hardware safety or behavior outside the tested model and uncertainty set.",
+    "This skill does not provide executable certification for stability or robust-control guarantees."
+  ]
+}

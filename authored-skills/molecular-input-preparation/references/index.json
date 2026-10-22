@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "molecular-input-preparation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "molecular-state-provenance",
+      "path": "references/molecular-state-and-provenance.md",
+      "purpose": "Chemical state semantics, source dependencies, atom mapping and hashes, preparation controls, sensitivity, and downstream evidence limits.",
+      "read_when": ["changing molecular states", "repairing or converting receptor or ligand files", "assigning charges", "handing prepared files to docking or simulation"],
+      "required_before": ["state-enumeration", "structure-transformation", "downstream-handoff"],
+      "search_patterns": ["## Source and molecular state dependencies", "## Controls and sensitivity", "## Applicability domain and common failures"],
+      "authority": "method-reference",
+      "version": "1",
+      "evidence_boundary": "Verifies recorded input identity and preparation checks only; it does not establish a biologically correct state, binding, affinity, pose correctness, or mechanism."
+    }
+  ]
+}

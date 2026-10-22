@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "simplefold-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["simplefold-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "This procedure does not execute SimpleFold or independently validate the current code, weights, or license terms.",
+    "Training data and homolog overlap may be undocumented, limiting leakage and generalization claims.",
+    "Flow-matching sample diversity does not by itself measure thermodynamic populations or calibrated prediction uncertainty."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "chaos-nonlinear-dynamics",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["dynamics-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Finite numerical diagnostics do not prove asymptotic or global properties.",
+    "Data-based chaos claims depend on sampling, noise, stationarity, and estimator assumptions.",
+    "This skill specifies evidence interpretation but provides no domain-specific executable validator."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "plip-interaction-analysis",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["plip-interaction-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "PLIP reports rule-based contacts in supplied coordinates and does not estimate binding free energy or affinity.",
+    "Alternate chemical states and coordinate models can change assignments; this workflow requires explicit sensitivity reporting but does not choose a biologically correct state automatically."
+  ]
+}

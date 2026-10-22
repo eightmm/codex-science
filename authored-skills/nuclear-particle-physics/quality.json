@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "nuclear-particle-physics",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["nuclear-physics-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "This skill is a method-selection and verification procedure, not a substitute for a specialist calculation or current evaluated nuclear data.",
+    "Applicable conservation rules and approximations depend on the stated system, interaction, energy, and observable.",
+    "Significance and detector acceptance require experiment-specific inputs and analysis criteria."
+  ]
+}

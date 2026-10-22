@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "optimization-variational-methods",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "optimization-variational-evidence",
+      "path": "references/optimization-evidence.md",
+      "purpose": "Claim criteria for KKT, local/global optimality, variational stationarity, numerical verification, controls, and limits.",
+      "read_when": ["interpreting KKT conditions or optimality claims", "deriving Euler-Lagrange equations or second variations", "verifying numerical optimization and discretization"],
+      "required_before": ["kkt-claim", "global-optimum-claim", "variational-stationarity"],
+      "evidence_boundary": "Provides applicable mathematical criteria; it does not establish that a particular candidate is feasible or optimal."
+    }
+  ]
+}

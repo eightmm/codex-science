@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "molecular-input-preparation",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["molecular-preparation-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Preparation records do not identify the biologically occupied protonation, tautomeric, or conformational state without independent evidence.",
+    "A redundant tool run may share force fields, dictionaries, or assumptions and therefore does not guarantee independent validation.",
+    "Successful conversion and format validation do not establish suitability or predictive validity for a downstream method."
+  ]
+}

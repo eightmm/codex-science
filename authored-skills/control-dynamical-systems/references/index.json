@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "control-dynamical-systems",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "control-analysis-evidence",
+      "path": "references/control-evidence.md",
+      "purpose": "Interpret rank, stability, margin, robustness, discretization, and simulation evidence under model uncertainty.",
+      "read_when": ["evaluating controllability or observability", "making stability or robustness claims", "translating a continuous design to a sampled implementation"],
+      "required_before": ["rank-test", "stability-claim", "robustness-claim"],
+      "evidence_boundary": "Provides method criteria and failure checks; model-based analysis is not hardware validation or deployment authorization."
+    }
+  ]
+}
