@@ -12,9 +12,10 @@ import stat
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Iterator
 
+from codex_science.cli_io import write_text_atomic
 from codex_science.runtime_identity import record_runtime_identity, validate_runtime_history
 
 
@@ -1507,6 +1508,7 @@ def record_review(
     )
     if verdict == "passed" and unresolved_blocking:
         raise ValueError("passed review artifact cannot retain unresolved critical or major findings")
+    manifest, registration = _prepare_review_manifest(Path(run_dir), path, receipt)
     checkpoint["review_receipt"] = {
         "reviewer": _nonempty(reviewer, "reviewer"),
         "verdict": verdict,
@@ -1521,7 +1523,89 @@ def record_review(
                       "receipt_ref": artifact_ref, "receipt_sha256": _artifact_sha256(path)})
     _reset_idle_continuations(checkpoint)
     _touch(checkpoint)
-    return _write_checkpoint(Path(run_dir), checkpoint)
+    result = _write_checkpoint(Path(run_dir), checkpoint)
+    if manifest is not None:
+        try:
+            write_text_atomic(
+                Path(run_dir) / "manifest.json",
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            )
+        except OSError as error:
+            registration = {
+                "status": "failed",
+                "reason": str(error),
+                "checkpoint_recorded": True,
+            }
+    result["manifest_registration"] = registration
+    return result
+
+
+def _prepare_review_manifest(
+    run_dir: Path, receipt_path: Path, receipt: dict[str, Any]
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    from codex_science.artifacts import validate_manifest
+    from codex_science.review_receipts import validate_review_receipt
+
+    if receipt.get("status") != "passed":
+        return None, {"status": "skipped", "reason": "receipt verdict is not passed"}
+    manifest_path = run_dir / "manifest.json"
+    if not manifest_path.exists():
+        return None, {"status": "skipped", "reason": "manifest.json is missing"}
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        return None, {"status": "skipped", "reason": "manifest.json is not a regular file"}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeError, OSError):
+        return None, {"status": "skipped", "reason": "manifest.json is malformed or unreadable"}
+    if not isinstance(manifest, dict):
+        return None, {"status": "skipped", "reason": "manifest.json is not an object"}
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        return None, {"status": "skipped", "reason": "manifest artifacts is not a list"}
+
+    relative = receipt_path.relative_to(run_dir.resolve()).as_posix()
+    kind = (
+        "review-receipt-v2"
+        if receipt.get("schema_version") == 1 and isinstance(receipt.get("review_id"), str)
+        else "review-receipt"
+    )
+    if kind == "review-receipt-v2":
+        try:
+            validate_review_receipt(receipt)
+        except ValueError as error:
+            return None, {"status": "skipped", "reason": f"invalid review receipt: {error}"}
+    digest = _artifact_sha256(receipt_path)
+    normalized_relative = _normalized_manifest_artifact_path(relative)
+    previous_index = next((
+        index
+        for index, item in enumerate(artifacts)
+        if isinstance(item, dict)
+        and _normalized_manifest_artifact_path(item.get("path")) == normalized_relative
+    ), None)
+    record = {"path": relative, "kind": kind, "sha256": digest}
+    if previous_index is None:
+        artifacts.append(record)
+        status = "registered"
+    else:
+        previous = artifacts[previous_index]
+        if "size_bytes" in previous:
+            record["size_bytes"] = receipt_path.stat().st_size
+        artifacts[previous_index] = record
+        status = "updated"
+    try:
+        record_runtime_identity(manifest)
+        validate_manifest(manifest)
+    except ValueError as error:
+        return None, {"status": "skipped", "reason": str(error)}
+    return manifest, {"status": status, "path": relative, "kind": kind}
+
+
+def _normalized_manifest_artifact_path(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    while value.startswith("./"):
+        value = value[2:]
+    return PurePosixPath(value).as_posix()
 
 
 def _check_local_completion(checkpoint: dict[str, Any]) -> None:

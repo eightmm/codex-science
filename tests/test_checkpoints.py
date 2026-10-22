@@ -1,3 +1,6 @@
+import hashlib
+import contextlib
+import io
 import json
 import os
 import stat
@@ -24,7 +27,8 @@ from codex_science.checkpoints import (
     resume_checkpoint,
     verify_criterion,
 )
-from codex_science.artifacts import new_manifest
+from codex_science.artifacts import new_manifest, validate_bundle
+from codex_science.review_receipts import build_review_receipt
 
 
 class CheckpointTests(unittest.TestCase):
@@ -83,6 +87,153 @@ class CheckpointTests(unittest.TestCase):
         result = record_review(self.run_dir, artifact_ref="review.json")
 
         self.assertEqual("passed", result["review_receipt"]["verdict"])
+
+    def test_record_review_registers_and_updates_manifest_receipt(self) -> None:
+        self.create()
+        receipt = self.run_dir / "review.json"
+        failed_receipt = self.run_dir / "failed-review.json"
+        evidence = self.run_dir / "verification.json"
+        evidence.write_text("{}", encoding="utf-8")
+        failed_receipt.write_text(
+            '{"status":"failed","reviewer":"reviewer","independent":true,"findings":[]}',
+            encoding="utf-8",
+        )
+        receipt.write_text(
+            json.dumps(build_review_receipt(
+                review_id="review-1", reviewer="reviewer", independent=True,
+                review_modes=["record"], status="passed",
+                covered_artifacts=[{
+                    "path": "verification.json",
+                    "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest(),
+                }],
+                covered_claim_ids=[], findings=[], limitations=["fixture"],
+            )),
+            encoding="utf-8",
+        )
+        manifest = new_manifest("run-001", "Question", [])
+        manifest["custom"] = {"kept": True}
+        manifest_path = self.run_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        unchanged_manifest = manifest_path.read_bytes()
+        failed = record_review(self.run_dir, artifact_ref="failed-review.json")
+        self.assertEqual(
+            {"status": "skipped", "reason": "receipt verdict is not passed"},
+            failed["manifest_registration"],
+        )
+        self.assertEqual(unchanged_manifest, manifest_path.read_bytes())
+        self.assertEqual("failed", load_checkpoint(self.run_dir)["review_receipt"]["verdict"])
+
+        result = record_review(self.run_dir, artifact_ref="review.json")
+        first = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual({"status": "registered", "path": "review.json", "kind": "review-receipt-v2"}, result["manifest_registration"])
+        self.assertEqual(["review.json"], [item["path"] for item in first["artifacts"]])
+        self.assertEqual(hashlib.sha256(receipt.read_bytes()).hexdigest(), first["artifacts"][0]["sha256"])
+
+        first["artifacts"][0]["path"] = "./review.json"
+        manifest_path.write_text(json.dumps(first, indent=2) + "\n", encoding="utf-8")
+        result = record_review(self.run_dir, artifact_ref="review.json")
+        normalized = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual("updated", result["manifest_registration"]["status"])
+        self.assertEqual(["review.json"], [item["path"] for item in normalized["artifacts"]])
+        first = normalized
+        original_order = list(first)
+        first["artifacts"][0].update({
+            "size_bytes": receipt.stat().st_size,
+            "entry_count": 1,
+            "artifact_type": "file",
+            "descriptor_path": "stale-descriptor.json",
+            "media_type": "application/json",
+            "stale_metadata": "remove-me",
+        })
+        manifest_path.write_text(json.dumps(first, indent=2) + "\n", encoding="utf-8")
+        receipt.write_text(
+            json.dumps(build_review_receipt(
+                review_id="review-2", reviewer="reviewer", independent=True,
+                review_modes=["record"], status="passed",
+                covered_artifacts=[{
+                    "path": "verification.json",
+                    "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest(),
+                }],
+                covered_claim_ids=[], findings=[], limitations=["updated fixture receipt"],
+            )),
+            encoding="utf-8",
+        )
+
+        result = record_review(self.run_dir, artifact_ref="review.json")
+        second = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual("updated", result["manifest_registration"]["status"])
+        self.assertEqual(["review.json"], [item["path"] for item in second["artifacts"]])
+        self.assertEqual(sorted(original_order), list(second))
+        self.assertEqual({"kept": True}, second["custom"])
+        self.assertEqual(receipt.stat().st_size, second["artifacts"][0]["size_bytes"])
+        self.assertEqual({"path", "kind", "sha256", "size_bytes"}, set(second["artifacts"][0]))
+        validate_bundle(second, self.run_dir)
+
+    def test_manifest_write_failure_is_reported_after_checkpoint_recording(self) -> None:
+        self.create()
+        (self.run_dir / "review.json").write_text(
+            '{"status":"passed","reviewer":"reviewer","independent":true,"findings":[]}',
+            encoding="utf-8",
+        )
+        manifest_path = self.run_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(new_manifest("run-001", "Question", [])), encoding="utf-8")
+        import scripts.science_checkpoint as science_checkpoint_cli
+        output = io.StringIO()
+        error_output = io.StringIO()
+        with mock.patch("sys.argv", ["science_checkpoint.py", "review", str(self.run_dir), "--artifact-ref", "review.json"]), \
+                mock.patch("codex_science.checkpoints.write_text_atomic", side_effect=OSError("disk full")), \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(error_output):
+            exit_code = science_checkpoint_cli.main()
+        self.assertEqual(0, exit_code)
+        self.assertEqual("passed", load_checkpoint(self.run_dir)["review_receipt"]["verdict"])
+        result = json.loads(output.getvalue())
+        self.assertEqual(
+            {"status": "failed", "reason": "disk full", "checkpoint_recorded": True},
+            result["manifest_registration"],
+        )
+        self.assertEqual(
+            "warning: review recorded; manifest registration failed: disk full\n",
+            error_output.getvalue(),
+        )
+
+    def test_record_review_skips_missing_or_malformed_manifest(self) -> None:
+        cases = [
+            (None, "manifest.json is missing"),
+            (b"{", "manifest.json is malformed or unreadable"),
+            (b"[]", "manifest.json is not an object"),
+            (b'{"artifacts": {}}', "manifest artifacts is not a list"),
+        ]
+        for index, (manifest_bytes, expected) in enumerate(cases):
+            with self.subTest(manifest=manifest_bytes):
+                self.run_dir = Path(self.tempdir.name) / "artifacts" / f"run-{index}"
+                self.session_key = f"{index + 1:064x}"
+                self.create()
+                (self.run_dir / "review.json").write_text(
+                    '{"status":"passed","reviewer":"reviewer","independent":true,"findings":[]}',
+                    encoding="utf-8",
+                )
+                manifest_path = self.run_dir / "manifest.json"
+                if manifest_bytes is not None:
+                    manifest_path.write_bytes(manifest_bytes)
+                result = record_review(self.run_dir, artifact_ref="review.json")
+                self.assertEqual("skipped", result["manifest_registration"]["status"])
+                self.assertEqual(expected, result["manifest_registration"]["reason"])
+                self.assertEqual("passed", load_checkpoint(self.run_dir)["review_receipt"]["verdict"])
+
+        self.run_dir = Path(self.tempdir.name) / "artifacts" / "run-invalid-schema"
+        self.session_key = "f" * 64
+        self.create()
+        (self.run_dir / "review.json").write_text(
+            '{"status":"passed","reviewer":"reviewer","independent":true,"findings":[]}',
+            encoding="utf-8",
+        )
+        manifest_path = self.run_dir / "manifest.json"
+        manifest_path.write_text('{"artifacts": []}', encoding="utf-8")
+        result = record_review(self.run_dir, artifact_ref="review.json")
+        self.assertEqual("skipped", result["manifest_registration"]["status"])
+        self.assertTrue(result["manifest_registration"]["reason"].startswith("Missing manifest fields:"))
+        self.assertEqual("passed", load_checkpoint(self.run_dir)["review_receipt"]["verdict"])
 
     def test_passed_review_rejects_unresolved_major_finding(self) -> None:
         self._assert_passed_review_findings_rejected([{"severity": "major"}])

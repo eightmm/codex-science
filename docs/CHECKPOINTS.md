@@ -6,6 +6,9 @@ contains the goal, plan state, next action, evidence references, review receipt,
 and loop counters—not prompts, credentials, private inputs, or scientific
 conclusions.
 
+Recording a review also registers its receipt and hash in `manifest.json` when that manifest has a valid artifact list.
+Failed review receipts are not registered in the manifest.
+
 `<plugin-root>` below means the absolute activation-pinned runtime root injected
 by the hook, never a moving checkout path.
 

@@ -275,6 +275,10 @@ def main() -> int:
             result = confirm_goal_complete(args.run_dir, receipt_ref=args.receipt_ref)
     except (FileExistsError, FileNotFoundError, RuntimeError, ValueError, OSError, TimeoutError, json.JSONDecodeError) as error:
         parser.error(str(error))
+    registration = result.get("manifest_registration") if isinstance(result, dict) else None
+    if args.command == "review" and isinstance(registration, dict) and registration.get("status") == "failed":
+        reason = str(registration.get("reason", "unknown error")).replace("\r", " ").replace("\n", " ")
+        print(f"warning: review recorded; manifest registration failed: {reason}", file=sys.stderr)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

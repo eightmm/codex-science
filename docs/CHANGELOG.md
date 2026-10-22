@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Checkpoint review recording now registers or refreshes the receipt in the run manifest.
 - `advance` now reports advisory deterministic manifest findings after saving
   the checkpoint, without blocking progress or replacing independent review.
 - Citation resolution now compares resolved metadata with run study-table records and reports advisory mismatches.
