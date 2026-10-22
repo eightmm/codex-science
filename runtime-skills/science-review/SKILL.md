@@ -34,7 +34,7 @@ A review may combine modes, but never imply a computation was reproduced when on
 
 ## Review workflow
 
-1. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py" <manifest> --review-output <run-dir>/review.json --require-passed-review` for deterministic artifact-byte, sidecar-schema, and record/source checks. Do not use this flag for the producer's first diagnostic pass when unresolved findings are expected.
+1. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py" <manifest> --review-output <run-dir>/deterministic-review.json --require-passed-review` for deterministic artifact-byte, sidecar-schema, and record/source checks, writing to a separate, unreviewed path. Never point `--review-output` at the independent review receipt or any reviewed artifact. Do not use this flag for the producer's first diagnostic pass when unresolved findings are expected.
 2. Build a claim register from the deliverable and manifest. For each material claim, record type, inference level, supporting and contradicting evidence, dependencies, uncertainty, and required review mode.
 3. Verify execution integrity: successful command and exit status, input and output hashes, code and configuration identity, environment and model revision, seed handling, log consistency, and agreement between reported values and saved outputs.
 4. Verify retrieval integrity: exact query or request, source and release, access date, identifier normalization, inclusion and exclusion decisions, snapshot or response identity, source-dependency links, and whether duplicated portals expose the same underlying study.

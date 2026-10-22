@@ -122,6 +122,11 @@ class NativeSkillQualityTests(unittest.TestCase):
             "## Completion test",
             "lane receipt",
             "weakest essential evidence link",
+            "Set every finished manifest `plan` step to `completed`",
+            "only for runs using `$cx-literature-review` or carrying a `study-table` sidecar",
+            "--review-output <run-dir>/deterministic-review.json",
+            "separate, unreviewed",
+            "never point `--review-output` at the independent review receipt or any reviewed artifact",
         ):
             self.assertIn(phrase, coordinator)
 
@@ -147,6 +152,9 @@ class NativeSkillQualityTests(unittest.TestCase):
             "audit_sbdd_benchmark.py",
             "model-receipt",
             "re-review",
+            "--review-output <run-dir>/deterministic-review.json",
+            "separate, unreviewed",
+            "never point `--review-output` at the independent review receipt or any reviewed artifact",
         ):
             self.assertIn(phrase, review_lower)
 
