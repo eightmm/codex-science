@@ -61,6 +61,18 @@
   The skills now run deterministic review before preparing the independent
   reviewer packet; its effect on full-tier completion is not yet measured. These six runs are small-
   sample evidence about these tasks only.
+  In run5 (2026-10-22), both full tasks used runtime
+  `0.5.0+codex.20261022090000` (deterministic-review-first ordering, without
+  schema guidance `d6417c0` or incremental-write guidance) and the branch-marketplace
+  selector because hooks were disabled; 0/2 completed within 1800 s:
+  full-microbiome reached reviewer-packet preparation at 1718 s, failing only
+  citation, complete-checkpoint, and review-receipt criteria, while
+  full-protein-folding produced no manifest. Protein-folding had two roughly
+  600 s silent gaps ending in `Reconnecting... N/5 (stream disconnected before completion: idle timeout waiting for websocket)` (about 900 s lost), and microbiome had a 554 s gap ending in one 37.8 KB generated command;
+  three of four full-tier runs across run4/run5 showed stalls. Reports now
+  include diagnostic `stream_reconnects`, `max_idle_gap_seconds`,
+  `idle_gap_seconds_over_300`, and `stall_affected_timeouts` without changing
+  outcomes; n=2 says nothing about the ordering change, and stalls dominate.
 
 ## Completed in 0.3.0
 
