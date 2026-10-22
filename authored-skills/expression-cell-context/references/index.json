@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "expression-cell-context",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "expression-context-method",
+      "path": "references/expression-context-method.md",
+      "purpose": "Claim semantics, assay dependencies, uncertainty, controls, sensitivity, applicability, and failure detection for expression evidence.",
+      "read_when": [
+        "classifying baseline, differential, eQTL, protein-localization, or cell-state claims",
+        "comparing measurements across assays or expression portals",
+        "interpreting sparse, discordant, or disease-context expression evidence"
+      ],
+      "required_before": [
+        "cross-assay-comparison",
+        "expression-absence-claim"
+      ],
+      "evidence_boundary": "Calibrates expression-context claims from recorded assays; does not establish function, causality, target engagement, or clinical actionability."
+    }
+  ]
+}

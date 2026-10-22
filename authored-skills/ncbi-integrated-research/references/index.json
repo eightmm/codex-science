@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "ncbi-integrated-research",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ncbi-evidence-method",
+      "path": "references/ncbi-evidence-method.md",
+      "purpose": "Claim semantics, NCBI record dependencies, uncertainty, retrieval controls, sensitivity, applicability, and failure detection.",
+      "read_when": [
+        "choosing NCBI record lanes for a research question",
+        "reconciling Gene, publication, sequence, variation, or GEO-linked records",
+        "making positive, negative, or clinical-adjacent claims from NCBI records"
+      ],
+      "required_before": [
+        "cross-database-synthesis",
+        "claim-registration"
+      ],
+      "evidence_boundary": "Organizes traceable NCBI evidence and retrieval; database linkage and summaries do not establish independence, clinical validity, or actionability."
+    }
+  ]
+}

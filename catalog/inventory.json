@@ -558,7 +558,7 @@
     {
       "description": "Reconcile gene expression across GTEx, Human Protein Atlas, Bgee, cell atlases, and disease datasets. Use for tissue, cell-type, developmental, baseline-versus-disease, or target-expression questions.",
       "executable_count": 0,
-      "instruction_line_count": 22,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-expression-cell-context",
       "path": "authored-skills/expression-cell-context",
@@ -822,7 +822,7 @@
     {
       "description": "Integrate public metabolite, reaction, protein, proteomics, and study evidence. Use for pathway mechanism, biomarker context, multi-omics follow-up, or dataset selection.",
       "executable_count": 0,
-      "instruction_line_count": 22,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-metabolomics-proteomics-context",
       "path": "authored-skills/metabolomics-proteomics-context",
@@ -894,7 +894,7 @@
     {
       "description": "Run bounded NCBI-centered research across Gene, PubMed/PMC, sequence, variation, and GEO-linked records. Use when a gene, accession, sequence, or literature question requires traceable NCBI cross-links.",
       "executable_count": 0,
-      "instruction_line_count": 25,
+      "instruction_line_count": 32,
       "license": "MIT",
       "name": "cx-ncbi-integrated-research",
       "path": "authored-skills/ncbi-integrated-research",

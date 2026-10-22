@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "skill": "metabolomics-proteomics-context",
+  "roles": [
+    "conductor",
+    "retriever",
+    "analyzer"
+  ],
+  "declared_maturity": "L3",
+  "output_schemas": [
+    "multiomics-context-evidence-v1"
+  ],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No checked-in domain fixture or seeded failure currently validates these decision rules.",
+    "Source coverage and reported metadata vary by release, access route, and study.",
+    "Scientific interpretation still depends on primary-record review and domain expertise."
+  ]
+}

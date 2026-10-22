@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "metabolomics-proteomics-context",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "multiomics-context-method",
+      "path": "references/multiomics-context-method.md",
+      "purpose": "Claim semantics, assay and cohort dependencies, uncertainty, controls, sensitivity, applicability, and failure detection across metabolomics and proteomics.",
+      "read_when": [
+        "classifying chemical identity, abundance, pathway, or mechanism claims",
+        "selecting or comparing metabolomics/proteomics studies",
+        "interpreting missingness, pathway enrichment, or cross-omics disagreement"
+      ],
+      "required_before": [
+        "cross-omics-synthesis",
+        "mechanism-claim"
+      ],
+      "evidence_boundary": "Supports evidence reconciliation and dataset selection; pathway membership or feature matching alone does not establish biological mechanism."
+    }
+  ]
+}
