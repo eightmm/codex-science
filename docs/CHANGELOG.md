@@ -69,7 +69,12 @@
 - Added opt-in tier budgets and artifact-backed partial termination.
 - Added offline citation tracing against run-local study and query provenance.
 - Added verified support excerpts from hashed saved source records.
-- Added claim-kind-specific review routing questions.
+- Added claim-kind-specific review routing questions. A claim kind declared only
+  in the manifest now reaches routing; runs reviewed before this change whose
+  register omits that kind report `review-packet-stale` and need re-review.
+- Progress and completion messages now follow the user's language and lead with
+  findings in plain wording; the run summary `index.md` heads each claim with its
+  status and content and moves runtime identity into details.
 
 - Completed discovery development support: optional strict assumption-to-method
   design and observation-linked revision lessons, conditional cross-run memory,
