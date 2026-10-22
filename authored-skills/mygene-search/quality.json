@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "mygene-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["mygene-mapping-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Integrated records may aggregate upstream data with differing update times or incomplete source provenance.",
+    "Identifier normalization does not validate experimental gene function, expression, causal effect, or clinical validity.",
+    "Control outcomes are recorded by the operator and are not automatically checked by a repository fixture."
+  ]
+}

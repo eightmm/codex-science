@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "ncbi-gene-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["ncbi-gene-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "NCBI records and linked resources can change across annotation releases, assemblies, and retrieval dates.",
+    "A Gene record or linked resource is not a substitute for direct appraisal of primary experimental evidence.",
+    "Control outcomes are recorded by the operator and are not automatically checked by a repository fixture."
+  ]
+}

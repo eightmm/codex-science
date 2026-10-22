@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "ensembl-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["ensembl-gene-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "REST and MCP results reflect the source release and metadata available at retrieval time; upstream annotation changes require a new retrieval.",
+    "This workflow calibrates annotation and computational prediction claims but does not validate sample-specific function or effects.",
+    "Control outcomes are recorded by the operator and are not automatically checked by a repository fixture."
+  ]
+}

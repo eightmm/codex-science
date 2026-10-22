@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "ncbi-gene-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ncbi-gene-identity-evidence",
+      "path": "references/gene-identity-evidence.md",
+      "purpose": "Entrez Gene identity, linked-record semantics, assembly/release and transcript versioning, and source dependency.",
+      "read_when": ["resolving a symbol, alias, or Entrez Gene ID", "following NCBI Gene links", "interpreting orthology", "comparing transcript or assembly annotations"],
+      "required_before": ["workflow-step-2", "workflow-step-3", "workflow-step-5", "claim-classification"],
+      "search_patterns": ["## Claim semantics", "## Identity, assembly, and source dependency", "## Uncertainty and controls", "## Sensitivity and applicability", "## Common failure modes and detection"],
+      "authority": "repository-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines record interpretation and retrieval controls; NCBI Gene records and links do not by themselves establish experimental function or phenotype causality."
+    }
+  ]
+}

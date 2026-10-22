@@ -462,7 +462,7 @@
     {
       "description": "Resolve gene/transcript/protein IDs, fetch genomic or protein sequences, retrieve gene structure (exons), and predict variant consequences (VEP) via the Ensembl REST API. Use as an ID translator, sequence source, and variant-effect tool. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 27,
+      "instruction_line_count": 48,
       "license": "Apache-2.0",
       "name": "cx-ensembl-search",
       "path": "authored-skills/ensembl-search",
@@ -870,7 +870,7 @@
     {
       "description": "Normalize human gene symbols and aliases to Entrez, Ensembl, and taxonomic identifiers with MyGene.info. Use before cross-database gene, target, expression, or variant research when identifiers are incomplete or inconsistent.",
       "executable_count": 0,
-      "instruction_line_count": 26,
+      "instruction_line_count": 47,
       "license": "MIT",
       "name": "cx-mygene-search",
       "path": "authored-skills/mygene-search",
@@ -882,7 +882,7 @@
     {
       "description": "Resolve human genes through NCBI Entrez Gene and preserve links to sequence, literature, variation, and GEO resources. Use for NCBI-centered gene and identifier research.",
       "executable_count": 0,
-      "instruction_line_count": 26,
+      "instruction_line_count": 48,
       "license": "MIT",
       "name": "cx-ncbi-gene-search",
       "path": "authored-skills/ncbi-gene-search",

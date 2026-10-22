@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "ensembl-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ensembl-gene-identity-evidence",
+      "path": "references/gene-identity-evidence.md",
+      "purpose": "Gene, transcript, and protein identity; assembly and release pinning; annotation, comparative relationship, and VEP claim limits.",
+      "read_when": ["mapping a symbol or alias", "interpreting an Ensembl annotation or VEP result", "selecting a human transcript", "comparing orthology or cross-database results"],
+      "required_before": ["workflow-step-3", "workflow-step-4", "workflow-step-5", "claim-classification"],
+      "search_patterns": ["## Claim semantics", "## Identifier and release dependencies", "## Uncertainty and controls", "## Sensitivity and applicability", "## Common failure modes and detection"],
+      "authority": "repository-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and retrieval controls; it does not establish any gene-specific experimental function, effect, pathogenicity, or clinical validity."
+    }
+  ]
+}

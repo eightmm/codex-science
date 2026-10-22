@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "mygene-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "mygene-identity-aggregation-evidence",
+      "path": "references/gene-identity-evidence.md",
+      "purpose": "Candidate identity, aggregated source dependencies, stable ID and transcript comparisons, and mapping uncertainty.",
+      "read_when": ["interpreting a MyGene query hit", "choosing among aliases or identifiers", "cross-checking an aggregator field", "comparing species or synonym queries"],
+      "required_before": ["workflow-step-2", "workflow-step-4", "workflow-step-5", "claim-classification"],
+      "search_patterns": ["## Claim semantics", "## Aggregation, identifiers, and version dependencies", "## Uncertainty and controls", "## Sensitivity and applicability", "## Common failure modes and detection"],
+      "authority": "repository-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines aggregator interpretation and mapping controls; MyGene and propagated upstream annotations do not independently establish gene function, causality, or clinical validity."
+    }
+  ]
+}
