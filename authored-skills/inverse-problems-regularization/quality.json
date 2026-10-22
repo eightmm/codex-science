@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "inverse-problems-regularization",
+  "roles": ["analyzer", "executor", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["inverse-recovery-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The method guide cannot determine identifiability without a specified forward operator, data, and noise model.",
+    "Synthetic recovery tests implementation under their generating assumptions and do not establish real-world validity.",
+    "Uncertainty calibration remains conditional on the selected model and sampling assumptions."
+  ]
+}

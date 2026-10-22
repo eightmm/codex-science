@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "predicting-the-past",
+  "roles": ["analyzer", "retriever", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["epigraphic-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The public model interface may not report a stable model revision or training-data coverage.",
+    "Editorial conventions and lacuna measurements vary by source edition and cannot be inferred safely from text alone.",
+    "Model scores are not calibrated scholarly probabilities without independent task- and population-specific calibration."
+  ]
+}

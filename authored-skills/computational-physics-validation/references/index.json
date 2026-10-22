@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "computational-physics-validation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "verification-validation-protocol",
+      "path": "references/verification-validation-protocol.md",
+      "purpose": "Claim lane semantics, MMS, refinement and extrapolation criteria, validation independence, uncertainty, sensitivity, and applicability limits.",
+      "read_when": [
+        "designing code or solution verification",
+        "claiming convergence order or Richardson extrapolation",
+        "comparing simulation output with experiment"
+      ],
+      "required_before": ["step-2", "step-3", "step-4", "step-7", "step-8"],
+      "search_patterns": ["## Claim lanes and semantics", "## Code verification and manufactured solutions", "## Grid and time-step convergence", "## Validation, uncertainty and sensitivity"],
+      "authority": "scientific-method-reference",
+      "version": "1",
+      "evidence_boundary": "Provides an evidence protocol; it does not prove that a specific implementation is correct, a model is valid, or a validation dataset is adequate."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "computational-physics-validation",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["computational-validation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Finite refinement series cannot prove asymptotic convergence outside the observed regime.",
+    "Manufactured solutions test implementation behavior for the constructed problem and do not validate physical model adequacy.",
+    "Validation conclusions depend on measurement quality, uncertainty characterization, and the declared intended-use domain."
+  ]
+}

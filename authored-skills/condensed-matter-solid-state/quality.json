@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "condensed-matter-solid-state",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["solid-state-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow does not supply material-specific reference data or guarantee that a selected exchange-correlation treatment is adequate.",
+    "Finite-cell, magnetic-order, and disorder conclusions remain limited to the states and convergence ranges actually examined.",
+    "Comparison with experiment requires a matched observable and independent measurement provenance."
+  ]
+}

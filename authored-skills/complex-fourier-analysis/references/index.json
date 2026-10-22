@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "complex-fourier-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "complex-fourier-conventions",
+      "path": "references/complex-fourier-conventions.md",
+      "purpose": "Analytic claim criteria, branch and contour checks, Fourier normalization, sampling controls, and limits.",
+      "read_when": ["deforming a contour or using residues", "evaluating branch-dependent functions", "asserting Fourier convergence or transform identities", "interpreting sampled spectra"],
+      "required_before": ["contour-evaluation", "fourier-claim", "sampled-spectrum-interpretation"],
+      "evidence_boundary": "Defines hypotheses and controls; a listed check does not establish an individual analytic or physical claim."
+    }
+  ]
+}

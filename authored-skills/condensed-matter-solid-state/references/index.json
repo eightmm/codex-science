@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "condensed-matter-solid-state",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "solid-state-evidence-protocol",
+      "path": "references/solid-state-evidence.md",
+      "purpose": "Claim classification, cell conventions, numerical and model dependencies, uncertainty, controls, sensitivity, and domain limits for solid-state evidence.",
+      "read_when": [
+        "selecting primitive or conventional cells or reciprocal-space conventions",
+        "reporting band, magnetic, phase, defect, or transport results",
+        "making convergence or experimental-comparison claims"
+      ],
+      "required_before": ["step-2", "step-3", "step-5", "step-8"],
+      "search_patterns": ["## Cell and reciprocal-space conventions", "## Dependencies and independence", "## Controls and sensitivity", "## Applicability domain and failure detection"],
+      "authority": "scientific-method-reference",
+      "version": "1",
+      "evidence_boundary": "Defines how to assess recorded calculations; it does not establish convergence, ground state, or experimental agreement for a particular material."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "asymptotic-perturbation-methods",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "asymptotic-regime-guide",
+      "path": "references/asymptotic-regime-guide.md",
+      "purpose": "Regime selection, asymptotic claim labels, verification controls, sensitivity, and applicability limits.",
+      "read_when": ["selecting a perturbation regime", "constructing matched or multiple-scale expansions", "using WKB or saddle methods", "validating error across a parameter range"],
+      "required_before": ["regime-selection", "asymptotic-claim", "numerical-validation"],
+      "evidence_boundary": "Provides method criteria and reporting rules; it is not evidence that a particular approximation is valid."
+    }
+  ]
+}

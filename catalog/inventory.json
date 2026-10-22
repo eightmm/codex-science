@@ -66,7 +66,7 @@
     {
       "description": "Construct and validate asymptotic and perturbative approximations. Use for dominant balance, regular or singular perturbations, boundary layers, matched expansions, multiple scales, WKB, Laplace methods, and stationary phase.",
       "executable_count": 0,
-      "instruction_line_count": 50,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-asymptotic-perturbation-methods",
       "path": "authored-skills/asymptotic-perturbation-methods",
@@ -318,7 +318,7 @@
     {
       "description": "Solve and verify complex-variable and Fourier-analysis problems. Use for analytic functions, contour integrals, residues, branch cuts, Fourier series and transforms, convolution, spectral methods, sampling, and dispersion relations.",
       "executable_count": 0,
-      "instruction_line_count": 46,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-complex-fourier-analysis",
       "path": "authored-skills/complex-fourier-analysis",
@@ -330,7 +330,7 @@
     {
       "description": "Verify computational physics software, quantify numerical uncertainty, and validate models against experiments. Use for convergence studies, manufactured solutions, conservation audits, code-to-code comparisons, calibration, uncertainty quantification, and simulation credibility.",
       "executable_count": 0,
-      "instruction_line_count": 59,
+      "instruction_line_count": 40,
       "license": "MIT",
       "name": "cx-computational-physics-validation",
       "path": "authored-skills/computational-physics-validation",
@@ -354,7 +354,7 @@
     {
       "description": "Analyze condensed-matter and solid-state models and computations. Use for crystal symmetry, reciprocal space, electronic bands, density of states, Fermi surfaces, phonons, transport, magnetism, superconductivity, defects, and phase behavior.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 39,
       "license": "MIT",
       "name": "cx-condensed-matter-solid-state",
       "path": "authored-skills/condensed-matter-solid-state",
@@ -606,7 +606,7 @@
     {
       "description": "Formulate and verify geometry and topology arguments. Use for metric and topological spaces, continuity, compactness, connectedness, manifolds, curves and surfaces, homotopy, covering spaces, Euler characteristic, and geometric invariants.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-geometry-topology",
       "path": "authored-skills/geometry-topology",
@@ -714,7 +714,7 @@
     {
       "description": "Formulate and solve inverse problems with stable regularization and calibrated uncertainty. Use for parameter or field recovery, deconvolution, tomography, system identification, data assimilation, Bayesian inversion, and learned inverse models.",
       "executable_count": 0,
-      "instruction_line_count": 49,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-inverse-problems-regularization",
       "path": "authored-skills/inverse-problems-regularization",
@@ -1050,7 +1050,7 @@
     {
       "description": "Model and verify optical and wave phenomena. Use for ray optics, wave propagation, polarization, interference, diffraction, coherence, resonators, dispersion, scattering, imaging, and electromagnetic boundary problems.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-optics-wave-physics",
       "path": "authored-skills/optics-wave-physics",
@@ -1110,7 +1110,7 @@
     {
       "description": "Restore, attribute, date, and contextualize ancient inscriptions with DeepMind's Aeneas (Latin) and Ithaca (Ancient Greek) models. Use for epigraphic text restoration, geographic attribution, or dating of ancient texts.",
       "executable_count": 0,
-      "instruction_line_count": 70,
+      "instruction_line_count": 43,
       "license": "Apache-2.0",
       "name": "cx-predicting-the-past",
       "path": "authored-skills/predicting-the-past",
@@ -1484,7 +1484,7 @@
     {
       "description": "Compute and verify tensor-calculus and differential-geometry results. Use for coordinate transformations, metrics, differential forms, covariant derivatives, connections, geodesics, curvature, Lie derivatives, and coordinate-independent geometric identities.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 41,
       "license": "MIT",
       "name": "cx-tensor-calculus-differential-geometry",
       "path": "authored-skills/tensor-calculus-differential-geometry",

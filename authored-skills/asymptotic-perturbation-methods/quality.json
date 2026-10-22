@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "asymptotic-perturbation-methods",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["asymptotic-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow does not supply problem-specific proofs of remainder bounds or convergence.",
+    "Numerical comparisons support only the tested parameter range and observables."
+  ]
+}

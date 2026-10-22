@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "predicting-the-past",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "epigraphic-evidence-protocol",
+      "path": "references/epigraphic-evidence-protocol.md",
+      "purpose": "Transcription and damage handling, model-hypothesis semantics, uncertainty, independence, contamination, controls, and inconclusive criteria.",
+      "read_when": [
+        "encoding an inscription or damaged span",
+        "interpreting restoration, dating, or geographic alternatives",
+        "assessing parallels, source independence, or training contamination"
+      ],
+      "required_before": ["step-3", "step-6", "step-7", "step-8"],
+      "search_patterns": ["## Transcription and damaged spans", "## Model hypotheses, scores and uncertainty", "## Dependencies, parallels and contamination", "## Applicability and failure detection"],
+      "authority": "domain-method-reference",
+      "version": "1",
+      "evidence_boundary": "Guides interpretation of documented inscription inputs and model outputs; it does not authenticate an inscription, establish an editorial reading, or validate an individual model hypothesis."
+    }
+  ]
+}

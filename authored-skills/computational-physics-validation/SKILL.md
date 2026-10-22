@@ -10,48 +10,29 @@ license: MIT
 
 State the physical system, requested quantity or decision, relevant state and boundary/initial conditions, permitted approximation and inference, and evidence cutoff. Record assumptions that materially affect method choice, acceptance checks, or interpretation; use explicit safe defaults for nonblocking choices. Assign stable claim IDs to material conclusions and state what observation or check would falsify each claim.
 
+## Reference usage
+
+Read [verification-validation-protocol.md](references/verification-validation-protocol.md) before designing a verification or validation study, claiming observed order, extrapolating a solution, comparing with experiment, or combining uncertainty sources. It defines the claim lanes, manufactured-solution procedure, convergence criteria, controls, sensitivity checks, and validity limits.
+
 ## Workflow
 
-1. Normalize inputs, conventions, units, domain, and assumptions; select a method whose assumptions match the stated regime. Retain the domain procedure below, including its method-selection, solution, and verification checks.
-
-**Separate the questions**
-
-- Code verification: is the discretized algorithm implemented correctly?
-- Solution verification: how large is numerical error for this run?
-- Validation: how well does the mathematical model represent the physical experiment for its intended use?
-- Uncertainty quantification: how do input, numerical, and model uncertainties affect outputs?
-
-Never use agreement with one experiment to replace code verification, or grid convergence to claim physical validity.
-
-**Build the evidence ladder**
-
-1. Define quantities of interest, intended-use domain, acceptance criteria, and failure consequences.
-2. Test pure components, invariants, exact solutions, and method of manufactured solutions where possible.
-3. Vary mesh, time step, solver tolerance, precision, and stochastic sample count independently.
-4. Estimate observed order and numerical uncertainty; investigate non-asymptotic refinement behavior.
-5. Calibrate only designated parameters, then validate against separate measurements with uncertainty.
-6. Record code revision, inputs, environment, seeds, raw outputs, and post-processing.
-
-**Verify**
-
-- Audit conservation, symmetries, positivity, boundary conditions, and dimensional consistency.
-- Compare with a simpler analytic limit and an independent implementation or formulation.
-- Check sensitivity to uncertain inputs and numerical controls; identify dominant contributors.
-- Compare residual patterns and quantities of interest with experimental uncertainty, not point values alone.
-- Define the validated domain; treat extrapolation outside it as a new claim.
-
-**Deliver**
-
-Provide a credibility matrix separating implementation, numerical, input, experimental, and model-form evidence,
-with pass/fail criteria, unresolved discrepancies, provenance, and intended-use limits.
+1. [step-1] Normalize inputs, conventions, units, domain, and assumptions, then define the quantity of interest, governing equations, initial and boundary conditions, acceptance threshold, and failure consequences; stop if a material condition is missing, select a method matching the regime, and record the normalized problem contract.
+2. [step-2] Separate code verification (correct implementation), solution verification (numerical error for this run), validation (agreement with experiment for intended use), and uncertainty quantification; assign distinct claim IDs and falsifiers, and record each lane's required evidence.
+3. [step-3] Verify code with analytic limits, unit and conservation tests, and a method of manufactured solutions (MMS) where feasible; check that the manufactured forcing and boundary data are derived consistently, and record the exact solution, source terms, and observed errors.
+4. [step-4] Refine spatial grid, time step, solver tolerance, precision, and stochastic sample count independently; estimate observed order only within a supported asymptotic regime and use Richardson extrapolation only with an appropriate refinement sequence and error model, recording all levels and assumptions.
+5. [step-5] Check conservation, symmetries, positivity, stability restrictions, dimensional consistency, boundary conditions, and residuals; investigate any failed invariant or residual before accepting a result, and record norms, scales, thresholds, and outcomes.
+6. [step-6] Compare an independent implementation, formulation, or analytic reference with shared code, data, libraries, and assumptions disclosed; do not count dependent agreement as replication, and record dependency links and discrepancies.
+7. [step-7] Calibrate only designated parameters on calibration evidence, then compare prediction residual patterns and quantities of interest with separate measurements and their uncertainties, not point values alone; record measurement provenance and validated conditions.
+8. [step-8] Vary important inputs, mesh, time step, solver controls, model form, calibration choices, and sampling seeds; classify conclusions as fragile when a plausible variation crosses the decision threshold, and record the sensitivity analysis and dominant uncertainties.
+9. [step-9] Report the validated domain and extrapolation limits, preserve null, failed, and inconclusive findings, and use `$science-provenance` followed by `$science-review` before material conclusions; record the smallest discriminating next test.
 
 ## Outputs
 
-Return a concise summary and machine-readable evidence table with normalized inputs and assumptions; claim IDs and status (`supported`, `contradicted`, `inconclusive`, or `unavailable`); method/equations or computational settings; results with units and uncertainty; checks and their outcomes; limitations and applicability domain; rejected alternatives and reasons; and the smallest falsifiable next action. Preserve null, failed, and unavailable results distinctly. Record artifact paths and hashes with `$science-provenance`; `$science-review` is mandatory before presenting material conclusions.
+Return a concise summary and a machine-readable `computational-validation-v1` record with required fields: `problem_contract`, `normalized_inputs`, `assumptions`, `claim_id`, `claim_type`, `status` (`supported`, `contradicted`, `inconclusive`, or `unavailable`), `verification_lane`, `method`, `code_revision`, `inputs`, `environment`, `seeds`, `raw_outputs`, `post_processing`, `controls`, `checks_and_outcomes`, `refinement_series`, `observed_order`, `extrapolation`, `results`, `units`, `uncertainty`, `dependencies`, `experimental_comparison`, `sensitivity`, `credibility_matrix`, `pass_fail_criteria`, `unresolved_discrepancies`, `rejected_alternatives`, `applicability_domain`, `limitations`, `next_action`, and `artifacts` (paths and hashes). Preserve implementation, numerical, input, experimental, and model-form evidence separately. Preserve null, failed, and unavailable results distinctly; `$science-provenance` is required and `$science-review` is mandatory before material conclusions.
 
 ## Boundaries
 
-Stop when essential inputs, boundary conditions, or regime cannot be determined safely, or when an approximation is used outside its declared domain. Do not equate mathematical consistency, solver convergence, or process success with empirical validation. Keep unresolved discrepancies and numerical/model uncertainty explicit; do not silently repair inputs or promote an inconclusive result.
+Stop when essential inputs, boundary conditions, or regime cannot be determined safely, or when an approximation is used outside its declared domain. Do not equate mathematical consistency, solver convergence, or process success with empirical validation. Keep unresolved discrepancies and numerical/model uncertainty explicit; do not silently repair inputs or promote an inconclusive result. Agreement with one experiment does not establish implementation correctness; grid convergence does not establish physical validity; observed order over a finite range does not prove asymptotic convergence.
 
 ## Source basis
 

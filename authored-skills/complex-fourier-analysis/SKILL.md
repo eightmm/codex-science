@@ -7,38 +7,33 @@ license: MIT
 # Complex and Fourier Analysis
 
 ## Decision contract
-State the domain, function assumptions, contour and branch conventions, transform normalization, and target quantity. Select analytic, distributional, or sampled-data methods only when their hypotheses match the input.
+
+State the domain, function assumptions, contour orientation, branch cuts and principal-branch convention, Fourier normalization and sign convention, frequency variable, sampling model, and target quantity before computing. Separate an analytic derivation from a numerical or sampled-data validation claim. Select analytic, distributional, or discrete methods only when their hypotheses match the input.
+
+## Reference usage
+
+Read [complex-fourier-conventions.md](references/complex-fourier-conventions.md) before contour deformation, branch-dependent evaluation, Fourier-series or transform claims, or sampled-spectrum interpretation. It defines claim classes, contour conditions, normalization checks, and sampling controls.
+
+Preserve inputs, conventions, derivations or commands, environment, artifacts, hashes, failures, and null results with `$science-provenance`; use `$science-review` before material or consequential scientific conclusions.
 
 ## Workflow
-1. **Fix conventions and domains.**
-   State the complex domain, singularities, contour orientation, branch choices, transform normalization, frequency
-   variable, and function space or decay assumptions. Mark endpoints and discontinuities. A branch-dependent
-   answer without an explicit cut and argument convention is not complete.
 
-2. **Choose the method.**
-   - Establish analyticity before invoking Cauchy formulas or deforming a contour.
-   - Use residues after classifying poles and confirming arc or indentation contributions.
-   - Treat branch points and cuts directly; record values on both sides of the cut.
-   - For Fourier series, check periodic extension, symmetry, smoothness, and endpoint convergence.
-   - For transforms, verify integrability or use distributions explicitly; apply convolution and Parseval with matching conventions.
-   - For sampled data, account for windowing, leakage, resolution, aliasing, and normalization.
-
-3. **Verify.**
-   - Parameterize contours and check orientation, residues, and contributions at infinity.
-   - Differentiate or integrate the result when that recovers a simpler known expression.
-   - Confirm conjugate symmetry for real signals and compare time- and frequency-domain energy.
-   - Reconstruct the original signal and inspect error near discontinuities.
-   - Check limiting cases and numerical quadrature against the analytic result away from singularities.
-
-4. **Deliver.**
-   Report conventions, analytic assumptions, derivation, singularity and branch handling, result, convergence mode,
-   and numerical or symbolic checks.
+1. **Fix the problem and conventions.** Record domain, regularity/decay assumptions, singularities, branch and argument conventions, contour orientation, transform sign and normalization, units, sampling rate, and endpoint treatment; mark missing conventions unavailable.
+2. **Choose the analytic route.** Invoke Cauchy or deformation results only after checking analyticity in the swept region; select a branch cut and record both boundary values when the integrand is multivalued.
+3. **Check contour closure.** For residues, record poles and multiplicities, orientation, indentations, and arc contributions; use Jordan's lemma only when its decay and half-plane hypotheses hold for the actual exponential factor.
+4. **Bookkeep the result.** Sum residues with orientation and branch contributions, then record the derivation and any independent differentiation or integration to a simpler known expression, limiting-case, or symbolic check.
+5. **Choose the Fourier representation.** Distinguish periodic-series coefficients, continuous Fourier transform, and finite-sample DFT; state normalization and inverse convention before applying convolution, Parseval, or energy identities.
+6. **Check convergence and sampling.** For series record endpoint behavior and Gibbs effects; for samples record Nyquist limit, aliasing risk, sample spacing, window, spectral leakage, and resolution before interpreting peaks.
+7. **Verify.** Reconstruct or invert where defined, check conjugate symmetry for real signals and energy under the declared convention, and compare analytic values with numerical quadrature away from singularities or with controlled synthetic signals.
+8. **Probe sensitivity and report.** Vary branch/contour choices where equivalent, truncation, window, record length, sample rate, and normalization as relevant; record fragile changes, failures, claim status, uncertainty, limitations, and next action.
 
 ## Outputs
-Return normalized inputs and assumptions; a machine-readable evidence or execution table; claim IDs marked supported, contradicted, inconclusive, or unavailable; uncertainty and limitations; and the smallest falsifiable next action. Record commands or derivations and artifact paths and hashes with `$science-provenance`; preserve failures and nulls. Run `$science-review` before material or consequential scientific conclusions.
+
+Return one `complex-fourier-evidence-v1` record with: problem and assumptions (`problem`, `assumptions`); conventions (`branch_convention`, `contour_convention`, `fourier_convention`, `sampling_convention`); claim class (`claim_class`: formal derivation, analytic result, numerically checked result, or sampled-spectrum observation); claim identifier and status (`claim_id`, `claim_status`: supported, contradicted, inconclusive, or unavailable); method and derivation (`method`, `derivation`); convergence mode (`convergence_mode`: pointwise, almost everywhere, distributional, or norm); pole/branch or spectrum bookkeeping (`singularity_bookkeeping`, `spectrum_bookkeeping`); validation and sensitivity (`checks`, `sensitivity`); uncertainty and limitations (`uncertainty`, `limitations`); provenance and artifact identities (`provenance`, `artifact_paths`, `artifact_hashes`); failures and nulls (`failures`, `null_results`); and next action (`next_action`). Preserve derivations and execution details through `$science-provenance`; use `$science-review` for material claims.
 
 ## Boundaries
-Do not change branch, endpoint, distribution, or transform conventions silently; a Fourier peak is not proof of a unique physical mechanism. Qualify results when convergence or sampling assumptions fail.
+
+Do not change branch, endpoint, distribution, contour, or transform conventions silently. A Fourier peak is not proof of a unique physical mechanism. A finite DFT is not the continuous transform, and convergence or pointwise endpoint behavior requires its own hypotheses. Qualify results when analyticity, decay, convergence, or sampling assumptions fail; preserve failed and null checks.
 
 ## Source basis
 

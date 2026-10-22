@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "complex-fourier-analysis",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["complex-fourier-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Finite numerical and sampled-data checks cannot establish general analytic convergence.",
+    "Spectral interpretation depends on acquisition, bandwidth, and window assumptions."
+  ]
+}

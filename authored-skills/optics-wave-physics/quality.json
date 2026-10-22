@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "optics-wave-physics",
+  "roles": ["analyzer", "executor", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["optics-wave-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Approximation criteria depend on geometry, bandwidth, and required accuracy and need case-specific justification.",
+    "Numerical controls do not validate material data, source characterization, alignment, or detector calibration.",
+    "The workflow does not itself provide experimental validation or guarantee a suitable vector solver."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "inverse-problems-regularization",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "inverse-recovery-evidence-methods",
+      "path": "references/inverse-problem-evidence.md",
+      "purpose": "Hadamard status, forward-model dependencies, regularization and parameter choice, inverse-crime controls, uncertainty, sensitivity, and recovery limits.",
+      "read_when": ["selecting or tuning a regularizer", "designing synthetic recovery or validation splits", "assessing identifiability or resolution", "reporting reconstructed parameters, fields, or uncertainty"],
+      "required_before": ["workflow-step-2", "workflow-step-3", "workflow-step-5", "claim-classification"],
+      "evidence_boundary": "Guides recovery design and interpretation; a computed reconstruction or synthetic recovery is not experimental truth and does not establish identifiability beyond the declared model and data."
+    }
+  ]
+}

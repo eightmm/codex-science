@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "tensor-calculus-differential-geometry",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "tensor-geometry-conventions",
+      "path": "references/tensor-geometry-conventions.md",
+      "purpose": "Index, metric, connection and curvature conventions; invariant, symbolic, and singularity checks.",
+      "read_when": ["computing covariant derivatives or curvature", "comparing convention-dependent results", "interpreting chart or curvature singularities", "using symbolic tensor calculations"],
+      "required_before": ["connection-computation", "curvature-claim", "singularity-classification"],
+      "evidence_boundary": "Defines calculation and interpretation controls; it does not validate a supplied metric or establish a physical singularity by itself."
+    }
+  ]
+}

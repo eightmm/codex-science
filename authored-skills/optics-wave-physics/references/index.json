@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "optics-wave-physics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "optics-regime-evidence-methods",
+      "path": "references/optics-wave-evidence.md",
+      "purpose": "Claim semantics, optical regime and convention choices, sampled propagation, material lineage, controls, sensitivity, and model applicability.",
+      "read_when": ["selecting a ray, scalar, paraxial, Fresnel, Fraunhofer, or vector model", "propagating sampled fields", "using coherence or dispersion assumptions", "interpreting energy, reciprocity, or empirical claims"],
+      "required_before": ["workflow-step-2", "workflow-step-3", "workflow-step-6", "claim-classification"],
+      "evidence_boundary": "Defines model-selection and numerical/physical checks; a simulated or computed field does not establish material validity or experimental support."
+    }
+  ]
+}

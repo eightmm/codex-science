@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "tensor-calculus-differential-geometry",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["tensor-geometry-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Symbolic checks do not validate the physical or mathematical adequacy of a supplied metric.",
+    "Finite curvature invariants alone do not prove extendibility or geodesic completeness."
+  ]
+}

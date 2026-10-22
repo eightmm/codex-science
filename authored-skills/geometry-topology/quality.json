@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "geometry-topology",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["geometry-topology-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Finite computations establish properties of encoded representations unless a separate approximation argument supports transfer to a continuous space.",
+    "Input geometry, segmentation, and measurement validity require domain-specific evidence beyond invariant checks.",
+    "The workflow does not automatically prove classifications from matching invariants."
+  ]
+}
