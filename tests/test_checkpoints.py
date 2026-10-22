@@ -72,6 +72,44 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
         self.assertEqual(checkpoint, json.loads(path.read_text(encoding="utf-8")))
 
+    def test_passed_review_accepts_open_minor_findings(self) -> None:
+        self.create()
+        (self.run_dir / "review.json").write_text(json.dumps({
+            "status": "passed", "reviewer": "reviewer", "independent": True,
+            "findings": [{"severity": "minor"}, {"severity": "suggestion"}],
+        }), encoding="utf-8")
+
+        result = record_review(self.run_dir, artifact_ref="review.json")
+
+        self.assertEqual("passed", result["review_receipt"]["verdict"])
+
+    def test_passed_review_rejects_unresolved_major_finding(self) -> None:
+        self._assert_passed_review_findings_rejected([{"severity": "major"}])
+
+    def test_passed_review_accepts_resolved_major_finding(self) -> None:
+        self.create()
+        (self.run_dir / "review.json").write_text(json.dumps({
+            "status": "passed", "reviewer": "reviewer", "independent": True,
+            "findings": [{"severity": "major", "resolution_status": "resolved"}],
+        }), encoding="utf-8")
+
+        result = record_review(self.run_dir, artifact_ref="review.json")
+
+        self.assertEqual("passed", result["review_receipt"]["verdict"])
+
+    def test_passed_review_rejects_finding_without_severity(self) -> None:
+        self._assert_passed_review_findings_rejected([{}])
+
+    def _assert_passed_review_findings_rejected(self, findings: list[dict[str, str]]) -> None:
+        self.create()
+        (self.run_dir / "review.json").write_text(json.dumps({
+            "status": "passed", "reviewer": "reviewer", "independent": True,
+            "findings": findings,
+        }), encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "passed review artifact cannot retain unresolved critical or major findings"):
+            record_review(self.run_dir, artifact_ref="review.json")
+
     def test_runtime_switch_is_durably_marked_on_next_checkpoint_write(self) -> None:
         runtime_b = {
             "commit": "b" * 40,

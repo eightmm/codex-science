@@ -1495,8 +1495,18 @@ def record_review(
     findings = receipt.get("findings", [])
     if not isinstance(findings, list):
         raise ValueError("review artifact findings must be a list")
-    if verdict == "passed" and findings:
-        raise ValueError("passed review artifact cannot retain findings")
+    known_severities = {"critical", "major", "minor", "suggestion"}
+    unresolved_blocking = any(
+        not isinstance(item, dict)
+        or item.get("severity") not in known_severities
+        or (
+            item.get("severity") in {"critical", "major"}
+            and item.get("resolution_status", "open") not in {"resolved", "not-applicable"}
+        )
+        for item in findings
+    )
+    if verdict == "passed" and unresolved_blocking:
+        raise ValueError("passed review artifact cannot retain unresolved critical or major findings")
     checkpoint["review_receipt"] = {
         "reviewer": _nonempty(reviewer, "reviewer"),
         "verdict": verdict,
