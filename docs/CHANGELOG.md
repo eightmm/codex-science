@@ -53,7 +53,8 @@
   `--plugin codex-science@MARKETPLACE` to evaluate a separately installed
   build. Benchmark task set v2 accepts both `review-receipt` and
   `review-receipt-v2` (new `in` assertion); the frozen v1 set is kept as
-  `benchmarks/literature-review/tasks-v1.json` for grading earlier runs.
+  `benchmarks/literature-review/tasks-v1.json` for grading earlier runs. A run
+  whose bundle cannot be citation-traced keeps its outcome with citations unavailable.
 - Added a bounded resume driver, weighted rubric grading, trajectory consensus
   and ranking, claim evidence-count checks, opt-in citation existence lookup,
   and an opt-in completion-record schema cross-check. These mechanisms report
@@ -63,7 +64,8 @@
 - Added a frozen literature evaluation harness and receipt grader with
   dry-run planning, runtime identity receipts, and append-only reporting.
 - Added a saturation estimator for evidence collection.
-- Added hookless checkpoint initialization with explicit session binding.
+- Added hookless checkpoint initialization with explicit session binding;
+  admission locks every related artifact root and fails closed when one is not lockable.
 - Added opt-in tier budgets and artifact-backed partial termination.
 - Added offline citation tracing against run-local study and query provenance.
 - Added verified support excerpts from hashed saved source records.
