@@ -224,9 +224,9 @@ def main() -> int:
                          "artifact_sha256": observed, "event_id": str(uuid4())}
                 if args.note is not None:
                     event["note"] = args.note
-                fold_annotation_resolutions(annotations, [*events, event], sidecars["artifact_hashes"])
+                effective = fold_annotation_resolutions(annotations, [*events, event], sidecars["artifact_hashes"])
                 append_resolution_event(root, event, lock_held=True)
-        if args.command != "add":
+        if args.command == "list":
             events = load_resolution_events(root)
             effective = fold_annotation_resolutions(annotations, events, sidecars["artifact_hashes"])
         print(json.dumps(effective, indent=2, sort_keys=True))
