@@ -1,7 +1,9 @@
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from codex_science.wrappers import (
     check_wrappers,
@@ -29,6 +31,29 @@ def make_record(
         "physical_lab": physical_lab,
         "instruction_line_count": instruction_line_count,
     }
+
+
+def authored_markdown_link_offenders(root: Path) -> list[str]:
+    root = root.resolve()
+    offenders = []
+    for markdown_file in sorted((root / "authored-skills").rglob("*.md")):
+        text = markdown_file.read_text(encoding="utf-8")
+        for match in re.finditer(r"\]\(([^)]*)\)", text):
+            target = match.group(1).strip()
+            if not target or urlsplit(target).scheme or target.startswith("#"):
+                continue
+            relative_target = target.split("#", 1)[0]
+            if not relative_target:
+                continue
+            resolved = (markdown_file.parent / relative_target).resolve()
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                offenders.append(f"{markdown_file.relative_to(root)}: {target}")
+                continue
+            if not resolved.exists():
+                offenders.append(f"{markdown_file.relative_to(root)}: {target}")
+    return offenders
 
 
 class WrapperRenderingTests(unittest.TestCase):
@@ -449,6 +474,33 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
         sources = (repository_root / "docs" / "TEXTBOOK_SOURCES.md").read_text()
         self.assertIn("probability-stochastic-processes", sources)
         self.assertIn("tensor-calculus-differential-geometry", sources)
+
+    def test_authored_skill_markdown_links_resolve_inside_repository(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        offenders = authored_markdown_link_offenders(repository_root)
+
+        self.assertFalse(offenders, "Broken or escaping authored-skill links:\n" + "\n".join(offenders))
+
+    def test_authored_markdown_link_checker_reports_broken_and_escaping_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            repository_root = Path(tempdir)
+            skill_dir = repository_root / "authored-skills" / "sample"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "[missing](references/missing.md) [escape](../../../outside.md) "
+                "[external](https://example.com) [anchor](#section)\n",
+                encoding="utf-8",
+            )
+
+            offenders = authored_markdown_link_offenders(repository_root)
+
+        self.assertEqual(
+            [
+                "authored-skills/sample/SKILL.md: references/missing.md",
+                "authored-skills/sample/SKILL.md: ../../../outside.md",
+            ],
+            offenders,
+        )
 
     def test_textbook_grounded_math_physics_skills_are_active_and_routed(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
