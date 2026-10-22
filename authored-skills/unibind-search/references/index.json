@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "unibind-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "unibind-site-interpretation",
+      "path": "references/unibind-evidence.md",
+      "purpose": "Interpretation of ChIP-seq-supported direct-TFBS predictions, dataset provenance and dependence, assay-specific uncertainty, controls, sensitivity, and claim limits.",
+      "read_when": ["interpreting UniBind sites", "comparing datasets or releases", "evaluating direct-TFBS predictions", "making binding or regulatory claims"],
+      "required_before": ["step-6", "step-9", "predicted-site-claim", "contextual-binding-claim"],
+      "evidence_boundary": "Interprets computational site predictions derived from ChIP-seq datasets; evidence remains dataset- and context-specific and does not alone establish regulatory function or phenotype."
+    }
+  ]
+}

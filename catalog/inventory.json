@@ -450,7 +450,7 @@
     {
       "description": "Query the ENCODE Registry of candidate cis-Regulatory Elements (cCREs) via the SCREEN GraphQL API, and ENCODE experiments/files via the ENCODE Portal REST API, across human cell types. Public APIs, no credential needed. Use for cell-type-specific regulatory annotations, not causal claims.",
       "executable_count": 0,
-      "instruction_line_count": 46,
+      "instruction_line_count": 54,
       "license": "Apache-2.0",
       "name": "cx-encode-ccres-search",
       "path": "authored-skills/encode-ccres-search",
@@ -726,7 +726,7 @@
     {
       "description": "Retrieve transcription-factor binding profiles (PFMs/PWMs) from JASPAR, resolve gene symbols to JASPAR matrix IDs, and get TF metadata in multiple formats (MEME, TRANSFAC, PFM, JASPAR). Public API, no credential needed. Use for motif resources, not binding claims.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 53,
       "license": "Apache-2.0",
       "name": "cx-jaspar-search",
       "path": "authored-skills/jaspar-search",
@@ -1532,7 +1532,7 @@
     {
       "description": "Query UniBind for experimentally validated transcription-factor binding sites: retrieve TF-DNA datasets, download binding-site coordinates (BED/FASTA), and list datasets by species, cell line, or TF. Public API, no credential needed. Use for assay-specific binding evidence, not universal occupancy.",
       "executable_count": 0,
-      "instruction_line_count": 45,
+      "instruction_line_count": 53,
       "license": "Apache-2.0",
       "name": "cx-unibind-search",
       "path": "authored-skills/unibind-search",

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "unibind-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["unibind-site-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "UniBind sites are computational predictions derived from specific ChIP-seq datasets and are limited to their assay, species, and biosample context.",
+    "Dataset/model release metadata and assembly availability can differ across records; incomplete provenance limits cross-dataset comparison."
+  ]
+}

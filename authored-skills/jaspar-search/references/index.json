@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "jaspar-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "jaspar-motif-interpretation",
+      "path": "references/motif-evidence.md",
+      "purpose": "Profile semantics, matrix and collection pinning, PWM scan controls, score sensitivity, and limits on binding or regulatory claims.",
+      "read_when": ["selecting or comparing JASPAR profiles", "scanning sequences", "interpreting PWM scores or p-values", "reporting motif matches as evidence"],
+      "required_before": ["step-3", "step-5", "step-6", "step-9", "motif-match-claim", "binding-claim"],
+      "evidence_boundary": "Defines sequence-profile and computational motif-scan interpretation; a matrix match alone does not establish occupancy, regulatory function, or phenotype."
+    }
+  ]
+}

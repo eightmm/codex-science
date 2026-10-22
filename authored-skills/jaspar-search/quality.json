@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "jaspar-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["jaspar-motif-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "PFM/PWM scores depend on matrix quality, sequence background, threshold, and scanning context.",
+    "A motif match is a computational candidate and does not establish TF occupancy or regulatory effect in a sample."
+  ]
+}

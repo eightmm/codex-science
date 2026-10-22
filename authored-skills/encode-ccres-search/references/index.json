@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "encode-ccres-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "encode-ccre-interpretation",
+      "path": "references/ccre-evidence.md",
+      "purpose": "Claim semantics, Registry class and biosample interpretation, release provenance, controls, sensitivity, and applicability limits for ENCODE cCRE evidence.",
+      "read_when": ["classifying cCRE evidence", "interpreting biosample-specific signal", "comparing Registry releases", "making a regulatory-function statement"],
+      "required_before": ["step-7", "step-9", "candidate-element-claim", "functional-regulation-claim"],
+      "evidence_boundary": "Defines interpretation of retrieved cCRE and assay records; it does not establish regulatory function or target-gene causality without direct supporting experiments."
+    }
+  ]
+}

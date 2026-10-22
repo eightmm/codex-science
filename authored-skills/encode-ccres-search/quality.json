@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "encode-ccres-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["encode-ccre-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Public SCREEN and ENCODE records reflect only assayed biosamples and the queried Registry or Portal release.",
+    "A cCRE class or assay overlap does not by itself establish regulatory function, target-gene linkage, or causality."
+  ]
+}
