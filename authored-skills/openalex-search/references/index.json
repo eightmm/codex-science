@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "openalex-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "openalex-evidence",
+      "path": "references/openalex-evidence.md",
+      "purpose": "Entity resolution, graph claim classes, metric lineage, uncertainty, controls, sensitivity, applicability, and failure detection.",
+      "read_when": ["resolving entities", "filtering or aggregating graph metrics", "reporting bibliometric comparisons"],
+      "required_before": ["metric-interpretation", "ranking-claim"],
+      "evidence_boundary": "Describes a retrieved OpenAlex graph snapshot; does not establish scholarly quality, complete coverage, or causality."
+    }
+  ]
+}

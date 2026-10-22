@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "arxiv-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["arxiv-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Built-in discovery is bounded and unpaginated; API retrieval and query terms still constrain recall.",
+    "Preprint metadata and abstracts do not establish peer review or full-text claim validity."
+  ]
+}

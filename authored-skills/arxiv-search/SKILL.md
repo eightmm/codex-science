@@ -16,54 +16,71 @@ the MCP integration is Codex Science's own.
 Record the question, intended use, subject area, evidence cutoff, and whether
 preprints are acceptable. Search is discovery, not systematic coverage. Use
 arXiv identifiers as returned; do not infer a DOI or journal version from an
-identifier. Material claims require the paper itself and stable claim IDs.
+identifier. Separate repository metadata claims from findings in a paper;
+material claims require the paper itself and stable claim IDs.
+
+## Reference usage
+
+Read [references/arxiv-evidence.md](references/arxiv-evidence.md) before
+screening or synthesizing preprints. Read version, lineage, and publication
+status guidance before deduplication or citation; read controls and sensitivity
+guidance before interpreting bounded-search results.
 
 ## Workflow
 
-1. Search with `science_search_arxiv(query, limit)`: `query` is topic/author/
-   keywords up to 500 characters; `limit` is 1–10, default 5. The result is a
-   JSON list of `{id, title, summary, url}`. Save the exact query, tool, access
-   time, returned IDs, and result count. For deeper structured retrieval, the
-   direct API is `https://export.arxiv.org/api/query`; preserve its query,
-   pagination parameters, response metadata, and pages. The MCP discovery call
-   does not establish completeness or expose pagination.
-2. Normalize arXiv IDs exactly as returned and deduplicate version suffixes
-   only after verifying they identify the same work. Record the version/date
-   reported by the response. Triage each record against explicit criteria;
-   discard off-topic hits; do not pad the list. Retain included and excluded
-   IDs with reasons. Empty results mean no match
-   in this response, not evidence of absence.
-3. If refining, re-query with more specific terms, an author, or a narrower
-   concept; full-text search is broad, so precise terms help. Make a bounded
-   focused query. On errors, malformed XML/JSON,
-   missing IDs, or apparent truncation, preserve the failed response and retry
-   at most twice with backoff; do not silently substitute web search. Mark an
-   exhausted or unavailable source as unavailable. Open the returned URL (or
-   its `/pdf/` variant) only when needed; ask before large downloads.
-4. Validate required fields and record response/page counts and whether all
-   requested pages were received. Cite only returned identifiers and URLs.
-   Check license and redistribution terms before reproducing content.
-5. Save a source receipt and evidence table with `$science-provenance`, including
-   artifact paths and hashes. Use `$science-review` before material conclusions.
+1. Define the question, intended use, subject area, cutoff, acceptable
+   publication states, and permitted claim types; record whether peer review is
+   required.
+2. Select arXiv for preprint discovery and record why its subject coverage fits;
+   state that this search does not establish coverage or peer-review status.
+3. Search with `science_search_arxiv(query, limit)` (`query` up to 500
+   characters; `limit` 1–10, default 5). Record exact query, tool, access time,
+   returned IDs, and count; the result is `{id,title,summary,url}` with no
+   completeness or pagination guarantee.
+4. For structured retrieval use `https://export.arxiv.org/api/query`; record
+   query and pagination parameters, response metadata, and each page. Normalize
+   IDs exactly. Merge version suffixes only after verifying same-work identity;
+   preserve version/date and distinct published records.
+5. Triage against explicit criteria; discard off-topic hits and do not pad the list. Retain included and excluded IDs with
+   reasons. Check required fields, page counts, truncation, and malformed data;
+   retry at most twice with backoff, preserve failed responses, and mark
+   unavailable rather than silently switching sources. Empty results mean no
+   match in this response, not evidence of absence.
+6. Check one known relevant preprint as a positive control and a clearly
+   off-topic term as a negative control; record outcomes. Vary terms, author,
+   subject, or date bounds one at a time; record record-set changes and label
+   conclusions fragile when reasonable variants alter them materially. When
+   broad, re-query with a focused term, author, or narrower concept.
+7. Open the returned paper only as needed; base specific claims on text actually
+   read, not metadata or abstract alone. Record version, publication state,
+   claim locator, dependencies, and license before quoting or reproducing text.
+   Ask before large downloads; use the returned URL or its `/pdf/` variant only
+   when needed.
+8. Distinguish preprint status from peer review and verify any published version
+   through its returned/source-linked identity; do not conflate versions or
+   independent studies from the same underlying work.
+9. Save query, source receipt, evidence table, exclusions, and hashes with
+   `$science-provenance`; use `$science-review` before material conclusions.
+   Verify identifiers, completeness, and claim-to-text links.
 
 ## Outputs
 
-Return normalized question and query, cutoff, source/API and version or reported
-update time, included and excluded IDs with reasons, and a table of ID, title,
-URL, relevance, publication state, and supporting claim IDs. Separate strong
-matches from tangential ones. Record claims as
-supported, contradicted, inconclusive, or unavailable; include dependencies,
-uncertainty, limitations, next falsifiable action, and artifact hashes. Abstract
-only evidence remains abstract-level evidence.
+Return `arxiv-evidence-v1` with normalized question/query/cutoff; source/API
+and version/update time; included/excluded IDs with reasons; ID, title, URL,
+relevance (separating strong matches from tangential results), publication
+state/version, and claim-ID table; completeness and
+dependency status; uncertainty and limitations; supported, contradicted,
+inconclusive, and unavailable claims; next falsifiable action; artifact paths
+and hashes. Label abstract-only evidence.
 
 ## Boundaries
 
-- arXiv preprints are **not peer-reviewed**; flag that when it matters and prefer
-  the published version where one exists.
-- Cite only ids/titles actually returned by the tool — never invent arXiv ids or
-  fabricate abstracts.
-- The tool is discovery, not full text; base specific claims on the paper you
-  actually read, not the abstract alone.
-- Stop if the question requires peer-reviewed-only evidence, complete recall,
-  or a claim that cannot be checked from available text. Report API failures and
-  missing records as unavailable, not negative findings.
+- arXiv preprints are **not peer-reviewed**; flag that when it matters and
+  prefer the published version where one exists.
+- Cite only identifiers, titles, and URLs actually returned; never invent IDs
+  or abstracts.
+- Metadata and abstracts do not establish full-text claims. Respect license and
+  redistribution terms before reproducing content.
+- Stop if peer-reviewed-only evidence, complete recall, or unavailable claim
+  text is required. API failures and missing records are unavailable, not
+  negative findings.

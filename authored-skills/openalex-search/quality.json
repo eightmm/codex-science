@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "openalex-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["openalex-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Entity resolution and graph coverage can be incomplete or ambiguous, and the graph changes over time.",
+    "Bibliometric counts are field- and age-dependent and cannot establish quality, influence, or causality."
+  ]
+}

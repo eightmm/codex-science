@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "arxiv-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "arxiv-evidence",
+      "path": "references/arxiv-evidence.md",
+      "purpose": "Claim classes, preprint version lineage, uncertainty, controls, sensitivity, applicability, and failure detection.",
+      "read_when": ["screening arXiv records", "checking versions or publication state", "synthesizing preprint claims"],
+      "required_before": ["claim-synthesis", "publication-status-claim"],
+      "evidence_boundary": "Interprets bounded arXiv retrieval and inspected paper text; does not establish exhaustive coverage or peer review."
+    }
+  ]
+}

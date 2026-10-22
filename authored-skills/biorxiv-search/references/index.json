@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "biorxiv-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "preprint-archive-evidence",
+      "path": "references/preprint-archive-evidence.md",
+      "purpose": "Route and claim classes, archive/version lineage, uncertainty, controls, sensitivity, applicability, and failure detection.",
+      "read_when": ["choosing DOI or date/category retrieval", "paging or reconciling preprint versions", "interpreting archive evidence"],
+      "required_before": ["claim-synthesis", "publication-status-claim"],
+      "evidence_boundary": "Interprets a DOI lookup or bounded archive range; does not establish keyword coverage, peer review, or clinical validity."
+    }
+  ]
+}

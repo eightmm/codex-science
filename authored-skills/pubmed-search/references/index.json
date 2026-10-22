@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "pubmed-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "pubmed-evidence",
+      "path": "references/pubmed-evidence.md",
+      "purpose": "Claim classes, record lineage, uncertainty, controls, sensitivity, applicability, and failure detection for PubMed retrieval.",
+      "read_when": ["screening PubMed records", "synthesizing biomedical claims", "assessing bounded search robustness"],
+      "required_before": ["claim-synthesis", "search-coverage-claim"],
+      "evidence_boundary": "Supports interpretation of recorded PubMed search evidence; does not establish comprehensive retrieval, peer review, clinical validity, or advice."
+    }
+  ]
+}

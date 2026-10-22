@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "biorxiv-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["preprint-archive-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The API supports DOI or bounded date/category retrieval rather than open-ended keyword search.",
+    "Preprint metadata and abstracts do not establish peer review, exhaustive coverage, or clinical validity."
+  ]
+}

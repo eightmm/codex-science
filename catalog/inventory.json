@@ -54,7 +54,7 @@
     {
       "description": "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics; use another source for peer-review status or complete coverage. Uses the plugin's built-in read-only arXiv MCP tool \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 69,
+      "instruction_line_count": 86,
       "license": "Apache-2.0",
       "name": "cx-arxiv-search",
       "path": "authored-skills/arxiv-search",
@@ -138,7 +138,7 @@
     {
       "description": "Fetch bioRxiv and medRxiv preprint metadata by DOI, or browse a narrow date range with a category, for life-science and medical preprints. Use when you already have a DOI or an approximate date plus category \u2014 not for open-ended keyword discovery. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 76,
+      "instruction_line_count": 92,
       "license": "Apache-2.0",
       "name": "cx-biorxiv-search",
       "path": "authored-skills/biorxiv-search",
@@ -522,7 +522,7 @@
     {
       "description": "Search Europe PMC for life-science literature and retrieve abstracts, citations, and open-access full text (XML/plain text) by PMCID. Use when the user wants broad biomedical literature discovery or open-access full text. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 70,
+      "instruction_line_count": 92,
       "license": "Apache-2.0",
       "name": "cx-europepmc-search",
       "path": "authored-skills/europepmc-search",
@@ -978,7 +978,7 @@
     {
       "description": "Query the OpenAlex scholarly graph for works, authors, institutions, sources, topics, and funders; resolve DOIs; and aggregate bibliometrics (citation counts, works). Use for academic discovery, author/institution lookup, or bibliometric summaries across all disciplines. Public API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 70,
+      "instruction_line_count": 95,
       "license": "Apache-2.0",
       "name": "cx-openalex-search",
       "path": "authored-skills/openalex-search",
@@ -1242,7 +1242,7 @@
     {
       "description": "Search PubMed biomedical literature for a topic, gene, drug, disease, or clinical question and retrieve article details. Use when the user wants peer-reviewed biomedical or clinical references; PubMed indexing does not guarantee peer review. Uses the plugin's built-in read-only PubMed MCP tool for discovery \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 65,
+      "instruction_line_count": 91,
       "license": "Apache-2.0",
       "name": "cx-pubmed-search",
       "path": "authored-skills/pubmed-search",

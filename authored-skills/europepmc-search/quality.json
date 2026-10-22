@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "europepmc-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["europepmc-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The bounded discovery interface does not expose pagination; direct API completeness depends on observed page metadata.",
+    "Full text and source coverage vary by item; retrieval does not establish clinical validity or systematic-review completeness."
+  ]
+}

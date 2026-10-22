@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "europepmc-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "europepmc-evidence",
+      "path": "references/europepmc-evidence.md",
+      "purpose": "Claim classes, source aggregation and lineage, uncertainty, controls, sensitivity, applicability, and failure detection.",
+      "read_when": ["screening or deduplicating Europe PMC results", "using citation or full-text routes", "assessing retrieval robustness"],
+      "required_before": ["claim-synthesis", "search-coverage-claim"],
+      "evidence_boundary": "Interprets recorded Europe PMC records and pages; does not establish complete coverage, peer review, clinical validity, or advice."
+    }
+  ]
+}

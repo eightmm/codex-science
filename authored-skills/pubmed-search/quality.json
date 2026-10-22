@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "skill": "pubmed-search",
+  "roles": ["retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["pubmed-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The built-in discovery tool returns a bounded unpaginated set and does not provide abstracts.",
+    "PubMed indexing and returned records do not establish peer review, complete recall, or clinical validity."
+  ]
+}
