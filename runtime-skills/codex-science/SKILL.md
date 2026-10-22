@@ -111,6 +111,19 @@ boundaries.
 10. Use `$science-review` after producing claims. Delegate review to a separate subagent when available; give it the approved plan, artifact manifest, execution record, and outputs, not the intended conclusion. Attach the passed JSON receipt with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" review --artifact-ref`; this registers the receipt in the run manifest, so do not hand-edit the manifest afterwards. The receipt must name the reviewer and attest independence. The checkpoint hashes this statement but cannot authenticate reviewer identity; a self-review is not independent. Once the independent review has no open critical/major findings, record remaining minor findings in the receipt and proceed to the `--require-passed-review` validation and `complete`. After the independent review passes, do not modify reviewed artifacts: any change invalidates the review. Proceed directly to the `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_artifact.py" <manifest> --review-output <run-dir>/deterministic-review.json --require-passed-review` validation.
 11. Resolve findings or mark them open before preparing the independent reviewer packet. Satisfy every objective criterion with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" criterion` and a run-local evidence reference. After step 10's required-passed-review validation succeeds, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" complete` only after every manifest plan step, criterion, and independent review passes, then report conclusions, uncertainty, limitations, and exact artifact paths.
 
+### Command shapes
+
+Use `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py"` for each checkpoint command below; `<run-dir>` is the run directory.
+
+- `advance <run-dir> --complete <step-id> --next-action <text>`; optional `--next <step-id>`.
+- `attempt <run-dir> --failure-class <class> --approach <text> --outcome <text> --next-action <text>`.
+- `criterion <run-dir> --id <criterion-id> --evidence-ref <path> [--evidence-ref <path> ...]` (at least one evidence reference is required).
+- `review <run-dir> --artifact-ref <receipt-path>`.
+- `complete <run-dir>`.
+- `heartbeat <run-dir> --next-action <text>`; optional `--progress-ref <path>`.
+- `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" prepare <manifest> --mode <record|source|method|reproduction> [--mode ...] --output <packet-path>`; required `--mode` (choices shown) may repeat; optional repeatable `--question <text>`, `--independence-not-required`, and `--tier <quick|standard|full>`.
+- `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" finalize <packet> <response> --output <receipt-path>`.
+
 ## Human-facing progress
 
 Write in the user's language, using plain sentences a scientist outside this tool

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Documented exact checkpoint and independent-review CLI argument shapes in the main skill.
 - Documented repeated `--step ID=TITLE` checkpoint flags and made invalid-step errors show a correcting example.
 - Added an opt-in, capped Europe PMC full-text workflow with report-cited candidate selection, per-article deduplication, and a retrieval ledger separate from search provenance.
 - Checkpoint review recording now registers or refreshes the receipt in the run manifest.
