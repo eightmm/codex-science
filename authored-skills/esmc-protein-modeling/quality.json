@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "esmc-protein-modeling",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["esmc-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The license and provenance of each checkpoint, SAE dictionary, and hosted endpoint must be verified separately.",
+    "Pretraining overlap and species representation may be incompletely documented.",
+    "SAE feature stability and benchmark association do not establish causal mechanism or clinical validity."
+  ]
+}

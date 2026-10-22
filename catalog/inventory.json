@@ -474,7 +474,7 @@
     {
       "description": "Extract reproducible ESM-2 protein embeddings, residue representations, likelihoods, or zero-shot mutation scores. Use when a frozen protein language model is needed as a feature extractor or baseline.",
       "executable_count": 0,
-      "instruction_line_count": 53,
+      "instruction_line_count": 69,
       "license": "MIT",
       "name": "cx-esm2-protein-embeddings",
       "path": "authored-skills/esm2-protein-embeddings",
@@ -486,7 +486,7 @@
     {
       "description": "Run released Biohub ESMC protein language models for representations, masked likelihoods, sequence scoring, mutation analysis, or sparse-autoencoder features. Use as the current ESMC alternative to ESM-2 when model scale, revision, and inference boundaries are explicit.",
       "executable_count": 0,
-      "instruction_line_count": 51,
+      "instruction_line_count": 64,
       "license": "MIT",
       "name": "cx-esmc-protein-modeling",
       "path": "authored-skills/esmc-protein-modeling",
@@ -534,7 +534,7 @@
     {
       "description": "Run pinned Evo 2 DNA sequence scoring, embeddings, variant scoring, or controlled generation. Use for long-context genomic foundation-model analyses when compatible local GPU hardware and explicit genome/strand provenance are available.",
       "executable_count": 0,
-      "instruction_line_count": 56,
+      "instruction_line_count": 71,
       "license": "MIT",
       "name": "cx-evo2-genome-modeling",
       "path": "authored-skills/evo2-genome-modeling",

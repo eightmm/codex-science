@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "esm2-protein-embeddings",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "esm2-score-interpretation",
+      "path": "references/esm2-score-interpretation.md",
+      "purpose": "Defines ESM-2 score classes, split dependence, uncertainty, controls, sensitivity, and limits on biological interpretation.",
+      "read_when": ["computing pseudo-log-likelihood or masked-marginal scores", "comparing embeddings", "evaluating protein benchmarks", "making function-related claims"],
+      "required_before": ["step-4", "step-6", "step-7", "claim-score-semantics"],
+      "search_patterns": ["## Claim classes", "## Uncertainty and calibration", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Guides ESM-2 score interpretation and evaluation design; it is not assay evidence, independent validation, or proof of function or pathogenicity."
+    }
+  ]
+}

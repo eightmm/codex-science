@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "esmc-protein-modeling",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "esmc-evidence-contract",
+      "path": "references/esmc-evidence-contract.md",
+      "purpose": "Defines ESMC and SAE claim classes, data dependence, uncertainty, controls, sensitivity, and release-specific evidence boundaries.",
+      "read_when": ["scoring substitutions", "interpreting ESMC representations or SAE features", "evaluating a protein benchmark", "making a function-related claim"],
+      "required_before": ["step-4", "step-6", "step-7", "claim-score-semantics"],
+      "search_patterns": ["## Claim classes", "## Uncertainty and calibration", "## Controls and sensitivity", "## Applicability and failure detection"],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Provides method guidance only; it cannot validate biological function, SAE causality, checkpoint rights, or performance outside an independent assay-matched evaluation."
+    }
+  ]
+}

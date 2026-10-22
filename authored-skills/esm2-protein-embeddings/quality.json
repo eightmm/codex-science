@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "esm2-protein-embeddings",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["esm2-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Model score calibration and transfer validity depend on independent, assay-matched evaluation data.",
+    "Checkpoint pretraining overlap may be unknown or impossible to exclude completely.",
+    "Tensor integrity and benchmark association do not establish causal or clinical validity."
+  ]
+}

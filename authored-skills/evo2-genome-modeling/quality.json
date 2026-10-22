@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "evo2-genome-modeling",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["evo2-genome-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Training data overlap and species coverage may be incompletely documented for a checkpoint.",
+    "Sequence likelihood and embedding similarity are not calibrated biological outcomes.",
+    "Generation audits do not establish experimental function or authorize synthesis or deployment."
+  ]
+}

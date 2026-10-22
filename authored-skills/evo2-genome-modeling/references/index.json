@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "evo2-genome-modeling",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "evo2-score-interpretation",
+      "path": "references/evo2-score-interpretation.md",
+      "purpose": "Defines genomic score classes, genome/split dependencies, uncertainty, controls, sensitivity, applicability, and generation boundaries.",
+      "read_when": ["scoring variants", "interpreting genomic embeddings", "evaluating genome benchmarks", "generating DNA"],
+      "required_before": ["step-4", "step-6", "step-7", "claim-score-semantics"],
+      "search_patterns": ["## Claim classes", "## Uncertainty and calibration", "## Controls and sensitivity", "## Applicability, generation, and failure detection"],
+      "authority": "method-guidance",
+      "version": "1",
+      "evidence_boundary": "Guides genomic model evaluation and generation audit; it is not genomic assay evidence, clinical validation, or authorization to synthesize or deploy generated sequence."
+    }
+  ]
+}
