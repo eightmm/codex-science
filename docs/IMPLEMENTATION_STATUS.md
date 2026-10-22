@@ -36,8 +36,9 @@
   sufficiency counts independent study groups without judging entailment;
   citation resolution is network-opt-in and existence-only; and output-schema
   validation is an optional completion-record cross-check.
-- These are local runtime contracts and deterministic checks. No real
-  literature evaluation has established measured completion or agent
+- These are local runtime contracts and deterministic checks. The real
+  literature evaluations below are small observed samples (n=6 per run); they
+  measure completion on this task set only and do not establish agent
   improvement.
 - First real literature evaluation (task set v1, 2026-10-22) completed 3/6
   tasks. The other three failed only the review-receipt criterion because v1
