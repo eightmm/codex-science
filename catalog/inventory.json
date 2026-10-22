@@ -102,7 +102,7 @@
     {
       "description": "Run a pinned BindCraft campaign for de novo protein binders using AlphaFold2 optimization, ProteinMPNN, PyRosetta, and configurable filters. Use only when the target structure, hotspot strategy, candidate budget, dependency licenses, and experimental handoff are explicit.",
       "executable_count": 0,
-      "instruction_line_count": 57,
+      "instruction_line_count": 99,
       "license": "MIT",
       "name": "cx-bindcraft-binder-design",
       "path": "authored-skills/bindcraft-binder-design",
@@ -1182,7 +1182,7 @@
     {
       "description": "Design or score protein sequences for fixed backbones with ProteinMPNN, LigandMPNN, or SolubleMPNN. Use for backbone-conditioned design, ligand-context design, soluble-protein design, residue constraints, or side-chain packing.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 92,
       "license": "MIT",
       "name": "cx-proteinmpnn-sequence-design",
       "path": "authored-skills/proteinmpnn-sequence-design",
@@ -1350,7 +1350,7 @@
     {
       "description": "Run pinned RFdiffusion for unconditional generation, motif scaffolding, binder backbones, symmetric assemblies, partial diffusion, or macrocyclic peptide design. Use when structural conditioning and a downstream sequence/refolding validation funnel are defined.",
       "executable_count": 0,
-      "instruction_line_count": 53,
+      "instruction_line_count": 87,
       "license": "MIT",
       "name": "cx-rfdiffusion-protein-design",
       "path": "authored-skills/rfdiffusion-protein-design",

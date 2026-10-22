@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "skill": "bindcraft-binder-design",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "bindcraft-evidence-rules",
+      "path": "references/bindcraft-evidence.md",
+      "purpose": "Claim classes, model dependencies, selection denominators, controls, sensitivity, and applicability for BindCraft campaigns.",
+      "read_when": [
+        "choosing or interpreting binder filters",
+        "comparing candidate funnels or claiming novelty",
+        "making a computational binder-quality or experimental-property claim"
+      ],
+      "required_before": [
+        "step-6",
+        "step-7",
+        "binder-quality-claim",
+        "campaign-comparison",
+        "candidate-selection"
+      ],
+      "search_patterns": [
+        "## Claim classes",
+        "## Uncertainty and selection",
+        "## Controls",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and reporting for recorded BindCraft evidence; it does not demonstrate that any candidate binds, expresses, or functions."
+    }
+  ]
+}

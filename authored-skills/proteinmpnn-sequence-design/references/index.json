@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "skill": "proteinmpnn-sequence-design",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "proteinmpnn-evidence-rules",
+      "path": "references/proteinmpnn-evidence.md",
+      "purpose": "Claim classes, sequence-model dependencies, recovery denominators, controls, sensitivity, and applicability for fixed-backbone sequence design.",
+      "read_when": [
+        "choosing model variants, masks, or sampling settings",
+        "interpreting recovery, likelihood, or structural self-consistency",
+        "comparing sequence funnels or claiming compatibility"
+      ],
+      "required_before": [
+        "step-6",
+        "step-7",
+        "sequence-compatibility-claim",
+        "recovery-comparison",
+        "candidate-selection"
+      ],
+      "search_patterns": [
+        "## Claim classes",
+        "## Uncertainty, denominators, and selection",
+        "## Controls and sanity checks",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation of recorded sequence-design evidence; sequence scores and recovery do not establish experimental folding, binding, expression, or function."
+    }
+  ]
+}

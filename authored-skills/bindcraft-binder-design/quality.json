@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "bindcraft-binder-design",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["binder-design-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Computational confidence and interface filters do not establish binding, expression, specificity, or function.",
+    "Model outputs may share weights, training structures, and target assumptions even when rerun with different settings.",
+    "Campaign evidence depends on the supplied target state and the completeness of recorded candidate and filter denominators."
+  ]
+}

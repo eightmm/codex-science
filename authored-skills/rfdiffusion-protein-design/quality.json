@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "rfdiffusion-protein-design",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["rfdiffusion-design-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Self-consistency and confidence criteria are model-based and do not prove experimental folding or activity.",
+    "Novelty depends on available dated databases and known training-data provenance.",
+    "Generated-candidate conclusions depend on conditioning, target state, and complete funnel denominators."
+  ]
+}

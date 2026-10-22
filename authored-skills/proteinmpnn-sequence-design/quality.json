@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "proteinmpnn-sequence-design",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["proteinmpnn-sequence-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Likelihood, recovery, and structural self-consistency are not experimental property measurements.",
+    "Model weights, training-data overlap, and actual designability may be unknown for selected variants.",
+    "Sequence evidence depends on accurate backbone, residue mapping, masks, and ligand context."
+  ]
+}

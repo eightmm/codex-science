@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "skill": "rfdiffusion-protein-design",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "rfdiffusion-evidence-rules",
+      "path": "references/rfdiffusion-evidence.md",
+      "purpose": "Claim classes, conditioning and model dependencies, full-funnel uncertainty, controls, sensitivity, and applicability for generated backbones.",
+      "read_when": [
+        "choosing RFdiffusion conditioning or downstream filters",
+        "interpreting motif recovery, scRMSD, or confidence metrics",
+        "comparing backbone campaigns or claiming designability"
+      ],
+      "required_before": [
+        "step-7",
+        "conditioning-claim",
+        "designability-claim",
+        "campaign-comparison"
+      ],
+      "search_patterns": [
+        "## Claim classes",
+        "## Uncertainty and selection",
+        "## Controls and sanity checks",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation of recorded generation and validation evidence; it does not establish folding, binding, expression, or function experimentally."
+    }
+  ]
+}
