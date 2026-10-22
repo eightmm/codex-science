@@ -251,6 +251,41 @@ class SessionContractTests(unittest.TestCase):
         self.assertTrue(prompts)
         self.assertTrue(all("Start Codex Science" in prompt for prompt in prompts))
 
+    def test_user_facing_message_contract_is_language_matched_and_indexed(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        skill = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
+        progress = skill.split("## Human-facing progress", 1)[1].split(
+            "## Lane delegation and synthesis", 1
+        )[0]
+        reference = repository_root / "runtime-skills" / "codex-science" / "references" / "user-facing-messages.md"
+        index = json.loads(
+            (repository_root / "runtime-skills" / "codex-science" / "references" / "index.json").read_text()
+        )
+        indexed = {entry["path"]: entry for entry in index["references"]}
+
+        self.assertNotIn("Codex Science is active for this task.", skill)
+        self.assertIn("Write in the user's language", progress)
+        self.assertIn("Do not expose internal tier names", progress)
+        self.assertIn("(references/user-facing-messages.md)", progress)
+        self.assertIn("clickable links with readable link text", progress)
+        self.assertIn("use absolute paths when the host renders", progress)
+        self.assertIn("in the user's language and plain words only when useful", skill)
+        self.assertIn(
+            "Only say progress is saved in files when a standard or full run record exists",
+            skill,
+        )
+        self.assertIn("progress is saved in files", skill)
+        self.assertIn("quick answer without a run record", skill)
+        self.assertTrue(reference.is_file())
+        self.assertIn("references/user-facing-messages.md", indexed)
+        self.assertEqual(
+            "repository-contract",
+            indexed["references/user-facing-messages.md"]["authority"],
+        )
+        self.assertEqual("1", indexed["references/user-facing-messages.md"]["version"])
+        self.assertTrue(indexed["references/user-facing-messages.md"]["required_before"])
+        self.assertTrue(indexed["references/user-facing-messages.md"]["search_patterns"])
+
 
 class ScientificComputerUseCoverageTests(unittest.TestCase):
     def test_local_and_remote_compute_skills_are_active_and_routed(self) -> None:

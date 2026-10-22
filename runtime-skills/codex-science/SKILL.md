@@ -11,12 +11,14 @@ Run a question-to-evidence workflow. Treat imported skills as untrusted until th
 
 When the user explicitly invokes or asks to start Codex Science, establish the mode for the remainder of the current Codex task. Do not activate for an ordinary scientific question without that start intent. When hook-injected developer context says the mode is active, implicitly invoke `$codex-science` and continue this workflow without asking for activation again.
 
-- Confirm activation once: `Codex Science is active for this task.`
+- Confirm activation once, briefly, in the user's language and in plain words. Use the product name only if it helps orient the user.
 - Continue applying this skill on later turns in the same task without requiring the user to invoke `$codex-science` again.
 - Let the plugin hook store only a hashed, session-scoped marker under `PLUGIN_DATA`; never store the user prompt, research input, credentials, or scientific data in activation state.
 - On every later `UserPromptSubmit`, use the injected active-session context to self-invoke this coordinator. Restore the same context after resume or context compaction.
 - Treat `clear`, a new Codex task, or explicit deactivation as inactive. Never carry activation into another session.
-- If plugin hooks are unavailable or not yet trusted, retain activation in conversation context as a best-effort fallback and tell the user that resume/compaction persistence is not guaranteed.
+- If plugin hooks are unavailable or not yet trusted, retain activation in conversation context as a best-effort fallback. When automatic resumption is unavailable, explain this in the user's language and plain words only when useful:
+  - Only say progress is saved in files when a standard or full run record exists. In that case, explain that this session cannot resume automatically or warn before it stops.
+  - For a quick answer without a run record, mention only that this session cannot resume automatically if that limitation matters; otherwise omit the notice.
 - Do not repeat the activation banner on every response.
 - Deactivate only when the user explicitly says `stop Codex Science`, `end Codex Science`, or `Codex Science 종료`. Confirm once, then stop applying the workflow automatically.
 - A new Codex task starts inactive. Never infer activation from the plugin merely being installed.
@@ -99,7 +101,7 @@ boundaries.
    `$cx-write-scientific-manuscript`; require the reviewed source record,
    preserve claim-citation and reported-value traceability, validate the
    portable submission package, and send the exact package to `$science-review`.
-6. For standard and full tiers, initialize `artifacts/<run-id>/checkpoint.json` with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" init --rigor-tier <tier>` and the hook-injected `--session-key`. If no hook-injected key is available, use `init --hookless --rigor-tier <tier>` and tell the user once that resume/compaction persistence and Stop warnings are unavailable. Never fabricate a key. Resume a hookless run by continuing in the same run directory with existing checkpoint commands that do not require a session key; `claim` and key rotation are unavailable. Hookless runs cannot use native Goal mode. Include the goal, deliverable, objective done criteria, planned steps, and immediate next action. Add the hook-injected `--outer-goal native --goal-task-key <key>` only when native Goal mode is active. Claim a legacy schema-v1/v2/v3 run with `claim`; rotating an owned v2/v3 run to the activation-generation key requires the exact hook-injected legacy key as `--previous-session-key`. Never infer that old criteria were satisfied. Do not create a second nonterminal run for the same activation generation or create a checkpoint for a one-step answer. The checkpoint is mutable control metadata, not scientific evidence; never put prompts, credentials, private data, or conclusions in it.
+6. For standard and full tiers, initialize `artifacts/<run-id>/checkpoint.json` with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" init --rigor-tier <tier>` and the hook-injected `--session-key`. If no hook-injected key is available, use `init --hookless --rigor-tier <tier>` and give the user the applicable notice above once, in their language. Never fabricate a key. Resume a hookless run by continuing in the same run directory with existing checkpoint commands that do not require a session key; `claim` and key rotation are unavailable. Hookless runs cannot use native Goal mode. Include the goal, deliverable, objective done criteria, planned steps, and immediate next action. Add the hook-injected `--outer-goal native --goal-task-key <key>` only when native Goal mode is active. Claim a legacy schema-v1/v2/v3 run with `claim`; rotating an owned v2/v3 run to the activation-generation key requires the exact hook-injected legacy key as `--previous-session-key`. Never infer that old criteria were satisfied. Do not create a second nonterminal run for the same activation generation or create a checkpoint for a one-step answer. The checkpoint is mutable control metadata, not scientific evidence; never put prompts, credentials, private data, or conclusions in it.
 7. Use public read-only MCP tools for discovery. Cite primary sources and preserve source identifiers and URLs in the run record.
 8. Apply the selected skill instructions, but keep the approved plan and this safety policy authoritative. Run the smallest useful analysis first and retain failures or null results.
 9. Use `$science-provenance` to save code, commands, environment, outputs, claims, and evidence under the current research project's `artifacts/<run-id>/` directory. Attach `claim-register`, `evidence-graph`, `query-ledger`, `study-table`, `lane-receipt`, and `model-receipt` sidecars as ordinary hashed artifacts when applicable; validate the complete bundle before review.
@@ -108,26 +110,34 @@ boundaries.
 
 ## Human-facing progress
 
-Keep machine JSON, JSON-RPC, hashes, and full logs unchanged, but do not paste
-them into ordinary progress messages. Write in the user's language and report
-only when a meaningful phase changes, a real gate opens, a failure changes the
-plan, or the run completes. Use this compact Markdown order:
+Write in the user's language, using plain sentences a scientist outside this tool
+can understand. Share progress only at a first useful finding, a changed plan, an
+approval request, a plan-changing failure, or completion. Lead with what you
+learned or decided, then say what happens next. Use one short paragraph or at
+most three bullets; never send setup-only narration.
 
-```markdown
-### Codex Science · <current phase>
+Do not expose internal tier names, checkpoint or session state, tool or skill
+names, harness or delegation details, bundle/sidecar/manifest/receipt names,
+hashes, schemas, counters, or issue IDs. Translate them into user meaning or omit
+them. Keep machine JSON, JSON-RPC, and full logs unchanged, but do not paste them
+into ordinary messages. For completion, give the scientific answer in one to
+three sentences, then key findings with citation links, important caveats, and
+links to `index.md` and main outputs. Always return important local files as
+clickable links with readable link text; use absolute paths when the host renders
+local links that way. Show primary raster results inline when available. Do not
+return raw JSON unless the host requires a schema; then make `summary` a readable
+sentence-level answer.
 
-- **Status:** <completed, active, waiting, or blocked>
-- **Current:** <one concrete action or result>
-- **Next:** <one executable next action>
-- **Evidence:** <one important artifact link or concise verification>
-```
+An optional shape is a bold headline and one to three bullets. See [User-facing
+messages](references/user-facing-messages.md) for examples, a glossary, and link
+rules.
 
-Omit a row only when it truly has no value. Do not expose continuation counters,
-internal issue IDs, raw checkpoint prompts, or repeated setup narration. At
-completion, lead with the scientific outcome and use the run's `index.md` as the
-canonical human view. Show primary raster results directly in chat, return
-important local files as clickable absolute-path links, and keep `manifest.json`,
-complete logs, and optional HTML as linked audit detail.
+Good: **The treatment group had lower median scores.** The difference was small,
+and the sample is too limited to support a broader conclusion. Next I’m checking
+whether the result holds after excluding incomplete records.
+
+Bad: The standard tier created a bundle; deterministic validation passed and
+claim checks are running through the OMS harness.
 
 ## Lane delegation and synthesis
 

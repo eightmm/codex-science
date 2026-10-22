@@ -3,6 +3,28 @@
   "references": [
     {
       "authority": "repository-contract",
+      "id": "user-facing-messages",
+      "path": "references/user-facing-messages.md",
+      "purpose": "Write clear, language-matched progress and completion messages without exposing internal tooling details.",
+      "read_when": [
+        "reporting progress during a Codex Science run",
+        "writing a completed-run answer for a person"
+      ],
+      "required_before": [
+        "composing Codex Science progress messages",
+        "composing a Codex Science completion message"
+      ],
+      "evidence_boundary": "This guide controls presentation; it does not establish scientific findings or replace source evidence.",
+      "search_patterns": [
+        "## Progress messages",
+        "## Completion messages",
+        "## Glossary",
+        "## Links"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
       "evidence_boundary": "Controls procedural grounding; it is not scientific evidence.",
       "id": "reference-loading",
       "path": "references/reference-loading.md",
