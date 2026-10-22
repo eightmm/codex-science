@@ -114,7 +114,7 @@
     {
       "description": "Normalize genes, proteins, variants, diseases, phenotypes, compounds, reactions, tissues, cell types, organisms, studies, and accessions before multi-source biomedical research. Use whenever aliases, assemblies, releases, or identifier namespaces could change retrieval.",
       "executable_count": 0,
-      "instruction_line_count": 19,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-biomedical-entity-normalization",
       "path": "authored-skills/biomedical-entity-normalization",
@@ -738,7 +738,7 @@
     {
       "description": "Route broad or multi-step life-science questions into normalized entities, the smallest independent evidence lanes, reproducible retrieval, conflict reconciliation, and review. Use for target, variant, disease, omics, structure, pharmacology, clinical, or public-dataset research requiring synthesis.",
       "executable_count": 0,
-      "instruction_line_count": 19,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-life-science-research-routing",
       "path": "authored-skills/life-science-research-routing",
@@ -1230,7 +1230,7 @@
     {
       "description": "Discover and triage reusable public transcriptomics, proteomics, metabolomics, microbiome, and supplementary-study datasets. Use when a research question needs external data rather than only literature.",
       "executable_count": 0,
-      "instruction_line_count": 17,
+      "instruction_line_count": 31,
       "license": "MIT",
       "name": "cx-public-omics-dataset-discovery",
       "path": "authored-skills/public-omics-dataset-discovery",

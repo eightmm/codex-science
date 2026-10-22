@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "public-omics-dataset-discovery",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["omics-dataset-selection-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Repository metadata may not expose donor overlap, processing history, or asset-level reuse terms.",
+    "Dataset fitness is conditional on the stated estimand and cannot establish causal or biological validity.",
+    "This skill defines a selection method but has no checked-in domain acceptance fixture or live repository drift test."
+  ]
+}

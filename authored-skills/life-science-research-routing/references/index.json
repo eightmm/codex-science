@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "life-science-research-routing",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "evidence-lanes-and-reconciliation",
+      "path": "references/evidence-lanes-and-reconciliation.md",
+      "purpose": "Claim classes, evidence status, lane independence, uncertainty, controls, sensitivity, and reconciliation boundaries.",
+      "read_when": ["planning multiple evidence lanes", "assigning evidence status or confidence", "deduplicating sources or reconciling contradictory findings"],
+      "required_before": ["multi-lane synthesis", "material claim status assignment"],
+      "evidence_boundary": "Routing and reconciliation organize available evidence; they do not guarantee coverage, causal identification, calibrated prediction, clinical utility, or transfer beyond observed domains."
+    }
+  ]
+}

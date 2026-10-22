@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "biomedical-entity-normalization",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "entity-identity-and-crosswalks",
+      "path": "references/entity-identity-and-crosswalks.md",
+      "purpose": "Identity classes, crosswalk provenance, uncertainty propagation, controls, sensitivity, and stop conditions.",
+      "read_when": ["selecting a canonical identifier", "normalizing variants or chemical forms", "joining namespaces or resolving ambiguous ontology mappings"],
+      "required_before": ["material identifier mapping", "cross-namespace aggregation"],
+      "evidence_boundary": "A version-pinned registry mapping supports an identifier relation under stated rules; it does not establish function, pathogenicity, mechanism, or clinical significance."
+    }
+  ]
+}

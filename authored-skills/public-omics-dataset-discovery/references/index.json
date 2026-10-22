@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "public-omics-dataset-discovery",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "dataset-evidence-and-reuse",
+      "path": "references/dataset-evidence-and-reuse.md",
+      "purpose": "Dataset claim classes, cohort dependencies, reuse checks, uncertainty, controls, sensitivity, and applicability limits.",
+      "read_when": ["ranking dataset candidates", "checking cross-listed accessions or cohort independence", "assessing design fitness, missing metadata, or reuse terms"],
+      "required_before": ["final dataset ranking", "transfer plan"],
+      "evidence_boundary": "Metadata and design inspection can support selection fitness but do not establish biological truth, consent compatibility, causal identification, or validity beyond the described cohorts and assays."
+    }
+  ]
+}

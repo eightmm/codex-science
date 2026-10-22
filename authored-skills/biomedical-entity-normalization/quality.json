@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "biomedical-entity-normalization",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["entity-mapping-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Identifier coverage, release cadence, and cross-reference quality vary by entity class and source.",
+    "Mapping confidence is qualitative unless calibrated and validated for the target entity domain.",
+    "This skill defines a normalization method but has no checked-in domain acceptance fixture or live source drift test."
+  ]
+}

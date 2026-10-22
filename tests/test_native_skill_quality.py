@@ -11,6 +11,7 @@ TIER1_SKILLS = {
         "lane receipt",
         "claim-evidence matrix",
         "negative evidence",
+        "$cx-biomedical-evidence-reconciliation",
     ),
     "biomedical-entity-normalization": (
         "one-to-many",

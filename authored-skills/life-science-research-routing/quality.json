@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "life-science-research-routing",
+  "roles": ["conductor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["life-science-evidence-routing-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Lane independence depends on cohort, source, model, and transformation provenance that may be incomplete.",
+    "Qualitative confidence requires domain judgment and is not a calibrated probability.",
+    "Routing and claim reconciliation have no checked-in domain acceptance fixture or live source drift test."
+  ]
+}
