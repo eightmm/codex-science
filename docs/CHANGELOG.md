@@ -38,6 +38,22 @@
   handoffs): the maturity audit now reports 0 L1 and 118 L2 skills (previously
   112 L1). Existing endpoints, attribution, and gates were preserved; one
   retired ChEBI link was replaced.
+- Raised every remaining first-party authored skill from L2 to L3 (maturity
+  audit: 0 L2, 129 L3, 6 L4): each now
+  ships indexed `references/` with `read_when`, `required_before` workflow
+  steps and evidence boundaries, a `quality.json` declaring versioned output
+  schemas, and a numbered workflow that separates computed, retrieved or
+  rendered results from validated scientific claims. Review-driven fixes
+  corrected citations and restored dropped instructions. A new test fails when
+  a relative Markdown link in an authored skill does not resolve inside the
+  repository. L3 is a documentation contract; these skills still have no
+  executable acceptance fixtures.
+- The literature evaluation runner reads installed and loaded runtime
+  versions from each plugin cache's `release/manifest.json` and accepts
+  `--plugin codex-science@MARKETPLACE` to evaluate a separately installed
+  build. Benchmark task set v2 accepts both `review-receipt` and
+  `review-receipt-v2` (new `in` assertion); the frozen v1 set is kept as
+  `benchmarks/literature-review/tasks-v1.json` for grading earlier runs.
 - Added a bounded resume driver, weighted rubric grading, trajectory consensus
   and ranking, claim evidence-count checks, opt-in citation existence lookup,
   and an opt-in completion-record schema cross-check. These mechanisms report
