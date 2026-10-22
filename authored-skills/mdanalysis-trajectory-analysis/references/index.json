@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "mdanalysis-trajectory-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "trajectory-evidence-interpretation",
+      "path": "references/trajectory-evidence.md",
+      "purpose": "Trajectory-analysis claim classes, lineage and dependence, uncertainty, controls, sensitivity, applicability, and MDAnalysis failure detection.",
+      "read_when": ["choosing trajectory transformations or selections", "assessing equilibration or convergence", "interpreting or comparing an observable"],
+      "required_before": ["analysis-contract", "convergence-claim", "observable-claim"],
+      "evidence_boundary": "Supports measurements from validated supplied frames; it cannot establish upstream model validity, experimental truth, or adequate sampling by itself."
+    }
+  ]
+}

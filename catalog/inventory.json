@@ -642,7 +642,7 @@
     {
       "description": "Prepare and run staged, checkpointed molecular dynamics with a pinned GROMACS build. Use when GROMACS workflows, HPC execution, established .mdp protocols, or interoperability with GROMACS topology/trajectory formats is required.",
       "executable_count": 0,
-      "instruction_line_count": 28,
+      "instruction_line_count": 45,
       "license": "MIT",
       "name": "cx-gromacs-molecular-dynamics",
       "path": "authored-skills/gromacs-molecular-dynamics",
@@ -810,7 +810,7 @@
     {
       "description": "Analyze OpenMM, GROMACS, and other molecular dynamics trajectories with MDAnalysis using topology-aware selections, periodic-boundary handling, prespecified observables, convergence checks, and uncertainty estimates.",
       "executable_count": 0,
-      "instruction_line_count": 28,
+      "instruction_line_count": 43,
       "license": "MIT",
       "name": "cx-mdanalysis-trajectory-analysis",
       "path": "authored-skills/mdanalysis-trajectory-analysis",
@@ -1026,7 +1026,7 @@
     {
       "description": "Build, equilibrate, run, checkpoint, and analyze reproducible molecular dynamics with OpenMM. Use for proteins, nucleic acids, solvated complexes, or parameterized protein-ligand systems when local CPU/GPU simulation is requested.",
       "executable_count": 0,
-      "instruction_line_count": 28,
+      "instruction_line_count": 43,
       "license": "MIT",
       "name": "cx-openmm-molecular-dynamics",
       "path": "authored-skills/openmm-molecular-dynamics",

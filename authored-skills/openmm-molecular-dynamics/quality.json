@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "openmm-molecular-dynamics",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["openmm-md-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Serialized systems and protocols remain dependent on exact OpenMM, plugin, platform, and parameter versions.",
+    "Finite trajectories cannot establish convergence for unsampled slow processes or rare events.",
+    "Simulation-only evidence does not validate experimental or causal claims."
+  ]
+}

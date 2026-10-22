@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "gromacs-molecular-dynamics",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["gromacs-md-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Protocol and sampling checks do not prove that a force field represents the target chemistry accurately.",
+    "Finite trajectories cannot establish convergence of unsampled slow processes or rare events.",
+    "Experimental claims require independent evidence beyond simulation output."
+  ]
+}

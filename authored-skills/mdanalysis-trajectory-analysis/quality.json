@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "mdanalysis-trajectory-analysis",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["mdanalysis-trajectory-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow analyzes supplied coordinates and cannot validate upstream force-field adequacy or physical equilibrium.",
+    "Finite trajectory length may leave slow transitions and rare conformations unsampled.",
+    "Analysis results depend on topology quality, selections, coordinate transformations, and trajectory provenance."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "gromacs-molecular-dynamics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "gromacs-evidence-interpretation",
+      "path": "references/gromacs-evidence.md",
+      "purpose": "GROMACS-specific claim classes, provenance, sampling uncertainty, controls, sensitivity, domain limits, and failure detection.",
+      "read_when": ["selecting a production protocol", "evaluating equilibration or convergence", "interpreting or comparing a trajectory observable"],
+      "required_before": ["production-protocol", "equilibration-claim", "observable-claim"],
+      "evidence_boundary": "Supports claims about the pinned simulation model and sampled trajectory; it does not establish experimental facts or universal force-field validity."
+    }
+  ]
+}

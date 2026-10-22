@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "openmm-molecular-dynamics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "openmm-evidence-interpretation",
+      "path": "references/openmm-evidence.md",
+      "purpose": "OpenMM-specific claim classes, reproducibility dependencies, uncertainty, controls, sensitivity, domain limits, and failure detection.",
+      "read_when": ["choosing a platform or integration protocol", "evaluating equilibration or convergence", "interpreting or comparing a simulated observable"],
+      "required_before": ["simulation-configuration", "equilibration-claim", "observable-claim"],
+      "evidence_boundary": "Supports claims about the pinned OpenMM model and sampled trajectory; it does not establish experimental facts, binding free energy, or universal parameter transferability."
+    }
+  ]
+}
