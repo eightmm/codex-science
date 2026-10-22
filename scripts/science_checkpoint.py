@@ -51,7 +51,7 @@ def _early_check(run_dir: Path) -> dict[str, object]:
     except ValueError as error:
         return {
             "status": "findings", "advisory": True,
-            "findings": [{"code": "sidecar-schema", "severity": "major", "message": str(error)}],
+            "findings": [{"code": "bundle-invalid", "severity": "major", "message": str(error)}],
         }
     except Exception as error:
         return {"status": "skipped", "findings": [], "advisory": True, "reason": type(error).__name__}

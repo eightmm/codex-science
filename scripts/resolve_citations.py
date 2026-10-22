@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                     first = first.get("family") or first.get("name")
                 first = study.get("first_author") or first
                 if first and not study.get("first_author"):
-                    first = str(first).strip().split()[-1]
+                    first = (str(first).split() or [None])[-1]
                 expected[identifier] = {"title": study.get("title"), "year": study.get("year"),
                                         "first_author": first}
         if args.offline_fixture:
