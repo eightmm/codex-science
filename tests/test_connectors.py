@@ -71,51 +71,27 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(16 * 1024 * 1024 + 1, response.read_size)
 
     def test_documented_connector_catalog_is_complete_and_conservative(self) -> None:
+        from codex_science.connector_sources import SOURCE_BY_TOOL, SOURCE_SPECS
+
         path = Path(__file__).resolve().parents[1] / "connectors" / "public.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
         sources = [source for category in payload["categories"] for source in category["sources"]]
 
         self.assertEqual(62, len(sources))
-        implemented = {source["name"] for source in sources if source["status"] == "mcp-tool"}
+        tool_entries = [source for source in sources if source["status"] == "mcp-tool"]
+        tool_names = [source["tool"] for source in tool_entries]
+        self.assertEqual(len(tool_names), len(set(tool_names)))
+        for source in tool_entries:
+            self.assertIn(source["tool"], SOURCE_BY_TOOL)
+            self.assertEqual(SOURCE_BY_TOOL[source["tool"]].maturity, source["maturity"])
+
+        registry_only = set()
         self.assertEqual(
-            {
-                "AlphaFold",
-                "Bgee",
-                "BioBank Japan",
-                "BioStudies",
-                "ChEBI",
-                "ChEMBL",
-                "Clinical Trials",
-                "Europe PMC",
-                "Ensembl (including VEP)",
-                "FinnGen",
-                "GTEx",
-                "GWAS Catalog",
-                "Human Protein Atlas",
-                "InterPro",
-                "MGnify",
-                "MyGene",
-                "NCBI Gene",
-                "OLS",
-                "OpenAlex",
-                "Open Targets",
-                "PDB",
-                "PRIDE",
-                "ProteomeXchange",
-                "PubChem",
-                "PubMed",
-                "GO",
-                "RNAcentral",
-                "Reactome",
-                "Rhea",
-                "STRING",
-                "UKB/TOPMed",
-                "UniProt",
-                "arXiv",
-                "cBioPortal",
-            },
-            implemented,
+            set(SOURCE_BY_TOOL) - registry_only,
+            set(tool_names),
         )
+        self.assertEqual(set(SOURCE_BY_TOOL), {spec.tool_name for spec in SOURCE_SPECS})
+        self.assertTrue(all("tool" not in source for source in sources if source["status"] == "cataloged"))
 
     def test_pubmed_parses_esearch_response(self) -> None:
         requested = []

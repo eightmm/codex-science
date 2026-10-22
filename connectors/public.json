@@ -6,37 +6,37 @@
     {
       "name": "Genomes",
       "sources": [
-        {"name": "Ensembl (including VEP)", "status": "mcp-tool", "tool": "science_search_ensembl"},
+        {"name": "Ensembl (including VEP)", "status": "mcp-tool", "tool": "science_search_ensembl", "maturity": "live-smoke-tested"},
         {"name": "UCSC", "status": "cataloged"}
       ]
     },
     {
       "name": "Genes and Ontologies",
       "sources": [
-        {"name": "MyGene", "status": "mcp-tool", "tool": "science_search_mygene"},
-        {"name": "NCBI Gene", "status": "mcp-tool", "tool": "science_search_ncbi_gene"},
-        {"name": "UniProt", "status": "mcp-tool", "tool": "science_search_uniprot"},
-        {"name": "GO", "status": "mcp-tool", "tool": "science_search_quickgo"},
-        {"name": "Reactome", "status": "mcp-tool", "tool": "science_search_reactome"},
-        {"name": "OLS", "status": "mcp-tool", "tool": "science_search_ols"}
+        {"name": "MyGene", "status": "mcp-tool", "tool": "science_search_mygene", "maturity": "live-smoke-tested"},
+        {"name": "NCBI Gene", "status": "mcp-tool", "tool": "science_search_ncbi_gene", "maturity": "live-smoke-tested"},
+        {"name": "UniProt", "status": "mcp-tool", "tool": "science_search_uniprot", "maturity": "live-smoke-tested"},
+        {"name": "GO", "status": "mcp-tool", "tool": "science_search_quickgo", "maturity": "live-smoke-tested"},
+        {"name": "Reactome", "status": "mcp-tool", "tool": "science_search_reactome", "maturity": "environment-sensitive"},
+        {"name": "OLS", "status": "mcp-tool", "tool": "science_search_ols", "maturity": "live-smoke-tested"}
       ]
     },
     {
       "name": "Variants",
       "sources": [
-        {"name": "gnomAD", "status": "cataloged"},
-        {"name": "ClinVar", "status": "cataloged"},
-        {"name": "dbSNP", "status": "cataloged"}
+        {"name": "gnomAD", "status": "mcp-tool", "tool": "science_search_gnomad", "maturity": "fixture-tested-experimental"},
+        {"name": "ClinVar", "status": "mcp-tool", "tool": "science_search_clinvar_v2", "maturity": "fixture-tested"},
+        {"name": "dbSNP", "status": "mcp-tool", "tool": "science_search_dbsnp_v2", "maturity": "fixture-tested"}
       ]
     },
     {
       "name": "Human Genetics",
       "sources": [
-        {"name": "GWAS Catalog", "status": "mcp-tool", "tool": "science_search_gwas_catalog"},
-        {"name": "eQTL Catalogue", "status": "cataloged"},
-        {"name": "FinnGen", "status": "mcp-tool", "tool": "science_search_finngen"},
-        {"name": "BioBank Japan", "status": "mcp-tool", "tool": "science_search_biobank_japan"},
-        {"name": "UKB/TOPMed", "status": "mcp-tool", "tool": "science_search_ukb_topmed"}
+        {"name": "GWAS Catalog", "status": "mcp-tool", "tool": "science_search_gwas_catalog", "maturity": "live-smoke-tested"},
+        {"name": "eQTL Catalogue", "status": "mcp-tool", "tool": "science_search_eqtl_catalogue", "maturity": "snapshot-contract"},
+        {"name": "FinnGen", "status": "mcp-tool", "tool": "science_search_finngen", "maturity": "live-smoke-tested"},
+        {"name": "BioBank Japan", "status": "mcp-tool", "tool": "science_search_biobank_japan", "maturity": "live-smoke-tested"},
+        {"name": "UKB/TOPMed", "status": "mcp-tool", "tool": "science_search_ukb_topmed", "maturity": "live-smoke-tested"}
       ]
     },
     {
@@ -44,89 +44,89 @@
       "sources": [
         {"name": "ClinGen", "status": "cataloged"},
         {"name": "CIViC", "status": "cataloged"},
-        {"name": "Open Targets", "status": "mcp-tool", "tool": "science_search_opentargets"}
+        {"name": "Open Targets", "status": "mcp-tool", "tool": "science_search_opentargets", "maturity": "live-smoke-tested"}
       ]
     },
     {
       "name": "Expression",
       "sources": [
-        {"name": "GTEx", "status": "mcp-tool", "tool": "science_search_gtex"},
-        {"name": "Bgee", "status": "mcp-tool", "tool": "science_search_bgee"}
+        {"name": "GTEx", "status": "mcp-tool", "tool": "science_search_gtex", "maturity": "live-smoke-tested"},
+        {"name": "Bgee", "status": "mcp-tool", "tool": "science_search_bgee", "maturity": "live-smoke-tested"}
       ]
     },
     {
       "name": "Regulation",
       "sources": [
-        {"name": "ENCODE", "status": "cataloged"},
-        {"name": "JASPAR", "status": "cataloged"},
-        {"name": "UniBind", "status": "cataloged"}
+        {"name": "ENCODE", "status": "mcp-tool", "tool": "science_search_encode", "maturity": "fixture-tested-experimental"},
+        {"name": "JASPAR", "status": "mcp-tool", "tool": "science_search_jaspar", "maturity": "fixture-tested"},
+        {"name": "UniBind", "status": "mcp-tool", "tool": "science_search_unibind", "maturity": "fixture-tested-experimental"}
       ]
     },
     {
       "name": "Protein Annotation",
       "sources": [
-        {"name": "InterPro", "status": "mcp-tool", "tool": "science_search_interpro"},
+        {"name": "InterPro", "status": "mcp-tool", "tool": "science_search_interpro", "maturity": "live-smoke-tested"},
         {"name": "Pfam", "status": "cataloged"},
-        {"name": "Human Protein Atlas", "status": "mcp-tool", "tool": "science_search_hpa"},
-        {"name": "STRING", "status": "mcp-tool", "tool": "science_search_string"}
+        {"name": "Human Protein Atlas", "status": "mcp-tool", "tool": "science_search_hpa", "maturity": "live-smoke-tested"},
+        {"name": "STRING", "status": "mcp-tool", "tool": "science_search_string", "maturity": "live-smoke-tested"}
       ]
     },
     {
       "name": "Structures and Interactions",
       "sources": [
-        {"name": "PDB", "status": "mcp-tool", "tool": "science_search_pdb"},
-        {"name": "AlphaFold", "status": "mcp-tool", "tool": "science_search_alphafold"},
-        {"name": "EMDB", "status": "cataloged"},
-        {"name": "Complex Portal", "status": "cataloged"},
-        {"name": "IntAct", "status": "cataloged"}
+        {"name": "PDB", "status": "mcp-tool", "tool": "science_search_pdb", "maturity": "live-smoke-tested"},
+        {"name": "AlphaFold", "status": "mcp-tool", "tool": "science_search_alphafold", "maturity": "live-smoke-tested"},
+        {"name": "EMDB", "status": "mcp-tool", "tool": "science_search_emdb", "maturity": "fixture-tested-experimental"},
+        {"name": "Complex Portal", "status": "mcp-tool", "tool": "science_search_complex_portal", "maturity": "fixture-tested-experimental"},
+        {"name": "IntAct", "status": "mcp-tool", "tool": "science_search_intact", "maturity": "fixture-tested-experimental"}
       ]
     },
     {
       "name": "RNA",
       "sources": [
         {"name": "Rfam", "status": "cataloged"},
-        {"name": "RNAcentral", "status": "mcp-tool", "tool": "science_search_rnacentral"}
+        {"name": "RNAcentral", "status": "mcp-tool", "tool": "science_search_rnacentral", "maturity": "live-smoke-tested"}
       ]
     },
     {
       "name": "Omics Archives",
       "sources": [
-        {"name": "GEO", "status": "cataloged"},
-        {"name": "ArrayExpress", "status": "cataloged"},
-        {"name": "BioStudies", "status": "mcp-tool", "tool": "science_search_biostudies"},
-        {"name": "PRIDE", "status": "mcp-tool", "tool": "science_search_pride"},
-        {"name": "ProteomeXchange", "status": "mcp-tool", "tool": "science_search_proteomexchange"},
-        {"name": "MGnify", "status": "mcp-tool", "tool": "science_search_mgnify"},
-        {"name": "MetaboLights", "status": "cataloged"}
+        {"name": "GEO", "status": "mcp-tool", "tool": "science_search_geo", "maturity": "fixture-tested"},
+        {"name": "ArrayExpress", "status": "mcp-tool", "tool": "science_search_arrayexpress", "maturity": "fixture-tested-experimental"},
+        {"name": "BioStudies", "status": "mcp-tool", "tool": "science_search_biostudies", "maturity": "live-smoke-tested"},
+        {"name": "PRIDE", "status": "mcp-tool", "tool": "science_search_pride", "maturity": "live-smoke-tested"},
+        {"name": "ProteomeXchange", "status": "mcp-tool", "tool": "science_search_proteomexchange", "maturity": "live-smoke-tested"},
+        {"name": "MGnify", "status": "mcp-tool", "tool": "science_search_mgnify", "maturity": "live-smoke-tested"},
+        {"name": "MetaboLights", "status": "mcp-tool", "tool": "science_search_metabolights", "maturity": "fixture-tested-experimental"}
       ]
     },
     {
       "name": "Cancer Models",
       "sources": [
-        {"name": "cBioPortal", "status": "mcp-tool", "tool": "science_search_cbioportal"}
+        {"name": "cBioPortal", "status": "mcp-tool", "tool": "science_search_cbioportal", "maturity": "live-smoke-tested"}
       ]
     },
     {
       "name": "Chemistry",
       "sources": [
-        {"name": "PubChem", "status": "mcp-tool", "tool": "science_search_pubchem"},
-        {"name": "ChEBI", "status": "mcp-tool", "tool": "science_search_chebi"},
-        {"name": "Rhea", "status": "mcp-tool", "tool": "science_search_rhea"},
-        {"name": "BindingDB", "status": "cataloged"}
+        {"name": "PubChem", "status": "mcp-tool", "tool": "science_search_pubchem", "maturity": "live-smoke-tested"},
+        {"name": "ChEBI", "status": "mcp-tool", "tool": "science_search_chebi", "maturity": "live-smoke-tested"},
+        {"name": "Rhea", "status": "mcp-tool", "tool": "science_search_rhea", "maturity": "live-smoke-tested"},
+        {"name": "BindingDB", "status": "mcp-tool", "tool": "science_search_bindingdb", "maturity": "fixture-tested-experimental"}
       ]
     },
     {
       "name": "Drug Regulatory",
       "sources": [
         {"name": "FDA drug data", "status": "cataloged"},
-        {"name": "openFDA", "status": "cataloged"}
+        {"name": "openFDA", "status": "mcp-tool", "tool": "science_search_openfda", "maturity": "fixture-tested-experimental"}
       ]
     },
     {
       "name": "Literature Graph",
       "sources": [
-        {"name": "OpenAlex", "status": "mcp-tool", "tool": "science_search_openalex"},
-        {"name": "arXiv", "status": "mcp-tool", "tool": "science_search_arxiv"}
+        {"name": "OpenAlex", "status": "mcp-tool", "tool": "science_search_openalex", "maturity": "live-smoke-tested"},
+        {"name": "arXiv", "status": "mcp-tool", "tool": "science_search_arxiv", "maturity": "live-smoke-tested"}
       ]
     },
     {
@@ -148,10 +148,10 @@
     {
       "name": "Directory",
       "sources": [
-        {"name": "PubMed", "status": "mcp-tool", "tool": "science_search_pubmed"},
-        {"name": "Europe PMC", "status": "mcp-tool", "tool": "science_search_europepmc"},
-        {"name": "Clinical Trials", "status": "mcp-tool", "tool": "science_search_clinical_trials"},
-        {"name": "ChEMBL", "status": "mcp-tool", "tool": "science_search_chembl"},
+        {"name": "PubMed", "status": "mcp-tool", "tool": "science_search_pubmed", "maturity": "live-smoke-tested"},
+        {"name": "Europe PMC", "status": "mcp-tool", "tool": "science_search_europepmc", "maturity": "live-smoke-tested"},
+        {"name": "Clinical Trials", "status": "mcp-tool", "tool": "science_search_clinical_trials", "maturity": "live-smoke-tested"},
+        {"name": "ChEMBL", "status": "mcp-tool", "tool": "science_search_chembl", "maturity": "live-smoke-tested"},
         {"name": "bioRxiv", "status": "cataloged"}
       ]
     }
