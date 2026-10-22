@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "ode-pde-solving",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["ode-pde-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No checked-in example or solver fixture validates the workflow against a specific ODE/PDE implementation.",
+    "Finite residual and refinement checks do not prove asymptotic convergence or model adequacy.",
+    "The skill requires equation-specific theorem selection and function-space judgment from the operator."
+  ]
+}

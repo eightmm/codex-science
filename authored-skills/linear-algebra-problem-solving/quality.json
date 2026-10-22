@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "linear-algebra-problem-solving",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["linear-algebra-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No checked-in matrix fixture validates a particular algorithm or numerical-library implementation.",
+    "Condition estimates and finite residuals do not establish exact rank or forward accuracy in every case.",
+    "Applicable perturbation scales and matrix-class assumptions require problem-specific justification."
+  ]
+}

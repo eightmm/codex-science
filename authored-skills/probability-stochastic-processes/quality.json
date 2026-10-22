@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "probability-stochastic-processes",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["probability-process-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "No checked-in probability-model or simulation fixture validates a particular estimator implementation.",
+    "Monte Carlo intervals depend on estimator and dependence assumptions that require case-specific checks.",
+    "Simulation precision does not establish that the supplied probability model is adequate."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "linear-algebra-problem-solving",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "linear-algebra-evidence-contract",
+      "path": "references/linear-algebra-evidence.md",
+      "purpose": "Classify exact and numerical linear-algebra claims and bound conditioning, backward error, controls, sensitivity, and matrix-class applicability.",
+      "read_when": [
+        "classifying a proof or computed linear-algebra result",
+        "interpreting numerical rank, eigenstructure, or least squares",
+        "comparing algorithms or reporting conditioning and sensitivity"
+      ],
+      "required_before": [
+        "step-3-select-problem-class",
+        "step-6-verify",
+        "claim-numerically-verified"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Uncertainty, conditioning, and error",
+        "## Domain-specific controls",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines claim and computation evidence requirements; it does not establish exact structure or validate an input-specific numerical result."
+    }
+  ]
+}

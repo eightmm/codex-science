@@ -7,51 +7,31 @@ license: MIT
 # ODE and PDE Solving
 
 ## Decision contract
-State the equation, domain, data, parameters and units, requested observable, and required regularity. Distinguish analytic existence or uniqueness claims from conclusions about one computed trajectory.
+
+State the equation, domain, data, parameters and units, requested observable, regularity, and function space. Distinguish an analytic theorem from conclusions about one computed trajectory. Classify each result as a proven result with stated assumptions, a numerically verified result with convergence and conditioning evidence, a simulated estimate with Monte Carlo error, or a conjecture. Record the baseline, inference limit, uncertainty rule, falsifier, and any missing choice that would materially change the method.
+
+## Reference usage
+
+- Read [references/ode-pde-evidence.md](references/ode-pde-evidence.md) before assigning a claim class, relying on well-posedness, interpreting a numerical solution, or reporting a sensitivity or applicability conclusion.
 
 ## Workflow
-1. **Formulate.**
-   1. State independent/dependent variables, domain, parameters, units, equation order,
-      initial/boundary data, regularity, and requested observable.
-   2. Classify linearity, autonomy, homogeneity, stiffness, conservation form, and singular points.
-   3. For PDEs, classify type where applicable and identify spatial/temporal dimensions,
-      boundary geometry, and compatibility conditions.
-   4. Ask whether existence, uniqueness, and continuous dependence are supported by the assumptions.
 
-2. **Choose an analytic route.**
-   - First-order ODE: separation, integrating factor, exact equation, substitution, or phase line.
-   - Higher-order linear ODE: characteristic roots, variation of parameters, Green functions,
-     Laplace transform, or series methods.
-   - Systems: matrix exponential, eigenstructure, phase portrait, invariant manifolds, or linearization.
-   - PDE: characteristics, separation of variables, Fourier transform/series, eigenfunction expansion,
-     similarity variables, or Green functions.
-
-   State transform conventions and convergence assumptions. Enforce every initial and boundary condition.
-
-3. **Choose a numerical route.**
-   1. Define the discretization, mesh, time step, solver tolerances, and boundary implementation.
-   2. Match the method to stiffness, conservation, oscillation, discontinuity, and geometry.
-   3. Establish consistency and expected order; check stability restrictions before a full run.
-   4. Run at least two refinements and compare the requested observable, not only the state vector.
-   5. Use `$cx-numerical-analysis-error-control` for conditioning, truncation, and solver-error analysis.
-
-4. **Verify.**
-   - Substitute analytic solutions into the differential operator and data.
-   - Compute a normalized residual for numerical solutions.
-   - Check initial/boundary conditions separately from the interior residual.
-   - Test conserved quantities, positivity, maximum principles, energy estimates, or monotonicity.
-   - Compare refinement ratios with the expected convergence order.
-   - Compare against a closed-form solution, manufactured solution, or independently implemented baseline.
-   - Test long-time, steady-state, zero-source, symmetry, and parameter-limit behavior.
-
-   Do not infer uniqueness from one numerical trajectory. Distinguish discretization instability,
-   ill-conditioning, chaotic sensitivity, and model uncertainty.
+1. **Formulate:** normalize the independent and dependent variables, domain, parameters, units, equation order, initial or boundary data, regularity, function space, and requested observable; if an omitted condition changes the equation or method, ask for it, and record all assumptions.
+2. **Assess well-posedness:** classify linearity, autonomy, homogeneity, stiffness, conservation form, singular points, and (for PDEs) type, dimensions, boundary geometry, and compatibility; state the existence, uniqueness, and continuous-dependence theorem and hypotheses, or mark that claim unknown, and record the function-space and boundary/initial-condition assumptions.
+3. **Choose an analytic route:** for first-order ODEs consider separation, integrating factors, exact equations, substitutions, or phase lines; for higher-order linear ODEs use characteristic roots, variation of parameters, Green functions, Laplace transforms, or series; for systems consider matrix exponentials, eigenstructure, phase portraits, invariant manifolds, or linearization; for PDEs consider characteristics, separation, Fourier transforms or series, eigenfunction expansions, similarity variables, or Green functions; record why the route applies, transform conventions, convergence assumptions, and condition checks.
+4. **Choose a numerical route:** define discretization, mesh, time step, solver tolerances, and boundary implementation; match the method to stiffness, conservation, oscillation, discontinuity, and geometry; establish consistency, expected order, and stability restrictions before a full run; record method, scaling, revisions, and expected convergence behavior.
+5. **Run a discriminating case:** begin with the smallest case that can expose a method or implementation defect; compare the requested observable, not only the state vector; preserve commands, environment, parameters, failed runs, and the baseline, and record why the case is adequate.
+6. **Verify:** substitute analytic solutions into the differential operator and data; for numerical results compute a normalized residual, check initial/boundary conditions separately from the interior residual, test conserved quantities, positivity, maximum principles, energy estimates, or monotonicity as applicable, compare refinement ratios with expected order, compare with a closed-form solution, manufactured solution, or independently implemented baseline, and test long-time, steady-state, zero-source, symmetry, and parameter-limit behavior; retain at least two refinements and use at least three levels for an observed-order claim, recording all diagnostics and failures.
+7. **Test sensitivity and domain:** vary tolerances, precision, time step, mesh, parameters, solver, and relevant boundary data; treat a claim as fragile if its status, requested observable, or reported digits change beyond the prespecified error budget; record the tested range and where stiffness, singularities, incompatible data, or model assumptions limit applicability.
+8. **Classify and hand off:** assign stable claim IDs and proven, numerically verified, simulated-estimate, or conjecture class with supported, contradicted, inconclusive, or unavailable status; record dependencies, uncertainty, limitations, and the smallest falsifiable next action; preserve commands, derivations, artifacts, and hashes with `$science-provenance`, then run `$science-review` before material or consequential scientific conclusions.
 
 ## Outputs
-Return normalized inputs and assumptions; a machine-readable evidence or execution table; claim IDs marked supported, contradicted, inconclusive, or unavailable; uncertainty and limitations; and the smallest falsifiable next action. Record commands or derivations and artifact paths and hashes with `$science-provenance`; preserve failures and nulls. Run `$science-review` before material or consequential scientific conclusions.
+
+Return one `ode-pde-evidence-v1` record containing: normalized equation and assumptions (`normalized_inputs`); domain and function space (`domain_function_space`); initial and boundary conditions (`initial_boundary_conditions`); claim identifiers, classes, statuses, and theorem hypotheses (`claims`); analytic derivation or numerical method (`method`); source and implementation dependencies (`dependencies`); residual, convergence, stability, and control results (`verification`); uncertainty and sensitivity (`uncertainty_sensitivity`); applicability domain and limitations (`applicability_limitations`); failed/null cases and inclusion rationale (`failures_exclusions`); falsifier and smallest next action (`next_action`); commands, environment, artifact paths, and hashes (`provenance`); `$science-provenance` record and `$science-review` findings (`review`).
 
 ## Boundaries
-Do not infer uniqueness or stability from one numerical trajectory or residual; distinguish discretization instability, ill-conditioning, chaotic sensitivity, and model uncertainty. Stop claims when well-posedness or convergence evidence is missing.
+
+Do not infer uniqueness or stability from one numerical trajectory or residual. Distinguish discretization instability, ill-conditioning, chaotic sensitivity, and model uncertainty. A finite refinement series does not establish asymptotic convergence. Stop or qualify a claim when well-posedness, compatibility, or convergence evidence is missing; preserve failures and nulls. Use `$cx-numerical-analysis-error-control` for conditioning, truncation, and solver-error analysis. Run `$science-review` before material or consequential conclusions.
 
 ## Source basis
 

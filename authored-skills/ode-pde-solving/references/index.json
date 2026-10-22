@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "ode-pde-solving",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ode-pde-evidence-contract",
+      "path": "references/ode-pde-evidence.md",
+      "purpose": "Classify differential-equation claims and bound well-posedness, numerical evidence, uncertainty, controls, sensitivity, and applicability.",
+      "read_when": [
+        "classifying an analytic or computed ODE/PDE result",
+        "claiming well-posedness, stability, or convergence",
+        "interpreting a numerical solution or sensitivity analysis"
+      ],
+      "required_before": [
+        "step-2-well-posedness",
+        "step-6-verify",
+        "claim-numerically-verified"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Uncertainty and well-posedness",
+        "## Domain-specific controls",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines claim and method evidence requirements; it does not prove an equation-specific theorem or validate a solver on an untested domain."
+    }
+  ]
+}

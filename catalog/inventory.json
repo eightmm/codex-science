@@ -750,7 +750,7 @@
     {
       "description": "Solve exact and numerical linear algebra problems with explicit field, dimensions, bases, rank structure, conditioning, and residual checks. Use for linear systems, vector spaces, linear maps, eigenproblems, least squares, SVD, quadratic forms, and matrix factorizations.",
       "executable_count": 0,
-      "instruction_line_count": 61,
+      "instruction_line_count": 39,
       "license": "MIT",
       "name": "cx-linear-algebra-problem-solving",
       "path": "authored-skills/linear-algebra-problem-solving",
@@ -954,7 +954,7 @@
     {
       "description": "Classify, solve, approximate, and verify ordinary and partial differential equations with explicit domains, initial or boundary data, well-posedness, residuals, and convergence checks. Use for IVPs, BVPs, dynamical systems, eigenvalue problems, Fourier methods, diffusion, waves, Laplace or Poisson equations, and nonlinear differential equations.",
       "executable_count": 0,
-      "instruction_line_count": 59,
+      "instruction_line_count": 39,
       "license": "MIT",
       "name": "cx-ode-pde-solving",
       "path": "authored-skills/ode-pde-solving",
@@ -1134,7 +1134,7 @@
     {
       "description": "Formulate, solve, simulate, and verify probability and stochastic-process problems. Use for conditional probability, random variables, limit theorems, Markov chains, Poisson processes, martingales, stochastic simulation, and uncertainty in random systems.",
       "executable_count": 0,
-      "instruction_line_count": 55,
+      "instruction_line_count": 39,
       "license": "MIT",
       "name": "cx-probability-stochastic-processes",
       "path": "authored-skills/probability-stochastic-processes",
