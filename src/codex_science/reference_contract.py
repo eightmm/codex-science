@@ -180,8 +180,16 @@ def validate_reference_index(skill_dir: Path, *, strict: bool = False) -> dict[s
         for path in references_dir.glob("*")
         if path.is_file() and path.name != INDEX_NAME and not path.name.startswith(".")
     ) if references_dir.is_dir() else []
-    index = load_reference_index(skill_dir)
     findings: list[dict[str, str]] = []
+    try:
+        index = load_reference_index(skill_dir)
+    except (OSError, ValueError) as exc:
+        findings.append({
+            "code": "invalid-reference-index",
+            "severity": "major",
+            "message": str(exc),
+        })
+        return {"skill": skill_dir.name, "index": None, "findings": findings, "references": []}
     if files and index is None:
         findings.append({
             "code": "missing-reference-index",

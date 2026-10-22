@@ -82,6 +82,48 @@ class ReferenceContractTests(unittest.TestCase):
             self.assertEqual(0, report["summary"]["major_findings"])
             self.assertEqual(1, report["summary"]["indexed_skills"])
 
+    def test_root_audit_reports_invalid_index_and_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir) / "authored-skills"
+            valid = self._skill(root).rename(root / "other-skill")
+            invalid = self._skill(root)
+            (invalid / "references" / "index.json").write_text(
+                json.dumps({
+                    "schema_version": 1,
+                    "skill": invalid.name,
+                    "references": [{
+                        "id": "study-identity",
+                        "path": "references/study-identity.md",
+                        "purpose": "Resolve publication versions.",
+                        "read_when": ["deduplicating studies"],
+                        "required_before": [],
+                        "search_patterns": [],
+                    }],
+                }),
+                encoding="utf-8",
+            )
+            report = audit_reference_roots([root])
+            finding = next(item for item in report["findings"] if item["skill"] == invalid.name)
+            self.assertEqual("invalid-reference-index", finding["code"])
+            self.assertEqual("major", finding["severity"])
+            self.assertIn("required_before", finding["message"])
+            self.assertEqual({invalid.name, valid.name}, {item["skill"] for item in report["skills"]})
+
+    def test_root_audit_reports_unparsable_index_and_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir) / "authored-skills"
+            invalid = self._skill(root)
+            valid = root / "other-skill"
+            valid.mkdir()
+            (valid / "SKILL.md").write_text("# Other skill\n", encoding="utf-8")
+            (invalid / "references" / "index.json").write_text("{invalid", encoding="utf-8")
+            report = audit_reference_roots([root])
+            finding = next(item for item in report["findings"] if item["skill"] == invalid.name)
+            self.assertEqual("invalid-reference-index", finding["code"])
+            self.assertEqual("major", finding["severity"])
+            self.assertIn("Expecting property name", finding["message"])
+            self.assertEqual({invalid.name, valid.name}, {item["skill"] for item in report["skills"]})
+
 
 if __name__ == "__main__":
     unittest.main()
