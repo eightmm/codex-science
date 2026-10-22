@@ -7,6 +7,7 @@ from codex_science.reference_contract import (
     audit_reference_roots,
     build_reference_use_receipt,
     load_reference_index,
+    ReferenceIndex,
     select_references,
     validate_reference_index,
     validate_reference_use_ledger,
@@ -66,6 +67,96 @@ class ReferenceContractTests(unittest.TestCase):
             )
             ledger = {"schema_version": 1, "skill": skill.name, "uses": [receipt.to_dict()]}
             validate_reference_use_ledger(ledger)
+
+    def test_receipt_errors_keep_prefix_and_explain_shape(self) -> None:
+        receipt = {
+            "schema_version": 1,
+            "skill": "literature-review",
+            "reference_id": "study-identity",
+            "path": "references/study-identity.md",
+            "sha256": "bad\ndigest",
+            "read_reason": "deduplication",
+            "used_for": [],
+            "sections": [],
+            "search_terms": [],
+            "loaded_at": "now",
+        }
+        with self.assertRaises(ValueError) as raised:
+            validate_reference_use_ledger({"schema_version": 1, "skill": "literature-review", "uses": [receipt]})
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("reference use receipt sha256 is invalid:"))
+        self.assertIn(repr(receipt["sha256"]), message)
+        self.assertIn("expected: 64 hexadecimal characters", message)
+        self.assertNotIn("\n", message)
+
+        receipt["sha256"] = "a" * 64
+        receipt["used_for"] = [7]
+        with self.assertRaises(ValueError) as raised:
+            validate_reference_use_ledger({"schema_version": 1, "skill": "literature-review", "uses": [receipt]})
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("reference use receipt used_for must be strings:"))
+        self.assertIn("[7]", message)
+        self.assertIn("expected: list of strings", message)
+
+    def test_non_object_reference_index_entry_error_is_bounded(self) -> None:
+        entries = [
+            {
+                "id": f"reference-{index}",
+                "path": f"references/reference-{index}.md",
+                "purpose": "A reference purpose.",
+                "read_when": ["reading"],
+                "required_before": ["review"],
+            }
+            for index in range(20)
+        ]
+        entries.extend([None] * 20)
+        with self.assertRaises(ValueError) as raised:
+            ReferenceIndex.from_payload({"schema_version": 1, "references": entries})
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("each reference index entry must be an object"))
+        self.assertIn("index 20 value None", message)
+        self.assertLess(len(message), 300)
+
+    def test_reference_index_diagnostics_keep_value_error_on_formatting_failures(self) -> None:
+        class SecondIterationRaises(list):
+            def __init__(self, values):
+                super().__init__(values)
+                self.iterations = 0
+
+            def __iter__(self):
+                self.iterations += 1
+                if self.iterations > 1:
+                    raise RuntimeError("second iteration failed")
+                return super().__iter__()
+
+        with self.assertRaises(ValueError) as raised:
+            ReferenceIndex.from_payload({
+                "schema_version": 1,
+                "references": SecondIterationRaises([None]),
+            })
+        self.assertTrue(
+            str(raised.exception).startswith("each reference index entry must be an object")
+        )
+
+        with self.assertRaises(ValueError) as raised:
+            ReferenceIndex.from_payload({"schema_version": 10**5000, "references": []})
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("unsupported reference index schema"))
+        self.assertLess(len(message), 200)
+
+        def failing_repr(self):
+            raise RuntimeError("repr failed")
+
+        huge_name_type = type("X" * 10000, (), {"__repr__": failing_repr})
+        with self.assertRaises(ValueError) as raised:
+            ReferenceIndex.from_payload({
+                "schema_version": huge_name_type(),
+                "references": [],
+            })
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("unsupported reference index schema"))
+        self.assertLess(len(message), 200)
+        self.assertNotIn("\n", message)
 
     def test_unindexed_reference_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

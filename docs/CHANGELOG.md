@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made sidecar validation errors include bounded, single-line values and allowed values or expected shapes without changing validation behavior.
 - Documented exact checkpoint and independent-review CLI argument shapes in the main skill.
 - Documented repeated `--step ID=TITLE` checkpoint flags and made invalid-step errors show a correcting example.
 - Added an opt-in, capped Europe PMC full-text workflow with report-cited candidate selection, per-article deduplication, and a retrieval ledger separate from search provenance.

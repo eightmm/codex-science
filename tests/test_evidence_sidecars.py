@@ -7,8 +7,9 @@ from pathlib import Path
 
 from codex_science.artifact_index import render_markdown
 from codex_science.artifacts import validate_bundle
-from codex_science.evidence import review_sidecars
+from codex_science.evidence import _validate_study_table, review_sidecars, validate_sidecars
 from codex_science.literature import diff_review_snapshots
+from codex_science.reference_contract import validate_reference_use_receipt
 from codex_science.review import review_manifest
 
 
@@ -56,6 +57,93 @@ class EvidenceSidecarTests(unittest.TestCase):
                 validate_bundle(manifest, run_dir)
             self.assertIn("Invalid evidence node type", str(raised.exception))
             self.assertIn("reference use ledger requires a non-empty uses list", str(raised.exception))
+
+    def test_validation_message_details_preserve_prefix_and_quote_values(self) -> None:
+        from codex_science.evidence import _validate_lane_receipt
+
+        lane = {
+            "schema_version": 1,
+            "lane_id": "L1",
+            "lane_type": "search",
+            "normalized_inputs": {},
+            **{field: [] for field in (
+                "claim_ids", "sources", "queries", "included_records", "excluded_records",
+                "outputs", "supported_claim_ids", "contradicted_claim_ids", "dependencies",
+                "limitations",
+            )},
+            "confidence": "moderate for bounded endpoints\nextra",
+            "next_action": "review",
+        }
+        with self.assertRaises(ValueError) as raised:
+            _validate_lane_receipt(lane)
+        message = str(raised.exception)
+        self.assertTrue(message.startswith("Invalid lane confidence for L1:"))
+        self.assertIn("allowed: ", message)
+        self.assertIn(repr(lane["confidence"]), message)
+        self.assertNotIn("\n", message)
+
+    def test_oversized_excerpt_error_uses_a_bounded_preview(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "studies": [{
+                "study_id": "S1",
+                "persistent_id": "doi:1",
+                "title": "Study",
+                "evidence_type": "primary",
+                "included": True,
+                "supports_claim_ids": ["C3"],
+                "support_excerpts": [{"claim_id": "C3", "text": "x" * 2001}],
+            }],
+        }
+        with self.assertRaises(ValueError) as raised:
+            _validate_study_table(payload)
+        message = str(raised.exception)
+        self.assertTrue(
+            message.startswith("Study S1 claim C3 excerpt text length must be 20..2000 characters")
+        )
+        self.assertIn("2001 characters; preview:", message)
+        self.assertLess(len(message), 300)
+        self.assertNotIn("\n", message)
+
+    def test_differential_sidecar_and_reference_outcomes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            graph = root / "graph.json"
+            graph.write_text(json.dumps({"schema_version": 1, "nodes": [], "edges": []}))
+            studies = root / "studies.json"
+            studies.write_text(json.dumps({"schema_version": 1, "studies": [{
+                "study_id": "S1", "persistent_id": "doi:1", "title": "T",
+                "evidence_type": "primary", "included": True,
+            }]}))
+            manifest = {"claims": [], "artifacts": [
+                {"kind": "evidence-graph", "path": "graph.json"},
+                {"kind": "study-table", "path": "studies.json"},
+            ]}
+            valid_base = {
+                "schema_version": 1, "skill": "x", "path": "references/a.md",
+                "sha256": "a" * 64, "read_reason": "why", "loaded_at": "now",
+                "used_for": [], "sections": [], "search_terms": [],
+            }
+
+            def observed(call):
+                try:
+                    call()
+                except Exception as error:
+                    return "reject", type(error)
+                return "accept", None
+
+            cases = [
+                ("empty graph with unlinked study", lambda: validate_sidecars(
+                    manifest, root, {"graph.json": graph, "studies.json": studies}), ("accept", None)),
+                ("receipt missing reference_id", lambda: validate_reference_use_receipt(valid_base), ("accept", None)),
+                ("path with leading whitespace", lambda: validate_reference_use_receipt(
+                    {**valid_base, "reference_id": "r", "path": " references/a.md"}), ("reject", ValueError)),
+                ("reference_id=7", lambda: validate_reference_use_receipt(
+                    {**valid_base, "reference_id": 7}), ("accept", None)),
+            ]
+            for label, call, expected in cases:
+                with self.subTest(case=label):
+                    self.assertEqual(expected, observed(call))
 
     def test_markdown_relationship_counts_use_readable_pluralized_phrases(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

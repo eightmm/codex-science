@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import reprlib
 import stat
 import unicodedata
 from collections import defaultdict
@@ -70,24 +71,64 @@ QUERY_STATUSES = {"complete", "partial", "failed", "unavailable"}
 EVIDENCE_TYPES = {"primary", "secondary", "preprint", "registry", "dataset", "computed"}
 CONFIDENCE_LEVELS = {"high", "moderate", "low", "very-low", "unrated"}
 MAX_SUPPORT_SOURCE_BYTES = 10 * 1024 * 1024
+_USER_VALUE_REPR = reprlib.Repr()
+_USER_VALUE_REPR.maxlevel = 4
+_USER_VALUE_REPR.maxstring = 80
+_USER_VALUE_REPR.maxlist = 6
+_USER_VALUE_REPR.maxdict = 6
+_USER_VALUE_REPR.maxtuple = 6
+_USER_VALUE_REPR.maxset = 6
+_USER_VALUE_REPR.maxfrozenset = 6
+_USER_VALUE_REPR.maxother = 80
+
+
+def _bounded_repr(value: Any) -> str:
+    """Render one-line, bounded diagnostics for values supplied in sidecars."""
+    try:
+        try:
+            rendered = _USER_VALUE_REPR.repr(value)
+        except Exception:
+            rendered = f"<{type(value).__name__[:40]}>"
+        rendered = rendered.replace("\r", r"\r").replace("\n", r"\n")
+        return rendered if len(rendered) <= 120 else rendered[:119] + "…"
+    except Exception:
+        try:
+            rendered = f"<{type(value).__name__[:40]}>"
+            return rendered.replace("\r", r"\r").replace("\n", r"\n")[:120]
+        except Exception:
+            return "<unavailable>"
+
+
+def _bounded_field_repr(record: Any, field: str) -> str:
+    try:
+        return _bounded_repr(record.get(field))
+    except Exception:
+        return "<unavailable>"
+
+
+def _bounded_item_repr(record: Any, field: str) -> str:
+    try:
+        return _bounded_repr(record[field])
+    except Exception:
+        return "<unavailable>"
 
 
 def _mapping(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise ValueError(f"{label} must be an object")
+        raise ValueError(f"{label} must be an object: {_bounded_repr(value)}; expected: object")
     return value
 
 
 def _list(value: Any, label: str) -> list[Any]:
     if not isinstance(value, list):
-        raise ValueError(f"{label} must be a list")
+        raise ValueError(f"{label} must be a list: {_bounded_repr(value)}; expected: list")
     return value
 
 
 def _text(value: Any, label: str) -> str:
     text = str(value).strip()
     if not text:
-        raise ValueError(f"{label} is required")
+        raise ValueError(f"{label} is required: {_bounded_repr(value)}; expected: non-empty text")
     return text
 
 
@@ -101,7 +142,10 @@ def _string_list(value: Any, label: str) -> list[str]:
 
 def _schema_one(payload: dict[str, Any], label: str) -> None:
     if payload.get("schema_version") != 1:
-        raise ValueError(f"Unsupported {label} schema version")
+        raise ValueError(
+            f"Unsupported {label} schema version: {_bounded_field_repr(payload, 'schema_version')}; "
+            "expected: 1"
+        )
 
 
 def _valid_sha256(value: str) -> bool:
@@ -111,7 +155,10 @@ def _valid_sha256(value: str) -> bool:
 def _validate_claim_kind(claim_id: str, claim: dict[str, Any]) -> None:
     kind = claim.get("kind")
     if "kind" in claim and (not isinstance(kind, str) or kind not in CLAIM_STRENGTHS):
-        raise ValueError(f"Invalid claim kind for {claim_id}: {kind}")
+        raise ValueError(
+            f"Invalid claim kind for {claim_id}: {_bounded_repr(kind)}; "
+            f"allowed: {sorted(CLAIM_STRENGTHS)}"
+        )
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -150,7 +197,10 @@ def _validate_claim_register(payload: dict[str, Any]) -> dict[str, dict[str, Any
         _text(claim.get("permitted_inference"), f"claim {claim_id} permitted_inference")
         status = _text(claim.get("status"), f"claim {claim_id} status")
         if status not in CLAIM_STATUSES:
-            raise ValueError(f"Invalid claim status for {claim_id}: {status}")
+            raise ValueError(
+                f"Invalid claim status for {claim_id}: {_bounded_repr(status)}; "
+                f"allowed: {sorted(CLAIM_STATUSES)}"
+            )
         _text(claim.get("falsifier"), f"claim {claim_id} falsifier")
         _text(claim.get("uncertainty"), f"claim {claim_id} uncertainty")
         _text(claim.get("next_action"), f"claim {claim_id} next_action")
@@ -161,7 +211,10 @@ def _validate_claim_register(payload: dict[str, Any]) -> dict[str, dict[str, Any
             or isinstance(required_support, bool)
             or required_support < 0
         ):
-            raise ValueError(f"claim {claim_id} required_support must be a non-negative integer")
+            raise ValueError(
+                f"claim {claim_id} required_support must be a non-negative integer: "
+                f"{_bounded_repr(required_support)}; expected: non-negative integer"
+            )
         for field in ("required_evidence", "dependencies"):
             if field in claim:
                 _string_list(claim[field], f"claim {claim_id} {field}")
@@ -184,8 +237,8 @@ def _validate_evidence_graph(
         node_type = _text(node.get("type"), f"evidence node {node_id} type")
         if node_type not in NODE_TYPES:
             raise ValueError(
-                f"Invalid evidence node type for {node_id}: {node_type}; "
-                f"allowed types: {', '.join(sorted(NODE_TYPES))}"
+                f"Invalid evidence node type for {node_id}: {_bounded_repr(node_type)}; "
+                f"allowed: {sorted(NODE_TYPES)}"
             )
         by_id[node_id] = node
 
@@ -199,7 +252,9 @@ def _validate_evidence_graph(
         if source not in by_id or target not in by_id:
             raise ValueError(f"Evidence edge endpoint is missing: {source} -> {target}")
         if relation not in RELATIONS:
-            raise ValueError(f"Invalid evidence relation: {relation}")
+            raise ValueError(
+                f"Invalid evidence relation: {_bounded_repr(relation)}; allowed: {sorted(RELATIONS)}"
+            )
         key = (source, target, relation)
         if key in seen_edges:
             raise ValueError(f"Duplicate evidence edge: {source} {relation} {target}")
@@ -219,10 +274,16 @@ def _validate_query_records(records: list[dict[str, Any]]) -> dict[str, dict[str
         _text(record.get("accessed_at"), f"query {query_id} accessed_at")
         status = _text(record.get("status"), f"query {query_id} status")
         if status not in QUERY_STATUSES:
-            raise ValueError(f"Invalid query status for {query_id}: {status}")
+            raise ValueError(
+                f"Invalid query status for {query_id}: {_bounded_repr(status)}; "
+                f"allowed: {sorted(QUERY_STATUSES)}"
+            )
         digest = record.get("response_sha256")
         if digest is not None and not _valid_sha256(str(digest)):
-            raise ValueError(f"Invalid response_sha256 for query {query_id}")
+            raise ValueError(
+                f"Invalid response_sha256 for query {query_id}: {_bounded_repr(digest)}; "
+                "expected: 64 hexadecimal characters"
+            )
         by_id[query_id] = record
     return by_id
 
@@ -269,9 +330,15 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
         _text(study.get("title"), f"study {study_id} title")
         evidence_type = _text(study.get("evidence_type"), f"study {study_id} evidence_type")
         if evidence_type not in EVIDENCE_TYPES:
-            raise ValueError(f"Invalid evidence type for study {study_id}: {evidence_type}")
+            raise ValueError(
+                f"Invalid evidence type for study {study_id}: {_bounded_repr(evidence_type)}; "
+                f"allowed: {sorted(EVIDENCE_TYPES)}"
+            )
         if not isinstance(study.get("included"), bool):
-            raise ValueError(f"study {study_id} included must be boolean")
+            raise ValueError(
+                f"study {study_id} included must be boolean: {_bounded_field_repr(study, 'included')}; "
+                "expected: boolean"
+            )
         for field in ("supports_claim_ids", "contradicts_claim_ids"):
             study[field] = _string_list(study.get(field, []), f"study {study_id} {field}")
         if "support_excerpts" in study:
@@ -284,8 +351,12 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                 if claim_id not in linked_claims:
                     raise ValueError(f"{label} excerpt claim is not linked to this study")
                 text = _text(excerpt.get("text"), f"{label} excerpt text")
-                if not 20 <= len(text) <= 2000:
-                    raise ValueError(f"{label} excerpt text length must be 20..2000 characters")
+                if not 20 <= (text_length := len(text)) <= 2000:
+                    raise ValueError(
+                        f"{label} excerpt text length must be 20..2000 characters: "
+                        f"{text_length} characters; preview: {_bounded_repr(text)}; "
+                        "expected: 20..2000 characters"
+                    )
                 try:
                     source_artifact = _text(excerpt["source_artifact"], f"{label} source_artifact")
                 except (KeyError, ValueError) as error:
@@ -295,10 +366,16 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                 except ValueError as error:
                     raise ValueError(f"{label} excerpt_hash_mismatch: source_sha256 is required") from error
                 if not _valid_sha256(digest):
-                    raise ValueError(f"{label} excerpt_hash_mismatch: invalid source_sha256")
+                    raise ValueError(
+                        f"{label} excerpt_hash_mismatch: invalid source_sha256 {_bounded_repr(digest)}; "
+                        "expected: 64 hexadecimal characters"
+                    )
                 if "locator" in excerpt:
                     if not isinstance(excerpt["locator"], dict):
-                        raise ValueError(f"{label} locator must be an object")
+                        raise ValueError(
+                            f"{label} locator must be an object: {_bounded_item_repr(excerpt, 'locator')}; "
+                            "expected: object"
+                        )
                 if run_dir is not None:
                     path = _support_source_path(run_dir, source_artifact, study_id, claim_id)
                     content = path.read_bytes()
@@ -342,7 +419,10 @@ def _validate_lane_receipt(payload: dict[str, Any]) -> dict[str, Any]:
             _string_list(value, f"lane {lane_id} {field}")
     confidence = _text(payload.get("confidence"), f"lane {lane_id} confidence")
     if confidence not in CONFIDENCE_LEVELS:
-        raise ValueError(f"Invalid lane confidence for {lane_id}: {confidence}")
+        raise ValueError(
+            f"Invalid lane confidence for {lane_id}: {_bounded_repr(confidence)}; "
+            f"allowed: {sorted(CONFIDENCE_LEVELS)}"
+        )
     _text(payload.get("next_action"), f"lane {lane_id} next_action")
     return payload
 

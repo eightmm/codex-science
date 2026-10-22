@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import reprlib
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -12,6 +13,58 @@ from typing import Any, Iterable, Mapping
 INDEX_NAME = "index.json"
 REFERENCE_SECTION_RE = re.compile(r"^##\s+Reference (?:usage|map)\s*$", re.I | re.M)
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)]+)\)")
+_USER_VALUE_REPR = reprlib.Repr()
+_USER_VALUE_REPR.maxlevel = 4
+_USER_VALUE_REPR.maxstring = 80
+_USER_VALUE_REPR.maxlist = 6
+_USER_VALUE_REPR.maxdict = 6
+_USER_VALUE_REPR.maxtuple = 6
+_USER_VALUE_REPR.maxset = 6
+_USER_VALUE_REPR.maxfrozenset = 6
+_USER_VALUE_REPR.maxother = 80
+
+
+def _bounded_repr(value: Any) -> str:
+    """Render one-line, bounded diagnostics for values supplied in reference records."""
+    try:
+        try:
+            rendered = _USER_VALUE_REPR.repr(value)
+        except Exception:
+            rendered = f"<{type(value).__name__[:40]}>"
+        rendered = rendered.replace("\r", r"\r").replace("\n", r"\n")
+        return rendered if len(rendered) <= 120 else rendered[:119] + "…"
+    except Exception:
+        try:
+            rendered = f"<{type(value).__name__[:40]}>"
+            return rendered.replace("\r", r"\r").replace("\n", r"\n")[:120]
+        except Exception:
+            return "<unavailable>"
+
+
+def _bounded_field_repr(record: Any, field: str) -> str:
+    try:
+        return _bounded_repr(record.get(field))
+    except Exception:
+        return "<unavailable>"
+
+
+def _bounded_item_repr(record: Any, field: str) -> str:
+    try:
+        return _bounded_repr(record[field])
+    except Exception:
+        return "<unavailable>"
+
+
+def _first_non_mapping_detail(records: list[Any]) -> str:
+    try:
+        index, value = next(
+            (index, item)
+            for index, item in enumerate(records)
+            if not isinstance(item, Mapping)
+        )
+        return f": index {index} value {_bounded_repr(value)}"
+    except Exception:
+        return ""
 
 
 def _now() -> str:
@@ -29,7 +82,7 @@ def _sha256(path: Path) -> str:
 def _text(value: Any, label: str) -> str:
     text = str(value).strip()
     if not text:
-        raise ValueError(f"{label} is required")
+        raise ValueError(f"{label} is required: {_bounded_repr(value)}; expected: non-empty text")
     return text
 
 
@@ -37,10 +90,12 @@ def _string_list(value: Any, label: str, *, required: bool = False) -> tuple[str
     if value is None and not required:
         return ()
     if not isinstance(value, list):
-        raise ValueError(f"{label} must be a list")
+        raise ValueError(f"{label} must be a list: {_bounded_repr(value)}; expected: list")
     result = tuple(_text(item, f"{label} item") for item in value)
     if required and not result:
-        raise ValueError(f"{label} must be non-empty")
+        raise ValueError(
+            f"{label} must be non-empty: {_bounded_repr(value)}; expected: non-empty list"
+        )
     return result
 
 
@@ -62,10 +117,15 @@ class ReferenceEntry:
         pure = PurePosixPath(path)
         if pure.is_absolute() or ".." in pure.parts or len(pure.parts) != 2 or pure.parts[0] != "references":
             raise ValueError(
-                f"references[{index}].path must be one level below references/: {path}"
+                f"references[{index}].path must be one level below references/: "
+                f"{_bounded_repr(path)}; "
+                "expected: references/<filename>"
             )
         if pure.name == INDEX_NAME:
-            raise ValueError("references/index.json cannot index itself")
+            raise ValueError(
+                f"references/index.json cannot index itself: {_bounded_repr(path)}; "
+                "expected: a non-index reference path"
+            )
         return cls(
             id=_text(payload.get("id"), f"references[{index}].id"),
             path=path,
@@ -104,17 +164,26 @@ class ReferenceIndex:
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "ReferenceIndex":
         if payload.get("schema_version") != 1:
-            raise ValueError("unsupported reference index schema")
+            raise ValueError(
+                f"unsupported reference index schema: "
+                f"{_bounded_field_repr(payload, 'schema_version')}; expected: 1"
+            )
         raw = payload.get("references")
         if not isinstance(raw, list) or not raw:
-            raise ValueError("reference index requires a non-empty references list")
+            raise ValueError(
+                f"reference index requires a non-empty references list: {_bounded_repr(raw)}; "
+                "expected: non-empty list"
+            )
         references = tuple(
             ReferenceEntry.from_payload(item, index=index)
             for index, item in enumerate(raw)
             if isinstance(item, Mapping)
         )
         if len(references) != len(raw):
-            raise ValueError("each reference index entry must be an object")
+            raise ValueError(
+                f"each reference index entry must be an object"
+                f"{_first_non_mapping_detail(raw)}; expected: object"
+            )
         ids = [item.id for item in references]
         paths = [item.path for item in references]
         if len(ids) != len(set(ids)):
@@ -343,34 +412,57 @@ def audit_reference_roots(
 
 def validate_reference_use_receipt(payload: Mapping[str, Any]) -> None:
     if payload.get("schema_version") != 1:
-        raise ValueError("unsupported reference use receipt schema")
+        raise ValueError(
+            f"unsupported reference use receipt schema: "
+            f"{_bounded_field_repr(payload, 'schema_version')}; expected: 1"
+        )
     for field in ("skill", "reference_id", "path", "sha256", "read_reason", "loaded_at"):
         _text(payload.get(field), field)
     reference_path = PurePosixPath(str(payload["path"]))
     if reference_path.is_absolute() or ".." in reference_path.parts or reference_path.parts[0] != "references":
-        raise ValueError("reference use receipt path must stay under references/")
+        raise ValueError(
+            f"reference use receipt path must stay under references/: "
+            f"{_bounded_item_repr(payload, 'path')}; "
+            "expected: references/<path>"
+        )
     digest = str(payload["sha256"]).lower()
     if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
-        raise ValueError("reference use receipt sha256 is invalid")
+        raise ValueError(
+            f"reference use receipt sha256 is invalid: {_bounded_item_repr(payload, 'sha256')}; "
+            "expected: 64 hexadecimal characters"
+        )
     for field in ("used_for", "sections", "search_terms"):
         value = payload.get(field, [])
         if not isinstance(value, (list, tuple)) or not all(isinstance(item, str) for item in value):
-            raise ValueError(f"reference use receipt {field} must be strings")
+            raise ValueError(
+                f"reference use receipt {field} must be strings: {_bounded_repr(value)}; "
+                "expected: list of strings"
+            )
 
 
 def validate_reference_use_ledger(payload: Mapping[str, Any]) -> None:
     if payload.get("schema_version") != 1:
-        raise ValueError("unsupported reference use ledger schema")
+        raise ValueError(
+            f"unsupported reference use ledger schema: "
+            f"{_bounded_field_repr(payload, 'schema_version')}; expected: 1"
+        )
     _text(payload.get("skill"), "skill")
     uses = payload.get("uses")
     if not isinstance(uses, list) or not uses:
-        raise ValueError("reference use ledger requires a non-empty uses list")
+        raise ValueError(
+            f"reference use ledger requires a non-empty uses list: {_bounded_repr(uses)}; "
+            "expected: non-empty list"
+        )
     seen: set[tuple[str, str]] = set()
     for item in uses:
         if not isinstance(item, Mapping):
-            raise ValueError("reference use ledger entries must be objects")
+            raise ValueError(
+                f"reference use ledger entries must be objects: {_bounded_repr(item)}; expected: object"
+            )
         validate_reference_use_receipt(item)
         key = (str(item["reference_id"]), str(item["sha256"]))
         if key in seen:
-            raise ValueError(f"duplicate reference use receipt: {item['reference_id']}")
+            raise ValueError(
+                f"duplicate reference use receipt: {_bounded_item_repr(item, 'reference_id')}"
+            )
         seen.add(key)
