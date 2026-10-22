@@ -688,7 +688,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             binary.chmod(0o755)
             task_dir = root / "task"
             task_dir.mkdir()
-            _, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+            _, timed_out, launch_error, _, _, _ = _execute([str(binary)], root, task_dir, 5)
             self.assertFalse(timed_out)
             self.assertIsNone(launch_error)
             self.assertIn(b"output truncated", (task_dir / "events.jsonl").read_bytes())
@@ -731,7 +731,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             task_dir = root / "task"
             task_dir.mkdir()
             started = time.monotonic()
-            exit_code, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+            exit_code, timed_out, launch_error, _, _, _ = _execute([str(binary)], root, task_dir, 5)
             self.assertEqual(0, exit_code)
             self.assertFalse(timed_out)
             self.assertIsNone(launch_error)
@@ -796,7 +796,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             task_dir.mkdir()
             deadline = 6
             with patch("codex_science.literature_evaluation_runner.queue.Queue", SlowQueue):
-                exit_code, timed_out, _, wall_seconds, _ = runner._execute([str(binary)], root, task_dir, deadline)
+                exit_code, timed_out, _, wall_seconds, _, _ = runner._execute([str(binary)], root, task_dir, deadline)
             self.assertEqual(0, exit_code)
             self.assertFalse(timed_out)
             self.assertLess(wall_seconds, deadline / 2)
@@ -812,7 +812,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             task_dir = root / "task"
             task_dir.mkdir()
             with patch("codex_science.literature_evaluation_runner._MAX_OUTPUT_BYTES", 3):
-                _, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+                _, timed_out, launch_error, _, _, _ = _execute([str(binary)], root, task_dir, 5)
             self.assertFalse(timed_out)
             self.assertEqual("output_cap", launch_error)
             records = [json.loads(line) for line in (task_dir / "events.jsonl").read_text().splitlines()]
@@ -829,7 +829,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             task_dir = root / "task"
             task_dir.mkdir()
             with patch("codex_science.literature_evaluation_runner._MAX_OUTPUT_BYTES", 1024):
-                _, timed_out, launch_error, _, _ = _execute([str(binary)], root, task_dir, 5)
+                _, timed_out, launch_error, _, _, _ = _execute([str(binary)], root, task_dir, 5)
             self.assertFalse(timed_out)
             self.assertEqual("output_cap", launch_error)
 
@@ -890,11 +890,39 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             try:
                 with patch("codex_science.literature_evaluation_runner.subprocess.Popen", return_value=process), \
                      patch("codex_science.literature_evaluation_runner._kill_process_group"):
-                    _, timed_out, _, _, _ = _execute(["fake"], root, task_dir, 0.01)
+                    _, timed_out, _, _, _, _ = _execute(["fake"], root, task_dir, 0.01)
             finally:
                 os.close(write_fd)
             self.assertTrue(timed_out)
             self.assertLess(time.monotonic() - started, 2)
+
+    def test_timeout_records_trailing_idle_gap(self) -> None:
+        from codex_science.literature_evaluation_runner import _execute, parse_exec_events
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "fake-codex"
+            binary.write_text("#!/usr/bin/env python3\nimport json,time\nprint(json.dumps({'type':'thread.started'}), flush=True)\ntime.sleep(2)\n",
+                              encoding="utf-8")
+            binary.chmod(0o755)
+            task_dir = root / "task"
+            task_dir.mkdir()
+            _, timed_out, _, wall_seconds, _, stopped_offset = _execute([str(binary)], root, task_dir, 1)
+            with (task_dir / "events.jsonl").open() as events:
+                metrics = parse_exec_events(events, timed_out=timed_out, wall_seconds=wall_seconds,
+                                            trailing_idle_seconds=stopped_offset)
+            self.assertTrue(timed_out)
+            self.assertGreaterEqual(metrics["trailing_idle_seconds"], 0.3)
+            self.assertEqual(metrics["trailing_idle_seconds"], metrics["max_idle_gap_seconds"])
+
+    def test_trailing_idle_threshold_uses_unrounded_gap_and_is_optional(self) -> None:
+        from codex_science.literature_evaluation_runner import parse_exec_events
+        measured = parse_exec_events([{"t": 0.0, "event": {"type": "thread.started"}}],
+                                    timed_out=True, trailing_idle_seconds=300.04)
+        self.assertEqual(300.0, measured["trailing_idle_seconds"])
+        self.assertEqual(300.0, measured["idle_gap_seconds_over_300"])
+        unmeasured = parse_exec_events([{"t": 0.0, "event": {"type": "thread.started"}}],
+                                      timed_out=True)
+        self.assertNotIn("trailing_idle_seconds", unmeasured)
 
     def test_frozen_criteria_pass_realistic_run_and_fail_broken_checkpoint(self) -> None:
         from codex_science.literature_evaluation_runner import evaluate_criteria

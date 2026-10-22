@@ -275,13 +275,13 @@ class LiteratureReportTests(unittest.TestCase):
             legacy = grade_run(dict(receipt, timed_out=True), task, run)
             measured_receipt = dict(receipt, timed_out=True, event_metrics={
                 "stream_reconnects": 2, "max_idle_gap_seconds": 600.2,
-                "idle_gap_seconds_over_300": 900.1})
+                "idle_gap_seconds_over_300": 900.1, "trailing_idle_seconds": 600.2})
             measured = grade_run(measured_receipt, task, run)
             self.assertEqual(("failed", "timeout"), (measured["outcome"], measured["stop_reason"]))
             self.assertEqual({"stream_reconnects": 2, "max_idle_gap_seconds": 600.2,
-                              "idle_gap_seconds_over_300": 900.1},
+                              "idle_gap_seconds_over_300": 900.1, "trailing_idle_seconds": 600.2},
                              {key: measured[key] for key in ("stream_reconnects", "max_idle_gap_seconds",
-                                                            "idle_gap_seconds_over_300")})
+                                                            "idle_gap_seconds_over_300", "trailing_idle_seconds")})
             self.assertNotIn("stream_reconnects", legacy)
 
             malformed_rows = []
@@ -296,7 +296,7 @@ class LiteratureReportTests(unittest.TestCase):
         report = summarize([dict(measured, set_digest="a"),
                             {"set_digest": "a", "tier": "standard", "outcome": "failed",
                              "stop_reason": "timeout", "stream_reconnects": 1,
-                             "idle_gap_seconds_over_300": 0},
+                             "idle_gap_seconds_over_300": 0, "trailing_idle_seconds": 0},
                             *[dict(row, set_digest="a") for row in malformed_rows]])
         self.assertEqual(0, baseline["overall"]["stall_affected_timeouts"])
         self.assertEqual(0, baseline["overall"]["stream_reconnects_total"])
@@ -306,6 +306,14 @@ class LiteratureReportTests(unittest.TestCase):
         self.assertEqual(2, report["by_tier"]["quick"]["stream_reconnects_total"])
         self.assertEqual(1, report["by_tier"]["standard"]["stall_affected_timeouts"])
         self.assertEqual(1, report["by_tier"]["standard"]["stream_reconnects_total"])
+        trailing_only = dict(measured, stream_reconnects=0, idle_gap_seconds_over_300=0,
+                             trailing_idle_seconds=12.3)
+        trailing_report = summarize([dict(trailing_only, set_digest="a")])
+        self.assertEqual(0, trailing_report["overall"]["stall_affected_timeouts"])
+        trailing_stall = dict(trailing_only, idle_gap_seconds_over_300=400,
+                              trailing_idle_seconds=400)
+        trailing_stall_report = summarize([dict(trailing_stall, set_digest="a")])
+        self.assertEqual(1, trailing_stall_report["overall"]["stall_affected_timeouts"])
         for key in ("completion_rate", "completion_rate_excluding_infrastructure"):
             self.assertEqual(baseline["overall"][key], measured_only["overall"][key])
 

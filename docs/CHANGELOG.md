@@ -4,6 +4,7 @@
 
 - Codex Science now builds artifact bundles incrementally and saves progress after major files to reduce lost work when long generations stall and reconnect.
 - Added event stream reconnect and idle-gap diagnostics to literature evaluation reports without changing run outcomes.
+- Literature evaluation stall diagnostics now include trailing silence before timeout termination.
 - Documented the rigor request fields and directed literature reviews to the
   validated sidecar example bundle.
 - PDB search treats an empty HTTP 204 on the first page as a negative result

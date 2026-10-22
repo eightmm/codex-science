@@ -646,13 +646,14 @@ def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
 
 
 def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
-             codex_home: Path | None = None) -> tuple[int | None, bool, str | None, float, bool]:
+             codex_home: Path | None = None) -> tuple[int | None, bool, str | None, float, bool, float]:
     events_path, stderr_path = task_dir / "events.jsonl", task_dir / "stderr.log"
     last_path = task_dir / "last.md"
     if any(path.is_symlink() or path.exists() for path in (events_path, stderr_path, last_path)):
         raise FileExistsError("task output entry already exists or is a symlink")
     start = time.monotonic()
     timed_out = False
+    stopped_offset = 0.0
     launch_error = None
     exit_code: int | None = None
     process = None
@@ -733,6 +734,8 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
                         launch_error = "output_cap"
                     _kill_process_group(process)
                     killed_at = current
+                    if timed_out:
+                        stopped_offset = max(0.0, killed_at - start)
                     try:
                         process.wait(timeout=_KILL_WAIT_SECONDS)
                     except subprocess.TimeoutExpired:
@@ -785,11 +788,12 @@ def _execute(argv: list[str], project: Path, task_dir: Path, timeout: int,
     if not last_path.exists():
         with _create_private(last_path):
             pass
-    return exit_code, timed_out, launch_error, wall_seconds, last_message_present
+    return exit_code, timed_out, launch_error, wall_seconds, last_message_present, stopped_offset
 
 
 def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_code: int | None = 0,
-                      timed_out: bool = False, wall_seconds: float | None = None) -> dict[str, Any]:
+                      timed_out: bool = False, wall_seconds: float | None = None,
+                      trailing_idle_seconds: float | None = None) -> dict[str, Any]:
     """Summarize Codex JSONL events, retaining unknown event and item types."""
     event_counts: dict[str, int] = {}
     item_counts: dict[str, dict[str, int]] = {}
@@ -877,14 +881,20 @@ def parse_exec_events(lines: Iterable[str | bytes | Mapping[str, Any]], *, exit_
         stop_reason = "interrupted"
     timestamps.sort()
     gaps = [right-left for left, right in zip(timestamps, timestamps[1:])]
-    return {"thread_id": thread_id, "terminal_stop_reason": stop_reason, "error_message": error_message,
+    trailing_idle = (max(0.0, trailing_idle_seconds - max(timestamps, default=0.0))
+                     if timed_out and trailing_idle_seconds is not None else 0.0)
+    idle_gaps = gaps + ([trailing_idle] if timed_out and trailing_idle_seconds is not None else [])
+    result = {"thread_id": thread_id, "terminal_stop_reason": stop_reason, "error_message": error_message,
             "stream_reconnects": stream_reconnects,
-            "max_idle_gap_seconds": round(max(gaps, default=0.0), 1),
-            "idle_gap_seconds_over_300": round(sum(gap for gap in gaps if gap > 300), 1),
+            "max_idle_gap_seconds": round(max(idle_gaps, default=0.0), 1),
+            "idle_gap_seconds_over_300": round(sum(gap for gap in idle_gaps if gap > 300), 1),
             "event_counts": dict(sorted(event_counts.items())),
             "item_counts_by_type_and_status": {key: dict(sorted(value.items())) for key, value in sorted(item_counts.items())},
             "mcp_tool_call_counts_by_tool": {key: dict(sorted(value.items())) for key, value in sorted(mcp_tools.items())},
             "usage": usage, "wall_seconds": float(wall_seconds if wall_seconds is not None else max_t)}
+    if trailing_idle_seconds is not None:
+        result["trailing_idle_seconds"] = round(trailing_idle, 1)
+    return result
 
 
 def _token_value(value: Any) -> int:
@@ -989,14 +999,15 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
         project.mkdir(mode=0o700)
         subprocess.run(["git", "init", "-q"], cwd=project, check=True, capture_output=True)
         started = datetime.now(timezone.utc)
-        exit_code, timed_out, launch_error, wall_seconds, last_message_present = _execute(
+        exit_code, timed_out, launch_error, wall_seconds, last_message_present, stopped_offset = _execute(
             entry["argv"], project, task_dir, entry["timeout_seconds"], codex_home=home)
         ended = datetime.now(timezone.utc)
         last_path = task_dir / "last.md"
         artifacts = project / "artifacts"
         with (task_dir / "events.jsonl").open(encoding="utf-8") as event_handle:
             event_metrics = parse_exec_events(event_handle, exit_code=exit_code,
-                                              timed_out=timed_out, wall_seconds=wall_seconds)
+                                              timed_out=timed_out, wall_seconds=wall_seconds,
+                                              trailing_idle_seconds=stopped_offset)
         completion_report = _completion_report(artifacts, now=ended)
         # last_message_present requires non-empty last.md and no launch error; caps set launch_error="output_cap".
         receipt = {"schema": RECEIPT_SCHEMA, "executed": True, "task_id": task["id"],

@@ -274,7 +274,8 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
             "codex_version": receipt.get("preflight", {}).get("codex_version", "unknown") if isinstance(receipt.get("preflight"), Mapping) else "unknown",
             "runtime_identity": receipt.get("runtime_identities", []),
             "receipt_sha256": receipt_hash}
-    for key in ("stream_reconnects", "max_idle_gap_seconds", "idle_gap_seconds_over_300"):
+    for key in ("stream_reconnects", "max_idle_gap_seconds", "idle_gap_seconds_over_300",
+                "trailing_idle_seconds"):
         value = event_metrics.get(key) if isinstance(event_metrics, Mapping) else None
         if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             result[key] = value

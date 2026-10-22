@@ -54,8 +54,9 @@ non-rejected receipts, skips receipt hashes already present, and appends
 per-run rows plus a summary. It never overwrites prior ledger entries.
 
 Event diagnostics record stream reconnect errors, the largest gap between valid
-event timestamps, and the total of gaps over 300 seconds. Reports count timeouts
-with these signals as stall affected and sum reconnects; these diagnostics never
+event timestamps, the total of gaps over 300 seconds, and trailing silence until
+a timed-out process is stopped. Reports count timeouts with these signals as
+stall affected and sum reconnects; these diagnostics never
 change outcome, stop reason, or either completion rate, and remain absent for legacy receipts.
 
 The opt-in `scripts/estimate_saturation.py` estimates remaining discovery from
