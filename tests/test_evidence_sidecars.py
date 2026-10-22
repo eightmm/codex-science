@@ -38,6 +38,71 @@ class EvidenceSidecarTests(unittest.TestCase):
         self.assertNotIn("status=supported", rendered)
         self.assertNotIn("SHA-256 `", rendered)
 
+    def test_markdown_relationship_counts_use_readable_pluralized_phrases(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            graph_path = run_dir / "evidence_graph.json"
+            graph = json.loads(graph_path.read_text(encoding="utf-8"))
+            graph["nodes"].append(
+                {"id": "study-example-2", "label": "Second study", "type": "study"}
+            )
+            graph["edges"].extend(
+                [
+                    {
+                        "independence_group": "cohort-example-b",
+                        "relation": "supports",
+                        "source": "study-example-2",
+                        "target": "claim-method-effect",
+                    },
+                    {
+                        "independence_group": "cohort-example-c",
+                        "relation": "contradicts",
+                        "source": "study-example-3",
+                        "target": "claim-method-effect",
+                    },
+                ]
+            )
+            graph["nodes"].append(
+                {"id": "study-example-3", "label": "Contrary study", "type": "study"}
+            )
+            graph_path.write_text(json.dumps(graph, indent=2, sort_keys=True) + "\n")
+            self._rehash(manifest, run_dir, "evidence_graph.json")
+            studies_path = run_dir / "studies.json"
+            studies = json.loads(studies_path.read_text(encoding="utf-8"))
+            studies["studies"].extend(
+                [
+                    {
+                        "cohort_id": "cohort-example-b",
+                        "contradicts_claim_ids": [],
+                        "evidence_type": "primary",
+                        "included": True,
+                        "persistent_id": "doi:10.0000/example.primary.2",
+                        "study_id": "study-example-2",
+                        "supports_claim_ids": ["claim-method-effect"],
+                        "title": "Second study",
+                    },
+                    {
+                        "cohort_id": "cohort-example-c",
+                        "contradicts_claim_ids": ["claim-method-effect"],
+                        "evidence_type": "primary",
+                        "included": True,
+                        "persistent_id": "doi:10.0000/example.primary.3",
+                        "study_id": "study-example-3",
+                        "supports_claim_ids": [],
+                        "title": "Contrary study",
+                    },
+                ]
+            )
+            studies_path.write_text(json.dumps(studies, indent=2, sort_keys=True) + "\n")
+            self._rehash(manifest, run_dir, "studies.json")
+
+            rendered = render_markdown(manifest, run_dir)
+
+            self.assertIn("Supported by 2 links", rendered)
+            self.assertIn("Contradicted by 1 link", rendered)
+            self.assertIn("Supports: 2 links", rendered)
+            self.assertNotIn("2 sources", rendered)
+
     def _copy_example(self, root: Path) -> tuple[Path, dict]:
         destination = root / "run"
         destination.mkdir()

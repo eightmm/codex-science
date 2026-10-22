@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from codex_science.artifacts import add_artifact, new_manifest, validate_manifest, write_manifest
-from codex_science.artifact_index import _status_label
+from codex_science.artifact_index import _status_label, render_markdown
 from codex_science.review import review_manifest
 from codex_science import runtime_identity
 
@@ -358,7 +358,10 @@ class ArtifactIndexTests(unittest.TestCase):
             ]
             positions = [markdown.index(section) for section in sections]
             self.assertEqual(sorted(positions), positions)
-            self.assertIn("✅ Supported · claim-1", markdown)
+            self.assertIn(
+                "### ✅ Supported — The generated figure is the primary result. (claim-1)",
+                markdown,
+            )
             self.assertIn("**Limitation or uncertainty:**", markdown)
             self.assertIn("**Next:** Reproduce the result independently.", markdown)
             self.assertIn("**Report:** [report.md](report.md)", markdown)
@@ -376,6 +379,75 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertNotIn("https://", html)
             self.assertEqual(0o600, stat.S_IMODE((manifest.parent / "index.md").stat().st_mode))
             self.assertEqual(0o600, stat.S_IMODE((manifest.parent / "index.html").stat().st_mode))
+
+    def test_markdown_index_summarizes_claims_runtime_actions_and_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest_path = self._make_run(Path(tempdir))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["claims"] = [
+                {
+                    "id": "claim-1",
+                    "text": "Animal studies compare LNP delivery vs. 3.5 units in target tissue. The conclusion is supported.",
+                    "status": "supported",
+                    "uncertainty": "The animal evidence has limited generalizability.",
+                    "next_action": "Replicate the analysis independently.",
+                },
+                {
+                    "id": "claim-2",
+                    "text": "A second claim uses the same next step.",
+                    "status": "supported",
+                    "uncertainty": "The second claim has a separate limitation.",
+                    "next_action": "Replicate the analysis independently.",
+                },
+                {
+                    "id": "claim-3",
+                    "text": "An independent check is needed.",
+                    "status": "supported",
+                    "next_action": "Independently validate the uncertainty bounds.",
+                },
+                {
+                    "id": "claim-4",
+                    "text": "A fourth claim shares the replication action.",
+                    "status": "supported",
+                    "next_action": "Replicate the analysis independently.",
+                },
+            ]
+            manifest["plan"] = [
+                {"id": "S1", "description": "Freeze the analysis protocol", "status": "complete"},
+                {"id": "S2", "title": "Check evidence sidecars", "status": "pending"},
+                {"id": "S3", "status": "pending"},
+            ]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+
+            rendered = render_markdown(manifest, manifest_path.parent)
+
+            results = rendered.split("## Results", 1)[1].split("## Limitations and next steps", 1)[0]
+            details = rendered.split("## Details", 1)[1]
+            self.assertNotIn("**Runtime:**", results)
+            self.assertIn("**Runtime:**", details)
+            self.assertIn(
+                "### ✅ Supported — Animal studies compare LNP delivery vs. 3.5 units in target tissue. (claim-1)",
+                rendered,
+            )
+            self.assertIn(
+                "Animal studies compare LNP delivery vs. 3.5 units in target tissue. The conclusion is supported.",
+                rendered,
+            )
+            self.assertIn(
+                "**Next step for claim-1, claim-2, claim-4:** Replicate the analysis independently.",
+                rendered,
+            )
+            self.assertEqual(1, rendered.count("Replicate the analysis independently."))
+            self.assertIn(
+                "- **claim-3**\n  - **Next:** Independently validate the uncertainty bounds.",
+                rendered,
+            )
+            self.assertNotIn("- **claim-4**\n", rendered)
+            self.assertIn("**✅ Complete:** Freeze the analysis protocol", details)
+            self.assertIn("**⏳ Pending:** Check evidence sidecars", details)
+            self.assertIn("**⏳ Pending:** S3", details)
 
     def test_renderer_rejects_missing_artifact_instead_of_creating_dead_link(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

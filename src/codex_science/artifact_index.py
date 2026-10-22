@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -100,6 +101,52 @@ def _count_phrase(count: int, singular: str, plural: str | None = None) -> str:
     return f"{count} {singular if count == 1 else plural or singular + 's'}"
 
 
+def _claim_heading_text(value: Any) -> str:
+    text = _text(value)
+    summary = text
+    for sentence_end in re.finditer(r"[.!?](?=\s+[A-Z])", text):
+        candidate = text[: sentence_end.end()]
+        if re.search(r"(?i)(?:\bvs\.|\be\.g\.|\bi\.e\.|\bet al\.)$", candidate):
+            continue
+        summary = candidate
+        break
+    if len(summary) <= 90:
+        return summary
+    clipped = summary[:87].rsplit(" ", 1)[0].rstrip()
+    return f"{clipped}…" if clipped else f"{summary[:87]}…"
+
+
+def _plan_step_text(step: dict[str, Any]) -> str:
+    for field in ("description", "title"):
+        text = _text(step.get(field, ""))
+        if text:
+            return text
+    return _text(step.get("id", "step")) or "step"
+
+
+def _relationship_phrases(relationships: Counter[str]) -> list[str]:
+    phrases: list[str] = []
+    for relation, count in sorted(relationships.items()):
+        if relation == "supports":
+            phrases.append(f"Supported by {_count_phrase(count, 'link')}")
+        elif relation == "contradicts":
+            phrases.append(f"Contradicted by {_count_phrase(count, 'link')}")
+        elif relation == "depends_on":
+            phrases.append(
+                f"Referenced as a dependency by {_count_phrase(count, 'link')}"
+            )
+        else:
+            phrases.append(f"{_human_label(relation)}: {count}")
+    return phrases
+
+
+def _relationship_link_phrases(relationships: Counter[str]) -> list[str]:
+    return [
+        f"{_human_label(relation)}: {_count_phrase(count, 'link')}"
+        for relation, count in sorted(relationships.items())
+    ]
+
+
 def _primary_artifacts(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     def priority(record: dict[str, Any]) -> tuple[int, str]:
         kind = _text(record.get("kind", "artifact")).lower()
@@ -147,6 +194,7 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
         "",
     ]
     runtime_history = manifest.get("runtime_history", [])
+    runtime_line = ""
     if isinstance(runtime_history, list) and runtime_history:
         if manifest.get("runtime_span"):
             lines.extend(
@@ -166,9 +214,7 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
             )
             commit = _text(identity.get("commit", ""))
             short = commit[:8] if len(commit) == 40 else commit
-            lines.extend(
-                [f"**Runtime:** {_markdown_text(version)} ({_markdown_text(short)})", ""]
-            )
+            runtime_line = f"**Runtime:** {_markdown_text(version)} ({_markdown_text(short)})"
     edge_counts = _claim_edge_counts(sidecars)
     if claims:
         for claim in claims:
@@ -177,8 +223,9 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
             lines.extend(
                 [
                     (
-                        f"### {_markdown_text(_status_label(claim.get('status')))} · "
-                        f"{_markdown_text(claim_id)}"
+                        f"### {_markdown_text(_status_label(claim.get('status')))} — "
+                        f"{_markdown_text(_claim_heading_text(claim.get('text', '')))} "
+                        f"({_markdown_text(claim_id)})"
                     ),
                     "",
                     _markdown_text(claim.get("text", "")),
@@ -192,10 +239,7 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
                 lines.append(f"- **Evidence:** {evidence}")
             relationships = edge_counts.get(claim_id)
             if relationships:
-                rendered = ", ".join(
-                    f"{_human_label(relation)}: {count}"
-                    for relation, count in sorted(relationships.items())
-                )
+                rendered = ", ".join(_relationship_phrases(relationships))
                 lines.append(f"- **Relationships:** {_markdown_text(rendered)}")
             lines.append("")
     else:
@@ -224,14 +268,29 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
         claim for claim in claims if claim.get("uncertainty") or claim.get("next_action")
     ]
     if claim_actions:
+        next_actions: dict[str, list[str]] = {}
         for claim in claim_actions:
-            lines.append(f"- **{_markdown_text(claim.get('id', 'claim'))}**")
+            action = _text(claim.get("next_action", ""))
+            if action:
+                next_actions.setdefault(action, []).append(str(claim.get("id", "claim")))
+        for claim in claim_actions:
+            claim_id = str(claim.get("id", "claim"))
+            action = _text(claim.get("next_action", ""))
+            shared_action = action and len(next_actions[action]) > 1
+            if claim.get("uncertainty") or (action and not shared_action):
+                lines.append(f"- **{_markdown_text(claim_id)}**")
             if claim.get("uncertainty"):
                 lines.append(
                     f"  - **Limitation or uncertainty:** {_markdown_text(claim['uncertainty'])}"
                 )
-            if claim.get("next_action"):
-                lines.append(f"  - **Next:** {_markdown_text(claim['next_action'])}")
+            if action and not shared_action:
+                lines.append(f"  - **Next:** {_markdown_text(action)}")
+        for action, claim_ids in next_actions.items():
+            if len(claim_ids) > 1:
+                scope = ", ".join(claim_ids)
+                lines.append(
+                    f"- **Next step for {_markdown_text(scope)}:** {_markdown_text(action)}"
+                )
     else:
         lines.append("No claim-specific limitations or next steps were recorded in the bundle.")
 
@@ -255,10 +314,13 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
         for step in plan:
             lines.append(
                 f"- **{_markdown_text(_status_label(step.get('status', 'unknown')))}:** "
-                f"{_markdown_text(step.get('description', step.get('id', 'step')))}"
+                f"{_markdown_text(_plan_step_text(step))}"
             )
     else:
         lines.append("- No plan steps recorded.")
+
+    if runtime_line:
+        lines.extend(["", "### Runtime identity", "", runtime_line])
 
     graph = sidecars.get("evidence_graph")
     if graph is not None:
@@ -269,10 +331,7 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
             f"{_count_phrase(len(graph['edges']), 'relationship')}."
         )
         if relation_counts:
-            rendered = ", ".join(
-                f"{_human_label(relation)}: {count}"
-                for relation, count in sorted(relation_counts.items())
-            )
+            rendered = ", ".join(_relationship_link_phrases(relation_counts))
             lines.append(f"- **Relationship types:** {_markdown_text(rendered)}")
         graph_paths = sidecars.get("paths", {}).get("evidence-graph", [])
         if graph_paths:
@@ -348,7 +407,7 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
     artifacts, sidecars = _validated_bundle(manifest, run_dir)
     plan = "".join(
         f"<li><strong>{html.escape(_text(step.get('status', 'unknown')))}</strong>: "
-        f"{html.escape(_text(step.get('description', step.get('id', 'step'))))}</li>"
+        f"{html.escape(_plan_step_text(step))}</li>"
         for step in manifest["plan"]
     ) or "<li>No plan steps recorded.</li>"
 
