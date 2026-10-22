@@ -1,5 +1,15 @@
 # Evaluation
 
+## Offline statement-to-source retrieval
+
+Run `PYTHONPATH=src python3 scripts/retrieve_statement_sources.py RUN_DIR`
+to rank the bundle's study rows, saved support excerpts, and query-ledger
+records for each report statement. The `statement-retrieval-v1` JSON includes
+lexical scores, matched terms, identifiers/URLs, and the rank of a cited source
+when it appears among ranked candidates. This is a deterministic candidate
+list, not evidence that a source supports a statement; it does not establish
+semantic relevance or retrieve sources from the network.
+
 ## Stage 7/8: proportional rigor and measured completion
 
 `scripts/classify_rigor.py` classifies a request into a minimum `quick`,
