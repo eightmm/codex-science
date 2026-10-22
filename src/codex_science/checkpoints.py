@@ -641,7 +641,7 @@ def _scan_init_admission(run_dir: Path, workspace: Path, *, hookless: bool) -> N
 def _initialization_admission(
     run_dir: Path, *, hookless: bool, timeout: float = 10.0
 ) -> Iterator[None]:
-    """Serialize hookless admission and hold its artifact-root lock through writing."""
+    """Serialize hookless admission and hold all covered artifact-root locks through writing."""
     run_dir = Path(run_dir)
     workspace = run_dir.parent.parent if run_dir.parent.name == "artifacts" else run_dir.parent
     if not hookless:
@@ -657,35 +657,107 @@ def _initialization_admission(
     metadata = artifacts_root.lstat()
     if artifacts_root.is_symlink() or not stat.S_ISDIR(metadata.st_mode):
         raise ValueError("checkpoint artifact root is not a regular directory")
-    lock_path = artifacts_root / ".checkpoint-init.lock"
     flags = os.O_CREAT | os.O_RDWR
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
-    descriptor = os.open(lock_path, flags, 0o600)
-    handle = os.fdopen(descriptor, "r+")
+
+    def not_lockable(lock_root: Path, error: OSError) -> ValueError:
+        return ValueError(f"checkpoint related artifact root is not lockable: {lock_root}: {error}")
+
+    target_root = artifacts_root.resolve()
+    lock_roots = {target_root}
+    for related_root in _related_artifact_roots(workspace, strict=True):
+        try:
+            related_metadata = related_root.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise not_lockable(related_root, exc) from exc
+        if related_root.is_symlink() or not stat.S_ISDIR(related_metadata.st_mode):
+            continue
+        lock_roots.add(related_root.resolve())
+
     deadline = time.monotonic() + max(timeout, 0.0)
-    locked = False
+    handles: list[tuple[Any, bool, Path]] = []
     try:
-        os.fchmod(handle.fileno(), 0o600)
-        while True:
+        for lock_root in sorted(lock_roots, key=str):
             try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                locked = True
-                break
-            except BlockingIOError as exc:
-                if time.monotonic() >= deadline:
-                    raise ValueError("checkpoint initialization is busy; retry after the active initialization finishes") from exc
-                time.sleep(0.05)
+                root_metadata = lock_root.lstat()
+            except FileNotFoundError:
+                if lock_root == target_root:
+                    raise
+                continue
+            except OSError as exc:
+                if lock_root == target_root:
+                    raise
+                raise not_lockable(lock_root, exc) from exc
+            if lock_root.is_symlink() or not stat.S_ISDIR(root_metadata.st_mode):
+                if lock_root == target_root:
+                    raise ValueError("checkpoint artifact root is not a regular directory")
+                continue
+            lock_path = lock_root / ".checkpoint-init.lock"
+            try:
+                descriptor = os.open(lock_path, flags, 0o600)
+            except FileNotFoundError as open_error:
+                if lock_root == target_root:
+                    raise
+                try:
+                    lock_root.lstat()
+                except FileNotFoundError:
+                    continue
+                except OSError as root_error:
+                    raise not_lockable(lock_root, root_error) from root_error
+                raise not_lockable(lock_root, open_error) from open_error
+            except OSError as exc:
+                raise not_lockable(lock_root, exc) from exc
+            try:
+                handle = os.fdopen(descriptor, "r+")
+            except OSError as exc:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+                raise not_lockable(lock_root, exc) from exc
+            handles.append((handle, False, lock_root))
+            try:
+                os.fchmod(handle.fileno(), 0o600)
+            except OSError as exc:
+                raise not_lockable(lock_root, exc) from exc
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as exc:
+                    if time.monotonic() >= deadline:
+                        raise ValueError("checkpoint initialization is busy; retry after the active initialization finishes") from exc
+                    time.sleep(0.05)
+                except OSError as exc:
+                    raise not_lockable(lock_root, exc) from exc
+                else:
+                    handles[-1] = (handle, True, lock_root)
+                    break
         if (run_dir / CHECKPOINT_FILE).exists() or (run_dir / CHECKPOINT_FILE).is_symlink():
             raise FileExistsError(f"checkpoint already exists: {run_dir / CHECKPOINT_FILE}")
         _scan_init_admission(run_dir, workspace, hookless=True)
         yield
     finally:
-        try:
-            if locked:
-                fcntl.flock(handle, fcntl.LOCK_UN)
-        finally:
-            handle.close()
+        cleanup_error: tuple[Path, BaseException] | None = None
+        for handle, locked, lock_root in reversed(handles):
+            try:
+                if locked:
+                    fcntl.flock(handle, fcntl.LOCK_UN)
+            except BaseException as exc:
+                if cleanup_error is None:
+                    cleanup_error = (lock_root, exc)
+            try:
+                handle.close()
+            except BaseException as exc:
+                if cleanup_error is None:
+                    cleanup_error = (lock_root, exc)
+        if cleanup_error is not None:
+            lock_root, error = cleanup_error
+            if isinstance(error, OSError):
+                raise not_lockable(lock_root, error) from error
+            raise error
 
 
 def create_checkpoint(

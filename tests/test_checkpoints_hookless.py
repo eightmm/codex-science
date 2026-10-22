@@ -6,8 +6,8 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest import mock
 
@@ -204,35 +204,185 @@ class HooklessCheckpointTests(unittest.TestCase):
                 with _initialization_admission(run_dir, hookless=True, timeout=0):
                     self.fail("busy initialization lock unexpectedly admitted")
 
-    def test_concurrent_hookless_initializations_admit_only_one_writer(self):
-        barrier = threading.Barrier(3)
+    def test_unlockable_related_artifact_root_releases_previously_taken_locks(self):
+        from codex_science import checkpoints as checkpoints_module
+
+        target_root = self.root / "artifacts"
+        related_root = self.root / "sub" / "artifacts"
+        related_root.mkdir(parents=True)
+        run_dir = target_root / "run"
+        target_lock = target_root / ".checkpoint-init.lock"
+        related_lock = related_root / ".checkpoint-init.lock"
+        original_open = checkpoints_module.os.open
+
+        def fail_related_open(path, flags, mode=0o777):
+            if Path(path) == related_lock:
+                raise PermissionError("permission denied")
+            return original_open(path, flags, mode)
+
+        with mock.patch.object(
+            checkpoints_module, "_related_artifact_roots", return_value=[related_root, target_root]
+        ):
+            with mock.patch.object(checkpoints_module.os, "open", side_effect=fail_related_open):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    f"related artifact root is not lockable.*{re.escape(str(related_root))}",
+                ):
+                    self.create_at(run_dir)
+
+        self.assertFalse((run_dir / "checkpoint.json").exists())
+        self.assertFalse(related_lock.exists())
+        with target_lock.open("r+") as handle:
+            checkpoints_module.fcntl.flock(handle, checkpoints_module.fcntl.LOCK_EX | checkpoints_module.fcntl.LOCK_NB)
+            checkpoints_module.fcntl.flock(handle, checkpoints_module.fcntl.LOCK_UN)
+
+    def _assert_concurrent_hookless_initializations_admit_only_one_writer(self, *, git_marker):
+        first_writer_entered = threading.Event()
+        release_first_writer = threading.Event()
+        second_scan_passed = threading.Event()
+        release_second_scan = threading.Event()
+        second_lock_contended = threading.Event()
+        progress = threading.Condition()
         results = []
         original_write = _write_checkpoint
+        from codex_science import checkpoints as checkpoints_module
+        from codex_science.checkpoints import _scan_init_admission
+
+        original_scan = _scan_init_admission
+        original_flock = checkpoints_module.fcntl.flock
+        original_open = checkpoints_module.os.open
+        second_scan_count = 0
+        first_lock_inodes = set()
+        opened_lock_paths = []
+
+        def signal(event):
+            with progress:
+                event.set()
+                progress.notify_all()
 
         def slow_write(run_dir, checkpoint):
-            time.sleep(0.3)
+            if threading.current_thread().name == "first-init":
+                first_writer_entered.set()
+                if not release_first_writer.wait(timeout=5):
+                    raise TimeoutError("first initialization was not released")
             return original_write(run_dir, checkpoint)
 
-        def initialize(name):
-            barrier.wait()
+        def synchronized_scan(run_dir, workspace, *, hookless):
+            nonlocal second_scan_count
+            original_scan(run_dir, workspace, hookless=hookless)
+            if threading.current_thread().name == "second-init":
+                second_scan_count += 1
+                if second_scan_count == 2:
+                    signal(second_scan_passed)
+                    if not release_second_scan.wait(timeout=5):
+                        raise TimeoutError("second admission scan was not released")
+
+        def observed_flock(handle, operation):
+            metadata = checkpoints_module.os.fstat(handle.fileno())
+            inode = (metadata.st_dev, metadata.st_ino)
+            if threading.current_thread().name == "first-init" and operation & checkpoints_module.fcntl.LOCK_EX:
+                result = original_flock(handle, operation)
+                first_lock_inodes.add(inode)
+                return result
+            if threading.current_thread().name == "second-init":
+                try:
+                    result = original_flock(handle, operation)
+                except BlockingIOError:
+                    if inode in first_lock_inodes:
+                        signal(second_lock_contended)
+                    raise
+                return result
+            return original_flock(handle, operation)
+
+        def recorded_open(path, flags, mode=0o777):
+            lock_path = Path(path)
+            if lock_path.name == ".checkpoint-init.lock":
+                opened_lock_paths.append(lock_path)
+            return original_open(path, flags, mode)
+
+        def initialize(run_dir):
             try:
-                results.append(self.init(name))
+                results.append(self.create_at(run_dir))
             except Exception as exc:
                 results.append(exc)
 
-        with mock.patch("codex_science.checkpoints._write_checkpoint", side_effect=slow_write):
-            threads = [threading.Thread(target=initialize, args=(name,)) for name in ("one", "two")]
-            for thread in threads:
-                thread.start()
-            barrier.wait()
-            for thread in threads:
-                thread.join(timeout=5)
+        first_run = self.root / "artifacts" / "a"
+        second_run = self.root / "sub" / "artifacts" / "b"
+        if git_marker:
+            (self.root / ".git").mkdir()
+            (self.root / ".git" / "HEAD").write_text("ref: refs/heads/test\n", encoding="utf-8")
+        else:
+            self.assertEqual([], list(self.root.rglob(".git")))
+            test_root = self.root.resolve()
+            original_has_git_marker = checkpoints_module._has_git_marker
 
-        self.assertTrue(all(not thread.is_alive() for thread in threads))
+            def scoped_artifact_roots(workspace):
+                current = Path(workspace).resolve()
+                if current.is_file():
+                    current = current.parent
+                for directory in (current, *current.parents):
+                    if not directory.is_relative_to(test_root):
+                        break
+                    yield directory / "artifacts"
+
+            def scoped_has_git_marker(directory):
+                resolved = Path(directory).resolve()
+                return resolved.is_relative_to(test_root) and original_has_git_marker(resolved)
+
+        first = threading.Thread(target=initialize, args=(first_run,), name="first-init")
+        second = threading.Thread(target=initialize, args=(second_run,), name="second-init")
+        with ExitStack() as patches:
+            patches.enter_context(mock.patch("codex_science.checkpoints._write_checkpoint", side_effect=slow_write))
+            patches.enter_context(
+                mock.patch("codex_science.checkpoints._scan_init_admission", side_effect=synchronized_scan)
+            )
+            patches.enter_context(mock.patch("codex_science.checkpoints.fcntl.flock", side_effect=observed_flock))
+            patches.enter_context(mock.patch.object(checkpoints_module.os, "open", side_effect=recorded_open))
+            if not git_marker:
+                patches.enter_context(
+                    mock.patch.object(checkpoints_module, "_artifact_roots", side_effect=scoped_artifact_roots)
+                )
+                patches.enter_context(
+                    mock.patch.object(checkpoints_module, "_has_git_marker", side_effect=scoped_has_git_marker)
+                )
+            first.start()
+            self.assertTrue(first_writer_entered.wait(timeout=5))
+            second.start()
+            with progress:
+                advanced = progress.wait_for(
+                    lambda: second_lock_contended.is_set() or second_scan_passed.is_set(),
+                    timeout=5,
+                )
+            self.assertTrue(advanced, "second initialization made no admission progress")
+            release_first_writer.set()
+            release_second_scan.set()
+            first.join(timeout=5)
+            second.join(timeout=5)
+
+        self.assertTrue(all(not thread.is_alive() for thread in (first, second)))
         self.assertEqual(1, sum(isinstance(result, dict) for result in results))
+        self.assertTrue(second_lock_contended.is_set())
         failures = [result for result in results if isinstance(result, Exception)]
         self.assertEqual(1, len(failures))
         self.assertIsInstance(failures[0], ValueError)
+        self.assertRegex(str(failures[0]), "nonterminal checkpoint exists")
+        lock_files = list(self.root.rglob(".checkpoint-init.lock"))
+        self.assertEqual({first_run.parent, second_run.parent}, {path.parent for path in lock_files})
+        self.assertTrue(all(path.parent.name == "artifacts" for path in lock_files))
+        self.assertTrue(all(path.stat().st_mode & 0o777 == 0o600 for path in lock_files))
+        self.assertTrue(opened_lock_paths)
+        self.assertTrue(all(path.parent.name == "artifacts" for path in opened_lock_paths))
+        self.assertTrue(all(path.resolve().is_relative_to(self.root.resolve()) for path in opened_lock_paths))
+        self.assertFalse((self.root / ".checkpoint-init.lock").exists())
+        self.assertFalse((self.root / "sub" / ".checkpoint-init.lock").exists())
+        if not git_marker:
+            self.assertEqual([], list(self.root.rglob(".git")))
+
+    def test_concurrent_hookless_initializations_admit_only_one_writer(self):
+        self._assert_concurrent_hookless_initializations_admit_only_one_writer(git_marker=True)
+
+    def test_concurrent_hookless_initializations_admit_only_one_writer_without_git_marker(self):
+        self._assert_concurrent_hookless_initializations_admit_only_one_writer(git_marker=False)
 
     def test_corrupt_scan_fails_closed_and_claim_is_rejected(self):
         corrupt = self.root / "artifacts" / "broken"
@@ -257,7 +407,8 @@ class HooklessCheckpointTests(unittest.TestCase):
         self.assertRegex(record["session_key"], r"^[0-9a-f]{64}$")
         self.assertEqual(record, load_checkpoint(run))
         self.assertTrue((self.root / "artifacts" / ".checkpoint-init.lock").is_file())
-        self.assertFalse((self.root / ".codex-science-checkpoint-init.lock").exists())
+        self.assertEqual(0o600, (self.root / "artifacts" / ".checkpoint-init.lock").stat().st_mode & 0o777)
+        self.assertFalse((self.root / ".checkpoint-init.lock").exists())
         hidden = self.root / "artifacts" / ".hidden-run"
         hidden.mkdir()
         (hidden / "checkpoint.json").write_text(json.dumps(record), encoding="utf-8")
