@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from codex_science.artifacts import validate_bundle
+from codex_science.collaboration import fold_annotation_resolutions, load_resolution_events
 
 
 def _text(value: Any) -> str:
@@ -16,6 +17,9 @@ def _text(value: Any) -> str:
 
 def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
     sidecars = validate_bundle(manifest, run_dir)
+    annotations = fold_annotation_resolutions(
+        sidecars.get("annotations", []), load_resolution_events(run_dir), sidecars.get("artifact_hashes", {})
+    )
     artifacts = manifest.get("artifacts", [])
     claims = sidecars.get("claim_by_id", {})
     if not claims:
@@ -37,9 +41,13 @@ def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
             finding_rows.append(f"<tr><td>{_text(finding.get('severity', ''))}</td><td>{_text(finding.get('code', finding.get('id', '')))}</td><td>{_text(finding.get('message', finding.get('rationale', '')))}</td><td>{_text(finding.get('resolution_status', 'open'))}</td></tr>")
     for finding in sidecars.get("advanced_findings", []):
         finding_rows.append(f"<tr><td>{_text(finding.get('severity', ''))}</td><td>{_text(finding.get('code', ''))}</td><td>{_text(finding.get('message', ''))}</td><td>open</td></tr>")
-    annotations = "".join(
-        f"<li><strong>{_text(item['annotation_id'])}</strong> [{_text(item['status'])}] {_text(item['text'])} — {_text(item['anchor']['artifact_path'])}</li>"
-        for item in sidecars.get("annotations", [])
+    annotation_rows = "".join(
+        f"<li><strong>{_text(item['annotation_id'])}</strong> [{_text(item['status'])}] {_text(item['text'])}"
+        f"{(' <span>(operator-recorded, not covered by the manifest)</span>') if item.get('latest_resolution') else ''} — "
+        f"<code>{_text(item['anchor']['artifact_path'])}</code> @ <code>{_text(item['anchor']['artifact_sha256'][:12])}</code> "
+        f"{_text(item['anchor'].get('json_pointer') or item['anchor'].get('claim_id') or item['anchor'].get('line_range'))}"
+        f"{(' — resolution note (operator-recorded, not covered by the manifest): ' + _text(item['latest_resolution'].get('note', ''))) if item.get('latest_resolution') else ''}</li>"
+        for item in annotations
     ) or "<li>No annotations recorded.</li>"
     relations = ", ".join(f"{_text(key)}={value}" for key, value in sorted(relation_counts.items())) or "none"
     findings = "".join(finding_rows) or "<tr><td colspan='4'>No review findings recorded.</td></tr>"
@@ -51,9 +59,9 @@ def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
 <div class='meta'><div class='card'><strong>Question</strong><br>{_text(manifest.get('question'))}</div><div class='card'><strong>Review</strong><br>{_text(manifest.get('review', {}).get('status', 'unknown'))}</div><div class='card'><strong>Evidence graph</strong><br>{relations}</div></div>
 <h2>Claims</h2><table><thead><tr><th>ID</th><th>Status</th><th>Claim</th><th>Uncertainty</th></tr></thead><tbody>{claim_rows}</tbody></table>
 <h2>Findings</h2><table><thead><tr><th>Severity</th><th>Code</th><th>Finding</th><th>Resolution</th></tr></thead><tbody>{findings}</tbody></table>
-<h2>Annotations</h2><ul>{annotations}</ul>
+<h2>Annotations</h2><ul>{annotation_rows}</ul>
 <h2>Artifacts</h2><table><thead><tr><th>Path</th><th>Kind</th><th>SHA-256</th></tr></thead><tbody>{artifact_rows}</tbody></table>
-<p><em>Offline derived view. All displayed sidecars and artifacts were validated against the manifest before rendering.</em></p></body></html>\n"""
+<p><em>Offline derived view. Registered bundle artifacts and sidecars were validated against the manifest. Resolution events are operator-recorded and not covered by the manifest.</em></p></body></html>\n"""
 
 
 def write_workbench(manifest_path: Path, output: Path) -> None:

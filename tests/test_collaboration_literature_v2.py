@@ -1,10 +1,35 @@
 import unittest
 
-from codex_science.collaboration import diff_runs, selective_rerun_plan, stale_annotations
+from codex_science.collaboration import diff_runs, fold_annotation_resolutions, selective_rerun_plan, stale_annotations
 from codex_science.literature_v2 import normalize_identifier, resolve_study_families, validate_risk_of_bias
 
 
 class CollaborationAndLiteratureV2Tests(unittest.TestCase):
+    def test_resolution_fold_preserves_history_latest_wins_and_stale_anchor(self) -> None:
+        annotation = {
+            "schema_version": 1, "annotation_id": "A-1", "author": "reviewer", "type": "note",
+            "text": "Check this.", "status": "open", "created_at": "2026-07-19T00:00:00Z",
+            "anchor": {"artifact_path": "metrics.json", "artifact_sha256": "a" * 64, "claim_id": "C1"},
+        }
+        first = {"schema_version": 1, "annotation_id": "A-1", "status": "resolved", "resolver": "R",
+                 "resolved_at": "2026-07-20T00:00:00Z", "artifact_sha256": "a" * 64, "note": "checked"}
+        second = {**first, "status": "dismissed", "resolved_at": "2026-07-21T00:00:00Z", "note": "duplicate"}
+        result = fold_annotation_resolutions([annotation], [first, second], {"metrics.json": "a" * 64})[0]
+        self.assertEqual("dismissed", result["status"])
+        self.assertEqual("duplicate", result["latest_resolution"]["note"])
+        stale = fold_annotation_resolutions([annotation], [first, second], {"metrics.json": "b" * 64})[0]
+        self.assertEqual("stale-anchor", stale["status"])
+        old_anchor_event = fold_annotation_resolutions(
+            [annotation], [{**first, "artifact_sha256": "b" * 64}], {"metrics.json": "a" * 64}
+        )[0]
+        self.assertEqual("stale-anchor", old_anchor_event["status"])
+        self.assertEqual("b" * 64, old_anchor_event["latest_resolution"]["artifact_sha256"])
+        with self.assertRaisesRegex(ValueError, "invalid resolution status"):
+            fold_annotation_resolutions([annotation], [{**first, "status": "open"}], {"metrics.json": "a" * 64})
+        self.assertEqual(2, len(fold_annotation_resolutions([annotation, annotation], [], {"metrics.json": "a" * 64})))
+        with self.assertRaisesRegex(ValueError, "annotation IDs must be unique"):
+            fold_annotation_resolutions([annotation, annotation], [first], {"metrics.json": "a" * 64})
+
     def test_annotations_diff_and_selective_rerun_are_hash_aware(self) -> None:
         annotation = {
             "schema_version": 1,
