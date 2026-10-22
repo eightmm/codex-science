@@ -17,7 +17,14 @@ execution tests reject `--ephemeral`, `--ignore-user-config`,
 Receipts capture preflight configuration, `loaded_runtime` observed in run
 events, and `branch_runtime_version`, so a result can be distinguished from a
 run using the installed plugin. This identity is evidence, not a claim of
-runtime equivalence.
+runtime equivalence. Use `--plugin codex-science@MARKETPLACE` to select a
+marketplace build; the runner disables the default selector and enables the
+chosen one. Codex ignores dotted quoted-key overrides such as
+`plugins."codex-science@codex-science".enabled=false`, so the runner uses one
+inline-table `-c` override. Plugin version (`plugin.json`) and runtime version
+(`release/manifest.json`) are separate identities: branch matching compares
+runtime versions from the selected installed cache directory manifests, not
+plugin version labels.
 
 `scripts/report_literature_evaluation.py` grades saved receipts against every
 frozen criterion. A task is complete only when all criteria pass, following

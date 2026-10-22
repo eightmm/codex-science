@@ -47,6 +47,10 @@ enabled = true
         manifest = home / "plugins/cache/codex-science/codex-science/0.5.0/.codex-plugin/plugin.json"
         manifest.parent.mkdir(parents=True)
         manifest.write_text(json.dumps({"name": "codex-science", "version": "0.5.0-test"}), encoding="utf-8")
+        runtime_manifest = manifest.parents[1] / "release" / "manifest.json"
+        runtime_manifest.parent.mkdir(parents=True)
+        runtime = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+        runtime_manifest.write_text(json.dumps({"runtime_version": runtime}), encoding="utf-8")
         return home
 
     def _fake_codex(self, root: Path) -> Path:
@@ -171,9 +175,12 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             self.assertEqual("codex-cli fake-1", plan["preflight"]["codex_version"])
             self.assertTrue(plan["preflight"]["codex_science_enabled"])
             self.assertEqual("0.5.0-test", plan["preflight"]["installed_plugin_version"])
+            self.assertEqual("codex-science@codex-science", plan["preflight"]["plugin_selector"])
+            self.assertEqual(json.loads((ROOT / "release/manifest.json").read_text())["runtime_version"],
+                             plan["preflight"]["installed_runtime_version"])
             self.assertEqual("danger-full-access", plan["preflight"]["configured"]["sandbox_mode"])
             self.assertEqual("workspace-write", plan["preflight"]["argv_overrides"]["sandbox_mode"])
-            self.assertIn("installed_runtime_differs_from_branch", plan["preflight"]["warnings"])
+            self.assertNotIn("installed_runtime_differs_from_branch", plan["preflight"]["warnings"])
             self.assertEqual([True, False], [item["enabled"] for item in plan["preflight"]["codex_science_hooks_state"]])
             self.assertNotIn(str(codex_home), json.dumps(plan))
             self.assertFalse(invocations.exists(), "dry run must not execute any codex task")
@@ -218,6 +225,77 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                                "--codex-bin", str(binary), "--codex-home", str(home))
             self.assertEqual(2, result.returncode)
             self.assertIn("pass a new --out", result.stderr)
+
+    def test_nondefault_plugin_selector_overrides_and_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = self._fake_codex(root)
+            home = self._codex_home(root)
+            out = root / "out"
+            result = self._run("--tasks", str(TASKS), "--out", str(out), "--task", "quick-doi",
+                               "--codex-bin", str(binary), "--codex-home", str(home),
+                               "--plugin", "codex-science@codex-science-branch")
+            self.assertEqual(0, result.returncode, result.stderr)
+            plan = json.loads((out / "plan.json").read_text())
+            preflight = plan["preflight"]
+            self.assertEqual("unknown", preflight["codex_science_enabled"])
+            self.assertIn("selected_plugin_not_installed", preflight["warnings"])
+            self.assertEqual("codex-science@codex-science-branch", preflight["plugin_selector"])
+            self.assertEqual("codex-science@codex-science-branch", preflight["argv_overrides"]["plugin_enabled"])
+            self.assertEqual("codex-science@codex-science", preflight["argv_overrides"]["plugin_disabled"])
+            argv = plan["tasks"][0]["argv"]
+            self.assertEqual(["-c", 'plugins={"codex-science@codex-science"={enabled=false},'
+                              '"codex-science@codex-science-branch"={enabled=true}}'],
+                             argv[argv.index("--json") - 2:argv.index("--json")])
+            self.assertEqual(4, argv.count("-c"))
+
+            selected_version = "0.6.0+branch-build"
+            selected_cache = (home / "plugins/cache/codex-science-branch/codex-science" /
+                              selected_version)
+            plugin_manifest = selected_cache / ".codex-plugin/plugin.json"
+            plugin_manifest.parent.mkdir(parents=True)
+            plugin_manifest.write_text(json.dumps({"name": "codex-science", "version": selected_version}),
+                                       encoding="utf-8")
+            runtime_manifest = selected_cache / "release/manifest.json"
+            runtime_manifest.parent.mkdir(parents=True)
+            runtime = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+            runtime_manifest.write_text(json.dumps({"runtime_version": runtime}), encoding="utf-8")
+            installed_out = root / "installed-out"
+            installed = self._run("--tasks", str(TASKS), "--out", str(installed_out), "--task", "quick-doi",
+                                  "--codex-bin", str(binary), "--codex-home", str(home),
+                                  "--plugin", "codex-science@codex-science-branch")
+            self.assertEqual(0, installed.returncode, installed.stderr)
+            installed_preflight = json.loads((installed_out / "plan.json").read_text())["preflight"]
+            self.assertTrue(installed_preflight["codex_science_enabled"])
+            self.assertNotIn("selected_plugin_not_installed", installed_preflight["warnings"])
+
+            invalid = self._run("--tasks", str(TASKS), "--out", str(root / "bad"),
+                                "--plugin", "wrong@marketplace")
+            self.assertEqual(2, invalid.returncode)
+            self.assertIn("plugin must match", invalid.stderr)
+            for invalid_marketplace in (".", ".."):
+                invalid = self._run("--tasks", str(TASKS), "--out", str(root / f"bad-{invalid_marketplace}"),
+                                    "--plugin", f"codex-science@{invalid_marketplace}")
+                self.assertEqual(2, invalid.returncode)
+                self.assertIn("plugin must match", invalid.stderr)
+
+    def test_installed_runtime_warning_and_ambiguous_cache_identity(self) -> None:
+        from codex_science.literature_evaluation_runner import _preflight
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = self._codex_home(root)
+            binary = self._fake_codex(root)
+            runtime_manifest = home / "plugins/cache/codex-science/codex-science/0.5.0/release/manifest.json"
+            runtime_manifest.write_text(json.dumps({"runtime_version": "different-runtime"}), encoding="utf-8")
+            preflight = _preflight(str(binary), home)
+            self.assertIn("installed_runtime_differs_from_branch", preflight["warnings"])
+            second = runtime_manifest.parents[2] / "0.5.1" / "release" / "manifest.json"
+            second.parent.mkdir(parents=True)
+            second.write_text(json.dumps({"runtime_version": "different-runtime"}), encoding="utf-8")
+            ambiguous = _preflight(str(binary), home)
+            self.assertEqual("unknown", ambiguous["installed_runtime_version"])
+            self.assertEqual("unknown", ambiguous["installed_plugin_version"])
 
     def test_dry_runs_atomically_replace_plan_in_existing_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -390,6 +468,11 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             root = Path(tmp)
             binary = self._fake_codex(root)
             home = self._codex_home(root)
+            branch_version = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+            for version in ("0.5.0+installed", "0.5.1+other"):
+                manifest = home / "plugins/cache/codex-science/codex-science" / version / "release/manifest.json"
+                manifest.parent.mkdir(parents=True, exist_ok=True)
+                manifest.write_text(json.dumps({"runtime_version": "old-runtime"}), encoding="utf-8")
             out = root / "out"
             command = ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
                        "0.5.0+installed/skills/codex-science/SKILL.md; cat "
@@ -399,35 +482,81 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                                "--codex-bin", str(binary), "--codex-home", str(home),
                                extra_env={"FAKE_COMMAND": command})
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn("warning: installed_runtime_differs_from_branch", result.stderr)
+            self.assertNotIn("warning: installed_runtime_differs_from_branch", result.stderr)
             receipt = json.loads((out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
             loaded = receipt["loaded_runtime"]
             self.assertEqual(["0.5.0+installed", "0.5.1+other"], loaded["plugin_cache_versions"])
             self.assertEqual(["skills/codex-science/SKILL.md", "skills/literature-review/SKILL.md"],
                              loaded["skill_paths"])
-            branch_version = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
             self.assertEqual(branch_version, loaded["branch_runtime_version"])
             self.assertFalse(loaded["runtime_under_test_matches_branch"])
+            self.assertEqual(["old-runtime"], loaded["loaded_runtime_versions"])
             self.assertNotIn("private-command", json.dumps(loaded))
             self.assertNotIn("cat", json.dumps(loaded))
-            matching_events = root / "matching-events.jsonl"
-            matching_events.write_text(json.dumps({"event": {
-                "type": "item.completed", "item": {"type": "command_execution",
-                    "exit_code": 0,
-                    "command": ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
-                    f"{branch_version}/skills/codex-science/SKILL.md")}},
-                "t": 0.0}) + "\n", encoding="utf-8")
-            with matching_events.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps({"event": {"type": "item.completed", "item": {
-                    "type": "command_execution", "exit_code": 1,
-                    "command": "cat ~/.codex/plugins/cache/codex-science/codex-science/9.9.9/skills/failed/SKILL.md"}},
-                    "t": 0.0}) + "\n")
-            matching = _loaded_runtime(matching_events, branch_version)
-            self.assertEqual([branch_version], matching["plugin_cache_versions"])
-            self.assertEqual(["skills/codex-science/SKILL.md"], matching["skill_paths"])
+
+            matching_cache_version = "0.5.2+plugin"
+            matching_manifest = (home / "plugins/cache/codex-science/codex-science" /
+                                 matching_cache_version / "release/manifest.json")
+            matching_manifest.parent.mkdir(parents=True)
+            matching_manifest.write_text(json.dumps({"runtime_version": branch_version}), encoding="utf-8")
+            matching_out = root / "matching-out"
+            matching_command = ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
+                                f"{matching_cache_version}/skills/codex-science/SKILL.md")
+            result = self._run("--tasks", str(TASKS), "--out", str(matching_out), "--task", "quick-doi",
+                               "--execute", "--codex-bin", str(binary), "--codex-home", str(home),
+                               extra_env={"FAKE_COMMAND": matching_command})
+            self.assertEqual(0, result.returncode, result.stderr)
+            matching_receipt = json.loads((matching_out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
+            matching = matching_receipt["loaded_runtime"]
+            self.assertEqual([matching_cache_version], matching["plugin_cache_versions"])
+            self.assertEqual([branch_version], matching["loaded_runtime_versions"])
             self.assertTrue(matching["runtime_under_test_matches_branch"])
-            unknown = _loaded_runtime(matching_events, "unknown")
+            matching_events = root / "matching-events.jsonl"
+            matching_events.write_text(json.dumps({"event": {"type": "item.completed", "item": {
+                "type": "command_execution", "exit_code": 0, "command": matching_command}}}) + "\n"
+                + json.dumps({"event": {"type": "item.completed", "item": {
+                    "type": "command_execution", "exit_code": 1,
+                    "command": "cat ~/.codex/plugins/cache/codex-science/codex-science/9.9.9/skills/failed/SKILL.md"}}})
+                + "\n", encoding="utf-8")
+            matching_events_result = _loaded_runtime(matching_events, home,
+                                                      "codex-science@codex-science", branch_version)
+            self.assertEqual([matching_cache_version], matching_events_result["plugin_cache_versions"])
+            self.assertEqual(["skills/codex-science/SKILL.md"], matching_events_result["skill_paths"])
+            self.assertEqual([branch_version], matching_events_result["loaded_runtime_versions"])
+            self.assertTrue(matching_events_result["runtime_under_test_matches_branch"])
+            unknown = _loaded_runtime(matching_events, home, "codex-science@codex-science", "unknown")
             self.assertFalse(unknown["runtime_under_test_matches_branch"])
+
+            mismatching_manifest = (home / "plugins/cache/codex-science/codex-science" /
+                                    branch_version / "release/manifest.json")
+            mismatching_manifest.parent.mkdir(parents=True)
+            mismatching_manifest.write_text(json.dumps({"runtime_version": "different-runtime"}),
+                                            encoding="utf-8")
+            mismatching_out = root / "mismatching-out"
+            mismatching_command = ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
+                                   f"{branch_version}/skills/codex-science/SKILL.md")
+            result = self._run("--tasks", str(TASKS), "--out", str(mismatching_out), "--task", "quick-doi",
+                               "--execute", "--codex-bin", str(binary), "--codex-home", str(home),
+                               extra_env={"FAKE_COMMAND": mismatching_command})
+            self.assertEqual(0, result.returncode, result.stderr)
+            mismatching_receipt = json.loads((mismatching_out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
+            mismatching = mismatching_receipt["loaded_runtime"]
+            self.assertEqual([branch_version], mismatching["plugin_cache_versions"])
+            self.assertEqual(["different-runtime"], mismatching["loaded_runtime_versions"])
+            self.assertFalse(mismatching["runtime_under_test_matches_branch"])
+            other_marketplace = root / "other-marketplace.jsonl"
+            other_marketplace.write_text(json.dumps({"event": {"type": "item.completed", "item": {
+                "type": "command_execution", "exit_code": 0,
+                "command": (f"cat ~/.codex/plugins/cache/codex-science/codex-science/{matching_cache_version}/skills/x/SKILL.md; "
+                            f"cat ~/.codex/plugins/cache/other-market/codex-science/{branch_version}/skills/y/SKILL.md; "
+                            f"cat ~/.codex/plugins/cache/branch-market/codex-science/{branch_version}/skills/z/SKILL.md")}}})
+                + "\n", encoding="utf-8")
+            foreign = _loaded_runtime(other_marketplace, home, "codex-science@codex-science", branch_version)
+            self.assertEqual([matching_cache_version], foreign["plugin_cache_versions"])
+            self.assertEqual([f"branch-market/{branch_version}", f"other-market/{branch_version}"],
+                             foreign["foreign_plugin_cache_paths"])
+            self.assertFalse(foreign["runtime_under_test_matches_branch"])
+            self.assertNotIn("plugins/cache", json.dumps(foreign))
 
     def test_process_group_kill_tolerates_disappeared_process(self) -> None:
         from codex_science.literature_evaluation_runner import _kill_process_group

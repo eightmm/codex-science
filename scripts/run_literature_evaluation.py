@@ -21,6 +21,8 @@ def main() -> int:
     parser.add_argument("--timeout-seconds", type=int)
     parser.add_argument("--codex-bin", default="codex")
     parser.add_argument("--codex-home", type=Path)
+    parser.add_argument("--plugin", default="codex-science@codex-science",
+                        help="plugin selector in codex-science@marketplace form")
     parser.add_argument("--output-schema", action="store_true",
                         help="require and cross-check a structured completion record")
     args = parser.parse_args()
@@ -30,7 +32,7 @@ def main() -> int:
         result = run_evaluation(args.tasks, args.out, selected=args.tasks_selected,
                                 execute=args.execute, timeout_seconds=args.timeout_seconds,
                                 codex_bin=args.codex_bin, codex_home=args.codex_home,
-                                output_schema=args.output_schema)
+                                output_schema=args.output_schema, plugin=args.plugin)
     except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as error:
         print(f"literature evaluation failed: {error}", file=sys.stderr)
         return 2

@@ -28,14 +28,21 @@ _MAX_OUTPUT_BYTES = 64 << 20
 _OUTPUT_MARKER = b"\n[output truncated: line limit exceeded]\n"
 _KILL_WAIT_SECONDS = 0.5
 _READER_JOIN_SECONDS = 0.5
-_PLUGIN_CACHE_ROOT = r"plugins/cache/codex-science/codex-science/"
-_PLUGIN_CACHE_VERSION = re.compile(
-    re.escape(_PLUGIN_CACHE_ROOT) + r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
+_DEFAULT_PLUGIN = "codex-science@codex-science"
+_PLUGIN_RE = re.compile(r"^codex-science@[A-Za-z0-9][A-Za-z0-9._-]*$")
+_ANY_PLUGIN_CACHE_PATH = re.compile(
+    r"plugins/cache/(?P<marketplace>[A-Za-z0-9][A-Za-z0-9._-]*)/codex-science/"
+    r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
 )
-_PLUGIN_CACHE_SKILL = re.compile(
-    re.escape(_PLUGIN_CACHE_ROOT)
-    + r"(?P<version>[^/\s\"'<>;|&]+)/(?P<skill_path>skills/[^\s\"'<>;|&]*)"
-)
+
+
+def _plugin_cache_patterns(plugin: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
+    marketplace = plugin.split("@", 1)[1]
+    root = f"plugins/cache/{marketplace}/codex-science/"
+    version = re.escape(root) + r"(?P<version>[^/\s\"'<>;|&]+)(?=/|$|[\s\"'<>;|&])"
+    skill = (re.escape(root) + r"(?P<version>[^/\s\"'<>;|&]+)/"
+             r"(?P<skill_path>skills/[^\s\"'<>;|&]*)")
+    return re.compile(version), re.compile(skill)
 
 
 def _canonical(value: Any) -> bytes:
@@ -270,24 +277,48 @@ def _codex_version(codex: str) -> str:
         return _UNKNOWN
 
 
-def _installed_plugin_version(codex_home: Path) -> str:
+def _cache_versions(codex_home: Path, plugin: str) -> list[Path]:
+    marketplace = plugin.split("@", 1)[1]
+    root = codex_home / "plugins" / "cache" / marketplace / "codex-science"
+    if root.is_symlink() or not root.is_dir():
+        return []
+    try:
+        resolved_root = root.resolve()
+        return [path for path in root.iterdir() if not path.is_symlink() and path.is_dir()
+                and path.resolve().is_relative_to(resolved_root)]
+    except OSError:
+        return []
+
+
+def _manifest_value(path: Path, codex_home: Path, key: str) -> str:
     cache = codex_home / "plugins" / "cache"
-    versions: set[str] = set()
-    if not cache.is_dir():
+    release = path / "release"
+    manifest = path / "release" / "manifest.json"
+    try:
+        if release.is_symlink() or manifest.is_symlink() or not manifest.resolve().is_relative_to(cache.resolve()):
+            return _UNKNOWN
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
         return _UNKNOWN
-    for manifest in cache.rglob("plugin.json"):
-        if manifest.parent.name != ".codex-plugin" or manifest.is_symlink():
-            continue
-        try:
-            manifest.resolve().relative_to(cache.resolve())
-            data = json.loads(manifest.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(data, dict) and data.get("name") == "codex-science":
-            version = data.get("version")
-            if isinstance(version, str) and version:
-                versions.add(version)
-    return next(iter(versions)) if len(versions) == 1 else _UNKNOWN
+    value = data.get(key) if isinstance(data, dict) else None
+    return value if isinstance(value, str) and value else _UNKNOWN
+
+
+def _installed_plugin_version(codex_home: Path, plugin: str = _DEFAULT_PLUGIN) -> str:
+    versions = _cache_versions(codex_home, plugin)
+    if len(versions) != 1:
+        return _UNKNOWN
+    plugin_dir = versions[0] / ".codex-plugin"
+    manifest = plugin_dir / "plugin.json"
+    cache = codex_home / "plugins" / "cache"
+    try:
+        if plugin_dir.is_symlink() or manifest.is_symlink() or not manifest.resolve().is_relative_to(cache.resolve()):
+            return _UNKNOWN
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return _UNKNOWN
+    value = data.get("version") if isinstance(data, dict) and data.get("name") == "codex-science" else None
+    return value if isinstance(value, str) and value else _UNKNOWN
 
 
 def _branch_runtime_version() -> str:
@@ -300,9 +331,13 @@ def _branch_runtime_version() -> str:
     return version if isinstance(version, str) and version else _UNKNOWN
 
 
-def _loaded_runtime(events_path: Path, branch_runtime_version: str) -> dict[str, Any]:
+def _loaded_runtime(events_path: Path, codex_home: Path, plugin: str,
+                    branch_runtime_version: str) -> dict[str, Any]:
     versions: set[str] = set()
     skill_paths: set[str] = set()
+    foreign_plugin_cache_paths: set[str] = set()
+    marketplace = plugin.split("@", 1)[1]
+    version_pattern, skill_pattern = _plugin_cache_patterns(plugin)
     try:
         lines = events_path.open(encoding="utf-8")
     except OSError:
@@ -326,16 +361,35 @@ def _loaded_runtime(events_path: Path, branch_runtime_version: str) -> dict[str,
                 for command_text in commands:
                     if not isinstance(command_text, str):
                         continue
-                    versions.update(match.group("version") for match in _PLUGIN_CACHE_VERSION.finditer(command_text))
-                    for match in _PLUGIN_CACHE_SKILL.finditer(command_text):
+                    for match in _ANY_PLUGIN_CACHE_PATH.finditer(command_text):
+                        other_marketplace = match.group("marketplace")
+                        if other_marketplace != marketplace:
+                            foreign_plugin_cache_paths.add(
+                                f"{other_marketplace}/{match.group('version')}"
+                            )
+                    versions.update(match.group("version") for match in version_pattern.finditer(command_text))
+                    for match in skill_pattern.finditer(command_text):
                         skill_path = match.group("skill_path").rstrip(".,)")
                         if skill_path:
                             skill_paths.add(skill_path)
-    matches_branch = bool(versions) and branch_runtime_version != _UNKNOWN and all(
-        version == branch_runtime_version for version in versions
-    )
+    loaded_runtime_by_cache: dict[str, str] = {}
+    cache_versions = _cache_versions(codex_home, plugin)
+    for version in versions:
+        matches = [path for path in cache_versions if path.name == version]
+        if len(matches) == 1:
+            runtime = _manifest_value(matches[0], codex_home, "runtime_version")
+            if runtime != _UNKNOWN:
+                loaded_runtime_by_cache[version] = runtime
+    loaded_versions = set(loaded_runtime_by_cache.values())
+    matches_branch = (bool(versions) and not foreign_plugin_cache_paths
+                      and len(loaded_runtime_by_cache) == len(versions)
+                      and branch_runtime_version != _UNKNOWN and all(
+                          version == branch_runtime_version for version in loaded_runtime_by_cache.values()
+                      ))
     return {"plugin_cache_versions": sorted(versions), "skill_paths": sorted(skill_paths),
             "branch_runtime_version": branch_runtime_version,
+            "loaded_runtime_versions": sorted(loaded_versions),
+            "foreign_plugin_cache_paths": sorted(foreign_plugin_cache_paths),
             "runtime_under_test_matches_branch": matches_branch}
 
 
@@ -344,13 +398,13 @@ def _simple_config_value(config: Mapping[str, Any], key: str) -> Any:
     return value if isinstance(value, (str, bool, int, float)) else _UNKNOWN
 
 
-def _hook_state_entries(hooks: Any) -> list[dict[str, Any]]:
+def _hook_state_entries(hooks: Any, plugin_selector: str = _DEFAULT_PLUGIN) -> list[dict[str, Any]]:
     if not isinstance(hooks, dict):
         return []
     state = hooks.get("state")
     rows = []
     if isinstance(state, dict):
-        prefix = "codex-science@codex-science:"
+        prefix = plugin_selector + ":"
         for key, value in sorted(state.items()):
             if not isinstance(key, str) or not key.startswith(prefix):
                 continue
@@ -358,7 +412,7 @@ def _hook_state_entries(hooks: Any) -> list[dict[str, Any]]:
             rows.append({"hook": key[len(prefix):], "enabled": enabled if isinstance(enabled, bool) else _UNKNOWN})
     elif isinstance(state, list):
         for item in state:
-            if not isinstance(item, dict) or item.get("plugin") != "codex-science@codex-science":
+            if not isinstance(item, dict) or item.get("plugin") != plugin_selector:
                 continue
             enabled = item.get("enabled", _UNKNOWN)
             rows.append({"hook": item.get("hook", _UNKNOWN),
@@ -366,7 +420,7 @@ def _hook_state_entries(hooks: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def _preflight(codex: str, codex_home: Path) -> dict[str, Any]:
+def _preflight(codex: str, codex_home: Path, plugin_selector: str = _DEFAULT_PLUGIN) -> dict[str, Any]:
     config_path = codex_home / "config.toml"
     config: dict[str, Any] = {}
     config_status = "missing"
@@ -378,22 +432,33 @@ def _preflight(codex: str, codex_home: Path) -> dict[str, Any]:
         except (OSError, UnicodeError, tomllib.TOMLDecodeError):
             config_status = "invalid"
     plugins = config.get("plugins", {})
-    plugin = plugins.get("codex-science@codex-science", {}) if isinstance(plugins, dict) else {}
+    plugin = plugins.get(plugin_selector, {}) if isinstance(plugins, dict) else {}
     enabled = plugin.get("enabled", _UNKNOWN) if isinstance(plugin, dict) else _UNKNOWN
-    installed_version = _installed_plugin_version(codex_home)
+    installed_version = _installed_plugin_version(codex_home, plugin_selector)
     branch_version = _branch_runtime_version()
+    cache_versions = _cache_versions(codex_home, plugin_selector)
+    installed_runtime = (_manifest_value(cache_versions[0], codex_home, "runtime_version")
+                         if len(cache_versions) == 1 else _UNKNOWN)
     warnings = []
-    if installed_version != _UNKNOWN and branch_version != _UNKNOWN and installed_version != branch_version:
+    if installed_runtime != _UNKNOWN and branch_version != _UNKNOWN and installed_runtime != branch_version:
         warnings.append("installed_runtime_differs_from_branch")
+    if plugin_selector != _DEFAULT_PLUGIN and installed_version == _UNKNOWN:
+        warnings.append("selected_plugin_not_installed")
+    enabled_override = True if installed_version != _UNKNOWN else _UNKNOWN
     return {
         "codex_version": _codex_version(codex),
-        "codex_science_enabled": enabled if isinstance(enabled, bool) else _UNKNOWN,
-        "codex_science_hooks_state": _hook_state_entries(config.get("hooks")),
+        "codex_science_enabled": (enabled_override if plugin_selector != _DEFAULT_PLUGIN
+                                   else enabled if isinstance(enabled, bool) else _UNKNOWN),
+        "codex_science_hooks_state": _hook_state_entries(config.get("hooks"), plugin_selector),
         "configured": {key: _simple_config_value(config, key)
                        for key in ("sandbox_mode", "approval_policy", "approvals_reviewer")},
         "argv_overrides": {"sandbox_mode": "workspace-write", "network_access": True,
-                           "approval_policy": "never", "approvals_reviewer": "user"},
+                           "approval_policy": "never", "approvals_reviewer": "user",
+                           **({"plugin_enabled": plugin_selector, "plugin_disabled": _DEFAULT_PLUGIN}
+                              if plugin_selector != _DEFAULT_PLUGIN else {})},
+        "plugin_selector": plugin_selector,
         "installed_plugin_version": installed_version,
+        "installed_runtime_version": installed_runtime,
         "branch_runtime_version": branch_version,
         "warnings": warnings,
         "config_status": config_status,
@@ -465,7 +530,7 @@ def _artifact_hashes(root: Path) -> list[dict[str, str]]:
 
 
 def _argv(codex: str, task: Mapping[str, Any], project: Path, last_message: Path,
-          output_schema: Path | None = None) -> list[str]:
+          output_schema: Path | None = None, plugin: str = _DEFAULT_PLUGIN) -> list[str]:
     prompt = (f"$codex-science {task['spec']['question']}\n\n"
               f"Work autonomously to completion within the {task['spec']['expected_tier']} tier.")
     if output_schema is not None:
@@ -473,6 +538,8 @@ def _argv(codex: str, task: Mapping[str, Any], project: Path, last_message: Path
     argv = [codex, "exec", "-C", str(project), "-s", "workspace-write",
             "-c", "sandbox_workspace_write.network_access=true",
             "-c", 'approval_policy="never"', "-c", 'approvals_reviewer="user"',
+            *(["-c", f'plugins={{"{_DEFAULT_PLUGIN}"={{enabled=false}},"{plugin}"={{enabled=true}}}}']
+              if plugin != _DEFAULT_PLUGIN else []),
             "--json"]
     if output_schema is not None:
         argv.extend(["--output-schema", str(output_schema)])
@@ -843,7 +910,9 @@ def _write_plan(out: Path, plan: dict[str, Any], *, execute: bool) -> Path:
 def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = None,
                    execute: bool = False, timeout_seconds: int | None = None,
                    codex_bin: str = "codex", codex_home: Path | None = None,
-                   output_schema: bool = False) -> dict[str, Any]:
+                   output_schema: bool = False, plugin: str = _DEFAULT_PLUGIN) -> dict[str, Any]:
+    if not isinstance(plugin, str) or not _PLUGIN_RE.fullmatch(plugin):
+        raise ValueError("plugin must match codex-science@PLUGIN_MARKETPLACE")
     task_set = load_task_set(tasks_path)
     tasks = task_set["tasks"]
     if selected:
@@ -860,7 +929,7 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
             raise FileExistsError(f"task directory {collisions[0]!r} already exists; pass a new --out")
     out.mkdir(parents=True, exist_ok=True, mode=0o700)
     home = _codex_home(codex_home)
-    preflight = _preflight(codex_bin, home)
+    preflight = _preflight(codex_bin, home, plugin)
     plan = {"schema": "literature-eval-plan-v1", "set_digest": task_set["set_digest"],
             "execute": execute, "preflight": preflight, "tasks": []}
     schema_path = (Path(__file__).resolve().parents[2] / "benchmarks/literature-review/completion-record.schema.json"
@@ -873,7 +942,7 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
         last = task_dir / "last.md"
         cap = min(task["spec"]["time_cap_seconds"], timeout_seconds or task["spec"]["time_cap_seconds"])
         plan["tasks"].append({"task_id": task["id"], "digest": task["digest"], "timeout_seconds": cap,
-                              "argv": _argv(codex_bin, task, project, last, schema_path),
+                              "argv": _argv(codex_bin, task, project, last, schema_path, plugin),
                               "stdin": "devnull", "stdout": str(task_dir / "events.jsonl"),
                               "stderr": str(task_dir / "stderr.log")})
     plan_path = _write_plan(out, plan, execute=execute)
@@ -915,7 +984,7 @@ def run_evaluation(tasks_path: Path, out: Path, *, selected: list[str] | None = 
                    "last_message_sha256": _sha(last_path.read_bytes()),
                    "artifact_files": _artifact_hashes(artifacts),
                    "runtime_identities": _read_runtime_identities(artifacts),
-                   "loaded_runtime": _loaded_runtime(task_dir / "events.jsonl",
+                   "loaded_runtime": _loaded_runtime(task_dir / "events.jsonl", home, plugin,
                                                      preflight["branch_runtime_version"]),
                    "completion_report": completion_report}
         if schema_path is not None:
