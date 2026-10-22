@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Recorded the experiment ledger and run13 literature-evaluation results.
 - Final answers now name primary sources with visible persistent identifiers (DOI, PMID, PMCID, or arXiv ID) for findings that rest on published sources; local file links alone are not citations.
 - Documented the Claude Science/open-science absorption, its roadmap
   dispositions, and real-run literature evaluation results.

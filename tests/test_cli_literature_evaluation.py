@@ -23,6 +23,31 @@ FORBIDDEN = {"--ephemeral", "--ignore-user-config", "--dangerously-bypass-approv
 
 
 class LiteratureEvaluationTests(unittest.TestCase):
+    def test_experiment_ledger_records_valid_run_summaries(self) -> None:
+        from codex_science.literature_evaluation_runner import load_task_set
+
+        ledger = ROOT / "docs" / "EXPERIMENTS.jsonl"
+        rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+        task_set = load_task_set(TASKS)
+        self.assertTrue(rows)
+        self.assertTrue(all(isinstance(row, dict) for row in rows))
+        task_rows = []
+        receipt_hashes = []
+        for row in rows:
+            if "summary" in row:
+                summary = row["summary"]
+                self.assertEqual(len(task_rows), summary["n"])
+                self.assertEqual(sum(task.get("outcome") == "completed" for task in task_rows), summary["completed"])
+                self.assertTrue(all(task["set_digest"] == task_set["set_digest"] for task in task_rows))
+                self.assertTrue(all(task["branch_runtime_version"] == row["branch_runtime_version"] for task in task_rows))
+                task_rows = []
+            else:
+                task_rows.append(row)
+                receipt_hashes.append(row["receipt_sha256"])
+        self.assertFalse(task_rows)
+        self.assertIn("summary", rows[-1])
+        self.assertEqual(len(receipt_hashes), len(set(receipt_hashes)))
+
     def test_plugin_cache_version_stops_at_escaped_quote(self) -> None:
         from codex_science.literature_evaluation_runner import _plugin_cache_patterns, _ANY_PLUGIN_CACHE_PATH
 

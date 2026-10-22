@@ -70,9 +70,9 @@ change outcome, stop reason, or either completion rate, and remain absent for le
 
 ### Recorded real runs
 
-Runs 6–12 were single Codex runs on the frozen six-task literature benchmark
-with an 1800-second cap, completing 3/6, 4/6, 3/6, 4/6, 4/6, 3/6, and 3/6
-tasks. Run8 was the first run with a full-tier pass. Provider policy
+Runs 6–13 were single Codex runs on the frozen six-task literature benchmark
+with an 1800-second cap, completing 3/6, 4/6, 3/6, 4/6, 4/6, 3/6, 3/6, and
+5/6 tasks. Run8 was the first run with a full-tier pass. Provider policy
 blocks remain failures in both completion rates and are never removed from the
 denominator.
 
@@ -91,10 +91,25 @@ denominator.
   full-microbiome passed re-review at 1778 seconds and was still completing at
   the cap.
 
+- Run13 (`b35f1ab`), 5/6: quick 2/2; standard-mrna completed in 1090 seconds;
+  standard-single-cell completed in 1401 seconds; full-microbiome completed in
+  1361 seconds; full-protein-folding timed out at 1800 seconds after synthesis
+  and sidecar validation, while independent review found a mislabeled exclusion
+  and its correction was in progress at the cap. No provider policy block
+  occurred in this run. Its result coincides with no policy block on
+  standard-mrna, which was blocked in 4 of 8 runs; this is one sample and not
+  evidence of a stable gain.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
 review rounds often do not fit.
+
+Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
+`scripts/report_literature_evaluation.py --append-ledger`: one row per task
+receipt, then one summary row per run, for runs 6–13 in order; duplicate
+receipts are skipped. Each summary's `branch_runtime_version` identifies the
+runtime under test; runs 10 and 11 share one.
 
 The opt-in `scripts/estimate_saturation.py` estimates remaining discovery from
 logged checkpoints; `scripts/trace_citations.py` checks report identifiers

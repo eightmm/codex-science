@@ -333,13 +333,16 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 
 ### Follow-up Codex runs (2026-10-23)
 
-Runs 6–12 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
-3/6, and 3/6 tasks; run8 was the first with a full-tier pass. Provider policy
+Runs 6–13 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
+3/6, 3/6, and 5/6 tasks; run8 was the first with a full-tier pass. Provider policy
 blocks remain failures in both completion rates and stay in the denominator.
 Runs 10 and 11 used the same SHA (`edb8d69`) and differed by one task; with six
 tasks per run, variance dominates and the comparison does not establish a
 trend. At the 1800-second cap, full-tier independent review rounds often do not
-fit. Per-run details are recorded in [Evaluation](EVALUATION.md#recorded-real-runs).
+fit. Run13 had no provider policy block; standard-mrna was blocked in 4 of 8
+runs, so the result is one sample rather than evidence of a stable gain. Per-run
+details are recorded in [Evaluation](EVALUATION.md#recorded-real-runs) and
+`docs/EXPERIMENTS.jsonl`.
 
 1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 135 first-party skills; skill-depth gaps remain.)
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema. (Status: the conductor and literature helpers are implemented in `authored-skills/literature-review/SKILL.md`, `src/codex_science/literature_v2.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py`.)
