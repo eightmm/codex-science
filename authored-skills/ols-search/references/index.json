@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "ols-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "term-identity-and-mapping",
+      "path": "references/term-identity-mapping-and-versioning.md",
+      "purpose": "Resolve ontology term identity and assess obsolescence, synonyms, hierarchy, cross-ontology mapping, release drift, and mapping uncertainty.",
+      "read_when": [
+        "selecting an ontology term",
+        "evaluating obsolete replacements",
+        "mapping across ontologies",
+        "using hierarchy in a scientific conclusion"
+      ],
+      "required_before": [
+        "ontology-term-resolution-v1",
+        "term-identity-claim",
+        "cross-ontology-mapping"
+      ],
+      "evidence_boundary": "Supports term discovery and identity decisions for recorded OLS/ontology versions; it does not validate a biological assertion or establish equivalence from labels alone.",
+      "search_patterns": [
+        "## Claim semantics",
+        "## Uncertainty",
+        "## Applicability domain"
+      ],
+      "authority": "documented-method-and-source-context",
+      "version": "1"
+    }
+  ]
+}

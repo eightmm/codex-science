@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "thermodynamics-statistical-mechanics",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["thermodynamic-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The skill does not supply a numerical validator or domain-specific error bounds for arbitrary equations of state.",
+    "Uncertainty propagation depends on the supplied data model and covariance; unavailable inputs remain unresolved.",
+    "Equilibrium potential and ensemble assumptions require domain-specific justification, especially for finite or non-equilibrium systems."
+  ]
+}

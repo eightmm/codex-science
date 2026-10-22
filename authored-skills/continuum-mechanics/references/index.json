@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "continuum-mechanics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "continuum-evidence",
+      "path": "references/continuum-evidence.md",
+      "purpose": "Claim classes, constitutive and numerical evidence boundaries, uncertainty, physical and numerical controls, sensitivity, and model applicability.",
+      "read_when": [
+        "selecting kinematics or a constitutive model",
+        "setting boundary/interface conditions or interpreting a continuum solution",
+        "claiming mesh/time convergence or material validity"
+      ],
+      "required_before": ["step-2", "step-3", "step-5", "step-6", "convergence-claim"],
+      "search_patterns": ["## Claim semantics", "## Domain controls", "## Sensitivity and fragility", "## Applicability domain"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Calibrates model formulation and numerical verification; it does not establish that constitutive parameters or a continuum idealization represent the physical material."
+    }
+  ]
+}

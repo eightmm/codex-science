@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "relativity-spacetime",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["relativistic-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow does not provide a general relativistic numerical solver or automatic constraint validator.",
+    "Approximations and propagated uncertainty depend on supplied model parameters and a justified input uncertainty model.",
+    "A mathematically consistent solution does not establish that the selected metric or stress-energy model fits observation."
+  ]
+}

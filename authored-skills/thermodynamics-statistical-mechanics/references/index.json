@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "thermodynamics-statistical-mechanics",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "thermodynamic-evidence",
+      "path": "references/thermodynamic-evidence.md",
+      "purpose": "Claim class, potential and ensemble validity, source dependence, uncertainty, domain controls, sensitivity, and failure semantics for thermodynamic results.",
+      "read_when": [
+        "choosing a thermodynamic potential or statistical ensemble",
+        "evaluating a cycle, approximation, phase, or stability claim",
+        "reporting uncertainty, controls, or applicability limits"
+      ],
+      "required_before": ["step-3", "step-5", "step-6", "claim-classification"],
+      "search_patterns": ["## Claim semantics", "## Domain controls", "## Sensitivity and fragility", "## Applicability domain"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Calibrates internal thermodynamic and statistical-mechanical reasoning; it does not establish empirical validity of an equation of state or physical system."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "opentargets-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["target-association-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The Platform aggregate is release- and weighting-dependent and is not a calibrated probability or causal estimate.",
+    "Source lineage and cohort overlap may be unavailable or incomplete in returned records.",
+    "Sparse or uneven evidence coverage limits comparisons across targets and diseases."
+  ]
+}

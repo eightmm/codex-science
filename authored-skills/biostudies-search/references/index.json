@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "biostudies-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "archive-record-evidence-boundary",
+      "path": "references/archive-records-and-discovery-evidence.md",
+      "purpose": "Classify BioStudies accessions, linked records, hosted files, submitter metadata, completeness, and archive-discovery claim limits.",
+      "read_when": [
+        "recommending an accession",
+        "interpreting manifest or metadata",
+        "comparing archive records",
+        "reporting file availability"
+      ],
+      "required_before": [
+        "biostudies-archive-discovery-v1",
+        "archive-identity-claim",
+        "file-availability-claim"
+      ],
+      "evidence_boundary": "Supports discovery and inventory claims about observed BioStudies records and files; it does not establish study quality, scientific results, data integrity, or reuse permission.",
+      "search_patterns": [
+        "## Claim semantics",
+        "## Uncertainty",
+        "## Applicability domain"
+      ],
+      "authority": "documented-method-and-source-context",
+      "version": "1"
+    }
+  ]
+}

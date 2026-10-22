@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "relativity-spacetime",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "relativistic-evidence",
+      "path": "references/relativistic-evidence.md",
+      "purpose": "Claim classes, convention and invariant checks, source dependence, uncertainty, sensitivity, and validity limits for relativistic results.",
+      "read_when": [
+        "classifying causal character or interpreting coordinate and local measurements",
+        "using a weak-field, slow-motion, or post-Newtonian approximation",
+        "making a geometry, geodesic, curvature, or field-equation claim"
+      ],
+      "required_before": ["step-3", "step-5", "step-6", "causal-classification"],
+      "search_patterns": ["## Claim semantics", "## Domain controls", "## Sensitivity and fragility", "## Applicability domain"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Calibrates relativistic derivation and numerical checks; it does not validate a chosen spacetime model or its empirical source parameters."
+    }
+  ]
+}

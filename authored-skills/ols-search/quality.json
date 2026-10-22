@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "ols-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["ontology-term-resolution-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "OLS search coverage and ontology metadata depend on the loaded service and upstream releases.",
+    "Synonym and cross-ontology matches require manual semantic judgment and are not calibrated probabilities.",
+    "Ontology identity and hierarchy do not establish biological validity, causality, or experimental evidence."
+  ]
+}

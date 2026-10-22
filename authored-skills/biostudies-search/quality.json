@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "biostudies-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["biostudies-archive-discovery-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Record schemas and metadata completeness vary by submitter, collection, and linked repository.",
+    "A manifest reports observed links and files but does not establish their scientific validity or integrity.",
+    "License and reuse terms may be absent, ambiguous, or specific to files outside BioStudies."
+  ]
+}

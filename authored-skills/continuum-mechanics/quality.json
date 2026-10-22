@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "continuum-mechanics",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["continuum-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The skill defines verification evidence but does not implement a continuum solver or automatic mesh-convergence auditor.",
+    "Material uncertainty and constitutive validity depend on the supplied calibration data and loading range.",
+    "Mesh and time refinement support finite numerical claims but do not establish continuum-model adequacy or experimental truth."
+  ]
+}

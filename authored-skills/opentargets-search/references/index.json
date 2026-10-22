@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "opentargets-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "association-evidence-interpretation",
+      "path": "references/association-score-and-provenance.md",
+      "purpose": "Interpret Open Targets score aggregation, directness, evidence dependencies, controls, and robustness without promoting portal scores to causal or clinical evidence.",
+      "read_when": [
+        "interpreting an association score",
+        "comparing target-disease pairs",
+        "combining evidence components",
+        "making an association claim"
+      ],
+      "required_before": [
+        "target-association-evidence-v1",
+        "association-claim",
+        "rank-claim"
+      ],
+      "evidence_boundary": "Calibrates retrieval and relative evidence ranking for the recorded Platform release; it does not establish causality, clinical validity, or actionability.",
+      "search_patterns": [
+        "## Claim semantics",
+        "## Uncertainty",
+        "## Applicability domain"
+      ],
+      "authority": "documented-method-and-source-context",
+      "version": "1"
+    }
+  ]
+}
