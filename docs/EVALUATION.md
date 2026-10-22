@@ -68,6 +68,34 @@ a timed-out process is stopped. Reports count timeouts with these signals as
 stall affected and sum reconnects; these diagnostics never
 change outcome, stop reason, or either completion rate, and remain absent for legacy receipts.
 
+### Recorded real runs
+
+Runs 6–12 were single Codex runs on the frozen six-task literature benchmark
+with an 1800-second cap, completing 3/6, 4/6, 3/6, 4/6, 4/6, 3/6, and 3/6
+tasks. Run8 was the first run with a full-tier pass. Provider policy
+blocks remain failures in both completion rates and are never removed from the
+denominator.
+
+- Run10 (`edb8d69`), 4/6: quick 2/2; standard-mrna completed in 943 seconds;
+  standard-single-cell completed in 1291 seconds; both full runs timed out at
+  1800 seconds.
+- Run11 (`edb8d69`), 3/6: quick 2/2; single-cell completed in 1334 seconds;
+  standard-mrna stopped at a provider safety filter and counted as a failure,
+  without retry or exclusion; both full runs timed out at 1800 seconds, with
+  microbiome's independent review in progress at the cap and protein-folding in
+  review round 2.
+- Run12 (`f2f3631`), 3/6: quick 2/2; single-cell completed in 1153 seconds;
+  standard-mrna was blocked by provider policy again; full-protein-folding
+  produced a complete reviewed package in 1523 seconds but failed only the
+  final-message citation check because the answer had no DOI or PMID;
+  full-microbiome passed re-review at 1778 seconds and was still completing at
+  the cap.
+
+Runs 10 and 11 used the same SHA and differed by one completed task. With six
+tasks per run, variance dominates; these results do not establish an improvement
+trend. Full-tier runs are at the edge of the 1800-second cap, and independent
+review rounds often do not fit.
+
 The opt-in `scripts/estimate_saturation.py` estimates remaining discovery from
 logged checkpoints; `scripts/trace_citations.py` checks report identifiers
 against the run's own study, query, and lane provenance. Citation tracing is

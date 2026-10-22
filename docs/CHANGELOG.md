@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Final answers now name primary sources with visible persistent identifiers (DOI, PMID, PMCID, or arXiv ID) for findings that rest on published sources; local file links alone are not citations.
+- Documented the Claude Science/open-science absorption, its roadmap
+  dispositions, and real-run literature evaluation results.
 - Made sidecar validation errors include bounded, single-line values and allowed values or expected shapes without changing validation behavior.
 - Documented exact checkpoint and independent-review CLI argument shapes in the main skill.
 - Documented repeated `--step ID=TITLE` checkpoint flags and made invalid-step errors show a correcting example.

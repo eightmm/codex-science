@@ -74,6 +74,40 @@
   `idle_gap_seconds_over_300`, and `stall_affected_timeouts` without changing
   outcomes; n=2 says nothing about the ordering change, and stalls dominate.
 
+### Claude Science and open-science absorption (landed on main, `edb8d69`–`f2f3631`)
+
+- I: Literature evaluation reports include per-task wall seconds and token usage;
+  missing usage remains unknown, and monetary cost is not calculated.
+- A (narrowed from the Claude Science periodic reviewer): a deterministic early
+  check on `science_checkpoint.py advance` is advisory, never blocks, and
+  leaves the final independent review unchanged.
+- D: claims whose `required_evidence` includes `computed` must link a successful
+  execution by ID or output when recorded. Legacy manifests fall back to any
+  successful run.
+- C: `resolve_citations` compares title, year, and first author with the run
+  study table as an advisory metadata check.
+- B-lite: opt-in Europe PMC open-access full-text retrieval is capped at 10
+  articles and about 60 seconds, writes to a separate fetch ledger, and never feeds
+  citation tracing.
+- N: `connectors/public.json` marks the 15 typed-registry sources as MCP tools
+  and records their maturity.
+- Run provenance: the checkpoint review command registers a passed review
+  receipt in the run manifest without relaxing the passing criterion.
+- Init guidance: invalid `--step` values show the expected format and an example,
+  preventing the prior one-time exit-2 init failure. To reduce repeated
+  lookups (agents previously ran several per run), the main skill lists exact
+  argparse-derived checkpoint and reviewer subcommand shapes; a test fails on
+  drift.
+- Actionable sidecar errors: validation messages include a bounded repr of the
+  offending value, allowed values from the checking constants, and the expected
+  shape without changing validation behavior. Bundle validation already
+  reports base and advanced sidecar errors together; a broader rewrite that also
+  collected per-record errors inside each validator was rejected after four
+  failed independent reviews because it changed validity.
+- Final answers: findings that rest on published sources name them with a
+  visible DOI, PMID, PMCID, or arXiv ID; local file links alone are not
+  citations, and computation-only findings link to the saved output.
+
 ## Completed in 0.3.0
 
 ### Release and update safety

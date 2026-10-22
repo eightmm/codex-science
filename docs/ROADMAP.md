@@ -284,6 +284,17 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
   URLs or establish semantic support, so it is a partial step toward FACT-style
   statement-to-URL retrieval.
 
+### Absorption dispositions (edb8d69)
+
+- Deferred: G, the contradiction lane, because there is no evidence that
+  missing counterevidence caused failures and it requires a `qualifies` schema
+  change; E, the user review-criteria file, to keep benchmark settings frozen;
+  F, approval-decision export; J, world-model sidecar; K, hypothesis tournament
+  upgrade; L, environment/artifact UX; and M, external benchmark smoke subsets
+  because of licensing, cost, and contamination concerns.
+- Rejected: H, a blanket hedging policy, because it risks gaming and
+  `reviewer_runtime.py` already has claim-type review.
+
 ### Real literature evaluation (2026-10-22)
 
 - The first real evaluation used task set v1 and completed 3 of 6 tasks. The
@@ -319,6 +330,16 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
   Reports now include diagnostic `stream_reconnects`, `max_idle_gap_seconds`,
   `idle_gap_seconds_over_300`, and `stall_affected_timeouts` without changing
   outcomes; n=2 cannot identify an ordering effect, and stalls dominate.
+
+### Follow-up Codex runs (2026-10-23)
+
+Runs 6–12 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
+3/6, and 3/6 tasks; run8 was the first with a full-tier pass. Provider policy
+blocks remain failures in both completion rates and stay in the denominator.
+Runs 10 and 11 used the same SHA (`edb8d69`) and differed by one task; with six
+tasks per run, variance dominates and the comparison does not establish a
+trend. At the 1800-second cap, full-tier independent review rounds often do not
+fit. Per-run details are recorded in [Evaluation](EVALUATION.md#recorded-real-runs).
 
 1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 135 first-party skills; skill-depth gaps remain.)
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema. (Status: the conductor and literature helpers are implemented in `authored-skills/literature-review/SKILL.md`, `src/codex_science/literature_v2.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py`.)
