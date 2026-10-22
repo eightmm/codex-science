@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "esmfold-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "esmfold-v1-evidence-interpretation",
+      "path": "references/esmfold-evidence.md",
+      "purpose": "ESMFold v1 claim semantics, source dependence, uncertainty, controls, sensitivity, applicability, and failure detection.",
+      "read_when": [
+        "interpreting model confidence",
+        "comparing predicted and reference structures",
+        "assigning a claim status",
+        "checking target or construct applicability"
+      ],
+      "required_before": ["step-6-confidence-analysis", "claim-structure-hypothesis", "claim-experimental-validity"],
+      "search_patterns": ["## Claim classes and status", "## Source identity and dependence", "## Controls and sanity checks", "## Applicability and failure modes"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Interprets a pinned ESMFold v1 run and its model outputs; it does not validate arbitrary targets, experimental states, interfaces, or biological function."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "alphafold-structure-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "alphafold-evidence-interpretation",
+      "path": "references/alphafold-evidence.md",
+      "purpose": "Claim semantics, AFDB provenance, confidence interpretation, controls, sensitivity, applicability, and failure detection.",
+      "read_when": [
+        "assigning a claim status",
+        "interpreting pLDDT or PAE",
+        "making a disorder or domain statement",
+        "comparing model and experimental evidence"
+      ],
+      "required_before": ["step-5-response-validation", "claim-local-confidence", "claim-domain-layout"],
+      "search_patterns": ["## Claim classes and status", "## Source identity and dependence", "## Controls and sanity checks", "## Sensitivity and fragility"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Interprets AFDB record and model-confidence artifacts; it does not establish experimental accuracy, function, intrinsic disorder, or clinical validity."
+    }
+  ]
+}

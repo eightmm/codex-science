@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "boltz-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "boltz-structure-affinity-evidence",
+      "path": "references/boltz-evidence.md",
+      "purpose": "Boltz metric claim limits, input provenance, controls, sensitivity, applicability, and failure detection for structure and affinity claims.",
+      "read_when": [
+        "interpreting pLDDT, pTM, ipTM, docking scores, or affinity",
+        "selecting a complex or redocking control",
+        "assigning a claim status",
+        "checking ligand and target applicability"
+      ],
+      "required_before": ["step-5-output-validation", "claim-interface", "claim-predicted-affinity"],
+      "search_patterns": ["## Claim classes and status", "## Source identity and dependence", "## Controls and sanity checks", "## Sensitivity and fragility"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Interprets Boltz model outputs and defined controls; it does not establish experimental binding, measured affinity, or validity outside the tested domain."
+    }
+  ]
+}

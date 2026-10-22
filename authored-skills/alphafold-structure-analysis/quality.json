@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "alphafold-structure-analysis",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["alphafold-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "pLDDT and PAE describe model confidence and do not establish experimental accuracy.",
+    "PAE domain boundaries depend on a stated sliding-window heuristic and sensitivity analysis.",
+    "AFDB coverage, isoform mapping, and release changes limit record comparability."
+  ]
+}

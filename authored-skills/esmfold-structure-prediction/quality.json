@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "esmfold-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["esmfold-prediction-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Model confidence is not a calibrated experimental accuracy estimate for an arbitrary target.",
+    "Chunking and unsupported constructs can remove context needed for whole-protein interpretation.",
+    "Training overlap and shared data sources limit claims of independent model confirmation."
+  ]
+}

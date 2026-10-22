@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "boltz-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["boltz-prediction-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Confidence heads and docking scores do not establish experimental structure or binding.",
+    "Affinity claims require validation with matched measured assays and domain-appropriate data.",
+    "Applicability is limited by training overlap, complex and ligand scope, MSA provenance, and model version."
+  ]
+}
