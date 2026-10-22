@@ -68,7 +68,9 @@ def _early_check(run_dir: Path) -> dict[str, object]:
 def _step(value: str) -> tuple[str, str]:
     identifier, separator, title = value.partition("=")
     if not separator or not identifier.strip() or not title.strip():
-        raise argparse.ArgumentTypeError("step must use ID=TITLE")
+        raise argparse.ArgumentTypeError(
+            f"step must use ID=TITLE, e.g. --step retrieval='Retrieve and screen sources'; got {value}"
+        )
     return identifier.strip(), title.strip()
 
 

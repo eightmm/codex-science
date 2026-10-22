@@ -596,6 +596,24 @@ class CheckpointTests(unittest.TestCase):
         )
         self.assertEqual(0, heartbeat.returncode, heartbeat.stderr)
 
+    def test_cli_step_error_includes_correct_format_and_bad_value(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_checkpoint.py"
+        bad_value = "protocol|Freeze protocol"
+        completed = subprocess.run(
+            [
+                sys.executable, str(script), "init", str(self.run_dir),
+                "--goal", "Question", "--deliverable", "Report", "--done", "Verified",
+                "--step", bad_value, "--next-action", "Inspect inputs", "--hookless",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("--step retrieval='Retrieve and screen sources'", completed.stderr)
+        self.assertIn(f"got {bad_value}", completed.stderr)
+
     def test_cli_advance_reports_advisory_findings_without_changing_checkpoint(self) -> None:
         self.create()
         manifest = new_manifest("run-001", "Question", [{"id": "later", "description": "Later", "status": "pending"}])
