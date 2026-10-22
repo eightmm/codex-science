@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "autodock-vina-docking",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "vina-evidence-controls",
+      "path": "references/vina-evidence-and-controls.md",
+      "purpose": "Pose and ranking claim criteria, structure and benchmark provenance, controls, uncertainty, sensitivity, and applicability limits.",
+      "read_when": ["classifying docking or pose claims", "designing redocking or screening controls", "evaluating cross-target or cross-ligand performance", "assessing score or pose sensitivity"],
+      "required_before": ["workflow-step-2", "workflow-step-5", "workflow-step-7", "pose-recovery-claim", "ranking-claim"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sanity checks", "## Applicability domain and failure modes"],
+      "authority": "repository-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and control rules; it is not target-specific evidence and does not validate Vina scores as experimental affinity."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "gnina-docking",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["gnina-docking-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow does not independently validate GNINA model calibration or performance for a new target set.",
+    "CNN scores, affinity estimates, and empirical energies remain model outputs rather than experimental evidence.",
+    "Applicability depends on dataset overlap, structure preparation, model version, and benchmark design."
+  ]
+}

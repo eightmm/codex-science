@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "gnina-docking",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "gnina-evidence-controls",
+      "path": "references/gnina-evidence-and-controls.md",
+      "purpose": "GNINA score semantics, model and split provenance, benchmark controls, uncertainty, sensitivity, and domain-specific limits.",
+      "read_when": ["interpreting CNN or empirical score outputs", "designing GNINA redocking or ranking evaluations", "comparing models or score modes", "assessing training overlap or out-of-domain use"],
+      "required_before": ["workflow-step-2", "workflow-step-4", "workflow-step-7", "pose-recovery-claim", "ranking-claim"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sanity checks", "## Applicability domain and failure modes"],
+      "authority": "repository-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines model-output interpretation and evaluation safeguards; it does not establish CNN calibration, experimental affinity, or target-specific validity."
+    }
+  ]
+}

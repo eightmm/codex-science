@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "autodock-vina-docking",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["vina-docking-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow defines auditable interpretation but does not validate Vina for any particular target or benchmark set.",
+    "Docking scores and score spread are not calibrated experimental affinity or binding probabilities.",
+    "Local structure preparation and control quality remain dependent on domain-specific review."
+  ]
+}

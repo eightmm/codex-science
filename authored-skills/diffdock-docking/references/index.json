@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "diffdock-docking",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "diffdock-evidence-controls",
+      "path": "references/diffdock-evidence-and-controls.md",
+      "purpose": "DiffDock pose and confidence claim semantics, checkpoint and split provenance, controls, uncertainty, sensitivity, and applicability limits.",
+      "read_when": ["interpreting generated poses or confidence", "designing pose benchmark controls", "evaluating training/template overlap", "comparing checkpoints or inference settings"],
+      "required_before": ["workflow-step-3", "workflow-step-4", "workflow-step-7", "pose-recovery-claim", "comparative-performance-claim"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Controls and sanity checks", "## Applicability domain and failure modes"],
+      "authority": "repository-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and evaluation safeguards; it does not calibrate DiffDock confidence or establish experimental binding, affinity, or new-target validity."
+    }
+  ]
+}

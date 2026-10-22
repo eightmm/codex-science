@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "diffdock-docking",
+  "roles": ["executor", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["diffdock-pose-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The workflow does not validate a particular DiffDock checkpoint on a held-out benchmark.",
+    "Confidence and sampling distributions are not calibrated experimental binding or affinity probabilities.",
+    "Training-set and template overlap may remain unknown when complete model provenance is unavailable."
+  ]
+}
