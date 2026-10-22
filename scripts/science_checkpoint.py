@@ -32,6 +32,37 @@ from codex_science.checkpoints import (  # noqa: E402
     verify_criterion,
     wait_checkpoint,
 )
+from codex_science.artifacts import validate_bundle  # noqa: E402
+from codex_science.review import review_manifest  # noqa: E402
+
+
+def _early_check(run_dir: Path) -> dict[str, object]:
+    manifest_path = run_dir / "manifest.json"
+    try:
+        if not manifest_path.exists():
+            return {"status": "skipped", "findings": [], "advisory": True, "reason": "manifest-not-found"}
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"status": "skipped", "findings": [], "advisory": True, "reason": "invalid-json"}
+    except Exception as error:
+        return {"status": "skipped", "findings": [], "advisory": True, "reason": type(error).__name__}
+    try:
+        sidecars = validate_bundle(manifest, run_dir)
+    except ValueError as error:
+        return {
+            "status": "findings", "advisory": True,
+            "findings": [{"code": "sidecar-schema", "severity": "major", "message": str(error)}],
+        }
+    except Exception as error:
+        return {"status": "skipped", "findings": [], "advisory": True, "reason": type(error).__name__}
+    try:
+        findings = [
+            finding for finding in review_manifest(manifest, run_dir, sidecars=sidecars)["findings"]
+            if finding.get("code") not in {"incomplete-plan", "declared-review-not-passed"}
+        ]
+        return {"status": "findings" if findings else "passed", "findings": findings, "advisory": True}
+    except Exception as error:
+        return {"status": "skipped", "findings": [], "advisory": True, "reason": type(error).__name__}
 
 
 def _step(value: str) -> tuple[str, str]:
@@ -202,6 +233,7 @@ def main() -> int:
                 next_step=args.next_step,
                 next_action=args.next_action,
             )
+            result["early_check"] = _early_check(args.run_dir)
         elif args.command == "attempt":
             result = record_attempt(
                 args.run_dir,

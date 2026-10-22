@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `advance` now reports advisory deterministic manifest findings after saving
+  the checkpoint, without blocking progress or replacing independent review.
 - Citation resolution now compares resolved metadata with run study-table records and reports advisory mismatches.
 - Computed-claim review validates execution IDs and output paths/hashes when recorded, while retaining the legacy fallback for older manifests.
 - Connector catalog marks the 15 typed-registry sources as MCP tools and records each tool's maturity.

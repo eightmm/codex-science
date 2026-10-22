@@ -102,3 +102,10 @@ Use `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_ch
 for their corresponding pause condition. Use `criterion` and `review` before
 `complete`. `claim` upgrades a compatible legacy run; changing a schema-v2/v3
 owner key requires the exact `--previous-session-key`. `abandon` is irreversible.
+
+After `advance` durably writes the checkpoint, its JSON output includes an
+advisory `early_check` summary when `manifest.json` is present. Deterministic
+findings can be repaired before the next step; a skipped check includes a
+reason. This check never blocks advancement or writes a review receipt, and it
+does not replace the final independent review or `complete
+--require-passed-review` requirement.

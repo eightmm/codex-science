@@ -24,6 +24,7 @@ from codex_science.checkpoints import (
     resume_checkpoint,
     verify_criterion,
 )
+from codex_science.artifacts import new_manifest
 
 
 class CheckpointTests(unittest.TestCase):
@@ -443,6 +444,43 @@ class CheckpointTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(0, heartbeat.returncode, heartbeat.stderr)
+
+    def test_cli_advance_reports_advisory_findings_without_changing_checkpoint(self) -> None:
+        self.create()
+        manifest = new_manifest("run-001", "Question", [{"id": "later", "description": "Later", "status": "pending"}])
+        manifest["claims"].append({"id": "c1", "text": "Claim", "evidence": ["missing.json"]})
+        (self.run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_checkpoint.py"
+        completed = subprocess.run(
+            [sys.executable, str(script), "advance", str(self.run_dir), "--complete", "orient", "--next-action", "Continue"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        output = json.loads(completed.stdout)
+        check = output.pop("early_check")
+        self.assertEqual("findings", check["status"])
+        self.assertTrue(check["advisory"])
+        codes = {finding["code"] for finding in check["findings"]}
+        self.assertIn("missing-evidence", codes)
+        self.assertNotIn("incomplete-plan", codes)
+        self.assertEqual(load_checkpoint(self.run_dir), output)
+
+    def test_cli_advance_skips_absent_and_malformed_manifests(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_checkpoint.py"
+        for manifest_text, reason in ((None, "manifest-not-found"), ("{", "invalid-json")):
+            with self.subTest(reason=reason):
+                self.run_dir = Path(self.tempdir.name) / reason
+                self.create()
+                if manifest_text is not None:
+                    (self.run_dir / "manifest.json").write_text(manifest_text, encoding="utf-8")
+                completed = subprocess.run(
+                    [sys.executable, str(script), "advance", str(self.run_dir), "--complete", "orient", "--next-action", "Continue"],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(0, completed.returncode, completed.stderr)
+                early = json.loads(completed.stdout)["early_check"]
+                self.assertEqual("skipped", early["status"])
+                self.assertEqual(reason, early["reason"])
 
 
 if __name__ == "__main__":
