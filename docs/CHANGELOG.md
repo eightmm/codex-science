@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- The acknowledged installer migration backs up pre-August legacy checkouts
+  before replacing them through the fresh-install path. It takes the update
+  lock before inspecting or renaming, refuses dirty or uninspectable trees,
+  and renames with exact destinations so a failed install restores the backup.
+- Added `scripts/annotate_run.py` (`add`, `resolve`, `list`) for hash-anchored
+  annotations with an append-only, locked resolution ledger; the workbench
+  shows effective statuses and labels resolutions as operator-recorded and not
+  manifest-covered.
+- Added `scripts/retrieve_statement_sources.py`, an offline lexical ranking of
+  bundle studies, saved excerpts, and query-ledger records for each report
+  statement (`statement-retrieval-v1`). It does not fetch URLs or establish
+  semantic support.
+- The reviewer benchmark gained structured defect cases scored by
+  deterministic detectors (`structured_defects.py`) instead of echoed answers.
+- v3 source operations (PubMed, Europe PMC, ChEMBL, PDB) raise named
+  `normalization-failed` or `schema-drift` errors when page-level structural
+  keys are missing, instead of recording a false `negative`; genuine empty
+  results remain `negative`. Added PubMed replay fixtures.
+- Literature evaluation grading reports provider capacity, overload, and
+  rate-limit failures as `provider_unavailable` and adds a secondary completion
+  rate that excludes them; the primary rate is unchanged.
 - Model receipt v2 validation can compare caller-supplied current code, weight,
   and database revisions (`validate_model_registry_v2.py --receipt --current-revisions`).
 - Literature evaluation reports now include equal-weight `rubric_tree` partial

@@ -20,10 +20,10 @@
   `output_cap`; the resume driver stops with code `turn_failed` and reason
   `output_cap`, while runner receipts use `last_message_present` for empty or
   capped last-message output.
-- All 135 first-party skills meet the L2 native-skill contract or higher
-  (Decision contract, Workflow, Outputs, Boundaries, provenance, and review
-  handoffs); the audit reports 0 L1 skills, 118 L2, 11 L3, and 6 L4, down from
-  112 L1. Existing endpoints, attribution, and gates remain, with one retired ChEBI link replaced.
+- All 135 first-party skills meet L3 (the documentation contract); the audit
+  reports L0 0, L1 0, L2 0, L3 129, and L4 6. L4 executable acceptance
+  remains limited to 6 skills. Existing endpoints, attribution, and gates
+  remain, with one retired ChEBI link replaced.
 - Implemented rigor classification and completion reporting, a frozen
   literature-review task set with dry-run-first runner and receipt grader,
   saturation estimation, and citation provenance tracing.
@@ -39,6 +39,15 @@
 - These are local runtime contracts and deterministic checks. No real
   literature evaluation has established measured completion or agent
   improvement.
+- First real literature evaluation (task set v1, 2026-10-22) completed 3/6
+  tasks. The other three failed only the review-receipt criterion because v1
+  accepted the legacy `review-receipt` kind while runs wrote
+  `review-receipt-v2`. Task set v2 (`benchmarks/literature-review/tasks.json`)
+  accepts both kinds. The first v2 run (2026-10-22) completed 2/6: both quick
+  tasks passed; both standard tasks stopped when the provider reported
+  "Selected model is at capacity" (infrastructure, not product evidence); both
+  full tasks hit the 1800 s limit during post-review revision (v1 full runs took
+  1719 s and 1790 s). A re-run of those four tasks is in progress.
 
 ## Completed in 0.3.0
 
@@ -78,6 +87,10 @@
 ### Artifact collaboration
 
 - Hash-bound annotations and stale anchors.
+- Annotation CLI (`scripts/annotate_run.py add|resolve|list`) with an
+  append-only, locked resolution ledger. Resolutions are operator-recorded and
+  not covered by the manifest; the workbench labels them so. `add` rewrites
+  `manifest.json`, so annotate runs before importing them into a ProjectStore.
 - General run diff.
 - Impact propagation and selective rerun planning.
 - Offline workbench rendering.
@@ -88,7 +101,7 @@ The new source adapters are not all labeled live-smoke-tested. Their maturity re
 
 The executable SBDD example is a deterministic scientific-contract fixture. It is not a substitute for a prospective docking benchmark, experimental binding assay, or medicinal-chemistry decision.
 
-The deterministic reviewer benchmark evaluates explicit defects in checked-in fixtures. It does not establish that a language-model reviewer will catch every scientific error.
+The deterministic reviewer benchmark evaluates explicit defects in checked-in fixtures. It does not establish that a language-model reviewer will catch every scientific error. Structured cases (`structured-review-input-v1`, `src/codex_science/structured_defects.py`) detect causal overreach, population overreach, uncorrected multiplicity, train/test overlap, and unconverted unit scale only from declared structure; detection is conservative and misses qualified wording (for example "cohort, not randomized" or "adults and children") and compound units such as `mg/L`.
 
 ## Next empirical milestones
 

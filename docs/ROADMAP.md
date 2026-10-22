@@ -26,8 +26,8 @@ Public references:
 
 ### Highest-impact gaps
 
-1. **Uneven native-skill depth.** Some executors have strong preflight, validation, and stop rules, while several evidence-synthesis skills are compact routing notes without explicit decision, evidence, output, and boundary contracts.
-2. **No enforced native-skill quality standard.** A skill can be active and discoverable without demonstrating claim semantics, source-dependency handling, artifact outputs, or acceptance criteria. (Status: a machine-checked L0–L4 standard is enforced by `src/codex_science/skill_maturity.py` and `scripts/audit_native_skill_maturity.py`; the passing audit covers all 135 first-party skills: L0 0, L1 0, L2 118, L3 11, L4 6. Uneven depth remains.)
+1. **Uneven native-skill depth.** Some executors have strong preflight, validation, and stop rules, while several evidence-synthesis skills are compact routing notes without explicit decision, evidence, output, and boundary contracts. (Status: all first-party skills now meet L3, the documentation contract; L4 executable acceptance remains limited to 6.)
+2. **No enforced native-skill quality standard.** A skill can be active and discoverable without demonstrating claim semantics, source-dependency handling, artifact outputs, or acceptance criteria. (Status: a machine-checked L0–L4 standard is enforced by `src/codex_science/skill_maturity.py` and `scripts/audit_native_skill_maturity.py`; the passing audit covers all 135 first-party skills: L0 0, L1 0, L2 0, L3 129, L4 6. All meet L3; L4 executable acceptance remains limited to 6.)
 3. **Evidence is recorded but not yet a first-class graph.** Claim IDs exist, but support, contradiction, duplication, shared-cohort, source-propagation, and model-training dependencies need a consistent representation.
 4. **Literature work is connector-rich but conductor-light.** Discovery exists; systematic query design, deduplication, eligibility, study-level extraction, evidence grading, and updateable review snapshots need a native end-to-end contract. (Status: the `authored-skills/literature-review/SKILL.md` conductor and `src/codex_science/literature_v2.py` provide the review workflow; `src/codex_science/literature_saturation.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py` add bounded stopping and offline trace/support checks. These do not establish recall or semantic support.)
 5. **Model execution needs benchmark contracts.** Successful inference is not validation. Every model family needs task-specific baselines, leakage audits, calibration or abstention, sensitivity analyses, and acceptance examples. (Status: `scripts/validate_model_registry_v2.py` and `models/registry-v2.json` define a versioned model registry; `src/codex_science/model_registry_v2.py` checks receipt fingerprints against registry, model-contract, and acceptance-bundle changes. Per-family benchmark coverage remains incomplete.)
@@ -262,11 +262,11 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 ### Research-derived backlog (not implemented)
 
 - Sample claim-type reviews by reliability (Kosmos reports accuracy of 85.5%
-  for data, 82.1% for literature, and 57.9% for synthesis).
-- FACT-style statement-to-URL retrieval.
+  for data, 82.1% for literature, and 57.9% for synthesis). Current claim
+  ordering is only a review-priority heuristic, not reliability sampling.
 - SessionStart hook `fork` matcher (bootstrap change; requires approval).
 
-### Research-derived items implemented on the local branch (unevaluated)
+### Research-derived items implemented on main (not yet evaluated in real runs)
 
 - Equal-weight rubric-tree partial-credit metric in literature evaluation
   reports, as a secondary metric.
@@ -277,12 +277,29 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 - DOI/PMID/arXiv resolution provides a live, opt-in, non-deciding existence
   signal.
 - Offline statement-to-saved-excerpt support is implemented (lexical
-  heuristic; not semantic verification). FACT-style statement-to-URL retrieval
-  is not implemented.
+  heuristic; not semantic verification).
+- Offline statement-to-source candidate ranking
+  (`scripts/retrieve_statement_sources.py`) over a bundle's studies, saved
+  excerpts, and query-ledger records. Lexical ranking only; it does not fetch
+  URLs or establish semantic support, so it is a partial step toward FACT-style
+  statement-to-URL retrieval.
+
+### Real literature evaluation (2026-10-22)
+
+- The first real evaluation used task set v1 and completed 3 of 6 tasks. The
+  other three failed only the review-receipt criterion: v1 accepted the legacy
+  `review-receipt` kind, while the runs wrote `review-receipt-v2`.
+- Task set v2 (`benchmarks/literature-review/tasks.json`) accepts both receipt
+  kinds. The first v2 run completed 2 of 6: both quick tasks passed; both
+  standard tasks stopped on a provider "model at capacity" error; both full
+  tasks hit the 1800 s limit while revising after independent review. Grading
+  now reports such provider failures as `provider_unavailable` with a secondary
+  completion rate that excludes them. A re-run of the four failed tasks is in
+  progress.
 
 1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 135 first-party skills; skill-depth gaps remain.)
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema. (Status: the conductor and literature helpers are implemented in `authored-skills/literature-review/SKILL.md`, `src/codex_science/literature_v2.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py`.)
 3. Build the SBDD acceptance example and seeded leakage review cases. (Status: `examples/sbdd-acceptance/benchmark.json` and `examples/sbdd-acceptance/seeded-leaks.json` provide the acceptance benchmark and leakage fixtures; execution is implemented in `src/codex_science/sbdd_execution.py`.)
 4. Add a model registry and invalidate receipts on model, weight, database, or code revision changes. (Status: registry v2 validation compares caller-supplied current code and weight revisions and each supplied current database revision with the receipt; callers that omit current revisions do not get revision-based staleness checks. Registry, model-contract, and acceptance-bundle hashes are also checked.)
 5. Expand connector semantics and drift tests for the highest-value missing evidence lanes. (Status: v3 pagination/snapshot semantics and bounded contract checks are implemented in `src/codex_science/transport_v3.py` and `scripts/validate_connector_contracts.py`; broader drift coverage remains.)
-6. Add artifact annotations and hash-aware review-resolution UX.
+6. Add artifact annotations and hash-aware review-resolution UX. (Status: `scripts/annotate_run.py` adds, resolves, and lists hash-anchored annotations with an append-only resolution ledger rendered by the workbench; reviewer assignment is not implemented.)
