@@ -45,7 +45,7 @@ A review may combine modes, but never imply a computation was reproduced when on
 9. Check every approved plan step and objective criterion. Mark incomplete, changed, exploratory, failed, blocked, or unsupported work explicitly; do not accept a moved success threshold or a process-completion claim as a scientific result.
 10. Compare the deliverable with the artifact record. Flag unsupported computed claims, contradictions, overstated confidence, missing negative results, citation mismatch, stale source state, and any conclusion exceeding the weakest essential evidence link.
 11. Emit findings with stable ID, severity, affected claim or artifact, evidence, rationale, required correction or validation, owner, and resolution status. Do not silently edit the producer's record.
-12. Re-review corrections. Preserve the original finding, resolution evidence, and residual risk; a finding is resolved only when the changed claim or new evidence passes the same check.
+12. Batch every finding from one review round into a single correction pass. Scope the re-review to the original findings, the changed claims/artifacts and their direct dependents; do a full re-review only when a correction changes a central conclusion, the included evidence set, or the method. Minor findings that cannot change the decision may stay open and be disclosed per the pass rule; never start a new correction/re-review round only to fix minor findings. Preserve the original finding, resolution evidence, and residual risk; a finding is resolved only when the changed claim or new evidence passes the same check.
 
 ## Seeded-defect and benchmark review
 

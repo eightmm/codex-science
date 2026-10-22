@@ -191,6 +191,21 @@ class NativeSkillQualityTests(unittest.TestCase):
         ):
             self.assertIn(phrase, review_lower)
 
+        for phrase in (
+            "batch every finding from one review round into a single correction pass",
+            "scope the re-review to the original findings, the changed claims/artifacts and their direct dependents",
+            "minor findings that cannot change the decision may stay open and be disclosed per the pass rule",
+            "never start a new correction/re-review round only to fix minor findings",
+        ):
+            self.assertIn(phrase, review_lower)
+
+        literature = (AUTHORED / "literature-review" / "SKILL.md").read_text(encoding="utf-8")
+        for text in (coordinator, literature):
+            self.assertIn(
+                "Once the independent review has no open critical/major findings, record remaining minor findings in the receipt and proceed to the `--require-passed-review` validation and `complete`.",
+                text,
+            )
+
     def test_native_skill_standard_and_roadmap_are_present(self) -> None:
         standard = (ROOT / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")
         roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
