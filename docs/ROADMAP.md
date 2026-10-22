@@ -294,8 +294,20 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
   standard tasks stopped on a provider "model at capacity" error; both full
   tasks hit the 1800 s limit while revising after independent review. Grading
   now reports such provider failures as `provider_unavailable` with a secondary
-  completion rate that excludes them. A re-run of the four failed tasks is in
-  progress.
+  completion rate that excludes them. The v2 re-run (runtime
+  0.5.0+codex.20261022040000, n=6) completed 4/6
+  (0.67; 95% interval 0.30-0.90). Both standard tasks passed in 1392 s and
+  1768 s with 26/26 citations traced, confirming the earlier capacity stops
+  were infrastructure. Both full tasks again timed out at the frozen 1800 s
+  cap; timeout overrides are capped by each task's `time_cap_seconds`.
+  Full-protein-folding passed independent review at 1491 s, then deterministic
+  `validate_artifact.py --review-output` found three record findings; its
+  second review passed at 1778 s, but checkpoint completion ran out of time.
+  Full-microbiome produced no manifest and had long idle gaps plus a provider
+  stream disconnect (`idle timeout waiting for websocket`) at 1693 s. The skills
+  now run deterministic review before preparing the independent reviewer
+  packet; its effect on full-tier completion is not yet measured. These six runs are small-sample evidence about
+  these tasks only.
 
 1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 135 first-party skills; skill-depth gaps remain.)
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema. (Status: the conductor and literature helpers are implemented in `authored-skills/literature-review/SKILL.md`, `src/codex_science/literature_v2.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py`.)

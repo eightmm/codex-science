@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- PDB search treats an empty HTTP 204 on the first page as a negative result
+  with a replayable snapshot; other empty or later-page 204s stay schema drift.
+- Skills now run the deterministic artifact review before preparing the
+  independent review packet, write it to `deterministic-review.json` instead of
+  the review receipt, and limit citation-tracing checks to literature runs.
 - The acknowledged installer migration backs up pre-August legacy checkouts
   before replacing them through the fresh-install path. It takes the update
   lock before inspecting or renaming, refuses dirty or uninspectable trees,
