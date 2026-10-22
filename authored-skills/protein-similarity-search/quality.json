@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "protein-similarity-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["sequence-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The two public search services may use different databases, score models, and release schedules, so fallback results are not directly interchangeable.",
+    "Search scope and database snapshots may be unreported, which limits repeatability and means no-hit results cannot establish biological absence.",
+    "Sequence similarity supports but does not prove evolutionary relationship, orthology, or function."
+  ]
+}

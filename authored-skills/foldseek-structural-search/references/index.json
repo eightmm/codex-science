@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "skill": "foldseek-structural-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "foldseek-structural-interpretation",
+      "path": "references/foldseek-evidence.md",
+      "purpose": "Interpret Foldseek alignment types, structural scores, target provenance, and controls without conflating shape with function or ancestry.",
+      "read_when": [
+        "selecting structural-search databases or thresholds",
+        "interpreting Foldseek metrics or alignment coverage",
+        "making homology, evolutionary, or function claims from a structural hit"
+      ],
+      "required_before": [
+        "step-6-match-interpretation",
+        "step-7-relationship-claim"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Alignment types and metrics",
+        "## Uncertainty, controls, and sensitivity",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Interprets matches in returned Foldseek results for the recorded coordinate query and database set; structural similarity does not alone establish homology, function, or search completeness."
+    }
+  ]
+}

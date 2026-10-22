@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "skill": "protein-similarity-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "sequence-search-interpretation",
+      "path": "references/sequence-search-evidence.md",
+      "purpose": "Interpret sequence-search hits, scores, database dependence, evidence independence, and domain-specific controls.",
+      "read_when": [
+        "selecting or interpreting search thresholds",
+        "classifying a sequence hit as a candidate homolog",
+        "making a function hypothesis from sequence evidence"
+      ],
+      "required_before": [
+        "step-6-hit-interpretation",
+        "step-7-homology-or-function-claim"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Score and threshold interpretation",
+        "## Controls and sensitivity",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Interprets returned sequence-search evidence under its recorded database and parameters; no score or hit alone proves homology, function, or absence of a homolog."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "skill": "protein-msa",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "msa-evidence-method",
+      "path": "references/msa-evidence.md",
+      "purpose": "Claim limits and evidence checks for submitted protein multiple-sequence alignments, conservation, redundancy, and controls.",
+      "read_when": [
+        "choosing sequence redundancy handling",
+        "interpreting conservation or MSA depth",
+        "making a residue or region conservation claim"
+      ],
+      "required_before": [
+        "step-7-conservation-interpretation",
+        "claim-conservation"
+      ],
+      "search_patterns": [
+        "## Claim semantics",
+        "## Alignment depth, redundancy, and uncertainty",
+        "## Controls and sensitivity",
+        "## Applicability and failure detection"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation of a finite submitted sequence set and service alignment; it does not discover homologs or establish shared function or ancestry."
+    }
+  ]
+}

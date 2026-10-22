@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "protein-msa",
+  "roles": ["analyzer", "retriever"],
+  "declared_maturity": "L3",
+  "output_schemas": ["msa-conservation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Clustal Omega aligns only the submitted sequences; this skill does not establish homology or discover missing family members.",
+    "The public service may not report a software or database release, limiting exact computational reproducibility.",
+    "Conservation depends on input sampling, redundancy, alignment choices, and region coverage; no universal Neff or conservation cutoff applies."
+  ]
+}

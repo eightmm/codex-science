@@ -570,7 +570,7 @@
     {
       "description": "Find structurally similar proteins by submitting a 3D coordinate file (.pdb, .cif, or .mmcif) to the Foldseek web API and search databases such as PDB, AlphaFold, CATH, and MGnify. Use ONLY when the user provides a physical structure file and wants structural homologs. Public data, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 41,
+      "instruction_line_count": 103,
       "license": "Apache-2.0",
       "name": "cx-foldseek-structural-search",
       "path": "authored-skills/foldseek-structural-search",
@@ -1158,7 +1158,7 @@
     {
       "description": "Align multiple protein sequences with EBI Clustal Omega to assess similarity and residue/domain conservation (up to 4000 sequences, 4 MB). Not for homolog search, non-protein sequences, structural alignment, or a single sequence. Public EBI API, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 63,
+      "instruction_line_count": 95,
       "license": "Apache-2.0",
       "name": "cx-protein-msa",
       "path": "authored-skills/protein-msa",
@@ -1170,7 +1170,7 @@
     {
       "description": "Find homologous protein sequences with MMseqs2 (fast, default) or BLAST (comprehensive fallback) from a sequence or FASTA. Use to find sequence homologs or infer function by sequence similarity \u2014 not by structural similarity. Public APIs, no credential needed.",
       "executable_count": 0,
-      "instruction_line_count": 39,
+      "instruction_line_count": 84,
       "license": "Apache-2.0",
       "name": "cx-protein-similarity-search",
       "path": "authored-skills/protein-similarity-search",

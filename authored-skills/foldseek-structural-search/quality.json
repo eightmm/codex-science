@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "foldseek-structural-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["foldseek-structural-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The public service may not disclose exact database snapshots, alignment modes, or software releases, limiting matched historical reruns.",
+    "A structural match depends on coordinate quality, selected chain/state, database coverage, and metric normalization.",
+    "Foldseek structural similarity alone cannot establish shared function, common ancestry, orthology, or completeness of search."
+  ]
+}
