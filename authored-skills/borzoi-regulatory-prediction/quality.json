@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "borzoi-regulatory-prediction",
+  "roles": ["analyzer", "executor", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["borzoi-regulatory-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Borzoi training-data overlap may remain unverified when model manifests lack locus-level provenance.",
+    "Predictions for unseen cell types, distal elements outside input windows or unsupported variant classes are extrapolations.",
+    "Model ensemble variation does not provide a calibrated interval for biological effects."
+  ]
+}

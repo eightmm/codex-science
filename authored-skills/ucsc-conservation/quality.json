@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "ucsc-conservation",
+  "roles": ["retriever", "analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["ucsc-conservation-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "UCSC track metadata may not expose the alignment species count or neutral model used for every score.",
+    "Browser/API score representation may be lossy relative to original score files.",
+    "Conservation and TFBS annotations do not establish tissue-specific or causal function."
+  ]
+}

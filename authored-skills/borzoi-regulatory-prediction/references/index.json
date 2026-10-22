@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "borzoi-regulatory-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "borzoi-track-scoring",
+      "path": "references/prediction-protocol.md",
+      "purpose": "Prediction claim classes, pinned inputs, track and window scoring, controls, sensitivity and failure checks.",
+      "read_when": ["constructing reference and alternate inputs", "selecting or aggregating Borzoi tracks", "interpreting tissue or transcript predictions"],
+      "required_before": ["input-construction", "track-selection", "predicted-effect-claim"],
+      "search_patterns": ["## Input, tracks and aggregation", "## Source dependencies and independence", "## Common failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines model predictions and interpretation limits; does not establish measured expression or causal function."
+    },
+    {
+      "id": "borzoi-heldout-evaluation",
+      "path": "references/evaluation-and-controls.md",
+      "purpose": "Locus and cohort independence, evaluation design, controls, uncertainty and applicability domain.",
+      "read_when": ["evaluating against eQTL or MPRA outcomes", "making a held-out performance claim", "generalizing across contexts"],
+      "required_before": ["control-selection", "benchmark-claim", "held-out-claim"],
+      "search_patterns": ["## Training-data overlap and source independence", "## Controls", "## Applicability domain and common failure checks"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Evaluation guidance cannot certify training-data independence when source manifests are missing or incomplete."
+    }
+  ]
+}

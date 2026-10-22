@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "alphagenome-variant-analysis",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["alphagenome-variant-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The API's hidden training provenance and exact release identity may be unavailable for a query.",
+    "Predicted track differences do not establish an experimental effect or clinical interpretation.",
+    "Track coverage and cell-state match limit conclusions for contexts absent from the returned metadata."
+  ]
+}

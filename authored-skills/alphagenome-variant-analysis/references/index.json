@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "alphagenome-variant-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "alphagenome-scoring-method",
+      "path": "references/variant-scoring-method.md",
+      "purpose": "Claim classes, scorer and track interpretation, reference dependencies, controls, sensitivity and scoring failure checks.",
+      "read_when": ["choosing AlphaGenome scorers or output tracks", "interpreting REF/ALT scores", "aggregating a window or track set"],
+      "required_before": ["scorer-selection", "predicted-effect-claim", "score-aggregation"],
+      "search_patterns": ["## Scoring and record selection", "## Source dependencies and independence", "## Common failure modes and checks"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Explains predicted model scores and their method; it cannot establish measured molecular change, function or clinical effect."
+    },
+    {
+      "id": "alphagenome-evaluation-controls",
+      "path": "references/evaluation-and-controls.md",
+      "purpose": "Evaluation independence, locus and cohort overlap, controls, uncertainty and applicability limits.",
+      "read_when": ["comparing scores to eQTL or MPRA evidence", "selecting positive or negative controls", "reporting benchmark performance or generalizing"],
+      "required_before": ["control-selection", "benchmark-claim", "generalization-claim"],
+      "search_patterns": ["## Training-data overlap and source independence", "## Controls", "## Applicability domain and failure detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Provides an evaluation protocol; literature benchmarks and model predictions do not independently validate the user's target variant."
+    }
+  ]
+}

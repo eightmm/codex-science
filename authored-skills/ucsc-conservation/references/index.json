@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "ucsc-conservation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "ucsc-score-interpretation",
+      "path": "references/conservation-and-track-interpretation.md",
+      "purpose": "Distinguishes phyloP, phastCons and TFBS evidence; covers alignment context, controls, sensitivity and failure modes.",
+      "read_when": ["choosing or interpreting phyloP or phastCons", "reporting TFBS overlap", "making conservation or functional claims"],
+      "required_before": ["score-interpretation", "tfbs-claim", "conservation-claim"],
+      "search_patterns": ["## Track and evolutionary dependencies", "## Common failures and detection", "## Sources"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Evolutionary scores and track overlaps do not demonstrate present-day molecular function or tissue-specific binding."
+    },
+    {
+      "id": "ucsc-coordinate-evaluation",
+      "path": "references/coordinates-and-evaluation.md",
+      "purpose": "Assembly and API coordinate contract, track-source dependencies, evaluation controls and coverage failures.",
+      "read_when": ["normalizing coordinates or querying UCSC", "selecting controls", "comparing loci, tracks or builds"],
+      "required_before": ["coordinate-normalization", "track-query", "control-selection"],
+      "search_patterns": ["## Assembly and coordinate contract", "## Source dependencies and independence", "## Applicability domain and failure checks"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Validates retrieval and evaluation framing only; it cannot prove that a score is functional or that source evidence is independent."
+    }
+  ]
+}
