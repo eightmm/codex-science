@@ -3,6 +3,7 @@ import http.client
 import importlib.util
 import subprocess
 import sys
+import tempfile
 import urllib.request
 import unittest
 from contextlib import redirect_stdout
@@ -57,6 +58,38 @@ class CitationResolveTests(unittest.TestCase):
         self.assertEqual(got["results"][0]["title"], "A paper")
         self.assertEqual(got["results"][0]["year"], 2020)
         self.assertEqual(got["evidence_boundary"], EVIDENCE_BOUNDARY)
+
+        def checked(body, expected):
+            return resolve_identifiers(
+                ["doi:10.1234/example"],
+                fetch=lambda *a, **k: (200, json.dumps({"message": body}).encode()),
+                delay=lambda _: None,
+                expected_metadata={"doi:10.1234/example": expected},
+            )["results"][0]
+
+        record = {"title": ["An unrelated clinical trial"], "issued": {"date-parts": [[2020]]}}
+        self.assertEqual("mismatch", checked(record, {"title": "A paper", "year": 2020})["metadata_check"])
+        record = {"title": ["Café: A STUDY!"], "issued": {"date-parts": [[2021]]}}
+        self.assertEqual("match", checked(record, {"title": "Cafe a study", "year": 2020})["metadata_check"])
+        self.assertEqual("match", checked(record, {"title": "Cafe a study", "year": "2021"})["metadata_check"])
+        with_author = {**record, "author": [{"family": "Van der Meer"}]}
+        author_result = checked(with_author, {"title": "Cafe a study", "first_author": "Van der Meer"})
+        self.assertEqual("Van der Meer", author_result["first_author"])
+        self.assertEqual("match", author_result["metadata_check"])
+        non_latin = checked({"title": ["中文题目"]}, {"title": "中文题目"})
+        self.assertIn(non_latin["metadata_check"], {"uncertain", "unverified"})
+        group_author = checked({**record, "author": [{"family": "World Health Organization"}]},
+                               {"title": "Cafe a study", "first_author": "World Health Organization"})
+        self.assertEqual("uncertain", group_author["metadata_check"])
+        self.assertEqual("unverified", resolve_identifiers(
+            ["doi:10.1234/example"], fetch=lambda *a, **k: (200, json.dumps({"message": record}).encode()),
+            delay=lambda _: None)["results"][0]["metadata_check"])
+        self.assertEqual("uncertain", resolve_identifiers(
+            ["doi:10.1234/example"], fetch=lambda *a, **k: (200, json.dumps({"message": record}).encode()),
+            delay=lambda _: None, expected_metadata={"doi:10.1234/example": {"title": "Cafe a study", "year": "2020a"}})["results"][0]["metadata_check"])
+        self.assertEqual("unverified", resolve_identifiers(
+            ["doi:10.1234/example"], fetch=lambda *a, **k: (503, b""), delay=lambda _: None,
+            expected_metadata={"doi:10.1234/example": {"title": "Cafe a study"}})["results"][0]["metadata_check"])
 
     def test_cap_and_determinism(self):
         fetch = lambda *a, **k: (404, b"{}")
@@ -168,6 +201,66 @@ class CitationResolveTests(unittest.TestCase):
         self.assertEqual(payload["plan"]["identifiers"], ["doi:10.1234/example"])
         self.assertIn("evidence_boundary", payload)
 
+    def test_cli_run_dir_uses_study_table_first_author_and_rejects_malformed_files(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            run_dir, fixtures = root / "run", root / "fixtures"
+            run_dir.mkdir()
+            fixtures.mkdir()
+            (run_dir / "manifest.json").write_text(json.dumps({"artifacts": [
+                {"kind": "study-table", "path": "studies.json"},
+                {"kind": "study-table", "path": "alternate.json"},
+            ]}))
+            (run_dir / "studies.json").write_text(json.dumps({"studies": [{
+                "persistent_id": "doi:10.1234/example", "title": "Fixture paper", "year": 2021,
+                "first_author": "Jones",
+            }]}))
+            (run_dir / "alternate.json").write_text(json.dumps({"studies": [{
+                "persistent_id": "doi:10.1234/example", "title": "Fixture article", "year": 2021,
+                "first_author": "Smith",
+            }]}))
+            (fixtures / "doi_10.1234_example.json").write_text(json.dumps({"http_status": 200, "body": {"message": {
+                "title": ["Fixture article"], "issued": {"date-parts": [[2021]]}, "author": [{"family": "Smith"}],
+            }}}))
+            result = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/example",
+                                     "--offline-fixture", str(fixtures), "--run-dir", str(run_dir)], capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("mismatch", json.loads(result.stdout)["results"][0]["metadata_check"])
+            self.assertIn("metadata mismatches: 1", result.stderr)
+            without_run_dir = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/example",
+                                              "--offline-fixture", str(fixtures)], capture_output=True, text=True)
+            self.assertEqual(0, without_run_dir.returncode, without_run_dir.stdout + without_run_dir.stderr)
+            self.assertEqual("", without_run_dir.stderr)
+            study = {"studies": [{"persistent_id": "doi:10.1234/example", "title": "Unrelated work",
+                                  "year": 2021, "first_author": "Smith"}]}
+            (run_dir / "studies.json").write_text(json.dumps(study))
+            mismatch = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/example",
+                                       "--offline-fixture", str(fixtures), "--run-dir", str(run_dir)],
+                                      capture_output=True, text=True)
+            self.assertEqual(0, mismatch.returncode, mismatch.stdout + mismatch.stderr)
+            self.assertEqual("mismatch", json.loads(mismatch.stdout)["results"][0]["metadata_check"])
+            self.assertIn("metadata mismatches: 1", mismatch.stderr)
+
+            malformed = [
+                ([], {"studies": []}),
+                ({"artifacts": "bad"}, {"studies": []}),
+                ({"artifacts": []}, []),
+                ({"artifacts": []}, {"studies": "bad"}),
+                ({"artifacts": []}, {"studies": ["bad"]}),
+            ]
+            for index, (manifest, table) in enumerate(malformed):
+                with self.subTest(case=index):
+                    case_dir = root / f"bad-{index}"
+                    case_dir.mkdir()
+                    (case_dir / "manifest.json").write_text(json.dumps(manifest))
+                    (case_dir / "studies.json").write_text(json.dumps(table))
+                    failed = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/example",
+                                             "--run-dir", str(case_dir)], capture_output=True, text=True)
+                    self.assertEqual(2, failed.returncode)
+                    self.assertEqual("citation-resolution-error-v1", json.loads(failed.stdout)["schema"])
+                    self.assertNotIn("Traceback", failed.stderr)
+
     def test_pubmed_error_and_uid_absence_are_not_found(self):
         payload = {"result": {
             "uids": ["12345"],
@@ -179,9 +272,21 @@ class CitationResolveTests(unittest.TestCase):
         self.assertEqual([entry["status"] for entry in got["results"]], ["not_found", "not_found"])
 
     def test_pubmed_resolves_only_uid_in_uids_without_error(self):
-        payload = {"result": {"uids": ["12345"], "12345": {"uid": "12345", "title": "Present", "pubdate": "2022 Jan"}}}
-        got = resolve_identifiers(["pmid:12345"], fetch=lambda *a, **k: (200, json.dumps(payload).encode()), delay=lambda _: None)
+        payload = {"result": {"uids": ["12345"], "12345": {"uid": "12345", "title": "A present study", "pubdate": "2022 Jan", "authors": [{"name": "Van der Meer J"}]}}}
+        got = resolve_identifiers(["pmid:12345"], fetch=lambda *a, **k: (200, json.dumps(payload).encode()), delay=lambda _: None,
+                                  expected_metadata={"pmid:12345": {"title": "A present study", "year": 2022, "first_author": "Meer"}})
         self.assertEqual(got["results"][0]["status"], "resolved")
+        self.assertEqual(got["results"][0]["first_author"], "Van der Meer")
+        self.assertEqual(got["results"][0]["metadata_check"], "match")
+
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>A present study</title><published>2022-01-01T00:00:00Z</published>'
+                b'<author><name>Jane Smith Jr.</name></author></entry></feed>')
+        arxiv = resolve_identifiers(["arxiv:2301.12345"], fetch=lambda *a, **k: (200, feed), delay=lambda _: None,
+                                    expected_metadata={"arxiv:2301.12345": {"title": "A present study", "year": 2022,
+                                                                            "first_author": "Smith"}})["results"][0]
+        self.assertEqual("Smith", arxiv["first_author"])
+        self.assertNotEqual("mismatch", arxiv["metadata_check"])
 
     def test_transport_xml_and_arxiv_not_found_cases(self):
         def interrupted(*args, **kwargs):

@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import http.client
+import difflib
+import html
 import json
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -116,6 +119,9 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
                 date = item.get("published-print") or item.get("published-online") or item.get("issued") or item.get("created", {})
                 date_parts = date.get("date-parts", []) if isinstance(date, dict) else []
                 year = date_parts[0][0] if date_parts and isinstance(date_parts[0], list) and date_parts[0] else None
+                authors = item.get("author", [])
+                first_author = (authors[0].get("family")
+                                if isinstance(authors, list) and authors and isinstance(authors[0], dict) else None)
             else:
                 summary = payload["result"]
                 item = summary.get(value)
@@ -125,7 +131,18 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
                     return result
                 title = item.get("title", "")
                 year = int(item["pubdate"][:4]) if str(item.get("pubdate", ""))[:4].isdigit() else None
+                authors = item.get("authors", [])
+                author_name = (authors[0].get("name")
+                               if isinstance(authors, list) and authors and isinstance(authors[0], dict) else None)
+                first_author = _pubmed_first_author(author_name)
         result["status"] = "resolved"
+        if kind == "arxiv":
+            first_author = None
+            author = entries[0].find("a:author/a:name", ns)
+            if author is not None and author.text:
+                first_author = _arxiv_surname(author.text)
+        if first_author:
+            result["first_author"] = str(first_author).strip()
         if title:
             result["title"] = " ".join(str(title).split())
         if isinstance(year, int):
@@ -133,6 +150,84 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
         return result
     except (OSError, TimeoutError, http.client.HTTPException, ET.ParseError, ValueError, TypeError, KeyError, IndexError, AttributeError, json.JSONDecodeError, RecursionError, OverflowError):
         return {"identifier": identifier, "source": source, "status": "unavailable"}
+
+
+def _normalized_text(value: Any) -> str:
+    value = html.unescape(re.sub(r"<[^>]*>", " ", str(value or "")))
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch)).casefold()
+    return " ".join(re.findall(r"[a-z0-9]+", value))
+
+
+def _year_value(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and re.fullmatch(r"[+-]?\d+", value.strip()):
+        try:
+            return int(value.strip())
+        except (ValueError, OverflowError):
+            return None
+    return None
+
+
+def _pubmed_first_author(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    parts = value.strip().split()
+    if parts and re.fullmatch(r"[A-Z]{1,3}", parts[-1]):
+        parts.pop()
+    return " ".join(parts) or None
+
+
+def _arxiv_surname(value: str) -> str | None:
+    parts = value.strip().split()
+    while parts and parts[-1].rstrip(".").casefold() in {"jr", "sr", "ii", "iii"}:
+        parts.pop()
+    return parts[-1] if parts else None
+
+
+def _same_surname(expected: str, resolved: str) -> bool:
+    expected = _normalized_text(expected)
+    resolved = _normalized_text(resolved)
+    return bool(expected and resolved and (expected == resolved or expected.endswith(" " + resolved)
+                                           or resolved.endswith(" " + expected)))
+
+
+def _check_metadata(record: dict[str, Any], expected: dict[str, Any] | None) -> str:
+    if record.get("status") != "resolved" or not isinstance(expected, dict) or not expected:
+        return "unverified"
+    expected_title = _normalized_text(expected.get("title"))
+    actual_title = _normalized_text(record.get("title"))
+    raw_year = expected.get("year")
+    expected_year, actual_year = _year_value(raw_year), _year_value(record.get("year"))
+    invalid_year = raw_year is not None and expected_year is None
+    raw_expected_author = expected.get("first_author") or expected.get("author")
+    expected_author = _normalized_text(raw_expected_author)
+    actual_author = _normalized_text(record.get("first_author"))
+    if invalid_year:
+        return "uncertain"
+    if not expected_title and not expected_author and expected_year is None:
+        return "uncertain" if expected.get("title") or raw_expected_author else "unverified"
+    if (expected.get("title") and not expected_title) or (raw_expected_author and not expected_author):
+        return "unverified"
+    if (expected_title and not actual_title) or (expected_year is not None and actual_year is None) or (expected_author and not actual_author):
+        return "uncertain"
+    similarity = difflib.SequenceMatcher(None, expected_title, actual_title).ratio() if expected_title and actual_title else 0.0
+    organization_terms = {"organization", "organisation", "institute", "university", "association", "committee",
+                          "consortium", "society", "commission", "agency", "group", "team", "collaboration"}
+    organization_author = bool((set(expected_author.split()) | set(actual_author.split())) & organization_terms)
+    if organization_author:
+        return "uncertain"
+    author_mismatch = bool(expected_author and actual_author and not _same_surname(expected_author, actual_author))
+    if (expected_title and actual_title and similarity < 0.45) or (author_mismatch and similarity < 0.75):
+        return "mismatch"
+    if expected_year is not None and actual_year is not None and abs(expected_year - actual_year) > 1:
+        return "uncertain" if expected_title and similarity >= 0.75 else "mismatch"
+    if expected_title and actual_title and similarity >= 0.75 and not author_mismatch:
+        return "match"
+    return "uncertain"
 
 
 def normalize_identifiers(ids: list[str]) -> list[str]:
@@ -156,6 +251,7 @@ def normalize_identifiers(ids: list[str]) -> list[str]:
 def resolve_identifiers(
     ids: list[str], *, fetch: Callable[..., Any] | None = None, timeout: float = 10,
     delay: Callable[[float], None] = time.sleep,
+    expected_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     normalized = normalize_identifiers(ids)
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
@@ -167,7 +263,9 @@ def resolve_identifiers(
     for index, identifier in enumerate(normalized):
         if index:
             delay(0.1)
-        records.append(_record(identifier, fetcher, float(timeout)))
+        record = _record(identifier, fetcher, float(timeout))
+        record["metadata_check"] = _check_metadata(record, (expected_metadata or {}).get(identifier))
+        records.append(record)
     return {"schema": "citation-resolution-v1", "evidence_boundary": EVIDENCE_BOUNDARY,
             "results": records, "skipped_identifiers": []}
 

@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ids", nargs="*")
     parser.add_argument("--network", action="store_true")
     parser.add_argument("--offline-fixture", type=Path)
+    parser.add_argument("--run-dir", type=Path, help="load expected citation metadata from a run's study table")
     args = parser.parse_args(argv)
     try:
         if args.ids is not None and args.input is not None:
@@ -34,6 +35,59 @@ def main(argv: list[str] | None = None) -> int:
             input_path = args.input or "-"
             content = sys.stdin.read() if input_path == "-" else Path(input_path).read_text(encoding="utf-8")
             ids, skipped = supported_identifiers_from_text(content)
+        expected = {}
+        if args.run_dir:
+            run_dir = args.run_dir.resolve()
+            manifest_path = run_dir / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise ValueError("manifest must be an object")
+            artifacts = manifest.get("artifacts", [])
+            if not isinstance(artifacts, list):
+                raise ValueError("manifest artifacts must be a list")
+            table_name = None
+            for index, entry in enumerate(artifacts):
+                if not isinstance(entry, dict):
+                    raise ValueError(f"manifest artifact {index} must be an object")
+                kind, path = entry.get("kind"), entry.get("path")
+                if not isinstance(kind, str):
+                    raise ValueError(f"manifest artifact {index} kind must be a string")
+                if not isinstance(path, str) or not path.strip():
+                    raise ValueError(f"manifest artifact {index} path must be a non-empty string")
+                if kind == "study-table" and table_name is None:
+                    table_name = path
+            if table_name is None:
+                table_name = "studies.json"
+            table_path = (run_dir / table_name).resolve()
+            if run_dir not in table_path.parents:
+                raise ValueError("study table path escapes run directory")
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            if not isinstance(table, dict):
+                raise ValueError("study table must be an object")
+            studies = table.get("studies", [])
+            if not isinstance(studies, list):
+                raise ValueError("study table studies must be a list")
+            for index, study in enumerate(studies):
+                if not isinstance(study, dict):
+                    raise ValueError(f"study {index} must be an object")
+                raw_id = study.get("persistent_id")
+                if not isinstance(raw_id, str):
+                    continue
+                try:
+                    identifier = normalize_identifiers([raw_id])[0]
+                except (ValueError, TypeError):
+                    continue
+                authors = study.get("authors") or []
+                if isinstance(authors, str):
+                    authors = [authors]
+                first = authors[0] if authors else None
+                if isinstance(first, dict):
+                    first = first.get("family") or first.get("name")
+                first = study.get("first_author") or first
+                if first and not study.get("first_author"):
+                    first = str(first).strip().split()[-1]
+                expected[identifier] = {"title": study.get("title"), "year": study.get("year"),
+                                        "first_author": first}
         if args.offline_fixture:
             def fetch(url: str, *, timeout: float):
                 del timeout
@@ -48,14 +102,17 @@ def main(argv: list[str] | None = None) -> int:
                 fixture = args.offline_fixture / (name + ".json")
                 payload = json.loads(fixture.read_text(encoding="utf-8"))
                 return payload["http_status"], json.dumps(payload.get("body", {})).encode()
-            output = resolve_identifiers(ids, fetch=fetch)
+            output = resolve_identifiers(ids, fetch=fetch, expected_metadata=expected)
         elif not args.network:
             output = {"schema": "citation-resolution-v1", "evidence_boundary": EVIDENCE_BOUNDARY,
                       "plan": {"identifiers": ids, "network": False}, "skipped_identifiers": skipped}
         else:
-            output = resolve_identifiers(ids)
+            output = resolve_identifiers(ids, expected_metadata=expected)
         if args.offline_fixture or args.network:
             output["skipped_identifiers"] = skipped
+            if args.run_dir:
+                mismatches = sum(item.get("metadata_check") == "mismatch" for item in output["results"])
+                print(f"metadata mismatches: {mismatches}", file=sys.stderr)
         print(json.dumps(output, sort_keys=True, ensure_ascii=False))
         return 0
     except (OSError, UnicodeError, ValueError, TypeError, KeyError, RecursionError, OverflowError, json.JSONDecodeError) as exc:
