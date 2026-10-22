@@ -129,7 +129,7 @@ def _material_claim_ids(manifest: Mapping[str, Any], sidecars: Mapping[str, Any]
 
 def _claim_kinds_with_manifest_fallback(claims: list[Any], manifest: Mapping[str, Any]) -> list[Any]:
     manifest_claims = {
-        str(claim["id"]): claim
+        str(claim["id"]).strip(): claim
         for claim in manifest.get("claims", [])
         if isinstance(claim, Mapping) and claim.get("id")
     }
@@ -139,7 +139,7 @@ def _claim_kinds_with_manifest_fallback(claims: list[Any], manifest: Mapping[str
             resolved.append(claim)
             continue
         item = dict(claim)
-        manifest_claim = manifest_claims.get(str(claim.get("id", "")))
+        manifest_claim = manifest_claims.get(str(claim.get("id", "")).strip())
         if "kind" not in item and manifest_claim is not None and "kind" in manifest_claim:
             item["kind"] = manifest_claim["kind"]
         resolved.append(item)

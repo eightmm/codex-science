@@ -127,6 +127,7 @@ class EvidenceSupportExcerptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = make_reviewed_run(Path(temp))
             manifest = json.loads(path.read_text())
+            manifest["claims"][0]["id"] = f" {manifest['claims'][0]['id']} "
             manifest["claims"][0]["kind"] = "causal"
             register_path = path.parent / "claims.json"
             register_path.write_text(json.dumps(claim()), encoding="utf-8")
