@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "scvi-tools-analysis",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "scvi-model-evidence",
+      "path": "references/scvi-model-evidence.md",
+      "purpose": "Count-likelihood assumptions, covariate safeguards, claim semantics, diagnostics, controls, sensitivity, and single-cell applicability limits.",
+      "read_when": ["choosing a scvi-tools model or likelihood", "setting batch covariates", "evaluating integration", "interpreting annotations or differential results"],
+      "required_before": ["model-selection", "integration-claim", "differential-claim"],
+      "search_patterns": ["## Count assumptions and source dependencies", "## Batch covariates and over-integration", "## Controls and sensitivity", "## Applicability and common failure modes"],
+      "authority": "scientific-method-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines model-selection and evidence checks; does not establish that a likelihood, integration, annotation, or effect is valid for a particular dataset."
+    }
+  ]
+}

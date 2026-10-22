@@ -510,7 +510,7 @@
     {
       "description": "Run Biohub ESMFold2 locally from the released Hugging Face weights or through the approved Biohub Platform. Use for all-atom prediction of proteins, complexes, DNA, modifications, and ligands with optional MSA input and diffusion sampling; distinct from the legacy ESMFold v1 model.",
       "executable_count": 0,
-      "instruction_line_count": 34,
+      "instruction_line_count": 106,
       "license": "MIT",
       "name": "cx-esmfold2-structure-prediction",
       "path": "authored-skills/esmfold2-structure-prediction",
@@ -1400,7 +1400,7 @@
     {
       "description": "Run pinned scGPT checkpoints for single-cell embeddings, cell-type annotation, reference mapping, perturbation modeling, or fine-tuning. Use when a pretrained single-cell transformer is requested and donor/batch/feature provenance can be preserved.",
       "executable_count": 0,
-      "instruction_line_count": 54,
+      "instruction_line_count": 91,
       "license": "MIT",
       "name": "cx-scgpt-single-cell",
       "path": "authored-skills/scgpt-single-cell",
@@ -1412,7 +1412,7 @@
     {
       "description": "Build and evaluate reproducible scvi-tools workflows for single-cell RNA, protein, chromatin, spatial, or multimodal data using scVI, scANVI, totalVI, MultiVI, PeakVI, DestVI, or related models.",
       "executable_count": 0,
-      "instruction_line_count": 59,
+      "instruction_line_count": 95,
       "license": "MIT",
       "name": "cx-scvi-tools-analysis",
       "path": "authored-skills/scvi-tools-analysis",

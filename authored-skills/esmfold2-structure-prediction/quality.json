@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "esmfold2-structure-prediction",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["esmfold2-structure-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "The ESMFold2 training cutoff and structure overlap may be incompletely documented for a given checkpoint.",
+    "Model confidence and known-structure controls do not establish target-specific experimental accuracy or function.",
+    "Supported entity chemistry and emitted metrics depend on the pinned local or remote release."
+  ]
+}

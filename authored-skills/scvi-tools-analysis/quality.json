@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "scvi-tools-analysis",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["scvi-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Likelihood suitability depends on assay and preprocessing; the workflow cannot determine it without inspecting the data-generation process.",
+    "Held-out donor evaluation may not cover shifts in tissue, species, site, or disease state.",
+    "The references specify checks but do not supply a fixed dataset, model configuration, or acceptance threshold."
+  ]
+}

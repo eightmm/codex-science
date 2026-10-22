@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "scgpt-single-cell",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "scgpt-evidence-calibration",
+      "path": "references/scgpt-evidence-calibration.md",
+      "purpose": "Claim semantics, cohort and pretraining dependencies, uncertainty, single-cell controls, sensitivity, and scGPT applicability limits.",
+      "read_when": ["preparing single-cell inputs", "choosing an scGPT checkpoint", "interpreting label transfer or embeddings", "evaluating integration or perturbation predictions"],
+      "required_before": ["preprocessing", "label-transfer-claim", "integration-claim"],
+      "search_patterns": ["## Claim classes", "## Data and source dependencies", "## Controls and baselines", "## Applicability domain and failure detection"],
+      "authority": "scientific-method-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and evaluation practice; does not establish that a checkpoint is valid for a new cohort, tissue, species, or biological claim."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "esmfold2-structure-prediction",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "esmfold2-structure-evidence",
+      "path": "references/esmfold2-structure-evidence.md",
+      "purpose": "Structure and confidence semantics, model/data dependencies, leakage, controls, sensitivity, and ESMFold2 applicability limits.",
+      "read_when": ["choosing single-sequence or MSA mode", "interpreting confidence metrics", "checking structures or interfaces", "making target-specific structure claims"],
+      "required_before": ["model-input-selection", "structure-claim", "interface-claim"],
+      "search_patterns": ["## Confidence semantics and output checks", "## Input mode, model dependencies, and leakage", "## Uncertainty and controls", "## Applicability domain and failure detection"],
+      "authority": "scientific-method-guidance",
+      "version": "1",
+      "evidence_boundary": "Defines interpretation and evaluation checks; does not validate a new target, complex, binding claim, or the suitability of an unpinned model release."
+    }
+  ]
+}

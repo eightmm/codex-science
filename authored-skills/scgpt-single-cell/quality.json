@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "scgpt-single-cell",
+  "roles": ["executor", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["scgpt-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Checkpoint training-corpus membership may be incomplete or unavailable, so evaluation overlap can remain uncertain.",
+    "A held-out donor result does not establish transport to a different species, tissue, assay, or clinical population.",
+    "This workflow specifies evidence checks but supplies no fixed model checkpoint or acceptance benchmark."
+  ]
+}
