@@ -69,6 +69,34 @@ class LiteratureReportTests(unittest.TestCase):
             self.assertEqual("unsure", grade_run(escalation, task, run)["outcome"])
             self.assertEqual("rejected", grade_run(dict(receipt, task_digest="bad"), task, run)["outcome"])
 
+    def test_timeout_with_incomplete_literature_bundle_keeps_failed_outcome(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_set, task, run, receipt = self.fixture(root, timed_out=True)
+            bundle = run / "project" / "artifacts" / "partial-bundle"
+            bundle.mkdir(parents=True)
+            manifest = bundle / "manifest.json"
+            manifest.write_text(json.dumps({"artifacts": []}), encoding="utf-8")
+            relative = manifest.relative_to(run / "project" / "artifacts").as_posix()
+            receipt["artifact_files"] = [{"path": relative, "sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}]
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+
+            graded = grade_run(receipt, task, run)
+            self.assertEqual(("failed", "timeout"), (graded["outcome"], graded["stop_reason"]))
+            self.assertEqual({"status": "unavailable", "reason": "bundle_input_unavailable"}, graded["citations"])
+
+            runs = root / "runs"
+            runs.mkdir()
+            run.rename(runs / task["id"])
+            (runs / "plan.json").write_text(json.dumps({"execute": True, "tasks": [{"task_id": task["id"]}]}),
+                                            encoding="utf-8")
+            result = self._cli(TASKS, runs)
+            self.assertEqual(0, result.returncode, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(1, report["overall"]["stop_reasons"]["timeout"])
+            row = next(item for item in report["runs"] if item["task_id"] == task["id"])
+            self.assertEqual("unavailable", row["citations"]["status"])
+
     def test_criteria_failure_symlink_escape_and_set_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

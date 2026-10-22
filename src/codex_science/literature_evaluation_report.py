@@ -205,7 +205,10 @@ def grade_run(receipt: Mapping[str, Any], task: Mapping[str, Any], run_dir: Path
     last_message = (last_bytes or b"").decode("utf-8", errors="replace")
     criteria = evaluate_criteria(task_spec["criteria"], project, last_message)
     partial_credit = _partial_credit(criteria)
-    citations = _trace_citations(receipt, Path(run_dir))
+    try:
+        citations = _trace_citations(receipt, Path(run_dir))
+    except (OSError, ValueError):
+        citations = {"status": "unavailable", "reason": "bundle_input_unavailable"}
     completion = receipt.get("completion_report", {})
     completion_codes = set()
     completion_signals = set()
