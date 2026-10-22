@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "xray-diffraction-scattering",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["xray-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "A fitted powder or scattering model is conditional on instrument calibration, sample state, and declared model assumptions.",
+    "Reference coverage and imperfectly independent preparations can limit phase exclusion and replication claims.",
+    "This procedural skill does not execute refinement software or validate a result automatically."
+  ]
+}

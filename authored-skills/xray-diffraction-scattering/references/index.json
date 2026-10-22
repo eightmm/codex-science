@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "skill": "xray-diffraction-scattering",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "powder-scattering-evidence",
+      "path": "references/powder-scattering-inference.md",
+      "purpose": "Claim classes, calibration and reference dependencies, uncertainty, controls, sensitivity, and limits for powder diffraction and small/wide-angle scattering.",
+      "read_when": [
+        "assigning candidate or identified phases",
+        "indexing a unit cell or refining a structural model",
+        "estimating size, strain, texture, or phase fraction",
+        "fitting SAXS/WAXS or pair-distribution data"
+      ],
+      "required_before": ["step-4", "step-5", "phase-identification", "quantitative-phase", "scattering-model"],
+      "search_patterns": ["## Claim semantics", "## Source dependencies and independence", "## Uncertainty", "## Controls and sanity checks", "## Sensitivity and fragility", "## Applicability domain"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Defines analysis procedure and limits; it is not sample evidence and cannot establish phase identity or structural truth without data and controls."
+    }
+  ]
+}

@@ -1434,7 +1434,7 @@
     {
       "description": "Analyze experimental spectra with traceable preprocessing, calibration, peak or band inference, uncertainty, and alternative-model checks. Use for UV-Vis, fluorescence, IR, Raman, absorbance, emission, reflectance, and related one-dimensional spectral datasets or instrument exports.",
       "executable_count": 0,
-      "instruction_line_count": 28,
+      "instruction_line_count": 33,
       "license": "MIT",
       "name": "cx-spectroscopy-spectral-inference",
       "path": "authored-skills/spectroscopy-spectral-inference",
@@ -1578,7 +1578,7 @@
     {
       "description": "Analyze and verify X-ray diffraction and scattering data. Use for powder XRD, phase identification, indexing, lattice parameters, Rietveld refinement, crystallite size or strain, texture, amorphous content, SAXS, WAXS, pair distributions, and comparison with calculated patterns.",
       "executable_count": 0,
-      "instruction_line_count": 25,
+      "instruction_line_count": 33,
       "license": "MIT",
       "name": "cx-xray-diffraction-scattering",
       "path": "authored-skills/xray-diffraction-scattering",

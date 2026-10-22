@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "spectroscopy-spectral-inference",
+  "roles": ["analyzer", "reviewer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["spectral-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Spectral assignments remain conditional on sample state, acquisition conditions, and reference coverage.",
+    "Overlapping features and preprocessing choices may make fitted components non-identifiable.",
+    "This procedural skill does not execute or validate a quantitative method automatically."
+  ]
+}
