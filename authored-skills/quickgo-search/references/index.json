@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "quickgo-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "quickgo-annotation-evidence",
+      "path": "references/quickgo-evidence.md",
+      "purpose": "GO evidence-code classes, ontology propagation, source dependence, controls, sensitivity, and annotation limits.",
+      "read_when": ["filtering annotations by evidence code", "traversing GO relations", "interpreting functional or enrichment claims"],
+      "required_before": ["step-6", "claim-iea-inferred", "claim-propagated-ancestor"],
+      "search_patterns": ["## Claim classes and evidence-code assignment", "## Ontology propagation and dependence", "## Sensitivity and applicability", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "GO annotations support scoped gene-product assertions; they do not alone establish causal mechanism, condition-specific phenotype, or independent evidence after propagation."
+    }
+  ]
+}

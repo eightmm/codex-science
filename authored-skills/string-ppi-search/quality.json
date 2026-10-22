@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "string-ppi-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["string-association-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "STRING integrates functional-association evidence and does not measure direct binding in the user's condition.",
+    "Channel sources can overlap, so their scores are not independent replications.",
+    "Enrichment remains sensitive to mapping, release, background, study bias, and the evidence threshold."
+  ]
+}

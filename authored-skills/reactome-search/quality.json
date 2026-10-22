@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "reactome-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["reactome-evidence-reconciliation-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "Reactome coverage and orthology inference do not establish activity in a specific sample or condition.",
+    "Enrichment interpretation depends on identifier mapping, universe choice, release, and multiple-testing details.",
+    "The public response may omit evidence or release metadata; unknown fields remain unknown."
+  ]
+}

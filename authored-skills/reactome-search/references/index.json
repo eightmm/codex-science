@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "skill": "reactome-search",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "reactome-evidence-interpretation",
+      "path": "references/reactome-evidence.md",
+      "purpose": "Claim classes, release and record dependence, controls, sensitivity, and limits for Reactome lookup and enrichment.",
+      "read_when": ["interpreting enrichment", "distinguishing curated from orthology-inferred events", "making pathway or mechanism claims"],
+      "required_before": ["step-7", "claim-orthology-inferred-event", "claim-pathway-association"],
+      "search_patterns": ["## Claim classes and assignment", "## Source dependence and release identity", "## Sensitivity and applicability", "## Failure modes and detection"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Guides interpretation of returned Reactome records; does not establish pathway activity, causal mechanism, or biological completeness."
+    }
+  ]
+}

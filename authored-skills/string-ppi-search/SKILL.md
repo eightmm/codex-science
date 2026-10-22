@@ -12,58 +12,82 @@ Uses the public API directly through Codex's own tools.
 
 ## Decision contract
 
-State the protein set or interaction question, organism/taxon, evidence cutoff,
-identifier namespace, and whether the deliverable is partners, a network, or
-functional enrichment. Resolve ambiguous gene/protein names before querying;
-preserve canonical identifiers and mapping alternatives. Specify the confidence
-threshold before inspecting results and distinguish interaction evidence
-channels from a direct physical interaction claim.
+State whether the target is a database association, a channel-specific evidence
+observation, a predicted functional association, or an experimentally measured
+physical interaction. Record protein set, taxon, namespace, prespecified
+`required_score`, channel fields, release, assay context if known, and whether
+the output is partners, network, or enrichment. A combined STRING score is a
+confidence score for functional association, not a probability of physical
+binding, causality, direction, or condition-specific activity.
+
+## Reference usage
+
+Read [references/string-evidence.md](references/string-evidence.md) before
+interpreting scores, networks, or enrichment. Apply its channel-specific claim
+classes, dependence audit, controls, sensitivity criteria, and applicability
+limits; record the selected threshold and release in the query receipt.
 
 ## Workflow
 
 1. **Gates (ask before proceeding).** On first use in a workspace, tell the
    user to review the source's terms of use and record the notice in provenance.
-   Public read-only access: be polite about rate limits. Write large responses
-   to a file and parse them; run helper code via `uv run`, never bare `python3`.
-   Ask before installs or large downloads.
-2. Resolve proteins with optional `science_search_string` (`query`, `limit`
-   1–10, default 5), which returns STRING ID, preferred name, species,
-   annotation, and URL. Direct STRING API base is `https://string-db.org/api`.
-   Preserve the original identifier, mapping response, taxon ID, and ambiguity.
-3. Map identifiers first using `/json/get_string_ids`; then request network or
-   partners (`/json/network`, `/json/interaction_partners`) with species and prespecified `required_score`. For enrichment,
-   POST the identifier set to `/json/enrichment`. Record exact endpoint,
-   serialized parameters, submitted IDs, score scale/threshold, access time,
-   response-reported release/version, page state, and returned count. Bound
-   query size and pagination.
-4. Validate HTTP status, response shape, IDs, species, and completeness. Detect
-   truncation; preserve null/missing fields. Use bounded retries for transient
-   errors, and report failures as unavailable. Record returned interactions and
-   excluded records with reasons. For each edge retain score and channel fields
-   actually returned; do not silently turn a combined score into a measured
-   binding probability.
-5. Report species and confidence threshold. State that STRING combines
-   predicted and experimental evidence, and distinguish evidence channels.
-   Enrichment depends on the submitted universe/background and multiple-testing
-   fields returned. Save query and response artifacts with `$science-provenance`;
-   use `$science-review` before material network or mechanism claims.
+   Keep access public and read-only, respect rate limits, write large responses
+   to files for parsing, run helper code via `uv run` (never bare `python3`),
+   and ask before installs or large downloads; record the gate outcome.
+2. Classify the requested evidence as functional association, channel evidence,
+   experimentally measured physical interaction, or enrichment; if a causal or
+   direct-binding claim exceeds the returned evidence, narrow it and record why.
+3. Resolve proteins with optional `science_search_string` (`query`, `limit`
+   1–10, default 5), or STRING `/json/get_string_ids`; preserve original names,
+   canonical STRING IDs, taxon, mapping alternatives, and unresolved ambiguity.
+   Stop if alternatives materially change the network.
+4. Prespecify taxon, `required_score`, queried channels, and background universe
+   for enrichment. Use `https://string-db.org/api` endpoints
+   `/json/network`, `/json/interaction_partners`, or `/json/enrichment`; record
+   exact serialization, release/version, access time, page state, and result cap.
+5. Validate status, response shape, IDs, species, score scale, channels, and
+   completeness. Retain missing fields and excluded edges with reasons; bound
+   query size, pages, and transient retries. Failed or truncated responses are
+   unavailable, with partial records retained as partial evidence.
+6. For every edge, report returned experiment, database, text-mining,
+   co-expression, and other channel scores separately when supplied. Treat a
+   combined score only as STRING's integrated functional-association confidence;
+   do not convert it into a binding probability. Record missing channel values.
+7. For enrichment, report input/mapped/background counts and returned
+   multiple-testing fields. Check a well-characterized expected partner or
+   function and a random same-size set from the eligible universe; vary the
+   prespecified score threshold and evidence-channel filter, calling results
+   fragile if the claim or status changes. Record controls and sensitivity.
+8. Report uncertainty and context limits, preserve query/response artifacts via
+   `$science-provenance`, and use `$science-review` for material network,
+   function, or mechanism conclusions; record handoffs and unresolved findings.
 
 ## Outputs
 
-Return normalized proteins, species and assumptions; mapping table; interaction
-or enrichment table with IDs, score, evidence channels, source URL, and
-inclusion/exclusion reason; claim IDs marked supported/contradicted/
-inconclusive/unavailable; query/version/access-time details; uncertainty,
-threshold/background sensitivity, limitations, and smallest falsifiable next
-query. Save artifacts and hashes through `$science-provenance`.
+Return one `string-association-evidence-v1` record with required fields: claim
+identifier (`claim_id`); claim class (`claim_class`); status (`status`:
+supported, contradicted, inconclusive, or unavailable); taxon (`taxon`);
+submitted and mapped proteins (`submitted_ids`, `mapped_ids`); mapping
+alternatives (`mapping_alternatives`); STRING release (`release`); query and
+parameters (`query`, `parameters`); prespecified threshold (`required_score`);
+edge IDs and scores by channel (`edges`, `channel_scores`); combined score
+semantics (`combined_score_interpretation`); background and enrichment fields
+(`background`, `enrichment`); controls and sensitivity (`controls`,
+`sensitivity`); uncertainty and applicability (`uncertainty`, `applicability`);
+inclusion/exclusion reasons (`record_reasons`); source URLs, access time,
+artifact hashes, and smallest falsifiable next query (`source_urls`,
+`accessed_at`, `artifact_hashes`, `next_query`). Save query and response
+artifacts with `$science-provenance`.
 
 ## Boundaries
 
-- Interactions include predictions; distinguish evidence channels. Cite only
-  identifiers actually returned.
-- A STRING edge does not prove direct binding, direction, causality, or activity
-  in the user's tissue/condition. Do not treat network proximity as mechanism.
-- Stop if species or identifier mapping is materially ambiguous. Missing edges
-  are not evidence of no interaction; failed/truncated queries are unavailable.
-  Respect terms and redistribution limits. `$science-review` is mandatory for
-  material mechanism claims.
+- STRING integrates predicted and experimental evidence; distinguish channels
+  and cite only IDs actually returned. The combined score is not a probability
+  that two proteins physically interact.
+- An edge does not prove direct binding, direction, causality, or activity in
+  the user's tissue or condition. Network proximity is not mechanism.
+- Enrichment depends on the submitted universe/background and multiple testing.
+  Missing edges do not establish absence; failed or truncated queries are
+  unavailable. Respect terms and redistribution limits.
+- Stop if species or identifier mapping is materially ambiguous. `$science-review`
+  is mandatory for material mechanism claims.

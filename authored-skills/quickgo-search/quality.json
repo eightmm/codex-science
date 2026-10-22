@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "skill": "quickgo-search",
+  "roles": ["retriever", "analyzer"],
+  "declared_maturity": "L3",
+  "output_schemas": ["quickgo-annotation-evidence-v1"],
+  "acceptance_fixtures": [],
+  "seeded_failures": [],
+  "test_files": [],
+  "limitations": [
+    "IEA and other evidence codes represent different support and cannot be collapsed into a single experimental status.",
+    "Ontology propagation derives ancestor annotations from source assertions and does not create independent evidence.",
+    "Annotation coverage is biased toward well-studied genes and may not match a specific condition, tissue, or isoform."
+  ]
+}
