@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `scripts/build_evidence_graph.py`, which derives `evidence_graph.json` claim, study and cohort nodes and supports/contradicts edges (with `independence_group` from `cohort_id`) from `claims.json` and `studies.json`, merges agent-authored relations from an `evidence-graph-extra-v1` file, suggests the closest relation or node type for typos such as `shared-cohort`, aggregates problems, and refuses to overwrite inputs, excerpt sources or the manifest.
 - Added `build_study_table.py` to build `studies.json` from `screening.json` includes plus a declarative `study-extraction-v1` file: it fills titles, identifiers, `persistent_id`, dates and query provenance, hashes and verifies every excerpt against its source, preserves `cohort_id`, refuses a stale candidate snapshot, and aggregates coverage and excerpt errors before writing. `trace_citations.py` also reads a study's `identifiers` list.
 - `package_run.py refresh` no longer treats a `deterministic-review*.json` validator output as independent review evidence; it proceeds without `--invalidate-review` and lists the file under `stale_deterministic_review` (it is still archived with a real review round).
 - `science_checkpoint.py advance` without `--next` starts the next pending step in declared order, and `advance --next STEP` without `--complete` recovers a checkpoint left with no step in progress; the mismatch error lists pending steps.
