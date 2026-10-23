@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added `screen_candidates.py` to pool query results into a deduplicated `candidates.json` (identifier chains merged, native Europe PMC responses accepted, unreadable results listed as skipped) and to apply grouped screening decisions into a hashed `screening.json` that refuses unassigned records and title-only exclusions.
 - Recorded run16 and run16b literature-evaluation results and documented the run-packaging and literature-retrieval CLIs.
 - EuropePMC searches accept a final page without `nextCursorMark` when the received records account for `hitCount`; identifier and other small queries no longer fail as pagination drift.
 - Full-text JATS rendering now keeps document order, section titles and table rows, emits nested captions once, and skips reference lists; literature-review guidance points to `fetch_open_fulltext.py` for open-access PMC full text.

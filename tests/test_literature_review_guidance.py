@@ -156,6 +156,9 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
 
     def test_screening_guidance_covers_records_without_abstracts(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn('"<plugin-root>/scripts/screen_candidates.py" pool --run-dir <run-dir>', text)
+        self.assertIn('"<plugin-root>/scripts/screen_candidates.py" apply --run-dir <run-dir> --decisions <file>', text)
+        self.assertIn("decisions still require per-record checking", text)
         self.assertIn("If no abstract or text is available, record that", text)
         self.assertIn("awaiting-full-text", text)
         self.assertIn("rather than excluding on title alone", text)
