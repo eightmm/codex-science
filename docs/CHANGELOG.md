@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Literature evaluation recognizes hook-pinned runtime-store paths in loaded-runtime receipts.
 - Documented allowed literature sidecar values and record-level screening rules.
 - Checkpoint `advance` early checks now add advisory findings when a lane lists a supported claim without a supports edge from its included records, or when no execution-recorded hash for a lane output matches the manifest; gates are unchanged.
 - Recorded the experiment ledger and run13, run14, and run15 literature-evaluation results.

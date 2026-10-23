@@ -42,8 +42,9 @@ chosen one. Codex ignores dotted quoted-key overrides such as
 `plugins."codex-science@codex-science".enabled=false`, so the runner uses one
 inline-table `-c` override. Plugin version (`plugin.json`) and runtime version
 (`release/manifest.json`) are separate identities: branch matching compares
-runtime versions from the selected installed cache directory manifests, not
-plugin version labels.
+runtime versions from selected plugin-cache or private runtime-store manifests,
+not plugin version labels. `runtime_store_versions` records matched store path
+versions alongside `plugin_cache_versions`.
 
 `scripts/report_literature_evaluation.py` grades saved receipts against every
 frozen criterion. A task is complete only when all criteria pass, following

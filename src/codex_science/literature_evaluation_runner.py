@@ -314,7 +314,22 @@ def _manifest_value(path: Path, codex_home: Path, key: str) -> str:
         if release.is_symlink() or manifest.is_symlink() or not manifest.resolve().is_relative_to(cache.resolve()):
             return _UNKNOWN
         data = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, RuntimeError, UnicodeError, ValueError):
+        return _UNKNOWN
+    value = data.get(key) if isinstance(data, dict) else None
+    return value if isinstance(value, str) and value else _UNKNOWN
+
+
+def _store_manifest_value(path: Path, codex_home: Path, key: str) -> str:
+    data_root = codex_home / "plugins" / "data"
+    release = path / "release"
+    manifest = release / "manifest.json"
+    try:
+        if (path.is_symlink() or release.is_symlink() or manifest.is_symlink()
+                or not manifest.resolve().is_relative_to(data_root.resolve())):
+            return _UNKNOWN
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, RuntimeError, UnicodeError, ValueError):
         return _UNKNOWN
     value = data.get(key) if isinstance(data, dict) else None
     return value if isinstance(value, str) and value else _UNKNOWN
@@ -352,11 +367,25 @@ def _loaded_runtime(events_path: Path, codex_home: Path, plugin: str,
     versions: set[str] = set()
     skill_paths: set[str] = set()
     foreign_plugin_cache_paths: set[str] = set()
+    store_versions: set[str] = set()
     marketplace = plugin.split("@", 1)[1]
     version_pattern, skill_pattern = _plugin_cache_patterns(plugin)
+    store_dir = f"codex-science-{marketplace}"
+    store_root = ("plugins/data/" + re.escape(store_dir) + "/runtime-cache/")
+    store_version_pattern = re.compile(
+        store_root + r"(?P<version>[^/\\\s\"'<>;|&()]+)(?=/|$|[\\\s\"'<>;|&()])"
+    )
+    store_skill_pattern = re.compile(
+        store_root + r"(?P<version>[^/\\\s\"'<>;|&()]+)/"
+        r"(?P<skill_path>(?:runtime-skills|skills)/[^\s\"'<>;|&()]*)"
+    )
+    any_store_path = re.compile(
+        r"plugins/data/(?P<data_dir>[A-Za-z0-9][A-Za-z0-9._-]*)/runtime-cache/"
+        r"(?P<version>[^/\\\s\"'<>;|&()]+)(?=/|$|[\\\s\"'<>;|&()])"
+    )
     try:
         lines = events_path.open(encoding="utf-8")
-    except OSError:
+    except (OSError, RuntimeError):
         lines = None
     if lines is not None:
         with lines:
@@ -383,8 +412,19 @@ def _loaded_runtime(events_path: Path, codex_home: Path, plugin: str,
                             foreign_plugin_cache_paths.add(
                                 f"{other_marketplace}/{match.group('version')}"
                             )
+                    for match in any_store_path.finditer(command_text):
+                        if match.group("data_dir") != store_dir:
+                            foreign_plugin_cache_paths.add(
+                                f"data:{match.group('data_dir')}/{match.group('version')}"
+                            )
+                    store_versions.update(match.group("version")
+                                          for match in store_version_pattern.finditer(command_text))
                     versions.update(match.group("version") for match in version_pattern.finditer(command_text))
                     for match in skill_pattern.finditer(command_text):
+                        skill_path = match.group("skill_path").rstrip(".,)")
+                        if skill_path:
+                            skill_paths.add(skill_path)
+                    for match in store_skill_pattern.finditer(command_text):
                         skill_path = match.group("skill_path").rstrip(".,)")
                         if skill_path:
                             skill_paths.add(skill_path)
@@ -395,14 +435,36 @@ def _loaded_runtime(events_path: Path, codex_home: Path, plugin: str,
         if len(matches) == 1:
             runtime = _manifest_value(matches[0], codex_home, "runtime_version")
             if runtime != _UNKNOWN:
-                loaded_runtime_by_cache[version] = runtime
+                loaded_runtime_by_cache[f"cache:{version}"] = runtime
+    if store_versions:
+        data_root = codex_home / "plugins" / "data"
+        try:
+            resolved_data_root = data_root.resolve()
+        except (OSError, RuntimeError):
+            resolved_data_root = None
+        for version in store_versions:
+            root = data_root / store_dir / "runtime-cache"
+            path = root / version
+            try:
+                safe = (resolved_data_root is not None
+                        and not data_root.is_symlink() and not (data_root / store_dir).is_symlink()
+                        and not root.is_symlink() and not path.is_symlink() and path.is_dir()
+                        and path.resolve().is_relative_to(resolved_data_root))
+            except (OSError, RuntimeError):
+                safe = False
+            if safe:
+                runtime = _store_manifest_value(path, codex_home, "runtime_version")
+                if runtime != _UNKNOWN:
+                    loaded_runtime_by_cache[f"store:{version}"] = runtime
     loaded_versions = set(loaded_runtime_by_cache.values())
-    matches_branch = (bool(versions) and not foreign_plugin_cache_paths
+    matches_branch = (bool(loaded_runtime_by_cache) and not foreign_plugin_cache_paths
                       and len(loaded_runtime_by_cache) == len(versions)
+                      + len(store_versions)
                       and branch_runtime_version != _UNKNOWN and all(
                           version == branch_runtime_version for version in loaded_runtime_by_cache.values()
                       ))
-    return {"plugin_cache_versions": sorted(versions), "skill_paths": sorted(skill_paths),
+    return {"plugin_cache_versions": sorted(versions), "runtime_store_versions": sorted(store_versions),
+            "skill_paths": sorted(skill_paths),
             "branch_runtime_version": branch_runtime_version,
             "loaded_runtime_versions": sorted(loaded_versions),
             "foreign_plugin_cache_paths": sorted(foreign_plugin_cache_paths),

@@ -620,6 +620,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             matching_receipt = json.loads((matching_out / "quick-doi/receipt.json").read_text(encoding="utf-8"))
             matching = matching_receipt["loaded_runtime"]
             self.assertEqual([matching_cache_version], matching["plugin_cache_versions"])
+            self.assertEqual([], matching["runtime_store_versions"])
             self.assertEqual([branch_version], matching["loaded_runtime_versions"])
             self.assertTrue(matching["runtime_under_test_matches_branch"])
             matching_events = root / "matching-events.jsonl"
@@ -660,14 +661,131 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
                 "type": "command_execution", "exit_code": 0,
                 "command": (f"cat ~/.codex/plugins/cache/codex-science/codex-science/{matching_cache_version}/skills/x/SKILL.md; "
                             f"cat ~/.codex/plugins/cache/other-market/codex-science/{branch_version}/skills/y/SKILL.md; "
-                            f"cat ~/.codex/plugins/cache/branch-market/codex-science/{branch_version}/skills/z/SKILL.md")}}})
+                            f"cat ~/.codex/plugins/cache/branch-market/codex-science/{branch_version}/skills/z/SKILL.md; "
+                            f"cat ~/.codex/plugins/data/codex-science-other/runtime-cache/{branch_version}/skills/z/SKILL.md")}}})
                 + "\n", encoding="utf-8")
             foreign = _loaded_runtime(other_marketplace, home, "codex-science@codex-science", branch_version)
             self.assertEqual([matching_cache_version], foreign["plugin_cache_versions"])
-            self.assertEqual([f"branch-market/{branch_version}", f"other-market/{branch_version}"],
+            self.assertEqual([f"branch-market/{branch_version}", f"data:codex-science-other/{branch_version}",
+                              f"other-market/{branch_version}"],
                              foreign["foreign_plugin_cache_paths"])
             self.assertFalse(foreign["runtime_under_test_matches_branch"])
             self.assertNotIn("plugins/cache", json.dumps(foreign))
+
+            store_dir = "codex-science-codex-science"
+            store_base = home / "plugins/data" / store_dir / "runtime-cache"
+
+            def store_event(version: str, *paths: str) -> Path:
+                events = root / f"store-{version}.jsonl"
+                command_text = "; ".join(f"cat ~/.codex/plugins/data/{store_dir}/runtime-cache/"
+                                           f"{version}/{path}" for path in paths)
+                events.write_text(json.dumps({"event": {"type": "item.completed", "item": {
+                    "type": "command_execution", "exit_code": 0, "command": command_text}}}) + "\n",
+                    encoding="utf-8")
+                return events
+
+            store_version = "0.5.0+store"
+            store_manifest = store_base / store_version / "release/manifest.json"
+            store_manifest.parent.mkdir(parents=True, exist_ok=True)
+            store_manifest.write_text(json.dumps({"runtime_version": branch_version}), encoding="utf-8")
+            store = _loaded_runtime(store_event(store_version, "runtime-skills/codex-science/SKILL.md",
+                                                 "skills/literature-review/SKILL.md"), home,
+                                    "codex-science@codex-science", branch_version)
+            self.assertEqual([], store["plugin_cache_versions"])
+            self.assertEqual([store_version], store["runtime_store_versions"])
+            self.assertEqual(["runtime-skills/codex-science/SKILL.md", "skills/literature-review/SKILL.md"],
+                             store["skill_paths"])
+            self.assertEqual([branch_version], store["loaded_runtime_versions"])
+            self.assertTrue(store["runtime_under_test_matches_branch"])
+
+            store_manifest.write_text(json.dumps({"runtime_version": "different-runtime"}), encoding="utf-8")
+            store_mismatch = _loaded_runtime(store_event(store_version, "skills/codex-science/SKILL.md"), home,
+                                             "codex-science@codex-science", branch_version)
+            self.assertEqual(["different-runtime"], store_mismatch["loaded_runtime_versions"])
+            self.assertFalse(store_mismatch["runtime_under_test_matches_branch"])
+            store_manifest.unlink()
+            store_missing = _loaded_runtime(store_event(store_version, "skills/codex-science/SKILL.md"), home,
+                                            "codex-science@codex-science", branch_version)
+            self.assertEqual([store_version], store_missing["runtime_store_versions"])
+            self.assertEqual([], store_missing["loaded_runtime_versions"])
+            self.assertFalse(store_missing["runtime_under_test_matches_branch"])
+
+            outside_store = root / "outside-store"
+            outside_store.mkdir()
+            (store_base / "0.5.0+symlink").symlink_to(outside_store, target_is_directory=True)
+            symlinked = _loaded_runtime(store_event("0.5.0+symlink", "skills/ignored/SKILL.md"), home,
+                                        "codex-science@codex-science", branch_version)
+            self.assertEqual([], symlinked["loaded_runtime_versions"])
+            self.assertFalse(symlinked["runtime_under_test_matches_branch"])
+
+            store_manifest.parent.mkdir(parents=True, exist_ok=True)
+            store_manifest.write_text(json.dumps({"runtime_version": branch_version}), encoding="utf-8")
+            mixed_events = root / "mixed-runtime.jsonl"
+            mixed_command = (f"cat ~/.codex/plugins/cache/codex-science/codex-science/{matching_cache_version}/"
+                             f"skills/codex-science/SKILL.md; cat ~/.codex/plugins/data/{store_dir}/"
+                             f"runtime-cache/{store_version}/runtime-skills/codex-science/SKILL.md")
+            mixed_events.write_text(json.dumps({"event": {"type": "item.completed", "item": {
+                "type": "command_execution", "exit_code": 0, "command": mixed_command}}}) + "\n",
+                encoding="utf-8")
+            matching_manifest.write_text(json.dumps({"runtime_version": "different-runtime"}),
+                                         encoding="utf-8")
+            mixed = _loaded_runtime(mixed_events, home, "codex-science@codex-science", branch_version)
+            self.assertEqual([matching_cache_version], mixed["plugin_cache_versions"])
+            self.assertEqual([store_version], mixed["runtime_store_versions"])
+            self.assertFalse(mixed["runtime_under_test_matches_branch"])
+
+    def test_loaded_runtime_cache_only_tolerates_data_symlink_loop(self) -> None:
+        from codex_science.literature_evaluation_runner import _loaded_runtime
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = self._codex_home(root)
+            branch_version = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+            cache_version = "cache-only"
+            manifest = (home / "plugins/cache/codex-science/codex-science" / cache_version /
+                        "release/manifest.json")
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps({"runtime_version": branch_version}), encoding="utf-8")
+            events = root / "cache-only.jsonl"
+            command = ("cat ~/.codex/plugins/cache/codex-science/codex-science/"
+                       f"{cache_version}/skills/codex-science/SKILL.md")
+            events.write_text(json.dumps({"event": {"type": "item.completed", "item": {
+                "type": "command_execution", "exit_code": 0, "command": command}}}) + "\n",
+                encoding="utf-8")
+            data = home / "plugins/data"
+            data.symlink_to(data, target_is_directory=True)
+
+            result = _loaded_runtime(events, home, "codex-science@codex-science", branch_version)
+
+            self.assertEqual([cache_version], result["plugin_cache_versions"])
+            self.assertEqual([branch_version], result["loaded_runtime_versions"])
+            self.assertTrue(result["runtime_under_test_matches_branch"])
+
+    def test_loaded_runtime_store_path_ignores_parentheses(self) -> None:
+        from codex_science.literature_evaluation_runner import _loaded_runtime
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = self._codex_home(root)
+            branch_version = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+            store_dir = "codex-science-codex-science"
+            runtime_version = "v"
+            manifest = (home / "plugins/data" / store_dir / "runtime-cache" / runtime_version /
+                        "release/manifest.json")
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps({"runtime_version": branch_version}), encoding="utf-8")
+            store_prefix = f"~/.codex/plugins/data/{store_dir}/runtime-cache/{runtime_version}"
+            events = root / "parenthesized-store.jsonl"
+            command = f"cat {store_prefix}/x; (ls {store_prefix})"
+            events.write_text(json.dumps({"event": {"type": "item.completed", "item": {
+                "type": "command_execution", "exit_code": 0, "command": command}}}) + "\n",
+                encoding="utf-8")
+
+            result = _loaded_runtime(events, home, "codex-science@codex-science", branch_version)
+
+            self.assertEqual([runtime_version], result["runtime_store_versions"])
+            self.assertEqual([branch_version], result["loaded_runtime_versions"])
+            self.assertTrue(result["runtime_under_test_matches_branch"])
 
     def test_process_group_kill_tolerates_disappeared_process(self) -> None:
         from codex_science.literature_evaluation_runner import _kill_process_group
