@@ -100,6 +100,26 @@ denominator.
   standard-mrna, which was blocked in 4 of 8 runs; this is one sample and not
   evidence of a stable gain.
 
+- Run14 (`bf5a92b`), 6/6 (95% Wilson interval 61.0%-100%): quick 2/2 (quick-doi
+  77 seconds, quick-arxiv 82 seconds); standard-mrna completed in 1266 seconds;
+  standard-single-cell in 973 seconds; full-microbiome in 1432 seconds; and
+  full-protein-folding in 1374 seconds, its first pass in recorded runs
+  6–14. All six receipts matched the branch runtime. This was the first
+  run with every task completed and no provider policy block; standard-mrna has
+  been blocked in 4 of 9 runs, so this is one sample, not evidence of a stable
+  gain. Both full-tier tasks passed independent review in one round with minor
+  findings (three for protein-folding, two for microbiome), finishing with
+  about 370–430 seconds left; a second review round likely would not have fit,
+  leaving late major findings and late synthesis as risks. The advisory
+  pre-review lane checks emitted no findings in either full-tier run, so their
+  effect is unknown; sidecar-validation retries still occurred, apparently
+  fewer than run13 by a crude error-line count. A first run14 attempt used the
+  older installed plugin-cache runtime instead of the branch and was stopped
+  after one task; it is not counted or recorded. The recorded run used the
+  branch-eval marketplace; installer refreshes do not refresh the plugin cache
+  when the plugin version is unchanged, so installed Codex sessions can read
+  stale runtime skill text until that cache is refreshed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -107,7 +127,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–13 in order; duplicate
+receipt, then one summary row per run, for runs 6–14 in order; duplicate
 receipts are skipped. Each summary's `branch_runtime_version` identifies the
 runtime under test; runs 10 and 11 share one.
 
