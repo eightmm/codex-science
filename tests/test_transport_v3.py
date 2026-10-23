@@ -182,6 +182,43 @@ class TransportV3Tests(unittest.TestCase):
         self.assertEqual("negative", result.receipt.status)
         self.assertEqual("negative", result.receipt.missingness)
 
+    def test_europepmc_terminal_page_without_cursor_is_complete(self) -> None:
+        request = QueryRequest(
+            "europepmc", "search", {"query": "DOI:10.1038/nm.3444"},
+            page_size=20, source_contract_version="3",
+        )
+        transport = FakeTransport([
+            ({"hitCount": 1, "resultList": {"result": [{"id": "1", "source": "MED"}]}}, {}),
+        ])
+
+        result = execute_paginated(EuropePMCSearchV3(), request, transport=transport)
+
+        self.assertEqual("complete", result.receipt.status)
+        self.assertEqual(["1"], [record["id"] for record in result.records])
+        self.assertEqual(1, len(result.receipt.pages))
+        self.assertEqual(1, len(transport.requests))
+
+    def test_europepmc_missing_cursor_with_unaccounted_hits_is_schema_drift(self) -> None:
+        request = QueryRequest(
+            "europepmc", "search", {"query": "broad query"},
+            page_size=2, source_contract_version="3",
+        )
+        payload = {
+            "hitCount": 3,
+            "resultList": {"result": [{"id": "1", "source": "MED"}, {"id": "2", "source": "MED"}]},
+        }
+
+        short_request = QueryRequest(
+            "europepmc", "search", {"query": "narrow query"},
+            page_size=20, source_contract_version="3",
+        )
+        short_payload = {"hitCount": 2, "resultList": {"result": [{"id": "1", "source": "MED"}]}}
+        for paged_request, page in ((request, payload), (short_request, short_payload)):
+            with self.subTest(hit_count=page["hitCount"]), self.assertRaisesRegex(
+                ValueError, r"^schema-drift: europepmc pagination missing nextCursorMark$"
+            ):
+                execute_paginated(EuropePMCSearchV3(), paged_request, transport=FakeTransport([(page, {})]))
+
     def test_v3_pagination_missing_keys_have_schema_drift_labels(self) -> None:
         cases = (
             (

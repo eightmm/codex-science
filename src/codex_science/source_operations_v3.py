@@ -158,14 +158,26 @@ class EuropePMCSearchV3:
             returned = _europepmc_results(payload)
         except ValueError as error:
             raise _pagination_drift(self.source, error) from error
-        if not returned:
+        if not isinstance(payload, Mapping) or "nextCursorMark" not in payload:
+            try:
+                hit_count = _required_value(payload, "hitCount")
+                if isinstance(hit_count, bool) or not isinstance(hit_count, int) or hit_count < 0:
+                    raise ValueError("invalid hitCount: expected non-negative integer")
+                if hit_count > page_index * request.page_size + len(returned):
+                    raise ValueError("missing nextCursorMark")
+            except ValueError as error:
+                if str(error) == "missing hitCount":
+                    error = ValueError("missing nextCursorMark")
+                raise _pagination_drift(self.source, error) from error
             return None
         try:
-            cursor = _required_value(payload, "nextCursorMark")
+            cursor = payload["nextCursorMark"]
             if not isinstance(cursor, str):
                 raise ValueError("invalid nextCursorMark: expected string")
         except ValueError as error:
             raise _pagination_drift(self.source, error) from error
+        if not returned:
+            return None
         if not cursor or cursor == page_request.cursor:
             return None
         parsed = urllib.parse.urlsplit(page_request.url)

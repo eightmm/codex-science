@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- EuropePMC searches accept a final page without `nextCursorMark` when the received records account for `hitCount`; identifier and other small queries no longer fail as pagination drift.
 - Full-text JATS rendering now keeps document order, section titles and table rows, emits nested captions once, and skips reference lists; literature-review guidance points to `fetch_open_fulltext.py` for open-access PMC full text.
 - Added a deterministic literature-guided method allocator (`allocate_method_candidates.py`) and research-discovery guidance for literature-guided candidates and paired-bootstrap replacement of the incumbent method.
 - `package_run.py exec --invalidate-review` can be rerun after an interrupted archive; entries already copied into `review-rounds/` with matching hashes are dropped.
