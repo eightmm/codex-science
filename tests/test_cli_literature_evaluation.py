@@ -401,12 +401,57 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
             runtime_manifest.write_text(json.dumps({"runtime_version": "different-runtime"}), encoding="utf-8")
             preflight = _preflight(str(binary), home)
             self.assertIn("installed_runtime_differs_from_branch", preflight["warnings"])
+            self.assertIsNone(preflight["runtime_store_note"])
             second = runtime_manifest.parents[2] / "0.5.1" / "release" / "manifest.json"
             second.parent.mkdir(parents=True)
             second.write_text(json.dumps({"runtime_version": "different-runtime"}), encoding="utf-8")
             ambiguous = _preflight(str(binary), home)
             self.assertEqual("unknown", ambiguous["installed_runtime_version"])
             self.assertEqual("unknown", ambiguous["installed_plugin_version"])
+
+    def test_preflight_runtime_store_requires_verified_receipt(self) -> None:
+        from codex_science.literature_evaluation_runner import _preflight
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = self._codex_home(root)
+            branch = json.loads((ROOT / "release/manifest.json").read_text(encoding="utf-8"))["runtime_version"]
+            store = home / "plugins/data/codex-science-codex-science/runtime-cache" / branch
+            manifest = store / "release/manifest.json"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps({"runtime_version": branch}), encoding="utf-8")
+            cache_manifest = home / "plugins/cache/codex-science/codex-science/0.5.0/release/manifest.json"
+            cache_manifest.write_text(json.dumps({"runtime_version": "old-runtime"}), encoding="utf-8")
+            (home / "config.toml").write_text(
+                '[hooks.state]\n"codex-science@codex-science:session" = { enabled = true }\n', encoding="utf-8")
+
+            manifest_only = _preflight(str(self._fake_codex(root)), home)
+            self.assertEqual([], manifest_only["runtime_store_versions"])
+            self.assertIn("installed_runtime_differs_from_branch", manifest_only["warnings"])
+            self.assertIsNone(manifest_only["runtime_store_note"])
+
+            receipt = {"schema_version": 2, "runtime_version": branch,
+                       "files": {"release/manifest.json": hashlib.sha256(manifest.read_bytes()).hexdigest()}}
+            receipt["receipt_sha256"] = hashlib.sha256(
+                json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            receipt_path = (home / "plugins/data/codex-science-codex-science/runtime-receipts"
+                            / f"{hashlib.sha256(branch.encode('utf-8')).hexdigest()}.json")
+            receipt_path.parent.mkdir(parents=True)
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+            valid = _preflight(str(self._fake_codex(root)), home)
+            self.assertEqual([branch], valid["runtime_store_versions"])
+            self.assertTrue(valid["runtime_store_has_branch"])
+            self.assertIn("installed_runtime_differs_from_branch", valid["warnings"])
+            self.assertEqual("hooks may pin the branch runtime from the store; check runtime_store_versions in receipts",
+                             valid["runtime_store_note"])
+
+            receipt_path.write_text(json.dumps(dict(receipt, receipt_sha256="0" * 64)), encoding="utf-8")
+            tampered = _preflight("codex", home)
+            self.assertEqual([], tampered["runtime_store_versions"])
+            self.assertIn("installed_runtime_differs_from_branch", tampered["warnings"])
+            self.assertIsNone(tampered["runtime_store_note"])
 
     def test_dry_runs_atomically_replace_plan_in_existing_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

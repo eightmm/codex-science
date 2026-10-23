@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a shared run-packaging CLI to record executions and refresh manifest hashes; it assumes a single writer per run directory.
+- Added a run-directory literature retrieval CLI that snapshots EuropePMC/PubMed pages, appends the query ledger, and writes EuropePMC abstract sources.
+- Literature-review guidance now uses the packaging CLI (including archived review rounds), spawns the independent reviewer early, and lists excerpt-length and study-ID agreement rules.
+- The evaluation preflight lists receipt-verified runtime-store versions and notes when enabled hooks may pin the branch runtime; receipts remain authoritative.
 - Literature evaluation recognizes hook-pinned runtime-store paths in loaded-runtime receipts.
 - Documented allowed literature sidecar values and record-level screening rules.
 - Checkpoint `advance` early checks now add advisory findings when a lane lists a supported claim without a supports edge from its included records, or when no execution-recorded hash for a lane output matches the manifest; gates are unchanged.

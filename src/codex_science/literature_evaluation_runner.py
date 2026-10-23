@@ -8,6 +8,7 @@ import os
 import queue
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -498,6 +499,79 @@ def _hook_state_entries(hooks: Any, plugin_selector: str = _DEFAULT_PLUGIN) -> l
     return rows
 
 
+def _preflight_runtime_store_versions(codex_home: Path, plugin_selector: str) -> list[str]:
+    marketplace = plugin_selector.split("@", 1)[1]
+    data_root = codex_home / "plugins" / "data"
+    store_dir = f"codex-science-{marketplace}"
+    runtime_cache = data_root / store_dir / "runtime-cache"
+    try:
+        resolved_data_root = data_root.resolve()
+        if data_root.is_symlink() or (data_root / store_dir).is_symlink() or runtime_cache.is_symlink():
+            return []
+        entries = list(runtime_cache.iterdir())
+    except (OSError, RuntimeError):
+        return []
+    versions = []
+    for path in entries:
+        try:
+            if path.is_symlink() or not path.is_dir() or not path.resolve().is_relative_to(resolved_data_root):
+                continue
+        except (OSError, RuntimeError):
+            continue
+        if (_store_manifest_value(path, codex_home, "runtime_version") == path.name
+                and _preflight_store_receipt_verified(path, codex_home, path.name)):
+            versions.append(path.name)
+    return sorted(versions)
+
+
+def _preflight_store_receipt_verified(version_dir: Path, codex_home: Path, version: str) -> bool:
+    # This advisory listing is not the canonical runtime verifier; receipts decide.
+    receipt_key = hashlib.sha256(version.encode("utf-8")).hexdigest()
+    receipt_path = (codex_home / "plugins" / "data" / version_dir.parent.parent.name
+                    / "runtime-receipts" / f"{receipt_key}.json")
+    try:
+        metadata = receipt_path.lstat()
+        if receipt_path.is_symlink() or not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 8 * 1024 * 1024:
+            return False
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, RuntimeError, UnicodeError, ValueError):
+        return False
+    if not isinstance(receipt, dict) or receipt.get("schema_version") != 2 or receipt.get("runtime_version") != version:
+        return False
+    recorded_digest = receipt.get("receipt_sha256")
+    payload = dict(receipt)
+    payload.pop("receipt_sha256", None)
+    actual_digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    files = receipt.get("files")
+    if recorded_digest != actual_digest or not isinstance(files, dict):
+        return False
+    for relative, expected in files.items():
+        if (not isinstance(relative, str) or not isinstance(expected, str)
+                or PurePosixPath(relative).is_absolute()
+                or any(part in {"", ".", ".."} for part in relative.split("/"))):
+            return False
+        candidate = version_dir / relative
+        try:
+            item_metadata = candidate.lstat()
+            if expected.startswith("link:"):
+                if not stat.S_ISLNK(item_metadata.st_mode) or f"link:{os.readlink(candidate)}" != expected:
+                    return False
+            elif not stat.S_ISREG(item_metadata.st_mode):
+                return False
+            elif hashlib.sha256(candidate.read_bytes()).hexdigest() != expected:
+                return False
+        except (OSError, RuntimeError, ValueError):
+            return False
+    manifest_hash = files.get("release/manifest.json")
+    manifest_path = version_dir / "release" / "manifest.json"
+    if not isinstance(manifest_hash, str) or manifest_path.is_symlink() or not manifest_path.is_file():
+        return False
+    try:
+        return hashlib.sha256(manifest_path.read_bytes()).hexdigest() == manifest_hash
+    except OSError:
+        return False
+
+
 def _preflight(codex: str, codex_home: Path, plugin_selector: str = _DEFAULT_PLUGIN) -> dict[str, Any]:
     config_path = codex_home / "config.toml"
     config: dict[str, Any] = {}
@@ -517,9 +591,17 @@ def _preflight(codex: str, codex_home: Path, plugin_selector: str = _DEFAULT_PLU
     cache_versions = _cache_versions(codex_home, plugin_selector)
     installed_runtime = (_manifest_value(cache_versions[0], codex_home, "runtime_version")
                          if len(cache_versions) == 1 else _UNKNOWN)
+    runtime_store_versions = _preflight_runtime_store_versions(codex_home, plugin_selector)
+    runtime_store_has_branch = branch_version != _UNKNOWN and branch_version in runtime_store_versions
+    hooks_state = _hook_state_entries(config.get("hooks"), plugin_selector)
+    hooks_pin_store = bool(hooks_state) and all(item["enabled"] is True for item in hooks_state)
     warnings = []
     if installed_runtime != _UNKNOWN and branch_version != _UNKNOWN and installed_runtime != branch_version:
         warnings.append("installed_runtime_differs_from_branch")
+    runtime_store_note = ("hooks may pin the branch runtime from the store; check runtime_store_versions in receipts"
+                          if installed_runtime != _UNKNOWN and branch_version != _UNKNOWN
+                          and installed_runtime != branch_version and runtime_store_has_branch and hooks_pin_store
+                          else None)
     if plugin_selector != _DEFAULT_PLUGIN and installed_version == _UNKNOWN:
         warnings.append("selected_plugin_not_installed")
     enabled_override = True if installed_version != _UNKNOWN else _UNKNOWN
@@ -527,7 +609,7 @@ def _preflight(codex: str, codex_home: Path, plugin_selector: str = _DEFAULT_PLU
         "codex_version": _codex_version(codex),
         "codex_science_enabled": (enabled_override if plugin_selector != _DEFAULT_PLUGIN
                                    else enabled if isinstance(enabled, bool) else _UNKNOWN),
-        "codex_science_hooks_state": _hook_state_entries(config.get("hooks"), plugin_selector),
+        "codex_science_hooks_state": hooks_state,
         "configured": {key: _simple_config_value(config, key)
                        for key in ("sandbox_mode", "approval_policy", "approvals_reviewer")},
         "argv_overrides": {"sandbox_mode": "workspace-write", "network_access": True,
@@ -538,6 +620,9 @@ def _preflight(codex: str, codex_home: Path, plugin_selector: str = _DEFAULT_PLU
         "installed_plugin_version": installed_version,
         "installed_runtime_version": installed_runtime,
         "branch_runtime_version": branch_version,
+        "runtime_store_versions": runtime_store_versions,
+        "runtime_store_has_branch": runtime_store_has_branch,
+        "runtime_store_note": runtime_store_note,
         "warnings": warnings,
         "config_status": config_status,
     }

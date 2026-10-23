@@ -12,6 +12,30 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class LiteratureReviewGuidanceTests(unittest.TestCase):
+    def test_run_packaging_guidance_uses_package_run_commands(self):
+        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn('"<plugin-root>/scripts/package_run.py" exec --run-dir <run-dir>', text)
+        self.assertIn('"<plugin-root>/scripts/package_run.py" refresh --run-dir <run-dir>', text)
+        self.assertIn('"<plugin-root>/scripts/retrieve_literature.py" --run-dir <run-dir>', text)
+        self.assertIn("--default-kind provenance-record [--kind PATH_OR_GLOB=KIND]", text)
+        self.assertIn("refresh --run-dir <run-dir> --register-receipt <receipt>", text)
+        self.assertIn("--invalidate-review` once; it archives that review round under `review-rounds/<n>/`", text)
+        self.assertIn("Refresh refuses while current-round review evidence exists", text)
+        self.assertIn("Author `manifest.json` once", text)
+        self.assertIn("after every sidecar edit", text)
+
+    def test_reviewer_is_spawned_early_and_wait_work_avoids_reviewed_artifacts(self):
+        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Spawn the independent `$science-review` reviewer immediately after the packet is prepared", text)
+        self.assertIn("work only on material that touches no reviewed artifact", text)
+        self.assertIn("prefer one long wait over repeated short waits", text)
+        self.assertIn("After the independent review passes, do not modify reviewed artifacts", text)
+
+    def test_sidecar_cross_checks_are_documented(self):
+        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Support-excerpt text in `studies.json` must be 20..2000 characters", text)
+        self.assertIn("set of `type: study` node IDs in `evidence_graph.json` must equal the study IDs in `studies.json`", text)
+
     def test_allowed_values_block_matches_validator_constants(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
         block = text.split("Allowed values (each field is checked by its named validator):\n", 1)[1].split("\n\n", 1)[0]
