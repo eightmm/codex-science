@@ -24,6 +24,8 @@ Use:
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_literature_review.py" previous.json current.json --output diff.json
 ```
 
+Build extraction output with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/build_study_table.py" --run-dir <run-dir> --extraction <file>`.
+
 ## Invalidation
 
 Invalidate the previous review receipt when covered queries, source snapshots, study table, evidence graph, extraction, claim register, or report bytes change. A narrative that appears unchanged still requires re-review when its evidence dependencies changed.

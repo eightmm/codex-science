@@ -19,7 +19,7 @@ _ID = re.compile(
     r"|(?<!\w)(?:https?://pubmed\.ncbi\.nlm\.nih\.gov/|pmid:\s*)(\d{5,9})(?!\w)"
     r"|\b(PMC\d+)\b|(?<!\w)(?:https?://arxiv\.org/(?:abs|pdf)/|arxiv:\s*)([a-z][a-z0-9.-]*/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?(?!\w)",
 )
-_ID_FIELDS = {"persistent_id", "persistent_ids", "doi", "pmid", "pmcid", "arxiv", "returned_record_ids", "included_records"}
+_ID_FIELDS = {"persistent_id", "persistent_ids", "identifiers", "doi", "pmid", "pmcid", "arxiv", "returned_record_ids", "included_records"}
 _FALLBACK = {
     "study-table": "studies.json", "query-ledger": "queries.jsonl",
     "lane-receipt": "lanes/pubmed-search.json",

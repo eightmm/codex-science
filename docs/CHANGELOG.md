@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added `build_study_table.py` to build `studies.json` from `screening.json` includes plus a declarative `study-extraction-v1` file: it fills titles, identifiers, `persistent_id`, dates and query provenance, hashes and verifies every excerpt against its source, preserves `cohort_id`, refuses a stale candidate snapshot, and aggregates coverage and excerpt errors before writing. `trace_citations.py` also reads a study's `identifiers` list.
 - `package_run.py refresh` no longer treats a `deterministic-review*.json` validator output as independent review evidence; it proceeds without `--invalidate-review` and lists the file under `stale_deterministic_review` (it is still archived with a real review round).
 - `science_checkpoint.py advance` without `--next` starts the next pending step in declared order, and `advance --next STEP` without `--complete` recovers a checkpoint left with no step in progress; the mismatch error lists pending steps.
 - `validate_artifact.py` reports validation failures as `error:` lines (with a refresh hint for digest mismatches) instead of tracebacks.

@@ -76,6 +76,21 @@ class CitationTraceTests(unittest.TestCase):
             (run / "report.md").write_text("Cites doi:10.0000/example.primary.1.\n", encoding="utf-8")
             self.assertEqual(trace_citations(run)["uncited_included"], [])
 
+    def test_pmid_in_identifiers_is_citation_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp) / "run"
+            shutil.copytree(EXAMPLE, run)
+            study_path = run / "studies.json"
+            study = json.loads(study_path.read_text(encoding="utf-8"))
+            study["studies"][0]["identifiers"] = ["pmid:12345678"]
+            study["studies"][0].pop("pmid", None)
+            study["studies"][0]["persistent_id"] = "doi:10.0000/example.primary.1"
+            study_path.write_text(json.dumps(study), encoding="utf-8")
+            (run / "report.md").write_text("Cites PMID:12345678.\n", encoding="utf-8")
+            result = trace_citations(run)
+            self.assertEqual(["pmid:12345678"], [item["identifier"] for item in result["traced"]])
+            self.assertEqual([], result["orphans"])
+
     def test_uncited_included_study_has_ids(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             run = Path(temp) / "run"
