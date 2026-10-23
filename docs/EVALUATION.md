@@ -71,9 +71,9 @@ change outcome, stop reason, or either completion rate, and remain absent for le
 
 ### Recorded real runs
 
-Runs 6–15 were single Codex runs on the frozen six-task literature benchmark
+Runs 6–16 were single Codex runs on the frozen six-task literature benchmark
 with an 1800-second cap, completing 3/6, 4/6, 3/6, 4/6, 4/6, 3/6, 3/6,
-5/6, 6/6, and 5/6 tasks. Run8 was the first run with a full-tier pass. Provider policy
+5/6, 6/6, 5/6, and 3/6 tasks. Run8 was the first run with a full-tier pass. Provider policy
 blocks remain failures in both completion rates and are never removed from the
 denominator.
 
@@ -133,6 +133,29 @@ denominator.
   Standard-mrna has been blocked in 5 of 10 runs. Runs 14 and 15 are two
   measurements of one SHA, still a small sample.
 
+- Run16 (`4d644cb`, runtime `0.5.0+codex.20261023090000`), 3/6: quick-doi
+  completed in 109 seconds and quick-arxiv in 66 seconds; full-microbiome
+  completed in 1561 seconds. Standard-mrna was blocked by provider policy at
+  558 seconds and counted as a failure. Full-protein-folding (224 seconds) and
+  standard-single-cell (1467 seconds) stopped with "Selected model is at
+  capacity" and are provider infrastructure failures, not product evidence;
+  the secondary rate excluding these failures is 3/4. Run16b reran only those
+  two tasks on the same SHA and runtime: standard-single-cell completed in 1516
+  seconds and full-protein-folding timed out at 1800 seconds. Its independent
+  review started at about 1747 seconds; most time went to authoring run-specific
+  screening, extraction, and assessment scripts, plus a fallback metadata
+  fetcher after EuropePMC identifier queries failed on a final page without
+  `nextCursorMark` (fixed in the following commit; see CHANGELOG). Combining
+  run16's non-capacity tasks with these reruns, 4/6 tasks completed;
+  standard-mrna has been blocked by provider policy in 6 of 11 runs (runs
+  6–16). Wall time did not improve over run15 (microbiome 1561 vs 1504 seconds;
+  single-cell 1516 vs 1419 seconds); with one sample each, this establishes no
+  trend. The run-packaging CLI (`scripts/package_run.py`) and run-directory
+  retrieval CLI (`scripts/retrieve_literature.py`) were invoked in every
+  standard- and full-tier run16 task. Run-specific scripts remained for
+  screening merges, extraction, and full-text parsing; full-text parsing is
+  addressed by the structured JATS rendering in `fetch_open_fulltext.py`.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -140,9 +163,27 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–15 in order; duplicate
-receipts are skipped. Each summary's `branch_runtime_version` identifies the
-runtime under test; runs 10 and 11 share one, as do runs 14 and 15.
+receipt, then one summary row per run, for runs 6–16 in order and run16b as a
+two-task rerun; duplicate receipts are skipped. Each summary's
+`branch_runtime_version` identifies the runtime under test; runs 10 and 11
+share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA.
+
+### Run packaging and literature retrieval CLIs
+
+`scripts/package_run.py exec --run-dir RUN [--id ID] -- CMD ...` records a
+command execution, log, and digests in `execution-log.jsonl`. Its
+`refresh --run-dir RUN --default-kind KIND [--kind PATH_OR_GLOB=KIND]` command
+re-hashes manifest artifacts, lane outputs, code, and executions.
+`--invalidate-review` archives a review round under `review-rounds/<n>/` and
+can itself be rerun after an interrupted archive; `--register-receipt RECEIPT`
+records a passed review. Use a single writer per run directory.
+
+`scripts/retrieve_literature.py --run-dir RUN {europepmc,pubmed} QUERY
+[--page-size N] [--max-pages N] [--evidence-cutoff DATE] [--abstracts]`
+snapshots result pages under `raw/queries/<query_id>/` and appends
+`queries.jsonl` with status (complete, partial, or failed), response hash,
+records returned, and hit count. With `--abstracts`, it writes EuropePMC
+abstracts under `sources/`.
 
 The opt-in `scripts/estimate_saturation.py` estimates remaining discovery from
 logged checkpoints; `scripts/trace_citations.py` checks report identifiers
