@@ -14,6 +14,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from codex_science.checkpoints import (
+    _write_checkpoint,
     advance_checkpoint,
     block_checkpoint,
     claim_checkpoint,
@@ -387,6 +388,63 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual("completed", statuses["orient"])
         self.assertEqual("in_progress", statuses["analyze"])
         self.assertEqual("analyze", checkpoint["current_step"])
+
+    def test_advance_without_next_starts_first_pending_step_and_finishes_at_none(self) -> None:
+        self.create()
+        checkpoint = advance_checkpoint(
+            self.run_dir, completed_step="orient", next_step=None,
+            next_action="Continue",
+        )
+        self.assertEqual("analyze", checkpoint["current_step"])
+        checkpoint = advance_checkpoint(
+            self.run_dir, completed_step="analyze", next_step="review",
+            next_action="Review",
+        )
+        checkpoint = advance_checkpoint(
+            self.run_dir, completed_step="review", next_step=None,
+            next_action="Done",
+        )
+        self.assertIsNone(checkpoint["current_step"])
+
+    def test_cli_advance_recovers_cursorless_pending_checkpoint_without_complete(self) -> None:
+        self.create()
+        checkpoint = load_checkpoint(self.run_dir)
+        checkpoint["current_step"] = None
+        for step in checkpoint["steps"]:
+            if step["status"] == "in_progress":
+                step["status"] = "pending"
+        _write_checkpoint(self.run_dir, checkpoint)
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_checkpoint.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "advance", str(self.run_dir), "--next", "orient", "--next-action", "Recover"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("orient", json.loads(result.stdout)["current_step"])
+
+    def test_advance_without_complete_refuses_when_step_is_in_progress(self) -> None:
+        self.create()
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_checkpoint.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "advance", str(self.run_dir), "--next", "analyze", "--next-action", "Continue"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("orient", result.stderr)
+
+    def test_cursorless_mismatch_lists_pending_recovery_steps(self) -> None:
+        self.create()
+        checkpoint = load_checkpoint(self.run_dir)
+        checkpoint["current_step"] = None
+        for step in checkpoint["steps"]:
+            if step["status"] == "in_progress":
+                step["status"] = "pending"
+        _write_checkpoint(self.run_dir, checkpoint)
+        with self.assertRaisesRegex(ValueError, r"no step is in progress.*orient.*--next STEP"):
+            advance_checkpoint(
+                self.run_dir, completed_step="orient", next_step=None,
+                next_action="Continue",
+            )
 
     def test_retry_budget_requires_a_changed_decision_after_three_attempts(self) -> None:
         self.create()

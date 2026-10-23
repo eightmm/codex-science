@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -34,8 +35,8 @@ class ScreenCandidatesTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_cli(self, *args):
-        return subprocess.run([sys.executable, str(SCRIPT), *map(str, args)], capture_output=True, text=True, check=False)
+    def run_cli(self, *args, cwd=None):
+        return subprocess.run([sys.executable, str(SCRIPT), *map(str, args)], capture_output=True, text=True, check=False, cwd=cwd)
 
     def pool(self):
         result = self.run_cli("pool", "--run-dir", self.root)
@@ -107,6 +108,44 @@ class ScreenCandidatesTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256((self.root / "candidates.json").read_bytes()).hexdigest(), table["candidates_sha256"])
         self.assertIn("awaiting-full-text", table["counts"])
         self.assertEqual(1, table["counts"]["awaiting-full-text"])
+
+    def test_cwd_relative_path_containing_run_directory_resolves(self):
+        pool = self.pool()
+        decisions = {"schema": "screening-decisions-v1", "reviewer": "R", "stage": "abstract", "groups": [
+            {"decision": "include", "criterion": "eligible", "rationale": "checked", "record_ids": [pool["records"][0]["record_id"]]},
+        ]}
+        decisions_path = self.root / "screening-decisions.json"
+        decisions_path.write_text(json.dumps(decisions), encoding="utf-8")
+        result = self.run_cli("apply", "--run-dir", self.root, "--decisions", self.root.name + "/screening-decisions.json", cwd=self.root.parent)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue((self.root / "screening.json").is_file())
+
+    def test_missing_top_level_fields_are_reported_together(self):
+        self.pool()
+        (self.root / "decisions.json").write_text("{}", encoding="utf-8")
+        result = self.run_cli("apply", "--run-dir", self.root, "--decisions", "decisions.json")
+        self.assertNotEqual(0, result.returncode)
+        for field in ("schema", "reviewer", "stage", "groups"):
+            self.assertIn(field, result.stderr)
+
+    def test_apply_help_example_parses_and_applies(self):
+        pool = self.pool()
+        help_result = self.run_cli("apply", "--help")
+        self.assertEqual(0, help_result.returncode, help_result.stderr)
+        match = re.search(r"```json\n(.*?)\n```", help_result.stdout, re.DOTALL)
+        self.assertIsNotNone(match, help_result.stdout)
+        decisions = json.loads(match.group(1))
+        with_abstract = [row["record_id"] for row in pool["records"] if row["abstract_artifact"]]
+        without_abstract = [row["record_id"] for row in pool["records"] if not row["abstract_artifact"]]
+        self.assertTrue(with_abstract)
+        self.assertTrue(without_abstract)
+        decisions["groups"][0]["record_ids"] = with_abstract
+        decisions["groups"][1]["record_ids"] = without_abstract
+        (self.root / "fulltext").mkdir()
+        (self.root / "fulltext/article.txt").write_text("full text evidence", encoding="utf-8")
+        (self.root / "decisions.json").write_text(json.dumps(decisions), encoding="utf-8")
+        result = self.run_cli("apply", "--run-dir", self.root, "--decisions", "decisions.json")
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_refusals_do_not_write_screening(self):
         pool = self.pool()

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `package_run.py refresh` no longer treats a `deterministic-review*.json` validator output as independent review evidence; it proceeds without `--invalidate-review` and lists the file under `stale_deterministic_review` (it is still archived with a real review round).
+- `science_checkpoint.py advance` without `--next` starts the next pending step in declared order, and `advance --next STEP` without `--complete` recovers a checkpoint left with no step in progress; the mismatch error lists pending steps.
+- `validate_artifact.py` reports validation failures as `error:` lines (with a refresh hint for digest mismatches) instead of tracebacks.
+- `screen_candidates.py apply` accepts a decisions path relative to the working directory when it lies inside the run directory, reports all missing top-level fields at once, and documents the `screening-decisions-v1` format in `apply --help`.
+- Recorded run17 literature-evaluation results (4/6) with the mid-run configuration overwrite confound.
 - Added `screen_candidates.py` to pool query results into a deduplicated `candidates.json` (identifier chains merged, native Europe PMC responses accepted, unreadable results listed as skipped) and to apply grouped screening decisions into a hashed `screening.json` that refuses unassigned records and title-only exclusions.
 - Recorded run16 and run16b literature-evaluation results and documented the run-packaging and literature-retrieval CLIs.
 - EuropePMC searches accept a final page without `nextCursorMark` when the received records account for `hitCount`; identifier and other small queries no longer fail as pagination drift.

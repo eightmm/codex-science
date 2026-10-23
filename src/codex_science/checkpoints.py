@@ -1135,18 +1135,33 @@ def find_active_checkpoint(workspace: Path, session_key: str) -> Path | None:
 def advance_checkpoint(
     run_dir: Path,
     *,
-    completed_step: str,
+    completed_step: str | None,
     next_step: str | None,
     next_action: str,
 ) -> dict[str, Any]:
-    """Complete the current step and optionally start a pending step."""
+    """Complete the current step or recover a cursorless checkpoint."""
     checkpoint = load_checkpoint(Path(run_dir))
     if checkpoint["state"] != "active":
         raise ValueError("only an active checkpoint can advance")
-    if checkpoint["current_step"] != completed_step:
-        raise ValueError(f"completed_step must be the current step: {checkpoint['current_step']}")
     by_id = {step["id"]: step for step in checkpoint["steps"]}
-    by_id[completed_step]["status"] = "completed"
+    current_step = checkpoint["current_step"]
+    if completed_step is None:
+        if current_step is not None:
+            raise ValueError(f"cannot start a pending step while current step {current_step!r} is in progress; --complete is required")
+        if next_step is None:
+            raise ValueError("--next is required when no step is in progress")
+    elif current_step != completed_step:
+        if current_step is None:
+            pending = [step["id"] for step in checkpoint["steps"] if step["status"] == "pending"]
+            raise ValueError(
+                "completed_step must be the current step: no step is in progress; "
+                f"pending steps: {', '.join(pending) or '(none)'}. Recover with advance RUN --next STEP --next-action TEXT"
+            )
+        raise ValueError(f"completed_step must be the current step: {current_step}")
+    else:
+        by_id[completed_step]["status"] = "completed"
+    if next_step is None and completed_step is not None:
+        next_step = next((step["id"] for step in checkpoint["steps"] if step["status"] == "pending"), None)
     if next_step is not None:
         if next_step not in by_id:
             raise ValueError(f"unknown next step: {next_step}")

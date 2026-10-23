@@ -17,7 +17,37 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     pool_parser = subparsers.add_parser("pool", help="merge query results into candidates.json")
     pool_parser.add_argument("--run-dir", type=Path, required=True)
-    apply_parser = subparsers.add_parser("apply", help="apply screening decisions to the candidate pool")
+    apply_parser = subparsers.add_parser(
+        "apply", help="apply screening decisions to the candidate pool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''Decisions file format (screening-decisions-v1):
+
+```json
+{
+  "schema": "screening-decisions-v1",
+  "reviewer": "Reviewer name",
+  "stage": "full text",
+  "groups": [
+    {
+      "decision": "include",
+      "criterion": "Meets the protocol eligibility criteria",
+      "rationale": "Eligible based on the available abstract.",
+      "record_ids": ["<record_id_with_abstract>"]
+    },
+    {
+      "decision": "exclude",
+      "criterion": "Does not meet the protocol population criterion",
+      "rationale": "Checked fulltext/article.txt; the study population is ineligible.",
+      "record_ids": ["<record_id_without_abstract>"]
+    }
+  ]
+}
+```
+
+For an exclusion without an abstract, include an existing run-relative
+`fulltext/...` artifact path in the rationale so its contents are hashed as
+the evidence. Replace the example record IDs with IDs from candidates.json.''',
+    )
     apply_parser.add_argument("--run-dir", type=Path, required=True)
     apply_parser.add_argument("--decisions", type=Path, required=True)
     args = parser.parse_args(argv)

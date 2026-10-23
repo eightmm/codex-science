@@ -265,11 +265,14 @@ def _kind(path: str, overrides: list[tuple[str, str]], default_kind: str | None 
     return default_kind
 
 
+def _is_deterministic_review_file(path: Path) -> bool:
+    name = path.name.lower()
+    return name.startswith("deterministic-review") and path.suffix.lower() == ".json"
+
+
 def _is_review_flow_file(path: Path) -> bool:
     name = path.name.lower()
     if name in {"review-task.json", "reviewer-response.json", "reviewer-notes.md"}:
-        return True
-    if name.startswith("deterministic-review") and path.suffix.lower() == ".json":
         return True
     if any(tag in name for tag in ("review-receipt", "review-packet", "review-response")):
         return True
@@ -422,9 +425,20 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
     review = manifest.get("review", {})
     review_artifacts = [item for item in artifacts if isinstance(item, dict) and item.get("kind") in REVIEW_KINDS]
     review_files = _review_flow_files(run_dir)
+    has_review_evidence = bool(
+        review_artifacts
+        or (isinstance(review, dict) and review.get("status", "pending") != "pending")
+        or review_files
+    )
+    deterministic_files = [
+        path for path in run_dir.rglob("*")
+        if path.is_file()
+        and "review-rounds" not in path.relative_to(run_dir).parts
+        and _is_deterministic_review_file(path)
+    ]
     review_archive, archive_moves = (None, [])
     archived_sources: set[str] = set()
-    if review_artifacts or (isinstance(review, dict) and review.get("status", "pending") != "pending") or review_files:
+    if has_review_evidence:
         if not invalidate_review:
             raise ValueError(
                 "Run has independent review evidence; any change invalidates the independent review. "
@@ -433,7 +447,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             )
         review_artifact_paths = [str(item.get("path", "")) for item in review_artifacts]
         review_archive, archive_moves, archived_sources = _plan_review_archive(
-            run_dir, review_files, review_artifact_paths, review_artifacts
+            run_dir, [*review_files, *deterministic_files], review_artifact_paths, review_artifacts
         )
         archived_sources.update(_canonical_relative(source) for source, _destination in archive_moves)
         print("warning: invalidating independent review; review files will be archived", file=sys.stderr)
@@ -546,7 +560,13 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         _inside(run_dir, canonical)
         if "__pycache__" in PurePosixPath(canonical).parts or target.suffix == ".pyc":
             continue
-        if canonical in archived_sources or canonical in by_path or canonical in excluded or target.name in excluded or canonical.startswith("logs/") or canonical.startswith(".review/") or "review-rounds" in PurePosixPath(canonical).parts or any(part in {"review", "reviews"} for part in PurePosixPath(canonical).parts):
+        if (
+            canonical in archived_sources or canonical in by_path or canonical in excluded
+            or target.name in excluded or _is_deterministic_review_file(target)
+            or canonical.startswith("logs/") or canonical.startswith(".review/")
+            or "review-rounds" in PurePosixPath(canonical).parts
+            or any(part in {"review", "reviews"} for part in PurePosixPath(canonical).parts)
+        ):
             continue
         if _is_review_flow_file(target):
             continue
@@ -648,7 +668,13 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
     _atomic_commit(run_dir, lane_updates, manifest, archive_moves)
     if review_archive:
         print(f"Archived prior review files to {review_archive}")
+    archived_deterministic = {_canonical_relative(source) for source, _destination in archive_moves}
+    stale_deterministic_review = [
+        path.relative_to(run_dir).as_posix() for path in deterministic_files
+        if _canonical_relative(path.relative_to(run_dir).as_posix()) not in archived_deterministic
+    ]
     return {"added": added, "rehashed_changed": changed,
             "unchanged_count": unchanged, "lanes_updated": lanes_updated, "executions_added": executions_added,
             "code_entries": len(manifest["code"]), "review_archive": review_archive,
-            "superseded_failures": superseded_failures}
+            "superseded_failures": superseded_failures,
+            "stale_deterministic_review": stale_deterministic_review}

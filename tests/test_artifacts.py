@@ -558,6 +558,26 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertNotEqual(0, escaped.returncode)
             self.assertIn("resolves outside the run bundle", escaped.stderr)
 
+    def test_validate_artifact_reports_digest_errors_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest_path = self._make_run(root)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["artifacts"][0]["sha256"] = "b" * 64
+            write_manifest(manifest, manifest_path)
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            result = subprocess.run(
+                [sys.executable, "-I", "-S", str(validator), str(manifest_path)],
+                cwd=self.repository_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(1, result.returncode)
+            self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+            self.assertIn("package_run.py refresh --run-dir", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_user_facing_plugin_scripts_do_not_require_project_install(self) -> None:
         example = self.repository_root / "examples" / "reviewed-run" / "manifest.json"
         commands = (

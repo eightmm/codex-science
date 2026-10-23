@@ -227,7 +227,11 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
         except ValueError as error:
             raise ValueError("decisions file must be inside the run directory") from error
     else:
-        decisions_relative = decisions_arg
+        cwd_candidate = decisions_arg.absolute()
+        try:
+            decisions_relative = cwd_candidate.relative_to(root)
+        except ValueError:
+            decisions_relative = decisions_arg
     decisions_path = _safe_file(root, _relative_path(decisions_relative.as_posix(), "decisions file"))
     candidates_path = _safe_file(root, PurePosixPath("candidates.json"))
     assert decisions_path is not None and candidates_path is not None
@@ -235,14 +239,17 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
     if candidates.get("schema") != "literature-candidates-v1" or not isinstance(candidates.get("records"), list):
         raise ValueError("unsupported or malformed candidates.json")
     decisions, decisions_sha256 = _load_snapshot(decisions_path)
+    top_level_errors = []
     if decisions.get("schema") != "screening-decisions-v1":
-        raise ValueError("decisions schema must be screening-decisions-v1")
+        top_level_errors.append("schema must be screening-decisions-v1")
     for field in ("reviewer", "stage"):
         if not isinstance(decisions.get(field), str) or not decisions[field].strip():
-            raise ValueError(f"decisions {field} must be a non-empty string")
+            top_level_errors.append(f"{field} must be a non-empty string")
     groups = decisions.get("groups")
     if not isinstance(groups, list):
-        raise ValueError("decisions groups must be a list")
+        top_level_errors.append("groups must be a list")
+    if top_level_errors:
+        raise ValueError("invalid decisions top-level fields: " + "; ".join(top_level_errors))
     candidate_by_id: dict[str, dict[str, Any]] = {}
     for item in candidates["records"]:
         if not isinstance(item, dict) or not isinstance(item.get("record_id"), str) or item["record_id"] in candidate_by_id:

@@ -97,6 +97,29 @@ class PackageRunTests(unittest.TestCase):
         for relative in second_round:
             self.assertTrue((self.run_dir / "review-rounds" / "2" / relative).is_file())
 
+    def test_deterministic_review_alone_is_stale_not_independent_evidence(self) -> None:
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["review"] = {"status": "pending"}
+        review_records = [item for item in manifest["artifacts"] if item.get("kind") in {"review-receipt", "review-receipt-v2"}]
+        manifest["artifacts"] = [item for item in manifest["artifacts"] if item not in review_records]
+        for item in review_records:
+            (self.run_dir / item["path"]).unlink()
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        deterministic = self.run_dir / "deterministic-review.json"
+        deterministic.write_text('{"status":"failed"}\n')
+        result = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(deterministic.is_file())
+        self.assertFalse((self.run_dir / "review-rounds").exists())
+        self.assertEqual(["deterministic-review.json"], json.loads(result.stdout)["stale_deterministic_review"])
+
+    def test_real_review_task_still_refuses_without_invalidation(self) -> None:
+        (self.run_dir / "review-task.json").write_text('{"response_contract":{},"fingerprint":"x","independent_required":true}\n')
+        result = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("independent review", result.stderr)
+
     def test_interrupted_review_archive_is_recovered_on_retry(self) -> None:
         review_path = self.run_dir / "review.json"
         review_path.parent.joinpath("review-rounds", "1").mkdir(parents=True)

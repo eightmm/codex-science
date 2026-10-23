@@ -227,7 +227,7 @@ def _parser() -> argparse.ArgumentParser:
 
     advance = commands.add_parser("advance", help="complete the current step")
     advance.add_argument("run_dir", type=Path)
-    advance.add_argument("--complete", required=True, dest="completed_step")
+    advance.add_argument("--complete", dest="completed_step")
     advance.add_argument("--next", dest="next_step")
     advance.add_argument("--next-action", required=True)
 

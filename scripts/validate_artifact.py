@@ -23,16 +23,34 @@ def main() -> None:
     parser.add_argument("--require-passed-review", action="store_true")
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    sidecars = validate_bundle(manifest, manifest_path.parent)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        sidecars = validate_bundle(manifest, manifest_path.parent)
+    except (ValueError, OSError, json.JSONDecodeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        if "Artifact digest mismatch" in str(error):
+            print(
+                f"hint: rehash with package_run.py refresh --run-dir {manifest_path.parent}",
+                file=sys.stderr,
+            )
+        raise SystemExit(1) from None
     print("artifact bundle: valid")
     if args.review_output:
-        review = review_manifest(manifest, manifest_path.parent, sidecars=sidecars)
-        args.review_output.parent.mkdir(parents=True, exist_ok=True)
-        args.review_output.write_text(
-            json.dumps(review, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        try:
+            review = review_manifest(manifest, manifest_path.parent, sidecars=sidecars)
+            args.review_output.parent.mkdir(parents=True, exist_ok=True)
+            args.review_output.write_text(
+                json.dumps(review, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            if "Artifact digest mismatch" in str(error):
+                print(
+                    f"hint: rehash with package_run.py refresh --run-dir {manifest_path.parent}",
+                    file=sys.stderr,
+                )
+            raise SystemExit(1) from None
         print(f"artifact review: {review['status']}")
         if args.require_passed_review and review["status"] != "passed":
             raise SystemExit("artifact review has unresolved findings")

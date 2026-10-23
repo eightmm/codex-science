@@ -115,7 +115,7 @@ boundaries.
 
 Use `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py"` for each checkpoint command below; `<run-dir>` is the run directory.
 
-- `advance <run-dir> --complete <step-id> --next-action <text>`; optional `--next <step-id>`.
+- `advance <run-dir> --complete <step-id> --next-action <text>`; omitted `--next` starts the next pending step in declared order, and `--complete` may be omitted only to start a pending step when none is in progress.
 - `attempt <run-dir> --failure-class <class> --approach <text> --outcome <text> --next-action <text>`.
 - `criterion <run-dir> --id <criterion-id> --evidence-ref <path> [--evidence-ref <path> ...]` (at least one evidence reference is required).
 - `review <run-dir> --artifact-ref <receipt-path>`.
