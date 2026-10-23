@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
 from codex_science.checkpoints import (
     advance_checkpoint,
     block_checkpoint,
@@ -29,6 +31,8 @@ from codex_science.checkpoints import (
 )
 from codex_science.artifacts import new_manifest, validate_bundle
 from codex_science.review_receipts import build_review_receipt
+from codex_science.review import review_manifest
+from science_checkpoint import _early_check, _pre_review_advisories
 
 
 class CheckpointTests(unittest.TestCase):
@@ -65,6 +69,71 @@ class CheckpointTests(unittest.TestCase):
         for criterion in checkpoint["done_criteria"]:
             verify_criterion(self.run_dir, criterion["id"], ["verification.json"])
         record_review(self.run_dir, artifact_ref="review.json")
+
+    @staticmethod
+    def validation_projection(sidecars: dict[str, object]) -> dict[str, object]:
+        # validate_bundle includes self-referential lookup structures, so compare
+        # its gate-relevant values rather than recursively comparing the object.
+        keys = ("paths", "artifact_hashes", "claim_by_id", "node_by_id", "edges", "study_by_id", "lane_by_id")
+        return {key: sidecars.get(key) for key in keys}
+
+    def test_pre_review_advisories_report_lane_support_mismatch(self) -> None:
+        example = Path(__file__).resolve().parents[1] / "examples/literature-review-reviewed-run"
+        manifest = json.loads((example / "manifest.json").read_text(encoding="utf-8"))
+        sidecars = validate_bundle(manifest, example)
+        validation_before = self.validation_projection(sidecars)
+        before = review_manifest(manifest, example, sidecars=sidecars)
+        lane = dict(sidecars["lane_receipts"][0], supported_claim_ids=["claim-method-effect"])
+        graph = dict(sidecars["evidence_graph"], edges=[])
+        triggering = dict(sidecars, lane_receipts=[lane], evidence_graph=graph, edges=[])
+
+        findings = _pre_review_advisories(triggering, manifest)
+
+        self.assertIn("lane-claim-without-support-edge", {item["code"] for item in findings})
+        empty_lane = dict(lane, included_records=[])
+        empty_findings = _pre_review_advisories(
+            dict(sidecars, lane_receipts=[empty_lane]), manifest
+        )
+        self.assertNotIn("lane-claim-without-support-edge", {item["code"] for item in empty_findings})
+        self.assertEqual(validation_before, self.validation_projection(validate_bundle(manifest, example)))
+        self.assertEqual(before, review_manifest(manifest, example, sidecars=sidecars))
+
+    def test_pre_review_advisories_report_stale_lane_output_hash(self) -> None:
+        manifest = new_manifest("run-001", "Question", [])
+        manifest["artifacts"] = [{"path": "result.json", "sha256": "a" * 64, "kind": "report"}]
+        manifest["executions"] = [{"outputs": [{"path": "result.json", "sha256": "b" * 64}]}]
+        sidecars = {"lane_receipts": [{"lane_id": "lane-1", "outputs": ["result.json"]}]}
+
+        example = Path(__file__).resolve().parents[1] / "examples/literature-review-reviewed-run"
+        gate_manifest = json.loads((example / "manifest.json").read_text(encoding="utf-8"))
+        gate_sidecars = validate_bundle(gate_manifest, example)
+        validation_before = self.validation_projection(gate_sidecars)
+        review_before = review_manifest(gate_manifest, example, sidecars=gate_sidecars)
+        findings = _pre_review_advisories(sidecars, manifest)
+
+        self.assertIn("lane-output-hash-stale", {item["code"] for item in findings})
+        for executions, expected in (
+            ([{"outputs": [{"path": "result.json", "sha256": "b" * 64}]}, {}], True),
+            ([{"outputs": [{"path": "result.json", "sha256": "b" * 64}]}, {"outputs": ["legacy-output"]}], True),
+            ([{"outputs": [{"path": "result.json", "sha256": "b" * 64}]},
+              {"outputs": [{"path": "result.json", "sha256": "a" * 64}]}], False),
+        ):
+            with self.subTest(executions=executions):
+                manifest["executions"] = executions
+                codes = {item["code"] for item in _pre_review_advisories(sidecars, manifest)}
+                self.assertEqual("lane-output-hash-stale" in codes, expected)
+        self.assertEqual(validation_before, self.validation_projection(validate_bundle(gate_manifest, example)))
+        self.assertEqual(review_before, review_manifest(gate_manifest, example, sidecars=gate_sidecars))
+
+    def test_pre_review_advisories_are_clean_for_reviewed_example_and_safe_on_malformed_data(self) -> None:
+        example = Path(__file__).resolve().parents[1] / "examples/literature-review-reviewed-run"
+        manifest = json.loads((example / "manifest.json").read_text(encoding="utf-8"))
+        sidecars = validate_bundle(manifest, example)
+        self.assertEqual([], _pre_review_advisories(sidecars, manifest))
+        self.assertEqual([], _pre_review_advisories({"lane_receipts": [None], "study_table": None}, []))
+        early = _early_check(example)
+        self.assertNotIn("lane-claim-without-support-edge", {item["code"] for item in early["findings"]})
+        self.assertNotIn("lane-output-hash-stale", {item["code"] for item in early["findings"]})
 
     def test_create_writes_private_atomic_checkpoint(self) -> None:
         checkpoint = self.create()

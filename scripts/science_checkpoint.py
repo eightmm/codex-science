@@ -36,6 +36,112 @@ from codex_science.artifacts import validate_bundle  # noqa: E402
 from codex_science.review import review_manifest  # noqa: E402
 
 
+def _pre_review_advisories(sidecars: object, manifest: object) -> list[dict[str, str]]:
+    """Return best-effort consistency prompts without affecting bundle gates."""
+    findings: list[dict[str, str]] = []
+
+    # A validated evidence bundle uses study IDs as graph node IDs. If any
+    # receipt record cannot be mapped to a study node, leave that lane alone.
+    lane_findings: list[dict[str, str]] = []
+    try:
+        if isinstance(sidecars, dict) and isinstance(manifest, dict):
+            lanes = sidecars.get("lane_receipts", [])
+            nodes = sidecars.get("node_by_id", {})
+            edges = sidecars.get("edges", [])
+            if isinstance(lanes, list) and isinstance(nodes, dict) and isinstance(edges, list):
+                if any(not isinstance(edge, dict) for edge in edges):
+                    raise TypeError("malformed evidence graph edge")
+                for lane in lanes:
+                    if not isinstance(lane, dict):
+                        raise TypeError("malformed lane receipt")
+                    lane_id = lane.get("lane_id")
+                    included = lane.get("included_records")
+                    supported = lane.get("supported_claim_ids")
+                    if not isinstance(lane_id, str) or not isinstance(included, list) or not isinstance(supported, list):
+                        raise TypeError("malformed lane receipt fields")
+                    if any(not isinstance(record_id, str) for record_id in included) or any(
+                        not isinstance(claim_id, str) for claim_id in supported
+                    ):
+                        raise TypeError("malformed lane receipt IDs")
+                    if not included:
+                        continue
+                    if any(not isinstance(record_id, str) or not isinstance(nodes.get(record_id), dict)
+                           or nodes[record_id].get("type") != "study" for record_id in included):
+                        continue
+                    for claim_id in supported:
+                        has_support = any(
+                            isinstance(edge, dict)
+                            and edge.get("relation") == "supports"
+                            and edge.get("source") in included
+                            and edge.get("target") == claim_id
+                            for edge in edges
+                        )
+                        if not has_support:
+                            lane_findings.append({
+                                "code": "lane-claim-without-support-edge",
+                                "severity": "advisory",
+                                "message": f"Lane {lane_id} lists claim {claim_id} as supported, but included records {', '.join(included) or '(none)'} have no supports edge to it.",
+                            })
+    except Exception:
+        lane_findings = []
+    findings.extend(lane_findings)
+
+    # Lane outputs are artifact paths; execution receipts carry their recorded
+    # hashes. Compare only paths that have both recorded and manifest hashes.
+    hash_findings: list[dict[str, str]] = []
+    try:
+        if isinstance(sidecars, dict) and isinstance(manifest, dict):
+            artifacts = manifest.get("artifacts", [])
+            executions = manifest.get("executions", [])
+            lanes = sidecars.get("lane_receipts", [])
+            if isinstance(artifacts, list) and isinstance(executions, list) and isinstance(lanes, list):
+                manifest_hashes = {
+                    item["path"]: item["sha256"] for item in artifacts
+                    if isinstance(item, dict) and isinstance(item.get("path"), str)
+                    and isinstance(item.get("sha256"), str) and item["sha256"]
+                }
+                recorded_hashes: dict[str, list[str]] = {}
+                for execution in executions:
+                    if not isinstance(execution, dict):
+                        raise TypeError("malformed execution receipt")
+                    outputs = execution.get("outputs")
+                    if not isinstance(outputs, list):
+                        continue
+                    for output in outputs:
+                        if isinstance(output, str):
+                            continue
+                        if not isinstance(output, dict):
+                            continue
+                        path, digest = output.get("path"), output.get("sha256")
+                        if not isinstance(path, str) or not isinstance(digest, str) or not digest:
+                            continue
+                        recorded_hashes.setdefault(path, []).append(digest)
+                for lane in lanes:
+                    if not isinstance(lane, dict) or not isinstance(lane.get("outputs"), list):
+                        raise TypeError("malformed lane outputs")
+                    if any(not isinstance(path, str) for path in lane["outputs"]):
+                        raise TypeError("malformed lane output path")
+                    lane_id = lane.get("lane_id", "<unknown>")
+                    for path in lane["outputs"]:
+                        if not isinstance(path, str) or path not in manifest_hashes:
+                            continue
+                        actual = manifest_hashes[path]
+                        recorded = recorded_hashes.get(path, [])
+                        # Reconcile against all run history: a later matching
+                        # receipt makes an earlier mismatch stale evidence.
+                        if recorded and not any(digest.casefold() == actual.casefold() for digest in recorded):
+                            hash_findings.append({
+                                "code": "lane-output-hash-stale",
+                                "severity": "advisory",
+                                "message": f"Lane {lane_id} output {path} records SHA-256 {recorded[-1]}, but the manifest records {actual}.",
+                            })
+    except Exception:
+        hash_findings = []
+    findings.extend(hash_findings)
+
+    return findings
+
+
 def _early_check(run_dir: Path) -> dict[str, object]:
     manifest_path = run_dir / "manifest.json"
     try:
@@ -60,6 +166,7 @@ def _early_check(run_dir: Path) -> dict[str, object]:
             finding for finding in review_manifest(manifest, run_dir, sidecars=sidecars)["findings"]
             if finding.get("code") not in {"incomplete-plan", "declared-review-not-passed"}
         ]
+        findings.extend(_pre_review_advisories(sidecars, manifest))
         return {"status": "findings" if findings else "passed", "findings": findings, "advisory": True}
     except Exception as error:
         return {"status": "skipped", "findings": [], "advisory": True, "reason": type(error).__name__}
