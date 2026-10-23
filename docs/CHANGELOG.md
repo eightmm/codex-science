@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Documented allowed literature sidecar values and record-level screening rules.
 - Checkpoint `advance` early checks now add advisory findings when a lane lists a supported claim without a supports edge from its included records, or when no execution-recorded hash for a lane output matches the manifest; gates are unchanged.
 - Recorded the experiment ledger and run13 literature-evaluation results.
 - Final answers now name primary sources with visible persistent identifiers (DOI, PMID, PMCID, or arXiv ID) for findings that rest on published sources; local file links alone are not citations.

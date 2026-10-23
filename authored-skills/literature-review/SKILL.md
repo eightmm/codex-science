@@ -41,7 +41,7 @@ A material change to eligibility, outcome, cutoff, or permitted inference create
 
 1. Normalize DOI, PMID, PMCID, arXiv ID, trial or dataset accession, title, year, authors, and publication version.
 2. Deduplicate at the underlying study level, not only the article level. Link preprint, conference abstract, journal article, correction, protocol, registry record, and secondary analysis to one study family where appropriate.
-3. Record every inclusion and exclusion decision with reviewer, stage, and reason. Do not silently remove near matches.
+3. Record every inclusion and exclusion decision with reviewer, stage, and reason. Screen each exclusion individually against a named protocol eligibility criterion using the record's available title, abstract, or full text; do not use a fixed list, title-keyword fallback, or catch-all reason in place of per-record checking. A reason may be shared when each record was checked individually and its record-specific evidence or linkage is recorded (for example, the published-version identifier for a superseded preprint). If no abstract or text is available, record that and mark the record `awaiting-full-text` or keep it rather than excluding on title alone. Complete and record every protocol-promised screening step (such as reference or citation screening), or record an explicit deviation.
 4. Keep primary research, preprints, secondary reviews, guidelines, registry entries, datasets, and portal summaries distinct.
 5. Detect shared cohorts, samples, sites, authors, databases, and propagated portal records before treating results as independent replication.
 
@@ -79,6 +79,22 @@ Report added, removed, and changed queries, studies, eligibility decisions, and 
 ## Outputs
 
 For exact sidecar shapes, copy the structure of `<plugin-root>/examples/literature-review-reviewed-run/` (`manifest.json` artifact kinds, `claims.json`, `evidence_graph.json`, `studies.json`, `queries.jsonl`, `lanes/*.json`) and fill it with this run's own content; never copy its scientific content or review receipt. Check shapes with `validate_artifact.py` instead of reading plugin source.
+
+Allowed values (each field is checked by its named validator):
+- `evidence_graph.json / edges[].relation`: `supports`, `contradicts`, `depends_on`, `duplicates`, `derived_from`, `shares_cohort`, `shares_samples`, `propagated_from`, `training_overlap`.
+- `evidence_graph.json / nodes[].type`: `claim`, `study`, `dataset`, `artifact`, `execution`, `query`, `model`, `cohort`, `sample`, `portal`.
+- `claims.json / claims[].status`: `planned`, `supported`, `replicated`, `suggestive`, `conflicting`, `unsupported`, `withdrawn`, `unavailable`.
+- `queries.jsonl / each record.status`: `complete`, `partial`, `failed`, `unavailable`.
+- `studies.json / studies[].evidence_type`: `primary`, `secondary`, `preprint`, `registry`, `dataset`, `computed`.
+- `lanes/*.json / confidence`: `high`, `moderate`, `low`, `very-low`, `unrated`.
+- `snapshot.current.json / question_framework`: `PICO`, `PECO`, `PICOT`, `SPIDER`, `custom`.
+- `snapshot.current.json / studies[].eligibility`: `include`, `exclude`, `awaiting-full-text`.
+- `studies.json / studies[].relationships[].type`: `preprint_of`, `published_as`, `corrected_by`, `retracted_by`, `secondary_analysis_of`, `protocol_for`, `registry_for`; enforced by `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/resolve_study_families.py" <records.json> [--output <report.json>]`.
+- `risk-of-bias artifact / domains[].judgment and overall_judgment`: `low`, `some-concerns`, `high`, `unclear`, `not-applicable`.
+Support-excerpt shape: in `studies.json`, optional `support_excerpts[].locator` must be an object; the validator defines no required keys.
+
+Reference-use-ledger shape: `reference-use-ledger.json` requires top-level `schema_version: 1`, non-empty `skill`, and a non-empty `uses` list. Each use must be an object with `schema_version: 1` and non-empty `skill`, `reference_id`, `path`, `sha256`, `read_reason`, and `loaded_at`; `path` must stay under `references/` and `sha256` must contain 64 hexadecimal characters. Each use may include `used_for`, `sections`, and `search_terms` as lists or tuples of strings; they default to empty lists.
+
 Build these bundle files incrementally under the `$codex-science` "Persistence and autonomy" rule: long single generations can stall the event stream and be discarded on reconnect.
 
 Return and save:
