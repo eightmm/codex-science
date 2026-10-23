@@ -147,11 +147,23 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [
             {"id": "dataset-cwd", "label": "Dataset", "type": "dataset"}], "edges": []}), encoding="utf-8")
         proc = subprocess.run([sys.executable, str(CLI), "--run-dir", self.root.name,
+                               "--claims", f"{self.root.name}/claims.json",
+                               "--studies", f"{self.root.name}/studies.json",
                                "--extra", f"{self.root.name}/extra.json"], cwd=self.root.parent,
                               capture_output=True, text=True)
         self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
         graph = json.loads((self.root / "evidence_graph.json").read_text(encoding="utf-8"))
         self.assertTrue(any(node["id"] == "dataset-cwd" for node in graph["nodes"]))
+
+    def test_cli_default_registers_resolve_from_run_subdirectory(self):
+        nested = self.root / "lanes"
+        nested.mkdir(exist_ok=True)
+        proc = subprocess.run(
+            [sys.executable, str(CLI), "--run-dir", ".."],
+            cwd=nested, capture_output=True, text=True,
+        )
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertEqual("evidence_graph.json", json.loads(proc.stdout)["output"])
 
 
 if __name__ == "__main__":

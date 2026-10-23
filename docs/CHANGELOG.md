@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `scripts/build_literature_snapshot.py`, which derives `snapshot.current.json` from `protocol.json`, `queries.jsonl`, `studies.json`, `screening.json` exclusions/awaiting records and `claims.json`. It accepts `--protocol-id` when `protocol.json` has none, labels untitled screening records by identifier, refuses conflicting duplicate queries and screening decisions that contradict extracted studies, validates the snapshot, and refuses to overwrite inputs, excerpt sources, the manifest or `snapshot.previous.json`. It succeeded on copies of all four eval-run18 standard/full packages.
+- `build_evidence_graph.py` now resolves its default `claims.json`/`studies.json` at the run root regardless of the working directory.
 - Accept Europe PMC JATS full text that carries one external `PUBLIC`/`SYSTEM` DOCTYPE: `fetch_open_fulltext.py` strips that declaration before parsing with a linear prolog scanner and a UTF-8-only parser, and still refuses entity declarations, internal subsets, multiple DOCTYPEs, NUL bytes and non-UTF-8 declared encodings (including a BOM-less UTF-16 entity payload that the previous check let through). Unavailable results now carry a machine-readable `reason`.
 - `fetch_open_fulltext.py --run-dir RUN --id ...` no longer requires `manifest.json`; without a manifest it falls back to `studies.json` identifiers.
 - `package_run.py refresh --register-receipt` now refuses a receipt that does not cover the current bundle and records the receipt verdict and path in `manifest.json` `review`, so rendered indexes no longer show a passed review as pending; `--invalidate-review` drops the recorded receipt.

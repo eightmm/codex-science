@@ -15,8 +15,8 @@ from codex_science.evidence_graph_build import build_evidence_graph  # noqa: E40
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
-    parser.add_argument("--claims", default="claims.json")
-    parser.add_argument("--studies", default="studies.json")
+    parser.add_argument("--claims")
+    parser.add_argument("--studies")
     parser.add_argument("--extra")
     parser.add_argument("--output", default="evidence_graph.json")
     args = parser.parse_args(argv)

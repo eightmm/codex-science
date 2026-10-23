@@ -34,7 +34,7 @@ def _suggest(value: Any, allowed: set[str]) -> str:
 
 
 def build_evidence_graph(
-    run_dir: str | Path, claims: str | Path = "claims.json", studies: str | Path = "studies.json",
+    run_dir: str | Path, claims: str | Path | None = None, studies: str | Path | None = None,
     extra: str | Path | None = None, output: str | Path = "evidence_graph.json",
 ) -> dict[str, Any]:
     """Derive claim/study/cohort nodes and evidence edges; preserve extra relations."""
@@ -42,8 +42,8 @@ def build_evidence_graph(
     if root_arg.is_symlink() or not root_arg.is_dir():
         raise ValueError("run directory must be an existing, non-symlink directory")
     root = root_arg.resolve()
-    claim_path = _input_file(root, claims, "claims file")
-    study_path = _input_file(root, studies, "studies file")
+    claim_path = _input_file(root, root / "claims.json" if claims is None else claims, "claims file")
+    study_path = _input_file(root, root / "studies.json" if studies is None else studies, "studies file")
     extra_path = _input_file(root, extra, "extra file") if extra is not None else None
     inputs = [claim_path, study_path] + ([extra_path] if extra_path else [])
     output_arg = Path(output)
