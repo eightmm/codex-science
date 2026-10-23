@@ -40,6 +40,15 @@ Allowed generation operators are `representation`, `objective`,
 the target object, the correspondence, and the boundary where the analogy
 breaks.
 
+Literature-guided candidates: reference the allocation artifact from the cycle
+like other evidence. A method's operator remains one of the allowed operators
+above; paper ID, mechanism family, and excerpt provenance live in the allocation
+artifact, whose `selected` entries copy each paper's `excerpt` and, when
+supplied, `source_sha256`. The allocator input is `method-landscape-v1`: a
+positive integer `budget`, `topics` with `id` and boolean
+`covered_by_baseline`, and `papers` with `paper_id`, nonempty string `topics`,
+a 20-2000 character `excerpt`, and optional `source_sha256`.
+
 ## Predictions and experiments
 
 A prediction includes the expected direction or interval, resolution, inputs,

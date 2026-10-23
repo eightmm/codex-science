@@ -56,6 +56,35 @@ class OpenFulltextTests(unittest.TestCase):
                             and entry["status"] == "complete" for entry in ledger))
         _validate_query_records(ledger)
 
+    def test_structured_jats_rendering_preserves_order_without_nested_duplicates(self):
+        xml = b"""<article><front><article-meta><title-group><article-title>Article title</article-title></title-group><abstract><p>Abstract text.</p></abstract></article-meta></front><body><sec><title>Methods</title><p>First paragraph.</p><sec><title>Nested section</title><p>Nested paragraph.</p><fig><label>Figure 1</label><caption><p>Figure caption text.</p></caption></fig><table-wrap><label>Table 1</label><caption><p>Table caption text.</p></caption><table><thead><tr><th>Outcome</th><th>Count</th></tr></thead><tbody><tr><td>Positive</td><td>12</td></tr></tbody></table></table-wrap></sec></sec><ref-list><title>References</title><ref><p>Reference text must be omitted.</p></ref></ref-list><supplementary-material><label>Supplement</label><caption><p>Supplement caption.</p></caption><p>Supplement body must be omitted.</p></supplementary-material></body></article>"""
+        rendered = open_fulltext._plain_text(xml)
+        blocks = rendered.split("\n\n")
+        self.assertEqual([
+            "Article title", "Abstract text.", "Methods", "First paragraph.",
+            "Nested section", "Nested paragraph.", "Figure 1 Figure caption text.",
+            "Table 1 Table caption text.", "Outcome | Count", "Positive | 12",
+            "Supplement Supplement caption.",
+        ], blocks)
+        self.assertEqual(1, rendered.count("Figure caption text."))
+        self.assertNotIn("Reference text", rendered)
+        self.assertNotIn("Supplement body", rendered)
+
+    def test_structured_blocks_keep_boundaries_and_inline_text_stays_joined(self):
+        xml = b"""<article><front><article-meta><abstract><sec><title>Background</title><p>B text.</p></sec><sec><title>Results</title><p>R text.</p></sec></abstract></article-meta></front><body><p>CO<sub>2</sub> and 10<sup>-3</sup><table-wrap><label>Nested</label><caption><title>Caption title</title><p>Caption text.</p></caption><table><tr><td>Measure</td><td>8</td></tr></table></table-wrap> tail.</p><p><italic>No significant </italic>difference.</p><p>Before.<fig><label>Figure 2</label><caption><p>Caption.</p></caption></fig>After.</p><p>Prior.<supplementary-material><label>Supplement 2</label><caption><p>Supplement caption.</p></caption><p>Hidden supplementary body.</p></supplementary-material>Following.</p><list><list-item>Item <italic>one</italic><p>Detail.</p><table><tr><td>A</td><td>B</td></tr></table></list-item></list><fig><label>Figure</label><caption><title>Figure title</title><p>Figure text.</p></caption></fig><supplementary-material><label>Supplement 1</label><caption><title>Supplement title</title><p>Supplement text.</p></caption><p>Omitted body.</p></supplementary-material><ack><title>Acknowledgments</title><p>Thanks.</p></ack><app><title>Appendix A</title><p>Appendix text.</p></app><boxed-text><title>Box 1</title><p>Box text.</p></boxed-text></body></article>"""
+        self.assertEqual([
+            "Background", "B text.", "Results", "R text.", "CO2 and 10-3",
+            "Nested Caption title Caption text.", "Measure | 8", "tail.", "No significant difference.",
+            "Before.", "Figure 2 Caption.", "After.", "Prior.",
+            "Supplement 2 Supplement caption.", "Following.",
+            "Item one", "Detail.", "A | B", "Figure Figure title Figure text.",
+            "Supplement 1 Supplement title Supplement text.", "Acknowledgments",
+            "Thanks.", "Appendix A", "Appendix text.", "Box 1", "Box text.",
+        ], open_fulltext._plain_text(xml).split("\n\n"))
+        wrapped = b"""<article><body><p>Before.<fig-group><fig><label>Figure 3</label><caption><p>Grouped.</p></caption></fig></fig-group>Middle.<boxed-text><supplementary-material><label>S3</label><caption><p>Boxed supplement.</p></caption><p>Hidden body.</p></supplementary-material></boxed-text>After.</p></body></article>"""
+        self.assertEqual(["Before.", "Figure 3 Grouped.", "Middle.", "S3 Boxed supplement.", "After."],
+                         open_fulltext._plain_text(wrapped).split("\n\n"))
+
     def test_identifier_queries_are_type_specific(self):
         cases = (
             ("doi:10.1371/journal.pone.0029797", 'DOI:"10.1371/journal.pone.0029797"'),

@@ -300,7 +300,8 @@ def _plan_review_archive(
     run_dir: Path,
     files: list[Path],
     additional_paths: list[str] | None = None,
-) -> tuple[str | None, list[tuple[str, str]]]:
+    review_artifacts: list[dict[str, Any]] | None = None,
+) -> tuple[str | None, list[tuple[str, str]], set[str]]:
     sources: dict[str, Path] = {}
     for source in files:
         relative = source.relative_to(run_dir).as_posix()
@@ -309,9 +310,16 @@ def _plan_review_archive(
         canonical = _canonical_relative(relative)
         sources.setdefault(canonical, run_dir / canonical)
     if not sources:
-        return None, []
+        return None, [], set()
     archive_root = run_dir / "review-rounds"
     _inside(run_dir, "review-rounds")
+    expected_hashes = {
+        _canonical_relative(str(item.get("path", ""))): item.get("sha256")
+        for item in review_artifacts or []
+        if item.get("path")
+    }
+    recovered_sources: set[str] = set()
+    recovered_rounds: list[int] = []
     number = 1
     while (archive_root / str(number)).exists() or (archive_root / str(number)).is_symlink():
         number += 1
@@ -321,12 +329,36 @@ def _plan_review_archive(
         source = _inside(run_dir, source_relative)
         destination_relative = f"{archive_relative}/{source_relative}"
         if not source.is_file():
-            raise ValueError(f"Review file is missing: {source_relative}; no files were changed")
+            expected_hash = expected_hashes.get(source_relative)
+            recovered_round = None
+            if expected_hash is not None and archive_root.is_dir() and not archive_root.is_symlink():
+                round_dirs = sorted(
+                    (path for path in archive_root.iterdir() if path.name.isdigit()),
+                    key=lambda path: int(path.name), reverse=True,
+                )
+                for round_dir in round_dirs:
+                    if round_dir.is_symlink() or not round_dir.is_dir() or not round_dir.name.isdigit():
+                        continue
+                    archived = _inside(run_dir, f"review-rounds/{round_dir.name}/{source_relative}")
+                    if archived.is_symlink() or not archived.is_file():
+                        continue
+                    if _sha(archived) == expected_hash:
+                        recovered_round = int(round_dir.name)
+                        break
+            if recovered_round is None:
+                raise ValueError(
+                    f"Review file is missing: {source_relative}; no archived copy matched; no files were changed"
+                )
+            recovered_rounds.append(recovered_round)
+            recovered_sources.add(source_relative)
+            continue
         destination = _inside(run_dir, destination_relative)
         if destination.exists() or destination.is_symlink():
             raise ValueError(f"Review archive destination already exists: {destination_relative}; no files were changed")
         moves.append((source_relative, destination_relative))
-    return archive_relative, moves
+    if not moves:
+        archive_relative = f"review-rounds/{max(recovered_rounds)}" if recovered_rounds else None
+    return archive_relative, moves, recovered_sources
 
 
 def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
@@ -400,8 +432,10 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
                 "or register a passed receipt with --register-receipt."
             )
         review_artifact_paths = [str(item.get("path", "")) for item in review_artifacts]
-        review_archive, archive_moves = _plan_review_archive(run_dir, review_files, review_artifact_paths)
-        archived_sources = {_canonical_relative(source) for source, _destination in archive_moves}
+        review_archive, archive_moves, archived_sources = _plan_review_archive(
+            run_dir, review_files, review_artifact_paths, review_artifacts
+        )
+        archived_sources.update(_canonical_relative(source) for source, _destination in archive_moves)
         print("warning: invalidating independent review; review files will be archived", file=sys.stderr)
         manifest["review"] = {**(review if isinstance(review, dict) else {}), "status": "pending"}
         manifest["artifacts"] = [

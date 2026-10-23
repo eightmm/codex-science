@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Full-text JATS rendering now keeps document order, section titles and table rows, emits nested captions once, and skips reference lists; literature-review guidance points to `fetch_open_fulltext.py` for open-access PMC full text.
+- Added a deterministic literature-guided method allocator (`allocate_method_candidates.py`) and research-discovery guidance for literature-guided candidates and paired-bootstrap replacement of the incumbent method.
+- `package_run.py exec --invalidate-review` can be rerun after an interrupted archive; entries already copied into `review-rounds/` with matching hashes are dropped.
 - Added a shared run-packaging CLI to record executions and refresh manifest hashes; it assumes a single writer per run directory.
 - Added a run-directory literature retrieval CLI that snapshots EuropePMC/PubMed pages, appends the query ledger, and writes EuropePMC abstract sources.
 - Literature-review guidance now uses the packaging CLI (including archived review rounds), spawns the independent reviewer early, and lists excerpt-length and study-ID agreement rules.

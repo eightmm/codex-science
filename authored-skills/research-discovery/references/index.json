@@ -9,7 +9,7 @@
       "purpose": "Define the research-cycle schema, state transitions, method contract, observation classification, recovery, and protected evaluation rules.",
       "read_when": ["authoring a research cycle", "defining a method or prediction", "interpreting an observation", "resuming or revising a cycle"],
       "required_before": ["research-cycle-authoring", "research-cycle-revision", "research-cycle-interpretation"],
-      "search_patterns": ["## Cycle schema", "## Method contract", "## Observation classification", "## Recovery"],
+      "search_patterns": ["## Cycle schema", "## Method contract", "Literature-guided candidates", "## Observation classification", "## Recovery"],
       "authority": "Codex Science first-party research discovery contract",
       "version": "1",
       "evidence_boundary": "Constrains scientific workflow records; it does not establish a hypothesis, result, novelty, or causal truth."

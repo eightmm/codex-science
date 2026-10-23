@@ -187,9 +187,87 @@ def _plain_text(xml: bytes) -> str:
     if not xml.removeprefix(b"\xef\xbb\xbf").lstrip().startswith(b"<") or _DECLARATION.search(xml):
         raise ValueError("XML declarations are not allowed")
     root = ET.fromstring(xml)
-    pieces = [" ".join("".join(node.itertext()).split()) for node in root.iter()
-              if node.tag.rsplit("}", 1)[-1].lower() in {"title", "p", "caption", "abstract"}]
-    return "\n\n".join(piece for piece in pieces if piece)
+
+    def name(node: ET.Element) -> str:
+        return node.tag.rsplit("}", 1)[-1].lower()
+
+    block_tags = {
+        "abstract", "caption", "fig", "list", "list-item", "p", "sec",
+        "supplementary-material", "table", "table-wrap", "title", "tr",
+    }
+
+    def text(node: ET.Element) -> str:
+        parts = [node.text or ""]
+        for child in node:
+            child_text = text(child)
+            if name(child) in block_tags:
+                parts.extend((" ", child_text, " "))
+            else:
+                parts.append(child_text)
+            parts.append(child.tail or "")
+        return "".join(parts)
+
+    pieces: list[str] = []
+
+    def emit(value: str) -> None:
+        value = " ".join(value.split())
+        if value:
+            pieces.append(value)
+
+    def caption_block(node: ET.Element) -> str:
+        label = next((text(child) for child in node if name(child) == "label"), "")
+        caption = next((text(child) for child in node if name(child) == "caption"), "")
+        return " ".join(part for part in (label, caption) if part)
+
+    def mixed_content(node: ET.Element) -> None:
+        pending = [node.text or ""]
+        for child in node:
+            if any(name(item) in block_tags for item in child.iter()):
+                emit("".join(pending))
+                pending = []
+                walk(child)
+            else:
+                pending.append(text(child))
+            pending.append(child.tail or "")
+        emit("".join(pending))
+
+    def walk(node: ET.Element) -> None:
+        tag = name(node)
+        if tag == "ref-list":
+            return
+        if tag == "article-title":
+            emit(text(node))
+            return
+        if tag in {"abstract", "caption", "list", "list-item", "p"}:
+            mixed_content(node)
+            return
+        if tag in {"fig", "table-wrap"}:
+            emit(caption_block(node))
+            for child in node:
+                if name(child) not in {"label", "caption"}:
+                    walk(child)
+            return
+        if tag == "supplementary-material":
+            emit(caption_block(node))
+            return
+        if tag in {"sec", "ack", "app", "boxed-text"}:
+            title = next((text(child) for child in node if name(child) == "title"), "")
+            emit(title)
+            for child in node:
+                if name(child) != "title":
+                    walk(child)
+            return
+        if tag == "tr":
+            emit(" | ".join(text(cell) for cell in node if name(cell) in {"td", "th"}))
+            return
+        if tag == "title":
+            emit(text(node))
+            return
+        for child in node:
+            walk(child)
+
+    walk(root)
+    return "\n\n".join(pieces)
 
 
 def _prepare_output_paths(root: Path, ids: list[str]) -> tuple[Path, Path]:

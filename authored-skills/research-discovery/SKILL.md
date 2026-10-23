@@ -44,14 +44,33 @@ probabilities.
    invariants, complexity, code location, and falsifier. Initialize material work
    with `discovery init --require-design`; run `discovery audit` before
    reservation. Missing design, code identity, or evidence means next step, not
-   completion.
+   completion. Alongside this operator path, name the capability gap behind the
+   bottleneck and retrieve literature with broad capability and narrow
+   mechanism queries: use `"<plugin-root>/scripts/python_runtime.sh"
+   "<plugin-root>/scripts/retrieve_literature.py"` for EuropePMC/PubMed and
+   `$cx-arxiv-search` for computational methods. Build a mechanism taxonomy by
+   merging paraphrases, excluding surveys and standalone benchmarks, and
+   marking families already implemented by the baseline. Run
+   `"<plugin-root>/scripts/python_runtime.sh"
+   "<plugin-root>/scripts/allocate_method_candidates.py" --input LANDSCAPE
+   --output ALLOCATION`; retain LANDSCAPE and ALLOCATION as hashed artifacts
+   (ALLOCATION's `input_sha256` is LANDSCAPE's canonical JSON hash).
+   Turn each selected paper into an ordinary method contract citing its paper
+   and family. Literature support does not show that a method works here.
 5. Choose the smallest protected experiment separating predictions. Use
    `discriminate_first_v1` with explicit intervals, resolution, controls, and
    budget; otherwise retain the legacy planner. The decision API accepts
    `state_model_rationale`, hashed `assumption_refs`, and optional finite
    `decision_contract`. Reuse finite decision analysis only for a valid
    contract; EVSI uses its loss/utility/payoff units, separate from compute
-   budget. Never turn scores or uncertainty proxies into beliefs.
+   budget. Never turn scores or uncertainty proxies into beliefs. Replace the
+   current best method only when the paired-bootstrap lower bound of the
+   candidate-minus-incumbent difference on the protected split exceeds zero,
+   using paired mode (`analysis_type: "paired"`) in
+   `scripts/run_statistical_analysis.py`; otherwise keep the incumbent. Orient
+   the metric so higher is better (negate loss, RMSE, or other lower-is-better
+   values). Paired mode reports `group_labels[1]` minus `group_labels[0]`, so
+   list the incumbent first and the candidate second.
 6. Reserve experiment identity and budget before execution; use the existing
    checkpoint, provenance, and review lifecycle. Do not create a second run loop
    or blindly resubmit ambiguous jobs. Run `discovery next` after audit and each

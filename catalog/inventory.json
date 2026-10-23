@@ -762,7 +762,7 @@
     {
       "description": "Run a protocol-driven, updateable literature review with exact multi-source queries, study-level deduplication, structured extraction, evidence dependency tracking, bounded synthesis, provenance, and independent review. Use for systematic, scoping, rapid, living, or evidence-landscape reviews where discovery alone is insufficient.",
       "executable_count": 0,
-      "instruction_line_count": 127,
+      "instruction_line_count": 128,
       "license": "MIT",
       "name": "cx-literature-review",
       "path": "authored-skills/literature-review",
@@ -1340,7 +1340,7 @@
     {
       "description": "Guide new-method development or an unexplained scientific bottleneck from observed failure through competing explanations, falsifiable predictions, a concrete method, the smallest discriminating experiment, and evidence-driven revision. Do not use for routine retrieval, reproduction, or a fixed analysis whose method is already specified.",
       "executable_count": 0,
-      "instruction_line_count": 97,
+      "instruction_line_count": 116,
       "license": "MIT",
       "name": "cx-research-discovery",
       "path": "authored-skills/research-discovery",

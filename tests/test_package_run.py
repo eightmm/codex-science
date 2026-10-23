@@ -97,6 +97,47 @@ class PackageRunTests(unittest.TestCase):
         for relative in second_round:
             self.assertTrue((self.run_dir / "review-rounds" / "2" / relative).is_file())
 
+    def test_interrupted_review_archive_is_recovered_on_retry(self) -> None:
+        review_path = self.run_dir / "review.json"
+        review_path.parent.joinpath("review-rounds", "1").mkdir(parents=True)
+        review_path.rename(self.run_dir / "review-rounds" / "1" / "review.json")
+
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("review-rounds/1", result.stdout)
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        self.assertEqual(manifest["review"]["status"], "pending")
+        self.assertFalse(any(item.get("path") == "review.json" for item in manifest["artifacts"]))
+        self.assertFalse((self.run_dir / "review-rounds" / "2").exists())
+        validation = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "validate_artifact.py"), str(self.run_dir / "manifest.json")],
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(validation.returncode, 0, validation.stderr)
+
+    def test_interrupted_review_archive_with_mismatched_bytes_is_unchanged(self) -> None:
+        review_path = self.run_dir / "review.json"
+        archived = self.run_dir / "review-rounds" / "1" / "review.json"
+        archived.parent.mkdir(parents=True)
+        archived.write_bytes(review_path.read_bytes() + b"altered")
+        review_path.unlink()
+        before = {
+            path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+            for path in self.run_dir.rglob("*") if path.is_file()
+        }
+
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no archived copy matched", result.stderr)
+        self.assertIn("no files were changed", result.stderr)
+        after = {
+            path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+            for path in self.run_dir.rglob("*") if path.is_file()
+        }
+        self.assertEqual(after, before)
+
     def test_missing_manifest_receipt_refuses_invalidation_without_changes(self) -> None:
         (self.run_dir / "review.json").unlink()
         before = (self.run_dir / "manifest.json").read_bytes()
