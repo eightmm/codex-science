@@ -28,7 +28,52 @@ MAX_FETCHES = 10
 MAX_SECONDS = 60.0
 MAX_BODY_BYTES = 8 * 1024 * 1024
 _HOSTS = frozenset({"www.ebi.ac.uk"})
-_DECLARATION = re.compile(br"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+_DOCTYPE_START = re.compile(br"<!\s*DOCTYPE\b", re.IGNORECASE)
+_DOCTYPE = re.compile(
+    br"<!DOCTYPE\s+[A-Za-z_:][A-Za-z0-9_.:-]*\s+"
+    br"(?:PUBLIC\s+(?:\"[^\"]*\"|'[^']*')\s+(?:\"[^\"]*\"|'[^']*')|"
+    br"SYSTEM\s+(?:\"[^\"]*\"|'[^']*'))\s*>",
+)
+_ENTITY = re.compile(br"<!\s*ENTITY\b", re.IGNORECASE)
+_XML_DECLARATION_START = re.compile(br"\A<\?xml[ \t\r\n]+")
+_XML_ENCODING = re.compile(
+    br"\bencoding[ \t\r\n]*=[ \t\r\n]*(['\"])([A-Za-z][A-Za-z0-9._-]*)\1"
+)
+_XML_PROLOG_WHITESPACE = frozenset(b" \t\r\n")
+
+
+def _skip_xml_prolog_misc(body: bytes, offset: int) -> int | None:
+    while offset < len(body):
+        while offset < len(body) and body[offset] in _XML_PROLOG_WHITESPACE:
+            offset += 1
+        if body.startswith(b"<?", offset):
+            end = body.find(b"?>", offset + 2)
+            if end < 0:
+                return None
+            offset = end + 2
+        elif body.startswith(b"<!--", offset):
+            end = body.find(b"-->", offset + 4)
+            if end < 0:
+                return None
+            offset = end + 3
+        else:
+            return offset
+    return offset
+
+
+def _is_xml_root_start(body: bytes, offset: int) -> bool:
+    if offset + 1 >= len(body) or body[offset] != ord("<"):
+        return False
+    first = body[offset + 1]
+    if not (first == ord(":") or first == ord("_") or first >= 0x80
+            or ord("A") <= first <= ord("Z") or ord("a") <= first <= ord("z")):
+        return False
+    offset += 2
+    while offset < len(body):
+        if body[offset] in _XML_PROLOG_WHITESPACE or body[offset] in b"/>":
+            return True
+        offset += 1
+    return False
 
 
 class _EuropePMCRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -113,6 +158,21 @@ def identifiers_from_run(run_dir: str | Path) -> list[str]:
     root = Path(run_dir).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("run directory must be a directory")
+    manifest_path = _safe_run_file(root, "manifest.json", required=False)
+    if manifest_path is None or not manifest_path.exists():
+        study_path = _safe_run_file(root, "studies.json", required=False)
+        if study_path is None or not study_path.exists():
+            return []
+        if study_path.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError(f"run citation file exceeds 8 MiB: {study_path.name}")
+        table = json.loads(study_path.read_text(encoding="utf-8"))
+        if not isinstance(table, dict) or not isinstance(table.get("studies", []), list):
+            raise ValueError("study table must be an object with a studies list")
+        found: set[str] = set()
+        for row in table.get("studies", []):
+            if isinstance(row, dict) and not row.get("excluded"):
+                found.update(normalize_identifier(value) for value in _walk_ids(row))
+        return sorted(item for item in found if item.startswith(("pmcid:", "pmid:", "doi:")))
     _, declarations = _manifest(root)
     found: set[str] = set()
     report_names = [path for kind, path in declarations if kind == "report"]
@@ -183,10 +243,39 @@ def _record_matches(record: dict[str, Any], identifier: str) -> bool:
 
 
 def _plain_text(xml: bytes) -> str:
-    # Encodings such as UTF-16 would hide declarations from the byte-level check.
-    if not xml.removeprefix(b"\xef\xbb\xbf").lstrip().startswith(b"<") or _DECLARATION.search(xml):
+    # UTF-16/32 can hide markup from the byte-level declaration checks.
+    body = xml.removeprefix(b"\xef\xbb\xbf")
+    if b"\x00" in body:
+        raise ValueError("XML declarations and non-UTF-8-compatible bytes are not allowed")
+    try:
+        body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("XML declarations and non-UTF-8-compatible bytes are not allowed") from exc
+    xml_declaration = _XML_DECLARATION_START.match(body)
+    if xml_declaration is not None:
+        declaration_end = body.find(b"?>", xml_declaration.end())
+        if declaration_end >= 0:
+            encoding = _XML_ENCODING.search(body, xml_declaration.end(), declaration_end)
+            if encoding is not None and encoding.group(2).lower() not in {b"utf-8", b"utf8"}:
+                raise ValueError("XML declarations and non-UTF-8-compatible bytes are not allowed")
+    leading = body.lstrip()
+    if not leading.startswith(b"<") or _ENTITY.search(body):
         raise ValueError("XML declarations are not allowed")
-    root = ET.fromstring(xml)
+    prolog_offset = _skip_xml_prolog_misc(body, 0)
+    if prolog_offset is None:
+        raise ValueError("XML declarations are not allowed")
+    sanitized = body
+    if _DOCTYPE_START.match(body, prolog_offset):
+        declaration = _DOCTYPE.match(body, prolog_offset)
+        if declaration is None:
+            raise ValueError("XML declarations are not allowed")
+        root_offset = _skip_xml_prolog_misc(body, declaration.end())
+        if root_offset is None or not _is_xml_root_start(body, root_offset):
+            raise ValueError("XML declarations are not allowed")
+        sanitized = body[:declaration.start()] + body[declaration.end():]
+    elif body.startswith(b"<!", prolog_offset) or not _is_xml_root_start(body, prolog_offset):
+        raise ValueError("XML declarations are not allowed")
+    root = ET.fromstring(sanitized, parser=ET.XMLParser(encoding="utf-8"))
 
     def name(node: ET.Element) -> str:
         return node.tag.rsplit("}", 1)[-1].lower()
@@ -393,7 +482,8 @@ def fetch_fulltext(
             results.append({"identifier": identifier, "status": "write-failed"})
             continue
         if status != 200:
-            results.append({"identifier": identifier, "status": "unavailable"})
+            reason = f"http-{status}" if status is not None else "request-failed"
+            results.append({"identifier": identifier, "status": "unavailable", "reason": reason})
             continue
         try:
             payload = json.loads(body.decode("utf-8"))
@@ -403,14 +493,15 @@ def fetch_fulltext(
             record = next((candidate for candidate in records
                            if isinstance(candidate, dict) and _record_matches(candidate, identifier)), None)
         except (json.JSONDecodeError, UnicodeError, AttributeError, TypeError, ValueError, RecursionError):
-            results.append({"identifier": identifier, "status": "unavailable"})
+            results.append({"identifier": identifier, "status": "unavailable",
+                            "reason": "search-response-malformed"})
             continue
         if record is None:
             results.append({"identifier": identifier, "status": "not-found"})
             continue
         pmcid = str(record.get("pmcid", "")).upper()
         if not re.fullmatch(r"PMC\d+", pmcid):
-            results.append({"identifier": identifier, "status": "unavailable"})
+            results.append({"identifier": identifier, "status": "unavailable", "reason": "no-pmcid"})
             continue
         if pmcid in resolved_pmcids:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
@@ -444,13 +535,19 @@ def fetch_fulltext(
             continue
         if status != 200:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
-                            "license": license_value, "status": "unavailable"})
+                            "license": license_value, "status": "unavailable",
+                            "reason": f"http-{status}" if status is not None else "request-failed"})
             continue
         try:
             plain = _plain_text(xml)
-        except (ET.ParseError, ValueError, RecursionError):
+        except ET.ParseError:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
-                            "license": license_value, "status": "unavailable"})
+                            "license": license_value, "status": "unavailable", "reason": "xml-parse-error"})
+            continue
+        except (ValueError, RecursionError):
+            results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
+                            "license": license_value, "status": "unavailable",
+                            "reason": "xml-declaration-refused"})
             continue
         try:
             (output_dir / f"{pmcid}.xml").write_bytes(xml)

@@ -45,6 +45,7 @@ class PackageRunTests(unittest.TestCase):
         report = next(item for item in manifest["artifacts"] if item["path"] == "report.md")
         self.assertNotEqual(report["sha256"], "5fd1e51f952b1280f6614d931cb03c1f0dd1fc9b595ec29b90374d80f4757799")
         self.assertEqual(manifest["review"]["status"], "pending")
+        self.assertNotIn("receipt", manifest["review"])
         self.assertFalse(any(item["kind"].startswith("review-receipt") for item in manifest["artifacts"]))
         validation = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"), str(self.run_dir / "manifest.json")], text=True, capture_output=True, check=False)
         self.assertEqual(validation.returncode, 0, validation.stderr)
@@ -311,12 +312,51 @@ class PackageRunTests(unittest.TestCase):
         entry = next(item for item in manifest["artifacts"] if item["path"] == "final-review.json")
         self.assertEqual(entry["kind"], "review-receipt-v2")
         self.assertEqual(manifest["review"]["status"], "passed")
+        self.assertEqual(manifest["review"]["receipt"], "final-review.json")
+        self.assertEqual(manifest["review"]["findings"], [])
+
+        validation = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "validate_artifact.py"),
+             str(self.run_dir / "manifest.json"), "--review-output", str(Path(self.temp.name) / "review-output.json"),
+             "--require-passed-review"], text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(validation.returncode, 0, validation.stderr)
+        rendered = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "render_artifact_index.py"),
+             str(self.run_dir / "manifest.json")], text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertIn("✅ Passed", (self.run_dir / "index.md").read_text())
+
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        self.assertEqual(manifest["review"]["status"], "pending")
+        self.assertNotIn("receipt", manifest["review"])
 
     def test_register_receipt_refuses_stale_bundle(self) -> None:
         (self.run_dir / "report.md").write_text("changed")
         result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "review.json")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("report.md", result.stderr)
+
+    def test_register_receipt_refuses_stale_incoming_coverage_without_writing(self) -> None:
+        source = {
+            "schema_version": 1, "review_id": "stale-review-test", "reviewer": "fixture-reviewer",
+            "independent": True, "review_modes": ["record"], "status": "passed",
+            "covered_artifacts": [{"path": "report.md", "sha256": "0" * 64}],
+            "covered_claim_ids": [], "findings": [], "limitations": ["fixture only"],
+        }
+        source["fingerprint"] = canonical_sha256(source)
+        (self.run_dir / "stale-review.json").write_text(json.dumps(source))
+        manifest_path = self.run_dir / "manifest.json"
+        before = manifest_path.read_bytes()
+
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "stale-review.json")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("stale-review-receipt", result.stderr)
+        self.assertEqual(manifest_path.read_bytes(), before)
 
     def test_register_receipt_alias_is_already_registered(self) -> None:
         before = (self.run_dir / "manifest.json").read_bytes()

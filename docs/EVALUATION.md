@@ -181,6 +181,31 @@ denominator.
   1700 seconds. Standard-mrna has been blocked by provider policy in 6 of 12
   runs (runs 6–17); this result does not establish a stable gain.
 
+- Run18 (`0a9d1c0`, runtime `0.5.0+codex.20261023140000`), 5/6 (95% Wilson
+  interval 43.6%-97.0%): quick-doi completed in 85 seconds and quick-arxiv in
+  57 seconds; standard-mrna completed in 924 seconds, its second consecutive
+  completion; standard-single-cell completed in 1262 seconds; and
+  full-protein-folding completed in 1629 seconds after timing out in run17.
+  Full-microbiome timed out at 1800 seconds while its independent review,
+  started at about 1400 seconds, was still running; its package files were
+  otherwise written. All six tasks matched the branch runtime. No provider
+  policy blocks, infrastructure failures, or stream stalls occurred. Across
+  the four standard/full packages, citation tracing resolved 37 of 50 cited
+  identifiers. `build_study_table.py` was used and
+  `screen_candidates.py apply --help` was read in all four tasks. Recurring
+  friction addressed in following commits (see CHANGELOG): the first
+  `fetch_open_fulltext.py --run-dir RUN --id ...` call failed because
+  `manifest.json` was missing in 9 task transcripts across runs 16–18; in
+  full-microbiome, Europe PMC returned JATS 1.4 with an external DOCTYPE that
+  the parser refused, leaving 6 of 7 open-access articles unavailable and
+  prompting an agent-written workaround; and in full-protein-folding,
+  registering a passed review receipt left the manifest review status pending,
+  so the rendered index showed the review as pending. Evidence graphs were
+  still assembled by run-specific synthesis scripts; `build_evidence_graph.py`
+  addresses this in `a75c478`. Standard-mrna has been blocked by provider
+  policy in 6 of 13 runs (runs 6–18); these results do not establish a stable
+  gain.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -188,7 +213,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–17 in order and run16b as a
+receipt, then one summary row per run, for runs 6–18 in order and run16b as a
 two-task rerun; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17

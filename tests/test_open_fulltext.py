@@ -7,6 +7,7 @@ import json
 from contextlib import redirect_stdout
 import urllib.parse
 import tempfile
+import time
 import unittest
 import urllib.request
 from pathlib import Path
@@ -69,6 +70,148 @@ class OpenFulltextTests(unittest.TestCase):
         self.assertEqual(1, rendered.count("Figure caption text."))
         self.assertNotIn("Reference text", rendered)
         self.assertNotIn("Supplement body", rendered)
+
+    def test_jats_external_doctypes_are_removed_before_parsing(self):
+        public = (b'<?xml version="1.0" encoding="UTF-8"?>\n'
+                  b'<!DOCTYPE article\n PUBLIC "-//NLM//DTD JATS 1.4//EN" '
+                  b'"JATS-archivearticle1-4.dtd">\n'
+                  b'<article><body><p>JATS text.</p></body></article>')
+        system = b"<!DOCTYPE article SYSTEM 'article.dtd'><article><p>System text.</p></article>"
+        comment_prolog = (b'<!-- generated from <article> -->'
+                          b'<!DOCTYPE article SYSTEM "article.dtd">'
+                          b'<?source after doctype?>'
+                          b'<article><p>Comment prolog text.</p></article>')
+        pi_prolog = (b'<?source generated from <article>?>'
+                     b'<!DOCTYPE article SYSTEM "article.dtd">'
+                     b'<!-- after doctype -->'
+                     b'<article><p>PI prolog text.</p></article>')
+        self.assertEqual("JATS text.", open_fulltext._plain_text(public))
+        self.assertEqual("JATS text.", open_fulltext._plain_text(b"\xef\xbb\xbf" + public))
+        self.assertEqual("System text.", open_fulltext._plain_text(system))
+        self.assertEqual("Comment prolog text.", open_fulltext._plain_text(comment_prolog))
+        self.assertEqual("PI prolog text.", open_fulltext._plain_text(pi_prolog))
+
+    def test_doctype_refusal_checks_are_bounded_for_long_prologs(self):
+        comments_without_root = b"<!-- comment -->" * 3000
+        unterminated_doctype = b'<!DOCTYPE article SYSTEM "' + comments_without_root
+        for body in (
+            b'<!DOCTYPE article SYSTEM "article.dtd">' + comments_without_root,
+            unterminated_doctype,
+        ):
+            started = time.perf_counter()
+            with self.subTest(size=len(body)), self.assertRaises(ValueError):
+                open_fulltext._plain_text(body)
+            self.assertLess(time.perf_counter() - started, 0.5)
+
+    def test_external_doctype_refusal_cases(self):
+        cases = (
+            b'<!DOCTYPE article [<!ELEMENT article ANY>]><article/>',
+            b'<!DOCTYPE article [<!ENTITY x "payload">]><article>&x;</article>',
+            (b'<!DOCTYPE article [<!ENTITY a "ha"><!ENTITY b "&a;&a;">]'
+             b'<article>&b;&b;&b;&b;&b;&b;&b;&b;</article>'),
+            b'<!DOCTYPE article SYSTEM "a.dtd"><!DOCTYPE article SYSTEM "b.dtd"><article/>',
+            b'<!-- unterminated comment <!DOCTYPE article SYSTEM "a.dtd"><article/>',
+            b'<?unterminated PI <!DOCTYPE article SYSTEM "a.dtd"><article/>',
+            '<!DOCTYPE article><article/>'.encode("utf-16"),
+        )
+        for xml in cases:
+            with self.subTest(xml=xml[:60]), self.assertRaises(ValueError):
+                open_fulltext._plain_text(xml)
+        with self.assertRaises(open_fulltext.ET.ParseError):
+            open_fulltext._plain_text(b'<article/><!DOCTYPE article SYSTEM "a.dtd">')
+
+    def test_utf16_entity_declarations_are_refused_with_or_without_bom(self):
+        xml = '<!DOCTYPE article [<!ENTITY e "expanded">]><article><p>&e;</p></article>'
+        payloads = []
+        for encoding, bom in (("utf-16-le", b"\xff\xfe"), ("utf-16-be", b"\xfe\xff")):
+            encoded = xml.encode(encoding)
+            payloads.extend((encoded, bom + encoded))
+        for payload in payloads:
+            with self.subTest(prefix=payload[:8]), self.assertRaises(ValueError):
+                open_fulltext._plain_text(payload)
+
+    def test_non_utf8_xml_encoding_declaration_is_refused(self):
+        xml = b'<?xml version="1.0" encoding="ISO-8859-1"?><article><p>Text</p></article>'
+        with self.assertRaises(ValueError):
+            open_fulltext._plain_text(xml)
+
+    def test_xml_refusal_results_include_machine_readable_reason(self):
+        def fetch(url, **kwargs):
+            if "search?" in url:
+                return 200, b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
+            return 200, b'<!DOCTYPE article [<!ENTITY x "payload">]><article>&x;</article>'
+        result = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=fetch)
+        self.assertEqual("unavailable", result["results"][0]["status"])
+        self.assertEqual("xml-declaration-refused", result["results"][0]["reason"])
+
+    def test_unavailable_http_and_malformed_search_results_include_reason(self):
+        http = fetch_fulltext(["pmid:12345"], self.run, execute=True,
+                              fetch=lambda *args, **kwargs: (503, b"unavailable"))
+        malformed = fetch_fulltext(["pmid:12345"], self.run, execute=True,
+                                   fetch=lambda *args, **kwargs: (200, b"not-json"))
+        self.assertEqual("http-503", http["results"][0]["reason"])
+        self.assertEqual("search-response-malformed", malformed["results"][0]["reason"])
+
+    def test_unavailable_pmcid_and_xml_parse_results_include_reason(self):
+        no_pmcid = fetch_fulltext(
+            ["pmid:12345"], self.run, execute=True,
+            fetch=lambda *args, **kwargs: (200, b'{"resultList":{"result":[{"pmid":"12345","source":"MED"}]}}'),
+        )
+        self.assertEqual("no-pmcid", no_pmcid["results"][0]["reason"])
+
+        def malformed_xml_fetch(url, **kwargs):
+            if "search?" in url:
+                return 200, b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
+            return 200, b"<article>"
+        malformed_xml = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=malformed_xml_fetch)
+        self.assertEqual("xml-parse-error", malformed_xml["results"][0]["reason"])
+
+        def failed_fulltext_fetch(url, **kwargs):
+            if "search?" in url:
+                return 200, b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
+            return 502, b"bad gateway"
+        failed_fulltext = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=failed_fulltext_fetch)
+        self.assertEqual("http-502", failed_fulltext["results"][0]["reason"])
+
+    def test_cli_with_explicit_id_does_not_require_manifest(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/fetch_open_fulltext.py"
+        spec = importlib.util.spec_from_file_location("fetch_open_fulltext_cli_no_manifest", script)
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            code = cli.main(["--run-dir", str(self.run), "--id", "pmid:12345"])
+        self.assertEqual(0, code)
+        self.assertEqual("planned", json.loads(stdout.getvalue())["results"][0]["status"])
+
+    def test_study_table_without_manifest_provides_fallback_identifiers(self):
+        (self.run / "studies.json").write_text(
+            '{"studies":[{"pmid":"12345"},{"doi":"10.1234/example"},'
+            '{"pmid":"54321","excluded":true}]}'
+        )
+        self.assertEqual(["doi:10.1234/example", "pmid:12345"], identifiers_from_run(self.run))
+
+    def test_manifest_symlink_is_still_rejected(self):
+        outside = Path(self.temp.name) / "outside-manifest.json"
+        outside.write_text('{"artifacts":[]}')
+        (self.run / "manifest.json").symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "symlink in run path"):
+            identifiers_from_run(self.run)
+
+    def test_cli_without_any_identifiers_gives_actionable_error(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/fetch_open_fulltext.py"
+        spec = importlib.util.spec_from_file_location("fetch_open_fulltext_cli_no_ids", script)
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        for args in (["--run-dir", str(self.run)], []):
+            stdout = io.StringIO()
+            with self.subTest(args=args), redirect_stdout(stdout):
+                code = cli.main(args)
+            output = json.loads(stdout.getvalue())
+            self.assertEqual(2, code)
+            self.assertEqual("invalid_request", output["error"]["code"])
+            self.assertIn("--id", output["error"]["message"])
+            self.assertIn("study table", output["error"]["message"])
 
     def test_structured_blocks_keep_boundaries_and_inline_text_stays_joined(self):
         xml = b"""<article><front><article-meta><abstract><sec><title>Background</title><p>B text.</p></sec><sec><title>Results</title><p>R text.</p></sec></abstract></article-meta></front><body><p>CO<sub>2</sub> and 10<sup>-3</sup><table-wrap><label>Nested</label><caption><title>Caption title</title><p>Caption text.</p></caption><table><tr><td>Measure</td><td>8</td></tr></table></table-wrap> tail.</p><p><italic>No significant </italic>difference.</p><p>Before.<fig><label>Figure 2</label><caption><p>Caption.</p></caption></fig>After.</p><p>Prior.<supplementary-material><label>Supplement 2</label><caption><p>Supplement caption.</p></caption><p>Hidden supplementary body.</p></supplementary-material>Following.</p><list><list-item>Item <italic>one</italic><p>Detail.</p><table><tr><td>A</td><td>B</td></tr></table></list-item></list><fig><label>Figure</label><caption><title>Figure title</title><p>Figure text.</p></caption></fig><supplementary-material><label>Supplement 1</label><caption><title>Supplement title</title><p>Supplement text.</p></caption><p>Omitted body.</p></supplementary-material><ack><title>Acknowledgments</title><p>Thanks.</p></ack><app><title>Appendix A</title><p>Appendix text.</p></app><boxed-text><title>Box 1</title><p>Box text.</p></boxed-text></body></article>"""
@@ -190,7 +333,7 @@ class OpenFulltextTests(unittest.TestCase):
         self.assertEqual("", ledger_path.read_text())
         self.assertEqual(1, len((self.run / "fulltext/fetch-ledger.jsonl").read_text().splitlines()))
 
-    def test_run_without_study_table_has_zero_candidates_and_succeeds(self):
+    def test_run_without_study_table_or_explicit_ids_has_actionable_error(self):
         self._manifest()
         script = Path(__file__).resolve().parents[1] / "scripts/fetch_open_fulltext.py"
         spec = importlib.util.spec_from_file_location("fetch_open_fulltext_cli_empty", script)
@@ -199,8 +342,10 @@ class OpenFulltextTests(unittest.TestCase):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             code = cli.main(["--run-dir", str(self.run)])
-        self.assertEqual(0, code)
-        self.assertEqual([], json.loads(stdout.getvalue())["results"])
+        self.assertEqual(2, code)
+        message = json.loads(stdout.getvalue())["error"]["message"]
+        self.assertIn("--id", message)
+        self.assertIn("study table", message)
 
     def test_manifest_declared_study_table_is_used(self):
         custom = self.run / "records/study.json"

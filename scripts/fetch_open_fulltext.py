@@ -25,11 +25,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.run_dir is None and not args.ids:
-            raise ValueError("provide --run-dir and/or at least one --id")
+            raise ValueError("no identifiers available; pass --id or provide --run-dir with a study table first")
         if args.execute and args.run_dir is None:
             raise ValueError("--run-dir is required with --execute")
         identifiers = identifiers_from_run(args.run_dir) if args.run_dir is not None else []
         identifiers.extend(args.ids)
+        if not identifiers:
+            raise ValueError("no identifiers available; pass --id or build the study table first")
         output = fetch_fulltext(identifiers, args.run_dir or Path.cwd(), execute=args.execute,
                                 max_fetches=args.max_fetches, max_seconds=args.max_seconds,
                                 max_body_bytes=args.max_body_bytes, max_candidates=args.max_candidates)

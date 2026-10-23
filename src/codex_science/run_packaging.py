@@ -16,7 +16,7 @@ from typing import Any
 
 from codex_science.artifacts import validate_manifest, write_manifest
 from codex_science.artifact_store import describe_directory
-from codex_science.review_receipts import validate_review_receipt
+from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
 DEFAULT_KINDS = {
     "protocol.json": "protocol", "queries.jsonl": "query-ledger",
@@ -406,8 +406,31 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
     if not payload.get("review_id"):
         raise ValueError("Legacy review receipts without review_id are not registered; register the receipt produced by the science-review flow")
     validate_review_receipt(payload)
+    registry_digest = None
+    registry_path = Path(__file__).resolve().parents[2] / "models" / "registry-v2.json"
+    if registry_path.is_file():
+        from codex_science.model_registry_v2 import load_registry_v2, registry_sha256
+
+        registry_digest = registry_sha256(load_registry_v2(registry_path))
+    current_hashes = {
+        str(item["path"]): str(item["sha256"]).lower()
+        for item in manifest["artifacts"]
+        if isinstance(item, dict) and item.get("path") and item.get("sha256")
+    }
+    receipt_findings = review_receipt_findings(
+        payload, current_hashes, registry_sha256=registry_digest
+    )
+    if receipt_findings:
+        codes = ", ".join(sorted({item["code"] for item in receipt_findings}))
+        raise ValueError(f"Cannot register receipt; validation findings: {codes}")
     kind = "review-receipt-v2" if "review_task_id" in payload and "packet_fingerprint" in payload else "review-receipt"
     manifest["artifacts"].append({"path": relative, "kind": kind, "sha256": _sha(receipt_path)})
+    manifest["review"] = {
+        **(review if isinstance(review, dict) else {}),
+        "status": payload["status"],
+        "receipt": canonical_receipt,
+        "findings": payload.get("findings", []),
+    }
     _write_manifest_atomic(run_dir, manifest)
     return {"added": [relative], "kind": kind}
 
@@ -452,6 +475,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         archived_sources.update(_canonical_relative(source) for source, _destination in archive_moves)
         print("warning: invalidating independent review; review files will be archived", file=sys.stderr)
         manifest["review"] = {**(review if isinstance(review, dict) else {}), "status": "pending"}
+        manifest["review"].pop("receipt", None)
         manifest["artifacts"] = [
             item for item in artifacts
             if not (
