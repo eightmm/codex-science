@@ -1,9 +1,11 @@
 """Record executions and refresh run bundle hashes."""
 from __future__ import annotations
 
-import hashlib
-import fnmatch
+import contextlib
 import fcntl
+import fnmatch
+import hashlib
+import io
 import json
 import os
 import shlex
@@ -14,9 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from codex_science.artifacts import validate_manifest, write_manifest
+from codex_science.artifacts import validate_bundle, validate_manifest, write_manifest
 from codex_science.artifact_store import describe_directory
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
+from codex_science.review import review_manifest
+from codex_science.runtime_identity import record_runtime_identity
 
 DEFAULT_KINDS = {
     "protocol.json": "protocol", "queries.jsonl": "query-ledger",
@@ -442,6 +446,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("Manifest must be a JSON object")
+    record_runtime_identity(manifest)
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
         raise ValueError("Manifest artifacts must be a list")
@@ -702,3 +707,145 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             "code_entries": len(manifest["code"]), "review_archive": review_archive,
             "superseded_failures": superseded_failures,
             "stale_deterministic_review": stale_deterministic_review}
+
+
+def prepare_review(
+    run_dir: Path, *, tier: str, modes: list[str] | None = None,
+    questions: list[str] | None = None, new_round: bool = False,
+    kind_overrides: list[tuple[str, str]] | None = None,
+    default_kind: str | None = None,
+) -> dict[str, Any]:
+    """Refresh, record existing checks, refresh their outputs, and build a packet."""
+    from codex_science.reviewer_runtime import build_review_packet
+    run_dir = run_dir.resolve()
+    problems: list[dict[str, Any]] = []
+    outputs: list[str] = []
+    packet_path = run_dir / "review-task.json"
+    packet_existed = packet_path.exists()
+    generated_kinds = [("citation-trace.json", "citation-trace"),
+                       ("claim-sufficiency.json", "claim-sufficiency")]
+    refresh_kinds = [*(kind_overrides or []), *generated_kinds]
+    # Refuse before run_exec writes its execution log when current review evidence
+    # exists and the caller did not explicitly start a new round.
+    manifest_path = _write_target(run_dir, "manifest.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    artifacts = manifest.get("artifacts", [])
+    review = manifest.get("review", {})
+    if not new_round and (
+        any(isinstance(item, dict) and item.get("kind") in REVIEW_KINDS for item in artifacts)
+        or (isinstance(review, dict) and review.get("status", "pending") != "pending")
+        or _review_flow_files(run_dir)
+    ):
+        raise ValueError(
+            "Run has independent review evidence; any change invalidates the independent review. "
+            "Start a new review round with --new-round (which archives prior review files), "
+            "or register a passed receipt with --register-receipt."
+        )
+
+    def recorded_json(prefix: str, script: str, arguments: list[str], output_name: str) -> dict[str, Any]:
+        manifest_now = json.loads(manifest_path.read_text(encoding="utf-8"))
+        used = {
+            str(item.get("id")) for item in manifest_now.get("executions", [])
+            if isinstance(item, dict) and item.get("id") is not None
+        }
+        log_file = run_dir / "execution-log.jsonl"
+        if log_file.exists():
+            used.update(
+                str(item.get("id")) for item in
+                (json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip())
+                if isinstance(item, dict) and item.get("id") is not None
+            )
+        number = 1
+        while f"{prefix}-{number:03d}" in used or (run_dir / "logs" / f"{prefix}-{number:03d}.log").exists():
+            number += 1
+        identifier = f"{prefix}-{number:03d}"
+        command = [sys.executable, str(Path(__file__).resolve().parents[2] / "scripts" / script), *arguments]
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = run_exec(run_dir, command, identifier)
+        log_path = run_dir / "logs" / f"{identifier}.log"
+        try:
+            payload = json.loads(log_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"{script} did not produce valid JSON: {error}") from error
+        return {"exit_code": code, "result": payload, "output_name": output_name}
+
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            initial_refresh = refresh(
+                run_dir,
+                refresh_kinds,
+                invalidate_review=new_round,
+                default_kind=default_kind,
+            )
+        outputs.append("manifest.json")
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        problems.append({"stage": "refresh", "phase": "initial", "error": str(error)})
+        stale_packet = packet_path.is_file()
+        return {"schema": "prepare-review-v1", "problems": problems, "outputs_written": outputs,
+                "review_task_stale": stale_packet, "refresh": {"initial": None, "final": None},
+                "next": "fix the listed findings and rerun prepare-review once"}
+
+    trace = recorded_json("prepare-review-citations", "trace_citations.py",
+                          ["--run-dir", str(run_dir), "--require-traced"], "citation-trace.json")
+    trace_result = trace["result"]
+    if trace["exit_code"] != 0 or trace_result.get("orphans"):
+        problems.append({"stage": "citation-trace", "findings": trace_result.get("orphans", []),
+                         "error": trace_result.get("error") or trace_result.get("require_traced_failure")})
+    sufficiency = recorded_json("prepare-review-sufficiency", "check_claim_sufficiency.py",
+                                ["--run-dir", str(run_dir), "--tier", tier], "claim-sufficiency.json")
+    sufficiency_result = sufficiency["result"]
+    if sufficiency["exit_code"] != 0:
+        problems.append({"stage": "claim-sufficiency", "error": sufficiency_result.get("error")})
+    else:
+        advisory = [item for item in sufficiency_result.get("claims", [])
+                    if item.get("verdict") in {"insufficient", "contradicted_unresolved"}]
+        if advisory:
+            problems.append({"stage": "claim-sufficiency", "advisory": advisory})
+    for result in (trace, sufficiency):
+        _atomic_write(run_dir, result["output_name"],
+                      (json.dumps(result["result"], indent=2, sort_keys=True) + "\n").encode())
+        outputs.append(result["output_name"])
+    final_refresh = None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            final_refresh = refresh(run_dir, refresh_kinds, default_kind=default_kind)
+        outputs.append("manifest.json")
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        problems.append({"stage": "refresh", "phase": "final", "error": str(error)})
+    deterministic = None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        sidecars = validate_bundle(manifest, run_dir)
+        deterministic = review_manifest(manifest, run_dir, sidecars=sidecars)
+        _atomic_write(run_dir, "deterministic-review.json", (json.dumps(deterministic, indent=2, sort_keys=True) + "\n").encode())
+        outputs.append("deterministic-review.json")
+        if deterministic.get("findings"):
+            problems.append({"stage": "deterministic-review", "findings": deterministic["findings"]})
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        problems.append({"stage": "deterministic-review", "error": str(error)})
+    blocking = any(item.get("stage") != "claim-sufficiency" or "error" in item for item in problems)
+    packet_written = False
+    if not blocking:
+        try:
+            packet = build_review_packet(manifest_path, review_modes=modes or ["record", "source", "method"],
+                                         review_questions=questions, tier=tier)
+            _atomic_write(run_dir, "review-task.json", (json.dumps(packet, indent=2, sort_keys=True) + "\n").encode())
+            outputs.append("review-task.json")
+            packet_written = True
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            problems.append({"stage": "packet", "error": str(error)})
+    stale_packet = False
+    if packet_path.is_file():
+        try:
+            current_digest = _sha(manifest_path)
+            packet_payload = json.loads(packet_path.read_text(encoding="utf-8"))
+            stale_packet = packet_payload.get("source_manifest_sha256") != current_digest
+        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError):
+            stale_packet = True
+    elif packet_existed and not packet_written:
+        stale_packet = True
+    if packet_existed and not packet_written and problems:
+        stale_packet = True
+    return {"schema": "prepare-review-v1", "problems": problems, "outputs_written": list(dict.fromkeys(outputs)),
+            "review_task_stale": stale_packet, "refresh": {"initial": initial_refresh, "final": final_refresh},
+            "next": "spawn the independent reviewer with review-task.json" if packet_written else "fix the listed findings and rerun prepare-review once"}

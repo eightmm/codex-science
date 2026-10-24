@@ -26,7 +26,7 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
 
     def test_reviewer_is_spawned_early_and_wait_work_avoids_reviewed_artifacts(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("Spawn the independent `$science-review` reviewer immediately after the packet is prepared", text)
+        self.assertIn("then spawn the independent reviewer immediately with `review-task.json`", text)
         self.assertIn("work only on material that touches no reviewed artifact", text)
         self.assertIn("prefer one long wait over repeated short waits", text)
         self.assertIn("After the independent review passes, do not modify reviewed artifacts", text)
@@ -145,11 +145,11 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
     def test_citation_trace_and_claim_evidence_guidance(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
         self.assertIn('"<plugin-root>/scripts/fetch_open_fulltext.py" --run-dir <run-dir>', text)
-        self.assertIn('"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/trace_citations.py"', text)
-        self.assertIn("--require-traced", text)
+        self.assertIn('"<plugin-root>/scripts/package_run.py" prepare-review --run-dir <run-dir> --tier <tier>', text)
+        self.assertIn("The citation trace checks internal traceability only", text)
         self.assertIn("support_excerpts", text)
         self.assertIn("`kind`", text)
-        self.assertIn("check_claim_sufficiency.py", text)
+        self.assertIn("claim-sufficiency check", text)
         self.assertIn("counts independent study groups only and does not prove support", text)
         self.assertIn("resolve_citations.py", text)
         self.assertIn("as an existence signal; it never overrides review", text)

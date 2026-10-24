@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.review_receipts import canonical_sha256  # noqa: E402
+from codex_science.review_receipts import build_review_receipt  # noqa: E402
 from codex_science.artifact_store import describe_directory  # noqa: E402
 from codex_science.review import review_manifest  # noqa: E402
 CLI = ROOT / "scripts" / "package_run.py"
@@ -28,6 +29,213 @@ class PackageRunTests(unittest.TestCase):
 
     def cli(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run([sys.executable, str(CLI), *args], text=True, capture_output=True, check=False)
+
+    def _make_unreviewed_run(self) -> None:
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        removed = [item for item in manifest["artifacts"] if item.get("kind") in {"review-receipt", "review-receipt-v2"}]
+        manifest["artifacts"] = [item for item in manifest["artifacts"] if item not in removed]
+        for item in removed:
+            (self.run_dir / item["path"]).unlink()
+        manifest["review"] = {"status": "pending", "findings": []}
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+    def test_prepare_review_writes_outputs_and_fresh_deterministic_review(self) -> None:
+        self._make_unreviewed_run()
+        (self.run_dir / "report.md").write_text((self.run_dir / "report.md").read_text() + " refreshed content\n")
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "standard")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["schema"], "prepare-review-v1")
+        for name in ("citation-trace.json", "claim-sufficiency.json", "deterministic-review.json", "review-task.json"):
+            self.assertTrue((self.run_dir / name).is_file())
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        self.assertEqual(len(manifest["executions"]), 3)
+        self.assertEqual(summary["next"], "spawn the independent reviewer with review-task.json")
+        validation = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"),
+                                     str(self.run_dir / "manifest.json"), "--review-output",
+                                     str(self.run_dir / "deterministic-review.json")],
+                                    text=True, capture_output=True, check=False)
+        self.assertEqual(validation.returncode, 0, validation.stderr)
+        studies_path = self.run_dir / "studies.json"
+        studies = json.loads(studies_path.read_text())
+        studies["studies"].append({
+            "cohort_id": "cohort-example-counter",
+            "contradicts_claim_ids": ["claim-method-effect"],
+            "evidence_type": "primary",
+            "included": True,
+            "persistent_id": "doi:10.0000/example.counter.1",
+            "study_id": "study-example-counter",
+            "supports_claim_ids": [],
+            "title": "Counter study with unresolved results",
+        })
+        studies_path.write_text(json.dumps(studies, indent=2) + "\n")
+        graph_path = self.run_dir / "evidence_graph.json"
+        graph = json.loads(graph_path.read_text())
+        graph["nodes"].append({"id": "study-example-counter", "label": "Counter study", "type": "study"})
+        graph["edges"].append({"independence_group": "cohort-example-counter", "relation": "contradicts",
+                               "source": "study-example-counter", "target": "claim-method-effect"})
+        graph_path.write_text(json.dumps(graph, indent=2) + "\n")
+        contradicted = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "standard", "--new-round")
+        self.assertEqual(contradicted.returncode, 1)
+        contradiction_summary = json.loads(contradicted.stdout)
+        sufficiency = next(item for item in contradiction_summary["problems"] if item["stage"] == "claim-sufficiency")
+        self.assertIn("contradicted_unresolved", {item["verdict"] for item in sufficiency["advisory"]})
+        self.assertIn("deterministic-review", {item["stage"] for item in contradiction_summary["problems"]})
+
+    def test_prepare_review_accepts_additional_files_with_default_kind(self) -> None:
+        self._make_unreviewed_run()
+        (self.run_dir / "review-corrections.json").write_text('{"notes":[]}\n')
+        blocked = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(blocked.returncode, 1)
+        self.assertIn("Unclassified files: review-corrections.json", json.loads(blocked.stdout)["problems"][0]["error"])
+        accepted = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick",
+                            "--default-kind", "provenance")
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        extra = next(item for item in manifest["artifacts"] if item["path"] == "review-corrections.json")
+        self.assertEqual(extra["kind"], "provenance")
+
+    def test_prepare_review_initial_refresh_failure_marks_existing_packet_stale(self) -> None:
+        self._make_unreviewed_run()
+        first = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        (self.run_dir / "report.md").write_text((self.run_dir / "report.md").read_text() + " changed\n")
+        (self.run_dir / "unclassified-extra.json").write_text("{}\n")
+        blocked = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick", "--new-round")
+        self.assertEqual(blocked.returncode, 1)
+        summary = json.loads(blocked.stdout)
+        self.assertEqual(summary["problems"][0]["phase"], "initial")
+        self.assertTrue(summary["review_task_stale"])
+
+    def test_prepare_review_blocks_orphan_and_lists_problem(self) -> None:
+        self._make_unreviewed_run()
+        report = self.run_dir / "report.md"
+        report.write_text(report.read_text() + " doi:10.5555/orphan.reference\n")
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(result.returncode, 1)
+        summary = json.loads(result.stdout)
+        self.assertIn("citation-trace", {item["stage"] for item in summary["problems"]})
+        self.assertFalse((self.run_dir / "review-task.json").exists())
+        self.assertFalse(summary["review_task_stale"])
+        report.write_text(report.read_text().replace(" doi:10.5555/orphan.reference\n", ""))
+        rerun = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(rerun.returncode, 0, rerun.stderr)
+        self.assertTrue((self.run_dir / "review-task.json").is_file())
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        identifiers = [item["id"] for item in manifest["executions"]
+                       if isinstance(item.get("id"), str) and item["id"].startswith("prepare-review-")]
+        self.assertEqual(len(identifiers), len(set(identifiers)))
+        citation = next(item for item in manifest["artifacts"] if item["path"] == "citation-trace.json")
+        self.assertEqual(citation["kind"], "citation-trace")
+
+    def test_prepare_review_registers_outputs_left_by_interrupted_call(self) -> None:
+        self._make_unreviewed_run()
+        (self.run_dir / "citation-trace.json").write_text('{"schema":"citation-trace-v1"}\n')
+        (self.run_dir / "claim-sufficiency.json").write_text('{"schema":"claim-sufficiency-v1"}\n')
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        self.assertFalse(any(item.get("path") in {"citation-trace.json", "claim-sufficiency.json"}
+                             for item in manifest["artifacts"]))
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick",
+                          "--kind", "citation-trace.json=custom-kind")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        kinds = {item["path"]: item["kind"] for item in manifest["artifacts"]}
+        self.assertEqual(kinds["citation-trace.json"], "citation-trace")
+        self.assertEqual(kinds["claim-sufficiency.json"], "claim-sufficiency")
+
+    def test_prepare_review_packet_artifact_edit_fails_receipt_check(self) -> None:
+        self._make_unreviewed_run()
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        packet = json.loads((self.run_dir / "review-task.json").read_text())
+        receipt = build_review_receipt(
+            review_id="packet-edit-check", reviewer="fixture-reviewer", independent=True,
+            review_modes=["record"], status="passed", covered_artifacts=packet["artifacts"],
+            covered_claim_ids=[], findings=[], limitations=["fixture only"],
+        )
+        (self.run_dir / "fixture-receipt.json").write_text(json.dumps(receipt))
+        (self.run_dir / "report.md").write_text((self.run_dir / "report.md").read_text() + "edited\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "fixture-receipt.json")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("report.md", result.stderr)
+
+    def test_prepare_review_bad_mode_has_argparse_error_prefix(self) -> None:
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick", "--mode", "unknown")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("error:", result.stderr)
+
+    def test_prepare_review_refuses_existing_evidence_and_new_round_archives(self) -> None:
+        before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                  for path in self.run_dir.rglob("*") if path.is_file()}
+        refused = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "full")
+        self.assertEqual(refused.returncode, 1)
+        self.assertTrue(refused.stderr.startswith("error:"))
+        self.assertIn("--new-round", refused.stderr)
+        self.assertIn("--register-receipt", refused.stderr)
+        after = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                 for path in self.run_dir.rglob("*") if path.is_file()}
+        self.assertEqual(after, before)
+        (self.run_dir / "review.json").unlink()
+        before_failed_archive = {path.relative_to(self.run_dir).as_posix(): path.read_bytes() if path.is_file() else None
+                                 for path in self.run_dir.rglob("*")}
+        archive_failed = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "full", "--new-round")
+        self.assertEqual(archive_failed.returncode, 1)
+        failure_summary = json.loads(archive_failed.stdout)
+        self.assertEqual(failure_summary["problems"][0]["phase"], "initial")
+        after_failed_archive = {path.relative_to(self.run_dir).as_posix(): path.read_bytes() if path.is_file() else None
+                                for path in self.run_dir.rglob("*")}
+        self.assertEqual(after_failed_archive, before_failed_archive)
+        self.assertFalse((self.run_dir / "execution-log.jsonl").exists())
+        self.assertFalse((self.run_dir / "logs").exists())
+        self.assertFalse((self.run_dir / "citation-trace.json").exists())
+        self.assertFalse((self.run_dir / "claim-sufficiency.json").exists())
+        self.assertFalse((self.run_dir / "deterministic-review.json").exists())
+        self.assertFalse((self.run_dir / "review-task.json").exists())
+        (self.run_dir / "review.json").write_bytes(before["review.json"])
+        started = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "full", "--new-round")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.assertTrue((self.run_dir / "review-rounds" / "1" / "review.json").is_file())
+        first_packet = json.loads((self.run_dir / "review-task.json").read_text())
+        self.assertEqual(first_packet["source_manifest_sha256"], hashlib.sha256((self.run_dir / "manifest.json").read_bytes()).hexdigest())
+
+        second_round = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "full", "--new-round")
+        self.assertEqual(second_round.returncode, 0, second_round.stderr)
+        self.assertTrue((self.run_dir / "review-rounds" / "2" / "review-task.json").is_file())
+        self.assertTrue((self.run_dir / "review-task.json").is_file())
+
+        external_packet = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "science_reviewer.py"), "prepare",
+             str(self.run_dir / "manifest.json"), "--mode", "record", "--output", str(self.run_dir / "review-task.json")],
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(external_packet.returncode, 0, external_packet.stderr)
+        third_round = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "full", "--new-round")
+        self.assertEqual(third_round.returncode, 0, third_round.stderr)
+        self.assertTrue((self.run_dir / "review-rounds" / "3" / "review-task.json").is_file())
+        replacement = json.loads((self.run_dir / "review-task.json").read_text())
+        self.assertEqual(replacement["source_manifest_sha256"], hashlib.sha256((self.run_dir / "manifest.json").read_bytes()).hexdigest())
+        self.assertFalse(json.loads(third_round.stdout)["review_task_stale"])
+        (self.run_dir / "report.md").write_text((self.run_dir / "report.md").read_text() + " doi:10.5555/round-four-orphan\n")
+        blocked_round = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "full", "--new-round")
+        self.assertEqual(blocked_round.returncode, 1)
+        self.assertTrue(json.loads(blocked_round.stdout)["review_task_stale"])
+        self.assertFalse((self.run_dir / "review-task.json").exists())
+
+    def test_refresh_records_missing_runtime_history_and_rejects_malformed(self) -> None:
+        path = self.run_dir / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["runtime_history"] = []
+        path.write_text(json.dumps(manifest, indent=2) + "\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(json.loads(path.read_text())["runtime_history"]), 1)
+        manifest = json.loads(path.read_text())
+        manifest["runtime_history"] = ["invalid"]
+        path.write_text(json.dumps(manifest, indent=2) + "\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("runtime_history entries must be objects", result.stderr)
 
     def test_exec_records_log_and_passthrough(self) -> None:
         result = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "sample", "--", sys.executable, "-c", "print('hello'); raise SystemExit(7)")

@@ -18,6 +18,7 @@ A second pass by the producer must use `independent: false`.
 
 ## Prepare a review packet
 
+For literature runs, use `package_run.py prepare-review` to run the gates and build the packet; `science_reviewer.py prepare` remains available for direct packet preparation.
 ```bash
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" prepare \
   artifacts/run-014/manifest.json \
