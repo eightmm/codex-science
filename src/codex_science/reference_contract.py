@@ -1,8 +1,10 @@
 """Progressive-disclosure reference contracts for scientific Agent Skills."""
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import os
 import re
 import reprlib
 from dataclasses import asdict, dataclass
@@ -466,3 +468,159 @@ def validate_reference_use_ledger(payload: Mapping[str, Any]) -> None:
                 f"duplicate reference use receipt: {_bounded_item_repr(item, 'reference_id')}"
             )
         seen.add(key)
+
+
+def record_reference_uses(
+    run_dir: Path,
+    references: Iterable[Path],
+    *,
+    read_reason: str,
+    used_for: Iterable[str] = ("workflow-route",),
+    sections: Iterable[str] = (),
+    search_terms: Iterable[str] = (),
+    output: str = "reference-use-ledger.json",
+) -> dict[str, Any]:
+    """Validate inputs, merge reference receipts, and atomically write a run ledger."""
+    root = run_dir.resolve(strict=True)
+    descriptor = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        return _record_reference_uses_locked(
+            root,
+            references,
+            read_reason=read_reason,
+            used_for=used_for,
+            sections=sections,
+            search_terms=search_terms,
+            output=output,
+        )
+    finally:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+
+def _record_reference_uses_locked(
+    root: Path,
+    references: Iterable[Path],
+    *,
+    read_reason: str,
+    used_for: Iterable[str],
+    sections: Iterable[str],
+    search_terms: Iterable[str],
+    output: str,
+) -> dict[str, Any]:
+    from .cli_io import write_json_atomic
+
+    references = tuple(references)
+    used_for = tuple(used_for) or ("workflow-route",)
+    sections = tuple(sections)
+    search_terms = tuple(search_terms)
+    output_path = Path(output)
+    if output_path.is_absolute() or ".." in output_path.parts:
+        raise ValueError("output path must stay inside the run directory")
+    target = root / output_path
+    if target.name == "manifest.json":
+        raise ValueError("refusing to write over manifest.json")
+    cursor = root
+    for part in output_path.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError(f"refusing symlink output path: {cursor}")
+    if not target.resolve().is_relative_to(root):
+        raise ValueError("output path must stay inside the run directory")
+
+    problems: list[str] = []
+    receipts: list[dict[str, Any]] = []
+    reference_paths: set[Path] = set()
+    for supplied in references:
+        try:
+            path = Path(supplied).resolve(strict=True)
+            if not path.is_file():
+                raise ValueError("not a regular file")
+            if path.parent.name != "references" or not (path.parent.parent / "SKILL.md").is_file():
+                raise ValueError("file must be directly inside a skill references/ directory with SKILL.md")
+            skill_dir = path.parent.parent
+            reference_paths.add(path)
+            index = load_reference_index(skill_dir)
+            if index is None:
+                raise ValueError(f"skill has no references/{INDEX_NAME}")
+            relative = path.relative_to(skill_dir).as_posix()
+            entry = next((item for item in index.references if item.path == relative), None)
+            if entry is None:
+                raise ValueError(f"reference is not listed in {skill_dir / 'references' / INDEX_NAME}")
+            receipt = build_reference_use_receipt(
+                skill_dir,
+                entry,
+                read_reason=read_reason,
+                used_for=used_for,
+                sections=sections,
+                search_terms=search_terms,
+            )
+            receipts.append(receipt.to_dict())
+        except (OSError, ValueError, StopIteration) as exc:
+            problems.append(f"{supplied}: {exc}")
+
+    if target in reference_paths:
+        problems.append("output path must not overwrite an input reference file")
+    ledger: dict[str, Any] = {"schema_version": 1, "skill": "", "uses": []}
+    if target.exists():
+        try:
+            loaded = json.loads(target.read_text(encoding="utf-8"))
+            if not isinstance(loaded, dict):
+                raise ValueError("ledger must be a JSON object")
+            if isinstance(loaded.get("uses"), list):
+                for item in loaded["uses"]:
+                    if isinstance(item, dict) and "skill" not in item and loaded.get("skill"):
+                        item["skill"] = loaded["skill"]
+            validate_reference_use_ledger(loaded)
+            ledger = loaded
+        except (OSError, json.JSONDecodeError, ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
+            problems.append(f"existing ledger {target}: {exc}")
+    if problems:
+        raise ValueError("; ".join(problems))
+
+    uses = list(ledger["uses"])
+    added = merged = 0
+    try:
+        for receipt in receipts:
+            key = (receipt["skill"], receipt["reference_id"], receipt["sha256"])
+            collision = next((
+                item for item in uses
+                if item["reference_id"] == key[1]
+                and item["sha256"] == key[2]
+                and item.get("skill", ledger["skill"]) != key[0]
+            ), None)
+            if collision is not None:
+                raise ValueError(
+                    f"reference use collides with another skill for {key[1]} at {key[2]}"
+                )
+            existing = next((
+                item for item in uses
+                if (item.get("skill", ledger["skill"]), item["reference_id"], item["sha256"]) == key
+            ), None)
+            if existing is None:
+                uses.append(receipt)
+                added += 1
+            else:
+                for field in ("used_for", "sections", "search_terms"):
+                    existing[field] = list(dict.fromkeys([*existing.get(field, []), *receipt[field]]))
+                if not existing.get("read_reason"):
+                    existing["read_reason"] = receipt["read_reason"]
+                merged += 1
+        if not ledger["skill"]:
+            ledger["skill"] = receipts[0]["skill"]
+        ledger["uses"] = uses
+        validate_reference_use_ledger(ledger)
+    except (KeyError, TypeError, AttributeError, IndexError) as exc:
+        problems.append(f"existing ledger {target}: malformed structure: {exc}")
+    if problems:
+        raise ValueError("; ".join(problems))
+    write_json_atomic(target, ledger)
+    return {
+        "output": target.relative_to(root).as_posix(),
+        "uses_added": added,
+        "uses_merged": merged,
+        "total_uses": len(uses),
+    }

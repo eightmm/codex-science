@@ -1,6 +1,12 @@
+import hashlib
 import json
+import shutil
+import subprocess
+import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from codex_science.reference_contract import (
@@ -48,6 +54,211 @@ class ReferenceContractTests(unittest.TestCase):
             encoding="utf-8",
         )
         return skill
+
+    def _copy_indexed_skill(self, root: Path, name: str = "statistical-decision-analysis") -> Path:
+        source = Path(__file__).resolve().parents[1] / "authored-skills" / name
+        target = root / name
+        shutil.copytree(source, target)
+        return target
+
+    def _record_cli(self, run_dir: Path, references: list[Path], *extra: str) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            str(Path(__file__).resolve().parents[1] / "scripts" / "record_reference_use.py"),
+            "--run-dir", str(run_dir),
+        ]
+        for reference in references:
+            command.extend(["--reference", str(reference)])
+        command.extend(["--reason", "used for contract review", *extra])
+        return subprocess.run(command, text=True, capture_output=True, check=False)
+
+    def test_record_reference_cli_creates_merges_and_tracks_changed_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._copy_indexed_skill(root)
+            reference = skill / "references" / "finite-decision-analysis.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            result = self._record_cli(run_dir, [reference], "--used-for", "claim-A", "--section", "Criteria")
+            self.assertEqual(0, result.returncode, result.stderr)
+            ledger_path = run_dir / "reference-use-ledger.json"
+            ledger = json.loads(ledger_path.read_text())
+            first = ledger["uses"][0]
+            first_loaded_at = first["loaded_at"]
+            self.assertEqual("finite-decision-analysis", first["reference_id"])
+            self.assertEqual(hashlib.sha256(reference.read_bytes()).hexdigest(), first["sha256"])
+            validate_reference_use_ledger(ledger)
+
+            package_run = root / "package-run"
+            shutil.copytree(Path(__file__).resolve().parents[1] / "examples" / "literature-review-reviewed-run", package_run)
+            shutil.copy2(ledger_path, package_run / "reference-use-ledger.json")
+            refresh = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "package_run.py"),
+                 "refresh", "--run-dir", str(package_run), "--invalidate-review"],
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(0, refresh.returncode, refresh.stderr)
+            packaged = json.loads((package_run / "manifest.json").read_text())
+            ledger_artifact = next(item for item in packaged["artifacts"] if item["path"] == "reference-use-ledger.json")
+            self.assertEqual("reference-use-ledger", ledger_artifact["kind"])
+
+            result = self._record_cli(run_dir, [reference], "--used-for", "claim-B", "--section", "Results")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual({"output": "reference-use-ledger.json", "uses_added": 0, "uses_merged": 1, "total_uses": 1}, json.loads(result.stdout))
+            ledger = json.loads(ledger_path.read_text())
+            self.assertEqual(1, len(ledger["uses"]))
+            self.assertEqual(["claim-A", "claim-B"], ledger["uses"][0]["used_for"])
+            self.assertEqual(["Criteria", "Results"], ledger["uses"][0]["sections"])
+            self.assertEqual(first_loaded_at, ledger["uses"][0]["loaded_at"])
+            self.assertEqual("used for contract review", ledger["uses"][0]["read_reason"])
+
+            reference.write_text(reference.read_text() + "\nChanged for test.\n")
+            result = self._record_cli(run_dir, [reference])
+            self.assertEqual(0, result.returncode, result.stderr)
+            ledger = json.loads(ledger_path.read_text())
+            self.assertEqual(2, len(ledger["uses"]))
+            self.assertEqual("statistical-decision-analysis", ledger["skill"])
+
+    def test_record_reference_cli_accepts_references_from_two_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            first = self._copy_indexed_skill(root)
+            second = self._copy_indexed_skill(root, "geometry-topology")
+            run_dir = root / "run"
+            run_dir.mkdir()
+            first_reference = first / "references" / "finite-decision-analysis.md"
+            second_reference = next(path for path in (second / "references").iterdir() if path.name != "index.json")
+            references = [
+                first_reference,
+                second_reference,
+            ]
+            result = self._record_cli(run_dir, references)
+            self.assertEqual(0, result.returncode, result.stderr)
+            ledger = json.loads((run_dir / "reference-use-ledger.json").read_text())
+            self.assertEqual(2, len(ledger["uses"]))
+            self.assertEqual({first.name, second.name}, {item["skill"] for item in ledger["uses"]})
+            validate_reference_use_ledger(ledger)
+
+    def test_record_reference_cli_merges_existing_use_without_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._copy_indexed_skill(root)
+            reference = skill / "references" / "finite-decision-analysis.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            created = self._record_cli(run_dir, [reference], "--used-for", "claim-A")
+            self.assertEqual(0, created.returncode, created.stderr)
+            ledger_path = run_dir / "reference-use-ledger.json"
+            ledger = json.loads(ledger_path.read_text())
+            ledger["uses"][0].pop("skill")
+            ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+
+            merged = self._record_cli(run_dir, [reference], "--used-for", "claim-B")
+            self.assertEqual(0, merged.returncode, merged.stderr)
+            ledger = json.loads(ledger_path.read_text())
+            self.assertEqual(1, len(ledger["uses"]))
+            self.assertEqual(skill.name, ledger["uses"][0]["skill"])
+            self.assertEqual(["claim-A", "claim-B"], ledger["uses"][0]["used_for"])
+
+    def test_record_reference_cli_serializes_concurrent_writers(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            first_skill = self._copy_indexed_skill(root)
+            second_skill = self._copy_indexed_skill(root, "geometry-topology")
+            references = [
+                first_skill / "references" / "finite-decision-analysis.md",
+                next(path for path in (second_skill / "references").iterdir() if path.name != "index.json"),
+            ]
+            run_dir = root / "run"
+            run_dir.mkdir()
+            start = threading.Barrier(2)
+
+            def write(reference: Path, use: str) -> subprocess.CompletedProcess[str]:
+                start.wait()
+                return self._record_cli(run_dir, [reference], "--used-for", use)
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(write, references[0], "claim-A"),
+                    executor.submit(write, references[1], "claim-B"),
+                ]
+                results = [future.result() for future in futures]
+            for result in results:
+                self.assertEqual(0, result.returncode, result.stderr)
+            ledger = json.loads((run_dir / "reference-use-ledger.json").read_text())
+            self.assertEqual(2, len(ledger["uses"]))
+            self.assertEqual({"claim-A", "claim-B"}, {item["used_for"][0] for item in ledger["uses"]})
+            self.assertEqual({"reference-use-ledger.json"}, {path.name for path in run_dir.iterdir()})
+
+    def test_record_reference_cli_aggregates_invalid_inputs_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._copy_indexed_skill(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            outside = root / "outside.md"
+            outside.write_text("outside")
+            unknown = skill / "references" / "unknown.md"
+            unknown.write_text("unknown")
+            no_index = root / "no-index"
+            no_index.mkdir()
+            (no_index / "SKILL.md").write_text("# Skill")
+            (no_index / "references").mkdir()
+            missing_index_ref = no_index / "references" / "ref.md"
+            missing_index_ref.write_text("ref")
+            missing = skill / "references" / "missing.md"
+            result = self._record_cli(run_dir, [outside, unknown, missing_index_ref, missing])
+            self.assertEqual(1, result.returncode)
+            self.assertTrue(result.stderr.startswith("error:"))
+            self.assertIn("directly inside", result.stderr)
+            self.assertIn("not listed", result.stderr)
+            self.assertIn("no references/index.json", result.stderr)
+            self.assertIn("missing.md", result.stderr)
+            self.assertFalse((run_dir / "reference-use-ledger.json").exists())
+
+            valid = skill / "references" / "finite-decision-analysis.md"
+            ledger = run_dir / "reference-use-ledger.json"
+            ledger.write_text("not json")
+            result = self._record_cli(run_dir, [valid])
+            self.assertEqual(1, result.returncode)
+            self.assertIn("existing ledger", result.stderr)
+            self.assertEqual("not json", ledger.read_text())
+
+            for uses in ([{
+                "schema_version": 1,
+                "skill": skill.name,
+                "path": "references/finite-decision-analysis.md",
+                "sha256": "a" * 64,
+                "read_reason": "existing use",
+                "loaded_at": "now",
+            }], [None], [{
+                "schema_version": 1, "skill": skill.name, "reference_id": "finite-decision-analysis",
+                "path": ".", "sha256": "a" * 64, "read_reason": "existing use", "loaded_at": "now",
+            }]):
+                original = json.dumps({"schema_version": 1, "skill": skill.name, "uses": uses})
+                ledger.write_text(original, encoding="utf-8")
+                result = self._record_cli(run_dir, [valid])
+                self.assertEqual(1, result.returncode)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertEqual(original, ledger.read_text())
+
+    def test_record_reference_cli_refuses_unsafe_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._copy_indexed_skill(root)
+            reference = skill / "references" / "finite-decision-analysis.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            for output in ("../outside.json", "manifest.json"):
+                result = self._record_cli(run_dir, [reference], "--output", output)
+                self.assertEqual(1, result.returncode)
+                self.assertTrue(result.stderr.startswith("error:"))
+            link = run_dir / "ledger-link.json"
+            link.symlink_to(root / "target.json")
+            result = self._record_cli(run_dir, [reference], "--output", "ledger-link.json")
+            self.assertEqual(1, result.returncode)
+            self.assertIn("symlink", result.stderr)
+            self.assertFalse((root / "target.json").exists())
 
     def test_index_selection_and_use_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

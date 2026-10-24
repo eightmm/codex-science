@@ -46,7 +46,7 @@ After selecting a skill, inspect its `references/index.json` when present and lo
 
 Read [the project evidence store contract](references/project-evidence-store.md) before managing multi-run lineage, hypotheses, comparisons, or merge plans. Read [the pipeline promotion contract](references/pipeline-promotion.md) before generating a reusable draft from a reviewed run, and [the next-experiment planning contract](references/next-experiment-planning.md) before ranking a proposed batch. Read [the authenticated connector pack contract](references/authenticated-connector-packs.md) before designing, approving, or using a credentialed or write-capable provider action.
 
-When a reference materially controls a query, command, transformation, threshold, or claim, record its path, SHA-256, read reason, and affected claim or artifact in a `reference-use-ledger`. A reference explains procedure; the actual source record or computation remains the scientific evidence.
+When a reference materially controls a query, command, transformation, threshold, or claim, record its path, SHA-256, read reason, and affected claim or artifact in a `reference-use-ledger` with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/record_reference_use.py" --run-dir <run-dir> --reference <reference-file> --reason <text> --used-for <claim-or-artifact>`. A reference explains procedure; the actual source record or computation remains the scientific evidence.
 
 ## Research contract and evidence graph
 

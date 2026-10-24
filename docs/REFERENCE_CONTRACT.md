@@ -130,6 +130,8 @@ python scripts/reference_lookup.py authored-skills/literature-review \
 }
 ```
 
+`scripts/record_reference_use.py --run-dir RUN --reference FILE --reason TEXT [--used-for ID]` hashes the reference, takes its id from `references/index.json`, and merges the receipt into `RUN/reference-use-ledger.json`.
+
 Attach the ledger to the run manifest with `kind: reference-use-ledger`. It records procedural grounding, not scientific evidence by itself.
 
 ## What belongs where
