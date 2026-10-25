@@ -233,6 +233,33 @@ denominator.
   regression or gain versus run18 (5/6): each run has six tasks, and the two
   full tasks differ by one review round.
 
+- Run20 (`6d8ad87`, runtime `0.5.0+codex.20261024150000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%): quick-doi completed in 73 seconds and quick-arxiv
+  in 71 seconds; the five remaining tasks ran in parallel after quick-doi.
+  Standard-single-cell completed in 1382 seconds, standard-mrna in 1427
+  seconds, full-microbiome in 1721 seconds, and full-protein-folding in 1739
+  seconds. All six tasks matched the branch runtime. No provider policy blocks,
+  infrastructure failures, or stream stalls occurred. All four standard/full
+  tasks used `package_run.py prepare-review`; their review packets were written
+  at about 1087 seconds (single-cell), 1053 seconds (mrna), 1299 seconds
+  (microbiome), and 1235 seconds (protein-folding). From packet to
+  `science_reviewer.py finalize` took about 270, 285, 380, and 450 seconds,
+  respectively; the event log does not record when the reviewer was spawned.
+  All four passed in one review round. In three tasks, the first prepare-review call stopped on a
+  fixable problem (an unclassified run file requiring `--kind` or
+  `--default-kind`, or a failed recorded execution); in both standard tasks the
+  next call then reported orphan citations, which the agent fixed. A second or
+  third call built the packet, with each retry taking under one minute. In the
+  final packages, citation tracing resolved all 39 cited identifiers, with no
+  orphans.
+  Every standard/full package had a reference-use ledger, still written by
+  hand; deterministic ledger generation is addressed in following commits
+  (see CHANGELOG). The two full tasks finished 79 and 61 seconds before the
+  1800-second cap, respectively, so completion is sensitive to small timing
+  changes. Standard-mrna has now been blocked by provider policy in 7 of 15
+  runs (runs 6–20). Run20 does not establish a gain over run19 (3/6) or run18
+  (5/6): each run has six tasks, and both full tasks finished close to the cap.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -240,7 +267,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–19 in order and run16b as a
+receipt, then one summary row per run, for runs 6–20 in order and run16b as a
 two-task rerun; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17

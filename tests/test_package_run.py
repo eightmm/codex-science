@@ -89,6 +89,7 @@ class PackageRunTests(unittest.TestCase):
         blocked = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
         self.assertEqual(blocked.returncode, 1)
         self.assertIn("Unclassified files: review-corrections.json", json.loads(blocked.stdout)["problems"][0]["error"])
+        self.assertIn("--kind PATH=KIND or --default-kind KIND", json.loads(blocked.stdout)["problems"][0]["error"])
         accepted = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick",
                             "--default-kind", "provenance")
         self.assertEqual(accepted.returncode, 0, accepted.stderr)

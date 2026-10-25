@@ -611,7 +611,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         by_path[canonical] = item
         added.append(relative)
     if unclassified:
-        raise ValueError("Unclassified files: " + ", ".join(unclassified))
+        raise ValueError("Unclassified files: " + ", ".join(unclassified) + "; classify each with --kind PATH=KIND or --default-kind KIND")
 
     manifest["artifacts"] = artifacts
     code_by_path = {_canonical_relative(str(item.get("path"))): item for item in manifest["code"] if isinstance(item, dict) and item.get("path")}
