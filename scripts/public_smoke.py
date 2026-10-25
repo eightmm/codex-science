@@ -90,6 +90,28 @@ def _report_allowed_unavailable(name: str, detail: str) -> None:
         print(f"::warning title=Public API unavailable::{message}")
 
 
+def _is_timeout(error: Exception) -> bool:
+    return isinstance(error, TimeoutError) or (
+        isinstance(error, urllib.error.URLError)
+        and not isinstance(error, urllib.error.HTTPError)
+        and isinstance(error.reason, TimeoutError)
+    )
+
+
+def _search_with_retry(connector: Any, query: str) -> Any:
+    try:
+        return connector.search(query, limit=1)
+    except (TimeoutError, urllib.error.URLError) as error:
+        if not _is_timeout(error):
+            raise
+    try:
+        return connector.search(query, limit=1)
+    except (TimeoutError, urllib.error.URLError) as error:
+        if _is_timeout(error):
+            raise TimeoutError("timeout after 2 attempts") from error
+        raise
+
+
 def run_checks(
     checks: Iterable[tuple[str, Any, str]],
     allowed_http_403: set[str] | None = None,
@@ -101,10 +123,7 @@ def run_checks(
     failures: list[str] = []
     for name, connector, query in checks:
         try:
-            try:
-                results = connector.search(query, limit=1)
-            except TimeoutError:
-                results = connector.search(query, limit=1)
+            results = _search_with_retry(connector, query)
         except TimeoutError:
             if name in allowed_unavailable or "all" in allowed_unavailable:
                 _report_allowed_unavailable(name, "unavailable (timeout after 2 attempts)")
@@ -124,6 +143,13 @@ def run_checks(
                 processed += 1
                 continue
             failures.append(f"{name}: HTTP {error.code}")
+            continue
+        except urllib.error.URLError as error:
+            if name in allowed_unavailable or "all" in allowed_unavailable:
+                _report_allowed_unavailable(name, f"unavailable (unreachable: {error.reason})")
+                processed += 1
+                continue
+            failures.append(f"{name}: unreachable ({error.reason})")
             continue
         if not results:
             failures.append(f"{name}: no results")

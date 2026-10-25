@@ -112,6 +112,55 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
             self.assertEqual(1, run_checks((("example", connector, "x"),)))
         self.assertEqual(2, connector.calls)
 
+    def test_public_smoke_retries_urllib_connect_timeout(self) -> None:
+        class Connector:
+            calls = 0
+
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                self.calls += 1
+                if self.calls == 1:
+                    raise urllib.error.URLError(TimeoutError("timed out"))
+                return [{"id": "ok"}]
+
+        connector = Connector()
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(1, run_checks((("example", connector, "x"),)))
+        self.assertEqual(2, connector.calls)
+
+    def test_public_smoke_collects_urllib_failures_and_continues(self) -> None:
+        class FailingConnector:
+            calls = 0
+
+            def __init__(self, failure: Exception) -> None:
+                self.failure = failure
+
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                self.calls += 1
+                raise self.failure
+
+        class SuccessConnector:
+            def search(self, _query: str, *, limit: int) -> list[dict[str, str]]:
+                return [{"id": "ok"}]
+
+        timeout = FailingConnector(urllib.error.URLError(TimeoutError("timed out")))
+        dns = FailingConnector(urllib.error.URLError("Name or service not known"))
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), self.assertRaises(SystemExit) as raised:
+            run_checks(
+                (
+                    ("first", timeout, "x"),
+                    ("second", dns, "x"),
+                    ("third", SuccessConnector(), "x"),
+                )
+            )
+
+        message = str(raised.exception)
+        self.assertIn("first: timeout after 2 attempts", message)
+        self.assertIn("second: unreachable (Name or service not known)", message)
+        self.assertEqual(2, timeout.calls)
+        self.assertEqual(1, dns.calls)
+        self.assertIn("third: ok (ok)", stdout.getvalue())
+
     def test_public_smoke_collects_failures_and_continues(self) -> None:
         class TimeoutConnector:
             calls = 0
@@ -175,6 +224,19 @@ class PublicSmokeWorkflowTests(unittest.TestCase):
                 allowed_unavailable={"all"},
             )
         self.assertEqual(2, processed)
+
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            processed = run_checks(
+                (
+                    ("a", Connector(urllib.error.URLError(TimeoutError("timed out"))), "x"),
+                    ("b", Connector(urllib.error.URLError("Name or service not known")), "x"),
+                ),
+                allowed_unavailable={"all"},
+            )
+        self.assertEqual(2, processed)
+        self.assertIn("a: unavailable (timeout after 2 attempts)", stdout.getvalue())
+        self.assertIn("b: unavailable (unreachable: Name or service not known)", stdout.getvalue())
 
     def test_github_automation_is_pinned_and_minimally_privileged(self) -> None:
         ci = (self.root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")

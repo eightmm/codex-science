@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `scripts/public_smoke.py` now handles a connection timeout that urllib reports as `URLError` like any other timeout (one retry, then a collected failure or an allowed-unavailable warning), and records other unreachable sources as failures instead of stopping before the remaining sources are checked.
 - The literature-review skill and `build_literature_snapshot.py --help` now name the `protocol.json` fields the snapshot builder requires (`protocol_id`, `question`, `question_framework`, `evidence_cutoff`), so a protocol can record them when it is frozen instead of failing at the snapshot step.
 - Full-text lookup now matches a study's padded or mixed-case DOI against the same DOI cited in a report, so the cited study is looked up once under its normalized DOI.
 - Europe PMC search records now keep the article's PMCID when Europe PMC reports one, so candidate pools and study tables carry it and the MED and PMC records of one article merge into one candidate. `fetch_open_fulltext.py` looks up a study whose own top-level identifiers include a valid PMCID by that PMCID only, instead of by each of its own PMID and DOI; identifiers that appear only in nested study metadata are never replaced.
