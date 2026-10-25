@@ -588,6 +588,48 @@ Codex sign-in, which the recorded runs did not set up.
   Six tasks cannot establish an effect; one run is one sample, and no
   improvement trend is claimed from it.
 
+- Run29 (`e82bbe8`, runtime `0.5.0+codex.20261026010500`), 6/6 (95% Wilson
+  interval 61.0%-100%). Changes under test since run28 (`bc3f860`) are
+  `80b86ca`, which adds `scripts/plan_life_science_research.py` as a script
+  fallback for the life-science planner MCP tool, named in the coordinator and
+  life-science routing skills; `8c54ac6`, run28 docs; and `e82bbe8`, which asks
+  completion messages for findings that rest on database or dataset records to
+  name the record identifiers and the source release or access date. The frozen
+  literature tasks do not rely on such records. quick-doi completed in 75
+  seconds, quick-arxiv in 60 seconds, standard-mrna in 1024 seconds,
+  standard-single-cell in 1037 seconds, full-protein-folding in 1454 seconds, and
+  full-microbiome in 1470 seconds. All six stop reasons are done. The grader
+  reports `stall_affected_timeouts` 0. No provider policy blocks or
+  infrastructure failures occurred.
+  Pre-registered secondary metrics (prediction, then observation):
+  - C1 coordinator reads of runtime `SKILL.md` under `catalog/codex-skills/`:
+    predicted 0; observed 0. Met.
+  - P2 failed invocations of `scripts/plan_life_science_research.py`: run28 had
+    1 (the script did not exist then); predicted 0; observed 0, with 2
+    successful invocations. Met.
+  - M1 completed packages showing the review as pending: predicted 0; observed
+    0 of 4. Met.
+  - M2 "Receipt already registered" errors: predicted 0; observed 0. Met.
+  - M3 strict plugin-source reads: predicted ≤ 3; observed 0. Met.
+  - M4 failed commands naming plugin scripts, excluding prepare-review:
+    predicted ≤ 4; observed 2, both in standard-mrna while registering the
+    review receipt: `refresh --register-receipt` combined with `--default-kind`
+    (refused), then a receipt path given relative to the working directory
+    instead of the run directory. Met. standard-single-cell hit the same
+    `--default-kind` refusal through a shell alias for the plugin scripts; the
+    M4 definition does not match that case.
+  - P1 `build_literature_snapshot.py` missing-field failures: predicted 0;
+    observed 0. Met.
+  - MCP tool calls: predicted 0 (descriptive); observed 0. The server-start
+    cause recorded for run28 is unchanged.
+  Citation tracing traced 70 of 72 cited identifiers. The two orphans are one
+  index file-listing line (full-microbiome) and one identifier in an
+  agent-authored `source-coverage.md` (full-protein-folding).
+  Standard-mrna completed; it has been blocked by provider policy in 7 of 24 runs
+  (runs 6–29).
+  Six tasks cannot establish an effect; one run is one sample, and no
+  improvement trend is claimed from it.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -595,7 +637,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–28 in order, with run16b and
+receipt, then one summary row per run, for runs 6–29 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
