@@ -402,8 +402,13 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
     if mismatches:
         changed_paths = sorted({_canonical_relative(path) for path in mismatches})
         raise ValueError("Cannot register receipt; changed paths: " + ", ".join(changed_paths))
-    if any(_canonical_relative(str(item.get("path", ""))) == canonical_receipt for item in manifest["artifacts"] if isinstance(item, dict)):
-        raise ValueError(f"Receipt already registered: {relative}")
+    existing_entry = next(
+        (
+            item for item in manifest["artifacts"]
+            if isinstance(item, dict) and item.get("path") and _canonical_relative(str(item["path"])) == canonical_receipt
+        ),
+        None,
+    )
     payload = json.loads(receipt_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("Review receipt must be a JSON object")
@@ -428,14 +433,29 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
         codes = ", ".join(sorted({item["code"] for item in receipt_findings}))
         raise ValueError(f"Cannot register receipt; validation findings: {codes}")
     kind = "review-receipt-v2" if "review_task_id" in payload and "packet_fingerprint" in payload else "review-receipt"
-    manifest["artifacts"].append({"path": relative, "kind": kind, "sha256": _sha(receipt_path)})
-    manifest["review"] = {
+    new_review = {
         **(review if isinstance(review, dict) else {}),
         "status": payload["status"],
         "receipt": canonical_receipt,
         "findings": payload.get("findings", []),
     }
+    if (
+        existing_entry is not None
+        and existing_entry.get("kind") == kind
+        and existing_entry.get("sha256") == _sha(receipt_path)
+        and review == new_review
+    ):
+        return {"added": [], "already_registered": relative, "kind": kind}
+    if existing_entry is None:
+        manifest["artifacts"].append({"path": relative, "kind": kind, "sha256": _sha(receipt_path)})
+    else:
+        existing_entry.update({"kind": kind, "sha256": _sha(receipt_path)})
+        if "size_bytes" in existing_entry:
+            existing_entry["size_bytes"] = receipt_path.stat().st_size
+    manifest["review"] = new_review
     _write_manifest_atomic(run_dir, manifest)
+    if existing_entry is not None:
+        return {"added": [], "updated": [relative], "kind": kind}
     return {"added": [relative], "kind": kind}
 
 

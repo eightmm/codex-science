@@ -578,6 +578,54 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(manifest["review"]["status"], "pending")
         self.assertNotIn("receipt", manifest["review"])
 
+    def test_register_receipt_updates_prelisted_artifact_and_is_idempotent(self) -> None:
+        report_hash = hashlib.sha256((self.run_dir / "report.md").read_bytes()).hexdigest()
+        source = {
+            "schema_version": 1, "review_id": "review-test", "reviewer": "fixture-reviewer",
+            "independent": True, "review_modes": ["record"], "status": "passed",
+            "covered_artifacts": [{"path": "report.md", "sha256": report_hash}],
+            "covered_claim_ids": [], "findings": [], "limitations": ["fixture only"],
+            "review_task_id": "review-task-test", "packet_fingerprint": "a" * 64,
+        }
+        source["fingerprint"] = canonical_sha256(source)
+        receipt_path = self.run_dir / "final-review.json"
+        receipt_path.write_text(json.dumps(source))
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifacts"].append({
+            "path": "final-review.json", "kind": "review-receipt-v2",
+            "sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+        })
+        manifest_path.write_text(json.dumps(manifest))
+
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual([item["path"] for item in manifest["artifacts"]].count("final-review.json"), 1)
+        self.assertEqual(manifest["review"]["status"], "passed")
+        self.assertEqual(manifest["review"]["receipt"], "final-review.json")
+
+        before = manifest_path.read_bytes()
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(manifest_path.read_bytes(), before)
+
+        stale = {**source, "covered_artifacts": [{"path": "report.md", "sha256": "0" * 64}]}
+        stale.pop("fingerprint")
+        legacy = {key: value for key, value in stale.items() if key != "review_id"}
+        for replacement, code in ((stale, "stale-review-receipt"), (legacy, "Legacy review receipts")):
+            replacement["fingerprint"] = canonical_sha256(replacement)
+            receipt_path.write_text(json.dumps(replacement))
+            manifest = json.loads(manifest_path.read_text())
+            entry = next(item for item in manifest["artifacts"] if item["path"] == "final-review.json")
+            entry["sha256"] = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+            manifest_path.write_text(json.dumps(manifest))
+            before = manifest_path.read_bytes()
+            result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(code, result.stderr)
+            self.assertEqual(manifest_path.read_bytes(), before)
+
     def test_register_receipt_refuses_stale_bundle(self) -> None:
         (self.run_dir / "report.md").write_text("changed")
         result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "review.json")
@@ -606,7 +654,7 @@ class PackageRunTests(unittest.TestCase):
         before = (self.run_dir / "manifest.json").read_bytes()
         result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "./review.json")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("already registered", result.stderr)
+        self.assertIn("Legacy review receipts without review_id", result.stderr)
         self.assertEqual((self.run_dir / "manifest.json").read_bytes(), before)
 
     def test_unchanged_lane_is_not_rewritten(self) -> None:

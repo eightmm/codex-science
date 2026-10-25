@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `package_run.py refresh --register-receipt` now records the verdict of a receipt that `science_checkpoint.py review` already listed as a manifest artifact, after the same validation as a new registration, updating that entry instead of refusing with "Receipt already registered"; re-registering an unchanged, recorded receipt is a no-op.
+- A test now requires help text on every option of the literature-path CLIs and `search_skills.py`.
+- Recorded run25 (6/6) in the evaluation docs and run ledger.
 - Literature snapshot validation now rejects missing or non-text required fields instead of reading them as the string "None"; `diff_literature_review.py` reports invalid or unreadable snapshots as `error:` with exit 1 instead of a traceback.
 - `search_skills.py` accepts unquoted multi-word queries and `--query TEXT`, and documents every option in `--help`.
 - Every option of the literature-path CLIs (`package_run.py` refresh and prepare-review, `science_reviewer.py` prepare and finalize, `trace_citations.py`, `check_claim_sufficiency.py`, `retrieve_literature.py`, `fetch_open_fulltext.py`, `record_reference_use.py`, `screen_candidates.py`, `build_literature_snapshot.py`, `estimate_saturation.py`, `diff_literature_review.py`, `resolve_citations.py`, and all `science_checkpoint.py` subcommands) now has help text; `trace_citations.py --help` also states which run identifiers a citation is matched against. Behavior is unchanged.

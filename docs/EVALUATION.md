@@ -374,7 +374,7 @@ Codex sign-in, which the recorded runs did not set up.
   format), `validate_artifact.py`, and `build_study_table.py` (the
   `study-extraction-v1` format); the literature-review skill now points to the
   latter. quick-doi completed in 66 seconds and quick-arxiv in 58 seconds; the
-  other four tasks ran in parallel after quick-doi. Standard-mrna completed in
+  other five tasks ran in parallel after quick-doi. Standard-mrna completed in
   1200 seconds, standard-single-cell in 1224 seconds, full-microbiome in 1507
   seconds, and full-protein-folding in 1749 seconds, again close to the
   1800-second cap. All six tasks matched the branch runtime. No provider policy
@@ -400,6 +400,46 @@ Codex sign-in, which the recorded runs did not set up.
   Standard-mrna completed again; it has been blocked by provider policy in 7 of
   19 runs (runs 6–24). Run22 (6/6), run23 (5/6), and run24 (6/6) each have six
   tasks, so they do not establish a stable rate.
+
+- Run25 (`a833c8a`, runtime `0.5.0+codex.20261025233000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%). Changes under test since run24 (`7093cdb`) are
+  `654cc48`, which adds help for the `build_evidence_graph.py` `--extra` format,
+  `package_run.py exec --id`, and `science_checkpoint.py criterion
+  --evidence-ref`, and clarifies the duplicate-execution-ID and run-relative-path
+  errors; and `a833c8a`, which adds help text for every option of the
+  literature-path CLIs, including a description of `trace_citations.py`
+  identifier matching. quick-doi completed in 87 seconds and quick-arxiv in 72
+  seconds; the other five tasks ran in parallel after quick-doi. Standard-mrna
+  completed in 819 seconds, standard-single-cell in 1071 seconds,
+  full-protein-folding in 1382 seconds, and full-microbiome in 1518 seconds. All
+  six tasks matched the branch runtime. No provider policy blocks,
+  infrastructure failures, or stream stalls occurred.
+  Three secondary metrics were pre-registered before launch (coordinator only;
+  standard and full tasks):
+  - Strict plugin-source reads (cat, sed, rg, grep, nl, head, or tail on a plugin
+    script or module): runs 20–24 had 9, 15, 2, 10, and 7; predicted ≤ 7;
+    observed 0.
+  - Tool errors from plugin scripts, excluding prepare-review: runs 20–24 had 6,
+    9, 12, 8, and 11; predicted ≤ 9; observed 3 (an excerpt shorter than 20
+    characters in build_study_table, a reused execution ID, and an agent-written
+    script that guessed a wrong skill path).
+  - Targeted error classes: extra-graph schema errors 0 and absolute evidence
+    paths 0 (both predicted 0); duplicate execution ID 1 (predicted 0), recovered
+    after the new message.
+  The run-to-run range is wide (2 to 15 reads), so one run does not establish an
+  effect.
+  All four independent reviews passed; standard-mrna archived one review round
+  before passing. First review packets were written at about 502 seconds (mrna),
+  830 (single-cell), 845 (protein-folding), and 1126 (microbiome).
+  Included studies: standard-mrna 8, standard-single-cell 6, full-microbiome 31,
+  and full-protein-folding 21.
+  Rendered index status: 3 of 4 completed packages show the review as pending in
+  `index.md` although the independent review passed and the checkpoint is
+  complete. Across runs 20–25 this occurred in 15 of 23 completed packages; the
+  checkpoint review lists the receipt but does not record the verdict in
+  `manifest.json`. A fix is in progress and is not part of run25.
+  Standard-mrna completed; it has been blocked by provider policy in 7 of 20 runs
+  (runs 6–25).
 
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
