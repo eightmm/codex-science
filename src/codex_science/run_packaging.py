@@ -781,6 +781,26 @@ def prepare_review(
     except (OSError, ValueError, json.JSONDecodeError) as error:
         problems.append({"stage": "refresh", "phase": "initial", "error": str(error)})
         stale_packet = packet_path.is_file()
+        # Read-only previews so one call lists every problem; a preview failure must not mask the refresh error.
+        from codex_science.citation_trace import trace_citations
+        from codex_science.claim_sufficiency import check_sufficiency
+        try:
+            preview = trace_citations(run_dir)
+            failure = "no_report_examined" if preview["reports_examined"] == 0 else (
+                "orphan_citations" if preview["orphans"] else None)
+            if failure:
+                problems.append({"stage": "citation-trace", "preview": True,
+                                 "findings": preview["orphans"], "error": failure})
+        except Exception as preview_error:  # noqa: BLE001 - preview only
+            problems.append({"stage": "citation-trace", "preview": True, "findings": [],
+                             "error": {"code": "invalid_input", "message": str(preview_error)}})
+        try:
+            advisory = [item for item in check_sufficiency(run_dir, tier=tier).get("claims", [])
+                        if item.get("verdict") in {"insufficient", "contradicted_unresolved"}]
+            if advisory:
+                problems.append({"stage": "claim-sufficiency", "preview": True, "advisory": advisory})
+        except Exception:  # noqa: BLE001 - stale manifest; preview is best-effort
+            pass
         return {"schema": "prepare-review-v1", "problems": problems, "outputs_written": outputs,
                 "review_task_stale": stale_packet, "refresh": {"initial": None, "final": None},
                 "next": "fix the listed findings and rerun prepare-review once"}

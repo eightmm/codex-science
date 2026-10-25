@@ -109,6 +109,36 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(summary["problems"][0]["phase"], "initial")
         self.assertTrue(summary["review_task_stale"])
 
+    def _snapshot(self) -> tuple[list[str], bytes]:
+        names = sorted(str(p.relative_to(self.run_dir)) for p in self.run_dir.rglob("*"))
+        return names, (self.run_dir / "manifest.json").read_bytes()
+
+    def test_prepare_review_refresh_failure_previews_orphan_citations_read_only(self) -> None:
+        self._make_unreviewed_run()
+        (self.run_dir / "unclassified-extra.json").write_text("{}\n")
+        report = self.run_dir / "report.md"
+        report.write_text(report.read_text() + " doi:10.5555/orphan.reference\n")
+        before = self._snapshot()
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(result.returncode, 1)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["problems"][0]["stage"], "refresh")
+        preview = next(item for item in summary["problems"] if item["stage"] == "citation-trace")
+        self.assertTrue(preview["preview"])
+        self.assertEqual(preview["error"], "orphan_citations")
+        self.assertEqual([item["identifier"] for item in preview["findings"]], ["doi:10.5555/orphan.reference"])
+        self.assertEqual(summary["outputs_written"], [])
+        self.assertEqual(self._snapshot(), before)
+
+    def test_prepare_review_refresh_failure_without_orphans_has_no_citation_preview(self) -> None:
+        self._make_unreviewed_run()
+        (self.run_dir / "unclassified-extra.json").write_text("{}\n")
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
+        self.assertEqual(result.returncode, 1)
+        stages = [item["stage"] for item in json.loads(result.stdout)["problems"]]
+        self.assertEqual(stages[0], "refresh")
+        self.assertNotIn("citation-trace", stages)
+
     def test_prepare_review_blocks_orphan_and_lists_problem(self) -> None:
         self._make_unreviewed_run()
         report = self.run_dir / "report.md"

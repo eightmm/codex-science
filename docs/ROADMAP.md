@@ -333,19 +333,21 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 
 ### Follow-up Codex runs (2026-10-23)
 
-Runs 6–20 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
-3/6, 3/6, 5/6, 6/6, 5/6, 3/6, 4/6, 5/6, 3/6, and 6/6 tasks; run8 was the first with a full-tier pass. Provider policy
-blocks remain failures in both completion rates and stay in the denominator.
+Runs 6–21 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
+3/6, 3/6, 5/6, 6/6, 5/6, 3/6, 4/6, 5/6, 3/6, 6/6, and 6/6 tasks; run8 was the
+first with a full-tier pass. Provider policy blocks remain failures in both
+completion rates and stay in the denominator.
 Runs 10 and 11 used the same SHA (`edb8d69`) and differed by one task; with six
 tasks per run, variance dominates and the comparison does not establish a
 trend. At the 1800-second cap, full-tier independent review rounds often do not
 fit. Run14 was the first 6/6; run15 completed every task not blocked by provider
 policy on the same SHA, a small sample. Run16 recorded 3/6; with run16b reruns
 of the two capacity failures, 4/6 tasks completed across the six-task set.
-Standard-mrna was blocked in 7 of 15 runs; run17 completed it for the first
+Standard-mrna was blocked in 7 of 16 runs; run17 completed it for the first
 time since run14 and run18 completed it again, but run19 was blocked again;
-run20 completed it and was not blocked by provider policy. These results do not
-establish a stable gain. Runs 16, 17, 18, 19, and 20 differ in SHA. Per-run
+run20 and run21 completed it and were not blocked by provider policy. These
+results do not establish a stable gain. Runs 16, 17, 18, 19, 20, and 21 differ
+in SHA. Per-run
 details are recorded in [Evaluation](EVALUATION.md#recorded-real-runs) and
 `docs/EXPERIMENTS.jsonl`.
 
