@@ -84,7 +84,7 @@ Report added, removed, and changed queries, studies, eligibility decisions, and 
 
 ## Outputs
 
-For exact sidecar shapes, copy the structure of `<plugin-root>/examples/literature-review-reviewed-run/` (`manifest.json` artifact kinds, `claims.json`, `evidence_graph.json`, `studies.json`, `queries.jsonl`, `lanes/*.json`) and fill it with this run's own content; never copy its scientific content or review receipt. Check shapes with `validate_artifact.py` instead of reading plugin source.
+For exact sidecar shapes, copy the structure of `<plugin-root>/examples/literature-review-reviewed-run/` (`manifest.json` artifact kinds, `claims.json`, `evidence_graph.json`, `studies.json`, `queries.jsonl`, `protocol.json`, `lanes/*.json`) and fill it with this run's own content; never copy its scientific content or review receipt. `protocol.json` must record `protocol_id` (stable across living updates), `question`, `question_framework` (one of the allowed values listed below) and `evidence_cutoff` when the protocol is frozen, because `build_literature_snapshot.py` requires them. Check shapes with `validate_artifact.py` instead of reading plugin source.
 
 Allowed values (each field is checked by its named validator):
 - `evidence_graph.json / edges[].relation`: `supports`, `contradicts`, `depends_on`, `duplicates`, `derived_from`, `shares_cohort`, `shares_samples`, `propagated_from`, `training_overlap`.

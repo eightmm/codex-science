@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.literature import validate_review_snapshot
+from codex_science.literature import QUESTION_FRAMEWORKS, validate_review_snapshot
 from codex_science.literature_snapshot_build import build_literature_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -250,6 +250,14 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
         )
         self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
         self.assertEqual("snapshot.current.json", json.loads(proc.stdout)["output"])
+
+    def test_cli_help_names_required_protocol_fields(self):
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+        proc = subprocess.run([sys.executable, str(CLI), "--help"], capture_output=True, text=True, env=env)
+        self.assertEqual(0, proc.returncode)
+        for field in ("protocol_id", "question", "question_framework", "evidence_cutoff", *QUESTION_FRAMEWORKS):
+            self.assertIn(field, proc.stdout)
 
     def test_cli_exit_codes_and_error_prefix(self):
         env = dict(os.environ)
