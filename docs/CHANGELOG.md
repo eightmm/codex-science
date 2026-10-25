@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Literature snapshot validation now rejects missing or non-text required fields instead of reading them as the string "None"; `diff_literature_review.py` reports invalid or unreadable snapshots as `error:` with exit 1 instead of a traceback.
+- `search_skills.py` accepts unquoted multi-word queries and `--query TEXT`, and documents every option in `--help`.
 - Every option of the literature-path CLIs (`package_run.py` refresh and prepare-review, `science_reviewer.py` prepare and finalize, `trace_citations.py`, `check_claim_sufficiency.py`, `retrieve_literature.py`, `fetch_open_fulltext.py`, `record_reference_use.py`, `screen_candidates.py`, `build_literature_snapshot.py`, `estimate_saturation.py`, `diff_literature_review.py`, `resolve_citations.py`, and all `science_checkpoint.py` subcommands) now has help text; `trace_citations.py --help` also states which run identifiers a citation is matched against. Behavior is unchanged.
 - Recorded run24 (6/6; coordinator reads of the study-table builder source fell from 3–4 of 4 tasks per run to 1 of 4) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - `build_evidence_graph.py --help` now documents the `evidence-graph-extra-v1` file for `--extra` (node types and relations rendered from the package constants); `package_run.py exec --help` states that execution IDs are unique per run, and the duplicate-ID error says to pass a new `--id` or omit it; `science_checkpoint.py criterion` help and its evidence-path error now show the expected run-relative form and the rejected value. In runs 20–23 these produced 5 schema errors, 2 duplicate-ID errors, and 3 absolute-path errors.

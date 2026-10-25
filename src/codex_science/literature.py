@@ -13,6 +13,9 @@ ELIGIBILITY_DECISIONS = {"include", "exclude", "awaiting-full-text"}
 
 
 def _text(value: Any, label: str) -> str:
+    # None, bool and containers must not stringify into a "present" value.
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        raise ValueError(f"{label} is required")
     text = str(value).strip()
     if not text:
         raise ValueError(f"{label} is required")

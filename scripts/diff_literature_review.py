@@ -20,14 +20,18 @@ def main() -> int:
     parser.add_argument("current", type=Path, help="later snapshot JSON with the same protocol_id")
     parser.add_argument("--output", type=Path, help="write the diff JSON here instead of stdout")
     args = parser.parse_args()
-    previous = json.loads(args.previous.read_text(encoding="utf-8"))
-    current = json.loads(args.current.read_text(encoding="utf-8"))
-    diff = diff_review_snapshots(previous, current)
-    rendered = json.dumps(diff, indent=2, sort_keys=True) + "\n"
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(rendered, encoding="utf-8")
-    else:
+    try:
+        previous = json.loads(args.previous.read_text(encoding="utf-8"))
+        current = json.loads(args.current.read_text(encoding="utf-8"))
+        diff = diff_review_snapshots(previous, current)
+        rendered = json.dumps(diff, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(rendered, encoding="utf-8")
+    except (ValueError, OSError, UnicodeError, json.JSONDecodeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    if not args.output:
         print(rendered, end="")
     return 0
 

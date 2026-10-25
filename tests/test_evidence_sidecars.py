@@ -1,6 +1,8 @@
 import copy
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -312,6 +314,36 @@ class EvidenceSidecarTests(unittest.TestCase):
         self.assertEqual("2026-07-19", diff["current_cutoff"])
         self.assertEqual(["study-example-1"], diff["studies"]["added"])
         self.assertEqual("claim-method-effect", diff["claims"]["changed"][0]["id"])
+
+    def test_snapshot_missing_required_field_is_rejected(self) -> None:
+        current = json.loads((self.example / "snapshot.current.json").read_text())
+        for field in ("protocol_id", "evidence_cutoff"):
+            broken = {key: value for key, value in current.items() if key != field}
+            with self.assertRaisesRegex(ValueError, field):
+                diff_review_snapshots(current, broken)
+            with self.assertRaisesRegex(ValueError, field):
+                diff_review_snapshots(broken, current)
+
+    def test_diff_cli_reports_invalid_snapshot_without_traceback(self) -> None:
+        current = json.loads((self.example / "snapshot.current.json").read_text())
+        broken = {key: value for key, value in current.items() if key != "protocol_id"}
+        script = Path(__file__).resolve().parents[1] / "scripts" / "diff_literature_review.py"
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "baseline.json"
+            path.write_text(json.dumps(broken), encoding="utf-8")
+            missing = Path(tempdir) / "absent.json"
+            for args, expected in (
+                ((path, self.example / "snapshot.current.json"), "protocol_id"),
+                ((missing, path), "absent.json"),
+            ):
+                result = subprocess.run(
+                    [sys.executable, str(script), *map(str, args)],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(1, result.returncode)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":

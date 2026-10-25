@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Search the audited catalog without loading every skill into context."""
+"""Search the audited catalog without loading every skill into context.
+
+Pass the query as one or more words (quoting is optional) or with --query TEXT;
+all words are joined with single spaces into one search. Prints matches as JSON.
+"""
 
 from __future__ import annotations
 
@@ -16,15 +20,24 @@ from codex_science.catalog import load_inventory, search_inventory  # noqa: E402
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("query")
-    parser.add_argument("--inventory", type=Path, default=ROOT / "catalog" / "inventory.json")
-    parser.add_argument("--limit", type=int, default=5)
-    parser.add_argument("--include-inactive", action="store_true")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("words", nargs="*", metavar="query", help="search words, joined with single spaces into one search")
+    parser.add_argument("--query", action="append", default=[], metavar="TEXT", help="alternative spelling of the query; combined with any positional words")
+    parser.add_argument(
+        "--inventory",
+        type=Path,
+        default=ROOT / "catalog" / "inventory.json",
+        help="inventory JSON to search (default: catalog/inventory.json)",
+    )
+    parser.add_argument("--limit", type=int, default=5, help="maximum number of results (default: 5)")
+    parser.add_argument("--include-inactive", action="store_true", help="also search inactive catalog entries")
     args = parser.parse_args()
+    query = " ".join(" ".join([*args.query, *args.words]).split())
+    if not query:
+        parser.error("a query is required (positional words or --query TEXT)")
     matches = search_inventory(
         load_inventory(args.inventory),
-        args.query,
+        query,
         include_inactive=args.include_inactive,
         limit=args.limit,
     )
