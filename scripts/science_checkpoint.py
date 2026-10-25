@@ -260,9 +260,13 @@ def _parser() -> argparse.ArgumentParser:
     wait.add_argument("--terminal-rule", required=True)
 
     criterion = commands.add_parser("criterion", help="satisfy a done criterion with evidence")
-    criterion.add_argument("run_dir", type=Path)
-    criterion.add_argument("--id", required=True, dest="criterion_id")
-    criterion.add_argument("--evidence-ref", action="append", required=True, dest="evidence_refs")
+    criterion.add_argument("run_dir", type=Path, help="run directory containing the checkpoint")
+    criterion.add_argument("--id", required=True, dest="criterion_id", help="done criterion id to mark satisfied")
+    criterion.add_argument(
+        "--evidence-ref", action="append", required=True, dest="evidence_refs",
+        help="existing evidence file as a path relative to the run directory, e.g. protocol.md "
+        "or result.json#/result; absolute paths are refused; repeat for several files",
+    )
 
     review = commands.add_parser("review", help="attach an independent review receipt")
     review.add_argument("run_dir", type=Path)

@@ -212,7 +212,7 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
             )
     logs_dir.mkdir(parents=True, exist_ok=True)
     if identifier is not None and identifier in used:
-        raise ValueError(f"Duplicate execution id: {identifier}")
+        raise ValueError(f"Duplicate execution id: {identifier}; execution IDs are unique per run, so pass a new --id or omit it")
     number = 1
     while True:
         selected = identifier if identifier is not None else f"exec-{number:03d}"
@@ -226,7 +226,7 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
             break
         except FileExistsError:
             if identifier is not None:
-                raise ValueError(f"Duplicate execution id: {identifier}")
+                raise ValueError(f"Duplicate execution id: {identifier}; execution IDs are unique per run, so pass a new --id or omit it")
             number += 1
     identifier = selected
     started = _utc()

@@ -104,6 +104,16 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         for value in ("missing-1", "missing-2", "evidence-graph-extra-v1", "bad-node", "support", "supports"):
             self.assertIn(value, str(caught.exception))
 
+    def test_help_documents_extra_schema_and_relations(self):
+        from codex_science.evidence import RELATIONS
+        env = dict(os.environ)
+        env.pop("PYTHONPATH", None)
+        proc = subprocess.run([sys.executable, str(CLI), "--help"], capture_output=True, text=True, env=env)
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        self.assertIn("evidence-graph-extra-v1", proc.stdout)
+        for relation in RELATIONS:
+            self.assertIn(relation, proc.stdout)
+
     def test_cli_exit_codes_and_output_input_protection(self):
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)

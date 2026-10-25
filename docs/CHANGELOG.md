@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `build_evidence_graph.py --help` now documents the `evidence-graph-extra-v1` file for `--extra` (node types and relations rendered from the package constants); `package_run.py exec --help` states that execution IDs are unique per run, and the duplicate-ID error says to pass a new `--id` or omit it; `science_checkpoint.py criterion` help and its evidence-path error now show the expected run-relative form and the rejected value. In runs 20–23 these produced 5 schema errors, 2 duplicate-ID errors, and 3 absolute-path errors.
 - `build_study_table.py --help` now documents the `study-extraction-v1` input (studies, not_extracted, excerpts, and the evidence types), and the literature-review skill points to it. In runs 20–23, the coordinator read the builder's source to find this format in 15 of 16 standard and full tasks.
 - `science_reviewer.py respond --help` and `validate_artifact.py --help` now describe each option, including the `--findings` file format (also stated in the review runtime reference). In runs 20–23, 9 of 16 independent reviewers read plugin source to find that format; in run23 full-protein-folding this took about 110 seconds of a 407-second review.
 - `docs/EVALUATION.md` now records that runs 6–23 used the operator's Codex home: standard and full tasks read the operator's Codex memory and a user-installed agent-harness skill, so absolute completion rates are not plugin-only measurements.

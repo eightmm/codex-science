@@ -202,8 +202,10 @@ class GoalLoopCheckpointContractTests(unittest.TestCase):
 
         for evidence_ref in ("missing.json", "../outside.json", str(outside)):
             with self.subTest(evidence_ref=evidence_ref):
-                with self.assertRaisesRegex(ValueError, "evidence"):
+                with self.assertRaisesRegex(ValueError, "evidence") as caught:
                     verify_criterion(self.run_dir, "criterion-1", [evidence_ref])
+                if evidence_ref == str(outside):
+                    self.assertIn(repr(evidence_ref), str(caught.exception))
 
         link = self.run_dir / "linked.json"
         link.symlink_to(outside)

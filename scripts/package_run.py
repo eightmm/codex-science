@@ -29,9 +29,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
     execute = commands.add_parser("exec", help="run and record a command")
-    execute.add_argument("--run-dir", type=Path, required=True)
-    execute.add_argument("--id")
-    execute.add_argument("command", nargs=argparse.REMAINDER)
+    execute.add_argument("--run-dir", type=Path, required=True, help="run directory to record the execution in")
+    execute.add_argument(
+        "--id",
+        help="execution ID, unique within the run (default exec-NNN); a used ID is refused, "
+        "so a re-run needs a new ID or no --id",
+    )
+    execute.add_argument("command", nargs=argparse.REMAINDER, help="command to run, after --")
     update = commands.add_parser("refresh", help="refresh manifest hashes and registrations")
     update.add_argument("--run-dir", type=Path, required=True)
     update.add_argument("--kind", action="append", default=[], metavar="PATH=KIND")

@@ -1020,7 +1020,10 @@ def _artifact_path(run_dir: Path, artifact_ref: str, field: str) -> Path:
     path_text = artifact_ref.split("#", 1)[0]
     relative = Path(path_text)
     if relative.is_absolute() or not path_text or ".." in relative.parts:
-        raise ValueError(f"{field} must be a run-relative evidence path")
+        raise ValueError(
+            f"{field} must be a run-relative evidence path: got {artifact_ref!r}; "
+            "pass a path relative to the run directory such as 'protocol.md'"
+        )
     root = Path(run_dir).resolve()
     candidate = Path(run_dir) / relative
     try:

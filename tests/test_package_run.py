@@ -275,6 +275,11 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(record["id"], "sample")
         self.assertEqual(record["exit_code"], 7)
         self.assertIn("hello", (self.run_dir / record["log_path"]).read_text())
+        again = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "sample", "--", sys.executable, "-c", "pass")
+        self.assertEqual(again.returncode, 1)
+        self.assertIn("Duplicate execution id: sample; execution IDs are unique per run", again.stderr)
+        helped = self.cli("exec", "--help")
+        self.assertIn("unique within the run", " ".join(helped.stdout.split()))
 
     def test_refresh_hashes_and_invalidates_review(self) -> None:
         (self.run_dir / "report.md").write_text("changed\n")
