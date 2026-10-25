@@ -226,6 +226,11 @@ class SessionContractTests(unittest.TestCase):
         self.assertIn("CODEX_SCIENCE_STOP_MODE=block", skill)
         self.assertIn("Codex Science 종료", skill)
         self.assertIn("catalog/codex-skills/<name>/SKILL.md", skill)
+        self.assertIn("<plugin-root>/runtime-skills/<name>/SKILL.md", skill)
+        named = set(re.findall(r"\$(science-[a-z-]+|codex-science)\b", skill))
+        self.assertTrue({"codex-science", "science-provenance", "science-review"} <= named)
+        for name in named:
+            self.assertTrue((repository_root / "runtime-skills" / name / "SKILL.md").is_file(), name)
         self.assertIn("Do not activate for an ordinary scientific question", skill)
         self.assertIn(
             "prefer Codex Science MCP tools and `status: active` catalog skills",
