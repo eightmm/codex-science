@@ -177,92 +177,197 @@ def discovery(args: argparse.Namespace) -> None:
         raise ValueError(f"comparison is {result['status']}; see the comparison report")
 
 
+DISCOVERY_HELP = {
+    "init": "Create a research cycle from a genesis JSON object",
+    "event": "Append one transition event to a research cycle",
+    "show": "Print the current research cycle",
+    "plan": "Rank declared experiments by hypothesis separation (non-executing)",
+    "decision": "Evaluate an explicit one-stage finite decision",
+    "attach": "Register the research cycle in the run manifest",
+    "history": "Print discovery history for a project (needs --database)",
+    "audit": "Audit problem and method design completeness",
+    "next": "Summarize the cycle state and next step",
+    "graph": "Print the cycle evidence graph",
+    "assess": "Project review coverage for the cycle",
+    "memory": "Synthesize discovery history for a project (needs --database)",
+    "compare": "Evaluate a matched-arm comparison contract and its records",
+}
+
+DISCOVERY_EPILOG = {
+    "init": """\
+--input: genesis cycle object (JSON).
+  Required: problem (object with observed and interpreted text), evaluation (object),
+    hypotheses, methods and experiments (lists of objects, each with a unique id).
+  Optional: schema_version (default 1; only 1), status (default active; only active),
+    events (default []; only []), design_policy (default legacy; legacy |
+    required-for-reservation), problem.assumptions.
+  Experiments must be planned and unobserved.
+  Nested fields are validated by `science_project.py discovery init`; errors name the
+  failing field.
+--require-design: sets design_policy to required-for-reservation.
+""",
+    "event": """\
+--input: one event object (JSON). kind selects the transition: reserve, running,
+  ambiguous, complete, failure, propose, revise or conclude.
+  reserve, running, ambiguous, complete, failure: experiment_id and request_id (text).
+  complete: also outcome (text), observations (non-empty list) and execution_refs
+    (non-empty list of {path, sha256}).
+  failure: also outcome (text) and failure_kind (execution | implementation |
+    measurement); evidence_refs is optional.
+  propose, revise: rationale (text); optional append lists assumptions, hypotheses,
+    methods and experiments. propose is rejected once any experiment is completed or
+    failed. revise also needs source_experiment_id (a completed or failed experiment);
+    lesson is optional, but when given needs observation, interpretation, limitation,
+    change and next_test (text).
+  revise under design_policy required-for-reservation: lesson is required, and at least
+    one of assumptions, hypotheses, methods or experiments must be non-empty.
+  conclude: status (improved | rejected | inconclusive) and rationale (text).
+Nested fields are validated by `science_project.py discovery event`; errors name the
+failing field.
+""",
+    "plan": """\
+--input: plan object (JSON).
+  Required: hypotheses (list of at least two objects with unique id), candidates
+    (non-empty list of objects with unique id) and budget (number, not negative).
+  Optional: policy (default discriminate_first_v1; only discriminate_first_v1).
+  Nested fields are validated by `science_project.py discovery plan`; errors name the
+  failing field.
+--run-dir instead plans the research cycle's planned experiments.
+""",
+    "decision": """\
+--input: decision object (JSON).
+  Required: state_model_rationale (text), assumption_refs (non-empty list of
+    {path, sha256} relative to --run-dir) and decision_contract (object).
+  Optional: observed_outcome (object) with preregistered_decision_ref and artifact_ref
+    (each {path, sha256}), cycle_experiment_id, decision_experiment_id and json_pointer.
+  Nested fields are validated by `science_project.py discovery decision`; errors name
+  the failing field.
+""",
+    "assess": """\
+--input (optional): JSON object.
+  Optional: review_refs (default []; list of {path, sha256} relative to --run-dir),
+    novelty_comparison (object with scope, search_cutoff, difference and limitations
+    text and a non-empty source_refs list of {path, sha256}).
+  Supplied receipts apply to this view only.
+""",
+    "compare": """\
+--input: JSON object with contract (object) and records (list).
+  contract required keys: schema ("comparison-contract-v1"), arms (exactly
+    ["ordinary", "prior", "rdl"]), synthetic (true or false), model, tools,
+    arm_versions, tasks, seeds, repetitions, budget, preregistered_criteria,
+    evaluation, evaluator_refs, evaluator_sha256 and contract_digest.
+  Each task needs id, digest (canonical sha256 of spec) and spec.question.
+  records: one object per grid cell, named by task_id, seed, arm and repetition.
+  Nested fields are validated by `science_project.py discovery compare`; errors name
+  the failing field.
+  Status is passed, incomplete (cells missing, no errors) or rejected; any status
+  other than passed exits with code 1.
+""",
+}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", type=Path)
+    parser.add_argument("--database", type=Path,
+                        help="SQLite project store path; required for project store commands and discovery history and memory")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     command = subcommands.add_parser("init", help="Initialize a project")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--title", required=True)
-    command.add_argument("--question", required=True)
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project identifier; repeating init with the same title and question returns the existing project")
+    command.add_argument("--title", required=True, help="human-readable project title")
+    command.add_argument("--question", required=True, help="research question the project tracks")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=create)
 
     command = subcommands.add_parser("import-run", help="Validate and import an immutable run")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--manifest", type=Path, required=True)
-    command.add_argument("--branch", required=True)
-    command.add_argument("--parent-run")
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project to import the run into")
+    command.add_argument("--manifest", type=Path, required=True, help="run manifest.json path")
+    command.add_argument("--branch", required=True, help="branch name to record the run on")
+    command.add_argument("--parent-run", help="imported parent run ID (optional; defaults to the branch head when the branch exists)")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=import_run)
 
     command = subcommands.add_parser("fork", help="Fork a project branch from an imported run")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--source-run", required=True)
-    command.add_argument("--branch", required=True)
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project that holds the source run")
+    command.add_argument("--source-run", required=True, help="imported run ID to fork from")
+    command.add_argument("--branch", required=True, help="name of the new branch")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=fork)
 
     command = subcommands.add_parser("assert", help="Add a quantitative, located evidence assertion")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--run-id", required=True)
-    command.add_argument("--claim-id", required=True)
-    command.add_argument("--source-id", required=True)
-    command.add_argument("--polarity", choices=["supports", "contradicts", "qualifies", "neutral", "unavailable"], required=True)
-    command.add_argument("--locator", required=True, help="JSON object with artifact path/hash and an exact locator")
-    command.add_argument("--independence-group", required=True)
-    command.add_argument("--effect-measure")
-    command.add_argument("--estimate", type=float)
-    command.add_argument("--interval-low", type=float)
-    command.add_argument("--interval-high", type=float)
-    command.add_argument("--unit")
-    command.add_argument("--sample-size", type=int)
-    command.add_argument("--population")
-    command.add_argument("--risk-of-bias-ref")
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project that holds the run")
+    command.add_argument("--run-id", required=True, help="imported run ID that contains the source")
+    command.add_argument("--claim-id", required=True, help="claim ID present in the imported run")
+    command.add_argument("--source-id", required=True, help="source identifier stored with the assertion")
+    command.add_argument("--polarity", choices=["supports", "contradicts", "qualifies", "neutral", "unavailable"], required=True,
+                         help="how the located evidence bears on the claim")
+    command.add_argument("--locator", required=True,
+                         help='JSON object: artifact_path and artifact_sha256 (must match an imported artifact), plus at least one of '
+                              "page, table, figure, cell, json_pointer, line_range, record_id")
+    command.add_argument("--independence-group", required=True,
+                         help="independence group label stored with the assertion (required)")
+    command.add_argument("--effect-measure", help="effect measure name, for example risk ratio (optional)")
+    command.add_argument("--estimate", type=float, help="point estimate of the effect (number, optional)")
+    command.add_argument("--interval-low", type=float,
+                         help="lower bound of the interval (number); give with --interval-high, and not above it")
+    command.add_argument("--interval-high", type=float,
+                         help="upper bound of the interval (number); give with --interval-low, and not below it")
+    command.add_argument("--unit", help="unit of the estimate (optional)")
+    command.add_argument("--sample-size", type=int, help="sample size behind the estimate (non-negative integer, optional)")
+    command.add_argument("--population", help="population the estimate applies to (optional)")
+    command.add_argument("--risk-of-bias-ref", help="risk-of-bias reference stored with the assertion (optional)")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=assertion)
 
     command = subcommands.add_parser("compare", help="Compare two imported run manifests")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--previous-run", required=True)
-    command.add_argument("--current-run", required=True)
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project that holds both runs")
+    command.add_argument("--previous-run", required=True, help="imported run ID of the previous run")
+    command.add_argument("--current-run", required=True, help="imported run ID of the current run")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=compare)
 
     command = subcommands.add_parser("merge-plan", help="Prepare a non-executing scientific merge plan")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--source-branch", required=True)
-    command.add_argument("--target-branch", required=True)
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project that holds both branches")
+    command.add_argument("--source-branch", required=True, help="branch to merge from")
+    command.add_argument("--target-branch", required=True, help="branch to merge into")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=merge_plan)
 
     command = subcommands.add_parser("summary", help="Summarize project lineage and event-chain state")
-    command.add_argument("--project-id", required=True)
-    command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--project-id", required=True, help="project to summarize")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path")
     command.set_defaults(handler=summary)
 
-    command = subcommands.add_parser("discovery", help="Develop, record, and inspect a research cycle")
+    command = subcommands.add_parser("discovery", help="Develop, record, and inspect a research cycle",
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog="Most operations take --run-dir and, where noted, --input (JSON file);\n"
+                                            "history and memory take --project-id and need --database.\n"
+                                            "Run `discovery <operation> --help` for that operation's input format.")
     operations = command.add_subparsers(dest="discovery_command", required=True)
     for action in ("init", "event", "show", "plan", "decision", "attach", "history",
                    "audit", "next", "graph", "assess", "memory", "compare"):
-        operation = operations.add_parser(action)
+        operation = operations.add_parser(action, help=DISCOVERY_HELP[action], description=DISCOVERY_HELP[action],
+                                          formatter_class=argparse.RawDescriptionHelpFormatter,
+                                          epilog=DISCOVERY_EPILOG.get(action))
         if action not in {"history", "memory", "plan"}:
-            operation.add_argument("--run-dir", type=Path, required=True)
+            operation.add_argument("--run-dir", type=Path, required=True,
+                                   help="run directory of the research cycle (init creates the cycle)")
         if action == "plan":
             source = operation.add_mutually_exclusive_group(required=True)
-            source.add_argument("--input", type=Path)
-            source.add_argument("--run-dir", type=Path)
+            source.add_argument("--input", type=Path, help="plan object JSON (see epilog)")
+            source.add_argument("--run-dir", type=Path, help="run directory whose research cycle is planned")
         if action in {"init", "event", "decision", "compare"}:
-            operation.add_argument("--input", type=Path, required=True)
+            operation.add_argument("--input", type=Path, required=True, help="input JSON object (see epilog)")
         if action == "assess":
-            operation.add_argument("--input", type=Path)
+            operation.add_argument("--input", type=Path, help="review receipts JSON object (optional, see epilog)")
         if action == "init":
-            operation.add_argument("--require-design", action="store_true")
+            operation.add_argument("--require-design", action="store_true",
+                                   help="set design_policy to required-for-reservation: reserve needs a complete design audit and revise follows strict rules")
         if action in {"history", "memory"}:
-            operation.add_argument("--project-id", required=True)
-            operation.add_argument("--run-id")
-        operation.add_argument("--output", type=Path)
+            operation.add_argument("--project-id", required=True, help="project to read history for")
+            operation.add_argument("--run-id", help="restrict history to one imported run ID (optional)")
+        operation.add_argument("--output", type=Path,
+                               help="write the JSON result here instead of printing it; cannot overwrite inputs or run state")
         operation.set_defaults(handler=discovery)
     return parser
 
