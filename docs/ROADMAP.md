@@ -343,10 +343,12 @@ trend. At the 1800-second cap, full-tier independent review rounds often do not
 fit. Run14 was the first 6/6; run15 completed every task not blocked by provider
 policy on the same SHA, a small sample. Run16 recorded 3/6; with run16b reruns
 of the two capacity failures, 4/6 tasks completed across the six-task set.
-Standard-mrna was blocked in 7 of 20 runs; run17 completed it for the first
+Standard-mrna was blocked in 7 of 21 runs; run17 completed it for the first
 time since run14 and run18 completed it again, but run19 was blocked again;
-run20, run21, run22, run23, run24, and run25 completed it and were not blocked by
-provider policy. These results do not establish a stable gain. Runs 16, 17, 18,
+run20, run21, run22, run23, run24, run25, and run26 completed it and were not
+blocked by provider policy. Run26 recorded 4/6 with both full-tier tasks timing
+out after a 316-325 s first-response provider stall; run26b reran those two tasks
+on the same SHA and both completed. These results do not establish a stable gain. Runs 16, 17, 18,
 19, 20, 21, 22, 23, and 24 differ in SHA; runs 22 and 23 differ only in docs and
 version, and run24 changes CLI help text and the study-extraction format
 description relative to run23.

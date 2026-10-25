@@ -437,9 +437,59 @@ Codex sign-in, which the recorded runs did not set up.
   `index.md` although the independent review passed and the checkpoint is
   complete. Across runs 20–25 this occurred in 15 of 23 completed packages; the
   checkpoint review lists the receipt but does not record the verdict in
-  `manifest.json`. A fix is in progress and is not part of run25.
+  `manifest.json`. The fix is `2736544`, measured in run26 and run26b.
   Standard-mrna completed; it has been blocked by provider policy in 7 of 20 runs
   (runs 6–25).
+
+- Run26 (`2736544`, runtime `0.5.0+codex.20261026001500`), 4/6 (95% Wilson
+  interval 30.0%-90.3%). Changes under test since run25 (`a833c8a`) are
+  `b412a65`, which rejects missing literature snapshot fields and makes skill
+  search work with multi-word queries; `80a4d0a`, which lets register-receipt
+  accept receipts already listed by checkpoint review; `6ed7793`, which adds help
+  for agent-facing CLI options and input formats; `9ca1264`, which adds
+  `science_project` help and is not on the literature path; and `2736544`, which
+  makes checkpoint review record the review verdict when it attaches a passed
+  receipt. quick-doi completed in 71 seconds, quick-arxiv in 378 seconds,
+  standard-single-cell in 1139 seconds, and standard-mrna in 1268 seconds.
+  full-protein-folding and full-microbiome timed out at the 1800-second cap. The
+  grader reports `stall_affected_timeouts` 2. No provider policy blocks or
+  infrastructure failures occurred.
+  quick-arxiv, standard-mrna, full-protein-folding, and full-microbiome each
+  waited 316-325 seconds for the first model response after the prompt, with no
+  hook or tool events in between. standard-single-cell started at the same time
+  and did not stall. Smoke-test processes from another session (23 processes)
+  were running at launch, and the driver's wait for them timed out. Both full-tier
+  timeouts are stall-affected, so they are weak evidence about the plugin; they
+  still count as failures in the primary rate. full-protein-folding started
+  independent review at about 1441 seconds.
+  Four secondary metrics were pre-registered before launch (coordinator only;
+  standard and full tasks):
+  - M1 rendered index status (completed packages whose `index.md` shows the
+    review as pending although it passed): predicted 0; observed 0 of 2
+    (standard-mrna and standard-single-cell). The two timed-out packages
+    recorded no review verdict. Runs 20–25 had 15 of 23.
+  - M2 "Receipt already registered" errors: predicted 0; observed 0. Runs 20–25
+    had 0, 2, 0, 2, 2, and 0.
+  - M3 strict plugin-source reads: predicted ≤ 3; observed 0.
+  - M4 tool errors from plugin scripts excluding prepare-review: predicted ≤ 6;
+    observed 5.
+  Citation tracing traced 41 of 58 cited identifiers. Of the 17 untraced
+  (orphan) identifiers, 9 come from file-listing lines in the generated
+  `index.md` (links into `fulltext/` or `sources/`) and 8 from agent-authored
+  notes (`source-coverage.md` 4, `web-discovery.md` 3, `recent-study-watchlist.md`
+  1). In runs 20–25, 93 of 107 orphans were index file-listing lines. Index
+  file-listing orphans reflect the tracer counting generated file listings, not unsupported
+  report citations. The tracer is shared with the grader and was not changed.
+  Standard-mrna completed; it has been blocked by provider policy in 7 of 21 runs
+  (runs 6–26).
+
+- Run26b (`2736544`, same runtime as run26), a secondary rerun of the two
+  stall-affected tasks, recorded like run16b. It does not change run26's primary
+  4/6. It started with no smoke-test processes running. full-protein-folding
+  completed in 1127 seconds and full-microbiome in 1588 seconds. Both independent
+  reviews passed, and both `index.md` files show the review as passed (M1 0 of
+  2). M2 0, M3 0, M4 1. Citation tracing traced 24 of 35 identifiers; of the 11
+  orphans, 7 are index file-listing lines and 4 come from `web-source-notes.md`.
 
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
@@ -448,8 +498,8 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–24 in order and run16b as a
-two-task rerun; duplicate receipts are skipped. Each summary's
+receipt, then one summary row per run, for runs 6–26 in order, with run16b and
+run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
 also differ in SHA.
