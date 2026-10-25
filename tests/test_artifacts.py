@@ -607,6 +607,13 @@ class ArtifactIndexTests(unittest.TestCase):
         self.assertTrue((self.repository_root / example).is_dir())
         skill = (self.repository_root / "runtime-skills" / "science-provenance" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn(example, skill)
+        lane = "lanes/pubmed-search.json"
+        self.assertTrue((self.repository_root / example / lane).is_file())
+        literature_skill = (self.repository_root / "authored-skills" / "literature-review" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for text in (help_text, skill, literature_skill):
+            self.assertIn(lane, text)
 
     def test_user_facing_plugin_scripts_do_not_require_project_install(self) -> None:
         example = self.repository_root / "examples" / "reviewed-run" / "manifest.json"

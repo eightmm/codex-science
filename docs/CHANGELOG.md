@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The literature-review and science-provenance skills and `validate_artifact.py --help` now name the literature example's one lane receipt, `lanes/pubmed-search.json`, instead of `lanes/*.json` or `lanes/<lane>.json`; in evaluation runs 20-28 coordinators tried to read a nonexistent example lane file 17 times under guessed names.
 - Completion-message guidance now asks that a finding resting on public database or dataset records name the record identifiers it rests on (study or dataset accession and variant, gene or protein identifiers) and the source release or access date; previously it named only literature identifiers, and two exploratory runs whose findings rested on GWAS Catalog associations ended with messages citing only PMIDs.
 - Recorded the run28 literature evaluation (6/6) and corrected the count of coordinator reads under `catalog/codex-skills/` in the runtime-skill path entry.
 - Added `scripts/plan_life_science_research.py`, a script fallback for the `science_plan_life_science_research` MCP tool, named in the coordinator and life-science routing skills; evaluation runs showed coordinators guessing this script or reading planner source when the MCP tool was unavailable.

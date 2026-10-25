@@ -38,7 +38,7 @@ Allowed values (conventional file: field):
   query-ledger     (queries.jsonl): each record's status = {_values(QUERY_STATUSES)}
   study-table      (studies.json, optional): studies[].evidence_type = {_values(EVIDENCE_TYPES)}
   lane-receipt     (lanes/<lane>.json): confidence = {_values(CONFIDENCE_LEVELS)}
-Complete example of the stable sidecars: examples/literature-review-reviewed-run/
+Complete example of the stable sidecars: examples/literature-review-reviewed-run/ (its lane receipt is lanes/pubmed-search.json)
 (relative to the plugin root).
 """
 
