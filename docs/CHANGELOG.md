@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `tests/test_run_driver.py` CLI cases now restore default SIGINT handling in the child, so the interrupt case no longer runs to the wall limit when the test runner was launched with SIGINT ignored (for example from a background job).
 - Added `science_reviewer.py respond REVIEW_TASK`, which writes `reviewer-response.json` from the packet: task ID, fingerprint, default modes and claims, reviewed-artifact hashes (checked against current bytes) and evidence `artifact_sha256` are filled in, while findings, status, limitations, coverage (`--reviewed` or `--reviewed-all`) and independence (`--independent` or `--not-independent`) stay explicit. It runs the `finalize` checks in memory, prints the effective status, writes nothing on any problem, refuses to overwrite the packet, the source manifest or a packet artifact, and does not write the receipt. In run20 every reviewer spent about 80-140 seconds writing this file by hand.
 - Corrected the run20 record with reviewer timings from Codex session records.
 - `package_run.py refresh` and `prepare-review` now name `--kind PATH=KIND` and `--default-kind KIND` in the unclassified-files error; in run20 this refusal stopped the first prepare-review call in two tasks.

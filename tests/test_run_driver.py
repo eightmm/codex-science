@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import stat
@@ -822,7 +823,9 @@ class RunDriverTests(unittest.TestCase):
         binary, env = self._fake(root, steps)
         command = [sys.executable, str(CLI), "--project", str(project), "--prompt", "task", "--out",
                    str(root / "out"), "--codex-bin", str(binary), "--execute", *extra]
-        return subprocess.run(command, env=env, capture_output=True, text=True, check=False)
+        # A launcher that ignores SIGINT (nohup, background jobs) must not hide the interrupt case.
+        return subprocess.run(command, env=env, capture_output=True, text=True, check=False,
+                              preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
 
     def test_cli_dry_run_executes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
