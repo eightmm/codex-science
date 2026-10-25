@@ -15,10 +15,15 @@ from codex_science.manuscript import validate_manuscript_package  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("package", type=Path)
-    parser.add_argument("--output", type=Path)
-    parser.add_argument("--require-clean", action="store_true")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "package",
+        type=Path,
+        help="manuscript package directory; must contain manuscript.md, manuscript-contract.json, "
+        "claim-citation-map.json, reporting-checklist.json and submission-package.json",
+    )
+    parser.add_argument("--output", type=Path, help="also write the validation result JSON to this path")
+    parser.add_argument("--require-clean", action="store_true", help="exit 1 unless the validation status is passed")
     args = parser.parse_args()
 
     result = validate_manuscript_package(args.package)

@@ -96,7 +96,7 @@ def _write_private(path: Path, content: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path, help="also write the JSON report to this path (mode 0600); the report always goes to stdout")
     args = parser.parse_args()
     content = json.dumps(build_report(Path.cwd()), indent=2, sort_keys=True) + "\n"
     if args.output is not None:

@@ -16,9 +16,10 @@ from codex_science.fair_export import export_run  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", type=Path)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("manifest", type=Path, help="run manifest JSON (schema_version 1 with run_id, question, plan, inputs, code, executions, environment, artifacts, claims, review); "
+        "artifact files and sidecars are validated before export")
+    parser.add_argument("output", type=Path, help="export directory (created if absent); writes ro-crate-metadata.json, prov.json and scientific-bom.json")
+    parser.add_argument("--receipt", type=Path, required=True, help="output path for the receipt JSON: exports[] with name, path, sha256 and size_bytes")
     args = parser.parse_args()
     try:
         receipt = export_run(args.manifest, args.output)

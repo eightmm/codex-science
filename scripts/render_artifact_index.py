@@ -32,7 +32,7 @@ def _write(path: Path, content: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", type=Path)
+    parser.add_argument("manifest", type=Path, help="run manifest JSON; index.md (and index.html) are written next to it")
     parser.add_argument("--html", action="store_true", help="also write an offline index.html")
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()

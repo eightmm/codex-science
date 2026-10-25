@@ -22,7 +22,12 @@ from codex_science.artifact_runtime import (  # noqa: E402
     describe_runtime,
     render_runtime_html,
     validate_runtime_descriptor,
+    VIEWER_SELECTIONS,
     validate_selection,
+)
+
+SELECTOR_EPILOG = "selector types by viewer:\n" + "\n".join(
+    f"  {viewer}: {', '.join(sorted(types))}" for viewer, types in sorted(VIEWER_SELECTIONS.items())
 )
 
 
@@ -106,44 +111,46 @@ def build_parser() -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     describe = subcommands.add_parser("describe", help="Build a bounded runtime descriptor")
-    describe.add_argument("artifact", type=Path)
-    describe.add_argument("--artifact-path", required=True, help="Run-relative artifact path")
-    describe.add_argument("--sha256", help="Expected manifest SHA-256")
-    describe.add_argument("--kind", required=True)
-    describe.add_argument("--artifact-type", default="file")
-    describe.add_argument("--media-type")
-    describe.add_argument("--max-bytes", type=int, required=True)
-    describe.add_argument("--max-records", type=int, required=True)
-    describe.add_argument("--output", type=Path, required=True)
+    describe.add_argument("artifact", type=Path, help="file or directory to describe")
+    describe.add_argument("--artifact-path", required=True, help="run-relative safe path (no absolute path, no \"..\") recorded in the descriptor")
+    describe.add_argument("--sha256", help="expected SHA-256 hex digest of the artifact bytes; a mismatch is an error")
+    describe.add_argument("--kind", required=True, help="free-text kind; substrings such as structure, molecule, variant, genome, track, anndata or single-cell can select a viewer")
+    describe.add_argument("--artifact-type", default="file", help="artifact type recorded for files (default: file); directories are always directory-tree")
+    describe.add_argument("--media-type", help="media type, e.g. chemical/x-pdb; used for viewer detection")
+    describe.add_argument("--max-bytes", type=int, required=True, help="maximum bytes read for the preview; integer from 1 to 16777216")
+    describe.add_argument("--max-records", type=int, required=True, help="maximum records in the preview; integer from 1 to 10000")
+    describe.add_argument("--output", type=Path, required=True, help="output path for the descriptor JSON")
     describe.set_defaults(handler=command_describe)
 
     render = subcommands.add_parser("render", help="Render a validated offline HTML view")
-    render.add_argument("descriptor", type=Path)
-    render.add_argument("--title")
-    render.add_argument("--output", type=Path, required=True)
+    render.add_argument("descriptor", type=Path, help="runtime descriptor JSON from describe")
+    render.add_argument("--title", help="HTML page title (default: Scientific artifact: <artifact_path>)")
+    render.add_argument("--output", type=Path, required=True, help="output path for the offline HTML file")
     render.set_defaults(handler=command_render)
 
-    select = subcommands.add_parser("select", help="Create a typed hash-bound selection")
-    select.add_argument("descriptor", type=Path)
-    select.add_argument("--selector-type", required=True)
-    select.add_argument("--selector", required=True, help="JSON object")
-    select.add_argument("--selected-by", required=True)
-    select.add_argument("--reason", required=True)
-    select.add_argument("--label", default="")
-    select.add_argument("--output", type=Path, required=True)
+    select = subcommands.add_parser(
+        "select", help="Create a typed hash-bound selection", epilog=SELECTOR_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    select.add_argument("descriptor", type=Path, help="runtime descriptor JSON from describe")
+    select.add_argument("--selector-type", required=True, help="selector type; must belong to the descriptor's viewer (list below)")
+    select.add_argument("--selector", required=True, help="non-empty JSON object identifying the selected item; canonical JSON at most 64 KiB")
+    select.add_argument("--selected-by", required=True, help="name of the person or agent making the selection")
+    select.add_argument("--reason", required=True, help="non-empty reason for the selection; at most 4000 characters")
+    select.add_argument("--label", default="", help="display label (default: empty string)")
+    select.add_argument("--output", type=Path, required=True, help="output path for the selection JSON")
     select.set_defaults(handler=command_select)
 
     propose = subcommands.add_parser("propose", help="Create a non-executing transform proposal")
-    propose.add_argument("selection", type=Path)
-    propose.add_argument("--operation", required=True)
-    propose.add_argument("--parameters", required=True, help="JSON object")
-    propose.add_argument("--reason", required=True)
-    propose.add_argument("--affected-step", action="append", required=True)
-    propose.add_argument("--expected-output", action="append", default=[])
-    propose.add_argument("--proposed-by", required=True)
-    propose.add_argument("--approval-boundary", default="artifact mutation and rerun")
-    propose.add_argument("--no-approval-required", action="store_true")
-    propose.add_argument("--output", type=Path, required=True)
+    propose.add_argument("selection", type=Path, help="selection JSON from select")
+    propose.add_argument("--operation", required=True, help="non-empty operation name; recorded only, never executed")
+    propose.add_argument("--parameters", required=True, help="JSON object of operation parameters; canonical JSON at most 64 KiB")
+    propose.add_argument("--reason", required=True, help="non-empty reason for the proposed transform; at most 4000 characters")
+    propose.add_argument("--affected-step", action="append", required=True, help="relative path of an affected pipeline step; repeatable, at least one required")
+    propose.add_argument("--expected-output", action="append", default=[], help="relative path of an expected output; repeatable (default: none)")
+    propose.add_argument("--proposed-by", required=True, help="name of the person or agent proposing the transform")
+    propose.add_argument("--approval-boundary", default="artifact mutation and rerun", help="text stating what the approval covers (default: artifact mutation and rerun)")
+    propose.add_argument("--no-approval-required", action="store_true", help="set requires_approval to false (default: true)")
+    propose.add_argument("--output", type=Path, required=True, help="output path for the proposal JSON")
     propose.set_defaults(handler=command_propose)
     return parser
 

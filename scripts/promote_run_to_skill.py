@@ -16,13 +16,20 @@ from codex_science.pipeline_compiler import compile_pipeline_draft  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", type=Path)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("--name", required=True)
-    parser.add_argument("--description", required=True)
-    parser.add_argument("--commands", type=Path, help="JSON array of argv arrays")
-    parser.add_argument("--limitation", action="append", default=[])
-    parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("manifest", type=Path, help="run manifest JSON whose review.status is passed (and whose review re-checks as passed), with every plan step completed")
+    parser.add_argument("output", type=Path, help="draft output directory; must be absent or empty; the draft is not activated")
+    parser.add_argument("--name", required=True, help="lowercase kebab-case skill name")
+    parser.add_argument("--description", required=True, help="one-line skill description")
+    parser.add_argument(
+        "--commands",
+        type=Path,
+        help=(
+            'JSON array of argv arrays to record, e.g. [["python", "scripts/run.py", "--n", "5"]]; '
+            'credential-bearing arguments are rejected'
+        ),
+    )
+    parser.add_argument("--limitation", action="append", default=[], help="known limitation to record; repeatable")
+    parser.add_argument("--receipt", type=Path, required=True, help="output path for the promotion receipt JSON")
     args = parser.parse_args()
     try:
         commands = None

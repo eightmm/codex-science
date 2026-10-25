@@ -20,12 +20,12 @@ from codex_science.artifact_store import (  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", type=Path)
-    parser.add_argument("--output", type=Path)
-    parser.add_argument("--verify", type=Path, help="Existing descriptor to validate against path")
-    parser.add_argument("--chunk-size", type=int)
-    parser.add_argument("--media-type")
-    parser.add_argument("--store", type=Path, help="Add a file to a content-addressed store")
+    parser.add_argument("path", type=Path, help="file or directory to describe")
+    parser.add_argument("--output", type=Path, help="output path for the descriptor JSON; without it the descriptor is printed to stdout")
+    parser.add_argument("--verify", type=Path, help="descriptor JSON (schema_version 1) to check against path; the validated descriptor is then written or printed")
+    parser.add_argument("--chunk-size", type=int, help="file only: chunk size in bytes (positive); omit for one whole-file hash (artifact_type file), set for per-chunk hashes (chunked-file); ignored for directories")
+    parser.add_argument("--media-type", help="media type recorded in the descriptor (default: none)")
+    parser.add_argument("--store", type=Path, help="content-addressed store directory; adds the file (files only) and prints its sha256 and stored_path")
     args = parser.parse_args()
     target = args.path.resolve()
     if args.verify:

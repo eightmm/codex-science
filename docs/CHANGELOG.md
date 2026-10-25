@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Every option of the agent-facing quantitative-check, job, artifact rendering, export and promotion CLIs named in the skills now has help text, with input-format summaries checked against their validators; the help-coverage test covers these CLIs too.
 - `package_run.py refresh --register-receipt` now records the verdict of a receipt that `science_checkpoint.py review` already listed as a manifest artifact, after the same validation as a new registration, updating that entry instead of refusing with "Receipt already registered"; re-registering an unchanged, recorded receipt is a no-op.
 - A test now requires help text on every option of the literature-path CLIs and `search_skills.py`.
 - Recorded run25 (6/6) in the evaluation docs and run ledger.
