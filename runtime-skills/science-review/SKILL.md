@@ -65,7 +65,7 @@ Use [references/review-checklist.md](references/review-checklist.md). `critical`
 
 Save the final machine-readable receipt under the run directory with `status`, `reviewer`, `independent`, `review_modes`, `reviewed_claims`, `findings`, `limitations`, and referenced artifact hashes. Set `independent: true` only for a genuinely separate reviewer.
 
-Use a separate subagent when available. Give it the decision contract, raw run artifacts, and approved plan without the intended answer or suspected bug. If no separate agent is available, state that the work was a second pass rather than an independent review.
+Use a separate subagent when available. Give it the decision contract, raw run artifacts, and approved plan without the intended answer or suspected bug. Put the whole review task (the `review-task.json` path and the response command) in the spawn message, then wait for the final answer with `wait_agent`; do not `send_message` a running reviewer or message it after completion, and use `followup_task` only to start a new round with a refreshed `review-task.json`. A parent message sent mid-review can leak the intended answer into the review, and a message can abort a pending reviewer tool call. If no separate agent is available, state that the work was a second pass rather than an independent review.
 
 After every blocking finding is resolved and `status` is `passed`, let the coordinator attach the receipt with `science_checkpoint.py review --artifact-ref <path>`; do not self-attest independence. The checkpoint validates and hashes the receipt's statement but cannot authenticate reviewer identity.
 

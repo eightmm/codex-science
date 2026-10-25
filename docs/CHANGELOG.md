@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Review guidance now keeps the reviewer handoff one-way: the coordinator puts the whole review task in the spawn message, waits with `wait_agent`, and sends no `send_message` to a running reviewer; the reviewer sends no interim messages and answers missing inputs with a `blocked` response. In run21 every reviewer tool call aborted before dispatch coincided with a parent message.
 - Recorded run21 (6/6) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - When the initial refresh fails, `package_run.py prepare-review` now also reports read-only citation-trace and claim-sufficiency previews (marked `preview: true`), so orphan citations surface in the same call; previews write nothing and record no executions. In run20 both standard tasks needed a third call because orphan citations appeared only after the refresh problem was fixed.
 - `tests/test_run_driver.py` CLI cases now restore default SIGINT handling in the child, so the interrupt case no longer runs to the wall limit when the test runner was launched with SIGINT ignored (for example from a background job).

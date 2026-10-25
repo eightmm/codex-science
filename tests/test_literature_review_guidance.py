@@ -29,6 +29,8 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
         self.assertIn("then spawn the independent reviewer immediately with `review-task.json`", text)
         self.assertIn("work only on material that touches no reviewed artifact", text)
         self.assertIn("prefer one long wait over repeated short waits", text)
+        self.assertIn("The reviewer sends no interim messages or mid-task questions", text)
+        self.assertIn("the coordinator sends no `send_message` to a running reviewer", text)
         self.assertIn("After the independent review passes, do not modify reviewed artifacts", text)
 
     def test_sidecar_cross_checks_are_documented(self):
