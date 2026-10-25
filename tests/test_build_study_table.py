@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.evidence import _validate_study_table
+from codex_science.evidence import EVIDENCE_TYPES, _validate_study_table
 from codex_science.study_table import build_study_table
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,6 +164,14 @@ class BuildStudyTableTests(unittest.TestCase):
         for expected in ("unknown", "missing", "not included", "persistent identifier"):
             self.assertIn(expected, str(caught.exception))
         self.assertFalse((self.root / "studies.json").exists())
+
+    def test_cli_help_documents_extraction_format(self):
+        env = dict(os.environ)
+        env.pop("PYTHONPATH", None)
+        helped = subprocess.run([sys.executable, str(CLI), "--help"], capture_output=True, text=True, env=env)
+        self.assertEqual(0, helped.returncode, helped.stderr)
+        for expected in ("study-extraction-v1", "not_extracted", "excerpts", *EVIDENCE_TYPES):
+            self.assertIn(expected, helped.stdout)
 
     def test_cli_success_and_failure_exit_codes(self):
         env = dict(os.environ)
