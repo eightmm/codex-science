@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `science_reviewer.py respond REVIEW_TASK`, which writes `reviewer-response.json` from the packet: task ID, fingerprint, default modes and claims, reviewed-artifact hashes (checked against current bytes) and evidence `artifact_sha256` are filled in, while findings, status, limitations, coverage (`--reviewed` or `--reviewed-all`) and independence (`--independent` or `--not-independent`) stay explicit. It runs the `finalize` checks in memory, prints the effective status, writes nothing on any problem, refuses to overwrite the packet, the source manifest or a packet artifact, and does not write the receipt. In run20 every reviewer spent about 80-140 seconds writing this file by hand.
+- Corrected the run20 record with reviewer timings from Codex session records.
 - `package_run.py refresh` and `prepare-review` now name `--kind PATH=KIND` and `--default-kind KIND` in the unclassified-files error; in run20 this refusal stopped the first prepare-review call in two tasks.
 - Recorded run20 (6/6) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - Added `scripts/record_reference_use.py --run-dir RUN --reference FILE --reason TEXT`, which builds reference-use receipts from the actual file bytes and the skill's `references/index.json` id, merges repeated uses of the same (skill, reference, hash) into one receipt, records a changed hash as a new use, validates the ledger, and writes `reference-use-ledger.json` atomically under an exclusive lock on the run directory. Invalid inputs or a malformed existing ledger are reported together and nothing is written. In runs 15-19 agents built this ledger by hand, and in run19 an empty `uses` list failed sidecar validation.

@@ -402,5 +402,116 @@ class ReviewerRuntimeTests(unittest.TestCase):
                 finalize_review_response(packet, changed)
 
 
+    def _respond_setup(self, tempdir: str) -> tuple[Path, dict]:
+        manifest = make_reviewed_run(Path(tempdir))
+        packet = build_review_packet(manifest, review_modes=["record", "method"], created_at="2026-07-21T00:00:00Z")
+        task = manifest.parent / "review-task.json"
+        task.write_text(json.dumps(packet), encoding="utf-8")
+        return task, packet
+
+    def _respond(self, task: Path, *extra: str) -> subprocess.CompletedProcess:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_reviewer.py"
+        base = ["--reviewer", "r1", "--status", "passed", "--limitation", "Not reproduced."]
+        if "--not-independent" not in extra:
+            base.append("--independent")
+        return subprocess.run([sys.executable, str(script), "respond", str(task), *base, *extra], capture_output=True, text=True, check=False)
+
+    def test_respond_builds_passed_response_from_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            task, packet = self._respond_setup(tempdir)
+            result = self._respond(task, "--reviewed-all")
+            self.assertEqual(0, result.returncode, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual("passed", summary["effective_status"])
+            self.assertEqual((1, 1, 0), (summary["reviewed_artifacts"], summary["reviewed_claims"], summary["findings"]))
+            response = json.loads((task.parent / "reviewer-response.json").read_text(encoding="utf-8"))
+            self.assertEqual([{"path": a["path"], "sha256": a["sha256"]} for a in packet["artifacts"]], response["reviewed_artifacts"])
+            self.assertEqual(packet["fingerprint"], response["packet_fingerprint"])
+            self.assertEqual("passed", finalize_review_response(packet, response)["status"])
+
+    def test_respond_fills_evidence_hash_and_reports_effective_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            task, packet = self._respond_setup(tempdir)
+            path = packet["artifacts"][0]["path"]
+            findings = Path(tempdir) / "findings.json"
+            findings.write_text(json.dumps([{"id": "F1", "severity": "major", "code": "x", "message": "m", "evidence": [{"artifact_path": path}]}]), encoding="utf-8")
+            result = self._respond(task, "--reviewed", path, "--findings", str(findings))
+            self.assertEqual(0, result.returncode, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual(("passed", "findings", 1), (summary["requested_status"], summary["effective_status"], summary["findings"]))
+            response = json.loads((task.parent / "reviewer-response.json").read_text(encoding="utf-8"))
+            self.assertEqual(packet["artifacts"][0]["sha256"], response["findings"][0]["evidence"][0]["artifact_sha256"])
+
+    def test_respond_refuses_bad_inputs_and_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            task, packet = self._respond_setup(tempdir)
+            path = packet["artifacts"][0]["path"]
+            response_path = task.parent / "reviewer-response.json"
+            findings = Path(tempdir) / "findings.json"
+            findings.write_text(json.dumps([
+                {"id": "F1", "severity": "minor", "code": "x", "message": "m", "evidence": [{"artifact_path": "nope.json"}, {"artifact_path": path, "artifact_sha256": "0" * 64}]},
+            ]), encoding="utf-8")
+            result = self._respond(task, "--reviewed", "ghost.json", "--findings", str(findings))
+            self.assertEqual(1, result.returncode)
+            for text in ("error:", "ghost.json", "nope.json", "hash differs"):
+                self.assertIn(text, result.stderr)
+            self.assertFalse(response_path.exists())
+            manifest_path = task.parent / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["claims"].append({"id": "C2", "text": "Second claim.", "evidence": ["evidence.json"]})
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            two = build_review_packet(manifest_path, review_modes=["record"], created_at="2026-07-21T00:00:00Z")
+            task.write_text(json.dumps(two), encoding="utf-8")
+            result = self._respond(task, "--reviewed-all", "--claim", "C1")
+            self.assertEqual(1, result.returncode)
+            self.assertIn("--blocked-reason is required", result.stderr)
+            self.assertFalse(response_path.exists())
+            result = self._respond(task, "--reviewed-all", "--claim", "C1", "--blocked-reason", "C2 out of scope")
+            self.assertEqual("findings", json.loads(result.stdout)["effective_status"])
+            response_path.unlink()
+            task.write_text(json.dumps(packet), encoding="utf-8")
+            (task.parent / path).write_text("changed\n", encoding="utf-8")
+            result = self._respond(task, "--reviewed-all")
+            self.assertEqual(1, result.returncode)
+            self.assertIn("stale", result.stderr)
+            self.assertFalse(response_path.exists())
+
+    def test_respond_requires_status_and_independence_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            task, _packet = self._respond_setup(tempdir)
+            script = Path(__file__).resolve().parents[1] / "scripts" / "science_reviewer.py"
+            for args in (["--status", "passed"], ["--independent"]):
+                result = subprocess.run([sys.executable, str(script), "respond", str(task), "--reviewer", "r", "--limitation", "l", "--reviewed-all", *args], capture_output=True, text=True, check=False)
+                self.assertEqual(2, result.returncode)
+
+    def test_respond_refuses_unsafe_output_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            task, packet = self._respond_setup(tempdir)
+            run = task.parent
+            link = run / "link.json"
+            link.symlink_to(Path(tempdir) / "elsewhere.json")
+            for target in (link, Path(tempdir) / "outside.json", task, run / "manifest.json", run / packet["artifacts"][0]["path"]):
+                before = target.read_bytes() if target.is_file() and not target.is_symlink() else None
+                result = self._respond(task, "--reviewed-all", "--output", str(target))
+                self.assertEqual(1, result.returncode, target)
+                self.assertIn("error:", result.stderr)
+                if before is not None:
+                    self.assertEqual(before, target.read_bytes())
+            self.assertFalse((Path(tempdir) / "elsewhere.json").exists())
+            self.assertFalse((Path(tempdir) / "outside.json").exists())
+
+    def test_respond_refuses_overwriting_renamed_source_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest = make_reviewed_run(Path(tempdir))
+            bundle = manifest.rename(manifest.with_name("bundle.json"))
+            packet = build_review_packet(bundle, review_modes=["record"], created_at="2026-07-21T00:00:00Z")
+            task = bundle.parent / "review-task.json"
+            task.write_text(json.dumps(packet), encoding="utf-8")
+            before = bundle.read_bytes()
+            result = self._respond(task, "--reviewed-all", "--output", str(bundle))
+            self.assertEqual(1, result.returncode, result.stdout)
+            self.assertIn("overwrite a packet or manifest file", result.stderr)
+            self.assertEqual(before, bundle.read_bytes())
+
 if __name__ == "__main__":
     unittest.main()

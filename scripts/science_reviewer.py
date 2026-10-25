@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.reviewer_runtime import build_review_packet, finalize_review_response  # noqa: E402
+from codex_science.reviewer_runtime import build_review_packet, finalize_review_response, respond_to_review  # noqa: E402
 from codex_science.rigor import TIERS  # noqa: E402
 
 
@@ -45,6 +45,23 @@ def finalize(args: argparse.Namespace) -> None:
     write(args.output, finalize_review_response(packet, response))
 
 
+def respond(args: argparse.Namespace) -> None:
+    print(json.dumps(respond_to_review(
+        args.review_task,
+        reviewer=args.reviewer,
+        independent=args.independent,
+        status=args.status,
+        limitations=args.limitation,
+        reviewed_paths=args.reviewed,
+        reviewed_all=args.reviewed_all,
+        findings_path=args.findings,
+        claim_ids=args.claim,
+        blocked_reason=args.blocked_reason,
+        modes=args.mode,
+        output=args.output,
+    ), indent=2, sort_keys=True))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -61,6 +78,22 @@ def main() -> int:
     command.add_argument("response", type=Path)
     command.add_argument("--output", type=Path, required=True)
     command.set_defaults(handler=finalize)
+    command = commands.add_parser("respond", help="build reviewer-response.json from the packet; judgment fields stay explicit")
+    command.add_argument("review_task", type=Path)
+    command.add_argument("--reviewer", required=True)
+    independence = command.add_mutually_exclusive_group(required=True)
+    independence.add_argument("--independent", action="store_true")
+    independence.add_argument("--not-independent", dest="independent", action="store_false")
+    command.add_argument("--status", choices=["passed", "findings", "blocked"], required=True)
+    command.add_argument("--limitation", action="append", required=True)
+    command.add_argument("--reviewed", action="append")
+    command.add_argument("--reviewed-all", action="store_true")
+    command.add_argument("--findings", type=Path)
+    command.add_argument("--claim", action="append")
+    command.add_argument("--blocked-reason", default="")
+    command.add_argument("--mode", action="append", choices=["record", "source", "method", "reproduction"])
+    command.add_argument("--output", type=Path)
+    command.set_defaults(handler=respond)
     args = parser.parse_args()
     try:
         args.handler(args)

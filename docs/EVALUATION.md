@@ -244,7 +244,10 @@ denominator.
   at about 1087 seconds (single-cell), 1053 seconds (mrna), 1299 seconds
   (microbiome), and 1235 seconds (protein-folding). From packet to
   `science_reviewer.py finalize` took about 270, 285, 380, and 450 seconds,
-  respectively; the event log does not record when the reviewer was spawned.
+  respectively. Codex session records show each reviewer started about 25
+  seconds after its packet and ran for about 205-420 seconds; in all four,
+  writing `reviewer-response.json` by hand took about 80-140 seconds, and the
+  first attempt was aborted by the host before dispatch and regenerated.
   All four passed in one review round. In three tasks, the first prepare-review call stopped on a
   fixable problem (an unclassified run file requiring `--kind` or
   `--default-kind`, or a failed recorded execution); in both standard tasks the

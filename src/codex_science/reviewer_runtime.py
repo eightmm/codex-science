@@ -17,6 +17,7 @@ from typing import Any, Mapping
 
 from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
+from codex_science.cli_io import write_json_atomic
 from codex_science.review_receipts import build_review_receipt, canonical_sha256, validate_review_receipt
 from codex_science.review import evidence_node_has_successful_execution
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS
@@ -508,3 +509,147 @@ def finalize_review_response(packet: Mapping[str, Any], response: Mapping[str, A
     receipt["fingerprint"] = canonical_sha256(material)
     validate_review_receipt(receipt)
     return receipt
+
+
+def respond_to_review(
+    task_path: Path,
+    *,
+    reviewer: str,
+    independent: bool,
+    status: str,
+    limitations: list[str],
+    reviewed_paths: list[str] | None = None,
+    reviewed_all: bool = False,
+    findings_path: Path | None = None,
+    claim_ids: list[str] | None = None,
+    blocked_reason: str = "",
+    modes: list[str] | None = None,
+    output: Path | None = None,
+) -> dict[str, Any]:
+    """Fill a reviewer response's identity and hashes from the packet; judgment fields stay caller-supplied.
+
+    Raises one ValueError listing every input problem and writes nothing on failure.
+    """
+    task_path = Path(task_path)
+    run_dir = task_path.resolve().parent
+    packet = json.loads(task_path.read_text(encoding="utf-8"))
+    if not isinstance(packet, dict):
+        raise ValueError(f"JSON object required: {task_path}")
+    validate_review_packet(packet)
+    problems: list[str] = []
+    packet_hashes = {str(item["path"]): str(item["sha256"]).lower() for item in packet["artifacts"]}
+
+    if bool(reviewed_all) == bool(reviewed_paths):
+        problems.append("pass exactly one of --reviewed-all or --reviewed PATH")
+    covered = sorted(packet_hashes) if reviewed_all else sorted(set(reviewed_paths or []))
+    unknown = [path for path in covered if path not in packet_hashes]
+    if unknown:
+        problems.append(f"reviewed paths not in packet: {', '.join(unknown)}")
+    stale: list[str] = []
+    for path in covered:
+        if path in unknown:
+            continue
+        target = (run_dir / path).resolve()
+        try:
+            target.relative_to(run_dir)
+            current = stream_sha256(target)[0] if target.is_file() else None
+        except (ValueError, OSError):
+            current = None
+        if current != packet_hashes[path]:
+            stale.append(path)
+    if stale:
+        problems.append(f"artifact bytes no longer match the packet (stale packet): {', '.join(stale)}")
+
+    packet_modes = list(packet["review_modes"])
+    response_modes = sorted(set(modes)) if modes else packet_modes
+    if set(response_modes) - set(packet_modes):
+        problems.append(f"modes not in packet: {', '.join(sorted(set(response_modes) - set(packet_modes)))}")
+    material_claims = [str(item) for item in packet["material_claim_ids"]]
+    response_claims = sorted(set(claim_ids)) if claim_ids else sorted(material_claims)
+    if set(response_claims) - set(material_claims):
+        problems.append(f"claims not in packet: {', '.join(sorted(set(response_claims) - set(material_claims)))}")
+    if set(material_claims) - set(response_claims) and not blocked_reason.strip():
+        problems.append("--claim narrows coverage; --blocked-reason is required")
+
+    findings: list[Any] = []
+    if findings_path is not None:
+        try:
+            loaded = json.loads(Path(findings_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            loaded = None
+            problems.append(f"findings file unreadable: {error}")
+        else:
+            if not isinstance(loaded, list):
+                problems.append("findings file must contain a JSON list")
+            else:
+                for index, item in enumerate(loaded):
+                    if not isinstance(item, dict):
+                        problems.append(f"finding {index} must be an object")
+                        continue
+                    filled = dict(item)
+                    evidence = filled.get("evidence", [])
+                    if isinstance(evidence, list):
+                        filled["evidence"] = []
+                        for number, entry in enumerate(evidence):
+                            label = f"finding {item.get('id', index)} evidence {number}"
+                            if not isinstance(entry, dict):
+                                problems.append(f"{label} must be an object")
+                                filled["evidence"].append(entry)
+                                continue
+                            entry = dict(entry)
+                            path = str(entry.get("artifact_path", ""))
+                            if path not in packet_hashes:
+                                problems.append(f"{label} path not in packet: {path or '<missing>'}")
+                            elif entry.get("artifact_sha256") is None:
+                                entry["artifact_sha256"] = packet_hashes[path]
+                            elif str(entry["artifact_sha256"]).lower() != packet_hashes[path]:
+                                problems.append(f"{label} hash differs from packet: {path}")
+                            filled["evidence"].append(entry)
+                    findings.append(filled)
+
+    response = {
+        "schema_version": 1,
+        "review_task_id": packet["review_task_id"],
+        "packet_fingerprint": packet["fingerprint"],
+        "reviewer": reviewer,
+        "independent": independent,
+        "review_modes": response_modes,
+        "reviewed_claim_ids": response_claims,
+        "reviewed_artifacts": [{"path": path, "sha256": packet_hashes[path]} for path in covered if path in packet_hashes],
+        "findings": findings,
+        "limitations": list(limitations),
+        "status": status,
+    }
+    if blocked_reason.strip():
+        response["blocked_reason"] = blocked_reason.strip()
+
+    destination = Path(output) if output is not None else task_path.parent / "reviewer-response.json"
+    if destination.is_symlink():
+        problems.append(f"output is a symlink: {destination}")
+    resolved = destination.resolve()
+    try:
+        resolved.relative_to(run_dir)
+    except ValueError:
+        problems.append(f"output is outside the run directory: {destination}")
+    source_manifest = Path(str(packet["source_manifest_path"]))
+    protected = {task_path.resolve(), run_dir / "manifest.json", run_dir / source_manifest.name, source_manifest.resolve(), *((run_dir / path).resolve() for path in packet_hashes)}
+    if resolved in protected:
+        problems.append(f"output would overwrite a packet or manifest file: {destination}")
+
+    effective = None
+    if not problems:
+        try:
+            effective = finalize_review_response(packet, response)["status"]
+        except ValueError as error:
+            problems.append(str(error))
+    if problems:
+        raise ValueError("; ".join(problems))
+    write_json_atomic(destination, response)
+    return {
+        "output": str(resolved),
+        "requested_status": status,
+        "effective_status": effective,
+        "reviewed_artifacts": len(response["reviewed_artifacts"]),
+        "reviewed_claims": len(response_claims),
+        "findings": len(findings),
+    }

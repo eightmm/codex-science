@@ -78,7 +78,7 @@ Changing the source manifest, review modes, questions, claims, artifact hashes, 
 
 ## Reviewer response contract
 
-The reviewer returns JSON:
+The reviewer returns JSON. `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" respond review-task.json --reviewer NAME (--independent | --not-independent) --status {passed,findings,blocked} --limitation TEXT (--reviewed PATH ... | --reviewed-all) [--findings FILE] [--claim ID --blocked-reason TEXT] [--mode MODE]` writes `reviewer-response.json` beside the packet, filling task ID, fingerprint, artifact hashes (checked against current bytes), default modes/claims, and evidence `artifact_sha256` from the packet; findings, status, limitations, coverage and independence remain the reviewer's judgment. It prints the effective status `finalize` would record and does not write the receipt.
 
 ```json
 {
