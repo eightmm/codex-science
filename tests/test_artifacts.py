@@ -578,6 +578,36 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertIn("package_run.py refresh --run-dir", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
 
+    def test_validate_artifact_help_lists_sidecar_values_and_example(self) -> None:
+        from codex_science import evidence
+
+        validator = self.repository_root / "scripts" / "validate_artifact.py"
+        result = subprocess.run(
+            [sys.executable, "-I", "-S", str(validator), "--help"],
+            cwd=tempfile.gettempdir(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        values = set().union(
+            evidence.SIDECAR_KINDS,
+            evidence.RELATIONS,
+            evidence.NODE_TYPES,
+            evidence.CLAIM_STATUSES,
+            evidence.QUERY_STATUSES,
+            evidence.EVIDENCE_TYPES,
+            evidence.CONFIDENCE_LEVELS,
+        )
+        help_text = " ".join(result.stdout.split())
+        for value in sorted(values):
+            self.assertIn(value, help_text)
+        example = "examples/literature-review-reviewed-run/"
+        self.assertIn(example, help_text)
+        self.assertTrue((self.repository_root / example).is_dir())
+        skill = (self.repository_root / "runtime-skills" / "science-provenance" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(example, skill)
+
     def test_user_facing_plugin_scripts_do_not_require_project_install(self) -> None:
         example = self.repository_root / "examples" / "reviewed-run" / "manifest.json"
         commands = (

@@ -13,12 +13,41 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.artifacts import validate_bundle  # noqa: E402
+from codex_science.evidence import (  # noqa: E402
+    CLAIM_STATUSES,
+    CONFIDENCE_LEVELS,
+    EVIDENCE_TYPES,
+    NODE_TYPES,
+    QUERY_STATUSES,
+    RELATIONS,
+    SIDECAR_KINDS,
+)
 from codex_science.review import review_manifest  # noqa: E402
+
+
+def _values(values: set[str]) -> str:
+    return ", ".join(sorted(values))
+
+
+EPILOG = f"""\
+Recognized sidecar manifest kinds: {_values(SIDECAR_KINDS)}.
+Allowed values (conventional file: field):
+  evidence-graph   (evidence_graph.json): edges[].relation = {_values(RELATIONS)}
+                   nodes[].type = {_values(NODE_TYPES)}
+  claim-register   (claims.json): claims[].status = {_values(CLAIM_STATUSES)}
+  query-ledger     (queries.jsonl): each record's status = {_values(QUERY_STATUSES)}
+  study-table      (studies.json, optional): studies[].evidence_type = {_values(EVIDENCE_TYPES)}
+  lane-receipt     (lanes/<lane>.json): confidence = {_values(CONFIDENCE_LEVELS)}
+Complete example of the stable sidecars: examples/literature-review-reviewed-run/
+(relative to the plugin root).
+"""
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Check manifest artifact bytes and sidecar schemas (exit 1 with an error on failure); optionally write the record/source review.",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("manifest", type=Path, help="path to the run manifest.json")
     parser.add_argument("--review-output", type=Path, help="also write the deterministic record/source review JSON here; not the independent review receipt or a reviewed artifact")
