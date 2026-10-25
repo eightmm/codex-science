@@ -182,6 +182,22 @@ class TransportV3Tests(unittest.TestCase):
         self.assertEqual("negative", result.receipt.status)
         self.assertEqual("negative", result.receipt.missingness)
 
+    def test_europepmc_normalize_keeps_only_valid_pmcid(self) -> None:
+        base = {"id": "25203112", "source": "MED", "title": "T", "doi": "10.1/x", "firstPublicationDate": "2014-09-01"}
+        records = EuropePMCSearchV3().normalize({"resultList": {"result": [
+            {**base, "pmcid": "pmc4159349"},
+            {**base, "id": "2", "pmcid": "4159349"},
+            {**base, "id": "3"},
+        ]}})
+        self.assertEqual("PMC4159349", records[0]["pmcid"])
+        self.assertNotIn("pmcid", records[1])
+        self.assertNotIn("pmcid", records[2])
+        self.assertEqual(
+            {"id": "3", "title": "T", "source": "MED", "doi": "10.1/x", "publication_date": "2014-09-01",
+             "url": "https://europepmc.org/article/MED/3"},
+            records[2],
+        )
+
     def test_europepmc_terminal_page_without_cursor_is_complete(self) -> None:
         request = QueryRequest(
             "europepmc", "search", {"query": "DOI:10.1038/nm.3444"},

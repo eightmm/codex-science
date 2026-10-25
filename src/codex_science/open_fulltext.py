@@ -154,6 +154,52 @@ def _safe_run_file(root: Path, relative: str, *, required: bool) -> Path | None:
     return current
 
 
+_ROW_IDENTITY_KEYS = ("identifiers", "persistent_id", "persistent_ids", "pmcid", "pmid", "doi")
+
+
+def _own_identity_ids(row: dict[str, Any]) -> set[str]:
+    """Identity ids written directly in the row's top-level fields (no recursion)."""
+    result: set[str] = set()
+    for key in _ROW_IDENTITY_KEYS:
+        value = row.get(key)
+        if key in {"identifiers", "persistent_ids"}:
+            values = value if isinstance(value, list) else []
+        else:
+            values = [value]
+        for item in values:
+            if isinstance(item, str) or (key == "pmid" and isinstance(item, int) and not isinstance(item, bool)):
+                raw = str(item)
+                if key in {"pmcid", "pmid", "doi"}:
+                    raw = f"{key}:{raw}"
+                result.add(normalize_identifier(raw))
+    return result
+
+
+def _row_identity(row: dict[str, Any]) -> tuple[set[str], set[str], set[str]]:
+    """Return (row ids, own valid pmcids, own pmid/doi superseded by them).
+
+    An identifier is replaced only when it is one of the row's own top-level
+    identity identifiers and the row has a valid own PMCID. Identifiers that
+    appear only in nested metadata (and are not also own identifiers) are never
+    replaced; a nested copy of an own identifier is the same identifier and is
+    replaced with it.
+    """
+    ids = {normalize_identifier(value) for value in _walk_ids(row)}
+    own = _own_identity_ids(row)
+    own_pmcids = {item for item in own if re.fullmatch(r"pmcid:PMC\d+", item)}
+    if not own_pmcids:
+        return ids, set(), set()
+    nested = {normalize_identifier(value) for value in _walk_ids(
+        {key: value for key, value in row.items() if key not in _ROW_IDENTITY_KEYS})}
+    superseded = {item for item in own if item.startswith(("pmid:", "doi:")) and item not in nested}
+    return ids, own_pmcids, superseded
+
+
+def _row_fetch_ids(row: dict[str, Any]) -> set[str]:
+    ids, own_pmcids, superseded = _row_identity(row)
+    return ids - superseded if own_pmcids else ids
+
+
 def identifiers_from_run(run_dir: str | Path) -> list[str]:
     root = Path(run_dir).resolve(strict=True)
     if not root.is_dir():
@@ -171,7 +217,7 @@ def identifiers_from_run(run_dir: str | Path) -> list[str]:
         found: set[str] = set()
         for row in table.get("studies", []):
             if isinstance(row, dict) and not row.get("excluded"):
-                found.update(normalize_identifier(value) for value in _walk_ids(row))
+                found.update(_row_fetch_ids(row))
         return sorted(item for item in found if item.startswith(("pmcid:", "pmid:", "doi:")))
     _, declarations = _manifest(root)
     found: set[str] = set()
@@ -196,7 +242,11 @@ def identifiers_from_run(run_dir: str | Path) -> list[str]:
         study_ids: set[str] = set()
         for row in table.get("studies", []):
             if isinstance(row, dict) and not row.get("excluded"):
-                study_ids.update(_walk_ids(row))
+                row_ids, row_pmcids, superseded = _row_identity(row)
+                if row_pmcids and found & (row_pmcids | superseded):
+                    found.difference_update(superseded)
+                    found.update(row_pmcids)
+                study_ids.update(row_ids - superseded)
         found.intersection_update(study_ids)
     return sorted(found)
 

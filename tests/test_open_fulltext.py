@@ -187,9 +187,43 @@ class OpenFulltextTests(unittest.TestCase):
     def test_study_table_without_manifest_provides_fallback_identifiers(self):
         (self.run / "studies.json").write_text(
             '{"studies":[{"pmid":"12345"},{"doi":"10.1234/example"},'
-            '{"pmid":"54321","excluded":true}]}'
+            '{"pmid":"54321","excluded":true},{"doi":" 10.1234/ABC"}]}'
         )
-        self.assertEqual(["doi:10.1234/example", "pmid:12345"], identifiers_from_run(self.run))
+        self.assertEqual(["doi:10.1234/abc", "doi:10.1234/example", "pmid:12345"], identifiers_from_run(self.run))
+
+    def test_study_pmcid_replaces_pmid_and_doi_and_skips_lookup(self):
+        (self.run / "studies.json").write_text(
+            '{"studies":[{"identifiers":["pmid:25203112","pmcid:PMC4159349","doi:10.1234/a"]},{"pmid":"54321"},'
+            '{"persistent_id":"pmid:12345","related_articles":[{"pmcid":"PMC67890"}]},'
+            '{"pmid":"22222","pmcid":"N/A"},'
+            '{"pmid":"33333","identifiers":{"related_articles":[{"pmcid":"PMC11111"}]}},'
+            '{"pmid":"44444","pmcid":"PMC44444","identifiers":[{"pmid":"44444"}]}]}')
+        self.assertEqual(["pmcid:N/A", "pmcid:PMC11111", "pmcid:PMC4159349", "pmcid:PMC44444", "pmcid:PMC67890",
+                          "pmid:12345", "pmid:22222", "pmid:33333", "pmid:54321"], identifiers_from_run(self.run))
+        calls = []
+        def fetch(url, **kwargs):
+            calls.append(url)
+            if "search?" in url:
+                return 200, json.dumps({"resultList": {"result": [
+                    {"pmcid": "PMC4159349", "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}]}}).encode()
+            return 200, b"<article><p>text</p></article>"
+        fetch_fulltext(["pmcid:PMC4159349"], self.run, execute=True, fetch=fetch)
+        self.assertFalse(any("EXT_ID" in urllib.parse.unquote(url) for url in calls))
+
+    def test_manifest_branch_maps_cited_pmid_to_study_pmcid(self):
+        (self.run / "studies.json").write_text(
+            '{"studies":[{"identifiers":["pmid:25203112","pmcid:PMC4159349"]},{"pmid":"54321"},'
+            '{"pmid":"67890","pmcid":"PMC1","excluded":true},'
+            '{"persistent_id":"pmid:12345","related_articles":[{"pmcid":"PMC67890"}]},'
+            '{"pmid":"22222","pmcid":"N/A"},'
+            '{"pmid":"33333","identifiers":{"related_articles":[{"pmcid":"PMC11111"}]}},'
+            '{"pmid":"44444","pmcid":"PMC44444","identifiers":[{"pmid":"44444"}]}]}')
+        (self.run / "report.md").write_text(
+            "Cites PMID:25203112, PMID:54321, PMID:67890, PMID:12345, PMID:22222, PMID:33333 and PMID:44444.")
+        self._manifest([{"kind": "report", "path": "report.md"}])
+        self.assertEqual(["pmcid:PMC4159349", "pmcid:PMC44444", "pmid:12345", "pmid:22222", "pmid:33333",
+                          "pmid:54321"],
+                         identifiers_from_run(self.run))
 
     def test_manifest_symlink_is_still_rejected(self):
         outside = Path(self.temp.name) / "outside-manifest.json"

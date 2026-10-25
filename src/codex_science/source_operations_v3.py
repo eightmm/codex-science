@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -193,14 +194,18 @@ class EuropePMCSearchV3:
             identifier = str(item.get("id") or "")
             source = str(item.get("source") or "")
             if identifier:
-                records.append({
+                record = {
                     "id": identifier,
                     "title": str(item.get("title") or identifier),
                     "source": source,
                     "doi": str(item.get("doi") or ""),
                     "publication_date": str(item.get("firstPublicationDate") or ""),
                     "url": f"https://europepmc.org/article/{source}/{identifier}",
-                })
+                }
+                pmcid = item.get("pmcid")
+                if isinstance(pmcid, str) and re.fullmatch(r"PMC\d+", pmcid.strip(), re.IGNORECASE):
+                    record["pmcid"] = pmcid.strip().upper()
+                records.append(record)
         return records
 
     def source_release(self, payload: Any, headers: Mapping[str, str]) -> str | None:

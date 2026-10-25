@@ -80,6 +80,22 @@ class ScreenCandidatesTests(unittest.TestCase):
         self.assertEqual(["q1", "q2", "q3"], alpha["query_ids"])
         self.assertEqual(["q2", "q3"], beta["query_ids"])
 
+    def test_med_record_with_pmcid_merges_with_pmc_record(self):
+        rows = [
+            {"id": "20001", "source": "MED", "pmcid": "PMC7001", "title": "Gamma"},
+            {"id": "PMC7001", "source": "PMC", "title": "Gamma copy"},
+        ]
+        for query_id, row in (("q4", rows[0]), ("q5", rows[1])):
+            path = self.root / "raw/queries" / query_id / "result.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"records": [row]}), encoding="utf-8")
+        with (self.root / "queries.jsonl").open("a", encoding="utf-8") as ledger:
+            for query_id in ("q4", "q5"):
+                ledger.write(json.dumps({"query_id": query_id, "source": "EuropePMC", "result_path": f"raw/queries/{query_id}/result.json"}) + "\n")
+        merged = [row for row in self.pool()["records"] if "pmcid:PMC7001" in row["identifiers"]]
+        self.assertEqual(1, len(merged))
+        self.assertIn("pmid:20001", merged[0]["identifiers"])
+
     def test_unusable_results_are_skipped_and_reported(self):
         self.add_result("q5", {"unexpected": []})
         self.add_result("q4", "{not json")
