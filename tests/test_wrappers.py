@@ -277,6 +277,11 @@ class SessionContractTests(unittest.TestCase):
         self.assertIn("visible persistent identifier (DOI, PMID, PMCID, or arXiv ID)", progress)
         self.assertIn("when a finding rests on published sources", progress)
         self.assertIn("link computation-only findings to the saved output", reference.read_text(encoding="utf-8"))
+        self.assertIn("rests on public database or dataset records, name the record identifiers", progress)
+        self.assertIn(
+            "rests on public database or dataset records, name the record identifiers",
+            reference.read_text(encoding="utf-8"),
+        )
         self.assertIn("in the user's language and plain words only when useful", skill)
         self.assertIn(
             "Only say progress is saved in files when a standard or full run record exists",

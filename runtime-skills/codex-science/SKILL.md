@@ -141,7 +141,7 @@ them. Keep machine JSON, JSON-RPC, and full logs unchanged, but do not paste the
 into ordinary messages. For completion, give the scientific answer in one to
 three sentences, then key findings; when a finding rests on published sources,
 name them with a visible persistent identifier (DOI, PMID, PMCID, or arXiv ID),
-linked when possible. Then give important caveats and links to `index.md` and
+linked when possible; when a finding rests on public database or dataset records, name the record identifiers it rests on (the study or dataset accession and, for specific variants, genes or proteins, their identifiers) and the source release or access date when recorded. Then give important caveats and links to `index.md` and
 main outputs. Always return important local files as
 clickable links with readable link text;
 use absolute paths when the host renders local links that way. Local file links

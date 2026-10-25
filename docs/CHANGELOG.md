@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Completion-message guidance now asks that a finding resting on public database or dataset records name the record identifiers it rests on (study or dataset accession and variant, gene or protein identifiers) and the source release or access date; previously it named only literature identifiers, and two exploratory runs whose findings rested on GWAS Catalog associations ended with messages citing only PMIDs.
 - Recorded the run28 literature evaluation (6/6) and corrected the count of coordinator reads under `catalog/codex-skills/` in the runtime-skill path entry.
 - Added `scripts/plan_life_science_research.py`, a script fallback for the `science_plan_life_science_research` MCP tool, named in the coordinator and life-science routing skills; evaluation runs showed coordinators guessing this script or reading planner source when the MCP tool was unavailable.
 - `validate_artifact.py --help` lists the recognized sidecar kinds and their allowed values, and the science-provenance skill points to `examples/literature-review-reviewed-run/` for exact sidecar shapes; exploratory non-literature runs read plugin source 38 times to learn these shapes.
