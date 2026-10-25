@@ -369,6 +369,21 @@ def _plan_review_archive(
     return archive_relative, moves, recovered_sources
 
 
+def _missing_receipt_message(run_dir: Path, relative: str) -> str:
+    message = f"Review receipt is missing: {relative} (the path is relative to the run directory)"
+    try:
+        candidate = Path(os.path.abspath(relative))
+        root = Path(os.path.abspath(run_dir))
+        if candidate.is_relative_to(root) and candidate != root:
+            parts = candidate.relative_to(root).parts
+            chain = [root.joinpath(*parts[:i + 1]) for i in range(len(parts))]
+            if candidate.is_file() and not any(item.is_symlink() for item in chain):
+                message += f"; that file exists inside the run directory, pass {'/'.join(parts)}"
+    except (OSError, ValueError):
+        pass
+    return message
+
+
 def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
     canonical_receipt = _canonical_relative(relative)
     manifest_path = _write_target(run_dir, "manifest.json")
@@ -379,7 +394,7 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
         raise ValueError("Manifest and artifacts list are required")
     receipt_path = _inside(run_dir, canonical_receipt)
     if not receipt_path.is_file():
-        raise ValueError(f"Review receipt is missing: {relative}")
+        raise ValueError(_missing_receipt_message(run_dir, relative))
     review = manifest.get("review", {})
     existing_receipts = [item for item in manifest["artifacts"] if isinstance(item, dict) and item.get("kind") in {"review-receipt", "review-receipt-v2"}]
     review_files = _review_flow_files(run_dir)
@@ -404,7 +419,7 @@ def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative:
         raise ValueError("Artifact records must be objects")
     receipt_path = _inside(run_dir, canonical_receipt)
     if not receipt_path.is_file():
-        raise ValueError(f"Review receipt is missing: {relative}")
+        raise ValueError(_missing_receipt_message(run_dir, relative))
     review = manifest.get("review", {})
     mismatches = []
     for item in manifest["artifacts"]:

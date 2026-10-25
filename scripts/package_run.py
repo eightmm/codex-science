@@ -76,8 +76,11 @@ def main() -> int:
             return 0 if "review-task.json" in summary["outputs_written"] else 1
         overrides = parse_kind_overrides(args.kind)
         if args.register_receipt:
-            if overrides or args.default_kind or args.invalidate_review:
-                raise ValueError("--register-receipt cannot be combined with refresh options")
+            given = (["--kind"] if overrides else []) + (["--default-kind"] if args.default_kind else []) \
+                + (["--invalidate-review"] if args.invalidate_review else [])
+            if given:
+                raise ValueError(f"--register-receipt cannot be combined with refresh options ({', '.join(given)}); "
+                                 "rerun with only --run-dir and --register-receipt")
             summary = register_receipt(args.run_dir, args.register_receipt)
         else:
             summary = refresh(args.run_dir, overrides, args.invalidate_review, args.default_kind)

@@ -626,6 +626,49 @@ class PackageRunTests(unittest.TestCase):
             self.assertIn(code, result.stderr)
             self.assertEqual(manifest_path.read_bytes(), before)
 
+    def _refused_register(self, *args: str, cwd: Path | None = None) -> str:
+        manifest_path = self.run_dir / "manifest.json"
+        before = manifest_path.read_bytes()
+        result = subprocess.run([sys.executable, str(CLI), "refresh", *args], text=True, capture_output=True,
+                                check=False, cwd=cwd)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertTrue(result.stderr.rstrip().endswith("; no files were changed"), result.stderr)
+        self.assertEqual(manifest_path.read_bytes(), before)
+        return result.stderr
+
+    def test_register_receipt_combined_options_name_offender_and_retry(self) -> None:
+        error = self._refused_register("--run-dir", str(self.run_dir), "--default-kind", "provenance-record",
+                                       "--register-receipt", "review.json")
+        self.assertIn("--default-kind", error)
+        self.assertNotIn("--invalidate-review", error)
+        self.assertIn("rerun with only --run-dir and --register-receipt", error)
+
+    def test_register_receipt_cwd_relative_path_suggests_run_relative_form(self) -> None:
+        (self.run_dir / "sub").mkdir()
+        (self.run_dir / "sub" / "r.json").write_text("{}")
+        error = self._refused_register("--run-dir", str(self.run_dir), "--register-receipt", "run/sub/r.json",
+                                       cwd=self.run_dir.parent)
+        self.assertIn("relative to the run directory", error)
+        self.assertIn("pass sub/r.json", error)
+        self.assertNotIn(self.temp.name, error)
+
+    def test_register_receipt_symlink_in_cwd_gets_no_suggestion(self) -> None:
+        alias = self.run_dir.parent / "alias.json"
+        try:
+            alias.symlink_to(self.run_dir / "review.json")
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unsupported")
+        error = self._refused_register("--run-dir", str(self.run_dir), "--register-receipt", "alias.json",
+                                       cwd=self.run_dir.parent)
+        self.assertIn("Review receipt is missing: alias.json", error)
+        self.assertNotIn("pass ", error)
+
+    def test_register_receipt_missing_without_matching_file_has_no_suggestion(self) -> None:
+        error = self._refused_register("--run-dir", str(self.run_dir), "--register-receipt", "nope.json",
+                                       cwd=self.run_dir.parent)
+        self.assertIn("Review receipt is missing: nope.json", error)
+        self.assertNotIn("pass ", error)
+
     def test_register_receipt_refuses_stale_bundle(self) -> None:
         (self.run_dir / "report.md").write_text("changed")
         result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "review.json")
