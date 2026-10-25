@@ -368,6 +368,39 @@ Codex sign-in, which the recorded runs did not set up.
   the run20–run22 streak of 6/6 runs is not evidence of a stable rate.
   Full-tier completion at the 1800-second cap is dominated by variance.
 
+- Run24 (`7093cdb`, runtime `0.5.0+codex.20261025220000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%). Changes under test since run23 (`5fcbb41`) are the
+  CLI help text for `science_reviewer.py respond` (including the `--findings`
+  format), `validate_artifact.py`, and `build_study_table.py` (the
+  `study-extraction-v1` format); the literature-review skill now points to the
+  latter. quick-doi completed in 66 seconds and quick-arxiv in 58 seconds; the
+  other four tasks ran in parallel after quick-doi. Standard-mrna completed in
+  1200 seconds, standard-single-cell in 1224 seconds, full-microbiome in 1507
+  seconds, and full-protein-folding in 1749 seconds, again close to the
+  1800-second cap. All six tasks matched the branch runtime. No provider policy
+  blocks, infrastructure failures, or stream stalls occurred.
+  Pre-registered metric A (coordinator reads of `build_study_table.py` or
+  `study_table.py` source with cat, sed, rg, grep, nl, or head) fell to 1 of 4
+  tasks, from 3, 4, 3, and 4 of 4 in runs 20–23. The one read, in
+  standard-single-cell (about 910 seconds), looked up how identifiers reach the
+  citation trace, not the extraction format.
+  Pre-registered metric B (independent-reviewer reads of plugin source) matched
+  3 of 4 reviewer threads, within the run20–run23 range of 1 to 3 of 4, so it
+  shows no clear effect under that definition. All three matches were runs of
+  the scripts, not reads of their source. A stricter count, which passes plugin
+  source to a read command, gave 1, 1, 3, and 1 of 4 in runs 20–23 and 0 of 4 in
+  run24. That stricter definition was set after seeing run24 and is not the
+  pre-registered one.
+  All four independent reviews passed in the first reviewer round.
+  Full-protein-folding archived one review packet before any reviewer response
+  and re-prepared it. First review packets were written at about 835 seconds
+  (mrna), 949 (single-cell), 1087 (microbiome), and 1334 (protein-folding).
+  Included studies: standard-mrna 8, standard-single-cell 7, full-microbiome 18,
+  and full-protein-folding 30.
+  Standard-mrna completed again; it has been blocked by provider policy in 7 of
+  19 runs (runs 6–24). Run22 (6/6), run23 (5/6), and run24 (6/6) each have six
+  tasks, so they do not establish a stable rate.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -375,7 +408,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–23 in order and run16b as a
+receipt, then one summary row per run, for runs 6–24 in order and run16b as a
 two-task rerun; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17

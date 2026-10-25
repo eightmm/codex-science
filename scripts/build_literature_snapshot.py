@@ -14,8 +14,10 @@ from codex_science.literature_snapshot_build import build_literature_snapshot  #
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", type=Path, required=True)
-    parser.add_argument("--output", default="snapshot.current.json")
+    parser.add_argument("--run-dir", type=Path, required=True,
+                        help="run directory with protocol.json, queries.jsonl, studies.json and claims.json (screening.json is used if present)")
+    parser.add_argument("--output", default="snapshot.current.json",
+                        help="snapshot path inside the run directory (default: %(default)s)")
     parser.add_argument("--protocol-id", help="stable protocol identifier when protocol.json has no protocol_id")
     args = parser.parse_args(argv)
     try:

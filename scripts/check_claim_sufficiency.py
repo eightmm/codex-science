@@ -15,8 +15,10 @@ from codex_science.claim_sufficiency import check_sufficiency  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True, help="validated research run directory")
-    parser.add_argument("--tier", choices=("quick", "standard", "full"), required=True)
-    parser.add_argument("--require-sufficient", action="store_true")
+    parser.add_argument("--tier", choices=("quick", "standard", "full"), required=True,
+                        help="rigor tier setting the minimum independent supporting study groups per claim")
+    parser.add_argument("--require-sufficient", action="store_true",
+                        help="exit 1 if any claim is insufficient or has unresolved contradicting studies")
     args = parser.parse_args()
     try:
         result = check_sufficiency(args.run_dir, tier=args.tier)

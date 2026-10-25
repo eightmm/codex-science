@@ -16,9 +16,9 @@ from codex_science.literature import diff_review_snapshots  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("previous", type=Path)
-    parser.add_argument("current", type=Path)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("previous", type=Path, help="earlier literature review snapshot JSON (schema_version 1)")
+    parser.add_argument("current", type=Path, help="later snapshot JSON with the same protocol_id")
+    parser.add_argument("--output", type=Path, help="write the diff JSON here instead of stdout")
     args = parser.parse_args()
     previous = json.loads(args.previous.read_text(encoding="utf-8"))
     current = json.loads(args.current.read_text(encoding="utf-8"))

@@ -15,13 +15,15 @@ from codex_science.transport_v3 import TransportError  # noqa: E402
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", type=Path, required=True)
-    parser.add_argument("source", choices=("europepmc", "pubmed"))
-    parser.add_argument("query")
-    parser.add_argument("--page-size", type=int, default=25)
-    parser.add_argument("--max-pages", type=int, default=1)
-    parser.add_argument("--evidence-cutoff")
-    parser.add_argument("--abstracts", action="store_true")
+    parser.add_argument("--run-dir", type=Path, required=True,
+                        help="existing run directory; writes queries.jsonl and raw/queries/ snapshots")
+    parser.add_argument("source", choices=("europepmc", "pubmed"), help="literature source to search")
+    parser.add_argument("query", help="search query string")
+    parser.add_argument("--page-size", type=int, default=25, help="records per page (1-100)")
+    parser.add_argument("--max-pages", type=int, default=1, help="maximum pages to fetch (1-100)")
+    parser.add_argument("--evidence-cutoff", help="only include records published up to this date (YYYY-MM-DD)")
+    parser.add_argument("--abstracts", action="store_true",
+                        help="write abstracts for europepmc results (ignored for pubmed, which returns IDs only)")
     args = parser.parse_args(argv)
     try:
         summary = retrieve_literature(

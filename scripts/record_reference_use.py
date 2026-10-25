@@ -14,13 +14,16 @@ from codex_science.reference_contract import record_reference_uses  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", type=Path, required=True)
-    parser.add_argument("--reference", type=Path, action="append", required=True)
-    parser.add_argument("--reason", required=True)
-    parser.add_argument("--used-for", action="append", default=[])
-    parser.add_argument("--section", action="append", default=[])
-    parser.add_argument("--search-term", action="append", default=[])
-    parser.add_argument("--output", default="reference-use-ledger.json")
+    parser.add_argument("--run-dir", type=Path, required=True, help="existing run directory that holds the ledger")
+    parser.add_argument("--reference", type=Path, action="append", required=True,
+                        help="reference file directly inside a skill references/ directory and listed in its index; repeatable")
+    parser.add_argument("--reason", required=True, help="why the reference was read")
+    parser.add_argument("--used-for", action="append", default=[],
+                        help="what the reference was used for; repeatable (default: workflow-route)")
+    parser.add_argument("--section", action="append", default=[], help="section of the reference that was read; repeatable")
+    parser.add_argument("--search-term", action="append", default=[], help="term searched for in the reference; repeatable")
+    parser.add_argument("--output", default="reference-use-ledger.json",
+                        help="ledger path relative to --run-dir (default: %(default)s)")
     args = parser.parse_args()
     try:
         summary = record_reference_uses(

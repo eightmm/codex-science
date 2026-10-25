@@ -12,11 +12,14 @@ from codex_science.literature_saturation import estimate_saturation
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True, help="JSON file or - for stdin")
-    parser.add_argument("--hard-cap", type=int)
-    parser.add_argument("--remaining-threshold", type=float)
-    parser.add_argument("--min-evaluated", type=int)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", required=True, help="JSON file or - for stdin: a list of cumulative {\"evaluated\", \"relevant\"} checkpoints, or a saturation-log-v1 object with \"checkpoints\" and optional hard_cap, remaining_threshold, min_evaluated")
+    parser.add_argument("--hard-cap", type=int,
+                        help="stop once this many records are evaluated (positive integer; required here or as hard_cap in the input)")
+    parser.add_argument("--remaining-threshold", type=float,
+                        help="predicted remaining relevant records at or below which to stop (default: 1.0)")
+    parser.add_argument("--min-evaluated", type=int,
+                        help="minimum evaluated records before fitting (default: 30)")
     args = parser.parse_args()
     try:
         raw = sys.stdin.read() if args.input == "-" else Path(args.input).read_text(encoding="utf-8")

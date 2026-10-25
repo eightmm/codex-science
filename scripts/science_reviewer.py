@@ -65,18 +65,26 @@ def respond(args: argparse.Namespace) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    command = commands.add_parser("prepare")
-    command.add_argument("manifest", type=Path)
-    command.add_argument("--mode", action="append", choices=["record", "source", "method", "reproduction"], required=True)
-    command.add_argument("--question", action="append", default=[])
-    command.add_argument("--independence-not-required", action="store_true")
-    command.add_argument("--tier", choices=TIERS)
-    command.add_argument("--output", type=Path, required=True)
+    command = commands.add_parser(
+        "prepare",
+        help="build a blinded review packet (review-task) from a run manifest",
+        description="Validate the run bundle and write a review packet with hashed artifacts, claims and review questions; producer-only rationale fields are excluded.",
+    )
+    command.add_argument("manifest", type=Path, help="path to the run manifest.json")
+    command.add_argument("--mode", action="append", choices=["record", "source", "method", "reproduction"], required=True, help="review mode to request; repeat for each")
+    command.add_argument("--question", action="append", default=[], help="review question; repeatable, replaces the default questions")
+    command.add_argument("--independence-not-required", action="store_true", help="let a non-independent reviewer pass (packet records independent_required=false)")
+    command.add_argument("--tier", choices=TIERS, help="rigor tier recorded in the packet review order (default: standard)")
+    command.add_argument("--output", type=Path, required=True, help="path to write the review packet JSON")
     command.set_defaults(handler=prepare)
-    command = commands.add_parser("finalize")
-    command.add_argument("packet", type=Path)
-    command.add_argument("response", type=Path)
-    command.add_argument("--output", type=Path, required=True)
+    command = commands.add_parser(
+        "finalize",
+        help="validate a reviewer response against its packet and write the hash-covered receipt",
+        description="Check the response covers this packet (task ID, fingerprint, artifact hashes, claims, independence) and write the review receipt.",
+    )
+    command.add_argument("packet", type=Path, help="review packet JSON written by prepare")
+    command.add_argument("response", type=Path, help="reviewer response JSON, e.g. from respond")
+    command.add_argument("--output", type=Path, required=True, help="path to write the review receipt JSON")
     command.set_defaults(handler=finalize)
     command = commands.add_parser(
         "respond",

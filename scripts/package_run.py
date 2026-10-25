@@ -37,19 +37,29 @@ def main() -> int:
     )
     execute.add_argument("command", nargs=argparse.REMAINDER, help="command to run, after --")
     update = commands.add_parser("refresh", help="refresh manifest hashes and registrations")
-    update.add_argument("--run-dir", type=Path, required=True)
-    update.add_argument("--kind", action="append", default=[], metavar="PATH=KIND")
-    update.add_argument("--default-kind")
-    update.add_argument("--invalidate-review", action="store_true")
-    update.add_argument("--register-receipt", metavar="PATH")
+    update.add_argument("--run-dir", type=Path, required=True, help="run directory containing manifest.json")
+    update.add_argument("--kind", action="append", default=[], metavar="PATH=KIND",
+                        help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable")
+    update.add_argument("--default-kind",
+                        help="artifact kind for files that match no --kind and no built-in name rule (without it, such unregistered files make the command fail)")
+    update.add_argument("--invalidate-review", action="store_true",
+                        help="archive prior review files and reset review to pending; required when the run already has review evidence")
+    update.add_argument("--register-receipt", metavar="PATH",
+                        help="register a passed review receipt (run-relative path) instead of refreshing; cannot be combined with other refresh options")
     ready = commands.add_parser("prepare-review", help="run deterministic gates and build an independent review packet")
-    ready.add_argument("--run-dir", type=Path, required=True)
-    ready.add_argument("--tier", choices=("quick", "standard", "full"), required=True)
-    ready.add_argument("--mode", action="append", choices=("record", "source", "method", "reproduction"))
-    ready.add_argument("--question", action="append")
-    ready.add_argument("--new-round", action="store_true")
-    ready.add_argument("--kind", action="append", default=[], metavar="PATH=KIND")
-    ready.add_argument("--default-kind")
+    ready.add_argument("--run-dir", type=Path, required=True, help="run directory containing manifest.json")
+    ready.add_argument("--tier", choices=("quick", "standard", "full"), required=True,
+                       help="rigor tier for the claim-sufficiency check and the packet review order")
+    ready.add_argument("--mode", action="append", choices=("record", "source", "method", "reproduction"),
+                       help="review mode to request; repeatable (default: record, source, method)")
+    ready.add_argument("--question", action="append",
+                       help="review question for the packet; repeatable, replaces the default questions")
+    ready.add_argument("--new-round", action="store_true",
+                       help="archive prior review files and start a new review round; required when the run already has review evidence")
+    ready.add_argument("--kind", action="append", default=[], metavar="PATH=KIND",
+                       help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable")
+    ready.add_argument("--default-kind",
+                       help="artifact kind for files that match no --kind and no built-in name rule (without it, such unregistered files make the command fail)")
     args = parser.parse_args()
     try:
         if args.action == "exec":

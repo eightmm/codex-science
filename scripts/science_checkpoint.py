@@ -186,78 +186,87 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     init = commands.add_parser("init", help="create a run checkpoint")
-    init.add_argument("run_dir", type=Path)
-    init.add_argument("--goal", required=True)
-    init.add_argument("--deliverable", required=True)
-    init.add_argument("--done", action="append", required=True, dest="done_criteria")
-    init.add_argument("--step", action="append", required=True, type=_step, dest="steps")
-    init.add_argument("--next-action", required=True)
-    init.add_argument("--outer-goal", choices=("none", "native"), default="none")
-    init.add_argument("--goal-task-key")
-    init.add_argument("--continuation-budget", type=int, default=100)
-    init.add_argument("--rigor-tier", choices=("standard", "full"))
-    init.add_argument("--rigor-decision-sha256")
-    init.add_argument("--budget-policy", choices=("tier-v1",))
-    init.add_argument("--deadline-at")
+    init.add_argument("run_dir", type=Path, help="run directory to create; must not already contain checkpoint.json")
+    init.add_argument("--goal", required=True, help="run goal text")
+    init.add_argument("--deliverable", required=True, help="deliverable text")
+    init.add_argument(
+        "--done", action="append", required=True, dest="done_criteria",
+        help="done criterion text; repeat for several (recorded as criterion-1, criterion-2, ...)",
+    )
+    init.add_argument(
+        "--step", action="append", required=True, type=_step, dest="steps",
+        help="planned step as ID=TITLE; repeat in order (the first step starts in progress)",
+    )
+    init.add_argument("--next-action", required=True, help="text describing the next action")
+    init.add_argument(
+        "--outer-goal", choices=("none", "native"), default="none",
+        help="native binds the run to a native Codex Goal and requires --goal-task-key (not allowed with --hookless)",
+    )
+    init.add_argument("--goal-task-key", help="64-character lowercase hex SHA-256 task key; only valid with --outer-goal native")
+    init.add_argument("--continuation-budget", type=int, default=100, help="positive integer continuation budget")
+    init.add_argument("--rigor-tier", choices=("standard", "full"), help="rigor tier to record; required with --hookless and --budget-policy")
+    init.add_argument("--rigor-decision-sha256", help="SHA-256 hex digest recorded in the rigor history entry")
+    init.add_argument("--budget-policy", choices=("tier-v1",), help="opt in to a run budget derived from the rigor tier; requires --rigor-tier")
+    init.add_argument("--deadline-at", help="run deadline as a future UTC timestamp ending in Z, e.g. 2030-01-01T00:00:00Z; requires --budget-policy")
     init_group = init.add_mutually_exclusive_group(required=True)
-    init_group.add_argument("--session-key")
-    init_group.add_argument("--hookless", action="store_true")
+    init_group.add_argument("--session-key", help="64-character lowercase hex SHA-256 key of the Codex task that owns the run")
+    init_group.add_argument("--hookless", action="store_true", help="bind to a random run-local key instead of a task session key; requires --rigor-tier")
 
     escalate = commands.add_parser("escalate", help="raise the recorded rigor tier")
-    escalate.add_argument("run_dir", type=Path)
-    escalate.add_argument("--tier", required=True, choices=("standard", "full"))
-    escalate.add_argument("--reason", required=True)
-    escalate.add_argument("--rigor-decision-sha256")
+    escalate.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    escalate.add_argument("--tier", required=True, choices=("standard", "full"), help="new tier; must be higher than the current tier")
+    escalate.add_argument("--reason", required=True, help="why the rigor tier is raised")
+    escalate.add_argument("--rigor-decision-sha256", help="SHA-256 hex digest recorded in the rigor history entry")
 
     claim = commands.add_parser("claim", help="attach a legacy run to this Codex task")
-    claim.add_argument("run_dir", type=Path)
-    claim.add_argument("--session-key", required=True)
-    claim.add_argument("--outer-goal", choices=("none", "native"), default="none")
-    claim.add_argument("--goal-task-key")
-    claim.add_argument("--previous-session-key")
-    claim.add_argument("--continuation-budget", type=int, default=100)
+    claim.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    claim.add_argument("--session-key", required=True, help="64-character lowercase hex SHA-256 key of the Codex task claiming the run")
+    claim.add_argument("--outer-goal", choices=("none", "native"), default="none", help="native requires --goal-task-key; cannot change on a schema-v4 run")
+    claim.add_argument("--goal-task-key", help="64-character lowercase hex SHA-256 task key; only valid with --outer-goal native")
+    claim.add_argument("--previous-session-key", help="session key recorded in the legacy (pre-v4) checkpoint being claimed, as a SHA-256 hex digest")
+    claim.add_argument("--continuation-budget", type=int, default=100, help="positive integer continuation budget")
 
     show = commands.add_parser("show", help="show a validated checkpoint")
-    show.add_argument("run_dir", type=Path)
+    show.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
 
     heartbeat = commands.add_parser("heartbeat", help="record same-step progress")
-    heartbeat.add_argument("run_dir", type=Path)
-    heartbeat.add_argument("--next-action", required=True)
-    heartbeat.add_argument("--progress-ref")
+    heartbeat.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    heartbeat.add_argument("--next-action", required=True, help="new next-action text; must differ from the recorded one")
+    heartbeat.add_argument("--progress-ref", help="existing progress evidence file as a path relative to the run directory; required for schema-v3+ checkpoints")
 
     advance = commands.add_parser("advance", help="complete the current step")
-    advance.add_argument("run_dir", type=Path)
-    advance.add_argument("--complete", dest="completed_step")
-    advance.add_argument("--next", dest="next_step")
-    advance.add_argument("--next-action", required=True)
+    advance.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    advance.add_argument("--complete", dest="completed_step", help="ID of the current step to mark completed; omit only to start a step when none is in progress")
+    advance.add_argument("--next", dest="next_step", help="ID of a pending step to start; defaults to the first pending step after --complete")
+    advance.add_argument("--next-action", required=True, help="text describing the next action")
 
     attempt = commands.add_parser("attempt", help="record a failed approach")
-    attempt.add_argument("run_dir", type=Path)
-    attempt.add_argument("--failure-class", required=True)
-    attempt.add_argument("--approach", required=True)
-    attempt.add_argument("--outcome", required=True)
-    attempt.add_argument("--next-action", required=True)
+    attempt.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    attempt.add_argument("--failure-class", required=True, help="label grouping similar failures; retries are limited per class")
+    attempt.add_argument("--approach", required=True, help="the approach that was tried")
+    attempt.add_argument("--outcome", required=True, help="what happened")
+    attempt.add_argument("--next-action", required=True, help="text describing the next action")
 
     gate = commands.add_parser("gate", help="open one batched decision gate")
-    gate.add_argument("run_dir", type=Path)
-    gate.add_argument("--question", action="append", required=True, dest="questions")
-    gate.add_argument("--reason", required=True)
+    gate.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    gate.add_argument("--question", action="append", required=True, dest="questions", help="decision question; repeat to batch several")
+    gate.add_argument("--reason", required=True, help="why the decision is needed")
 
     resume = commands.add_parser("resume", help="resume a gated or blocked run")
-    resume.add_argument("run_dir", type=Path)
-    resume.add_argument("--next-action", required=True)
+    resume.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    resume.add_argument("--next-action", required=True, help="text describing the next action")
 
     block = commands.add_parser("block", help="record a genuine blocker")
-    block.add_argument("run_dir", type=Path)
-    block.add_argument("--reason", required=True)
-    block.add_argument("--next-action", required=True)
+    block.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    block.add_argument("--reason", required=True, help="the blocker")
+    block.add_argument("--next-action", required=True, help="condition or action needed to continue")
 
     wait = commands.add_parser("wait", help="record an external wait without busy-looping")
-    wait.add_argument("run_dir", type=Path)
-    wait.add_argument("--reason", required=True)
-    wait.add_argument("--next-action", required=True)
-    wait.add_argument("--poll-interval-seconds", type=int, required=True)
-    wait.add_argument("--terminal-rule", required=True)
+    wait.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    wait.add_argument("--reason", required=True, help="what external event is awaited")
+    wait.add_argument("--next-action", required=True, help="text describing the next action after the wait")
+    wait.add_argument("--poll-interval-seconds", type=int, required=True, help="positive integer number of seconds between checks")
+    wait.add_argument("--terminal-rule", required=True, help="rule for when to stop waiting")
 
     criterion = commands.add_parser("criterion", help="satisfy a done criterion with evidence")
     criterion.add_argument("run_dir", type=Path, help="run directory containing the checkpoint")
@@ -269,27 +278,38 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     review = commands.add_parser("review", help="attach an independent review receipt")
-    review.add_argument("run_dir", type=Path)
-    review.add_argument("--artifact-ref", required=True)
+    review.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    review.add_argument(
+        "--artifact-ref", required=True,
+        help="review receipt JSON as a path relative to the run directory; needs status (passed|failed), "
+        "reviewer, independent (boolean) and optional findings (list)",
+    )
 
     abandon = commands.add_parser("abandon", help="make a run permanently non-resumable")
-    abandon.add_argument("run_dir", type=Path)
-    abandon.add_argument("--reason", required=True)
+    abandon.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    abandon.add_argument("--reason", required=True, help="why the run is abandoned")
 
     complete = commands.add_parser("complete", help="complete a fully executed plan")
-    complete.add_argument("run_dir", type=Path)
+    complete.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
 
     confirm = commands.add_parser(
         "confirm-goal-complete",
         help="record a native Goal completion attestation receipt",
     )
-    confirm.add_argument("run_dir", type=Path)
-    confirm.add_argument("--receipt", required=True, dest="receipt_ref")
+    confirm.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    confirm.add_argument(
+        "--receipt", required=True, dest="receipt_ref",
+        help="Goal completion receipt JSON as a path relative to the run directory; needs status \"complete\" and the bound task_key",
+    )
     status = commands.add_parser("budget-status", help="show opt-in run budget without writing")
-    status.add_argument("run_dir", type=Path)
+    status.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
     partial = commands.add_parser("finish-partial", help="finish an exhausted budgeted run as partial")
-    partial.add_argument("run_dir", type=Path)
-    partial.add_argument("--artifact-ref", required=True)
+    partial.add_argument("run_dir", type=Path, help="run directory containing checkpoint.json")
+    partial.add_argument(
+        "--artifact-ref", required=True,
+        help="partial-result JSON as a path relative to the run directory with exactly the keys schema_version (1), "
+        "status (\"partial\"), result_refs, unmet_criteria, unfinished_steps, caveats, review_status",
+    )
     return parser
 
 

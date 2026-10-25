@@ -19,10 +19,12 @@ from codex_science.citation_resolve import (
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "") + " Text input resolves the first 50 supported identifiers "
         "in sorted order; additional supported identifiers are listed as skipped with reason over_cap.")
-    parser.add_argument("--input")
-    parser.add_argument("--ids", nargs="*")
-    parser.add_argument("--network", action="store_true")
-    parser.add_argument("--offline-fixture", type=Path)
+    parser.add_argument("--input", help="text file to scan for DOI, PMID or arXiv identifiers; - or omitted reads stdin")
+    parser.add_argument("--ids", nargs="*", help="identifiers to resolve instead of scanning text (at most 50); cannot be combined with --input")
+    parser.add_argument("--network", action="store_true",
+                        help="query public metadata services (default: print the plan only)")
+    parser.add_argument("--offline-fixture", type=Path,
+                        help="directory of recorded <kind>_<id>.json responses to use instead of the network")
     parser.add_argument("--run-dir", type=Path, help="load expected citation metadata from a run's study table")
     args = parser.parse_args(argv)
     try:

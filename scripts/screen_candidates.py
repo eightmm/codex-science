@@ -16,7 +16,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     pool_parser = subparsers.add_parser("pool", help="merge query results into candidates.json")
-    pool_parser.add_argument("--run-dir", type=Path, required=True)
+    pool_parser.add_argument("--run-dir", type=Path, required=True,
+                             help="run directory with queries.jsonl and its query results; writes candidates.json")
     apply_parser = subparsers.add_parser(
         "apply", help="apply screening decisions to the candidate pool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -48,8 +49,10 @@ For an exclusion without an abstract, include an existing run-relative
 `fulltext/...` artifact path in the rationale so its contents are hashed as
 the evidence. Replace the example record IDs with IDs from candidates.json.''',
     )
-    apply_parser.add_argument("--run-dir", type=Path, required=True)
-    apply_parser.add_argument("--decisions", type=Path, required=True)
+    apply_parser.add_argument("--run-dir", type=Path, required=True,
+                              help="run directory with candidates.json; writes screening.json")
+    apply_parser.add_argument("--decisions", type=Path, required=True,
+                              help="screening-decisions-v1 JSON file (format below)")
     args = parser.parse_args(argv)
     try:
         if args.command == "pool":
