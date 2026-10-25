@@ -2,10 +2,11 @@
 
 ## Unreleased
 
+- Recorded the run28 literature evaluation (6/6) and corrected the count of coordinator reads under `catalog/codex-skills/` in the runtime-skill path entry.
 - Added `scripts/plan_life_science_research.py`, a script fallback for the `science_plan_life_science_research` MCP tool, named in the coordinator and life-science routing skills; evaluation runs showed coordinators guessing this script or reading planner source when the MCP tool was unavailable.
 - `validate_artifact.py --help` lists the recognized sidecar kinds and their allowed values, and the science-provenance skill points to `examples/literature-review-reviewed-run/` for exact sidecar shapes; exploratory non-literature runs read plugin source 38 times to learn these shapes.
 - Recorded the run27 literature evaluation (5/6) and corrected the run26 smoke-process count description.
-- The codex-science coordinator skill now names `runtime-skills/<name>/SKILL.md` as the location of `$codex-science`, `$science-provenance` and `$science-review`; evaluation runs 21-27 each tried the nonexistent `catalog/codex-skills/` path first.
+- The codex-science coordinator skill now names `runtime-skills/<name>/SKILL.md` as the location of `$codex-science`, `$science-provenance` and `$science-review`; in evaluation runs 21-27, 11 coordinator commands (0-2 per run; 8 of them failed) read these skills under the nonexistent `catalog/codex-skills/` path.
 - `scripts/public_smoke.py` now handles a connection timeout that urllib reports as `URLError` like any other timeout (one retry, then a collected failure or an allowed-unavailable warning), and records other unreachable sources as failures instead of stopping before the remaining sources are checked.
 - The literature-review skill and `build_literature_snapshot.py --help` now name the `protocol.json` fields the snapshot builder requires (`protocol_id`, `question`, `question_framework`, `evidence_cutoff`), so a protocol can record them when it is frozen instead of failing at the snapshot step.
 - Full-text lookup now matches a study's padded or mixed-case DOI against the same DOI cited in a report, so the cited study is looked up once under its normalized DOI.

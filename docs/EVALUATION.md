@@ -545,6 +545,49 @@ Codex sign-in, which the recorded runs did not set up.
   Standard-mrna completed; it has been blocked by provider policy in 7 of 22 runs
   (runs 6–27).
 
+- Run28 (`bc3f860`, runtime `0.5.0+codex.20261026005000`), 6/6 (95% Wilson
+  interval 61.0%-100%). Changes under test since run27 (`6cc4cb7`) are
+  `8733df4`, which treats urllib connect timeouts as timeouts in the public
+  smoke test and is not on the literature path; `2336751`, which names
+  `runtime-skills/<name>/SKILL.md` for `$codex-science`, `$science-provenance`,
+  and `$science-review` in the coordinator skill; `bd8dc1b`, run27 docs; and
+  `bc3f860`, which makes `validate_artifact.py --help` list the sidecar kinds
+  and allowed values and points the science-provenance skill to the literature
+  example for sidecar shapes. quick-doi completed in 82 seconds, quick-arxiv in
+  47 seconds, standard-mrna in 753 seconds, standard-single-cell in 931 seconds,
+  full-protein-folding in 1270 seconds, and full-microbiome in 1366 seconds. All
+  six stop reasons are done. The grader reports `stall_affected_timeouts` 0. No
+  provider policy blocks or infrastructure failures occurred.
+  Pre-registered secondary metrics (prediction, then observation):
+  - C1 coordinator commands that read the science-review, science-provenance, or
+    codex-science `SKILL.md` under `catalog/codex-skills/`: baseline runs 21–27
+    had 11 such commands over 8 runs (0–2 per run; 8 of them failed). Predicted
+    0; observed 0. Met.
+  - M1 completed standard and full packages showing the review as pending:
+    predicted 0; observed 0 of 4. Met.
+  - M2 "Receipt already registered" errors: predicted 0; observed 0. Met.
+  - M3 strict plugin-source reads: predicted ≤ 3; observed 0. Met.
+  - M4 tool errors from plugin scripts excluding prepare-review: predicted ≤ 4;
+    observed 3. Met. The three were: full-microbiome ran a nonexistent
+    `scripts/plan_life_science_research.py` because the MCP planner tool was
+    unavailable (see MCP below); full-microbiome ran `screen_candidates.py apply`
+    after its own helper script failed before writing
+    `screening-decisions.json`; and standard-single-cell read a nonexistent
+    example lane file, `lanes/primary-literature.json`, in the literature example.
+  - P1 `build_literature_snapshot.py` missing-field failures: predicted 0;
+    observed 0. Met.
+  - MCP tool calls: predicted 0 (descriptive); observed 0. In `codex exec`, the
+    codex-science MCP server fails to start because `.mcp.json` declares a
+    relative command with no `cwd`, so it resolves against the session
+    directory. This was found during run27 and probe analysis; the bootstrap
+    file was not changed.
+  Citation tracing traced 68 of 70 cited identifiers. Both orphans are in an
+  agent-authored `search-methods.md` in full-microbiome.
+  Standard-mrna completed; it has been blocked by provider policy in 7 of 23 runs
+  (runs 6–28).
+  Six tasks cannot establish an effect; one run is one sample, and no
+  improvement trend is claimed from it.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -552,7 +595,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–27 in order, with run16b and
+receipt, then one summary row per run, for runs 6–28 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
