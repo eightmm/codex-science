@@ -17,10 +17,12 @@ from codex_science.review import review_manifest  # noqa: E402
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("manifest", type=Path)
-    parser.add_argument("--review-output", type=Path)
-    parser.add_argument("--require-passed-review", action="store_true")
+    parser = argparse.ArgumentParser(
+        description="Check manifest artifact bytes and sidecar schemas (exit 1 with an error on failure); optionally write the record/source review.",
+    )
+    parser.add_argument("manifest", type=Path, help="path to the run manifest.json")
+    parser.add_argument("--review-output", type=Path, help="also write the deterministic record/source review JSON here; not the independent review receipt or a reviewed artifact")
+    parser.add_argument("--require-passed-review", action="store_true", help="exit non-zero unless the review status is passed; requires --review-output")
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()
     try:

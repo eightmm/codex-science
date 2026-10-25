@@ -77,6 +77,18 @@ with an 1800-second cap, completing 3/6, 4/6, 3/6, 4/6, 4/6, 3/6, 3/6,
 blocks remain failures in both completion rates and are never removed from the
 denominator.
 
+Runs 6–23 ran `codex exec` with the operator's default Codex home, not an
+isolated `CODEX_HOME`. In every recorded run checked (runs 6, 8, 10, 12, 14, 16,
+17, and 18–23), the four standard and full tasks read the operator's Codex
+memory file and a user-installed agent-harness skill outside this plugin; the
+two quick tasks did not. Full-protein-folding in runs 18 and 23 also called that
+harness's CLI to list models (run 18 also its inbox) but did not dispatch work
+through it. These reads occurred in every run, although the memory file's
+contents may have changed between runs, so absolute completion rates measure
+this plugin together with that operator environment, not the plugin alone. The
+effect of this environment is unmeasured. An isolated home requires its own
+Codex sign-in, which the recorded runs did not set up.
+
 - Run10 (`edb8d69`), 4/6: quick 2/2; standard-mrna completed in 943 seconds;
   standard-single-cell completed in 1291 seconds; both full runs timed out at
   1800 seconds.

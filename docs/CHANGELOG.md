@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `science_reviewer.py respond --help` and `validate_artifact.py --help` now describe each option, including the `--findings` file format (also stated in the review runtime reference). In runs 20–23, 9 of 16 independent reviewers read plugin source to find that format; in run23 full-protein-folding this took about 110 seconds of a 407-second review.
+- `docs/EVALUATION.md` now records that runs 6–23 used the operator's Codex home: standard and full tasks read the operator's Codex memory and a user-installed agent-harness skill, so absolute completion rates are not plugin-only measurements.
 - Recorded run23 (5/6; full-protein-folding timed out during its second review round) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - Recorded run22 (6/6) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - Review guidance now keeps the reviewer handoff one-way: the coordinator puts the whole review task in the spawn message, waits with `wait_agent`, and sends no `send_message` to a running reviewer; the reviewer sends no interim messages and answers missing inputs with a `blocked` response. In run21 every reviewer tool call aborted before dispatch coincided with a parent message.

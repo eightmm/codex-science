@@ -442,6 +442,14 @@ class ReviewerRuntimeTests(unittest.TestCase):
             response = json.loads((task.parent / "reviewer-response.json").read_text(encoding="utf-8"))
             self.assertEqual(packet["artifacts"][0]["sha256"], response["findings"][0]["evidence"][0]["artifact_sha256"])
 
+    def test_respond_help_describes_findings_format(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_reviewer.py"
+        result = subprocess.run([sys.executable, str(script), "respond", "--help"], capture_output=True, text=True, check=False)
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = " ".join(result.stdout.split())
+        for key in ("id", "severity", "code", "message", "artifact_path", "json_pointer"):
+            self.assertIn(key, text)
+
     def test_respond_refuses_bad_inputs_and_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             task, packet = self._respond_setup(tempdir)

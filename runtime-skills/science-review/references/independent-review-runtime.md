@@ -82,6 +82,8 @@ The reviewer sends no interim progress messages or mid-task questions. If a need
 
 The reviewer returns JSON. `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" respond review-task.json --reviewer NAME (--independent | --not-independent) --status {passed,findings,blocked} --limitation TEXT (--reviewed PATH ... | --reviewed-all) [--findings FILE] [--claim ID --blocked-reason TEXT] [--mode MODE]` writes `reviewer-response.json` beside the packet, filling task ID, fingerprint, artifact hashes (checked against current bytes), default modes/claims, and evidence `artifact_sha256` from the packet; findings, status, limitations, coverage and independence remain the reviewer's judgment. It prints the effective status `finalize` would record and does not write the receipt.
 
+`--findings FILE` is a JSON list of finding objects. Each needs `id`, `severity` (`critical|major|minor|suggestion`), `code` and `message`; optional keys are `affected_claim_id`, `required_action`, `resolution_status` (`open|resolved|accepted-risk|not-applicable`, default `open`) and `evidence`. `evidence` is a list of objects whose `artifact_path` must be a path listed in the packet; `respond` fills `artifact_sha256` from the packet and rejects a supplied hash that differs. Add a locator such as `json_pointer` or `line_range` (the runtime does not validate locator keys).
+
 ```json
 {
   "schema_version": 1,
