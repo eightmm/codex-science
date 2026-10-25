@@ -289,6 +289,38 @@ denominator.
   (runs 6–21). Two consecutive 6/6 runs (run20, run21) on different SHAs do
   not establish a stable rate: each run has six tasks, and run19 was 3/6.
 
+- Run22 (`995deca`, runtime `0.5.0+codex.20261025150000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%): quick-doi completed in 64 seconds and quick-arxiv
+  in 45 seconds; the five remaining tasks ran in parallel after quick-doi.
+  Standard-mrna completed in 774 seconds, standard-single-cell in 945 seconds,
+  full-protein-folding in 1414 seconds, and full-microbiome in 1728 seconds
+  (median 860 seconds versus 906 in run21; maximum 1728 versus 1401). Wall time
+  was not the pre-registered metric for this change. All six tasks matched the
+  branch runtime. No provider policy blocks, infrastructure failures, or stream
+  stalls occurred.
+  The pre-registered metric was counted per reviewer subagent from Codex
+  session records. Interim reviewer `send_message` calls fell from 3, 2, 1, 1
+  in run21 to 0, 0, 0, 0; parent messages delivered to a running reviewer fell
+  from 2, 1, 0, 0 to 0; reviewer tool calls aborted before dispatch fell from
+  2, 1, 0, 0 to 0. Two run21 reviewers were already at zero, and n is four
+  reviewers per run. A non-reviewer reading subagent still received one parent
+  message; the rule covers reviewers only.
+  All four independent reviews passed in one round; in run21, standard-mrna and
+  full-protein-folding needed extra rounds. The first review packets were
+  written at about 374 seconds (mrna), 653 seconds (single-cell), 1077 seconds
+  (protein-folding), and 1263 seconds (microbiome). Citation tracing resolved
+  all 79 cited identifiers across the four packages, with no orphans.
+  Full-microbiome included 27 primary reports, versus 20 in run21 and 12 in
+  run20, on the same prompt; its 1728-second wall time is close to the
+  1800-second cap. `estimate_saturation.py` was called once in both run21 and
+  run22, after extraction, with a single checkpoint (run22:
+  `fewer_than_three_points`), so the saturation rule did not steer screening in
+  either run.
+  Standard-mrna completed again and has now been blocked by provider policy in
+  7 of 17 runs (runs 6–22). Three consecutive 6/6 runs (run20, run21, run22) on
+  different SHAs do not establish a stable rate: each run has six tasks, and
+  run19 was 3/6.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -296,7 +328,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–21 in order and run16b as a
+receipt, then one summary row per run, for runs 6–22 in order and run16b as a
 two-task rerun; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
