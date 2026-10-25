@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added `scripts/plan_life_science_research.py`, a script fallback for the `science_plan_life_science_research` MCP tool, named in the coordinator and life-science routing skills; evaluation runs showed coordinators guessing this script or reading planner source when the MCP tool was unavailable.
 - `validate_artifact.py --help` lists the recognized sidecar kinds and their allowed values, and the science-provenance skill points to `examples/literature-review-reviewed-run/` for exact sidecar shapes; exploratory non-literature runs read plugin source 38 times to learn these shapes.
 - Recorded the run27 literature evaluation (5/6) and corrected the run26 smoke-process count description.
 - The codex-science coordinator skill now names `runtime-skills/<name>/SKILL.md` as the location of `$codex-science`, `$science-provenance` and `$science-review`; evaluation runs 21-27 each tried the nonexistent `catalog/codex-skills/` path first.

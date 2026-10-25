@@ -15,7 +15,7 @@ Read [evidence-lanes-and-reconciliation.md](references/evidence-lanes-and-reconc
 ## Workflow
 1. Freeze the decision, deliverable, population/species, evidence cutoff, causal and clinical boundary, acceptance criteria, and non-goals; record any ambiguity that changes retrieval or interpretation.
 2. Normalize entities and preserve mapping alternatives before retrieval; record stable claim IDs, claim types, required support, falsifiers, applicability, and evidence status.
-3. Call `science_plan_life_science_research` and select no more than four lanes that can answer distinct, material questions; record each lane's question, claims, rationale, and stop rule.
+3. Call `science_plan_life_science_research` (if the MCP tool is unavailable, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/plan_life_science_research.py" QUESTION`) and select no more than four lanes that can answer distinct, material questions; record each lane's question, claims, rationale, and stop rule.
 4. Choose the smallest source set that can discriminate each claim; pin source/version/access date and record exact queries, inclusion/exclusion rules, pagination, and licensing or access constraints.
 5. Execute only independent lanes in parallel; keep shared normalization, dependency grouping, and synthesis centralized; record source IDs, retrieved and excluded records, artifacts, and failures.
 6. Group shared cohorts, propagated records, source portals, templates, models, and transformations before counting support; record why each evidence item is or is not independent.

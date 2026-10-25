@@ -31,6 +31,7 @@ Use that one root consistently for the whole activation generation:
 
 - `<plugin-root>/catalog/inventory.json` for activation decisions.
 - `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/search_skills.py"` when the `science_search_skills` MCP tool is unavailable.
+- `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/plan_life_science_research.py" QUESTION` when the `science_plan_life_science_research` MCP tool is unavailable.
 - `<plugin-root>/catalog/codex-skills/<name>/SKILL.md` for the Codex-compatible wrapper selected from the inventory.
 - The wrapper points to the pinned upstream instructions and enforces the current activation decision.
 - `<plugin-root>/runtime-skills/<name>/SKILL.md` for the plugin's own runtime skills `$codex-science`, `$science-provenance` and `$science-review`; `catalog/codex-skills/` holds only the catalog wrappers selected from the inventory.

@@ -25,6 +25,7 @@ SCRIPTS = [
     "build_evidence_graph",
     "validate_artifact",
     "search_skills",
+    "plan_life_science_research",
     "verify_numerical_result",
     "validate_research_design",
     "run_statistical_analysis",
