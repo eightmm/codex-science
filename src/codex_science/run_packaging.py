@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import fcntl
 import fnmatch
 import hashlib
@@ -384,6 +385,27 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
     review_files = _review_flow_files(run_dir)
     if not existing_receipts and not review_files and not (isinstance(review, dict) and review.get("status", "pending") != "pending"):
         raise ValueError("--register-receipt requires existing review evidence")
+    planned, summary = plan_receipt_registration(run_dir, manifest, relative)
+    if "already_registered" not in summary:
+        _write_manifest_atomic(run_dir, planned)
+    return summary
+
+
+def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate a receipt against the manifest and return the updated manifest without writing.
+
+    Raises ValueError on any refusal; the input manifest is never mutated.
+    """
+    manifest = copy.deepcopy(manifest)
+    canonical_receipt = _canonical_relative(relative)
+    if not isinstance(manifest.get("artifacts"), list):
+        raise ValueError("Manifest and artifacts list are required")
+    if not all(isinstance(item, dict) for item in manifest["artifacts"]):
+        raise ValueError("Artifact records must be objects")
+    receipt_path = _inside(run_dir, canonical_receipt)
+    if not receipt_path.is_file():
+        raise ValueError(f"Review receipt is missing: {relative}")
+    review = manifest.get("review", {})
     mismatches = []
     for item in manifest["artifacts"]:
         rel = str(item.get("path", ""))
@@ -439,24 +461,23 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
         "receipt": canonical_receipt,
         "findings": payload.get("findings", []),
     }
+    fresh_entry = {"path": canonical_receipt, "kind": kind, "sha256": _sha(receipt_path)}
+    if existing_entry is not None and "size_bytes" in existing_entry:
+        fresh_entry["size_bytes"] = receipt_path.stat().st_size
     if (
         existing_entry is not None
-        and existing_entry.get("kind") == kind
-        and existing_entry.get("sha256") == _sha(receipt_path)
+        and existing_entry == fresh_entry
         and review == new_review
     ):
-        return {"added": [], "already_registered": relative, "kind": kind}
+        return manifest, {"added": [], "already_registered": relative, "kind": kind}
     if existing_entry is None:
-        manifest["artifacts"].append({"path": relative, "kind": kind, "sha256": _sha(receipt_path)})
+        manifest["artifacts"].append(fresh_entry)
     else:
-        existing_entry.update({"kind": kind, "sha256": _sha(receipt_path)})
-        if "size_bytes" in existing_entry:
-            existing_entry["size_bytes"] = receipt_path.stat().st_size
+        manifest["artifacts"][manifest["artifacts"].index(existing_entry)] = fresh_entry
     manifest["review"] = new_review
-    _write_manifest_atomic(run_dir, manifest)
     if existing_entry is not None:
-        return {"added": [], "updated": [relative], "kind": kind}
-    return {"added": [relative], "kind": kind}
+        return manifest, {"added": [], "updated": [relative], "kind": kind}
+    return manifest, {"added": [relative], "kind": kind}
 
 
 def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: bool = False, default_kind: str | None = None) -> dict[str, Any]:

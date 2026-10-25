@@ -1592,6 +1592,22 @@ def _prepare_review_manifest(
             validate_review_receipt(receipt)
         except ValueError as error:
             return None, {"status": "skipped", "reason": f"invalid review receipt: {error}"}
+    verdict_note: dict[str, Any] = {}
+    if kind == "review-receipt-v2":
+        from codex_science.run_packaging import plan_receipt_registration
+
+        try:
+            planned, summary = plan_receipt_registration(run_dir, manifest, relative)
+            record_runtime_identity(planned)
+            validate_manifest(planned)
+        except Exception as error:  # verdict recording is optional; any failure must keep the listing-only checkpoint
+            verdict_note = {
+                "verdict_recorded": False,
+                "reason": f"{type(error).__name__}: {error}; run package_run.py refresh --register-receipt after fixing",
+            }
+        else:
+            status = "updated" if summary.get("updated") or summary.get("already_registered") else "registered"
+            return planned, {"status": status, "path": relative, "kind": summary["kind"], "verdict_recorded": True}
     digest = _artifact_sha256(receipt_path)
     normalized_relative = _normalized_manifest_artifact_path(relative)
     previous_index = next((
@@ -1615,7 +1631,7 @@ def _prepare_review_manifest(
         validate_manifest(manifest)
     except ValueError as error:
         return None, {"status": "skipped", "reason": str(error)}
-    return manifest, {"status": status, "path": relative, "kind": kind}
+    return manifest, {"status": status, "path": relative, "kind": kind, **verdict_note}
 
 
 def _normalized_manifest_artifact_path(value: object) -> str | None:
