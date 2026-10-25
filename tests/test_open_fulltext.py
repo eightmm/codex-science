@@ -398,6 +398,9 @@ class OpenFulltextTests(unittest.TestCase):
         (self.run / "report.md").write_text("Cites PMID:12345 and PMID:67890.")
         self._manifest([{"kind": "report", "path": "report.md"}])
         self.assertEqual(["pmid:12345"], identifiers_from_run(self.run))
+        (self.run / "studies.json").write_text('{"studies":[{"doi":" 10.1234/ABC"}]}')
+        (self.run / "report.md").write_text("Cites DOI:10.1234/ABC.")
+        self.assertEqual(["doi:10.1234/abc"], identifiers_from_run(self.run))
 
     def test_many_candidates_are_truncated_to_default_with_success_exit(self):
         rows = [{"pmid": str(10000 + index)} for index in range(51)]

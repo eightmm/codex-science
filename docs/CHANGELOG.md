@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Full-text lookup now matches a study's padded or mixed-case DOI against the same DOI cited in a report, so the cited study is looked up once under its normalized DOI.
 - Europe PMC search records now keep the article's PMCID when Europe PMC reports one, so candidate pools and study tables carry it and the MED and PMC records of one article merge into one candidate. `fetch_open_fulltext.py` looks up a study whose own top-level identifiers include a valid PMCID by that PMCID only, instead of by each of its own PMID and DOI; identifiers that appear only in nested study metadata are never replaced.
 - `science_checkpoint.py review` now also records the verdict of a passed v2 receipt in the manifest review, through the same validation as `package_run.py refresh --register-receipt`. Recording the verdict is best-effort: when it fails for any reason, the checkpoint is still recorded, the receipt is only listed as before, and the output says the verdict was not recorded and how to record it. Updating an already listed receipt entry now replaces it with a fresh record instead of keeping stale metadata.
 - Every option of `science_project.py` now has help text describing its inputs and the project file formats; the help-coverage test covers it.
