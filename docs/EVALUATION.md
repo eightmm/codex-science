@@ -321,6 +321,41 @@ denominator.
   different SHAs do not establish a stable rate: each run has six tasks, and
   run19 was 3/6.
 
+- Run23 (`5fcbb41`, runtime `0.5.0+codex.20261025170000`), 5/6 (95% Wilson
+  interval 43.6%-97.0%). `5fcbb41` differs from `995deca` (run22) only in docs
+  and version, so runs 22 and 23 test the same behavior. quick-doi completed in
+  97 seconds and quick-arxiv in 47 seconds; the five remaining tasks ran in
+  parallel after quick-doi. Standard-mrna completed in 964 seconds,
+  standard-single-cell in 1009 seconds, and full-microbiome in 1090 seconds.
+  Full-protein-folding failed by timeout at the 1800-second cap; its token usage
+  is unknown. All six tasks matched the branch runtime. No provider policy
+  blocks, infrastructure failures, or stream stalls occurred.
+  Full-protein-folding timeline, in seconds from start: the first review packet
+  was written at 979; the round-1 reviewer started at about 996 and responded at
+  about 1391, reporting a major gap: the retained methods evidence did not yet
+  support the acceptance claim. The correction pass added passages already saved
+  in `fulltext/` and updated five agent-authored files under `code/` plus
+  `REPRODUCE.md`. The round-2 packet was written at 1720, and the round-2
+  reviewer started at 1730. The 1800-second cap was reached while round 2 was in
+  progress. Round-1 review time (about 395 seconds) was in line with run21 and
+  run22; the lost time came from a late first packet plus a correction pass of
+  about 300 seconds.
+  Standard-single-cell also needed a second review round (packets at 660 and 910
+  seconds) and finished in 1009 seconds.
+  Across five reviewer threads (one task used separate record and science
+  reviewers), there were 0 interim reviewer messages, 0 parent messages to a
+  running reviewer, and 0 aborted reviewer tool calls. A non-reviewer reading
+  subagent received one parent message.
+  Full-tier inclusion varied again on the same prompts: full-microbiome included
+  11 primary reports (27 in run22, 20 in run21, 12 in run20), and
+  full-protein-folding included 21 (31 in run22, 8 in run21). In the three
+  completed packages, citation tracing resolved every cited identifier (mrna 9,
+  single-cell 6, microbiome 11), with no orphans.
+  Standard-mrna completed again; it has been blocked by provider policy in 7 of
+  18 runs (runs 6–23). Run22 (6/6) and run23 (5/6) tested the same behavior, so
+  the run20–run22 streak of 6/6 runs is not evidence of a stable rate.
+  Full-tier completion at the 1800-second cap is dominated by variance.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -328,7 +363,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–22 in order and run16b as a
+receipt, then one summary row per run, for runs 6–23 in order and run16b as a
 two-task rerun; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17

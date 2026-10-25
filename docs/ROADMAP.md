@@ -333,9 +333,9 @@ Avoid vanity metrics such as total skill count, connector count, or number of ge
 
 ### Follow-up Codex runs (2026-10-23)
 
-Runs 6–22 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
-3/6, 3/6, 5/6, 6/6, 5/6, 3/6, 4/6, 5/6, 3/6, 6/6, 6/6, and 6/6 tasks; run8 was the
-first with a full-tier pass. Provider policy blocks remain failures in both
+Runs 6–23 on the frozen six-task benchmark completed 3/6, 4/6, 3/6, 4/6, 4/6,
+3/6, 3/6, 5/6, 6/6, 5/6, 3/6, 4/6, 5/6, 3/6, 6/6, 6/6, 6/6, and 5/6 tasks; run8
+was the first with a full-tier pass. Provider policy blocks remain failures in both
 completion rates and stay in the denominator.
 Runs 10 and 11 used the same SHA (`edb8d69`) and differed by one task; with six
 tasks per run, variance dominates and the comparison does not establish a
@@ -343,11 +343,12 @@ trend. At the 1800-second cap, full-tier independent review rounds often do not
 fit. Run14 was the first 6/6; run15 completed every task not blocked by provider
 policy on the same SHA, a small sample. Run16 recorded 3/6; with run16b reruns
 of the two capacity failures, 4/6 tasks completed across the six-task set.
-Standard-mrna was blocked in 7 of 17 runs; run17 completed it for the first
+Standard-mrna was blocked in 7 of 18 runs; run17 completed it for the first
 time since run14 and run18 completed it again, but run19 was blocked again;
-run20, run21, and run22 completed it and were not blocked by provider policy.
-These results do not establish a stable gain. Runs 16, 17, 18, 19, 20, 21, and
-22 differ in SHA. Per-run
+run20, run21, run22, and run23 completed it and were not blocked by provider
+policy. These results do not establish a stable gain. Runs 16, 17, 18, 19, 20,
+21, 22, and 23 differ in SHA; runs 22 and 23 differ only in docs and version.
+Per-run
 details are recorded in [Evaluation](EVALUATION.md#recorded-real-runs) and
 `docs/EXPERIMENTS.jsonl`.
 
@@ -358,6 +359,8 @@ inclusion grows (run22 full-microbiome: 1728 seconds, 27 primary reports). Deriv
 cumulative per-query checkpoints from `candidates.json` and `screening.json`
 would not fix this yet: on run21 and run22 packages, the 4–6 targeted queries
 gave `continue` or `insufficient_data` in every task, never a stop signal.
+In run23, full-protein-folding timed out at the cap while its second review
+round was in progress.
 
 1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 135 first-party skills; skill-depth gaps remain.)
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema. (Status: the conductor and literature helpers are implemented in `authored-skills/literature-review/SKILL.md`, `src/codex_science/literature_v2.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py`.)

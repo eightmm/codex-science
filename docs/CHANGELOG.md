@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Recorded run23 (5/6; full-protein-folding timed out during its second review round) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - Recorded run22 (6/6) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
 - Review guidance now keeps the reviewer handoff one-way: the coordinator puts the whole review task in the spawn message, waits with `wait_agent`, and sends no `send_message` to a running reviewer; the reviewer sends no interim messages and answers missing inputs with a `blocked` response. In run21 every reviewer tool call aborted before dispatch coincided with a parent message.
 - Recorded run21 (6/6) in `docs/EVALUATION.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENTS.jsonl`.
