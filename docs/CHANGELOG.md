@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Recorded the run27 literature evaluation (5/6) and corrected the run26 smoke-process count description.
 - The codex-science coordinator skill now names `runtime-skills/<name>/SKILL.md` as the location of `$codex-science`, `$science-provenance` and `$science-review`; evaluation runs 21-27 each tried the nonexistent `catalog/codex-skills/` path first.
 - `scripts/public_smoke.py` now handles a connection timeout that urllib reports as `URLError` like any other timeout (one retry, then a collected failure or an allowed-unavailable warning), and records other unreachable sources as failures instead of stopping before the remaining sources are checked.
 - The literature-review skill and `build_literature_snapshot.py --help` now name the `protocol.json` fields the snapshot builder requires (`protocol_id`, `question`, `question_framework`, `evidence_cutoff`), so a protocol can record them when it is frozen instead of failing at the snapshot step.

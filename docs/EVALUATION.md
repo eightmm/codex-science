@@ -457,8 +457,11 @@ Codex sign-in, which the recorded runs did not set up.
   quick-arxiv, standard-mrna, full-protein-folding, and full-microbiome each
   waited 316-325 seconds for the first model response after the prompt, with no
   hook or tool events in between. standard-single-cell started at the same time
-  and did not stall. Smoke-test processes from another session (23 processes)
-  were running at launch, and the driver's wait for them timed out. Both full-tier
+  and did not stall. Command lines naming the smoke test (23 processes) were
+  running at launch; that count included another session's long-running
+  orchestration commands that mention the smoke test only in a verification
+  string. The number of actual smoke-test processes at launch was not recorded,
+  and the driver's wait for them timed out. Both full-tier
   timeouts are stall-affected, so they are weak evidence about the plugin; they
   still count as failures in the primary rate. full-protein-folding started
   independent review at about 1441 seconds.
@@ -491,6 +494,57 @@ Codex sign-in, which the recorded runs did not set up.
   2). M2 0, M3 0, M4 1. Citation tracing traced 24 of 35 identifiers; of the 11
   orphans, 7 are index file-listing lines and 4 come from `web-source-notes.md`.
 
+- Run27 (`6cc4cb7`, runtime `0.5.0+codex.20261026003000`), 5/6 (95% Wilson
+  interval 43.6%-97.0%). Changes under test since run26 (`2736544`) are
+  `b437a8c`, which keeps PMCIDs from Europe PMC search results in candidate and
+  study records and fetches full text by PMCID first; `3596b8e`, a test and
+  changelog change; `b61dd0e`, run26 docs; and `6cc4cb7`, which documents the
+  required `protocol.json` fields in the literature-review skill and in
+  `build_literature_snapshot.py --help`. quick-doi completed in 63 seconds,
+  quick-arxiv in 47 seconds, standard-mrna in 1046 seconds, standard-single-cell
+  in 1203 seconds, and full-microbiome in 1302 seconds. full-protein-folding
+  timed out at the 1800-second cap: its first independent review returned
+  findings, and the revised package was not re-reviewed before the cap. The
+  grader reports `stall_affected_timeouts` 0. No provider policy blocks or
+  infrastructure failures occurred.
+  The driver waited only while an actual smoke-test process ran; 0 were running
+  at launch, while 8 processes whose command line merely named the smoke test
+  were running. Another session's Codex calls on the shared provider account may
+  have run concurrently. This was recorded, not controlled.
+  Pre-registered secondary metrics (standard and full tasks), each with its
+  prediction and observation:
+  - F1' share of full-text lookups keyed by PMCID: baseline runs 20–26b 49 of
+    276 (17.8%); predicted higher; observed 0 of 34. Agents called
+    `fetch_open_fulltext.py` with explicit PMIDs, so the PMCID-first path in
+    `b437a8c` was not exercised. Prediction not met. (F1, direct full-text
+    fetches without a preceding lookup, was withdrawn as a test before any fetch
+    because every PMCID fetch is preceded by a license lookup; descriptively 2 of
+    21 fetches were direct.)
+  - F2 lookups per fetched full text: baseline runs 20–26 1.72; predicted lower;
+    observed 34 of 21 = 1.62. Most extra lookups were for closed-access studies.
+    One run cannot establish a change.
+  - P1 `build_literature_snapshot.py` failures for a missing `protocol.json`
+    field: baseline 5 in 30 standard and full task runs (runs 20–26b); predicted
+    0; observed 0. All 4 final `protocol.json` files record `protocol_id`
+    (baseline: 10 of 30 lacked it).
+  - M1 0 of 3 completed packages show the review as pending: predicted 0;
+    observed 0. M2 "Receipt already registered" errors: predicted 0; observed 0.
+    M3 strict plugin-source reads: predicted ≤ 3; observed 1. M4 tool errors from
+    plugin scripts excluding prepare-review: predicted ≤ 6; observed 3 (two
+    failed commands that read `science-review/SKILL.md` and
+    `science-provenance/SKILL.md` under `catalog/codex-skills/`, where they do
+    not exist because runtime skills live in `runtime-skills/`; one
+    claim-sufficiency artifact digest mismatch). All met.
+  Citation tracing traced 83 of 85 cited identifiers (run26: 41 of 58). The 2
+  orphans are one index file-listing line (standard-mrna) and one identifier in
+  an agent-authored `evidence_table.md` (standard-single-cell). `studies.json`
+  files now carry PMCIDs for included studies (full-microbiome 11 of 25,
+  full-protein-folding 19 of 21, standard-mrna 6 of 6, standard-single-cell 6 of
+  6), which is the likely reason PMCID-form orphans dropped (run26 7, run26b 4,
+  run27 0). The tracer is shared with the grader and was not changed.
+  Standard-mrna completed; it has been blocked by provider policy in 7 of 22 runs
+  (runs 6–27).
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -498,7 +552,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–26 in order, with run16b and
+receipt, then one summary row per run, for runs 6–27 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
