@@ -12,7 +12,13 @@ Failed review receipts are not registered in the manifest.
 `<plugin-root>` below means the absolute activation-pinned runtime root injected
 by the hook, never a moving checkout path.
 
-## Ownership and lifecycle
+## Activation identity and lifecycle
+
+The activation marker path is a SHA-256 hash of Codex's `session_id`. The marker
+holds a random generation plus the public version, commit, and receipt digest of
+the private immutable runtime pin. Raw session IDs, prompts, research inputs,
+credentials, and results are not stored in the marker. Later turns, resume, and
+context compaction retain the generation.
 
 Activation creates a random generation in a private plugin-data marker. The
 checkpoint `session_key` is a SHA-256 owner key derived from Codex's session ID
@@ -21,6 +27,7 @@ Explicit deactivation or `clear` abandons the discoverable owned nonterminal run
 and removes the marker. Reactivation rotates the generation, so an old run cannot
 acquire the new Stop guard even when it was not discoverable during deactivation.
 Only one nonterminal run may be owned by an activation.
+An inactive activation marker expires after 180 days.
 
 Schema v3 and v4 use these states:
 
@@ -33,11 +40,18 @@ Schema v3 and v4 use these states:
 | `abandoned` | allows stop | Terminal and permanently non-resumable. |
 | `complete` | allows stop | Local contract and, when used, native Goal confirmation finished. |
 
+Approval gates, genuine blockers, and `waiting_external` end without the Stop
+warning. Neither Goal nor the Stop hook runs after the Codex app or task is
+closed, and neither bypasses hook trust, permissions, approvals, or host
+availability.
+
 Blocking continuation is disabled by default because openai/codex#20783 can
 serialize the hook-generated local message UUID as an API `message.id`. The
-default warning path does not mutate continuation counters. For compatibility
-testing only, `CODEX_SCIENCE_STOP_MODE=block` restores the legacy path; its two
-limits are three idle continuations by default (configurable from 1–20 with
+default warning path does not mutate continuation counters. `CODEX_SCIENCE_STOP_MODE=block`
+restores the legacy path. It is retained only for compatibility testing after the
+installed Codex includes the upstream fix; do not enable it while
+openai/codex#20783 is reproducible. Its two limits are three idle continuations
+by default (configurable from 1–20 with
 `CODEX_SCIENCE_MAX_IDLE_CONTINUATIONS`) and an absolute per-run continuation
 budget of 100. A heartbeat resets only the idle count and requires a changed
 next action plus run-local progress evidence; it never resets the absolute
@@ -46,6 +60,10 @@ budget.
 `waiting_external` stores `poll_interval_seconds`, a next action, and a terminal
 rule. Resume it only when that interval/event has arrived, then perform one
 bounded status check. It exists specifically to prevent a Stop-hook polling loop.
+
+The default Stop hook warns for an active checkpoint and allows the turn to end.
+Without all three trusted hooks, same-task continuity is best effort; resume and
+compaction context and the active-checkpoint warning are not guaranteed.
 
 ## Rigor, hookless sessions, and budgets
 
@@ -71,7 +89,7 @@ The completion reporter derives outcome `terminal_inconclusive` with reason
 `budget_exhausted`. This does not imply that the scientific question was
 answered.
 
-## Verified completion
+## Native Goal bridge and verified completion
 
 Each schema-v4 done criterion is structured as an ID, text, status, and evidence
 references. A criterion can become satisfied only when every reference resolves

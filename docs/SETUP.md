@@ -54,43 +54,11 @@ them again only if that definition changes.
 Verify registration with `codex plugin list`; the
 `codex-science@codex-science` row should be `installed, enabled`.
 
-The activation marker path is a SHA-256 hash of Codex's `session_id`, and the
-marker contains a random generation plus the public version, commit, and receipt
-digest of its private immutable runtime pin. The checkpoint owner key is derived
-from the session ID plus that generation. Raw session IDs, prompts, research inputs,
-credentials, and results are not stored in the marker. Later turns, resume, and
-context compaction retain the generation. Explicit stop or `clear` abandons the
-discoverable owned nonterminal run and removes the marker; reactivation rotates
-the generation and owner key, so an old run cannot regain the guard even if its
-artifact was not discoverable during deactivation. Inactive markers expire after
-180 days.
+Activation generations, owner binding and the Stop/native Goal bridge are
+documented in the [checkpoint lifecycle](CHECKPOINTS.md#activation-identity-and-lifecycle)
+and [verified completion contract](CHECKPOINTS.md#native-goal-bridge-and-verified-completion).
 
-The `Stop` hook warns when the owned checkpoint is `active` but allows the turn
-to end by default. This avoids openai/codex#20783, where a blocking continuation
-can poison the next API request with a local UUID. Approval gates, genuine
-blockers, and `waiting_external` end without that warning. An external wait
-records a poll interval and terminal rule so Codex does not busy-poll.
-`CODEX_SCIENCE_STOP_MODE=block` is retained only for compatibility testing after
-the installed Codex includes the upstream fix; its legacy path has a default
-absolute continuation budget of 100 plus the no-progress safety limit.
-
-Native Goal mode is optional and must be requested explicitly with `/goal`.
-Hooks cannot call or observe Goal tools; the coordinator uses `get_goal` during
-automatic continuations. A native Goal run completes in this order:
-
-1. Complete every planned checkpoint step.
-2. Satisfy every schema-v4 criterion with existing run-local evidence.
-3. Record a passed JSON review receipt that names the reviewer and attests independence.
-4. Run checkpoint `complete`, which enters `completion_pending`.
-5. Call `update_goal` with `complete`.
-6. Save a run-local Goal receipt from the successful host result and run
-   checkpoint `confirm-goal-complete --receipt <path>`.
-
-Do not enable another generic or Ralph-style `Stop` loop in the same task.
-Competing stop guards can keep each other alive.
-
-Neither Goal nor the Stop hook runs after the Codex app or task is closed. They
-do not bypass hook trust, permissions, approvals, or host availability.
+## How runtime updates are classified
 
 Update checks default to `CODEX_SCIENCE_AUTO_UPDATE=apply`. The stable bootstrap
 checks the official GitHub `main` branch at `SessionStart` and on the first
@@ -108,7 +76,7 @@ modify Codex plugin registration. First activation pins the runtime version,
 commit, and receipt across hook, Stop, skill, and MCP boundaries. An explicit
 update in an active task installs for new activations without switching the
 current run. Durable checkpoint and manifest writes record runtime identity;
-version-spanning state is a defensive legacy/recovery warning. A candidate that
+`runtime_span` is a defensive warning for legacy or recovery transitions. A candidate that
 changes the host bootstrap is rejected with instructions for the acknowledged
 curl migration. Codex's displayed plugin version identifies the stable host
 bootstrap, not the independently advancing scientific runtime.
@@ -123,6 +91,15 @@ Offline access, a busy updater, a dirty or unofficial checkout, diverged history
 or failed validation leaves the last-known-good verified runtime active. Re-run
 the curl installer only when a bootstrap migration or repair is requested, and
 use the acknowledgement only after closing every Codex task and the app.
+The guarded migration keeps a pre-August legacy installation at
+`~/.codex-science.legacy-<sha>` as a backup.
+
+### Public API drift checks
+
+The public API drift workflow runs weekly and by manual dispatch, separately
+from pull-request CI. Reactome returns HTTP 403 to GitHub-hosted runners; that
+environment block is reported explicitly in scheduled runs. Other failures
+remain fatal, and `scripts/check.sh public` stays strict.
 
 ## Development checkout
 

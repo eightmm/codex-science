@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reorganized the English and Korean READMEs around install, usage, updates, troubleshooting, catalog, and evaluation status; moved activation-identity and update-classification internals to `docs/CHECKPOINTS.md` and `docs/SETUP.md`.
 - Documented `scripts/science_tool.py`, the command-line route to the bundled read-only MCP tools, in the README and the life-science sources guide.
 - Recorded evaluation run30 (5/6; standard-mrna stopped with a provider policy block) in the evaluation notes, roadmap, and run ledger.
 - Added `scripts/science_tool.py`, which calls any codex-science MCP tool (`--list` shows all 54) from the command line through the same server code, so inputs and outputs match the MCP tool; the coordinator skill names it as the fallback when a `science_*` tool is unavailable. In recorded `codex exec` runs the MCP server did not start, coordinators made no MCP tool calls, and exploratory runs fell back to ad-hoc HTTP requests and web search.
