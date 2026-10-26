@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Recorded run35 (6/6) in the evaluation docs and appended its ledger rows.
 - `estimate_saturation.py --output PATH` also writes the result JSON atomically,
   like `trace_citations.py`; stdout, schemas and exit codes are unchanged and
   the path is left untouched on error.

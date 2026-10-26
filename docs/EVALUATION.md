@@ -835,6 +835,47 @@ Codex sign-in, which the recorded runs did not set up.
   policy in 10 of 29 runs (runs 6–34). Caveat: six tasks and one run; not an
   effect estimate. Run28 and run29 also recorded 6/6; no trend is claimed.
 
+- Run35 (`eddb1b7`, runtime `0.5.0+codex.20261026022000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%). Changes under test since run34 (`125df0d`) are
+  `4abe4b7`, which makes support-excerpt length errors report the actual
+  length and say to quote only claim-bearing sentences; `55a23ff`, docs only;
+  `12bbb60`, which makes `build_study_table` record the PMCID of fetched open
+  full text as an identifier of the single study whose front-matter PMID, DOI,
+  or PMCID matches; and `eddb1b7`, which makes generated skill wrappers look up
+  their record with `search_skills.py --name` instead of reading
+  `inventory.json`. quick-doi completed in 88 seconds, quick-arxiv in 79
+  seconds, standard-single-cell in 907 seconds, standard-mrna in 1138 seconds,
+  full-protein-folding in 1585 seconds, and full-microbiome in 1772 seconds.
+  Stop reasons were done 6. No policy blocks, no provider-capacity failures,
+  and no re-runs. The frozen grader (`src-eddb1b7`) counted completion 6/6 and
+  citations 91 of 93 traced (run34 60 of 69). The two untraced identifiers are
+  both in full-microbiome: `pmcid:PMC13641114`, the fetched full text of
+  pmid:42840755, an excluded review listed in `index.md` and
+  `coverage-and-decisions.md`; and `pmcid:PMC9994635`, full text rejected by
+  license policy and named in `coverage-and-decisions.md`. Neither is a
+  study-table study. Preregistered secondary metrics (predicted; observed):
+  primary completion has no numeric prediction; observed 6/6. I1 commands
+  reading `inventory.json` outside `search_skills`: predicted 0; observed 0
+  (run34 6). Met. X1 excerpt-length validation failures, no task with more
+  than one: predicted no task above one; observed 0 (run34 2). Met. C1 every
+  untraced identifier is a full-text PMCID of a record that is not a
+  study-table study: predicted all; observed 2 of 2. Met. Descriptive: L1
+  `search_skills.py --name` lookups 7 (1, 1, 1, 2, 1, 1), with every task
+  using it; O1 orientation bytes median 164 KB (single-cell 140,
+  protein-folding 164, microbiome 346; run34 166); O3 `artifact-contract.md`
+  read in all three; E1 0; F1 0; P1 0; P2 0. Standard-mrna was counted only
+  for the I1, L1, and X1 command totals; its content was not analysed.
+  Observed failures: the two quick tasks each ran bare `python` once while
+  reading skill files, not inventory. full-microbiome spent about 110 seconds
+  (1179-1289 seconds) in three prepare-review rounds: "risk-of-bias study_id
+  and instrument are required" without the failing artifact path (an aggregate
+  risk-overview file was classified as risk-of-bias), then manifest claim
+  evidence listed DOIs instead of artifact paths. standard-single-cell passed
+  `--output` to `estimate_saturation.py`, which has no such option. Standard-mrna
+  has been blocked by provider policy in 10 of 30 runs (runs 6–35). Caveat: six
+  tasks and one run; not an effect estimate. Runs 28, 29, and 34 also recorded
+  6/6; no trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -842,7 +883,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–34 in order, with run16b and
+receipt, then one summary row per run, for runs 6–35 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
