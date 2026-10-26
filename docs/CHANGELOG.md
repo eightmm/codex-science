@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Documented `scripts/science_tool.py`, the command-line route to the bundled read-only MCP tools, in the README and the life-science sources guide.
+- Recorded evaluation run30 (5/6; standard-mrna stopped with a provider policy block) in the evaluation notes, roadmap, and run ledger.
 - Added `scripts/science_tool.py`, which calls any codex-science MCP tool (`--list` shows all 54) from the command line through the same server code, so inputs and outputs match the MCP tool; the coordinator skill names it as the fallback when a `science_*` tool is unavailable. In recorded `codex exec` runs the MCP server did not start, coordinators made no MCP tool calls, and exploratory runs fell back to ad-hoc HTTP requests and web search.
 - Recorded the run29 literature evaluation (6/6).
 - `package_run.py refresh --register-receipt` refusals now say how to retry: combining it with other refresh options names the options given and says to rerun with only `--run-dir` and `--register-receipt`, and a missing receipt says the path is relative to the run directory and, when the path as typed names a file inside the run directory, gives the run-relative form to pass. What is accepted or refused is unchanged. In evaluation runs 21 and 29 these refusals cost coordinators 6 extra calls.

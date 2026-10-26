@@ -16,6 +16,8 @@ capability categories; its proprietary skill text and scripts are not copied.
 
 ## Bundled read-only MCP tools
 
+When the MCP server is not running, run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_tool.py" --list` to see the tool names, then call one with `--json '{"query": "...", "limit": 5}'` or `--query TEXT [--limit N]`. Exit codes: 0 success, 1 tool-reported failure, 2 invalid usage or arguments.
+
 | Tool | Public source | Primary use | Important boundary |
 |---|---|---|---|
 | `science_search_mygene` | [MyGene.info](https://docs.mygene.info/en/latest/doc/query_service.html) | Gene normalization | Verify species and aliases |
