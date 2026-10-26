@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.statement_support import check_statement_support  # noqa: E402
+from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
 
 def main() -> int:
@@ -21,7 +22,7 @@ def main() -> int:
     try:
         result = check_statement_support(args.run_dir, args.report or None)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError, KeyError, TypeError, RecursionError) as error:
-        print(json.dumps({"schema": "statement-support-error-v1", "error": {"code": "invalid_input", "message": str(error)}}, sort_keys=True))
+        print(json.dumps({"schema": "statement-support-error-v1", "error": {"code": "invalid_input", "message": str(error) + digest_mismatch_hint(error, args.run_dir)}}, sort_keys=True))
         return 2
     print(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
     return 1 if args.require_excerpts and result["counts"]["no_excerpt"] + result["counts"]["untraced"] > 0 else 0

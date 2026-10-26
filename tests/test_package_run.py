@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
@@ -415,6 +416,42 @@ class PackageRunTests(unittest.TestCase):
         self.assertIn("no files were changed", result.stderr)
         self.assertEqual((self.run_dir / "manifest.json").read_bytes(), before)
         self.assertFalse((self.run_dir / "review-rounds").exists())
+
+    def test_missing_manifest_names_the_template_to_copy(self) -> None:
+        (self.run_dir / "manifest.json").unlink()
+        for args in (("refresh", "--run-dir", str(self.run_dir)), ("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "review.json")):
+            with self.subTest(args[-1]):
+                result = self.cli(*args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Run manifest is missing", result.stderr)
+                match = re.search(r"copy (\S+manifest\.template\.json) to that path", result.stderr)
+                self.assertIsNotNone(match, result.stderr)
+                self.assertTrue(Path(match.group(1)).is_file())
+        self.assertFalse((self.run_dir / "manifest.json").exists())
+
+    def test_digest_mismatch_names_the_refresh_command_in_every_cli(self) -> None:
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        (self.run_dir / manifest["artifacts"][0]["path"]).write_bytes(b"edited after hashing\n")
+        run, manifest_arg = str(self.run_dir), str(manifest_path)
+        scripts = Path(CLI).parent
+        commands = {
+            "check_claim_sufficiency": ["--run-dir", run, "--tier", "quick"],
+            "check_statement_support": ["--run-dir", run],
+            "retrieve_statement_sources": [run],
+            "export_scientific_run": [manifest_arg, str(self.run_dir / "out"), "--receipt", str(self.run_dir / "receipt.json")],
+            "promote_run_to_skill": [manifest_arg, str(self.run_dir / "draft"), "--name", "x-skill", "--description", "d", "--receipt", str(self.run_dir / "promo.json")],
+            "science_reviewer": ["prepare", manifest_arg, "--mode", "record", "--output", str(self.run_dir / "packet.json")],
+            "render_artifact_index": [manifest_arg],
+            "render_artifact_index --html": ["--html", manifest_arg],
+            "render_workbench": [manifest_arg],
+        }
+        for name, args in commands.items():
+            with self.subTest(name):
+                result = subprocess.run([sys.executable, str(scripts / f"{name.split()[0]}.py"), *args], text=True, capture_output=True, check=False)
+                combined = result.stdout + result.stderr
+                self.assertIn("Artifact digest mismatch", combined)
+                self.assertIn(f"package_run.py refresh --run-dir={run}", combined)
 
     def test_archived_legacy_receipt_is_not_rediscovered(self) -> None:
         manifest_path = self.run_dir / "manifest.json"

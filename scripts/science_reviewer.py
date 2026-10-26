@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.reviewer_runtime import build_review_packet, finalize_review_response, respond_to_review  # noqa: E402
 from codex_science.rigor import TIERS  # noqa: E402
+from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
 
 def read_object(path: Path) -> dict:
@@ -110,7 +111,8 @@ def main() -> int:
     try:
         args.handler(args)
     except (OSError, ValueError, json.JSONDecodeError) as error:
-        print(f"error: {error}", file=sys.stderr)
+        run_dir = next((Path(path).resolve().parent for path in (getattr(args, name, None) for name in ("manifest", "packet", "review_task")) if path), Path("<run>"))
+        print(f"error: {error}{digest_mismatch_hint(error, run_dir)}", file=sys.stderr)
         return 1
     return 0
 

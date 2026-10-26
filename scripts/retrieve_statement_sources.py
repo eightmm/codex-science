@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.statement_retrieval import retrieve_statement_sources  # noqa: E402
+from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
 
 def main() -> int:
@@ -21,7 +22,7 @@ def main() -> int:
     try:
         result = retrieve_statement_sources(args.run_dir, args.report or None, args.top_k)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError, KeyError, TypeError, RecursionError) as error:
-        print(f"retrieve_statement_sources: invalid input: {error}", file=sys.stderr)
+        print(f"retrieve_statement_sources: invalid input: {error}{digest_mismatch_hint(error, args.run_dir)}", file=sys.stderr)
         return 2
     print(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
     return 0

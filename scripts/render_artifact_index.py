@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.artifact_index import render_html, render_markdown  # noqa: E402
+from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
 
 def _write(path: Path, content: str) -> None:
@@ -36,21 +37,21 @@ def main() -> int:
     parser.add_argument("--html", action="store_true", help="also write an offline index.html")
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     run_dir = manifest_path.parent
-    markdown_path = run_dir / "index.md"
-    _write(markdown_path, render_markdown(manifest, run_dir))
-    outputs = [f"Markdown: {markdown_path}"]
-    if args.html:
-        html_path = run_dir / "index.html"
-        _write(html_path, render_html(manifest, run_dir))
-        outputs.append(f"offline HTML: {html_path}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        markdown_path = run_dir / "index.md"
+        _write(markdown_path, render_markdown(manifest, run_dir))
+        outputs = [f"Markdown: {markdown_path}"]
+        if args.html:
+            html_path = run_dir / "index.html"
+            _write(html_path, render_html(manifest, run_dir))
+            outputs.append(f"offline HTML: {html_path}")
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit(str(error) + digest_mismatch_hint(error, run_dir)) from error
     print("Codex Science report ready — " + " · ".join(outputs))
     return 0
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except (OSError, ValueError, json.JSONDecodeError) as error:
-        raise SystemExit(str(error)) from error
+    raise SystemExit(main())

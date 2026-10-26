@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.claim_sufficiency import check_sufficiency  # noqa: E402
+from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
 
 def main() -> int:
@@ -25,7 +26,7 @@ def main() -> int:
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError,
             KeyError, RecursionError, OverflowError) as error:
         print(json.dumps({"schema": "claim-sufficiency-error-v1",
-                          "error": {"code": "invalid_run", "message": str(error)}},
+                          "error": {"code": "invalid_run", "message": str(error) + digest_mismatch_hint(error, args.run_dir)}},
                          sort_keys=True, ensure_ascii=False, separators=(",", ":")))
         return 2
     print(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(",", ":")))

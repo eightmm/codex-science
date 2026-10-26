@@ -384,11 +384,28 @@ def _missing_receipt_message(run_dir: Path, relative: str) -> str:
     return message
 
 
+_MANIFEST_TEMPLATE = Path(__file__).resolve().parents[2] / "runtime-skills" / "science-provenance" / "assets" / "manifest.template.json"
+
+
+def _missing_manifest_message(manifest_path: Path) -> str:
+    return (
+        f"Run manifest is missing: {manifest_path}; no plugin script writes the first manifest, so copy "
+        f"{_MANIFEST_TEMPLATE} to that path and fill its required fields"
+    )
+
+
+def digest_mismatch_hint(error: object, run_dir: Path | str) -> str:
+    """Return the recovery instruction for a stale artifact digest, or an empty string for other errors."""
+    if "Artifact digest mismatch" not in str(error):
+        return ""
+    return f"; rehash with package_run.py refresh --run-dir={shlex.quote(str(run_dir))}"
+
+
 def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
     canonical_receipt = _canonical_relative(relative)
     manifest_path = _write_target(run_dir, "manifest.json")
     if not manifest_path.is_file():
-        raise ValueError(f"Run manifest is missing: {manifest_path}")
+        raise ValueError(_missing_manifest_message(manifest_path))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict) or not isinstance(manifest.get("artifacts"), list):
         raise ValueError("Manifest and artifacts list are required")
@@ -498,7 +515,7 @@ def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative:
 def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: bool = False, default_kind: str | None = None) -> dict[str, Any]:
     manifest_path = _write_target(run_dir, "manifest.json")
     if not manifest_path.is_file():
-        raise ValueError(f"Run manifest is missing: {manifest_path}")
+        raise ValueError(_missing_manifest_message(manifest_path))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("Manifest must be a JSON object")
