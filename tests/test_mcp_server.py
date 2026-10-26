@@ -187,6 +187,33 @@ class MCPServerTests(unittest.TestCase):
                 )
                 self.assertEqual(-32602, response["error"]["code"])
 
+    def test_unexpected_arguments_name_the_accepted_set(self) -> None:
+        cases = (
+            (
+                "science_search_skills",
+                {"query": "x", "page_size": 5},
+                "Unexpected arguments: page_size; accepted: query, limit (1-10)",
+            ),
+            (
+                "science_query_source_v3",
+                {"source": "europepmc", "bogus": 1},
+                "Unexpected arguments: bogus; accepted: evidence_cutoff, max_pages, operation, page_size, "
+                "parameters, source",
+            ),
+        )
+        for name, arguments, expected in cases:
+            with self.subTest(tool=name):
+                response = self.server.handle(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 6,
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments},
+                    }
+                )
+                self.assertEqual(-32602, response["error"]["code"])
+                self.assertEqual(expected, response["error"]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

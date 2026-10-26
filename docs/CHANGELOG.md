@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- fix: MCP and `science_tool.py` "Unexpected arguments" errors name the accepted arguments (search tools: `query, limit (1-10)`).
 - fix: saved EuropePMC abstracts keep text around `<` comparisons; only markup tags are stripped (in recorded runs 30-31 and probe4, 22 of 469 abstracts had lost text).
 - feat: re-running an existing EuropePMC `retrieve_literature.py` query with `--abstracts` writes abstracts from the digest-checked saved snapshot without another fetch; rows print `abstract=not-requested` when abstracts were not requested.
 - docs: record run31 (3/6; both full-tier timeouts followed review findings traced to literature retrieval) in the evaluation notes, roadmap and experiment ledger.

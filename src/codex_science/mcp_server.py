@@ -113,6 +113,16 @@ TOOLS = (
     _contracts_tool(),
 )
 TOOL_NAMES = frozenset(tool["name"] for tool in TOOLS)
+SEARCH_ARGUMENTS = frozenset({"query", "limit"})
+SOURCE_V2_ARGUMENTS = frozenset({
+    "source", "operation", "parameters", "page_size", "max_pages", "evidence_cutoff", "include_snapshot",
+})
+SOURCE_V3_ARGUMENTS = frozenset({"source", "operation", "parameters", "page_size", "max_pages", "evidence_cutoff"})
+
+
+def _unexpected_arguments(extra: set[str], accepted: frozenset[str] | str) -> ValueError:
+    accepted_text = accepted if isinstance(accepted, str) else ", ".join(sorted(accepted))
+    return ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}; accepted: {accepted_text}")
 
 
 class CodexScienceMCP:
@@ -180,23 +190,18 @@ class CodexScienceMCP:
                     record["v3_operations"] = ["search"] if spec.key in SOURCE_OPERATIONS_V3 else []
                     payload.append(record)
             elif name == "science_query_source_v3":
-                extra = set(arguments) - {
-                    "source", "operation", "parameters", "page_size", "max_pages", "evidence_cutoff",
-                }
+                extra = set(arguments) - SOURCE_V3_ARGUMENTS
                 if extra:
-                    raise ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}")
+                    raise _unexpected_arguments(extra, SOURCE_V3_ARGUMENTS)
                 source = arguments.get("source")
                 if source not in SOURCE_OPERATIONS_V3:
                     raise ValueError(f"Source has no v3 operation: {source}")
                 request = QueryRequest.from_payload({**arguments, "source_contract_version": "3"})
                 payload = execute_paginated(SOURCE_OPERATIONS_V3[str(source)], request).to_dict()
             elif name == "science_query_source_v2":
-                extra = set(arguments) - {
-                    "source", "operation", "parameters", "page_size", "max_pages",
-                    "evidence_cutoff", "include_snapshot",
-                }
+                extra = set(arguments) - SOURCE_V2_ARGUMENTS
                 if extra:
-                    raise ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}")
+                    raise _unexpected_arguments(extra, SOURCE_V2_ARGUMENTS)
                 source = arguments.get("source")
                 if source not in SOURCE_BY_KEY:
                     raise ValueError(f"Unknown source: {source}")
@@ -210,9 +215,9 @@ class CodexScienceMCP:
                     self.sources[str(source)], request, include_snapshot=include_snapshot
                 ).to_dict(include_snapshot=include_snapshot)
             else:
-                extra = set(arguments) - {"query", "limit"}
+                extra = set(arguments) - SEARCH_ARGUMENTS
                 if extra:
-                    raise ValueError(f"Unexpected arguments: {', '.join(sorted(extra))}")
+                    raise _unexpected_arguments(extra, "query, limit (1-10)")
                 query, limit = arguments.get("query", ""), arguments.get("limit", 5)
                 if not isinstance(query, str):
                     raise TypeError("Query must be a string")
