@@ -749,6 +749,9 @@ snapshots result pages under `raw/queries/<query_id>/` and appends
 `queries.jsonl` with status (complete, partial, or failed), response hash,
 records returned, and hit count. With `--abstracts`, it writes EuropePMC
 abstracts under `sources/`.
+If an existing EuropePMC query was saved without abstracts, rerun the same
+command with `--abstracts` to write them from the saved snapshot without another
+fetch.
 
 The opt-in `scripts/estimate_saturation.py` estimates remaining discovery from
 logged checkpoints; `scripts/trace_citations.py` checks report identifiers

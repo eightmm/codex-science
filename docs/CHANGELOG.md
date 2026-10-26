@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: saved EuropePMC abstracts keep text around `<` comparisons; only markup tags are stripped (in recorded runs 30-31 and probe4, 22 of 469 abstracts had lost text).
+- feat: re-running an existing EuropePMC `retrieve_literature.py` query with `--abstracts` writes abstracts from the digest-checked saved snapshot without another fetch; rows print `abstract=not-requested` when abstracts were not requested.
 - docs: record run31 (3/6; both full-tier timeouts followed review findings traced to literature retrieval) in the evaluation notes, roadmap and experiment ledger.
 - fix: `plan_selective_rerun.py` accepts the schema_version 1 `evidence_graph.json` that `build_evidence_graph.py` writes (previously a traceback), rejects `--changed` ids that are not graph nodes and malformed steps, and reports invalid input as `error:` with exit 1.
 - docs: add Status notes to roadmap gaps 3 and 7 naming the evidence-graph relation types and the annotation, resolution, run-diff and selective-rerun tools; their use in real runs is not established.

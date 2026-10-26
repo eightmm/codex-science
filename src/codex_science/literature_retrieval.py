@@ -41,9 +41,11 @@ def _ledger_ids(path: Path) -> set[str]:
         return set()
     ids = set()
     for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
         try:
             row = json.loads(line)
-        except json.JSONDecodeError as error:
+        except (json.JSONDecodeError, RecursionError) as error:
             raise ValueError(f"invalid query ledger JSON at line {index}") from error
         if not isinstance(row, dict):
             raise ValueError(f"query ledger line {index} must be a JSON object")
@@ -53,7 +55,148 @@ def _ledger_ids(path: Path) -> set[str]:
 
 
 def _plain_abstract(value: str) -> bytes:
-    return (" ".join(html.unescape(re.sub(r"<[^>]*>", " ", value)).split()) + "\n").encode("utf-8")
+    tag = re.compile(r"</?[A-Za-z][A-Za-z0-9:-]*(?:\s[^<>]*)?/?>")
+    return (" ".join(html.unescape(tag.sub(" ", value)).split()) + "\n").encode("utf-8")
+
+
+def _write_abstracts(root: Path, payloads: list[Any]) -> set[str]:
+    abstract_files: set[str] = set()
+    pending: list[tuple[Path, str, bytes]] = []
+    wanted: dict[str, bytes] = {}
+    for payload in payloads:
+        rows = payload.get("resultList", {}).get("result", []) if isinstance(payload, dict) else []
+        for raw in rows if isinstance(rows, list) else []:
+            record_id = raw.get("id") if isinstance(raw, dict) else None
+            text = raw.get("abstractText") if isinstance(raw, dict) else None
+            if not record_id or not isinstance(text, str):
+                continue
+            if not _SAFE_ID.fullmatch(str(record_id)):
+                raise ValueError(f"unsafe literature record id: {record_id!r}")
+            filename = f"{record_id}.abstract.txt"
+            target = _check_path(root, Path("sources") / filename)
+            data = _plain_abstract(text)
+            if filename in wanted:
+                if wanted[filename] != data:
+                    raise ValueError(f"conflicting abstracts for {filename}")
+                continue
+            wanted[filename] = data
+            if target.exists():
+                if target.read_bytes() != data:
+                    raise FileExistsError(f"refusing to overwrite differing abstract: {filename}")
+            else:
+                pending.append((target, filename, data))
+            abstract_files.add(filename)
+    for target, filename, data in pending:
+        source_dir = _check_path(root, Path("sources"))
+        source_dir.mkdir(parents=True, exist_ok=True)
+        _check_path(root, Path("sources") / filename)
+        fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=source_dir)
+        temp_abs = Path(temp_name)
+        try:
+            with os.fdopen(fd, "wb") as temp_file:
+                temp_file.write(data)
+                temp_file.flush()
+            os.link(temp_abs, target)
+        except FileExistsError:
+            _check_path(root, Path("sources") / filename)
+            if target.read_bytes() != data:
+                raise FileExistsError(f"refusing to overwrite differing abstract: {filename}")
+        finally:
+            temp_abs.unlink(missing_ok=True)
+    return abstract_files
+
+
+def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str, Any]:
+    row = None
+    for index, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            parsed = json.loads(line)
+        except (json.JSONDecodeError, RecursionError) as error:
+            raise ValueError(f"invalid query ledger JSON at line {index}") from error
+        if not isinstance(parsed, dict):
+            raise ValueError(f"query ledger line {index} must be a JSON object")
+        if parsed.get("query_id") == query_id:
+            row = parsed
+            break
+    if row is None or row.get("source") != "EuropePMC":
+        raise FileExistsError(
+            f"query already exists in queries.jsonl: {query_id}; changing --page-size, --max-pages, "
+            "or --evidence-cutoff yields a new query id; re-running a EuropePMC query with --abstracts "
+            "writes abstracts from the saved snapshot"
+        )
+    expected_result_path = f"raw/queries/{query_id}/result.json"
+    if row.get("result_path") != expected_result_path:
+        raise ValueError(f"saved literature result path mismatch: {query_id}")
+    result_path = _check_path(root, Path(expected_result_path))
+    digest = row.get("response_sha256")
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+        raise ValueError(f"saved literature result digest is invalid: {query_id}")
+    try:
+        result_bytes = result_path.read_bytes()
+    except OSError as error:
+        raise ValueError(f"saved literature result is unavailable: {query_id}") from error
+    if hashlib.sha256(result_bytes).hexdigest() != digest.lower():
+        raise ValueError(f"saved literature result digest mismatch: {query_id}")
+    try:
+        result_obj = json.loads(result_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise ValueError(f"invalid saved literature result for query: {query_id}") from error
+    if not isinstance(result_obj, dict):
+        raise ValueError(f"saved literature result must be an object: {query_id}")
+    receipt = result_obj.get("receipt")
+    records = result_obj.get("records")
+    if not isinstance(receipt, dict) or not isinstance(receipt.get("pages"), list):
+        raise ValueError(f"saved literature result has invalid page receipts: {query_id}")
+    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+        raise ValueError(f"saved literature result has invalid records: {query_id}")
+    pages = receipt["pages"]
+    payloads = []
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get("snapshot_body_path"), str):
+            raise ValueError(f"saved literature result has invalid page receipt: {query_id}")
+        receipt_path = Path(page["snapshot_body_path"])
+        if len(receipt_path.parts) != 2 or receipt_path.parts[0] != query_id:
+            raise ValueError(f"saved page receipt escapes query snapshot: {page['snapshot_body_path']}")
+        body_path = _check_path(root, Path("raw/queries") / receipt_path)
+        try:
+            body = body_path.read_bytes()
+        except OSError as error:
+            raise ValueError(f"saved page body is unavailable: {page['snapshot_body_path']}") from error
+        if hashlib.sha256(body).hexdigest() != page.get("response_sha256"):
+            raise ValueError(f"saved page body digest mismatch: {page['snapshot_body_path']}")
+        try:
+            payloads.append(json.loads(body.decode("utf-8")))
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+            raise ValueError(f"saved page body is invalid JSON: {page['snapshot_body_path']}") from error
+    raw_rows: list[dict[str, Any]] = []
+    for payload, page in zip(payloads, pages):
+        name = page["snapshot_body_path"]
+        if not isinstance(payload, dict):
+            raise ValueError(f"saved page body must be a JSON object: {name}")
+        result_list = payload.get("resultList", {})
+        if not isinstance(result_list, dict):
+            raise ValueError(f"saved page body has invalid resultList: {name}")
+        results = result_list.get("result", [])
+        if not isinstance(results, list) or not all(isinstance(item, dict) for item in results):
+            raise ValueError(f"saved page body has invalid result list: {name}")
+        raw_rows.extend(results)
+    summary_rows = []
+    for normalized in records:
+        raw = next((item for item in raw_rows if str(item.get("id", "")) == str(normalized.get("id", ""))), {})
+        year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or ""
+        summary_rows.append({"id": normalized.get("id", ""), "year": str(year)[:4],
+                             "title": str(raw.get("title") or normalized.get("title") or "")[:120],
+                             "abstract_written": False})
+    abstract_files = _write_abstracts(root, payloads)
+    for item in summary_rows:
+        item["abstract_written"] = f"{item['id']}.abstract.txt" in abstract_files
+    return {"query_id": query_id, "status": _status(receipt),
+            "hit_count": next((p.get("hitCount") for p in payloads if isinstance(p, dict)
+                                and p.get("hitCount") is not None), None),
+            "records_returned": len(records), "records": summary_rows,
+            "abstracts_supported": True, "abstracts_from_saved_snapshot": True}
 
 
 def _status(receipt: dict[str, Any]) -> str:
@@ -94,9 +237,12 @@ def retrieve_literature(
     try:
         fcntl.flock(root_fd, fcntl.LOCK_EX)
         if query_id in _ledger_ids(ledger):
+            if abstracts and source == "europepmc":
+                return _recover_abstracts(root, query_id, ledger)
             raise FileExistsError(
                 f"query already exists in queries.jsonl: {query_id}; changing --page-size, --max-pages, "
-                "or --evidence-cutoff yields a new query id"
+                "or --evidence-cutoff yields a new query id; re-running a EuropePMC query with --abstracts "
+                "writes abstracts from the saved snapshot"
             )
         dest = snapshots / query_id
         if dest.exists() or dest.is_symlink():
@@ -140,44 +286,7 @@ def retrieve_literature(
             if hit_count is not None:
                 record["hit_count"] = hit_count
             _validate_query_records([record])
-            abstract_files: set[str] = set()
-            pending_abstracts: list[tuple[Path, str, bytes]] = []
-            if abstracts:
-                for payload in pages:
-                    rows = payload.get("resultList", {}).get("result", []) if isinstance(payload, dict) else []
-                    for raw in rows if isinstance(rows, list) else []:
-                        record_id = raw.get("id") if isinstance(raw, dict) else None
-                        text = raw.get("abstractText") if isinstance(raw, dict) else None
-                        if not record_id or not isinstance(text, str):
-                            continue
-                        if not _SAFE_ID.fullmatch(str(record_id)):
-                            raise ValueError(f"unsafe literature record id: {record_id!r}")
-                        filename = f"{record_id}.abstract.txt"
-                        target = _check_path(root, Path("sources") / filename)
-                        data = _plain_abstract(text)
-                        if target.exists():
-                            if target.read_bytes() != data:
-                                raise FileExistsError(f"refusing to overwrite differing abstract: {filename}")
-                        else:
-                            pending_abstracts.append((target, filename, data))
-                        abstract_files.add(filename)
-            for target, filename, data in pending_abstracts:
-                source_dir = _check_path(root, Path("sources"))
-                source_dir.mkdir(parents=True, exist_ok=True)
-                _check_path(root, Path("sources") / filename)
-                fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=source_dir)
-                temp_abs = Path(temp_name)
-                try:
-                    with os.fdopen(fd, "wb") as temp_file:
-                        temp_file.write(data)
-                        temp_file.flush()
-                    os.link(temp_abs, target)
-                except FileExistsError:
-                    _check_path(root, Path("sources") / filename)
-                    if target.read_bytes() != data:
-                        raise FileExistsError(f"refusing to overwrite differing abstract: {filename}")
-                finally:
-                    temp_abs.unlink(missing_ok=True)
+            abstract_files = _write_abstracts(root, pages) if abstracts else set()
             snapshots.mkdir(parents=True, exist_ok=True)
             os.rename(stage_query, dest)
             ledger_bytes = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
@@ -226,7 +335,8 @@ def retrieve_literature(
                 summary_rows.append({"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": f"{normalized.get('id')}.abstract.txt" in abstract_files})
             return {"query_id": query_id, "status": record["status"], "hit_count": hit_count,
                     "records_returned": len(result.records), "records": summary_rows[:page_size * max_pages],
-                    "abstracts_supported": source == "europepmc"}
+                    "abstracts_supported": source == "europepmc",
+                    "abstracts_from_saved_snapshot": False}
         finally:
             shutil.rmtree(stage_root, ignore_errors=True)
     finally:
