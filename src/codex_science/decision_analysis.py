@@ -799,23 +799,7 @@ def review_decision_analysis(payload: Mapping[str, Any]) -> list[dict[str, str]]
     except ValueError as error:
         return [{"code": "invalid-decision-analysis", "severity": "critical", "message": str(error)}]
     findings: list[dict[str, str]] = []
-    status = str(payload.get("status"))
-    if status == "decision-sensitive":
-        findings.append(
-            {
-                "code": "decision-sensitive",
-                "severity": "minor",
-                "message": "The preferred action changes within the declared prior sensitivity range.",
-            }
-        )
-    if status == "multiple-optima":
-        findings.append(
-            {
-                "code": "multiple-optima",
-                "severity": "minor",
-                "message": "Several actions are optimal within the declared tie tolerance; no tie was silently broken.",
-            }
-        )
+    # decision-sensitive and multiple-optima are computational statuses reported in the receipt, not findings.
     information = payload.get("information_value")
     if isinstance(information, Mapping):
         evpi = float(information["evpi"])

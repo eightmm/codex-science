@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Deterministic decision-analysis review no longer emits findings for the computational
+  statuses `decision-sensitive` and `multiple-optima` (they stay in the receipt and report),
+  so a correct sensitivity analysis can clear `--require-passed-review`.
 - Recorded run35 (6/6) in the evaluation docs and appended its ledger rows.
 - `estimate_saturation.py --output PATH` also writes the result JSON atomically,
   like `trace_citations.py`; stdout, schemas and exit codes are unchanged and

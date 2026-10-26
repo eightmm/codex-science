@@ -100,7 +100,7 @@ Do not choose the sensitivity range after finding a desired conclusion. For more
 
 The `decision-analysis-v1` receipt includes the normalized `problem`, criterion score tables, selected conditional action set, dominance and regret records, optional information value and outcome policy, optional prior sensitivity, applicability, fixed limitations, normalized-input SHA-256, and a full fingerprint. Receipt validation deterministically recomputes the analysis from the normalized problem.
 
-`completed`, `multiple-optima`, and `decision-sensitive` are computational statuses. None means that the world model, causal evidence, utility elicitation, or authority to act has passed scientific review.
+`completed`, `multiple-optima`, and `decision-sensitive` are computational statuses reported in the receipt, not review findings. None means that the world model, causal evidence, utility elicitation, or authority to act has passed scientific review.
 
 ## Validation and failure handling
 

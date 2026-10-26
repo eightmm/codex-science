@@ -80,7 +80,7 @@ class DecisionAnalysisTests(unittest.TestCase):
         self.assertEqual([0.0, 0.6, 1.0], [item["prior"] for item in sensitivity["boundaries"]])
         self.assertEqual(["risky", "safe"], sensitivity["boundaries"][1]["optimal_actions"])
         self.assertEqual("decision-sensitive", receipt["status"])
-        self.assertEqual({"decision-sensitive"}, {item["code"] for item in review_decision_analysis(receipt)})
+        self.assertEqual([], review_decision_analysis(receipt))
 
     def test_uninformative_and_unreachable_signals_do_not_fabricate_value(self) -> None:
         uninformative = load_fixture()
@@ -274,10 +274,8 @@ class DecisionAnalysisTests(unittest.TestCase):
         sidecars = empty_quantitative_sidecars()
         validate_quantitative_sidecar("decision-analysis", receipt, sidecars)
         self.assertEqual([receipt], sidecars["decision_analyses"])
-        self.assertEqual(
-            {"decision-sensitive"},
-            {item["code"] for item in review_quantitative_sidecars(sidecars)},
-        )
+        self.assertEqual("decision-sensitive", sidecars["decision_analyses"][0]["status"])
+        self.assertEqual([], review_quantitative_sidecars(sidecars))
 
 
 if __name__ == "__main__":
