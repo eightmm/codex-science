@@ -1,6 +1,7 @@
 """Record-based scientific review checks that never imply an unperformed rerun."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +131,41 @@ def computed_claim_execution_findings(
     return findings
 
 
+_MAX_INSPECTED_ARTIFACT_BYTES = 64_000_000
+
+
+def _error_object_artifact_findings(manifest: dict[str, Any], run_dir: Path | None) -> list[dict[str, str]]:
+    if run_dir is None:
+        return []
+    root = Path(run_dir).resolve()
+    found = []
+    for item in manifest.get("artifacts", []):
+        if not isinstance(item, dict) or item.get("kind") not in {"claim-sufficiency", "citation-trace"} or not isinstance(item.get("path"), str):
+            continue
+        path = (root / item["path"]).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            continue
+        reason, payload = None, None
+        try:
+            size = path.stat().st_size
+            if size > _MAX_INSPECTED_ARTIFACT_BYTES:
+                reason = f"is {size} bytes, above the {_MAX_INSPECTED_ARTIFACT_BYTES}-byte inspection limit"
+            else:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, RecursionError) as error:
+            reason = f"is not readable JSON ({type(error).__name__})"
+        if reason:
+            found.append({"code": "uninspectable-generated-artifact", "severity": "major", "message": (
+                f"Artifact {item['path']} {reason}, so it cannot be checked for an error object. Regenerate it with the producing CLI --output.")})
+            continue
+        schema = payload.get("schema") if isinstance(payload, dict) else None
+        if isinstance(schema, str) and schema.endswith("-error-v1"):
+            found.append({"code": "error-object-artifact", "severity": "major", "message": (
+                f"Artifact {item['path']} is a {schema} error object, not a result. Rerun the producing CLI with --output {item['path']} "
+                "after `package_run.py refresh` (or use `package_run.py prepare-review`); never redirect its stdout into the artifact.")})
+    return found
+
+
 def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, sidecars: dict[str, Any] | None = None) -> dict[str, Any]:
     findings: list[dict[str, str]] = []
     declared_review = manifest.get("review", {})
@@ -162,6 +198,7 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
         from codex_science.evidence import review_sidecars
         findings.extend(review_sidecars(sidecars))
         findings.extend(sidecars.get("advanced_findings", []))
+    findings.extend(_error_object_artifact_findings(manifest, run_dir))
     unique = {(item["code"], item.get("claim_id", ""), item["message"]): item for item in findings}
     ordered = sorted(unique.values(), key=lambda item: (item.get("severity", ""), item["code"], item.get("claim_id", ""), item["message"]))
     return {"status": "findings" if ordered else "passed", "findings": ordered}

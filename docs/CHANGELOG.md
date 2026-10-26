@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `trace_citations.py` and `check_claim_sufficiency.py` accept `--output PATH`,
+  which atomically writes the result JSON (stdout, schemas and exit codes are
+  unchanged) and leaves PATH untouched on an invalid run (exit 2). Deterministic
+  review reports a major `error-object-artifact` finding when a registered
+  `claim-sufficiency` or `citation-trace` artifact is an `*-error-v1` object, or is unreadable or above 64 MB
+  (`uninspectable-generated-artifact`). `$science-review` documents the refresh,
+  check, `--output`, refresh order.
 - The coordinator skill is about 21 KB instead of 34 KB, so Codex no longer
   truncates it on a full read: activation and updates, native Goal, domain
   routing, checkpoint operations, the research contract and open full-text

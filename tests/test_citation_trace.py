@@ -127,6 +127,77 @@ class CitationTraceTests(unittest.TestCase):
             self.assertEqual(invalid.returncode, 2)
             self.assertEqual(json.loads(invalid.stdout)["schema"], "citation-trace-error-v1")
 
+    def test_cli_output_written_on_success_and_require_failure_but_not_on_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp) / "run"
+            shutil.copytree(EXAMPLE, run)
+            env = dict(os.environ)
+            env.pop("PYTHONPATH", None)
+            out = Path(temp) / "citation-trace.json"
+            def invoke(target: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run([sys.executable, str(CLI), "--run-dir", str(run), "--output", str(target), *extra], cwd=temp, env=env, text=True, capture_output=True)
+            ok = invoke(out)
+            self.assertEqual(ok.returncode, 0)
+            self.assertEqual(json.loads(out.read_text()), json.loads(ok.stdout))
+            report = run / "report.md"
+            report.write_text(report.read_text() + "\nDOI:10.9999/orphan.1\n", encoding="utf-8")
+            failed = invoke(out, "--require-traced")
+            self.assertEqual(failed.returncode, 1)
+            self.assertEqual(json.loads(out.read_text())["require_traced_failure"], "orphan_citations")
+            self.assertEqual(list(Path(temp).glob(".*.tmp")), [])
+            out.write_text("keep")
+            fresh = Path(temp) / "fresh.json"
+            for target in (out, fresh):
+                bad = invoke(target, "--report", "../outside.md")
+                self.assertEqual(bad.returncode, 2)
+                self.assertEqual(json.loads(bad.stdout)["schema"], "citation-trace-error-v1")
+                self.assertEqual(bad.stderr.strip(), f"note: {target} was not written because the run is invalid")
+            self.assertEqual(out.read_text(), "keep")
+            self.assertFalse(fresh.exists())
+
+    def test_cli_unwritable_output_is_error_exit_two_without_success_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            env = dict(os.environ)
+            env.pop("PYTHONPATH", None)
+            target = Path(temp) / "no-such-dir" / "out.json"
+            result = subprocess.run([sys.executable, str(CLI), "--run-dir", str(EXAMPLE), "--output", str(target)], cwd=temp,
+                                    env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual((payload["schema"], payload["error"]["code"]), ("citation-trace-error-v1", "output_write_failed"))
+            self.assertIn(str(target), payload["error"]["message"])
+
+    def test_documented_gate_sequence_leaves_a_clean_registered_bundle(self) -> None:
+        from codex_science.artifacts import validate_bundle
+        from codex_science.review import review_manifest
+        env = dict(os.environ)
+        env.pop("PYTHONPATH", None)
+        scripts = ROOT / "scripts"
+        def run_cli(temp: str, name: str, *args: str) -> None:
+            done = subprocess.run([sys.executable, str(scripts / name), *args], cwd=temp, env=env, text=True, capture_output=True)
+            self.assertEqual(done.returncode, 0, f"{name} {args}: {done.stdout}{done.stderr}")
+        for variant in ("edited-report", "existing-review-evidence"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temp:
+                run = Path(temp) / "run"
+                shutil.copytree(EXAMPLE, run)
+                first_refresh = ["package_run.py", "refresh", "--run-dir", str(run)]
+                if variant == "edited-report":
+                    run_cli(temp, *first_refresh, "--invalidate-review")
+                    (run / "report.md").write_text((run / "report.md").read_text(encoding="utf-8") + "\nEdited after refresh.\n", encoding="utf-8")
+                else:
+                    first_refresh.append("--invalidate-review")
+                kinds = ["--kind", "citation-trace.json=citation-trace", "--kind", "claim-sufficiency.json=claim-sufficiency"]
+                run_cli(temp, *first_refresh)
+                run_cli(temp, "check_claim_sufficiency.py", "--run-dir", str(run), "--tier", "standard", "--output", str(run / "claim-sufficiency.json"))
+                run_cli(temp, "trace_citations.py", "--run-dir", str(run), "--require-traced", "--output", str(run / "citation-trace.json"))
+                run_cli(temp, "package_run.py", "refresh", "--run-dir", str(run), *kinds)
+                run_cli(temp, "validate_artifact.py", str(run / "manifest.json"), "--review-output", str(run / "deterministic-review.json"))
+                manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+                kinds_seen = {item["path"]: item["kind"] for item in manifest["artifacts"]}
+                self.assertEqual((kinds_seen["citation-trace.json"], kinds_seen["claim-sufficiency.json"]), ("citation-trace", "claim-sufficiency"))
+                review = review_manifest(manifest, run, sidecars=validate_bundle(manifest, run))
+                self.assertFalse([f for f in review["findings"] if f["code"] in {"error-object-artifact", "uninspectable-generated-artifact"}])
+
     def test_cli_rejects_malformed_manifest_artifact_paths(self) -> None:
         for malformed in (None, 17):
             with self.subTest(path=malformed), tempfile.TemporaryDirectory() as temp:

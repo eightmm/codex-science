@@ -273,6 +273,35 @@ class ArtifactManifestTests(unittest.TestCase):
         self.assertEqual("passed", manifest["review"]["status"])
         self.assertEqual("passed", review_manifest(manifest)["status"])
 
+    def test_error_object_artifact_is_a_major_finding(self) -> None:
+        manifest = new_manifest("run-001", "Question", [])
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp)
+            payloads = {"claim-sufficiency": '{"schema":"claim-sufficiency-error-v1","error":{}}', "citation-trace": '{"schema":"citation-trace-v1"}', "other": '{"schema":"x-error-v1"}'}
+            for kind, text in payloads.items():
+                (run / f"{kind}.json").write_text(text, encoding="utf-8")
+                manifest["artifacts"].append({"path": f"{kind}.json", "kind": kind})
+            findings = review_manifest(manifest, run, sidecars={})["findings"]
+        self.assertEqual([(f["code"], f["severity"]) for f in findings], [("error-object-artifact", "major")])
+        self.assertIn("claim-sufficiency.json", findings[0]["message"])
+
+    def test_oversized_or_unreadable_generated_artifact_is_a_major_finding(self) -> None:
+        from codex_science import review as review_module
+        manifest = new_manifest("run-001", "Question", [])
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp)
+            (run / "claim-sufficiency.json").write_text('{"schema":"claim-sufficiency-error-v1"}', encoding="utf-8")
+            (run / "citation-trace.json").write_text("{", encoding="utf-8")
+            for name in ("claim-sufficiency", "citation-trace"):
+                manifest["artifacts"].append({"path": f"{name}.json", "kind": name})
+            size = (run / "claim-sufficiency.json").stat().st_size
+            with mock.patch.object(review_module, "_MAX_INSPECTED_ARTIFACT_BYTES", size):
+                at_limit = {(f["code"], f["message"].split()[1]) for f in review_manifest(manifest, run, sidecars={})["findings"]}
+            with mock.patch.object(review_module, "_MAX_INSPECTED_ARTIFACT_BYTES", size - 1):
+                over = {(f["code"], f["message"].split()[1]) for f in review_manifest(manifest, run, sidecars={})["findings"]}
+        self.assertEqual(at_limit, {("error-object-artifact", "claim-sufficiency.json"), ("uninspectable-generated-artifact", "citation-trace.json")})
+        self.assertEqual(over, {("uninspectable-generated-artifact", "claim-sufficiency.json"), ("uninspectable-generated-artifact", "citation-trace.json")})
+
 
 class ArtifactIndexTests(unittest.TestCase):
     def setUp(self) -> None:

@@ -203,6 +203,39 @@ class ClaimSufficiencyTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
             self.assertEqual(json.loads(proc.stdout)["counts"]["insufficient"], 1)
 
+    def test_cli_output_written_on_success_and_require_failure_but_not_on_error(self):
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        script = str(ROOT / "scripts/check_claim_sufficiency.py")
+        out = self._temp / "claim-sufficiency.json"
+        for extra, code in (([], 0), (["--require-sufficient"], 1)):
+            out.unlink(missing_ok=True)
+            proc = subprocess.run([sys.executable, script, "--run-dir", str(EXAMPLE), "--tier", "standard", "--output", str(out), *extra],
+                                  cwd=self._temp, env=env, text=True, capture_output=True)
+            self.assertEqual(proc.returncode, code, proc.stderr)
+            self.assertEqual(json.loads(out.read_text()), json.loads(proc.stdout))
+            self.assertEqual(list(self._temp.glob(".*.tmp")), [])
+        missing = self._temp / "absent-run"
+        out.write_text("keep")
+        fresh = self._temp / "fresh.json"
+        for target in (out, fresh):
+            proc = subprocess.run([sys.executable, script, "--run-dir", str(missing), "--tier", "quick", "--output", str(target)],
+                                  cwd=self._temp, env=env, text=True, capture_output=True)
+            self.assertEqual(proc.returncode, 2)
+            self.assertEqual(json.loads(proc.stdout)["schema"], "claim-sufficiency-error-v1")
+            self.assertEqual(proc.stderr.strip(), f"note: {target} was not written because the run is invalid")
+        self.assertEqual(out.read_text(), "keep")
+        self.assertFalse(fresh.exists())
+
+    def test_cli_unwritable_output_is_error_exit_two_without_success_payload(self):
+        target = self._temp / "no-such-dir" / "out.json"
+        proc = subprocess.run([sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"), "--run-dir", str(EXAMPLE),
+                               "--tier", "standard", "--require-sufficient", "--output", str(target)],
+                              cwd=self._temp, env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"}, text=True, capture_output=True)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertEqual((payload["schema"], payload["error"]["code"]), ("claim-sufficiency-error-v1", "output_write_failed"))
+        self.assertIn(str(target), payload["error"]["message"])
+
     def test_cli_from_temp_cwd_without_pythonpath(self):
         with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
             proc = subprocess.run([sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
