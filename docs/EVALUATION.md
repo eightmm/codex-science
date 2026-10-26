@@ -750,6 +750,57 @@ Codex sign-in, which the recorded runs did not set up.
   6–32). Six tasks and one run cannot establish an effect. No improvement
   trend is claimed.
 
+- Run33 (`90d8752`, runtime `0.5.0+codex.20261026018500`), 5/6 (95% Wilson
+  interval 43.6%-97.0%). Changes under test since run32 (`20334d2`) are
+  `872224e`, which names accepted arguments in MCP argument errors (MCP was not
+  used in these runs); `52c9f2e`, removing unused code, stub docs, and
+  unpublished local files (no behavior change expected); `aa140b9`, which makes
+  `retrieve_literature.py` PubMed fetches retrieve esummary metadata and efetch
+  abstracts, and makes `package_run.py exec` record a retry id instead of
+  failing on a duplicate id after a failed run; and `90d8752`, which reduces
+  the coordinator skill from about 34 KB to about 21 KB by moving sections to
+  step-read references, makes review references step-gated, uses one
+  completion gate, and inlines the decision and extraction JSON shapes in
+  literature-review. quick-doi completed in 128 seconds, quick-arxiv in 96
+  seconds, standard-single-cell in 1230 seconds, standard-mrna in 1280 seconds,
+  and full-microbiome in 1625 seconds. Full-protein-folding reached the
+  1800-second cap after its first response took 483 seconds; at 1788 seconds it
+  was spawning the independent reviewer. Stop reasons were done 5 and timeout
+  1, with no policy blocks. Full-microbiome failed twice with provider capacity
+  ("Selected model is at capacity", `turn.failed` at 713 and 901 seconds); both
+  attempts were retained as `t-full-microbiome.provider-unavailable-{1,2}` and
+  rerun per protocol, and are not counted. The frozen grader (`src-90d8752`)
+  counted the final attempt per task, completing 5/6; citation tracing resolved
+  57 of 63 identifiers. The six untraced identifiers comprise five fulltext
+  file listings in the rendered `index.md` (paths, not citations; same
+  measurement pattern as run32) and one excluded study's PMCID cited in
+  `review-methods.md` as exclusion rationale. Preregistered secondary metrics
+  (predicted; observed): P1 empty PubMed title/year rows: 0; 0. Met. P2
+  hand-written PubMed fetcher tasks: 0; 0. Met (one regex hit was report links).
+  O1 orientation bytes median: predicted <=160 KB; observed 194 KB
+  (protein-folding 201, single-cell 140, microbiome 194; run32 189). Not met;
+  agents still cat most references eagerly in batched commands after the
+  coordinator slim. O2 truncation re-reads: predicted 0; observed 1 task. Not
+  met: single-cell batched the coordinator
+  cat with a tool-catalog dump in one code-mode script; the combined
+  19.7k-token output was middle-truncated by the host (~10k token cap), and
+  SKILL.md sections were re-read with `sed`. The coordinator alone (5.3k
+  tokens) fits. O3 late-reference orientation reads: predicted <=1 step-gated
+  review reference; observed `artifact-contract.md` only in all three tasks.
+  Met; the
+  independent-review runtime and review checklist were not read in orientation
+  (run32: all three references in 3/3); `artifact-contract.md` is now
+  intentionally read before the first `package_run` refresh. E1 duplicate
+  execution id errors: predicted 0; observed 0. Met (protein-folding got the
+  new `-retry-2` note). F1 guessed sidecar reads: predicted 0; observed 0. Met.
+  D1/D2/G1: predicted 0/0/0; observed 0/0/0. Met. A new
+  standard-single-cell defect caused PubMed `--abstracts` to abort when Europe
+  PMC had written the same PMID abstract ("refusing to overwrite differing
+  abstract"); fixed in the next batch by keeping the existing abstract and
+  reporting `kept-existing`. Standard-mrna has been blocked by provider policy
+  in 10 of 28 runs (runs 6–33). Six tasks and one run cannot establish an
+  effect. No improvement trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -757,7 +808,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–32 in order, with run16b and
+receipt, then one summary row per run, for runs 6–33 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Recorded run33 (5/6) in the evaluation docs and appended its ledger rows.
 - `trace_citations.py` and `check_claim_sufficiency.py` accept `--output PATH`,
   which atomically writes the result JSON (stdout, schemas and exit codes are
   unchanged) and leaves PATH untouched on an invalid run (exit 2). Deterministic
