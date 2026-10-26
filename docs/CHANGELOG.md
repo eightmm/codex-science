@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bundle validation errors now name the failing artifact (`path (kind): ...`);
+  a risk-of-bias aggregate (`records`/`studies` list) gets a one-study-per-artifact
+  hint, and the missing-evidence finding names the claim and says evidence
+  entries must be manifest artifact paths, not identifiers.
 - `search_skills.py --name NAME` prints the exact inventory record plus its
   source entry (including the pinned commit); generated wrappers now tell the
   agent to run it in Procedure step 2 instead of reading `inventory.json`.

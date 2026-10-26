@@ -129,7 +129,15 @@ def validate_risk_of_bias(payload: dict[str, Any]) -> None:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported risk-of-bias schema")
     if not str(payload.get("study_id", "")).strip() or not str(payload.get("instrument", "")).strip():
-        raise ValueError("risk-of-bias study_id and instrument are required")
+        message = "risk-of-bias study_id and instrument are required"
+        if not str(payload.get("study_id", "")).strip() and any(
+            isinstance(payload.get(key), list) for key in ("records", "studies")
+        ):
+            message += (
+                "; each risk-of-bias artifact describes one study, so an aggregate "
+                "list of studies needs a different artifact kind"
+            )
+        raise ValueError(message)
     domains = payload.get("domains")
     if not isinstance(domains, list) or not domains:
         raise ValueError("risk-of-bias domains must be non-empty")

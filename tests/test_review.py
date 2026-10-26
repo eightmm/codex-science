@@ -37,6 +37,10 @@ class ReviewerTests(unittest.TestCase):
         codes = {finding["code"] for finding in review["findings"]}
         self.assertIn("failed-execution", codes)
         self.assertIn("missing-evidence", codes)
+        message = next(f["message"] for f in review["findings"] if f["code"] == "missing-evidence")
+        self.assertIn("missing.json", message)
+        self.assertIn("claim-1", message)
+        self.assertIn("manifest artifact paths", message)
         self.assertIn("incomplete-plan", codes)
         self.assertEqual("findings", review["status"])
 

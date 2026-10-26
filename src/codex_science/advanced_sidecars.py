@@ -82,49 +82,52 @@ def validate_advanced_sidecars(
         if kind == "review-receipt" and not payload.get("review_id"):
             continue
         result["advanced_paths"].setdefault(kind, []).append(relative)
-        if kind == "evidence-graph-v2":
-            if seen_graph:
-                raise ValueError("only one evidence-graph-v2 artifact is allowed")
-            seen_graph = True
-            nodes, edges, findings = validate_graph_payload(payload)
-            result.update({
-                "graph_v2": payload,
-                "graph_v2_nodes": nodes,
-                "graph_v2_edges": edges,
-                "graph_v2_findings": findings,
-            })
-        elif kind in {"review-receipt", "review-receipt-v2"}:
-            validate_review_receipt(payload)
-            result["review_receipts"].append(payload)
-        elif kind == "annotation":
-            validate_annotation(payload)
-            result["annotations"].append(payload)
-        elif kind == "model-receipt-v2":
-            result["model_receipts_v2"].append(payload)
-        elif kind == "risk-of-bias":
-            validate_risk_of_bias(payload)
-            result["risk_of_bias"].append(payload)
-        elif kind == "reference-use-ledger":
-            validate_reference_use_ledger(payload)
-            result["reference_use_ledgers"].append(payload)
-        elif kind == "artifact-descriptor":
-            result["artifact_descriptors"].append(validate_descriptor(payload).to_dict())
-        elif kind == "artifact-runtime-descriptor":
-            validate_runtime_descriptor(payload)
-            if result["artifact_hashes"].get(str(payload["artifact_path"])) != str(
-                payload["artifact_sha256"]
-            ).lower():
-                result["runtime_descriptor_stale"].append(payload)
-            result["runtime_descriptors"].append(payload)
-        elif kind == "artifact-selection":
-            validate_selection(payload)
-            selection = stale_selection(payload, result["artifact_hashes"])
-            result["artifact_selections"].append(selection)
-            selections_by_id[str(selection["selection_id"])] = payload
-        elif kind == "transform-proposal":
-            pending_proposals.append(payload)
-        elif kind in QUANTITATIVE_KINDS:
-            validate_quantitative_sidecar(kind, payload, result)
+        try:
+            if kind == "evidence-graph-v2":
+                if seen_graph:
+                    raise ValueError("only one evidence-graph-v2 artifact is allowed")
+                seen_graph = True
+                nodes, edges, findings = validate_graph_payload(payload)
+                result.update({
+                    "graph_v2": payload,
+                    "graph_v2_nodes": nodes,
+                    "graph_v2_edges": edges,
+                    "graph_v2_findings": findings,
+                })
+            elif kind in {"review-receipt", "review-receipt-v2"}:
+                validate_review_receipt(payload)
+                result["review_receipts"].append(payload)
+            elif kind == "annotation":
+                validate_annotation(payload)
+                result["annotations"].append(payload)
+            elif kind == "model-receipt-v2":
+                result["model_receipts_v2"].append(payload)
+            elif kind == "risk-of-bias":
+                validate_risk_of_bias(payload)
+                result["risk_of_bias"].append(payload)
+            elif kind == "reference-use-ledger":
+                validate_reference_use_ledger(payload)
+                result["reference_use_ledgers"].append(payload)
+            elif kind == "artifact-descriptor":
+                result["artifact_descriptors"].append(validate_descriptor(payload).to_dict())
+            elif kind == "artifact-runtime-descriptor":
+                validate_runtime_descriptor(payload)
+                if result["artifact_hashes"].get(str(payload["artifact_path"])) != str(
+                    payload["artifact_sha256"]
+                ).lower():
+                    result["runtime_descriptor_stale"].append(payload)
+                result["runtime_descriptors"].append(payload)
+            elif kind == "artifact-selection":
+                validate_selection(payload)
+                selection = stale_selection(payload, result["artifact_hashes"])
+                result["artifact_selections"].append(selection)
+                selections_by_id[str(selection["selection_id"])] = payload
+            elif kind == "transform-proposal":
+                pending_proposals.append(payload)
+            elif kind in QUANTITATIVE_KINDS:
+                validate_quantitative_sidecar(kind, payload, result)
+        except ValueError as exc:
+            raise ValueError(f"{relative} ({kind}): {exc}") from exc
     for proposal in pending_proposals:
         selection = selections_by_id.get(str(proposal.get("selection_id", "")))
         validate_transform_proposal(proposal, selection)

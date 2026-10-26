@@ -93,6 +93,27 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_risk_of_bias(broken)
 
+    def test_risk_of_bias_aggregate_hint_and_artifact_label(self) -> None:
+        aggregate = {"schema_version": 1, "records": [{"study_id": "s1"}]}
+        with self.assertRaisesRegex(ValueError, r"^risk-of-bias study_id and instrument are required.*one study"):
+            validate_risk_of_bias(aggregate)
+        with self.assertRaises(ValueError) as plain:
+            validate_risk_of_bias({"schema_version": 1})
+        self.assertEqual("risk-of-bias study_id and instrument are required", str(plain.exception))
+
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from codex_science.advanced_sidecars import validate_advanced_sidecars
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "S1.json"
+            path.write_text(json.dumps(aggregate), encoding="utf-8")
+            manifest = {"artifacts": [{"path": "bias/S1.json", "kind": "risk-of-bias", "sha256": "0" * 64}]}
+            with self.assertRaisesRegex(ValueError, r"^bias/S1\.json \(risk-of-bias\): risk-of-bias study_id and instrument"):
+                validate_advanced_sidecars(manifest, Path(tmp), {"bias/S1.json": path})
+
 
 if __name__ == "__main__":
     unittest.main()

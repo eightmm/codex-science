@@ -189,7 +189,7 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
             continue
         for path in evidence:
             if path not in artifacts:
-                findings.append({"code": "missing-evidence", "severity": "major", "message": f"Claim evidence is not a saved artifact: {path}"})
+                findings.append({"code": "missing-evidence", "severity": "major", "message": f"Claim evidence is not a saved artifact: {path} (claim {claim.get('id', '<unknown>')}; evidence entries must be manifest artifact paths, not identifiers)"})
     if sidecars is None and run_dir is not None:
         from codex_science.artifacts import validate_bundle
         sidecars = validate_bundle(manifest, run_dir)
