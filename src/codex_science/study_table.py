@@ -177,7 +177,11 @@ def build_study_table(
             if not isinstance(claim_id, str) or claim_id not in set(supports) | set(contradicts):
                 excerpt_problems.append(f"{label}, claim_id is not linked to this study")
             if not isinstance(text, str) or not 20 <= len(text) <= 2000:
-                excerpt_problems.append(f"{label}, text length must be 20..2000 characters")
+                got = f"{len(text)} characters" if isinstance(text, str) else f"type {type(text).__name__}"
+                excerpt_problems.append(
+                    f"{label}, text length must be 20..2000 characters (got {got}); "
+                    "quote only the verbatim claim-bearing sentences, not the whole abstract"
+                )
             source = excerpt.get("source_artifact", screening_row.get("evidence_artifact"))
             try:
                 relative = _relative_path(source, f"{label} source_artifact")

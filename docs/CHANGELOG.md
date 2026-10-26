@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Support-excerpt length errors (`build_study_table.py`, `build_evidence_graph.py`,
+  method landscape) now report the actual length (or type) and tell the agent to
+  quote only the verbatim claim-bearing sentences, not the whole abstract; the
+  20..2000 limit is unchanged, and `literature-review` says the same.
 - `science_search_arxiv` no longer fails with HTTP 400 on field-prefixed
   queries: queries using arXiv field syntax (`ti:`, `au:`, `cat:`, ...) are sent
   unchanged, a bare arXiv ID (optionally `arXiv:`/`id:` prefixed) is sent as

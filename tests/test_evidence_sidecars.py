@@ -104,6 +104,7 @@ class EvidenceSidecarTests(unittest.TestCase):
             message.startswith("Study S1 claim C3 excerpt text length must be 20..2000 characters")
         )
         self.assertIn("2001 characters; preview:", message)
+        self.assertIn("quote only the verbatim claim-bearing sentences, not the whole abstract", message)
         self.assertLess(len(message), 300)
         self.assertNotIn("\n", message)
 

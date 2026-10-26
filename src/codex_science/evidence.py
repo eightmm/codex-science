@@ -355,7 +355,8 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                     raise ValueError(
                         f"{label} excerpt text length must be 20..2000 characters: "
                         f"{text_length} characters; preview: {_bounded_repr(text)}; "
-                        "expected: 20..2000 characters"
+                        "expected: 20..2000 characters; quote only the verbatim "
+                        "claim-bearing sentences, not the whole abstract"
                     )
                 try:
                     source_artifact = _text(excerpt["source_artifact"], f"{label} source_artifact")

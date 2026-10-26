@@ -148,6 +148,7 @@ class BuildStudyTableTests(unittest.TestCase):
         self.assertIn("C1", str(caught.exception))
         self.assertIn("C2", str(caught.exception))
         self.assertEqual(2, str(caught.exception).count("locator must be an object"))
+        self.assertIn("C1, text length must be 20..2000 characters (got 4 characters); quote only the verbatim claim-bearing sentences", str(caught.exception))
         self.assertFalse((self.root / "studies.json").exists())
 
     def test_unknown_missing_nonincluded_and_identifier_errors_are_aggregated(self):

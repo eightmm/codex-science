@@ -56,7 +56,11 @@ def allocate_methods(payload: Mapping[str, Any]) -> dict[str, Any]:
                 raise ValueError(f"paper {paper_id} references unknown topic: {ref}")
         excerpt = paper.get("excerpt")
         if not isinstance(excerpt, str) or not 20 <= len(excerpt) <= 2000:
-            raise ValueError(f"paper {paper_id} excerpt length must be 20..2000 characters")
+            got = f"{len(excerpt)} characters" if isinstance(excerpt, str) else f"type {type(excerpt).__name__}"
+            raise ValueError(
+                f"paper {paper_id} excerpt length must be 20..2000 characters (got {got}); "
+                "quote only the verbatim claim-bearing sentences, not the whole abstract"
+            )
         digest = paper.get("source_sha256")
         if digest is not None and (not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None):
             raise ValueError(f"paper {paper_id} source_sha256 must be 64-hex")

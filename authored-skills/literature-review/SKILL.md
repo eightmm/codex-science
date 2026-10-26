@@ -52,7 +52,7 @@ A material change to eligibility, outcome, cutoff, or permitted inference create
                 "rationale": "record-specific check", "record_ids": ["<id from candidates.json>"]}]}
    ```
 
-   Extraction (`study-extraction-v1`; every included record appears exactly once in `studies` or `not_extracted`; excerpt `text` is verbatim from the source, 20-2000 characters):
+   Extraction (`study-extraction-v1`; every included record appears exactly once in `studies` or `not_extracted`; excerpt `text` is verbatim from the source, 20-2000 characters; only the claim-bearing sentences, not the whole abstract):
 
    ```json
    {"schema": "study-extraction-v1",
@@ -76,7 +76,7 @@ For each included study save a machine-readable row containing, where applicable
 - claim IDs supported or contradicted, independence group, and exact source locations.
 
 Do not infer an unreported method, denominator, result, or uncertainty from an abstract or portal summary.
-Save retrieved abstracts or full-text passages supporting key claims as hashed run artifacts; record verbatim study-table `support_excerpts` entries `{claim_id, text (20–2000 characters), source_artifact (run-relative path), source_sha256, locator?}`, never paraphrasing `text`.
+Save retrieved abstracts or full-text passages supporting key claims as hashed run artifacts; record verbatim study-table `support_excerpts` entries `{claim_id, text (20–2000 characters; only the claim-bearing sentences, not the whole abstract), source_artifact (run-relative path), source_sha256, locator?}`, never paraphrasing `text`.
 For open-access PMC full text of included records, use `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/fetch_open_fulltext.py" --run-dir <run-dir> --id PMCID|PMID|DOI --execute` (repeat `--id`; with `--run-dir`, the script selects cited identifiers found in non-excluded run studies, while `--id` adds identifiers to that set; fetches are capped by `--max-fetches`) instead of writing a fetcher or JATS parser. Quote `support_excerpts` from `fulltext/<PMCID>.txt` with its sha256; record unavailable or non-open-license full text rather than retaining it.
 Unavailable fetch results include a machine-readable `reason` field that distinguishes HTTP, response, identifier, and XML failures.
 

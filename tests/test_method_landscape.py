@@ -52,6 +52,12 @@ class MethodLandscapeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 allocate_methods(value)
 
+    def test_excerpt_length_error_reports_length_and_remedy(self):
+        for excerpt, got in (("short", "5 characters"), ("x" * 2039, "2039 characters"), (None, "type NoneType")):
+            with self.assertRaises(ValueError) as caught:
+                allocate_methods(payload(papers=[{**paper("x", ["a"]), "excerpt": excerpt}]))
+            self.assertIn(f"excerpt length must be 20..2000 characters (got {got}); quote only the verbatim claim-bearing sentences", str(caught.exception))
+
     def test_selected_entries_carry_excerpt_provenance(self):
         digest = "ab" * 32
         result = allocate_methods(payload(papers=[{**paper("a1", ["a"]), "source_sha256": digest}, paper("b1", ["b"])]))
