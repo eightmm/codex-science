@@ -8,19 +8,167 @@ import json
 import os
 import re
 import shutil
-import sys
 import tempfile
+import time
+import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from codex_science.connector_contract import QueryRequest
+from codex_science.connector_contract import QueryRequest, sha256_json
 from codex_science.evidence import _validate_query_records
 from codex_science.source_operations_v3 import SOURCE_OPERATIONS_V3
-from codex_science.transport_v3 import TransportError, execute_paginated
+from codex_science.connectors import USER_AGENT
+from codex_science.transport_v3 import (
+    PageReceiptV3, PageRequest, TransportError, TransportPolicy, UrllibTransport,
+    _redact_url, _snapshot_page, execute_paginated,
+)
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
 _DISPLAY = {"europepmc": "EuropePMC", "pubmed": "PubMed"}
+_PUBMED_BATCH_SIZE = 200
+
+
+class _NCBIRateLimitedTransport:
+    def __init__(self, transport: Any, *, interval: float) -> None:
+        self.transport = transport
+        self.interval = interval
+        self.last_request = 0.0
+
+    def send(self, request: PageRequest):
+        wait = self.interval - (time.monotonic() - self.last_request)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            return self.transport.send(request)
+        finally:
+            self.last_request = time.monotonic()
+
+
+def _pubmed_url(endpoint: str, ids: list[str]) -> str:
+    params = {"db": "pubmed", "id": ",".join(ids)}
+    if endpoint == "esummary":
+        params.update({"retmode": "json", "version": "2.0"})
+    else:
+        params.update({"rettype": "abstract", "retmode": "xml"})
+    return "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/" + endpoint + ".fcgi?" + urllib.parse.urlencode(params)
+
+
+def _pubmed_records(payload: Any) -> dict[str, dict[str, str]]:
+    result = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(result, dict):
+        raise ValueError("invalid PubMed esummary response: missing result")
+    records: dict[str, dict[str, str]] = {}
+    for uid in result.get("uids", []):
+        raw = result.get(str(uid))
+        if not isinstance(raw, dict):
+            continue
+        pubdate = str(raw.get("pubdate") or "")
+        year_match = re.search(r"\b(\d{4})\b", pubdate)
+        def valid_doi(value: Any) -> str:
+            candidate = re.sub(r"^doi:\s*", "", str(value or "").strip(), flags=re.I)
+            return candidate if re.fullmatch(r"10\.\d{4,9}/\S+", candidate) else ""
+
+        doi = ""
+        article_ids = raw.get("articleids", [])
+        if isinstance(article_ids, list):
+            doi = next((valid_doi(item.get("value")) for item in article_ids
+                        if isinstance(item, dict) and str(item.get("idtype", "")).lower() == "doi"
+                        and valid_doi(item.get("value"))), "")
+        if not doi:
+            doi = valid_doi(raw.get("elocationid"))
+        records[str(uid)] = {
+            "title": str(raw.get("title") or "").strip(),
+            "year": year_match.group(1) if year_match else "",
+            "doi": doi.strip(),
+            "journal": str(raw.get("fulljournalname") or raw.get("source") or "").strip(),
+        }
+    return records
+
+
+def _pubmed_abstracts(xml_bytes: bytes) -> list[dict[str, Any]]:
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError as error:
+        raise ValueError("invalid PubMed efetch XML response") from error
+    found: list[dict[str, Any]] = []
+    for article in root.iter():
+        if article.tag.rsplit("}", 1)[-1] != "PubmedArticle":
+            continue
+        pmid = next((node.text for node in article.iter()
+                     if node.tag.rsplit("}", 1)[-1] == "PMID" and node.text), None)
+        chunks = []
+        for node in article.iter():
+            if node.tag.rsplit("}", 1)[-1] != "AbstractText":
+                continue
+            # Escape so literal "<" comparisons survive tag stripping in _plain_abstract.
+            text = html.escape("".join(node.itertext()).strip(), quote=False)
+            label = node.attrib.get("Label")
+            if text:
+                chunks.append(f"{label}: {text}" if label else text)
+        if pmid and chunks:
+            found.append({"resultList": {"result": [{"id": pmid, "abstractText": " ".join(chunks)}]}})
+    return found
+
+
+def _fetch_pubmed_metadata(
+    ids: list[str], *, transport: Any, snapshot_dir: Path, query_id: str,
+    page_offset: int, abstracts: bool,
+) -> tuple[dict[str, dict[str, str]], list[Any], list[dict[str, Any]]]:
+    records: dict[str, dict[str, str]] = {}
+    payloads: list[Any] = []
+    receipt_pages: list[dict[str, Any]] = []
+    page_index = page_offset
+    for start in range(0, len(ids), _PUBMED_BATCH_SIZE):
+        batch = ids[start:start + _PUBMED_BATCH_SIZE]
+        endpoints = ["esummary"] + (["efetch"] if abstracts else [])
+        for endpoint in endpoints:
+            request = PageRequest("GET", _pubmed_url(endpoint, batch), {},
+                                  cursor=f"{endpoint}:{start}")
+            response = transport.send(request)
+            if not 200 <= response.status_code < 300:
+                raise TransportError(f"HTTP {response.status_code} for PubMed {endpoint}",
+                                     status_code=response.status_code)
+            body_path, metadata_path = _snapshot_page(
+                snapshot_dir, query_id=query_id, page_index=page_index,
+                page_request=request, response=response,
+            )
+            if endpoint == "esummary":
+                payload = response.json()
+                batch_records = _pubmed_records(payload)
+                records.update(batch_records)
+                payloads.append(payload)
+                normalized_count = len(batch_records)
+            else:
+                abstract_payloads = _pubmed_abstracts(response.body)
+                payloads.extend(abstract_payloads)
+                normalized_count = len(abstract_payloads)
+            receipt_pages.append(PageReceiptV3(
+                page_index=page_index,
+                request_sha256=request.request_sha256,
+                method="GET",
+                request_url=_redact_url(request.url),
+                request_body_sha256=None,
+                cursor_in=request.cursor,
+                cursor_out=None,
+                status_code=response.status_code,
+                response_sha256=response.body_sha256,
+                response_bytes=len(response.body),
+                media_type=response.media_type,
+                etag=response.headers.get("etag"),
+                last_modified=response.headers.get("last-modified"),
+                rate_limit_limit=response.headers.get("x-ratelimit-limit"),
+                rate_limit_remaining=response.headers.get("x-ratelimit-remaining"),
+                rate_limit_reset=response.headers.get("x-ratelimit-reset"),
+                retrieved_at=response.retrieved_at,
+                attempts=response.attempts,
+                normalized_record_count=normalized_count,
+                snapshot_body_path=body_path,
+                snapshot_metadata_path=metadata_path,
+            ).__dict__)
+            page_index += 1
+    return records, payloads, receipt_pages
 
 
 def _check_path(root: Path, relative: Path) -> Path:
@@ -221,9 +369,6 @@ def retrieve_literature(
 ) -> dict[str, Any]:
     if source not in _DISPLAY:
         raise ValueError("source must be europepmc or pubmed")
-    if abstracts and source == "pubmed":
-        print("PubMed returns IDs only; use europepmc --abstracts for titles and abstract sources.", file=sys.stderr)
-        abstracts = False
     root = Path(run_dir).absolute()
     if root.is_symlink() or not root.is_dir():
         raise ValueError("run directory must be an existing, non-symlink directory")
@@ -250,13 +395,37 @@ def retrieve_literature(
         stage_root = Path(tempfile.mkdtemp(prefix=".literature-", dir=root))
         stage_query = stage_root / query_id
         try:
+            active_transport = transport or UrllibTransport(TransportPolicy(user_agent=USER_AGENT))
+            if source == "pubmed":
+                active_transport = _NCBIRateLimitedTransport(
+                    active_transport,
+                    interval=0.34 if transport is None else 0.0,
+                )
+            operation = SOURCE_OPERATIONS_V3[source]
             result = execute_paginated(
-                SOURCE_OPERATIONS_V3[source], request, transport=transport,
+                operation, request, transport=active_transport,
                 snapshot_dir=stage_root,
             )
             if result.receipt.warnings:
                 raise TransportError("literature transport failed: " + "; ".join(result.receipt.warnings))
             result_obj = result.to_dict()
+            result_obj["receipt"]["pages"] = list(result_obj["receipt"]["pages"])
+            metadata_payloads: list[Any] = []
+            if source == "pubmed" and result.records:
+                metadata, metadata_payloads, metadata_receipts = _fetch_pubmed_metadata(
+                    [str(item["id"]) for item in result.records],
+                    transport=active_transport,
+                    snapshot_dir=stage_root,
+                    query_id=query_id,
+                    page_offset=len(result.receipt.pages),
+                    abstracts=abstracts,
+                )
+                for record in result_obj["records"]:
+                    values = metadata.get(str(record["id"]), {})
+                    record.update({key: value for key, value in values.items() if value})
+                result_obj["receipt"]["pages"].extend(metadata_receipts)
+                result_obj["receipt"]["fetched_pages"] += len(metadata_receipts)
+                result_obj["receipt"]["normalized_records_sha256"] = sha256_json(result_obj["records"])
             result_bytes = (json.dumps(result_obj, indent=2, sort_keys=True) + "\n").encode("utf-8")
             (stage_query / "result.json").write_bytes(result_bytes)
             pages = []
@@ -286,7 +455,7 @@ def retrieve_literature(
             if hit_count is not None:
                 record["hit_count"] = hit_count
             _validate_query_records([record])
-            abstract_files = _write_abstracts(root, pages) if abstracts else set()
+            abstract_files = _write_abstracts(root, pages + metadata_payloads) if abstracts else set()
             snapshots.mkdir(parents=True, exist_ok=True)
             os.rename(stage_query, dest)
             ledger_bytes = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
@@ -328,14 +497,19 @@ def retrieve_literature(
                 if isinstance(rs, list):
                     rows.extend(rs)
             summary_rows = []
-            for index, normalized in enumerate(result.records):
+            for index, normalized in enumerate(result_obj["records"]):
                 raw = next((r for r in rows if str(r.get("id", "")) == str(normalized.get("id", ""))), {})
                 title = str(raw.get("title") or normalized.get("title") or "")
-                year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or ""
-                summary_rows.append({"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": f"{normalized.get('id')}.abstract.txt" in abstract_files})
+                year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or normalized.get("year") or ""
+                summary_row = {"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": f"{normalized.get('id')}.abstract.txt" in abstract_files}
+                if source == "pubmed" and normalized.get("doi"):
+                    summary_row["doi"] = normalized["doi"]
+                if source == "pubmed" and normalized.get("journal"):
+                    summary_row["journal"] = normalized["journal"]
+                summary_rows.append(summary_row)
             return {"query_id": query_id, "status": record["status"], "hit_count": hit_count,
                     "records_returned": len(result.records), "records": summary_rows[:page_size * max_pages],
-                    "abstracts_supported": source == "europepmc",
+                    "abstracts_supported": True,
                     "abstracts_from_saved_snapshot": False}
         finally:
             shutil.rmtree(stage_root, ignore_errors=True)

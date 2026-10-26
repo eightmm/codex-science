@@ -198,22 +198,42 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
     _write_target(run_dir, "execution-log.jsonl")
     logs_dir = _safe_directory(run_dir, "logs")
     records = [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip()] if log_file.exists() else []
-    used = {str(item["id"]) for item in records if isinstance(item, dict) and item.get("id") is not None}
+    exit_codes: dict[str, list[Any]] = {}
+
+    def _note(item: Any) -> None:
+        if isinstance(item, dict) and item.get("id") is not None:
+            exit_codes.setdefault(str(item["id"]), []).append(item.get("exit_code"))
+
+    for item in records:
+        _note(item)
     manifest_path = run_dir / "manifest.json"
     if manifest_path.is_file():
         try:
             existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             existing_manifest = None
-        if isinstance(existing_manifest, dict) and isinstance(existing_manifest.get("executions"), list):
-            used.update(
-                str(item["id"])
-                for item in existing_manifest["executions"]
-                if isinstance(item, dict) and item.get("id") is not None
-            )
+        if isinstance(existing_manifest, dict):
+            for key in ("executions", "superseded_executions"):
+                if isinstance(existing_manifest.get(key), list):
+                    for item in existing_manifest[key]:
+                        _note(item)
+    used = set(exit_codes)
     logs_dir.mkdir(parents=True, exist_ok=True)
-    if identifier is not None and identifier in used:
-        raise ValueError(f"Duplicate execution id: {identifier}; execution IDs are unique per run, so pass a new --id or omit it")
+
+    def _next_free(template: str) -> str:
+        n = 2
+        while template.format(n) in used or (logs_dir / f"{template.format(n)}.log").exists():
+            n += 1
+        return template.format(n)
+
+    requested = identifier
+    if requested is not None and requested in used:
+        if any(type(code) is not int or code == 0 for code in exit_codes[requested]):
+            raise ValueError(
+                f"Duplicate execution id: {requested}; pass a new --id "
+                f"(next free: {_next_free(requested + '-{}')}) or omit it"
+            )
+        identifier = _next_free(requested + "-retry-{}")
     number = 1
     while True:
         selected = identifier if identifier is not None else f"exec-{number:03d}"
@@ -226,10 +246,19 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
             output_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
             break
         except FileExistsError:
-            if identifier is not None:
-                raise ValueError(f"Duplicate execution id: {identifier}; execution IDs are unique per run, so pass a new --id or omit it")
-            number += 1
+            if requested is None:
+                number += 1
+            elif identifier != requested:
+                used.add(identifier)
+                identifier = _next_free(requested + "-retry-{}")
+            else:
+                raise ValueError(f"Duplicate execution id: {requested}; execution IDs are unique per run, so pass a new --id or omit it")
     identifier = selected
+    if requested is not None and identifier != requested:
+        print(
+            f"note: execution id {requested} already has a failed run; recorded this run as {identifier}",
+            file=sys.stderr,
+        )
     started = _utc()
     with os.fdopen(output_fd, "wb") as output:
         result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)

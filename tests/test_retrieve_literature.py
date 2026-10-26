@@ -1,8 +1,10 @@
 import hashlib
 import json
 import io
+import os
 import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 import sys
@@ -11,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codex_science.evidence import _validate_query_records
 from codex_science.connector_contract import QueryRequest
-from codex_science.literature_retrieval import _ledger_ids, _plain_abstract, _status, retrieve_literature
+from codex_science.literature_retrieval import _ledger_ids, _plain_abstract, _pubmed_records, _status, retrieve_literature
 from codex_science.transport_v3 import PageRequest, TransportError, TransportResponse
 from scripts.retrieve_literature import main
 
@@ -20,18 +22,31 @@ class FakeTransport:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = 0
+        self.requests = []
 
     def send(self, request: PageRequest) -> TransportResponse:
         self.calls += 1
+        self.requests.append(request)
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
-        body = json.dumps(item, separators=(",", ":")).encode()
-        return TransportResponse(200, request.url, {}, body, "application/json", "2026-07-20T00:00:00Z", 1)
+        if isinstance(item, tuple):
+            body, media_type = item
+        else:
+            body, media_type = json.dumps(item, separators=(",", ":")).encode(), "application/json"
+        return TransportResponse(200, request.url, {}, body, media_type, "2026-07-20T00:00:00Z", 1)
 
 
 def europe_payload(rows=None, hit_count=1):
     return {"hitCount": hit_count, "nextCursorMark": "*", "resultList": {"result": rows or []}}
+
+
+def pubmed_esummary(ids):
+    return {"result": {
+        "uids": [str(identifier) for identifier in ids],
+        **{str(identifier): {"uid": str(identifier), "title": f"Title {identifier}", "pubdate": "2024"}
+           for identifier in ids},
+    }}
 
 
 class RetrieveLiteratureTests(unittest.TestCase):
@@ -319,15 +334,147 @@ class RetrieveLiteratureTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid query ledger JSON"):
                 _ledger_ids(ledger)
 
+    def test_pubmed_doi_fallback_rejects_non_doi_elocationid(self):
+        records = _pubmed_records({"result": {"uids": ["1", "2", "3", "4"],
+            "1": {"elocationid": "pii: S123456789"},
+            "2": {"elocationid": "doi: 10.1000/xyz"},
+            "3": {"articleids": [{"idtype": "doi", "value": "10.1000/article"}],
+                  "elocationid": "pii: S123456789"},
+            "4": {"articleids": [{"idtype": "doi", "value": "not-a-doi"}]},
+        }})
+        self.assertEqual("", records["1"]["doi"])
+        self.assertEqual("10.1000/xyz", records["2"]["doi"])
+        self.assertEqual("10.1000/article", records["3"]["doi"])
+        self.assertEqual("", records["4"]["doi"])
+
     def test_pubmed_hit_count_comes_from_esearch_body(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             body = {"esearchresult": {"count": "19", "retstart": "0", "idlist": ["123"]}}
-            summary = retrieve_literature(root, "pubmed", "topic", transport=FakeTransport([body]))
+            esummary = {"result": {"uids": ["123"], "123": {
+                "uid": "123", "title": "PubMed title", "pubdate": "2024 Jan 2",
+                "fulljournalname": "Journal", "elocationid": "doi: 10.1000/example",
+            }}}
+            transport = FakeTransport([body, esummary])
+            summary = retrieve_literature(root, "pubmed", "topic", transport=transport)
             self.assertEqual(19, summary["hit_count"])
-            result = json.loads(next((root / "raw/queries").glob("*/result.json")).read_text())
+            self.assertEqual("PubMed title", summary["records"][0]["title"])
+            self.assertEqual("2024", summary["records"][0]["year"])
+            self.assertEqual("Journal", summary["records"][0]["journal"])
+            ledger_row = json.loads((root / "queries.jsonl").read_text())
+            result_path = root / ledger_row["result_path"]
+            result_bytes = result_path.read_bytes()
+            self.assertEqual(ledger_row["response_sha256"], hashlib.sha256(result_bytes).hexdigest())
+            result = json.loads(result_bytes)
             self.assertEqual("123", result["records"][0]["id"])
-            self.assertEqual("", result["records"][0]["title"])
+            self.assertEqual("PubMed title", result["records"][0]["title"])
+            self.assertEqual("10.1000/example", summary["records"][0]["doi"])
+            self.assertEqual("Journal", result["records"][0]["journal"])
+            self.assertEqual(2, len(result["receipt"]["pages"]))
+            for page in result["receipt"]["pages"]:
+                body_path = root / "raw/queries" / page["snapshot_body_path"]
+                self.assertEqual(page["response_sha256"], hashlib.sha256(body_path.read_bytes()).hexdigest())
+
+    def test_pubmed_abstracts_are_saved_and_legacy_duplicate_still_refuses(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            esearch = {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["123"]}}
+            esummary = {"result": {"uids": ["123"], "123": {"uid": "123", "title": "T", "pubdate": "2022"}}}
+            efetch = (b'<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>123</PMID>'
+                      b'<Article><Abstract><AbstractText Label="BACKGROUND">Abstract words; A &lt; B</AbstractText>'
+                      b'</Abstract></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>',
+                      "application/xml")
+            transport = FakeTransport([esearch, esummary, efetch])
+            summary = retrieve_literature(root, "pubmed", "abstract topic", abstracts=True, transport=transport)
+            self.assertTrue(summary["abstracts_supported"])
+            self.assertTrue(summary["records"][0]["abstract_written"])
+            self.assertEqual("BACKGROUND: Abstract words; A < B\n", (root / "sources/123.abstract.txt").read_text())
+            ledger_row = json.loads((root / "queries.jsonl").read_text())
+            result_path = root / ledger_row["result_path"]
+            result_bytes = result_path.read_bytes()
+            self.assertEqual(ledger_row["response_sha256"], hashlib.sha256(result_bytes).hexdigest())
+            result = json.loads(result_bytes)
+            self.assertEqual(3, len(result["receipt"]["pages"]))
+            calls_before_retry = transport.calls
+            with self.assertRaisesRegex(FileExistsError, "query already exists"):
+                retrieve_literature(root, "pubmed", "abstract topic", abstracts=True, transport=transport)
+            self.assertEqual(calls_before_retry, transport.calls)
+
+    def test_pubmed_esummary_batches_up_to_two_hundred_ids(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ids = [str(index) for index in range(1, 202)]
+            responses = [
+                {"esearchresult": {"count": "201", "retstart": "0", "idlist": ids[:100]}},
+                {"esearchresult": {"count": "201", "retstart": "100", "idlist": ids[100:200]}},
+                {"esearchresult": {"count": "201", "retstart": "200", "idlist": ids[200:]}},
+                pubmed_esummary(ids[:200]),
+                pubmed_esummary(ids[200:]),
+            ]
+            transport = FakeTransport(responses)
+            summary = retrieve_literature(
+                root, "pubmed", "batch", page_size=100, max_pages=3, transport=transport,
+            )
+            self.assertEqual(201, len(summary["records"]))
+            self.assertEqual(5, transport.calls)
+            metadata_requests = transport.requests[3:]
+            self.assertEqual([200, 1], [
+                len(urllib.parse.parse_qs(urllib.parse.urlsplit(item.url).query)["id"][0].split(","))
+                for item in metadata_requests
+            ])
+            result = json.loads((root / json.loads((root / "queries.jsonl").read_text())["result_path"]).read_text())
+            self.assertEqual(5, len(result["receipt"]["pages"]))
+
+    def test_pubmed_empty_search_skips_metadata_and_malformed_esummary_fails_cleanly(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            empty_transport = FakeTransport([
+                {"esearchresult": {"count": "0", "retstart": "0", "idlist": []}},
+            ])
+            empty = retrieve_literature(root, "pubmed", "no records", abstracts=True, transport=empty_transport)
+            self.assertEqual([], empty["records"])
+            self.assertEqual(1, empty_transport.calls)
+            self.assertTrue(empty["abstracts_supported"])
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with self.assertRaisesRegex(ValueError, "missing result"):
+                retrieve_literature(root, "pubmed", "bad metadata", transport=FakeTransport([
+                    {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["123"]}},
+                    {"invalid": True},
+                ]))
+            self.assertEqual([], list(root.iterdir()))
+
+    def test_pubmed_saved_result_persists_fetched_metadata(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            summary = retrieve_literature(root, "pubmed", "legacy", transport=FakeTransport([
+                {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["123"]}},
+                {"result": {"uids": ["123"], "123": {"uid": "123", "title": "T", "pubdate": "2020"}}},
+            ]))
+            result_path = root / "raw/queries" / summary["query_id"] / "result.json"
+            saved = json.loads(result_path.read_text())
+            self.assertEqual("123", saved["records"][0]["id"])
+            self.assertEqual("T", saved["records"][0]["title"])
+
+    def test_legacy_pubmed_result_without_metadata_loads_into_candidate_pool(self):
+        from codex_science.screening_pool import build_candidate_pool
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            result_dir = root / "raw/queries/legacy"
+            result_dir.mkdir(parents=True)
+            (result_dir / "result.json").write_text(json.dumps({
+                "records": [{"id": "123", "title": "", "url": "https://pubmed.ncbi.nlm.nih.gov/123/"}],
+            }))
+            row = {
+                "query_id": "legacy", "source": "PubMed", "query": "old query",
+                "result_path": "raw/queries/legacy/result.json",
+            }
+            (root / "queries.jsonl").write_text(json.dumps(row) + "\n")
+            pool = build_candidate_pool(root)
+            self.assertEqual(1, pool["returned_records"])
+            self.assertEqual(["pubmed:123"], [item["record_id"] for item in pool["records"]])
 
     def test_duplicate_query_via_cli_is_clean_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as temp:

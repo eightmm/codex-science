@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `retrieve_literature.py pubmed` now fetches title, year, journal and DOI
+  for each PMID (NCBI esummary) and, with `--abstracts`, writes abstracts
+  (efetch); both responses are saved and hashed with the query snapshot. A
+  DOI is recorded only when it has DOI syntax. Previously PubMed rows were
+  bare IDs, and agents wrote their own fetchers.
+- `package_run.py exec --id X` after a failed `X` records the retry as
+  `X-retry-N` instead of refusing; a duplicate of a successful id still
+  fails and names the next free id.
+- Recorded evaluation run32 (4/6) in the evaluation docs and run ledger.
+
 - Removed unused code and files: the unreferenced `query_source_v3.py` and
   `replay_source_v3.py` scripts, never-called helpers and constants, the
   not-applicable `MODEL`, `TRAINING` and `BENCHMARKS` stub docs, and committed

@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-pages", type=int, default=1, help="maximum pages to fetch (1-100)")
     parser.add_argument("--evidence-cutoff", help="only include records published up to this date (YYYY-MM-DD)")
     parser.add_argument("--abstracts", action="store_true",
-                        help="write abstracts for europepmc results (can be added later by re-running the same command with --abstracts; ignored for pubmed, which returns IDs only)")
+                        help="write abstracts for EuropePMC or PubMed results")
     args = parser.parse_args(argv)
     try:
         summary = retrieve_literature(

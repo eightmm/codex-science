@@ -720,6 +720,36 @@ Codex sign-in, which the recorded runs did not set up.
   events (digest mismatch, missing manifest) that did not occur in this run, so
   it was not exercised. No improvement trend is claimed.
 
+- Run32 (`20334d2`, runtime `0.5.0+codex.20261026016500`), 4/6 (95% Wilson
+  interval 30.0%-90.3%). Changes under test since run31 (`ab4146e`) are
+  `4c34fa2`, roadmap docs; `83763ba`, which lets `plan_selective_rerun`
+  accept v1 graphs (not used by the literature tasks); `4f50d73`, run31 docs;
+  and `20334d2`, which preserves "<" comparison text during abstract
+  normalization, lets an existing Europe PMC query be re-run with `--abstracts`
+  to write abstracts from its saved snapshot, and prints
+  `abstract=not-requested` when abstracts were not requested. quick-doi
+  completed in 158 seconds, quick-arxiv in 67 seconds, full-microbiome in 1362
+  seconds, and standard-single-cell in 1776 seconds. Standard-mrna stopped
+  with a provider policy block after 593 seconds and counts as a failure; its
+  content is not analysed or reproduced. Full-protein-folding reached the
+  1800-second cap: its independent reviewer passed with no findings about 15
+  seconds before the cap, after the parent's last wait had ended, so
+  finalization did not run. Stop reasons were done 4, timeout 1, and
+  provider_policy_block 1. `stall_affected_timeouts` was 0, with no
+  infrastructure failures. standard-single-cell's first model response took
+  449 seconds (provider latency). No independent-review finding in any task
+  concerned abstracts (run31: two tasks). There were no critical or major
+  findings; each task had one independent review round, and four minor findings
+  remained open. Citation tracing resolved 52 of 53 identifiers; the untraced
+  identifier appears only in a generated `index.md` listing of fetched full
+  text that is not an included study. PubMed rows from `retrieve_literature.py`
+  carried only IDs in this runtime; all three standard/full tasks fetched PubMed
+  metadata by other means (Europe PMC ID re-query, a hand-written E-utilities
+  script, or PubMed web pages), motivating a follow-up PubMed metadata change.
+  Standard-mrna has been blocked by provider policy in 10 of 27 runs (runs
+  6–32). Six tasks and one run cannot establish an effect. No improvement
+  trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -727,7 +757,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–31 in order, with run16b and
+receipt, then one summary row per run, for runs 6–32 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17

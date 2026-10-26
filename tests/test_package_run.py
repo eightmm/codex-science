@@ -276,9 +276,10 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(record["id"], "sample")
         self.assertEqual(record["exit_code"], 7)
         self.assertIn("hello", (self.run_dir / record["log_path"]).read_text())
-        again = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "sample", "--", sys.executable, "-c", "pass")
+        self.assertEqual(self.cli("exec", "--run-dir", str(self.run_dir), "--id", "done", "--", sys.executable, "-c", "pass").returncode, 0)
+        again = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "done", "--", sys.executable, "-c", "pass")
         self.assertEqual(again.returncode, 1)
-        self.assertIn("Duplicate execution id: sample; execution IDs are unique per run", again.stderr)
+        self.assertIn("Duplicate execution id: done; pass a new --id", again.stderr)
         helped = self.cli("exec", "--help")
         self.assertIn("unique within the run", " ".join(helped.stdout.split()))
 
@@ -870,6 +871,40 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["superseded_failures"], 0)
         manifest = json.loads((self.run_dir / "manifest.json").read_text())
         self.assertEqual(sum(item["id"] == "failed-attempt" for item in manifest["superseded_executions"]), 1)
+
+    def test_failed_id_reused_records_retry_id_and_keeps_both(self) -> None:
+        marker = Path(self.temp.name) / "retry-ready"
+        command = self._retry_command(marker)
+        failed = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "X", "--", *command)
+        self.assertEqual(failed.returncode, 1)
+        failed_log = (self.run_dir / "logs" / "X.log").read_bytes()
+        marker.touch()
+        retried = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "X", "--", *command)
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assertIn("note: execution id X already has a failed run; recorded this run as X-retry-2", retried.stderr)
+        self.assertEqual((self.run_dir / "logs" / "X.log").read_bytes(), failed_log)
+        self.assertTrue((self.run_dir / "logs" / "X-retry-2.log").is_file())
+        ids = [json.loads(line)["id"] for line in (self.run_dir / "execution-log.jsonl").read_text().splitlines()]
+        self.assertEqual(ids, ["X", "X-retry-2"])
+        refreshed = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(refreshed.returncode, 0, refreshed.stderr)
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        self.assertEqual([item["id"] for item in manifest["superseded_executions"]], ["X"])
+        self.assertEqual(manifest["superseded_executions"][0]["superseded_by"], "X-retry-2")
+        self.assertEqual([item.get("id") for item in manifest["executions"] if item.get("id")], ["X-retry-2"])
+        validation = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"), str(self.run_dir / "manifest.json")], text=True, capture_output=True, check=False)
+        self.assertEqual(validation.returncode, 0, validation.stdout + validation.stderr)
+        third = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "X", "--", sys.executable, "-c", "raise SystemExit(1)")
+        self.assertEqual(third.returncode, 1)
+        self.assertIn("X-retry-3", third.stderr)
+
+    def test_succeeded_id_reused_is_refused_with_next_free_hint(self) -> None:
+        ok = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "X", "--", sys.executable, "-c", "pass")
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        again = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "X", "--", sys.executable, "-c", "pass")
+        self.assertNotEqual(again.returncode, 0)
+        self.assertIn("Duplicate execution id: X; pass a new --id (next free: X-2) or omit it", again.stderr)
+        self.assertEqual(len((self.run_dir / "execution-log.jsonl").read_text().splitlines()), 1)
 
     def test_failure_without_retry_remains_review_finding(self) -> None:
         result = self.cli(
