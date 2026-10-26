@@ -35,6 +35,17 @@
       "authority": "repository-contract",
       "version": "1",
       "evidence_boundary": "Controls update lineage; it does not establish that new evidence changes a claim."
+    },
+    {
+      "id": "output-schemas",
+      "path": "references/output-schemas.md",
+      "purpose": "Allowed enum values, sidecar cross-checks, and the reference-use-ledger shape for literature-review sidecars.",
+      "read_when": ["building evidence_graph.json or studies.json", "writing claims, query ledger, lane receipts, or snapshot sidecars", "writing a reference-use-ledger"],
+      "required_before": ["evidence-graph-build", "study-table-build", "claim-register-authoring", "query-ledger-authoring", "lane-receipt-authoring", "snapshot-authoring", "reference-use-ledger-authoring"],
+      "search_patterns": ["## Allowed values and cross-checks"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Lists validator-enforced shapes; the validators remain authoritative."
     }
   ]
 }

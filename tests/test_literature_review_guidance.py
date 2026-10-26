@@ -34,12 +34,12 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
         self.assertIn("After the independent review passes, do not modify reviewed artifacts", text)
 
     def test_sidecar_cross_checks_are_documented(self):
-        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "authored-skills/literature-review/references/output-schemas.md").read_text(encoding="utf-8")
         self.assertIn("Support-excerpt text in `studies.json` must be 20..2000 characters", text)
         self.assertIn("set of `type: study` node IDs in `evidence_graph.json` must equal the study IDs in `studies.json`", text)
 
     def test_allowed_values_block_matches_validator_constants(self):
-        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "authored-skills/literature-review/references/output-schemas.md").read_text(encoding="utf-8")
         block = text.split("Allowed values (each field is checked by its named validator):\n", 1)[1].split("\n\n", 1)[0]
         documented = {}
         for line in block.splitlines():
@@ -67,7 +67,7 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
                 self.assertEqual(documented[field], values)
 
     def test_documented_validator_paths_reject_invalid_values(self):
-        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "authored-skills/literature-review/references/output-schemas.md").read_text(encoding="utf-8")
         block = text.split("Allowed values (each field is checked by its named validator):\n", 1)[1].split("\n\n", 1)[0]
         paths = {line.split("`", 2)[1] for line in block.splitlines() if line.startswith("- `")}
 
@@ -143,6 +143,23 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
             )
             self.assertNotEqual(0, invalid.returncode)
             self.assertIn("invalid study relationship", invalid.stderr)
+
+    def test_late_references_are_step_gated_and_gate_has_one_source(self):
+        literature = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        review = (ROOT / "runtime-skills/science-review/SKILL.md").read_text(encoding="utf-8")
+        provenance = (ROOT / "runtime-skills/science-provenance/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("(references/output-schemas.md)", literature)
+        self.assertNotIn("Allowed values (each field", literature)
+        self.assertIn("capping each batched read at about 25 KB", literature)
+        self.assertLess(literature.index("retrieve_literature.py"), literature.index("$cx-pubmed-search") if "$cx-pubmed-search" in literature else len(literature))
+        self.assertIn('"screening-decisions-v1"', literature)
+        self.assertIn('"study-extraction-v1"', literature)
+        self.assertIn("## Completion gate", review)
+        for command in ("package_run.py\" prepare-review", "science_reviewer.py\" finalize", "science_checkpoint.py\" review"):
+            self.assertIn(command, review)
+        self.assertIn("at review time", review)
+        self.assertIn("before the first `package_run.py refresh`", provenance)
+
 
     def test_citation_trace_and_claim_evidence_guidance(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")

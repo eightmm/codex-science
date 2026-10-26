@@ -209,30 +209,37 @@ class SessionContractTests(unittest.TestCase):
     def test_coordinator_has_narrow_opt_in_and_stays_active_in_its_task(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         skill = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
+        references = repository_root / "runtime-skills" / "codex-science" / "references"
+        activation = (references / "activation-and-updates.md").read_text()
+        goal = (references / "goal-loop-contract.md").read_text()
         coordinator_agent = (
             repository_root / "skills" / "codex-science" / "agents" / "openai.yaml"
         ).read_text()
 
-        self.assertIn("remainder of the current Codex task", skill)
-        self.assertIn("session-scoped marker", skill)
-        self.assertIn("implicitly invoke `$codex-science`", skill)
-        self.assertIn("resume or context compaction", skill)
+        self.assertIn("references/activation-and-updates.md", skill)
+        self.assertIn("references/goal-loop-contract.md", skill)
+        self.assertIn("remainder of the current Codex task", activation)
+        self.assertIn("session-scoped marker", activation)
+        self.assertIn("implicitly invoke `$codex-science`", activation)
+        self.assertIn("resume or context compaction", activation)
         self.assertIn("scripts/science_checkpoint.py", skill)
         self.assertIn("completion, a genuine blocker, or an approval gate", skill)
         self.assertIn("Do not ask for non-blocking preferences", skill)
         self.assertIn("batch", skill)
-        self.assertIn("Stop guard", skill)
+        self.assertIn("Stop guard", goal)
         self.assertIn("heartbeat", skill)
-        self.assertIn("native Goal mode", skill)
-        self.assertIn("get_goal", skill)
+        self.assertIn("native Goal mode", goal)
+        self.assertIn("get_goal", goal)
         self.assertIn("--outer-goal native", skill)
-        self.assertIn("completion_pending", skill)
-        self.assertIn("update_goal", skill)
-        self.assertIn("confirm-goal-complete", skill)
-        self.assertIn("generic Stop-loop", skill)
-        self.assertIn("openai/codex#20783", skill)
-        self.assertIn("CODEX_SCIENCE_STOP_MODE=block", skill)
-        self.assertIn("Codex Science 종료", skill)
+        self.assertIn("--outer-goal native", goal)
+        self.assertIn("completion_pending", goal)
+        self.assertIn("update_goal", goal)
+        self.assertIn("confirm-goal-complete", goal)
+        self.assertIn("generic Stop-loop", goal)
+        self.assertIn("openai/codex#20783", goal)
+        self.assertIn("CODEX_SCIENCE_STOP_MODE=block", goal)
+        self.assertIn("Codex Science 종료", activation)
+        self.assertIn("hookless", skill)
         self.assertIn("catalog/codex-skills/<name>/SKILL.md", skill)
         self.assertIn("<plugin-root>/runtime-skills/<name>/SKILL.md", skill)
         named = set(re.findall(r"\$(science-[a-z-]+|codex-science)\b", skill))
@@ -244,11 +251,11 @@ class SessionContractTests(unittest.TestCase):
             "prefer Codex Science MCP tools and `status: active` catalog skills",
             skill,
         )
-        self.assertIn(
-            "Fall back to general-purpose tools or skills only when",
-            skill,
-        )
-        self.assertIn("does not override the activation gate", skill)
+        catalog_policy = (references / "catalog-policy.md").read_text()
+        self.assertIn("Fall back to general-purpose tools", skill)
+        self.assertIn("Fall back to general-purpose tools or skills only when", catalog_policy)
+        self.assertIn("does not override the activation gate", catalog_policy)
+        self.assertIn("never select an inactive skill silently", catalog_policy)
         self.assertIn("allow_implicit_invocation: true", coordinator_agent)
         for name in ("science-provenance", "science-review"):
             agent = (repository_root / "skills" / name / "agents" / "openai.yaml").read_text()
@@ -271,6 +278,9 @@ class SessionContractTests(unittest.TestCase):
             "## Lane delegation and synthesis", 1
         )[0]
         reference = repository_root / "runtime-skills" / "codex-science" / "references" / "user-facing-messages.md"
+        activation_text = (
+            repository_root / "runtime-skills" / "codex-science" / "references" / "activation-and-updates.md"
+        ).read_text()
         index = json.loads(
             (repository_root / "runtime-skills" / "codex-science" / "references" / "index.json").read_text()
         )
@@ -278,25 +288,28 @@ class SessionContractTests(unittest.TestCase):
 
         self.assertNotIn("Codex Science is active for this task.", skill)
         self.assertIn("Write in the user's language", progress)
+        reference_text = reference.read_text(encoding="utf-8")
         self.assertIn("Do not expose internal tier names", progress)
         self.assertIn("(references/user-facing-messages.md)", progress)
-        self.assertIn("clickable links with readable link text", progress)
-        self.assertIn("use absolute paths when the host renders", progress)
-        self.assertIn("visible persistent identifier (DOI, PMID, PMCID, or arXiv ID)", progress)
-        self.assertIn("when a finding rests on published sources", progress)
-        self.assertIn("link computation-only findings to the saved output", reference.read_text(encoding="utf-8"))
-        self.assertIn("rests on public database or dataset records, name the record identifiers", progress)
-        self.assertIn(
+        for phrase in (
+            "Do not expose internal tier names",
+            "clickable links with readable link text",
+            "use absolute paths when the host renders",
+            "Local file links alone are not citations",
+            "Show primary raster results inline when available",
+            "visible persistent identifier (DOI, PMID, PMCID, or arXiv ID)",
+            "rests on published sources",
+            "link computation-only findings to the saved output",
             "rests on public database or dataset records, name the record identifiers",
-            reference.read_text(encoding="utf-8"),
-        )
-        self.assertIn("in the user's language and plain words only when useful", skill)
+        ):
+            self.assertIn(phrase, reference_text)
+        self.assertIn("in the user's language and plain words only when useful", activation_text)
         self.assertIn(
             "Only say progress is saved in files when a standard or full run record exists",
-            skill,
+            activation_text,
         )
-        self.assertIn("progress is saved in files", skill)
-        self.assertIn("quick answer without a run record", skill)
+        self.assertIn("progress is saved in files", activation_text)
+        self.assertIn("quick answer without a run record", activation_text)
         self.assertTrue(reference.is_file())
         self.assertIn("references/user-facing-messages.md", indexed)
         self.assertEqual(
@@ -491,8 +504,11 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
             self.assertIn(name.removeprefix("cx-"), sources)
 
         coordinator = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
+        routing = (repository_root / "runtime-skills" / "codex-science" / "references" / "routing.md").read_text()
         self.assertIn("experimental spectrum or analytical chemistry dataset", coordinator)
         self.assertIn("$cx-chemical-structure-elucidation", coordinator)
+        self.assertIn("experimental spectrum or analytical chemistry dataset", routing)
+        self.assertIn("$cx-chemical-structure-elucidation", routing)
 
     def test_extended_math_physics_skills_are_active_and_sourced(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
@@ -583,7 +599,9 @@ class FeaturedScienceSkillCoverageTests(unittest.TestCase):
 
         coordinator = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
         self.assertIn("$cx-mathematical-problem-execution", coordinator)
-        self.assertIn("concrete mathematics or physics problem", coordinator)
+        routing = (repository_root / "runtime-skills" / "codex-science" / "references" / "routing.md").read_text()
+        self.assertIn("concrete mathematics or physics problem", routing)
+        self.assertIn("$cx-mathematical-problem-execution", routing)
         self.assertIn(".cache/textbooks/", (repository_root / ".gitignore").read_text())
 
     def test_claude_featured_model_workflows_have_active_native_skills(self) -> None:

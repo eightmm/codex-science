@@ -16,7 +16,7 @@ review to assess whether the release change altered semantics or comparability.
 
 ## Reference usage
 
-Read [the artifact contract](references/artifact-contract.md) before authoring a manifest, sidecar, or bundle-version change. Read [the large-artifact protocol](references/large-artifacts.md) before registering a directory, a file too large for whole-memory loading, a chunked dataset, model weights, or an immutable external object. Do not guess sidecar fields, Merkle rules, or invalidation semantics.
+Read [the artifact contract](references/artifact-contract.md) before the first `package_run.py refresh`, before hand-authoring a non-literature manifest or sidecar, or before a bundle-version change. Read [the large-artifact protocol](references/large-artifacts.md) before registering a directory, a file too large for whole-memory loading, a chunked dataset, model weights, or an immutable external object. Do not guess sidecar fields, Merkle rules, or invalidation semantics.
 
 Read [the native artifact runtime contract](references/artifact-runtime.md) before rendering an artifact, recording a typed selection, or proposing a transform. Read [the FAIR-oriented export contract](references/fair-export.md) before archival, interoperable export, or scientific dependency and license handoff.
 

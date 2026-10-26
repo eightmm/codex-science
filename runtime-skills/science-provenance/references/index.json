@@ -8,13 +8,14 @@
       "path": "references/artifact-contract.md",
       "purpose": "Manifest fields, validated sidecars, evidence links, versioning, and review invalidation.",
       "read_when": [
-        "creating or changing a manifest",
-        "adding a sidecar",
+        "before the first package_run refresh",
+        "hand-authoring a non-literature manifest or sidecar",
         "reviewing bundle versioning or invalidation"
       ],
       "required_before": [
-        "manifest-authoring",
-        "sidecar-authoring",
+        "first-package-run-refresh",
+        "non-literature-manifest-authoring",
+        "non-literature-sidecar-authoring",
         "bundle-versioning"
       ],
       "search_patterns": [

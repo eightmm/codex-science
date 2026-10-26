@@ -15,7 +15,8 @@ what they will do next.
 - Do not narrate setup, repeat prior updates, or report routine tool activity.
 - Keep machine output and full logs intact, but do not paste them into progress
   messages.
-- Replace internal names with their human meaning or leave them out.
+- Do not expose internal tier names, checkpoint or session state, tool or skill names, harness or delegation details, bundle/sidecar/manifest/receipt names, hashes, schemas, counters, or issue IDs. Translate them into user meaning or omit them.
+- Share progress only at a meaningful moment; lead with what you learned or decided, then say what happens next.
 
 ### Good examples
 
@@ -50,6 +51,7 @@ scientific information.
 2. List key findings as bullets. Cite each finding that rests on published sources with a visible persistent identifier (DOI, PMID, PMCID, or arXiv ID). When a finding rests on public database or dataset records, name the record identifiers it rests on (the study or dataset accession and, for specific variants, genes or proteins, their identifiers) and the source release or access date when recorded; link computation-only findings to the saved output instead.
 3. State caveats that affect interpretation or generalization.
 4. Link to the human summary (`index.md`) and the main output files.
+5. Show primary raster results inline when available.
 
 Do not answer with a raw JSON object unless the host explicitly requires an
 output schema. When it does, write the `summary` field as a readable,
@@ -98,5 +100,7 @@ internal term has no useful user-facing equivalent, omit it.
   them; inside this guide and other documents, use relative paths where possible.
 - Link directly to the human summary and the main results. Do not make users
   interpret a raw path, hash, or file identifier.
+- Local file links alone are not citations.
+- Always return important local files as clickable links with readable link text; use absolute paths when the host renders local links that way.
 - Link citations to the source supporting the specific finding. Do not imply a
   citation supports a broader claim than it does.

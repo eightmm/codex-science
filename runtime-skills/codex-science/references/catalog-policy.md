@@ -15,3 +15,7 @@
 - `high-stakes-domain`: clinical or treatment output requires additional safeguards.
 
 Explicit acknowledgement permits inspection only. It does not authorize credentials, package installation, network access, writes, paid compute, or imported script execution.
+
+## Capability fallback
+
+Fall back to general-purpose tools or skills only when no suitable Science capability exists, the Science capability is unavailable or fails, or a higher-priority instruction requires another route. This preference does not override the activation gate, the approved plan, user instructions, project rules, or safety policy; never select an inactive skill silently.

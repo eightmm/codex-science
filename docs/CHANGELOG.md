@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- The coordinator skill is about 21 KB instead of 34 KB, so Codex no longer
+  truncates it on a full read: activation and updates, native Goal, domain
+  routing, checkpoint operations, the research contract and open full-text
+  rules moved to references read at the step that needs them. Review and
+  provenance references are also step-gated (the reviewer packet contract is
+  still read before any packet handoff), and the review/completion gate is one
+  procedure in `$science-review` ("Completion gate"); literature runs use
+  `package_run.py prepare-review`. The literature-review skill names
+  `retrieve_literature.py` first, inlines the screening-decision and
+  extraction JSON shapes, caps batched reads at about 25 KB, and moves allowed
+  field values to `references/output-schemas.md`. No check or gate changed.
+
 - `retrieve_literature.py pubmed` now fetches title, year, journal and DOI
   for each PMID (NCBI esummary) and, with `--abstracts`, writes abstracts
   (efetch); both responses are saved and hashed with the query snapshot. A

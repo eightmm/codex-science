@@ -9,9 +9,11 @@ Review the record adversarially; do not assume the producing agent's conclusion,
 
 ## Reference usage
 
-Read [the review checklist](references/review-checklist.md) before assigning severity, deciding whether a review passes, or closing a material finding. Use the indexed headings rather than loading unrelated reference material. Do not infer a pass rule or downgrade a finding from prose convenience.
+Reference files are step-gated; do not read them at orientation.
 
-Read [the independent reviewer packet contract](references/independent-review-runtime.md) before preparing a separate review packet, writing a reviewer response with `science_reviewer.py respond`, accepting a reviewer response, or claiming independence or reproduction. Read [the quantitative review contract](references/quantitative-review.md) before reviewing a statistical, mathematical-proof, counterexample, numerical-convergence, dimensional, or uncertainty artifact.
+- The reviewer reads [the review checklist](references/review-checklist.md) before assigning severity, deciding whether a review passes, or closing a material finding. The coordinator reads it only when resolving findings. Use the indexed headings rather than loading unrelated reference material. Do not infer a pass rule or downgrade a finding from prose convenience.
+- The coordinator reads [the independent reviewer packet contract](references/independent-review-runtime.md) at review time, not at orientation: after `prepare-review` and before handing the packet to any reviewer (subagent or external), read at least its "Independence boundary" and "Review packet transport" sections (sensitive-metadata check, approved destination, data approval, independence requirements); read the rest before `science_reviewer.py finalize`, accepting a reviewer response, or claiming independence or reproduction. A reviewer reads its "Reviewer response contract" section only to write findings.
+- Read [the quantitative review contract](references/quantitative-review.md) before reviewing a statistical, mathematical-proof, counterexample, numerical-convergence, dimensional, or uncertainty artifact.
 
 If a checklist materially controls a review receipt, include its SHA-256 in the run's `reference-use-ledger`. A reference defines review procedure; it does not prove the reviewed conclusion true.
 
@@ -46,6 +48,21 @@ A review may combine modes, but never imply a computation was reproduced when on
 10. Compare the deliverable with the artifact record. Flag unsupported computed claims, contradictions, overstated confidence, missing negative results, citation mismatch, stale source state, and any conclusion exceeding the weakest essential evidence link.
 11. Emit findings with stable ID, severity, affected claim or artifact, evidence, rationale, required correction or validation, owner, and resolution status. Do not silently edit the producer's record.
 12. Batch every finding from one review round into a single correction pass. Scope the re-review to the original findings, the changed claims/artifacts and their direct dependents; do a full re-review only when a correction changes a central conclusion, the included evidence set, or the method. Minor findings that cannot change the decision may stay open and be disclosed per the pass rule; never start a new correction/re-review round only to fix minor findings. Preserve the original finding, resolution evidence, and residual risk; a finding is resolved only when the changed claim or new evidence passes the same check.
+
+## Completion gate
+
+Run this once the deliverable and sidecars are final. Literature runs (`$cx-literature-review`) use `prepare-review`, which runs the refresh, citation trace, claim-sufficiency check, output refresh, and deterministic review (writing `deterministic-review.json`) and builds `review-task.json`; do not run those checks separately. Resolve every listed finding in one batch and rerun once.
+
+```
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/package_run.py" prepare-review --run-dir <run-dir> --tier <tier>
+# read independent-review-runtime.md (independence, transport), then spawn the independent reviewer on <run-dir>/review-task.json; it runs `science_reviewer.py respond` (writes reviewer-response.json)
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" finalize <run-dir>/review-task.json <run-dir>/reviewer-response.json --output <run-dir>/review-receipt-v2.json
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_checkpoint.py" review <run-dir> --artifact-ref review-receipt-v2.json
+```
+
+Other standard/full runs replace the first line with these checks, in order: `trace_citations.py --run-dir <run-dir> --require-traced` and `check_claim_sufficiency.py --run-dir <run-dir> --tier <tier>` (run both whenever the run uses `$cx-literature-review` or carries a `study-table` sidecar; skip them only when neither holds), `validate_artifact.py <manifest> --review-output <run-dir>/deterministic-review.json` (a separate, unreviewed output path; never point `--review-output` at the independent review receipt or any reviewed artifact), then `science_reviewer.py prepare <manifest> --mode <record|source|method|reproduction> [--mode ...] --tier <tier> --output <run-dir>/review-task.json`. Resolve every deterministic finding before preparing the packet; an unresolved finding fails the final `--require-passed-review` gate and forces a new review round.
+
+After the receipt passes (no open critical/major finding), do not modify reviewed artifacts: any change invalidates the review. Run `validate_artifact.py <manifest> --review-output <run-dir>/deterministic-review.json --require-passed-review`, then `science_checkpoint.py complete`, then deliver. `science_checkpoint.py review` registers the receipt in the manifest; if it reports `verdict_recorded: false`, run `package_run.py refresh --run-dir <run-dir> --register-receipt <receipt>`.
 
 ## Seeded-defect and benchmark review
 
