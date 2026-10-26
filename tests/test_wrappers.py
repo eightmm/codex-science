@@ -187,6 +187,14 @@ class SessionContractTests(unittest.TestCase):
                 (repository_root / "runtime-skills" / name / "SKILL.md").is_file()
             )
 
+    def test_runtime_skill_names_generic_mcp_script_fallback(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        text = (repository_root / "runtime-skills" / "codex-science" / "SKILL.md").read_text()
+
+        self.assertIn("scripts/science_tool.py", text)
+        self.assertIn("scripts/search_skills.py", text)
+        self.assertIn("scripts/plan_life_science_research.py", text)
+
     def test_every_authored_skill_has_ui_metadata(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         missing = [

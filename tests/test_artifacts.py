@@ -621,6 +621,7 @@ class ArtifactIndexTests(unittest.TestCase):
             [sys.executable, "-I", "-S", str(self.repository_root / "scripts" / "validate_artifact.py"), str(example)],
             [sys.executable, "-I", "-S", str(self.repository_root / "scripts" / "search_skills.py"), "sympy"],
             [sys.executable, "-I", "-S", str(self.repository_root / "scripts" / "plan_life_science_research.py"), "BRCA1 variant"],
+            [sys.executable, "-I", "-S", str(self.repository_root / "scripts" / "science_tool.py"), "science_search_skills", "--query", "sympy"],
         )
 
         for command in commands:

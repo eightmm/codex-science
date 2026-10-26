@@ -48,6 +48,7 @@ SCRIPTS = [
     "plan_selective_rerun",
     "resolve_study_families",
     "science_project",
+    "science_tool",
 ]
 
 # script -> option names known to lack help (explicit expected failure).
