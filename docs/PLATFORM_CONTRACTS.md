@@ -294,7 +294,7 @@ Annotation artifacts contain a hash-bound anchor to an artifact path plus a JSON
 
 ```bash
 python scripts/diff_runs.py old/manifest.json new/manifest.json --output run-diff.json
-python scripts/plan_selective_rerun.py graph-v2.json steps.json \
+python scripts/plan_selective_rerun.py <run>/evidence_graph.json steps.json \
   --changed input-state --review-path review.json --output rerun-plan.json
 python scripts/render_workbench.py artifacts/run/manifest.json
 ```

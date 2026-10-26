@@ -60,7 +60,7 @@ Add `--review-output <path> --require-passed-review` at a completion gate. The r
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_artifact_index.py" <manifest> --html
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/render_workbench.py" <manifest> --output workbench.html
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_runs.py" old/manifest.json new/manifest.json --output run-diff.json
-"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/plan_selective_rerun.py" graph-v2.json steps.json \
+"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/plan_selective_rerun.py" <run>/evidence_graph.json steps.json \
   --changed input-node --review-path review.json --output rerun-plan.json
 ```
 

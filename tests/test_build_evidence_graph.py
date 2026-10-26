@@ -16,6 +16,7 @@ from codex_science.evidence_graph_build import build_evidence_graph
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples/literature-review-reviewed-run"
 CLI = ROOT / "scripts/build_evidence_graph.py"
+_DEFAULT_STEPS = object()
 
 
 class BuildEvidenceGraphTests(unittest.TestCase):
@@ -174,6 +175,76 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         )
         self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
         self.assertEqual("evidence_graph.json", json.loads(proc.stdout)["output"])
+
+
+    def _plan(self, graph, *extra, steps=_DEFAULT_STEPS):
+        steps_path = self.root / "steps.json"
+        if steps is _DEFAULT_STEPS:
+            steps = [{"id": "s1", "consumes": ["study-example-1"], "produces": []}]
+        steps_path.write_text(json.dumps(steps), encoding="utf-8")
+        return subprocess.run([sys.executable, str(ROOT / "scripts/plan_selective_rerun.py"), str(graph), str(steps_path), *extra], capture_output=True, text=True)
+
+    def test_selective_rerun_accepts_built_v1_graph_and_v2_graph(self):
+        build_evidence_graph(self.root)
+        graph_path = self.root / "evidence_graph.json"
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        proc = self._plan(graph_path, "--changed", "study-example-1")
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        self.assertEqual(["s1"], [step["id"] for step in json.loads(proc.stdout)["rerun_steps"]])
+        v2 = self.root / "graph-v2.json"
+        v2.write_text(json.dumps({**graph, "schema_version": 2}), encoding="utf-8")
+        proc2 = self._plan(v2, "--changed", "study-example-1")
+        self.assertEqual(0, proc2.returncode, proc2.stderr)
+        self.assertEqual(proc.stdout, proc2.stdout)
+
+    def test_selective_rerun_rejects_bad_input_without_traceback(self):
+        build_evidence_graph(self.root)
+        graph_path = self.root / "evidence_graph.json"
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        bad = self.root / "bad.json"
+        bad.write_text(json.dumps({**graph, "schema_version": 9}), encoding="utf-8")
+        broken = self.root / "broken.json"
+        broken.write_text("{", encoding="utf-8")
+        cases = [
+            (graph_path, "no-such-node", "no-such-node"),
+            (bad, "study-example-1", "schema_version"),
+            (broken, "study-example-1", "error:"),
+            (self.root / "missing.json", "study-example-1", "error:"),
+        ]
+        for path, changed, expected in cases:
+            proc = self._plan(path, "--changed", changed)
+            self.assertEqual(1, proc.returncode, proc.stderr)
+            self.assertTrue(proc.stderr.startswith("error: "), proc.stderr)
+            self.assertIn(expected, proc.stderr)
+            self.assertNotIn("Traceback", proc.stderr)
+
+        malformed_steps = [None, [None], {"steps": None}, [{"id": "s", "consumes": None}]]
+        for steps in malformed_steps:
+            with self.subTest(steps=steps):
+                proc = self._plan(graph_path, "--changed", "study-example-1", steps=steps)
+                self.assertEqual(1, proc.returncode, proc.stderr)
+                self.assertEqual("", proc.stdout)
+                self.assertTrue(proc.stderr.startswith("error: "), proc.stderr)
+                self.assertNotIn("Traceback", proc.stderr)
+
+        nested = "[" * 10_000 + "null" + "]" * 10_000
+        valid_steps = self.root / "valid-steps.json"
+        valid_steps.write_text(json.dumps([{"id": "s1", "consumes": [], "produces": []}]), encoding="utf-8")
+        nested_graph = self.root / "nested-graph.json"
+        nested_steps = self.root / "nested-steps.json"
+        nested_graph.write_text(nested, encoding="utf-8")
+        nested_steps.write_text(nested, encoding="utf-8")
+        for graph, steps in ((nested_graph, valid_steps), (graph_path, nested_steps)):
+            with self.subTest(graph=graph.name, steps=steps.name):
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/plan_selective_rerun.py"), str(graph), str(steps), "--changed", "study-example-1"],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(1, proc.returncode, proc.stderr)
+                self.assertEqual("", proc.stdout)
+                self.assertTrue(proc.stderr.startswith("error: "), proc.stderr)
+                self.assertNotIn("Traceback", proc.stderr)
 
 
 if __name__ == "__main__":
