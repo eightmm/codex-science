@@ -65,6 +65,8 @@ class WrapperRenderingTests(unittest.TestCase):
         self.assertIn("../../../vendor/scientific-agent-skills/skills/sympy/SKILL.md", wrapper)
         self.assertIn("../../inventory.json", wrapper)
         self.assertIn("$science-provenance", wrapper)
+        self.assertIn('"<plugin-root>/scripts/search_skills.py" --name sympy`', wrapper)
+        self.assertNotIn("Read the matching inventory record", wrapper)
 
     def test_inactive_wrapper_preserves_every_blocking_reason(self) -> None:
         wrapper = render_skill_wrapper(

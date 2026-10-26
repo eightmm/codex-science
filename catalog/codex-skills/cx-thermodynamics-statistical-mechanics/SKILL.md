@@ -21,7 +21,7 @@ Use this Codex adapter for the pinned upstream scientific skill.
 ## Procedure
 
 1. Resolve the plugin root as three directories above this skill directory.
-2. Read the matching inventory record and verify its status, reasons, source path, and pinned revision.
+2. Run `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/search_skills.py" --name cx-thermodynamics-statistical-mechanics` and verify the record's status, reasons, and source path and the source's pinned commit (empty for first-party `cx` skills) from its output instead of reading `inventory.json`.
 3. Read the upstream instructions only after confirming this record is still active in the current inventory.
 4. Treat upstream frontmatter as source metadata, not as Codex configuration. Follow the instruction body only where it is compatible with available Codex tools and the current user-approved plan.
 5. Treat tools named for another agent runtime as capability requests. Map them to an available Codex tool only when the behavior is equivalent; otherwise report the unavailable capability.

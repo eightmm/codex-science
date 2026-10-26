@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `search_skills.py --name NAME` prints the exact inventory record plus its
+  source entry (including the pinned commit); generated wrappers now tell the
+  agent to run it in Procedure step 2 instead of reading `inventory.json`.
+  Exit 1 with a JSON error when no record matches; combining it with a query
+  is a usage error.
 - Recorded run34 (6/6) in the evaluation docs and appended its ledger rows.
 - `build_study_table.py` appends `pmcid:PMC...` to a study's `identifiers` and
   `persistent_ids` when a fetched `fulltext/PMC*.xml` front-matter article-id
