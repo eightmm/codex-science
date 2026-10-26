@@ -40,9 +40,9 @@ Artifact review enforces:
 
 The manifest claim table remains a navigation layer. Mathematical truth status is controlled by `mathematical-claim` and linked receipts, not by prose in a report.
 
-## Acceptance run
+## Acceptance run (maintainer software check)
 
-Run the deterministic end-to-end fixture:
+This is a plugin maintenance check against `examples/quantitative-research`, not part of a research task or its review; it says nothing about a user's run. To review a run, use `validate_artifact.py` on that run's manifest. Maintainers run the deterministic end-to-end fixture:
 
 ```bash
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_quantitative_acceptance.py" \

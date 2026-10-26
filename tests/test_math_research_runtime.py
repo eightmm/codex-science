@@ -1,3 +1,5 @@
+import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -9,12 +11,27 @@ from codex_science.math_contracts import (
     build_mathematical_claim,
     build_proof_receipt,
     math_review_findings,
+    validate_mathematical_claim,
     validate_proof_obligation_graph,
+    validate_proof_receipt,
 )
 from codex_science.safe_expression import ExpressionError, evaluate_expression, search_counterexample
 
 
 class MathResearchRuntimeTests(unittest.TestCase):
+    def test_documented_sidecar_shapes_validate(self) -> None:
+        reference = (
+            Path(__file__).resolve().parents[1]
+            / "authored-skills/proof-and-counterexample/references/proof-counterexample-runtime.md"
+        )
+        section = reference.read_text(encoding="utf-8").split("## Sidecar shapes", 1)[1].split("\n## ", 1)[0]
+        claim, receipt, graph = (json.loads(block) for block in re.findall(r"```json\n(.*?)\n```", section, re.S))
+        validate_mathematical_claim(claim)
+        validate_proof_receipt(receipt)
+        self.assertEqual([], validate_proof_obligation_graph(graph))
+        self.assertEqual(claim["claim_id"], receipt["claim_id"])
+        self.assertEqual(claim["statement_sha256"], receipt["statement_sha256"])
+
     def test_safe_expression_rejects_python_escape_hatches(self) -> None:
         self.assertEqual(7, evaluate_expression("x*2 + 1", {"x": 3}))
         for expression in (

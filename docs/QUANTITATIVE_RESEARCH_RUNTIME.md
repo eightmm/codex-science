@@ -160,6 +160,8 @@ A clean audit means the record is internally complete. It is not a scientific en
 
 ## Deterministic acceptance
 
+This is a maintainer check of the plugin software against the repository example, not a step of a research task or of reviewing a run.
+
 ```bash
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/run_quantitative_acceptance.py" \
   examples/quantitative-research/input.json \

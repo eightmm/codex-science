@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The quantitative acceptance fixture is now described as a plugin maintenance check, not a per-run review step: `science-review` points run review at `validate_artifact.py` on the run's own manifest, and the quantitative-research reference and runtime doc label the fixture as a maintainer check. No behavior change.
+- The proof-and-counterexample reference documents minimal `mathematical-claim`,
+  `proof-receipt` and `proof-obligation-graph` sidecar shapes (checked against the
+  validators by a test), and the `failed-execution` review message says to record an
+  expected-rejection check as a command that exits 0 only when the rejection is
+  observed. Detection, severity and validators are unchanged.
 - Research-cycle event transition errors (`running`, `complete`, `ambiguous`,
   `failure`, `reserve`) keep their message and append the experiment id, its
   current state and request_id, and the event that must come first; the

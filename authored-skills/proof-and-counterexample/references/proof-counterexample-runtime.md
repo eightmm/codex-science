@@ -50,6 +50,62 @@ For induction, include base cases and the step as separate obligations. For equi
 
 A receipt binds the mathematical claim and exact statement SHA-256. `computational-test` supports `tested`, never a general `proved-*` status on its own. Passed receipts cannot contain admitted constructs. Formal receipts require tool, version, and `kernel_checked: true`.
 
+## Sidecar shapes
+
+Minimal valid sidecars; register each under its artifact kind in the run manifest. `statement_sha256` is the SHA-256 hex of the UTF-8 `statement` text with leading and trailing whitespace removed (the validator strips it before hashing). `fingerprint` is optional; when present it must equal the canonical SHA-256 of the object without it. Receipts link to the claim by `claim_id` and `statement_sha256`.
+
+`mathematical-claim` (`status`: `conjecture`, `tested`, `proved-finite`, `proved-deductive`, `proved-formal`, `disproved`, `conditional`, `unavailable`; `proved-*` needs non-empty `assumptions` or `quantifiers`):
+
+```json
+{
+  "schema_version": 1,
+  "claim_id": "C1",
+  "statement": "For every integer n in 0..3, n*n < 10",
+  "statement_sha256": "572f4185c421f2e2886d5271f7757941dc441f3d33e24a640e8f9730eea0da0f",
+  "domain": "integers 0..3",
+  "assumptions": [],
+  "quantifiers": ["for every integer n in 0..3"],
+  "status": "proved-finite",
+  "permitted_inference": "exact finite domain only",
+  "proof_receipt_ids": ["R1"],
+  "counterexample_receipt_ids": [],
+  "limitations": []
+}
+```
+
+`proof-receipt` (`kind`: `informal-deductive`, `formal-kernel`, `finite-exhaustion`, `computational-test`; `status`: `passed`, `failed`, `unavailable`, `blocked`; a passed receipt has no `admitted_constructs`):
+
+```json
+{
+  "schema_version": 1,
+  "receipt_id": "R1",
+  "claim_id": "C1",
+  "statement_sha256": "572f4185c421f2e2886d5271f7757941dc441f3d33e24a640e8f9730eea0da0f",
+  "kind": "finite-exhaustion",
+  "status": "passed",
+  "assumptions": [],
+  "obligation_ids": ["O1"],
+  "checker": {"exhaustive": true},
+  "evidence": [],
+  "axioms": [],
+  "admitted_constructs": [],
+  "limitations": []
+}
+```
+
+`proof-obligation-graph` (obligation `status`: `open`, `passed`, `failed`, `blocked`):
+
+```json
+{
+  "schema_version": 1,
+  "graph_id": "G1",
+  "claim_id": "C1",
+  "obligations": [
+    {"id": "O1", "statement": "n*n < 10 for n = 0, 1, 2, 3", "status": "passed", "dependencies": [], "assumptions": []}
+  ]
+}
+```
+
 ## Counterexample verification
 
 Before accepting a counterexample:
