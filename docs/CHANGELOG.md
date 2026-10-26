@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- docs: record run31 (3/6; both full-tier timeouts followed review findings traced to literature retrieval) in the evaluation notes, roadmap and experiment ledger.
 - fix: `plan_selective_rerun.py` accepts the schema_version 1 `evidence_graph.json` that `build_evidence_graph.py` writes (previously a traceback), rejects `--changed` ids that are not graph nodes and malformed steps, and reports invalid input as `error:` with exit 1.
 - docs: add Status notes to roadmap gaps 3 and 7 naming the evidence-graph relation types and the annotation, resolution, run-diff and selective-rerun tools; their use in real runs is not established.
 - `package_run.py` now says how to create a missing run manifest (copy the science-provenance template), and scripts that report a stale artifact digest name the `package_run.py refresh` command that rehashes it.

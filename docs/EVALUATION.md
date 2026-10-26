@@ -674,6 +674,52 @@ Codex sign-in, which the recorded runs did not set up.
   tool fallback is not expected to change the primary metric, because the
   literature tasks never relied on MCP tools. No improvement trend is claimed.
 
+- Run31 (`ab4146e`, runtime `0.5.0+codex.20261026014000`), 3/6 (95% Wilson
+  interval 18.8%-81.2%). Changes under test since run30 (`3d7b63a`) are
+  `0743b00`, which adds run30 docs and `science_tool.py` docs; `6e80b12`, a
+  README restructure (docs only); and `ab4146e`, which names the recovery steps
+  when a run manifest is missing (copy `manifest.template.json`) and appends a
+  `package_run.py refresh --run-dir=...` hint to "Artifact digest mismatch"
+  errors from eight review and export scripts. standard-mrna stopped with a
+  provider policy block after 432 seconds and counts as a failure; its content
+  is not analysed or reproduced. quick-doi completed in 76 seconds, quick-arxiv
+  in 68 seconds, and standard-single-cell in 802 seconds. full-protein-folding
+  and full-microbiome both reached the 1800-second cap while revising after
+  independent review. Stop reasons are done 3, timeout 2, and
+  provider_policy_block 1. The grader reports `stall_affected_timeouts` 0. No
+  infrastructure failures occurred.
+  Both timeouts followed review findings that trace to the plugin's literature
+  retrieval. In full-protein-folding, the review found 40 Europe PMC abstracts
+  treated as unavailable although the saved raw search responses contained
+  them. `retrieve_literature.py` had run without `--abstracts`, printed
+  `abstract=no` for every row, and refused a re-run with `--abstracts` because
+  the query already existed. In full-microbiome, the review found saved
+  abstracts missing text: the abstract normalization removed everything between
+  a "<" comparison (for example "P < 0.05") and the next ">". Across the saved
+  Europe PMC responses of runs 30-31 and probe set 4, 22 of 469 abstracts were
+  affected.
+  Pre-registered secondary metrics (prediction, then observation):
+  - D1 "Artifact digest mismatch" occurrences: predicted ≤ 1; observed 0. Met.
+  - D2 tasks whose last digest mismatch is not followed by
+    `package_run.py refresh`: predicted 0; observed 0. Met.
+  - G1 invocations of nonexistent manifest-writer scripts: predicted 0;
+    observed 0. Met.
+  - T1 `science_tool.py` usage failures (exit 2): predicted ≤ 1; observed 1 of
+    5 invocations (an unexpected `page_size` argument). Met.
+  - L1 0, C1 0, P2 0, M2 0, P1 0: predicted 0 each; observed 0 each. Met.
+  - M3 strict plugin-source reads: predicted ≤ 3; observed 11, all in
+    full-microbiome while diagnosing the normalization defect. Not met.
+  - M4 failed commands naming plugin scripts, excluding prepare-review:
+    predicted ≤ 4; observed 4. Met.
+  - MCP tool calls: 0 (descriptive); the server-start cause is unchanged.
+  Citation tracing traced 67 of 67 cited identifiers in the three standard and
+  full packages that produced reports; no orphans.
+  Standard-mrna has been blocked by provider policy in 9 of 26 runs (runs
+  6–31).
+  Six tasks and one run cannot establish an effect. `ab4146e` targets rare
+  events (digest mismatch, missing manifest) that did not occur in this run, so
+  it was not exercised. No improvement trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -681,7 +727,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–30 in order, with run16b and
+receipt, then one summary row per run, for runs 6–31 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
