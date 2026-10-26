@@ -343,13 +343,13 @@ trend. At the 1800-second cap, full-tier independent review rounds often do not
 fit. Run14 was the first 6/6; run15 completed every task not blocked by provider
 policy on the same SHA, a small sample. Run16 recorded 3/6; with run16b reruns
 of the two capacity failures, 4/6 tasks completed across the six-task set.
-Standard-mrna was blocked in 10 of 28 runs; run17 completed it for the first
+Standard-mrna was blocked in 10 of 29 runs; run17 completed it for the first
 time since run14 and run18 completed it again, but run19 was blocked again;
 run20, run21, run22, run23, run24, run25, run26, run27, run28, and run29 completed it and were
-not blocked by provider policy; run30 was blocked again; run31 was blocked again; run32 was blocked again; run33 completed it. Run26 recorded 4/6 with both full-tier tasks timing
+not blocked by provider policy; run30 was blocked again; run31 was blocked again; run32 was blocked again; run33 completed it; run34 completed it. Run26 recorded 4/6 with both full-tier tasks timing
 out after a 316-325 s first-response provider stall; run26b reran those two tasks
 on the same SHA and both completed. Run27 recorded 5/6; full-protein-folding timed
-out during its review revision. Run28 recorded 6/6. Run29 recorded 6/6. Run30 recorded 5/6; standard-mrna was blocked by provider policy. Run31 recorded 3/6; both full-tier tasks timed out while revising after review findings traced to literature retrieval. Run32 recorded 4/6; full-protein-folding reached the cap as its independent review passed. Run33 recorded 5/6; full-protein-folding timed out after a 483-second first-response provider stall. These results do not establish a stable gain. Runs 16, 17, 18,
+out during its review revision. Run28 recorded 6/6. Run29 recorded 6/6. Run30 recorded 5/6; standard-mrna was blocked by provider policy. Run31 recorded 3/6; both full-tier tasks timed out while revising after review findings traced to literature retrieval. Run32 recorded 4/6; full-protein-folding reached the cap as its independent review passed. Run33 recorded 5/6; full-protein-folding timed out after a 483-second first-response provider stall. Run34 recorded 6/6. These results do not establish a stable gain. Runs 16, 17, 18,
 19, 20, 21, 22, 23, and 24 differ in SHA; runs 22 and 23 differ only in docs and
 version, and run24 changes CLI help text and the study-extraction format
 description relative to run23.

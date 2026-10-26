@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Recorded run34 (6/6) in the evaluation docs and appended its ledger rows.
 - Support-excerpt length errors (`build_study_table.py`, `build_evidence_graph.py`,
   method landscape) now report the actual length (or type) and tell the agent to
   quote only the verbatim claim-bearing sentences, not the whole abstract; the

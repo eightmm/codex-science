@@ -801,6 +801,40 @@ Codex sign-in, which the recorded runs did not set up.
   in 10 of 28 runs (runs 6–33). Six tasks and one run cannot establish an
   effect. No improvement trend is claimed.
 
+- Run34 (`125df0d`, runtime `0.5.0+codex.20261026020000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%). Changes under test since run33 (`90d8752`) are
+  `a02946a`, which makes `trace_citations.py` and `check_claim_sufficiency.py`
+  write results with `--output` and leave the path untouched on an invalid run,
+  and makes review flag error-object or uninspectable generated artifacts;
+  `0d90fa0`, which makes `retrieve_literature.py` keep an existing differing
+  abstract file and report it instead of aborting; `cba2e1e`, docs only; and
+  `125df0d`, which makes `science_search_arxiv` send arXiv field-syntax queries
+  unchanged and bare arXiv IDs as `id_list` (run31 and run33 quick-arxiv hit
+  HTTP 400 on a `ti:"..."` query). quick-doi completed in 80 seconds,
+  quick-arxiv in 463 seconds, standard-single-cell in 1302 seconds,
+  full-microbiome in 1579 seconds, standard-mrna in 1581 seconds, and
+  full-protein-folding in 1592 seconds. Stop reasons were done 6. No policy
+  blocks, no provider-capacity failures, and no re-runs. quick-arxiv's first
+  model response took 371 seconds (provider latency); the plugin work took about
+  90 seconds, and the `ti:"..."` arXiv query that returned HTTP 400 in run31 and
+  run33 succeeded. The frozen grader (`src-125df0d`) counted completion 6/6 and
+  citations 60 of 69 traced. The nine untraced identifiers are all fulltext file
+  listings in the rendered `index.md` (full-microbiome 5, standard-single-cell
+  2, standard-mrna 2): file paths of fetched open full text whose PMCIDs are not
+  recorded as study identifiers. Plugin-side citation traces over declared
+  reports: 44 of 44. Preregistered secondary metrics (predicted; observed) for
+  the standard and full tiers excluding standard-mrna: A400 arXiv connector
+  HTTP 400 errors: predicted 0; observed 0 (run33: 1 task). Met. EO
+  error-object artifact findings: predicted 0; observed 0. Met. AB
+  differing-abstract aborts: predicted 0; observed 0. Met. Descriptive: O1
+  orientation bytes median 166 KB (protein-folding 166, single-cell 94,
+  microbiome 220; run33 194); O2 host-truncated reads 0 (run33 1); O3
+  `artifact-contract.md` read in 2 tasks, none in single-cell; E1 0; F1 0; P1
+  0. P2 hand-written PubMed fetcher tasks: 0 (regex hits were PubMed URLs
+  written into report markdown). Standard-mrna has been blocked by provider
+  policy in 10 of 29 runs (runs 6–34). Caveat: six tasks and one run; not an
+  effect estimate. Run28 and run29 also recorded 6/6; no trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -808,7 +842,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–33 in order, with run16b and
+receipt, then one summary row per run, for runs 6–34 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
