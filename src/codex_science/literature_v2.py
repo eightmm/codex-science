@@ -130,13 +130,20 @@ def validate_risk_of_bias(payload: dict[str, Any]) -> None:
         raise ValueError("unsupported risk-of-bias schema")
     if not str(payload.get("study_id", "")).strip() or not str(payload.get("instrument", "")).strip():
         message = "risk-of-bias study_id and instrument are required"
-        if not str(payload.get("study_id", "")).strip() and any(
-            isinstance(payload.get(key), list) for key in ("records", "studies")
-        ):
-            message += (
-                "; each risk-of-bias artifact describes one study, so an aggregate "
-                "list of studies needs a different artifact kind"
+        if not str(payload.get("study_id", "")).strip():
+            aggregate = next(
+                (key for key, value in payload.items()
+                 if key != "domains" and isinstance(value, list) and value and all(isinstance(entry, dict) for entry in value)),
+                None,
             )
+            if aggregate is not None:
+                message += (
+                    f"; each risk-of-bias artifact describes one study, so an aggregate list of studies "
+                    f"(`{aggregate}`) needs a different artifact kind: a file is classified risk-of-bias "
+                    "when it is under bias/, or registered with --kind PATH=risk-of-bias or "
+                    "--default-kind risk-of-bias, so give the aggregate a non-risk-of-bias file name "
+                    "outside bias/ or register it with --kind PATH=provenance-record"
+                )
         raise ValueError(message)
     domains = payload.get("domains")
     if not isinstance(domains, list) or not domains:

@@ -541,7 +541,41 @@ def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative:
     return manifest, {"added": [relative], "kind": kind}
 
 
-def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: bool = False, default_kind: str | None = None) -> dict[str, Any]:
+def _forget_artifacts(
+    run_dir: Path, manifest: dict[str, Any], artifacts: list[Any], forget: list[str]
+) -> tuple[list[Any], list[str]]:
+    """Drop manifest entries for deleted or renamed files; refuse anything that could hide a live artifact."""
+    claim_evidence = {
+        _canonical_relative(str(ref))
+        for claim in manifest.get("claims", []) if isinstance(claim, dict)
+        for ref in (claim.get("evidence") if isinstance(claim.get("evidence"), list) else [])
+        if isinstance(ref, str) and ref.strip()
+    }
+    by_canonical = {
+        _canonical_relative(str(item["path"])): item
+        for item in artifacts if isinstance(item, dict) and item.get("path")
+    }
+    forgotten: list[str] = []
+    for raw in forget:
+        canonical = _canonical_relative(raw)
+        if canonical in forgotten:
+            continue
+        if canonical not in by_canonical:
+            raise ValueError(f"--forget {raw} is not a manifest artifact (already forgotten, or the path differs from the manifest path)")
+        target = _inside(run_dir, canonical)
+        if target.exists() or target.is_symlink():
+            raise ValueError(f"--forget {raw} refused: the file still exists; delete or rename it first, or drop --forget")
+        if canonical in claim_evidence:
+            raise ValueError(f"--forget {raw} refused: a manifest claim lists it as evidence; point the claim at the replacement file first")
+        forgotten.append(canonical)
+    return [
+        item for item in artifacts
+        if not (isinstance(item, dict) and item.get("path") and _canonical_relative(str(item["path"])) in forgotten)
+    ], forgotten
+
+
+def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: bool = False, default_kind: str | None = None,
+            forget: list[str] | None = None) -> dict[str, Any]:
     manifest_path = _write_target(run_dir, "manifest.json")
     if not manifest_path.is_file():
         raise ValueError(_missing_manifest_message(manifest_path))
@@ -606,6 +640,11 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
                     "exclude the review files from the directory artifact; no files were changed"
                 )
 
+    forgotten: list[str] = []
+    if forget:
+        artifacts, forgotten = _forget_artifacts(run_dir, manifest, artifacts, forget)
+        manifest["artifacts"] = artifacts
+
     lanes_updated = 0
     lane_updates: list[tuple[str, bytes]] = []
     lanes_dir = run_dir / "lanes"
@@ -653,7 +692,10 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         canonical = _canonical_relative(relative)
         target = _inside(run_dir, relative)
         if not target.is_file() and item.get("artifact_type") != "directory-tree":
-            raise ValueError(f"Artifact file is missing: {relative}")
+            raise ValueError(
+                f"Artifact file is missing: {relative}; restore the file, or if it was renamed or deleted "
+                f"on purpose, rerun package_run.py refresh --forget {relative}"
+            )
         if item.get("artifact_type") == "directory-tree":
             descriptor = describe_directory(target, media_type=item.get("media_type"))
             digest = descriptor.root_sha256
@@ -804,7 +846,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         path.relative_to(run_dir).as_posix() for path in deterministic_files
         if _canonical_relative(path.relative_to(run_dir).as_posix()) not in archived_deterministic
     ]
-    return {"added": added, "rehashed_changed": changed,
+    return {"added": added, "forgotten": forgotten, "rehashed_changed": changed,
             "unchanged_count": unchanged, "lanes_updated": lanes_updated, "executions_added": executions_added,
             "code_entries": len(manifest["code"]), "review_archive": review_archive,
             "superseded_failures": superseded_failures,
@@ -816,6 +858,7 @@ def prepare_review(
     questions: list[str] | None = None, new_round: bool = False,
     kind_overrides: list[tuple[str, str]] | None = None,
     default_kind: str | None = None,
+    forget: list[str] | None = None,
 ) -> dict[str, Any]:
     """Refresh, record existing checks, refresh their outputs, and build a packet."""
     from codex_science.reviewer_runtime import build_review_packet
@@ -878,6 +921,7 @@ def prepare_review(
                 refresh_kinds,
                 invalidate_review=new_round,
                 default_kind=default_kind,
+                forget=forget,
             )
         outputs.append("manifest.json")
     except (OSError, ValueError, json.JSONDecodeError) as error:

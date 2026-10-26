@@ -44,6 +44,9 @@ def main() -> int:
                         help="artifact kind for files that match no --kind and no built-in name rule (without it, such unregistered files make the command fail)")
     update.add_argument("--invalidate-review", action="store_true",
                         help="archive prior review files and reset review to pending; required when the run already has review evidence")
+    update.add_argument("--forget", action="append", default=[], metavar="PATH",
+                        help="remove the manifest entry for a file that was renamed or deleted on purpose (run-relative PATH); "
+                        "refused if the file still exists, is not a manifest artifact, or is listed as claim evidence; repeatable")
     update.add_argument("--register-receipt", metavar="PATH",
                         help="register a passed review receipt (run-relative path) instead of refreshing; cannot be combined with other refresh options")
     ready = commands.add_parser("prepare-review", help="run deterministic gates and build an independent review packet")
@@ -60,6 +63,8 @@ def main() -> int:
                        help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable")
     ready.add_argument("--default-kind",
                        help="artifact kind for files that match no --kind and no built-in name rule (without it, such unregistered files make the command fail)")
+    ready.add_argument("--forget", action="append", default=[], metavar="PATH",
+                       help="remove the manifest entry for a file that was renamed or deleted on purpose (applies to the first refresh); repeatable")
     args = parser.parse_args()
     try:
         if args.action == "exec":
@@ -71,19 +76,20 @@ def main() -> int:
             summary = prepare_review(args.run_dir, tier=args.tier, modes=args.mode,
                                      questions=args.question, new_round=args.new_round,
                                      kind_overrides=parse_kind_overrides(args.kind),
-                                     default_kind=args.default_kind)
+                                     default_kind=args.default_kind, forget=args.forget)
             print(json.dumps(summary, sort_keys=True))
             return 0 if "review-task.json" in summary["outputs_written"] else 1
         overrides = parse_kind_overrides(args.kind)
         if args.register_receipt:
             given = (["--kind"] if overrides else []) + (["--default-kind"] if args.default_kind else []) \
+                + (["--forget"] if args.forget else []) \
                 + (["--invalidate-review"] if args.invalidate_review else [])
             if given:
                 raise ValueError(f"--register-receipt cannot be combined with refresh options ({', '.join(given)}); "
                                  "rerun with only --run-dir and --register-receipt")
             summary = register_receipt(args.run_dir, args.register_receipt)
         else:
-            summary = refresh(args.run_dir, overrides, args.invalidate_review, args.default_kind)
+            summary = refresh(args.run_dir, overrides, args.invalidate_review, args.default_kind, args.forget)
         print(json.dumps(summary, sort_keys=True))
     except (OSError, ValueError, json.JSONDecodeError) as error:
         suffix = "; no files were changed" if args.action == "refresh" else ""

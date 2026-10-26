@@ -283,6 +283,61 @@ class PackageRunTests(unittest.TestCase):
         helped = self.cli("exec", "--help")
         self.assertIn("unique within the run", " ".join(helped.stdout.split()))
 
+    def test_refresh_forget_removes_entry_of_deleted_file_and_refuses_unsafe_paths(self) -> None:
+        self._make_unreviewed_run()
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifacts"].append({"path": "risk-of-bias.json", "kind": "provenance-record",
+                                      "sha256": "0" * 64})
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        (self.run_dir / "risk-of-bias.json").write_text("{}\n")
+        base = ("refresh", "--run-dir", str(self.run_dir))
+        (self.run_dir / "risk-of-bias.json").rename(self.run_dir / "bias-summary.json")
+        missing = self.cli(*base, "--default-kind", "provenance-record")
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("Artifact file is missing: risk-of-bias.json", missing.stderr)
+        self.assertIn("refresh --forget risk-of-bias.json", missing.stderr)
+        before = manifest_path.read_bytes()
+        for forget, message in (("nope.json", "is not a manifest artifact"),
+                                ("report.md", "the file still exists")):
+            result = self.cli(*base, "--forget", forget, "--default-kind", "provenance-record")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(message, result.stderr)
+            self.assertIn("no files were changed", result.stderr)
+            self.assertEqual(manifest_path.read_bytes(), before)
+        manifest["claims"][0]["evidence"].append("risk-of-bias.json")
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        before = manifest_path.read_bytes()
+        result = self.cli(*base, "--forget", "risk-of-bias.json", "--default-kind", "provenance-record")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("a manifest claim lists it as evidence", result.stderr)
+        self.assertEqual(manifest_path.read_bytes(), before)
+        manifest["claims"][0]["evidence"].remove("risk-of-bias.json")
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        result = self.cli(*base, "--forget", "risk-of-bias.json", "--forget", "risk-of-bias.json",
+                          "--default-kind", "provenance-record")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["forgotten"], ["risk-of-bias.json"])
+        self.assertIn("bias-summary.json", summary["added"])
+        paths = [item["path"] for item in json.loads(manifest_path.read_text())["artifacts"]]
+        self.assertNotIn("risk-of-bias.json", paths)
+        self.assertEqual(json.loads(self.cli(*base).stdout)["forgotten"], [])
+        combined = self.cli(*base, "--forget", "x", "--register-receipt", "review.json")
+        self.assertEqual(combined.returncode, 1)
+        self.assertIn("--forget", combined.stderr)
+
+    def test_prepare_review_forwards_forget_to_first_refresh(self) -> None:
+        self._make_unreviewed_run()
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifacts"].append({"path": "gone.json", "kind": "provenance-record", "sha256": "0" * 64})
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        result = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick", "--forget", "gone.json")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        paths = [item["path"] for item in json.loads(manifest_path.read_text())["artifacts"]]
+        self.assertNotIn("gone.json", paths)
+
     def test_refresh_hashes_and_invalidates_review(self) -> None:
         (self.run_dir / "report.md").write_text("changed\n")
         result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")

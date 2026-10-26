@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `package_run.py refresh --forget PATH` (repeatable; `prepare-review` forwards it to its
+  first refresh) removes the manifest entry of an artifact that was renamed or deleted on
+  purpose, instead of hand-editing `manifest.json`; it refuses a file that still exists, a
+  path that is not a manifest artifact, and claim evidence, and the refresh JSON gains a
+  `forgotten` list. The "Artifact file is missing" refresh error names `--forget`, and the
+  risk-of-bias aggregate hint now fires for any top-level list of objects (such as
+  `assessments`) and explains how to avoid the risk-of-bias classification.
 - The quantitative acceptance fixture is now described as a plugin maintenance check, not a per-run review step: `science-review` points run review at `validate_artifact.py` on the run's own manifest, and the quantitative-research reference and runtime doc label the fixture as a maintainer check. No behavior change.
 - The proof-and-counterexample reference documents minimal `mathematical-claim`,
   `proof-receipt` and `proof-obligation-graph` sidecar shapes (checked against the

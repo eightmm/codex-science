@@ -97,6 +97,11 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         aggregate = {"schema_version": 1, "records": [{"study_id": "s1"}]}
         with self.assertRaisesRegex(ValueError, r"^risk-of-bias study_id and instrument are required.*one study"):
             validate_risk_of_bias(aggregate)
+        with self.assertRaisesRegex(ValueError, r"one study.*`assessments`.*--kind PATH=provenance-record"):
+            validate_risk_of_bias({"schema_version": 1, "assessments": [{"study_id": "s1", "instrument": "RoB 2"}]})
+        with self.assertRaises(ValueError) as lone:
+            validate_risk_of_bias({"schema_version": 1, "domains": [{"name": "d"}], "assessments": []})
+        self.assertEqual("risk-of-bias study_id and instrument are required", str(lone.exception))
         with self.assertRaises(ValueError) as plain:
             validate_risk_of_bias({"schema_version": 1})
         self.assertEqual("risk-of-bias study_id and instrument are required", str(plain.exception))
