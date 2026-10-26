@@ -392,6 +392,18 @@ def _validate_genesis(cycle: Mapping[str, Any]) -> None:
             raise ValueError("genesis experiments must be planned and unobserved")
 
 
+def _transition_hint(exp: Mapping[str, Any], request_id: str, prior: str | None) -> str:
+    held = exp.get("request_id")
+    state = f"experiment {exp['id']} is {exp['state']} ({'request_id ' + repr(held) if held else 'no request_id'})"
+    if prior is None:
+        return f": {state}; a reserve event is only valid for a planned experiment"
+    if held and held != request_id:
+        return f": {state}; use that request_id, not {request_id!r}"
+    if exp["state"] == {"reserve": "planned", "running": "reserved"}[prior]:
+        return f": {state}; record a {prior} event with request_id {request_id!r} first"
+    return f": {state}; it accepts no further transitions" if exp["state"] in {"completed", "failed"} else f": {state}"
+
+
 def apply_cycle_event(cycle: Mapping[str, Any], event: Mapping[str, Any], run_dir: Path | str | None = None) -> dict[str, Any]:
     validate_cycle(cycle, run_dir)
     result = copy.deepcopy(dict(cycle))
@@ -421,7 +433,7 @@ def apply_cycle_event(cycle: Mapping[str, Any], event: Mapping[str, Any], run_di
         if kind == "reserve":
             if exp.get("request_id") == request_id:
                 return result
-            if exp["state"] != "planned": raise ValueError("only planned experiments can be reserved")
+            if exp["state"] != "planned": raise ValueError("only planned experiments can be reserved" + _transition_hint(exp, request_id, None))
             method = next(item for item in result["methods"] if item["id"] == exp["method_id"])
             if not method.get("code_refs"):
                 raise ValueError("experiment reservation requires code refs")
@@ -434,13 +446,13 @@ def apply_cycle_event(cycle: Mapping[str, Any], event: Mapping[str, Any], run_di
                     raise ValueError("reservation requires a complete problem and computational method design")
             exp["state"] = "reserved"; exp["request_id"] = request_id
         elif kind == "running":
-            if exp["state"] != "reserved" or exp.get("request_id") != request_id: raise ValueError("only matching reservations can run")
+            if exp["state"] != "reserved" or exp.get("request_id") != request_id: raise ValueError("only matching reservations can run" + _transition_hint(exp, request_id, "reserve"))
             exp["state"] = "running"
         elif kind == "ambiguous":
-            if exp["state"] not in {"reserved", "running", "ambiguous"} or exp.get("request_id") != request_id: raise ValueError("ambiguous submission requires reservation")
+            if exp["state"] not in {"reserved", "running", "ambiguous"} or exp.get("request_id") != request_id: raise ValueError("ambiguous submission requires reservation" + _transition_hint(exp, request_id, "reserve"))
             exp["state"] = "ambiguous"
         elif kind == "complete":
-            if exp["state"] not in {"running", "ambiguous"} or exp.get("request_id") != request_id: raise ValueError("only matching running experiments can complete")
+            if exp["state"] not in {"running", "ambiguous"} or exp.get("request_id") != request_id: raise ValueError("only matching running experiments can complete" + _transition_hint(exp, request_id, "running"))
             observations = _observations(event.get("observations"), Path(run_dir) if run_dir else None)
             pointer = result["evaluation"]["primary_metric"].get("json_pointer")
             if pointer is not None and any(item["json_pointer"] != pointer for item in observations):
@@ -458,7 +470,7 @@ def apply_cycle_event(cycle: Mapping[str, Any], event: Mapping[str, Any], run_di
             exp.update({"state": "completed", "outcome": _text(event.get("outcome"), "event outcome"), "evidence_refs": [x["artifact_ref"] for x in observations], "observations": observations, "method_effect": effect, "explanation_support": support, "verification": "pending", "novelty": "unassessed"})
             exp["execution_refs"] = execution_refs
         else:
-            if exp["state"] not in {"reserved", "running", "ambiguous"} or exp.get("request_id") != request_id: raise ValueError("failure requires reservation")
+            if exp["state"] not in {"reserved", "running", "ambiguous"} or exp.get("request_id") != request_id: raise ValueError("failure requires reservation" + _transition_hint(exp, request_id, "reserve"))
             exp["state"] = "failed"; exp["failure_kind"] = event.get("failure_kind"); exp["outcome"] = _text(event.get("outcome"), "event outcome")
             if "evidence_refs" in event:
                 exp["evidence_refs"] = _refs(event["evidence_refs"], "failure evidence_refs", Path(run_dir) if run_dir else None)

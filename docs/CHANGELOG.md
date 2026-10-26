@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Research-cycle event transition errors (`running`, `complete`, `ambiguous`,
+  `failure`, `reserve`) keep their message and append the experiment id, its
+  current state and request_id, and the event that must come first; the
+  research-discovery skill names `science_project.py discovery init|event|plan|next`
+  and the reserve -> running -> complete order. Transition rules are unchanged.
 - Discovery design enum errors (method design operator, assumption category and
   status) now name the bad value and the accepted tokens; "research cycle is
   missing" points to `discovery init`; the research-discovery skill lists the

@@ -45,7 +45,10 @@ probabilities.
    representation, objective, assumptions, data/tensor flow,
    invariants, complexity, code location, and falsifier. Initialize material work
    with `discovery init --require-design`; run `discovery audit` before
-   reservation. Missing design, code identity, or evidence means next step, not
+   reservation. Record the cycle with `"<plugin-root>/scripts/python_runtime.sh"
+   "<plugin-root>/scripts/science_project.py" discovery init|event|plan|next ...`
+   (`--help` lists the rest); experiment events go in order `reserve`,
+   `running`, `complete` with the same `request_id`. Missing design, code identity, or evidence means next step, not
    completion. Alongside this operator path, name the capability gap behind the
    bottleneck and retrieve literature with broad capability and narrow
    mechanism queries: use `"<plugin-root>/scripts/python_runtime.sh"

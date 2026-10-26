@@ -52,6 +52,28 @@ class ResearchCycleTests(unittest.TestCase):
             self.assertEqual("failed", failed["experiments"][0]["state"])
             self.assertNotIn("explanation_support", failed["experiments"][0])
 
+    def test_transition_errors_name_experiment_state_and_required_prior_event(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); cycle = self.make_cycle(root)
+            reserved = apply_cycle_event(cycle, {"kind": "reserve", "experiment_id": "e", "request_id": "r"})
+            with self.assertRaisesRegex(ValueError, r"only matching running experiments can complete: experiment e is reserved \(request_id 'r'\); record a running event with request_id 'r' first"):
+                apply_cycle_event(reserved, {"kind": "complete", "experiment_id": "e", "request_id": "r"})
+            with self.assertRaisesRegex(ValueError, r"only matching reservations can run: experiment e is reserved \(request_id 'r'\); use that request_id, not 'x'"):
+                apply_cycle_event(reserved, {"kind": "running", "experiment_id": "e", "request_id": "x"})
+            with self.assertRaisesRegex(ValueError, r"only matching reservations can run: experiment e is planned \(no request_id\); record a reserve event"):
+                apply_cycle_event(cycle, {"kind": "running", "experiment_id": "e", "request_id": "r"})
+            with self.assertRaisesRegex(ValueError, r"only planned experiments can be reserved: experiment e is reserved \(request_id 'r'\)"):
+                apply_cycle_event(reserved, {"kind": "reserve", "experiment_id": "e", "request_id": "y"})
+            running = apply_cycle_event(reserved, {"kind": "running", "experiment_id": "e", "request_id": "r"})
+            with self.assertRaises(ValueError) as caught:
+                apply_cycle_event(running, {"kind": "reserve", "experiment_id": "e", "request_id": "y"})
+            self.assertNotIn("first", str(caught.exception))
+            done = apply_cycle_event(running, self.completion_event(root, running), root)
+            with self.assertRaises(ValueError) as caught:
+                apply_cycle_event(done, {"kind": "failure", "experiment_id": "e", "request_id": "r", "outcome": "late"}, root)
+            self.assertRegex(str(caught.exception), r"experiment e is completed \(request_id 'r'\); it accepts no further transitions$")
+            self.assertNotIn("first", str(caught.exception))
+
     def test_saved_transition_rejects_stale_parent(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); original = self.make_cycle(root); save_cycle(original, root)
