@@ -92,6 +92,28 @@ class SaturationTests(unittest.TestCase):
         self.assertEqual(error["error"]["code"], "invalid_request")
         self.assertIn("message", error["error"])
 
+    def test_cli_output_file(self):
+        env = dict(os.environ)
+        env.pop("PYTHONPATH", None)
+        payload = json.dumps({"schema": "saturation-log-v1", "hard_cap": 500, "checkpoints": curve()})
+        script = ROOT / "scripts" / "estimate_saturation.py"
+        with tempfile.TemporaryDirectory() as cwd:
+            target = Path(cwd) / "sub" / "out.json"
+            proc = subprocess.run([sys.executable, str(script), "--input", "-", "--output", str(target)],
+                                  input=payload, text=True, capture_output=True, env=env, cwd=cwd)
+            self.assertEqual(proc.returncode, 0)
+            self.assertEqual(json.loads(target.read_text(encoding="utf-8")), json.loads(proc.stdout))
+            target.write_text("keep", encoding="utf-8")
+            proc = subprocess.run([sys.executable, str(script), "--input", "-", "--output", str(target)],
+                                  input="{", text=True, capture_output=True, env=env, cwd=cwd)
+            self.assertEqual(proc.returncode, 2)
+            self.assertEqual(json.loads(proc.stdout)["error"]["code"], "invalid_request")
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+            proc = subprocess.run([sys.executable, str(script), "--input", "-", "--output", cwd],
+                                  input=payload, text=True, capture_output=True, env=env, cwd=cwd)
+            self.assertEqual(proc.returncode, 2)
+            self.assertEqual(json.loads(proc.stdout)["error"]["code"], "output_write_failed")
+
     def test_cli_rejects_absurd_evaluated_count(self):
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)

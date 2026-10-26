@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `estimate_saturation.py --output PATH` also writes the result JSON atomically,
+  like `trace_citations.py`; stdout, schemas and exit codes are unchanged and
+  the path is left untouched on error.
 - Bundle validation errors now name the failing artifact (`path (kind): ...`);
   a risk-of-bias aggregate (`records`/`studies` list) gets a one-study-per-artifact
   hint, and the missing-evidence finding names the claim and says evidence
