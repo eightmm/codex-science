@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- docs: add Status notes to roadmap gaps 3 and 7 naming the evidence-graph relation types and the annotation, resolution, run-diff and selective-rerun tools; their use in real runs is not established.
 - `package_run.py` now says how to create a missing run manifest (copy the science-provenance template), and scripts that report a stale artifact digest name the `package_run.py refresh` command that rehashes it.
 - Reorganized the English and Korean READMEs around install, usage, updates, troubleshooting, catalog, and evaluation status; moved activation-identity and update-classification internals to `docs/CHECKPOINTS.md` and `docs/SETUP.md`.
 - Documented `scripts/science_tool.py`, the command-line route to the bundled read-only MCP tools, in the README and the life-science sources guide.
