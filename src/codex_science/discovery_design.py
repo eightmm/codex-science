@@ -21,6 +21,10 @@ OPERATORS = {
 }
 
 
+def _invalid(label: str, value: Any, allowed: set[str]) -> ValueError:
+    return ValueError(f"{label} is invalid: {value!r} (expected one of: {', '.join(sorted(allowed))})")
+
+
 def _object(value: Any, field: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{field} must be an object")
@@ -60,9 +64,9 @@ def _assumptions(problem: Mapping[str, Any], root: Path | None) -> set[str]:
         identifiers.add(identifier)
         _text(item.get("statement"), "problem assumption statement")
         if item.get("category") not in ASSUMPTION_CATEGORIES:
-            raise ValueError("problem assumption category is invalid")
+            raise _invalid("problem assumption category", item.get("category"), ASSUMPTION_CATEGORIES)
         if item.get("status") not in ASSUMPTION_STATUSES:
-            raise ValueError("problem assumption status is invalid")
+            raise _invalid("problem assumption status", item.get("status"), ASSUMPTION_STATUSES)
         if item.get("status") == "tested" and "evidence_refs" not in item:
             raise ValueError("tested problem assumption requires evidence_refs")
         if "evidence_refs" in item:
@@ -97,7 +101,7 @@ def _method_design(
     if "assumption_ids" in design:
         _id_list(design["assumption_ids"], "method design assumption_ids", assumptions)
     if "operator" in design and design["operator"] not in OPERATORS:
-        raise ValueError("method design operator is invalid")
+        raise _invalid("method design operator", design["operator"], OPERATORS)
     for key in ("inputs", "outputs", "computation", "complexity", "applicability", "predictions", "baseline_difference"):
         if key in design:
             _text(design[key], f"method design {key}")

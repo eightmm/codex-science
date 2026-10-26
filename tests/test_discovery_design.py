@@ -111,7 +111,19 @@ class DiscoveryDesignTests(unittest.TestCase):
             cycle = self.designed(Path(temporary))
             broken = copy.deepcopy(cycle)
             broken["problem"]["assumptions"][0]["category"] = "architecture"
-            with self.assertRaisesRegex(ValueError, "category"):
+            with self.assertRaisesRegex(ValueError, r"category is invalid: 'architecture' \(expected one of: data, evaluation,"):
+                validate_design(broken, temporary)
+            broken = copy.deepcopy(cycle)
+            broken["problem"]["assumptions"][0]["status"] = "guess"
+            with self.assertRaisesRegex(ValueError, r"status is invalid: 'guess' \(expected one of: inherited, tested, untested\)"):
+                validate_design(broken, temporary)
+            broken = copy.deepcopy(cycle)
+            broken["methods"][0]["design"]["operator"] = "compute_restructuring"
+            with self.assertRaisesRegex(
+                ValueError,
+                r"operator is invalid: 'compute_restructuring' \(expected one of: assumption, computation, "
+                r"conditioning, objective, representation, transfer\)",
+            ):
                 validate_design(broken, temporary)
             broken = copy.deepcopy(cycle)
             broken["problem"]["assumptions"][0]["evidence_refs"] = [{"path": "../escape", "sha256": "0" * 64}]

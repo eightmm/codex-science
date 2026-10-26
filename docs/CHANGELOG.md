@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Discovery design enum errors (method design operator, assumption category and
+  status) now name the bad value and the accepted tokens; "research cycle is
+  missing" points to `discovery init`; the research-discovery skill lists the
+  exact `design.operator` tokens. Validation rules are unchanged.
 - Deterministic decision-analysis review no longer emits findings for the computational
   statuses `decision-sensitive` and `multiple-optima` (they stay in the receipt and report),
   so a correct sensitivity analysis can clear `--require-passed-review`.

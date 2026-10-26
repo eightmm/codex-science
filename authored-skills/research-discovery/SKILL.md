@@ -37,7 +37,9 @@ probabilities.
 4. Generate candidate methods using only operators justified by the bottleneck:
    change the representation, remove or relax an assumption, redefine the
    objective, condition the method on an observable regime, restructure
-   computation, or map a precise formalism from another domain. “Use a
+   computation, or map a precise formalism from another domain (exact
+   `design.operator` tokens: representation, assumption, objective,
+   conditioning, computation, transfer). “Use a
    transformer/graph/gate” is not a method until the operator, data path,
    invariant, cost, and falsifier are specified. Specify candidate
    representation, objective, assumptions, data/tensor flow,

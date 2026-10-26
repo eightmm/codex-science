@@ -38,6 +38,11 @@ class ResearchCycleTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "lineage|hash"):
                 load_cycle(root)
 
+    def test_missing_cycle_error_names_discovery_init(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, r"research cycle is missing; create it with .*discovery init --run-dir RUN --input GENESIS"):
+                load_cycle(Path(temporary))
+
     def test_reservation_failure_retains_budget_and_execution_failure_does_not_refute(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); cycle = self.make_cycle(root)

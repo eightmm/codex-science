@@ -568,7 +568,7 @@ def load_cycle(run_dir: Path | str) -> dict[str, Any]:
         raise ValueError("revision directory may not be symlink")
     files = sorted(directory.glob("*.json"))
     if not files:
-        raise ValueError("research cycle is missing")
+        raise ValueError("research cycle is missing; create it with `science_project.py discovery init --run-dir RUN --input GENESIS`")
     cycles = []
     for index, path in enumerate(files, 1):
         if path.name != f"{index:06d}.json":

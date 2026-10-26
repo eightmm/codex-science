@@ -1340,7 +1340,7 @@
     {
       "description": "Guide new-method development or an unexplained scientific bottleneck from observed failure through competing explanations, falsifiable predictions, a concrete method, the smallest discriminating experiment, and evidence-driven revision. Do not use for routine retrieval, reproduction, or a fixed analysis whose method is already specified.",
       "executable_count": 0,
-      "instruction_line_count": 116,
+      "instruction_line_count": 118,
       "license": "MIT",
       "name": "cx-research-discovery",
       "path": "authored-skills/research-discovery",
