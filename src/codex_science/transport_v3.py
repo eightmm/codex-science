@@ -12,21 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Protocol
 
+from codex_science.version import PACKAGE_VERSION
 from codex_science.connector_contract import QueryRequest, sha256_json
 
 SECRET_KEYS = {"authorization", "proxy-authorization", "x-api-key", "api-key", "token", "key"}
-TERMINAL_STATUSES = {
-    "complete",
-    "bounded-by-user",
-    "negative",
-    "filtered-empty",
-    "partial-next-cursor",
-    "partial-rate-limit",
-    "source-unavailable",
-    "authentication-required",
-    "schema-drift",
-    "normalization-failed",
-}
 
 
 def _now() -> str:
@@ -88,7 +77,7 @@ class TransportPolicy:
     max_attempts: int = 3
     backoff_seconds: tuple[float, ...] = (0.0, 0.5, 1.5)
     max_response_bytes: int = 50 * 1024 * 1024
-    user_agent: str = "codex-science/0.4 (+https://github.com/eightmm/codex-science)"
+    user_agent: str = f"codex-science/{PACKAGE_VERSION} (+https://github.com/eightmm/codex-science)"
 
     def validate(self) -> None:
         if self.timeout_seconds <= 0 or self.max_attempts < 1 or self.max_response_bytes < 1:

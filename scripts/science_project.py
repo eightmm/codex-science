@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
@@ -379,7 +380,7 @@ def main() -> int:
         parser.error("--database is required for project store commands")
     try:
         args.handler(args)
-    except (OSError, ValueError, sqlite3.Error if False else ValueError) as error:  # type: ignore[misc]
+    except (OSError, ValueError, sqlite3.Error) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0

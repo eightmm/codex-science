@@ -179,13 +179,6 @@ def _activation_lock(path: Path, timeout: float = 10.0) -> Iterator[None]:
             handle.close()
 
 
-def write_activation_generation(path: Path, generation: str) -> None:
-    """Atomically persist only the activation generation."""
-    if not GENERATION_PATTERN.fullmatch(generation):
-        raise ValueError("generation must be a 64-character lowercase hex token")
-    _atomic_state(path, {"schema_version": 1, "generation": generation})
-
-
 def claim_activation(path: Path, runtime_pin: RuntimePin | None) -> ActivationState:
     """Create one activation generation atomically, preserving a racing winner."""
 

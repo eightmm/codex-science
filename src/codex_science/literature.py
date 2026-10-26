@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
-from collections import defaultdict
 from typing import Any
 
 
@@ -71,36 +69,6 @@ def study_key(study: dict[str, Any]) -> str:
             return normalized[0]
     persistent_id = normalize_persistent_id(str(study.get("persistent_id", "")))
     return persistent_id or _fallback_study_key(study)
-
-
-def deduplicate_studies(
-    studies: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Return canonical studies plus explicit duplicate groups.
-
-    The first record is retained as canonical; callers must preserve the duplicate
-    group rather than silently dropping study provenance.
-    """
-
-    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for study in studies:
-        if not isinstance(study, dict):
-            raise ValueError("Study records must be objects")
-        grouped[study_key(study)].append(study)
-
-    canonical: list[dict[str, Any]] = []
-    duplicates: list[dict[str, Any]] = []
-    for key in sorted(grouped):
-        group = grouped[key]
-        canonical.append(group[0])
-        if len(group) > 1:
-            duplicates.append(
-                {
-                    "canonical_key": key,
-                    "study_ids": [str(record.get("study_id", "")) for record in group],
-                }
-            )
-    return canonical, duplicates
 
 
 def validate_review_snapshot(snapshot: dict[str, Any]) -> None:
@@ -206,8 +174,3 @@ def diff_review_snapshots(
             "changed": _changed_records(previous_claims, current_claims),
         },
     }
-
-
-def canonical_json_sha256(payload: dict[str, Any]) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()

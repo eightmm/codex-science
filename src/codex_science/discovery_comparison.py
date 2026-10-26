@@ -25,7 +25,6 @@ def _canon(value):
 def _digest(value): return hashlib.sha256(_canon(value)).hexdigest()
 def _finite(value): return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
 def _err(errors, code, message): errors.append({"code": code, "message": message})
-def _meaningful(value): return value not in (None, "", [], {})
 def _frozen_contract(contract): return {k: v for k, v in contract.items() if k != "contract_digest"}
 
 def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, Any]], root: Path) -> dict[str, Any]:

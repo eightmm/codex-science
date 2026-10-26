@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Removed unused code and files: the unreferenced `query_source_v3.py` and
+  `replay_source_v3.py` scripts, never-called helpers and constants, the
+  not-applicable `MODEL`, `TRAINING` and `BENCHMARKS` stub docs, and committed
+  agent-harness session state. Local agent instruction files (`AGENTS.md`,
+  `CLAUDE.md`, `PROJECT.md`) are no longer published. Example approver names
+  are placeholders, and the package author email is a GitHub noreply address.
+- `science_project.py` now reports SQLite errors as `error:` lines instead of
+  tracebacks; the HTTP User-Agent and `__version__` follow the package version.
+- The provenance skill maps each sidecar kind to the example file that shows
+  its shape (for example `claims.json` is the `claim-register`).
+
 - fix: MCP and `science_tool.py` "Unexpected arguments" errors name the accepted arguments (search tools: `query, limit (1-10)`).
 - fix: saved EuropePMC abstracts keep text around `<` comparisons; only markup tags are stripped (in recorded runs 30-31 and probe4, 22 of 469 abstracts had lost text).
 - feat: re-running an existing EuropePMC `retrieve_literature.py` query with `--abstracts` writes abstracts from the digest-checked saved snapshot without another fetch; rows print `abstract=not-requested` when abstracts were not requested.

@@ -106,6 +106,19 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             self.assertNotEqual(0, legacy.returncode)
             self.assertIn("--database is required", legacy.stderr)
 
+    def test_cli_handles_sqlite_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            command = [sys.executable, str(ROOT / "scripts/science_project.py")]
+            result = subprocess.run(
+                command + ["--database", tmp,
+                          "init", "--project-id", "p", "--title", "Title", "--question", "Question",
+                          "--output", str(Path(tmp) / "result.json")],
+                text=True, capture_output=True,
+            )
+            self.assertEqual(1, result.returncode)
+            self.assertIn("error:", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_finite_decision_requires_recorded_assumptions_and_does_not_change_cycle(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "run"

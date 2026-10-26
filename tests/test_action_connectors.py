@@ -62,7 +62,7 @@ class ActionConnectorTests(unittest.TestCase):
         self.assertFalse(preview["executed"])
         approval = build_action_approval(
             preview,
-            approved_by="jaemin",
+            approved_by="reviewer",
             approved_scopes=["sample:read", "sample:write"],
             approved_at="2026-07-21T00:01:00Z",
         )
@@ -92,7 +92,7 @@ class ActionConnectorTests(unittest.TestCase):
             ledger = ActionLedger(Path(tempdir) / "actions.sqlite")
             with self.assertRaisesRegex(ValueError, "requires explicit approval"):
                 execute_action(adapter, spec, preview, approval=None, ledger=ledger)
-            approval = build_action_approval(preview, approved_by="jaemin", approved_scopes=["sample:read", "sample:write"])
+            approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=["sample:read", "sample:write"])
             adapter.state["version"] = 2
             with self.assertRaisesRegex(ValueError, "changed after preview"):
                 execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
@@ -102,14 +102,14 @@ class ActionConnectorTests(unittest.TestCase):
         spec = write_spec()
         preview = build_preview(adapter, spec)
         with self.assertRaisesRegex(ValueError, "do not cover"):
-            build_action_approval(preview, approved_by="jaemin", approved_scopes=["sample:read"])
-        approval = build_action_approval(preview, approved_by="jaemin", approved_scopes=["sample:read", "sample:write"])
+            build_action_approval(preview, approved_by="reviewer", approved_scopes=["sample:read"])
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=["sample:read", "sample:write"])
         with tempfile.TemporaryDirectory() as tempdir:
             ledger = ActionLedger(Path(tempdir) / "actions.sqlite")
             execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
             changed = ActionSpec.from_payload({**spec.to_dict(), "parameters": {"status": "archived"}})
             changed_preview = build_preview(adapter, changed)
-            changed_approval = build_action_approval(changed_preview, approved_by="jaemin", approved_scopes=["sample:read", "sample:write"])
+            changed_approval = build_action_approval(changed_preview, approved_by="reviewer", approved_scopes=["sample:read", "sample:write"])
             with self.assertRaisesRegex(ValueError, "different spec"):
                 execute_action(adapter, changed, changed_preview, approval=changed_approval, ledger=ledger)
 

@@ -324,7 +324,7 @@ Create approval for a spec only after reviewing target, resource, cost, transfer
   --state-dir artifacts/run-014/jobs \
   approve \
   --spec artifacts/run-014/slurm-job-spec.json \
-  --approved-by jaemin \
+  --approved-by <reviewer-name> \
   --target hpc-cluster-a \
   --output artifacts/run-014/slurm-approval.json
 ```

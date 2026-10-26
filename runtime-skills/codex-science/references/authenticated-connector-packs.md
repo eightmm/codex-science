@@ -119,7 +119,7 @@ Validate a provider-created preview:
 ```bash
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/connector_action_contract.py" approve \
   artifacts/run-014/action-preview.json \
-  --approved-by jaemin \
+  --approved-by <reviewer-name> \
   --scope assay:read \
   --scope assay:write \
   --output artifacts/run-014/action-approval.json

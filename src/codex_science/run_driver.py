@@ -16,8 +16,6 @@ from typing import Any
 from . import literature_evaluation_runner as runner
 
 RECEIPT_SCHEMA = "run-driver-receipt-v1"
-STOP_CODES = {"terminal", "needs_human", "quick_answer", "turn_failed", "driver_error", "interrupted",
-              "turn_cap", "wall_cap", "token_cap", "stalled"}
 DEFAULT_CONTINUATION = ("Continue the active Codex Science run from its checkpoint next_action. "
                         "Do not restart, re-plan, or ask non-blocking questions. Stop only at completion, "
                         "an approval gate, or a genuine blocker.")

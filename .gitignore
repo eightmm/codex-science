@@ -17,3 +17,8 @@ artifacts/
 .env
 .env.*
 !*.example.*
+
+# local agent instructions (not published)
+AGENTS.md
+CLAUDE.md
+PROJECT.md

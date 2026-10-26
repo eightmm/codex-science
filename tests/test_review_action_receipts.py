@@ -88,7 +88,7 @@ class ReviewActionReceiptTests(unittest.TestCase):
             }
         )
         preview = build_preview(adapter, spec, created_at="2026-07-21T00:00:00Z")
-        approval = build_action_approval(preview, approved_by="jaemin", approved_scopes=["object:write"], approved_at="2026-07-21T00:01:00Z")
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=["object:write"], approved_at="2026-07-21T00:01:00Z")
         with tempfile.TemporaryDirectory() as tempdir:
             receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(Path(tempdir) / "ledger.sqlite"), executed_at="2026-07-21T00:02:00Z")
             validate_action_receipt(receipt, spec)

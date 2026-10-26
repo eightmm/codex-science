@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-STOP_CODES = {"done", "inconclusive_result", "budget_exhausted", "approval_gate", "external_wait", "blocker", "abandoned", "no_progress", "in_progress", "invalid_record"}
 RIGOR_TIERS = {"standard", "full"}
 
 
@@ -52,8 +51,8 @@ def _manifest_inconclusive(path: Path) -> bool:
 
 
 def report_completion(artifacts_root: Path, *, now: datetime, stale_after: timedelta) -> dict[str, Any]:
-    """Summarize checkpoint runs without writing. Stop codes are the fixed enum
-    in STOP_CODES; fresh active runs have outcome ``active`` and aggregate as
+    """Summarize checkpoint runs without writing. Stop reasons retain their
+    recorded codes; fresh active runs have outcome ``active`` and aggregate as
     ``in_progress`` rather than as a terminal outcome.
     """
     from codex_science.checkpoints import MAX_AUTOCONTINUE_CHECKPOINT_BYTES, validate_checkpoint

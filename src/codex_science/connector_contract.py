@@ -9,15 +9,10 @@ import re
 import urllib.parse
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 SECRET_RE = re.compile(r"(?:key|token|secret|password|credential)", re.I)
 QUERY_STATUSES = {"complete", "partial", "failed", "unavailable", "environment-blocked"}
-COMPLETENESS_STATES = {"complete", "bounded", "partial-next-cursor", "normalized-only", "unavailable"}
-DRIFT_TYPES = {"none", "schema-drift", "pagination-drift", "release-drift", "response-drift", "semantic-drift"}
-
-
 def canonical_json_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
@@ -285,11 +280,6 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
         warnings=tuple(warnings), normalized_records_sha256=sha256_json(normalized),
     )
     return QueryResult(request, tuple(normalized), receipt, tuple(snapshots) if include_snapshot else ())
-
-
-def save_snapshot(path: Path, result: QueryResult) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(result.snapshot(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:

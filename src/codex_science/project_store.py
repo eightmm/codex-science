@@ -23,7 +23,6 @@ from codex_science.collaboration import diff_runs
 
 SCHEMA_VERSION = 1
 POLARITIES = {"supports", "contradicts", "qualifies", "neutral", "unavailable"}
-BRANCH_STATUSES = {"active", "candidate", "merged", "abandoned"}
 
 
 def _now() -> str:
@@ -515,19 +514,6 @@ class ProjectStore:
                     runs.append({"run_id": str(row["run_id"]), "cycles": cycles})
         return {"project_id": project_id, "runs": runs,
                 "evidence_boundary": "Verified recorded history; no new execution or scientific review is implied."}
-
-    @staticmethod
-    def _three_way_conflicts(base: Mapping[str, Any], source: Mapping[str, Any], target: Mapping[str, Any], key: str) -> list[str]:
-        base_items = {str(item.get(key)): item for item in base.values() if isinstance(item, Mapping)} if isinstance(base, Mapping) else {}
-        source_items = {str(item.get(key)): item for item in source.values() if isinstance(item, Mapping)} if isinstance(source, Mapping) else {}
-        target_items = {str(item.get(key)): item for item in target.values() if isinstance(item, Mapping)} if isinstance(target, Mapping) else {}
-        conflicts = []
-        for identifier in sorted(source_items.keys() & target_items.keys()):
-            source_changed = source_items[identifier] != base_items.get(identifier)
-            target_changed = target_items[identifier] != base_items.get(identifier)
-            if source_changed and target_changed and source_items[identifier] != target_items[identifier]:
-                conflicts.append(identifier)
-        return conflicts
 
     def prepare_merge_plan(self, *, project_id: str, source_branch: str, target_branch: str) -> dict[str, Any]:
         self.initialize()

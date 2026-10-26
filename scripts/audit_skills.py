@@ -12,7 +12,6 @@ from codex_science.catalog import CatalogPolicy, audit_catalog, audit_sources, w
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CATALOG = ROOT / "vendor" / "scientific-agent-skills" / "skills"
 DEFAULT_SOURCES = ROOT / "catalog" / "sources.json"
 DEFAULT_OUTPUT = ROOT / "catalog" / "inventory.json"
 

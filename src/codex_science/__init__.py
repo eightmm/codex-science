@@ -1,3 +1,5 @@
 """Codex Science plugin support library."""
 
-__version__ = "0.1.0"
+from .version import PACKAGE_VERSION
+
+__version__ = PACKAGE_VERSION

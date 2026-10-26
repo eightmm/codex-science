@@ -167,7 +167,7 @@ class ComputeBackendTests(unittest.TestCase):
                     "approval_required": True,
                 }
             )
-            receipt = build_approval_receipt(spec, approved_by="jaemin", target="cluster-a", approved_at="2026-07-21T00:00:00Z")
+            receipt = build_approval_receipt(spec, approved_by="reviewer", target="cluster-a", approved_at="2026-07-21T00:00:00Z")
             validate_approval_receipt(receipt, spec)
             changed = JobSpec.from_payload({**spec.to_dict(), "timeout_seconds": 601})
             with self.assertRaisesRegex(ValueError, "different job spec"):
