@@ -3,6 +3,12 @@
 ## Unreleased
 
 - Recorded run34 (6/6) in the evaluation docs and appended its ledger rows.
+- `build_study_table.py` appends `pmcid:PMC...` to a study's `identifiers` and
+  `persistent_ids` when a fetched `fulltext/PMC*.xml` front-matter article-id
+  list carries that study's pmid or doi (exactly one study, pmcid equal to the
+  file stem); the citation trace can then link `fulltext/<PMCID>.txt` citations
+  to the study. Unmatched, ambiguous, mismatched or unreadable XML is skipped;
+  existing identifiers and all other fields are unchanged.
 - Support-excerpt length errors (`build_study_table.py`, `build_evidence_graph.py`,
   method landscape) now report the actual length (or type) and tell the agent to
   quote only the verbatim claim-bearing sentences, not the whole abstract; the

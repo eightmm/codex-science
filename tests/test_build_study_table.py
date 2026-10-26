@@ -9,9 +9,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from codex_science.evidence import EVIDENCE_TYPES, _validate_study_table
-from codex_science.study_table import build_study_table
+from codex_science.study_table import _alias_fulltext_pmcids, build_study_table
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples/literature-review-reviewed-run"
@@ -165,6 +166,132 @@ class BuildStudyTableTests(unittest.TestCase):
         for expected in ("unknown", "missing", "not included", "persistent identifier"):
             self.assertIn(expected, str(caught.exception))
         self.assertFalse((self.root / "studies.json").exists())
+
+    def _jats(self, pmcid, pmid=None, doi=None):
+        ids = "".join(f'<article-id pub-id-type="{k}">{v}</article-id>' for k, v in
+                      (("pmcid", pmcid), ("pmid", pmid), ("doi", doi)) if v)
+        return ("<article><front><article-meta>" + ids + "</article-meta></front><back><ref-list><ref><element-citation>"
+                '<pub-id pub-id-type="pmid">24390308</pub-id></element-citation></ref></ref-list></back></article>')
+
+    def _write_fulltext(self, name, content):
+        (self.root / "fulltext").mkdir(exist_ok=True)
+        (self.root / "fulltext" / name).write_text(content, encoding="utf-8")
+
+    def _built_identifiers(self):
+        build_study_table(self.root, self.extraction)
+        studies = json.loads((self.root / "studies.json").read_text(encoding="utf-8"))["studies"]
+        return studies[0]["identifiers"], studies[0]["persistent_ids"]
+
+    def test_fulltext_pmcid_alias_appended_on_pmid_or_doi_match(self):
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        self._write_fulltext("PMC222222.xml", self._jats("pmc222222", doi="10.1038/NM.3444"))
+        identifiers, persistent = self._built_identifiers()
+        self.assertEqual(identifiers, ["doi:10.1038/nm.3444", "pmid:24390308", "pmcid:PMC111111", "pmcid:PMC222222"])
+        self.assertEqual(persistent, identifiers)
+        _validate_study_table(json.loads((self.root / "studies.json").read_text(encoding="utf-8")), self.root)
+
+    def test_fulltext_pmcid_alias_skipped_for_nomatch_mismatch_and_malformed(self):
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="99999999"))
+        self._write_fulltext("PMC222222.xml", self._jats("PMC333333", pmid="24390308"))
+        self._write_fulltext("PMC444444.xml", "<article><front><article-meta>")
+        self._write_fulltext("PMC555555.xml", '<!DOCTYPE a [<!ENTITY x "y">]>' + self._jats("PMC555555", pmid="24390308"))
+        self._write_fulltext("notes.xml", self._jats("PMC666666", pmid="24390308"))
+        self._write_fulltext("PMC777777.xml", "<article><back><ref-list><ref><pub-id pub-id-type=\"pmcid\">PMC777777</pub-id>"
+                                              "</ref></ref-list></back></article>")
+        identifiers, _ = self._built_identifiers()
+        self.assertEqual(identifiers, ["doi:10.1038/nm.3444", "pmid:24390308"])
+
+    def test_fulltext_pmcid_alias_skipped_when_ambiguous(self):
+        second_record = dict(self.record, record_id="med:24390309", identifiers=["pmid:24390309", "doi:10.1038/nm.3444"])
+        second_candidate = dict(self.candidate, record_id="med:24390309", identifiers=["pmid:24390309", "doi:10.1038/nm.3444"])
+        extraction = {"schema": "study-extraction-v1", "studies": [
+            {"record_id": "med:24390308", "study_id": "a", "evidence_type": "primary"},
+            {"record_id": "med:24390309", "study_id": "b", "evidence_type": "primary"}]}
+        self._write_inputs([self.record, second_record], [self.candidate, second_candidate], extraction)
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", doi="10.1038/nm.3444"))
+        build_study_table(self.root, self.extraction)
+        for study in json.loads((self.root / "studies.json").read_text(encoding="utf-8"))["studies"]:
+            self.assertFalse(any(value.startswith("pmcid:") for value in study["identifiers"]))
+
+    def test_fulltext_pmcid_alias_requires_root_article_front_and_unique_ids(self):
+        meta = '<article-meta><article-id pub-id-type="pmcid">PMC{n}</article-id><article-id pub-id-type="pmid">24390308</article-id></article-meta>'
+        self._write_fulltext("PMC111111.xml", "<article><front/><back>" + meta.format(n=111111) + "</back></article>")
+        self._write_fulltext("PMC222222.xml", "<root><front>" + meta.format(n=222222) + "</front></root>")
+        self._write_fulltext("PMC333333.xml", "<article><body><front>" + meta.format(n=333333) + "</front></body></article>")
+        self._write_fulltext("PMC444444.xml", "<article><front><article-meta>"
+                             '<article-id pub-id-type="pmcid">PMC444444</article-id>'
+                             '<article-id pub-id-type="pmid">24390308</article-id>'
+                             '<article-id pub-id-type="pmid">99999999</article-id></article-meta></front></article>')
+        identifiers, _ = self._built_identifiers()
+        self.assertEqual(identifiers, ["doi:10.1038/nm.3444", "pmid:24390308"])
+
+    def test_fulltext_conflicting_pmids_matching_different_studies_add_no_alias(self):
+        second_record = dict(self.record, record_id="med:24390309", identifiers=["pmid:24390309"])
+        second_candidate = dict(self.candidate, record_id="med:24390309", identifiers=["pmid:24390309"])
+        extraction = {"schema": "study-extraction-v1", "studies": [
+            {"record_id": "med:24390308", "study_id": "a", "evidence_type": "primary"},
+            {"record_id": "med:24390309", "study_id": "b", "evidence_type": "primary"}]}
+        self._write_inputs([self.record, second_record], [self.candidate, second_candidate], extraction)
+        self._write_fulltext("PMC111111.xml", "<article><front><article-meta>"
+                             '<article-id pub-id-type="pmcid">PMC111111</article-id>'
+                             '<article-id pub-id-type="pmid">24390308</article-id>'
+                             '<article-id pub-id-type="pmid">24390309</article-id></article-meta></front></article>')
+        build_study_table(self.root, self.extraction)
+        for study in json.loads((self.root / "studies.json").read_text(encoding="utf-8"))["studies"]:
+            self.assertFalse(any(value.startswith("pmcid:") for value in study["identifiers"]))
+
+    def test_fulltext_pmcid_already_owned_by_other_study_adds_no_alias(self):
+        second_record = dict(self.record, record_id="med:99999999", identifiers=["pmid:99999999", "pmcid:PMC111111"])
+        second_candidate = dict(self.candidate, record_id="med:99999999", identifiers=["pmid:99999999", "pmcid:PMC111111"])
+        extraction = {"schema": "study-extraction-v1", "studies": [
+            {"record_id": "med:24390308", "study_id": "a", "evidence_type": "primary"},
+            {"record_id": "med:99999999", "study_id": "b", "evidence_type": "primary"}]}
+        self._write_inputs([self.record, second_record], [self.candidate, second_candidate], extraction)
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        build_study_table(self.root, self.extraction)
+        first, second = json.loads((self.root / "studies.json").read_text(encoding="utf-8"))["studies"]
+        self.assertEqual(first["identifiers"], ["doi:10.1038/nm.3444", "pmid:24390308"])
+        self.assertEqual(second["identifiers"], ["pmid:99999999", "pmcid:PMC111111"])
+
+    def test_fulltext_contradictory_identifier_in_any_namespace_adds_no_alias(self):
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="99999999", doi="10.1038/nm.3444"))
+        self._write_fulltext("PMC222222.xml", self._jats("PMC222222", pmid="24390308", doi="10.1000/other"))
+        identifiers, _ = self._built_identifiers()
+        self.assertEqual(identifiers, ["doi:10.1038/nm.3444", "pmid:24390308"])
+
+    def test_fulltext_study_with_different_pmcid_gets_no_second_pmcid(self):
+        held = ["pmid:24390308", "pmcid:PMC999999"]
+        extraction = {"schema": "study-extraction-v1", "studies": [
+            {"record_id": "med:24390308", "study_id": "a", "evidence_type": "primary"}]}
+        self._write_inputs([dict(self.record, identifiers=held)], [dict(self.candidate, identifiers=held)], extraction)
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        identifiers, _ = self._built_identifiers()
+        self.assertEqual(identifiers, ["pmid:24390308", "pmcid:PMC999999"])
+
+    def test_fulltext_pmcid_alias_claimed_by_earlier_file_blocks_later_file(self):
+        second_record = dict(self.record, record_id="med:99999999", identifiers=["pmid:99999999"])
+        studies = [{"identifiers": list(self.record["identifiers"])}, {"identifiers": list(second_record["identifiers"])}]
+        (self.root / "fulltext").mkdir()
+        path = self.root / "fulltext" / "PMC111111.xml"
+        ids = [{"pmcid": {"pmcid:PMC111111"}, "pmid": {"pmid:24390308"}},
+               {"pmcid": {"pmcid:PMC111111"}, "pmid": {"pmid:99999999"}}]
+        with mock.patch.object(Path, "glob", return_value=[path, path]), \
+                mock.patch("codex_science.study_table._fulltext_front_ids", side_effect=ids):
+            _alias_fulltext_pmcids(self.root, studies)
+        self.assertEqual(studies[0]["identifiers"], [*self.record["identifiers"], "pmcid:PMC111111"])
+        self.assertEqual(studies[1]["identifiers"], ["pmid:99999999"])
+
+    def test_fulltext_lowercase_stem_is_ignored(self):
+        self._write_fulltext("pmc111111.xml", self._jats("PMC111111", pmid="24390308"))
+        identifiers, _ = self._built_identifiers()
+        self.assertEqual(identifiers, ["doi:10.1038/nm.3444", "pmid:24390308"])
+
+    def test_fulltext_deeply_nested_xml_is_skipped_without_failing_build(self):
+        depth = 1100
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308").replace(
+            "</article>", "<body>" + "<sec>" * depth + "</sec>" * depth + "</body></article>"))
+        identifiers, _ = self._built_identifiers()
+        self.assertEqual(identifiers, ["doi:10.1038/nm.3444", "pmid:24390308"])
 
     def test_cli_help_documents_extraction_format(self):
         env = dict(os.environ)
