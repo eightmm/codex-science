@@ -34,7 +34,8 @@ guidance before interpreting bounded-search results.
 2. Select arXiv for preprint discovery and record why its subject coverage fits;
    state that this search does not establish coverage or peer-review status.
 3. Search with `science_search_arxiv(query, limit)` (`query` up to 500
-   characters; `limit` 1–10, default 5). Record exact query, tool, access time,
+   characters; `limit` 1–10, default 5); `query` is free text, arXiv field
+   syntax (e.g. `ti:`, `au:`, `cat:` with AND/OR/ANDNOT) or a bare arXiv ID. Record exact query, tool, access time,
    returned IDs, and count; the result is `{id,title,summary,url}` with no
    completeness or pagination guarantee.
 4. For structured retrieval use `https://export.arxiv.org/api/query`; record

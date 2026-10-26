@@ -1,6 +1,7 @@
 import json
 import math
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
@@ -117,6 +118,31 @@ class ConnectorTests(unittest.TestCase):
 
         self.assertEqual("1234.5678", results[0]["id"])
         self.assertEqual("A result", results[0]["title"])
+
+    def test_arxiv_query_forms_select_request_parameters(self) -> None:
+        cases = {
+            "compute optimal models": ("search_query", "all:compute optimal models"),
+            'ti:"Scaling Laws" AND au:kaplan': ("search_query", 'ti:"Scaling Laws" AND au:kaplan'),
+            "(cat:cs.LG OR cat:stat.ML)": ("search_query", "(cat:cs.LG OR cat:stat.ML)"),
+            "au:hinton": ("search_query", "au:hinton"),
+            "AU:Hinton": ("search_query", "AU:Hinton"),
+            "2203.15556": ("id_list", "2203.15556"),
+            " arXiv:2203.15556v2 ": ("id_list", "2203.15556v2"),
+            "ID:1501.0001": ("id_list", "1501.0001"),
+            "hep-th/9901001": ("id_list", "hep-th/9901001"),
+            "arxiv:hep-th/9901001v3": ("id_list", "hep-th/9901001v3"),
+            "math.GT/0309136": ("id_list", "math.GT/0309136"),
+            "2203.15556 scaling": ("search_query", "all:2203.15556 scaling"),
+        }
+        atom = '<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
+        for query, (key, value) in cases.items():
+            with self.subTest(query=query):
+                urls: list[str] = []
+                ArxivConnector(fetch_text=lambda url: urls.append(url) or atom).search(query, limit=3)
+                params = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
+                self.assertEqual([value], params[key])
+                self.assertEqual(["3"], params["max_results"])
+                self.assertEqual({key, "start", "max_results"}, set(params))
 
     def test_uniprot_parses_json_results(self) -> None:
         payload = {

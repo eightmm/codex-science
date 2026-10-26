@@ -82,15 +82,27 @@ class PubMedConnector:
         ]
 
 
+_ARXIV_FIELD = re.compile(r"(?:^|[\s(])(?:ti|au|abs|co|jr|cat|rn|all|id):", re.IGNORECASE)
+_ARXIV_ID = re.compile(
+    r"(?:(?:arxiv|id):)?\s*((?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Za-z]{2})?/\d{7})(?:v\d+)?)",
+    re.IGNORECASE,
+)
+
+
 class ArxivConnector:
     def __init__(self, *, fetch_text: Callable[[str], str] = fetch_text) -> None:
         self._fetch_text = fetch_text
 
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, limit = _validate(query, limit)
-        params = urllib.parse.urlencode(
-            {"search_query": f"all:{query}", "start": 0, "max_results": limit}
-        )
+        identifier = _ARXIV_ID.fullmatch(query.strip())
+        if identifier:
+            selector = {"id_list": identifier.group(1)}
+        elif _ARXIV_FIELD.search(query):
+            selector = {"search_query": query}
+        else:
+            selector = {"search_query": f"all:{query}"}
+        params = urllib.parse.urlencode({**selector, "start": 0, "max_results": limit})
         root = ET.fromstring(self._fetch_text(f"https://export.arxiv.org/api/query?{params}"))
         namespace = {"atom": "http://www.w3.org/2005/Atom"}
         results: list[dict[str, str]] = []

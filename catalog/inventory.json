@@ -54,7 +54,7 @@
     {
       "description": "Search arXiv preprints for a topic, author, or concept and triage the results. Use when the user wants recent primary literature, preprints, or methods papers in physics, math, CS, quantitative biology, or statistics; use another source for peer-review status or complete coverage. Uses the plugin's built-in read-only arXiv MCP tool \u2014 no credential or install needed.",
       "executable_count": 0,
-      "instruction_line_count": 86,
+      "instruction_line_count": 87,
       "license": "Apache-2.0",
       "name": "cx-arxiv-search",
       "path": "authored-skills/arxiv-search",
