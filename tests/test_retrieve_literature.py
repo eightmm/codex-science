@@ -204,17 +204,46 @@ class RetrieveLiteratureTests(unittest.TestCase):
                 retrieve_literature(root, "europepmc", "offline", transport=FakeTransport([TransportError("offline")]))
             self.assertEqual([], list(root.iterdir()))
 
-    def test_differing_abstract_is_not_overwritten(self):
+    def test_differing_abstract_is_kept_and_reported(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "sources").mkdir()
             target = root / "sources/PMC123.abstract.txt"
             target.write_text("older text\n")
-            with self.assertRaisesRegex(FileExistsError, "differing abstract"):
-                retrieve_literature(root, "europepmc", "abstract", abstracts=True,
-                    transport=FakeTransport([europe_payload([{"id": "PMC123", "abstractText": "new text"}])]))
+            summary = retrieve_literature(root, "europepmc", "abstract", abstracts=True,
+                transport=FakeTransport([europe_payload([{"id": "PMC123", "abstractText": "new text"}])]))
             self.assertEqual("older text\n", target.read_text())
-            self.assertFalse((root / "queries.jsonl").exists())
+            self.assertTrue(summary["records"][0]["abstract_written"])
+            self.assertTrue(summary["records"][0]["abstract_kept_existing"])
+            self.assertEqual(["PMC123.abstract.txt"], summary["abstracts_kept_existing"])
+            self.assertEqual(1, len((root / "queries.jsonl").read_text().splitlines()))
+
+    def test_pubmed_abstract_differing_from_europepmc_keeps_existing_and_ledgers_query(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            retrieve_literature(root, "europepmc", "first", abstracts=True, transport=FakeTransport([
+                europe_payload([{"id": "111", "abstractText": "Europe PMC words"}])]))
+            kept = root / "sources/111.abstract.txt"
+            before = kept.read_bytes()
+            def article(pmid, text):
+                return (f"<PubmedArticle><MedlineCitation><PMID>{pmid}</PMID><Article><Abstract>"
+                        f"<AbstractText>{text}</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle>")
+            efetch = ("<PubmedArticleSet>" + article(111, "PubMed words") + article(222, "New words")
+                      + "</PubmedArticleSet>").encode()
+            esearch = {"esearchresult": {"count": "2", "retstart": "0", "idlist": ["111", "222"]}}
+            transport = FakeTransport([esearch, pubmed_esummary([111, 222]), (efetch, "application/xml")])
+            summary = retrieve_literature(root, "pubmed", "second", abstracts=True, transport=transport)
+            self.assertEqual(before, kept.read_bytes())
+            self.assertEqual("New words\n", (root / "sources/222.abstract.txt").read_text())
+            by_id = {row["id"]: row for row in summary["records"]}
+            self.assertTrue(by_id["111"]["abstract_kept_existing"])
+            self.assertTrue(by_id["111"]["abstract_written"])
+            self.assertFalse(by_id["222"]["abstract_kept_existing"])
+            self.assertEqual(["111.abstract.txt"], summary["abstracts_kept_existing"])
+            rows = [json.loads(line) for line in (root / "queries.jsonl").read_text().splitlines()]
+            self.assertEqual(["EuropePMC", "PubMed"], [row["source"] for row in rows])
+            body = next((root / "raw/queries").glob("*/page-0002.body")).read_text()
+            self.assertIn("PubMed words", body)
 
     def test_symlinked_sources_directory_is_refused_without_touching_target(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -505,6 +534,13 @@ class RetrieveLiteratureTests(unittest.TestCase):
             output.reset_mock()
             self.assertEqual(0, main(["--run-dir", ".", "europepmc", "test", "--abstracts"]))
             self.assertTrue(output.call_args_list[1].args[0].endswith("abstract=no"))
+        kept_row = {"id": "123", "year": "2024", "title": "Title", "abstract_written": True,
+                    "abstract_kept_existing": True}
+        with patch("scripts.retrieve_literature.retrieve_literature", return_value={
+            "query_id": "q-one", "records": [kept_row], "abstracts_kept_existing": ["123.abstract.txt"],
+        }), patch("builtins.print") as output:
+            self.assertEqual(0, main(["--run-dir", ".", "pubmed", "test", "--abstracts"]))
+            self.assertTrue(output.call_args_list[1].args[0].endswith("abstract=kept-existing"))
 
 
 if __name__ == "__main__":

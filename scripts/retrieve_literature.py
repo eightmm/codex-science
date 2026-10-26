@@ -23,7 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-pages", type=int, default=1, help="maximum pages to fetch (1-100)")
     parser.add_argument("--evidence-cutoff", help="only include records published up to this date (YYYY-MM-DD)")
     parser.add_argument("--abstracts", action="store_true",
-                        help="write abstracts for EuropePMC or PubMed results")
+                        help="write abstracts for EuropePMC or PubMed results; an existing differing "
+                             "abstract file is kept and reported as abstract=kept-existing")
     args = parser.parse_args(argv)
     try:
         summary = retrieve_literature(
@@ -36,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(json.dumps({key: value for key, value in summary.items() if key != "records"}, ensure_ascii=False, sort_keys=True))
     for row in summary["records"]:
-        abstract_status = "written" if row["abstract_written"] else ("no" if args.abstracts else "not-requested")
+        abstract_status = "kept-existing" if row.get("abstract_kept_existing") else "written" if row["abstract_written"] else ("no" if args.abstracts else "not-requested")
         print(f"{row['id']}\t{row['year']}\t{row['title']}\tabstract={abstract_status}")
     return 0
 

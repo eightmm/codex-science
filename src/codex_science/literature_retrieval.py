@@ -207,8 +207,10 @@ def _plain_abstract(value: str) -> bytes:
     return (" ".join(html.unescape(tag.sub(" ", value)).split()) + "\n").encode("utf-8")
 
 
-def _write_abstracts(root: Path, payloads: list[Any]) -> set[str]:
+def _write_abstracts(root: Path, payloads: list[Any]) -> tuple[set[str], set[str]]:
+    """Return (filenames with an abstract file, subset kept because an earlier file differs)."""
     abstract_files: set[str] = set()
+    kept_existing: set[str] = set()
     pending: list[tuple[Path, str, bytes]] = []
     wanted: dict[str, bytes] = {}
     for payload in payloads:
@@ -230,7 +232,7 @@ def _write_abstracts(root: Path, payloads: list[Any]) -> set[str]:
             wanted[filename] = data
             if target.exists():
                 if target.read_bytes() != data:
-                    raise FileExistsError(f"refusing to overwrite differing abstract: {filename}")
+                    kept_existing.add(filename)
             else:
                 pending.append((target, filename, data))
             abstract_files.add(filename)
@@ -248,10 +250,10 @@ def _write_abstracts(root: Path, payloads: list[Any]) -> set[str]:
         except FileExistsError:
             _check_path(root, Path("sources") / filename)
             if target.read_bytes() != data:
-                raise FileExistsError(f"refusing to overwrite differing abstract: {filename}")
+                kept_existing.add(filename)
         finally:
             temp_abs.unlink(missing_ok=True)
-    return abstract_files
+    return abstract_files, kept_existing
 
 
 def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str, Any]:
@@ -337,14 +339,16 @@ def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str
         summary_rows.append({"id": normalized.get("id", ""), "year": str(year)[:4],
                              "title": str(raw.get("title") or normalized.get("title") or "")[:120],
                              "abstract_written": False})
-    abstract_files = _write_abstracts(root, payloads)
+    abstract_files, kept_existing = _write_abstracts(root, payloads)
     for item in summary_rows:
         item["abstract_written"] = f"{item['id']}.abstract.txt" in abstract_files
+        item["abstract_kept_existing"] = f"{item['id']}.abstract.txt" in kept_existing
     return {"query_id": query_id, "status": _status(receipt),
             "hit_count": next((p.get("hitCount") for p in payloads if isinstance(p, dict)
                                 and p.get("hitCount") is not None), None),
             "records_returned": len(records), "records": summary_rows,
-            "abstracts_supported": True, "abstracts_from_saved_snapshot": True}
+            "abstracts_supported": True, "abstracts_from_saved_snapshot": True,
+            "abstracts_kept_existing": sorted(kept_existing)}
 
 
 def _status(receipt: dict[str, Any]) -> str:
@@ -455,7 +459,8 @@ def retrieve_literature(
             if hit_count is not None:
                 record["hit_count"] = hit_count
             _validate_query_records([record])
-            abstract_files = _write_abstracts(root, pages + metadata_payloads) if abstracts else set()
+            abstract_files, kept_existing = (
+                _write_abstracts(root, pages + metadata_payloads) if abstracts else (set(), set()))
             snapshots.mkdir(parents=True, exist_ok=True)
             os.rename(stage_query, dest)
             ledger_bytes = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
@@ -501,7 +506,8 @@ def retrieve_literature(
                 raw = next((r for r in rows if str(r.get("id", "")) == str(normalized.get("id", ""))), {})
                 title = str(raw.get("title") or normalized.get("title") or "")
                 year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or normalized.get("year") or ""
-                summary_row = {"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": f"{normalized.get('id')}.abstract.txt" in abstract_files}
+                summary_row = {"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": f"{normalized.get('id')}.abstract.txt" in abstract_files,
+                               "abstract_kept_existing": f"{normalized.get('id')}.abstract.txt" in kept_existing}
                 if source == "pubmed" and normalized.get("doi"):
                     summary_row["doi"] = normalized["doi"]
                 if source == "pubmed" and normalized.get("journal"):
@@ -510,7 +516,8 @@ def retrieve_literature(
             return {"query_id": query_id, "status": record["status"], "hit_count": hit_count,
                     "records_returned": len(result.records), "records": summary_rows[:page_size * max_pages],
                     "abstracts_supported": True,
-                    "abstracts_from_saved_snapshot": False}
+                    "abstracts_from_saved_snapshot": False,
+                    "abstracts_kept_existing": sorted(kept_existing)}
         finally:
             shutil.rmtree(stage_root, ignore_errors=True)
     finally:

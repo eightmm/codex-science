@@ -9,6 +9,11 @@
   `claim-sufficiency` or `citation-trace` artifact is an `*-error-v1` object, or is unreadable or above 64 MB
   (`uninspectable-generated-artifact`). `$science-review` documents the refresh,
   check, `--output`, refresh order.
+- `retrieve_literature.py --abstracts` no longer aborts when an existing
+  `sources/<id>.abstract.txt` differs from the new text (for example Europe PMC
+  then PubMed for one PMID): the file is kept unchanged, the record prints
+  `abstract=kept-existing`, and the JSON summary lists
+  `abstracts_kept_existing`. Conflicts within one query still raise.
 - The coordinator skill is about 21 KB instead of 34 KB, so Codex no longer
   truncates it on a full read: activation and updates, native Goal, domain
   routing, checkpoint operations, the research contract and open full-text
