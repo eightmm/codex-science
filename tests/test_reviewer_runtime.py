@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import subprocess
@@ -7,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
-from codex_science.reviewer_runtime import _fingerprint, _review_order_policy, _review_priority, build_review_packet, finalize_review_response, validate_review_packet
+from codex_science.reviewer_runtime import _fingerprint, _review_order_policy, _review_priority, build_review_packet, finalize_review_response, respond_to_review, validate_review_packet
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
 
@@ -520,6 +521,342 @@ class ReviewerRuntimeTests(unittest.TestCase):
             self.assertEqual(1, result.returncode, result.stdout)
             self.assertIn("overwrite a packet or manifest file", result.stderr)
             self.assertEqual(before, bundle.read_bytes())
+
+
+def resign(packet: dict, mutate) -> dict:
+    """Apply ``mutate`` to a copy of the packet body and recompute the hash binding so only the targeted rule can fail."""
+    material = copy.deepcopy(packet)
+    material.pop("review_task_id")
+    material.pop("fingerprint")
+    mutate(material)
+    fingerprint = _fingerprint(material)
+    return {**material, "review_task_id": f"review-task-{fingerprint[:20]}", "fingerprint": fingerprint}
+
+
+def valid_response(packet: dict) -> dict:
+    artifact = packet["artifacts"][0]
+    return {
+        "schema_version": 1,
+        "review_task_id": packet["review_task_id"],
+        "packet_fingerprint": packet["fingerprint"],
+        "reviewer": "reviewer",
+        "independent": True,
+        "review_modes": ["record"],
+        "reviewed_claim_ids": ["C1"],
+        "reviewed_artifacts": [{"path": artifact["path"], "sha256": artifact["sha256"]}],
+        "findings": [],
+        "limitations": ["Limited."],
+        "status": "passed",
+    }
+
+
+class ReviewerRuntimeRejectionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tempdir = tempfile.TemporaryDirectory()
+        cls.manifest = make_reviewed_run(Path(cls._tempdir.name))
+        cls.packet = build_review_packet(cls.manifest, review_modes=["record", "method"], created_at="2026-07-21T00:00:00Z")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tempdir.cleanup()
+
+    def assertPacketRejected(self, mutate, message: str) -> None:
+        with self.assertRaisesRegex(ValueError, message):
+            validate_review_packet(resign(self.packet, mutate))
+
+    def test_base_packet_and_response_are_valid(self) -> None:
+        validate_review_packet(self.packet)
+        self.assertEqual("passed", finalize_review_response(self.packet, valid_response(self.packet))["status"])
+
+    def test_packet_schema_version_must_be_one(self) -> None:
+        for version in (2, 0, None, "1"):
+            with self.subTest(version=version):
+                self.assertPacketRejected(lambda m, v=version: m.__setitem__("schema_version", v), "unsupported review packet schema")
+
+    def test_packet_required_text_fields_and_digest(self) -> None:
+        for field in ("review_task_id", "source_run_id", "source_manifest_path", "source_manifest_sha256", "created_at", "evidence_boundary"):
+            for value in (None, "", "  ", 7):
+                with self.subTest(field=field, value=value):
+                    packet = {**self.packet, field: value}
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        validate_review_packet(packet)
+        for digest in ("abc", "g" * 64, "a" * 63, "a" * 65):
+            with self.subTest(digest=digest):
+                self.assertPacketRejected(lambda m, d=digest: m.__setitem__("source_manifest_sha256", d), "must be a SHA-256 digest")
+
+    def test_packet_modes_must_be_nonempty_known_list(self) -> None:
+        for modes in ([], ["nope"], ["record", "nope"], "record", None):
+            with self.subTest(modes=modes):
+                self.assertPacketRejected(lambda m, v=modes: m.__setitem__("review_modes", v), "invalid review packet modes")
+
+    def test_packet_artifacts_and_claim_ids_must_be_lists(self) -> None:
+        for field in ("artifacts", "material_claim_ids"):
+            for value in (None, "C1", {"C1": 1}):
+                with self.subTest(field=field, value=value):
+                    self.assertPacketRejected(lambda m, f=field, v=value: m.__setitem__(f, v), "must be lists")
+
+    def test_review_priority_shape_is_validated(self) -> None:
+        row = {"claim_id": "C1", "basis": "data", "priority": 4}
+        cases = {
+            "not a list": {"C1": row},
+            "non-mapping row": ["C1"],
+            "extra key": [{**row, "note": "x"}],
+            "missing key": [{"claim_id": "C1", "basis": "data"}],
+            "unknown basis": [{**row, "basis": "vibes"}],
+            "wrong priority": [{**row, "priority": 1}],
+            "bool priority": [{"claim_id": "C1", "basis": "synthesis", "priority": True}],
+            "float priority": [{**row, "priority": 4.0}],
+        }
+        for label, rows in cases.items():
+            with self.subTest(label):
+                self.assertPacketRejected(lambda m, v=rows: m.__setitem__("review_priority", v), "invalid review_priority$")
+
+    def test_review_priority_claim_ids_must_be_unique_nonempty_strings(self) -> None:
+        for ids in ([""], ["  "], [3], ["C1", "C1"]):
+            with self.subTest(ids=ids):
+                def mutate(m, ids=ids):
+                    m["review_priority"] = [{"claim_id": claim_id, "basis": "data", "priority": 4} for claim_id in ids]
+                self.assertPacketRejected(mutate, "claim IDs must be non-empty and unique")
+
+    def test_review_priority_must_be_ordered_and_cover_material_claims(self) -> None:
+        def unordered(m):
+            m["material_claim_ids"] = ["A", "B"]
+            m["review_priority"] = [{"claim_id": "A", "basis": "data", "priority": 4}, {"claim_id": "B", "basis": "synthesis", "priority": 1}]
+        self.assertPacketRejected(unordered, "not deterministically ordered")
+
+        def tie_unordered(m):
+            m["material_claim_ids"] = ["A", "B"]
+            m["review_priority"] = [{"claim_id": "B", "basis": "data", "priority": 4}, {"claim_id": "A", "basis": "data", "priority": 4}]
+        self.assertPacketRejected(tie_unordered, "not deterministically ordered")
+
+        def missing(m):
+            m["material_claim_ids"] = ["C1", "C2"]
+        self.assertPacketRejected(missing, "must cover material claims")
+
+        def extra(m):
+            m["material_claim_ids"] = []
+        self.assertPacketRejected(extra, "must cover material claims")
+
+    def test_review_order_policy_shape_is_validated(self) -> None:
+        cases = {
+            "not a mapping": lambda p: "standard",
+            "unknown tier": lambda p: {**p, "tier": "huge"},
+            "non-string tier": lambda p: {**p, "tier": ["full"]},
+            "unknown tier source": lambda p: {**p, "tier_source": "magic"},
+            "suggested not a list": lambda p: {**p, "suggested_first_claim_ids": "C1"},
+            "wrong scope": lambda p: {**p, "scope": "Every claim is optional."},
+        }
+        for label, build in cases.items():
+            with self.subTest(label):
+                self.assertPacketRejected(lambda m, b=build: m.__setitem__("review_order_policy", b(m["review_order_policy"])), "invalid review_order_policy$")
+
+    def test_review_order_policy_suggested_ids_are_constrained(self) -> None:
+        cases = {
+            "blank id": ["  "],
+            "non-string id": [1],
+            "duplicate id": ["C1", "C1"],
+            "id outside material claims": ["C9"],
+        }
+        for label, suggested in cases.items():
+            with self.subTest(label):
+                def mutate(m, suggested=suggested):
+                    m["review_order_policy"] = {**m["review_order_policy"], "suggested_first_claim_ids": suggested}
+                self.assertPacketRejected(mutate, "invalid suggested review order claim IDs")
+
+        def default_with_full_tier(m):
+            m["review_order_policy"] = {**m["review_order_policy"], "tier": "full", "tier_source": "default"}
+        self.assertPacketRejected(default_with_full_tier, "invalid suggested review order claim IDs")
+
+    def test_review_order_policy_must_match_priority(self) -> None:
+        def mutate(m):
+            m["review_order_policy"] = {**m["review_order_policy"], "suggested_first_claim_ids": []}
+        self.assertPacketRejected(mutate, "does not match review_priority")
+
+    def test_packet_fingerprint_and_task_id_must_bind_the_body(self) -> None:
+        tampered = {**self.packet, "created_at": "2030-01-01T00:00:00Z"}
+        wrong_task = {**self.packet, "review_task_id": "review-task-" + "0" * 20}
+        no_fingerprint = {key: value for key, value in self.packet.items() if key != "fingerprint"}
+        for label, packet in (("body changed", tampered), ("task id changed", wrong_task), ("fingerprint absent", no_fingerprint)):
+            with self.subTest(label), self.assertRaisesRegex(ValueError, "fingerprint or task ID mismatch"):
+                validate_review_packet(packet)
+
+    def test_finalize_rejects_invalid_packet_before_reading_response(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported review packet schema"):
+            finalize_review_response({**self.packet, "schema_version": 2}, valid_response(self.packet))
+
+    def assertResponseRejected(self, message: str, **changes) -> None:
+        response = {**valid_response(self.packet), **changes}
+        with self.assertRaisesRegex(ValueError, message):
+            finalize_review_response(self.packet, response)
+
+    def test_finalize_response_schema_and_packet_binding(self) -> None:
+        self.assertResponseRejected("unsupported review response schema", schema_version=2)
+        for field, value in (("review_task_id", "review-task-other"), ("review_task_id", None), ("packet_fingerprint", "0" * 64), ("packet_fingerprint", None)):
+            with self.subTest(field=field, value=value):
+                self.assertResponseRejected("covers a different packet", **{field: value})
+        for reviewer in (None, "", "   "):
+            with self.subTest(reviewer=reviewer):
+                self.assertResponseRejected("reviewer is required", reviewer=reviewer)
+
+    def test_finalize_independent_must_be_a_boolean(self) -> None:
+        for value in ("true", 1, 0, None):
+            with self.subTest(value=value):
+                self.assertResponseRejected("independent must be a boolean", independent=value)
+
+    def test_finalize_review_modes_must_be_nonempty_subset_of_packet(self) -> None:
+        self.assertResponseRejected("response review_modes must be a list", review_modes="record")
+        for modes in ([], ["source"], ["record", "reproduction"]):
+            with self.subTest(modes=modes):
+                self.assertResponseRejected("empty or exceed the packet", review_modes=modes)
+        self.assertResponseRejected("response review mode is required", review_modes=["record", ""])
+
+    def test_finalize_claim_and_artifact_lists_are_typed(self) -> None:
+        self.assertResponseRejected("reviewed_claim_ids must be a list", reviewed_claim_ids="C1")
+        self.assertResponseRejected("reviewed_artifacts must be a list", reviewed_artifacts={"path": "x"})
+        self.assertResponseRejected("reviewed artifact 0 must be an object", reviewed_artifacts=["evidence.json"])
+        self.assertResponseRejected("reviewed artifact 0 path is required", reviewed_artifacts=[{"sha256": "0" * 64}])
+        self.assertResponseRejected("must be a SHA-256 digest", reviewed_artifacts=[{"path": "evidence.json", "sha256": "xyz"}])
+        self.assertResponseRejected("does not match packet: ghost.json", reviewed_artifacts=[{"path": "ghost.json", "sha256": self.packet["artifacts"][0]["sha256"]}])
+
+    def test_finalize_requires_at_least_one_covered_artifact(self) -> None:
+        self.assertResponseRejected("at least one artifact", reviewed_artifacts=[])
+
+    def test_finalize_findings_must_be_a_list_of_valid_objects(self) -> None:
+        self.assertResponseRejected("findings must be a list", findings={"id": "F1"})
+        self.assertResponseRejected("all findings must be objects", findings=["F1"])
+        good = {"id": "F1", "severity": "minor", "code": "c", "message": "m"}
+        self.assertResponseRejected("all findings must be objects", findings=[good, None])
+        cases = (
+            ({"id": ""}, "finding 0 id is required"),
+            ({"severity": "fatal"}, "invalid finding severity: fatal"),
+            ({"code": " "}, "code is required"),
+            ({"message": None}, "message is required"),
+            ({"resolution_status": "later"}, "invalid finding resolution status: later"),
+            ({"evidence": "evidence.json"}, "evidence must be a list"),
+        )
+        for change, message in cases:
+            with self.subTest(change=change):
+                self.assertResponseRejected(message, findings=[{**good, **change}])
+
+    def test_finalize_status_must_be_known(self) -> None:
+        for status in ("done", "", None, "PASSED"):
+            with self.subTest(status=status):
+                self.assertResponseRejected("invalid review response status", status=status)
+        for status in ("passed", "findings", "blocked"):
+            with self.subTest(accepted=status):
+                self.assertEqual(status, finalize_review_response(self.packet, {**valid_response(self.packet), "status": status})["status"])
+
+    def test_finalize_requires_nonempty_limitations(self) -> None:
+        self.assertResponseRejected("must state limitations", limitations=[])
+        response = valid_response(self.packet)
+        del response["limitations"]
+        with self.assertRaisesRegex(ValueError, "must state limitations"):
+            finalize_review_response(self.packet, response)
+        for value in ("Limited.", [" "], [3], ["ok", ""], None):
+            with self.subTest(value=value):
+                self.assertResponseRejected("limitations must be a non-empty string list", limitations=value)
+
+    def test_unresolved_blocking_finding_overrides_requested_pass(self) -> None:
+        finding = {"id": "F1", "severity": "critical", "code": "c", "message": "m"}
+        receipt = finalize_review_response(self.packet, {**valid_response(self.packet), "findings": [finding]})
+        self.assertEqual("findings", receipt["status"])
+        resolved = finalize_review_response(self.packet, {**valid_response(self.packet), "findings": [{**finding, "resolution_status": "resolved"}]})
+        self.assertEqual("passed", resolved["status"])
+
+
+class RespondToReviewRejectionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tempdir.cleanup)
+        self.root = Path(tempdir.name)
+        manifest = make_reviewed_run(self.root)
+        self.packet = build_review_packet(manifest, review_modes=["record", "method"], created_at="2026-07-21T00:00:00Z")
+        self.task = manifest.parent / "review-task.json"
+        self.task.write_text(json.dumps(self.packet), encoding="utf-8")
+        self.response_path = self.task.parent / "reviewer-response.json"
+        self.artifact_path = self.packet["artifacts"][0]["path"]
+
+    def respond(self, **overrides):
+        arguments = {"reviewer": "r1", "independent": True, "status": "passed", "limitations": ["Not reproduced."], "reviewed_all": True}
+        arguments.update(overrides)
+        return respond_to_review(self.task, **arguments)
+
+    def assertRefused(self, message: str, **overrides) -> None:
+        with self.assertRaisesRegex(ValueError, message):
+            self.respond(**overrides)
+        self.assertFalse(self.response_path.exists())
+
+    def write_findings(self, text: str) -> Path:
+        path = self.root / "findings.json"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_baseline_writes_response(self) -> None:
+        summary = self.respond()
+        self.assertEqual("passed", summary["effective_status"])
+        self.assertTrue(self.response_path.exists())
+
+    def test_reviewed_all_and_reviewed_are_mutually_exclusive_and_required(self) -> None:
+        self.assertRefused("pass exactly one of --reviewed-all or --reviewed PATH", reviewed_all=True, reviewed_paths=[self.artifact_path])
+        self.assertRefused("pass exactly one of --reviewed-all or --reviewed PATH", reviewed_all=False, reviewed_paths=None)
+        self.assertRefused("pass exactly one of --reviewed-all or --reviewed PATH", reviewed_all=False, reviewed_paths=[])
+
+    def test_unknown_modes_and_claims_are_refused(self) -> None:
+        self.assertRefused("modes not in packet: source", modes=["record", "source"])
+        self.assertRefused("claims not in packet: C9", claim_ids=["C1", "C9"])
+        self.assertRefused("claims not in packet: C9", claim_ids=["C9"], blocked_reason="narrowed")
+
+    def test_narrowed_claims_need_nonblank_blocked_reason(self) -> None:
+        manifest_path = self.task.parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["claims"].append({"id": "C2", "text": "Second claim.", "evidence": ["evidence.json"]})
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        two = build_review_packet(manifest_path, review_modes=["record"], created_at="2026-07-21T00:00:00Z")
+        self.task.write_text(json.dumps(two), encoding="utf-8")
+        for reason in ("", "   "):
+            with self.subTest(reason=reason):
+                self.assertRefused("--blocked-reason is required", claim_ids=["C1"], blocked_reason=reason)
+
+    def test_findings_file_read_and_parse_failures_are_reported(self) -> None:
+        missing = self.root / "absent.json"
+        self.assertRefused("findings file unreadable", findings_path=missing)
+        self.assertRefused("findings file unreadable", findings_path=self.write_findings("{not json"))
+        self.assertRefused("findings file unreadable", findings_path=self.write_findings(""))
+        self.assertRefused("findings file unreadable", findings_path=self.root)
+
+    def test_findings_file_must_be_a_list_of_objects(self) -> None:
+        for text in ('{"id": "F1"}', '"F1"', "null", "3"):
+            with self.subTest(text=text):
+                self.assertRefused("findings file must contain a JSON list", findings_path=self.write_findings(text))
+        self.assertRefused("finding 0 must be an object", findings_path=self.write_findings('["F1"]'))
+        self.assertRefused("finding 1 must be an object", findings_path=self.write_findings(json.dumps([{"id": "F1", "severity": "minor", "code": "c", "message": "m"}, None])))
+
+    def test_findings_evidence_entries_are_checked_against_packet(self) -> None:
+        base = {"id": "F1", "severity": "minor", "code": "c", "message": "m"}
+        cases = (
+            ([{"artifact_sha256": "0" * 64}], "evidence 0 path not in packet: <missing>"),
+            ([{"artifact_path": "ghost.json"}], "evidence 0 path not in packet: ghost.json"),
+            (["evidence.json"], "evidence 0 must be an object"),
+            ([{"artifact_path": self.artifact_path, "artifact_sha256": "0" * 64}], "hash differs from packet"),
+        )
+        for evidence, message in cases:
+            with self.subTest(message=message):
+                self.assertRefused(message, findings_path=self.write_findings(json.dumps([{**base, "evidence": evidence}])))
+
+    def test_finalize_rejections_surface_through_respond_without_writing(self) -> None:
+        self.assertRefused("invalid review response status", status="done")
+        self.assertRefused("must state limitations", limitations=[])
+        self.assertRefused("limitations must be a non-empty string list", limitations=[" "])
+        self.assertRefused("invalid finding severity: fatal", findings_path=self.write_findings(json.dumps([{"id": "F1", "severity": "fatal", "code": "c", "message": "m"}])))
+
+    def test_all_problems_are_reported_together(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            self.respond(reviewed_all=False, reviewed_paths=["ghost.json"], modes=["source"], claim_ids=["C9"], findings_path=self.root / "absent.json")
+        for fragment in ("reviewed paths not in packet: ghost.json", "modes not in packet: source", "claims not in packet: C9", "findings file unreadable"):
+            self.assertIn(fragment, str(caught.exception))
+        self.assertFalse(self.response_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
