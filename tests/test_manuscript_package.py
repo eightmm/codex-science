@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.manuscript import (  # noqa: E402
+    _claim_segment,
+    _relative_path,
+    _resolve_json_pointer,
     _scalar_appears_in_text,
     build_acceptance_package,
     validate_manuscript_package,
@@ -138,6 +141,66 @@ class ManuscriptPackageTests(unittest.TestCase):
             {"1.2", "2.5 response units", "3.8 response units"},
             {item["text"] for item in trace["claims"][0]["reported_values"]},
         )
+
+    def test_relative_path_rejects_empty_absolute_and_parent_paths(self) -> None:
+        self.assertEqual("source/result.json", _relative_path("source/result.json"))
+        for unsafe in (None, "", "/outside.json", "../outside.json", "source/../result.json"):
+            with self.subTest(path=unsafe):
+                self.assertIsNone(_relative_path(unsafe))
+
+    def test_json_pointer_decodes_escapes_and_reports_invalid_traversals(self) -> None:
+        payload = {"a/b": {"tilde~key": ["value"]}}
+        self.assertEqual("value", _resolve_json_pointer(payload, "/a~1b/tilde~0key/0"))
+        self.assertIs(payload, _resolve_json_pointer(payload, ""))
+        cases = (
+            (payload, "a/b", "RFC 6901"),
+            (payload, "/bad~2escape", "invalid escape"),
+            (["item"], "/named", "numeric index"),
+            (["item"], "/1", "out of range"),
+            ({}, "/absent", "does not exist"),
+            (2, "/child", "scalar value"),
+        )
+        for value, pointer, message in cases:
+            with self.subTest(pointer=pointer):
+                with self.assertRaisesRegex(ValueError, message):
+                    _resolve_json_pointer(value, pointer)
+
+    def test_claim_locator_must_be_unique(self) -> None:
+        manuscript = "<!-- claim:C-1 --> first <!-- claim:C-1 --> second"
+        segment, error = _claim_segment(manuscript, "claim:C-1")
+        self.assertIsNone(segment)
+        self.assertEqual("ambiguous", error)
+        self.assertEqual((None, "missing"), _claim_segment(manuscript, "claim:absent"))
+
+    def test_unsafe_source_manifest_reference_is_named_and_read_only(self) -> None:
+        contract_path = self.package / "manuscript-contract.json"
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        contract["source_manifest"] = {"path": "../outside.json", "sha256": "0" * 64}
+        self.rewrite_json(contract_path.name, contract)
+        before = {
+            path.relative_to(self.package).as_posix(): path.read_bytes()
+            for path in self.package.rglob("*")
+            if path.is_file()
+        }
+
+        result = validate_manuscript_package(self.package)
+
+        finding = next(item for item in result["findings"] if item["code"] == "source-manifest-mismatch")
+        self.assertIn("source manifest", finding["message"])
+        after = {
+            path.relative_to(self.package).as_posix(): path.read_bytes()
+            for path in self.package.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(before, after)
+
+    def test_missing_package_returns_named_refusal_without_creating_state(self) -> None:
+        missing = Path(self.tempdir.name) / "missing"
+        result = validate_manuscript_package(missing)
+        self.assertEqual("failed", result["status"])
+        self.assertEqual("package-missing", result["findings"][0]["code"])
+        self.assertIn("Package directory is missing", result["findings"][0]["message"])
+        self.assertFalse(missing.exists())
 
     def test_supported_material_claim_requires_artifact_or_citation_support(self) -> None:
         path = self.package / "claim-citation-map.json"
