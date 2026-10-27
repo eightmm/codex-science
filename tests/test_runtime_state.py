@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from unittest import mock
 
@@ -453,7 +454,10 @@ class RuntimeStateTests(unittest.TestCase):
 
     def test_runtime_file_verification_rejects_invalid_entries_and_extra_critical_files(self) -> None:
         version = "0.5.0+codex.20260803053401"
-        source = self.make_source("source-file-check", version)
+        with mock.patch.dict(
+            os.environ, {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+        ):
+            source = self.make_source("source-file-check", version)
         runtime = self.install(source)
         files = STATE.tracked_manifest(source)
         self.assertIsNotNone(files)
@@ -492,9 +496,11 @@ class RuntimeStateTests(unittest.TestCase):
         self.assertEqual("scripts/entry", os.readlink(link))
 
     def test_private_identity_refuses_corrupt_receipt_without_mutating_it(self) -> None:
-        runtime = self.install(
-            self.make_source("source-corrupt-receipt", "0.5.0+codex.20260803053402")
-        )
+        with mock.patch.dict(
+            os.environ, {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+        ):
+            source = self.make_source("source-corrupt-receipt", "0.5.0+codex.20260803053402")
+        runtime = self.install(source)
         receipt_path = STATE.receipt_path(self.plugin_data, runtime.pin.runtime_version)
         receipt_path.write_text("{}\n", encoding="utf-8")
         before = receipt_path.read_bytes()
@@ -521,7 +527,11 @@ class RuntimeStateTests(unittest.TestCase):
 
     def test_development_identity_uses_git_commit_and_stable_output_fields(self) -> None:
         version = "0.5.0+codex.20260803053403"
-        root = self.make_source("source-development-identity", version)
+        root = self.root / "source-development-identity"
+        (root / "release").mkdir(parents=True)
+        (root / "release" / "manifest.json").write_text(
+            json.dumps({"runtime_version": version}), encoding="utf-8"
+        )
         expected_commit = "a" * 40
         runtime_identity.current_runtime_identity.cache_clear()
         try:
@@ -579,14 +589,14 @@ class RuntimeStateTests(unittest.TestCase):
             ({"runtime_history": [valid], "runtime_span": "false"}, "runtime_span must match"),
         )
         for record, message in cases:
-            before = json.loads(json.dumps(record))
+            before = deepcopy(record)
             with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
                 runtime_identity.validate_runtime_history(record)
             self.assertEqual(before, record)
 
     def test_record_runtime_identity_rejects_non_list_history_without_mutation(self) -> None:
         record = {"runtime_history": "unchanged", "marker": 3}
-        before = dict(record)
+        before = deepcopy(record)
         with mock.patch.object(runtime_identity, "current_runtime_identity", return_value={"commit": "a"}):
             with self.assertRaisesRegex(ValueError, "runtime_history must be a list"):
                 runtime_identity.record_runtime_identity(record)

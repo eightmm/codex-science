@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from codex_science.collaboration import (
@@ -53,7 +54,7 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         )
         for invalid, message in cases:
             with self.subTest(message=message):
-                before = dict(invalid)
+                before = deepcopy(invalid)
                 with self.assertRaisesRegex(ValueError, message):
                     validate_annotation(invalid)
                 self.assertEqual(before, invalid)
