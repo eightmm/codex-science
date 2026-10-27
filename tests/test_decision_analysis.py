@@ -277,6 +277,27 @@ class DecisionAnalysisTests(unittest.TestCase):
         self.assertEqual("decision-sensitive", sidecars["decision_analyses"][0]["status"])
         self.assertEqual([], review_quantitative_sidecars(sidecars))
 
+    def test_hand_written_receipt_error_names_the_producing_script(self) -> None:
+        for kind, script in (
+            ("statistical-analysis", "run_statistical_analysis.py"),
+            ("decision-analysis", "run_decision_analysis.py"),
+        ):
+            with self.assertRaises(ValueError) as caught:
+                validate_quantitative_sidecar(kind, {"p_value": 0.01}, empty_quantitative_sidecars())
+            self.assertIn(f"scripts/{script} --output", str(caught.exception))
+            self.assertIn("package_run.py refresh --kind PATH=KIND", str(caught.exception))
+        with self.assertRaises(ValueError) as caught:
+            validate_quantitative_sidecar("proof-receipt", {}, empty_quantitative_sidecars())
+        self.assertNotIn("scripts/", str(caught.exception))
+
+    def test_statistical_design_missing_names_the_design_script(self) -> None:
+        findings = review_quantitative_sidecars(
+            {"statistical_analyses": [{"analysis_id": "A1", "design_id": "D-none"}]}
+        )
+        message = next(f["message"] for f in findings if f["code"] == "statistical-design-missing")
+        self.assertIn("scripts/validate_research_design.py --output", message)
+        self.assertIn("kind research-design", message)
+
 
 if __name__ == "__main__":
     unittest.main()

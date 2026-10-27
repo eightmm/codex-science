@@ -49,7 +49,32 @@ def empty_quantitative_sidecars() -> dict[str, list[dict[str, Any]]]:
     }
 
 
+RECEIPT_SCRIPTS = {
+    "statistical-analysis": "run_statistical_analysis.py",
+    "decision-analysis": "run_decision_analysis.py",
+    "numerical-verification": "verify_numerical_result.py",
+    "dimension-check": "check_dimensions.py",
+    "uncertainty-propagation": "propagate_uncertainty.py",
+    "counterexample-search": "search_counterexample.py",
+    "research-design": "validate_research_design.py",
+}
+
+
 def validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result: dict[str, Any]) -> None:
+    try:
+        _validate_quantitative_sidecar(kind, payload, result)
+    except ValueError as exc:
+        script = RECEIPT_SCRIPTS.get(kind)
+        if script is None or payload.get("schema_version") == 1:
+            raise
+        raise ValueError(
+            f"{exc}; `{kind}` is a receipt written by scripts/{script} --output; generate it with that "
+            "script, or register a hand-written results file under a non-receipt kind with "
+            "package_run.py refresh --kind PATH=KIND"
+        ) from exc
+
+
+def _validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result: dict[str, Any]) -> None:
     if kind == "research-design":
         validate_research_design(payload)
         result["research_designs"].append(dict(payload))
@@ -127,7 +152,7 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
             findings.append({
                 "code": "statistical-design-missing",
                 "severity": "major",
-                "message": f"Statistical analysis {analysis.get('analysis_id')} has no matching research-design sidecar.",
+                "message": f"Statistical analysis {analysis.get('analysis_id')} has no matching research-design sidecar; a research-design sidecar is written by scripts/validate_research_design.py --output and registered as kind research-design with the matching design_id.",
             })
     for collection_name, collection in (
         ("numerical verification", numerical),

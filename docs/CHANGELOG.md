@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A hand-written file registered under a receipt kind (`statistical-analysis`,
+  `decision-analysis`, `numerical-verification`, `dimension-check`,
+  `uncertainty-propagation`, `counterexample-search`, `research-design`) keeps its
+  schema error and now names the producing `scripts/*.py --output` and the
+  `package_run.py refresh --kind PATH=KIND` alternative; `statistical-design-missing`
+  says how to produce the research-design sidecar. Message text only; acceptance is unchanged.
 - `run_statistical_analysis.py --help` and the statistical-inference runtime reference now state that the effect, interval and `alternative` are for `group_labels[1] - group_labels[0]` (`["control", "treated"]` gives `treated - control`). No behavior change.
 - `package_run.py refresh --kind PATH=KIND` with an exact (non-glob) path now also changes the
   kind of an artifact already in the manifest, instead of requiring a hand edit of
