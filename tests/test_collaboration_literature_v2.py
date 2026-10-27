@@ -1,10 +1,177 @@
+import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
 
-from codex_science.collaboration import diff_runs, fold_annotation_resolutions, selective_rerun_plan, stale_annotations
+from codex_science.collaboration import (
+    append_resolution_event,
+    annotation_resolution_lock,
+    diff_runs,
+    fold_annotation_resolutions,
+    load_resolution_events,
+    selective_rerun_plan,
+    stale_annotations,
+    validate_annotation,
+    validate_resolution_event,
+)
 from codex_science.literature_v2 import normalize_identifier, resolve_study_families, validate_risk_of_bias
 
 
 class CollaborationAndLiteratureV2Tests(unittest.TestCase):
+    @staticmethod
+    def annotation_payload() -> dict:
+        return {
+            "schema_version": 1, "annotation_id": "A-1", "author": "reviewer", "type": "note",
+            "text": "Check this.", "status": "open", "created_at": "2026-07-19T00:00:00Z",
+            "anchor": {"artifact_path": "metrics.json", "artifact_sha256": "a" * 64, "claim_id": "C1"},
+        }
+
+    @staticmethod
+    def resolution_payload() -> dict:
+        return {
+            "schema_version": 1, "annotation_id": "A-1", "status": "resolved", "resolver": "reviewer",
+            "resolved_at": "2026-07-20T00:00:00Z", "artifact_sha256": "a" * 64, "note": "checked",
+        }
+
+    def test_annotation_validation_reports_invalid_field_and_preserves_input(self) -> None:
+        valid = self.annotation_payload()
+        validate_annotation(valid)
+        cases = (
+            ({"schema_version": 2}, "unsupported annotation schema"),
+            ({**valid, "annotation_id": " "}, "annotation annotation_id is required"),
+            ({**valid, "author": " "}, "annotation author is required"),
+            ({**valid, "text": " "}, "annotation text is required"),
+            ({**valid, "created_at": " "}, "annotation created_at is required"),
+            ({**valid, "type": "other"}, "invalid annotation type"),
+            ({**valid, "status": "other"}, "invalid annotation status"),
+            ({**valid, "anchor": []}, "annotation anchor must be an object"),
+            ({**valid, "anchor": {**valid["anchor"], "artifact_path": " "}}, "annotation artifact_path is required"),
+            ({**valid, "anchor": {**valid["anchor"], "artifact_sha256": "0"}}, "annotation artifact_sha256 must be a SHA-256 digest"),
+            ({**valid, "anchor": {"artifact_path": "metrics.json", "artifact_sha256": "a" * 64}},
+             "annotation anchor needs json_pointer, claim_id, or line_range"),
+        )
+        for invalid, message in cases:
+            with self.subTest(message=message):
+                before = dict(invalid)
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_annotation(invalid)
+                self.assertEqual(before, invalid)
+
+    def test_resolution_validation_rejects_each_invalid_contract_without_mutation(self) -> None:
+        valid = self.resolution_payload()
+        validate_resolution_event(valid)
+        cases = (
+            (None, "unsupported resolution event schema"),
+            ({**valid, "schema_version": 2}, "unsupported resolution event schema"),
+            ({**valid, "annotation_id": " "}, "resolution annotation_id is required"),
+            ({**valid, "resolver": " "}, "resolution resolver is required"),
+            ({**valid, "resolved_at": " "}, "resolution resolved_at is required"),
+            ({**valid, "status": "open"}, "invalid resolution status"),
+            ({**valid, "artifact_sha256": "bad"}, "resolution artifact_sha256 must be a SHA-256 digest"),
+            ({**valid, "note": 1}, "resolution note must be a string"),
+        )
+        for invalid, message in cases:
+            with self.subTest(message=message):
+                before = None if invalid is None else dict(invalid)
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_resolution_event(invalid)
+                self.assertEqual(before, invalid)
+
+    def test_resolution_lock_read_and_write_boundaries_and_refusals(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "fresh"
+            root.mkdir()
+            with annotation_resolution_lock(root, exclusive=False):
+                pass
+            self.assertFalse((root / "annotations").exists())
+            with annotation_resolution_lock(root):
+                self.assertTrue((root / "annotations/.resolutions.lock").is_file())
+            self.assertEqual(0o644, (root / "annotations/.resolutions.lock").stat().st_mode & 0o777)
+
+            target = Path(temporary) / "target"
+            target.mkdir()
+            fifo_root = Path(temporary) / "fifo-run"
+            (fifo_root / "annotations").mkdir(parents=True)
+            Path(fifo_root / "annotations/.resolutions.lock").symlink_to(target)
+            with self.assertRaises(OSError):
+                with annotation_resolution_lock(fifo_root, exclusive=False):
+                    pass
+            (fifo_root / "annotations/.resolutions.lock").unlink()
+            os.mkfifo(fifo_root / "annotations/.resolutions.lock")
+            with self.assertRaisesRegex(ValueError, "resolution lock must be a regular file"):
+                with annotation_resolution_lock(fifo_root):
+                    pass
+
+            (root / "annotations").rename(root / "annotations_saved")
+            (root / "annotations").symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "annotation directory must not be a symlink"):
+                with annotation_resolution_lock(root):
+                    pass
+            self.assertEqual([], list(target.iterdir()))
+
+            absent = Path(temporary) / "absent"
+            absent.mkdir()
+            with annotation_resolution_lock(absent, exclusive=False):
+                pass
+            self.assertFalse((absent / "annotations").exists())
+
+            unlocked = Path(temporary) / "unlocked"
+            (unlocked / "annotations").mkdir(parents=True)
+            with annotation_resolution_lock(unlocked, exclusive=False):
+                pass
+            self.assertEqual([], list((unlocked / "annotations").iterdir()))
+
+    def test_resolution_ledger_read_append_and_refusal_paths(self) -> None:
+        event = self.resolution_payload()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            root.mkdir()
+            self.assertEqual([], load_resolution_events(root))
+            with self.assertRaisesRegex(ValueError, "resolution artifact_sha256"):
+                append_resolution_event(root, {**event, "artifact_sha256": "bad"})
+            self.assertFalse((root / "annotations").exists())
+
+            with annotation_resolution_lock(root):
+                append_resolution_event(root, event, lock_held=True)
+                self.assertEqual([event], load_resolution_events(root, lock_held=True))
+            ledger = root / "annotations/resolutions.jsonl"
+            self.assertEqual([event], load_resolution_events(root))
+            self.assertEqual(0o644, ledger.stat().st_mode & 0o777)
+            append_resolution_event(root, {**event, "status": "dismissed", "note": "second"})
+            self.assertEqual(2, len(load_resolution_events(root)))
+
+            ledger.write_text("not-json\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid resolution event at line 1"):
+                load_resolution_events(root)
+            ledger.write_text("[]\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "resolution event at line 1 must be an object"):
+                load_resolution_events(root)
+
+            ledger.unlink()
+            ledger.mkdir()
+            with self.assertRaisesRegex(ValueError, "resolution event sidecar must be a regular file"):
+                load_resolution_events(root)
+            ledger.rmdir()
+            outside = Path(temporary) / "outside.jsonl"
+            outside.write_text("sentinel", encoding="utf-8")
+            ledger.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, "resolution event sidecar must not be a symlink"):
+                load_resolution_events(root)
+            self.assertEqual("sentinel", outside.read_text(encoding="utf-8"))
+
+            lock_link_root = Path(temporary) / "lock-link"
+            (lock_link_root / "annotations").mkdir(parents=True)
+            (lock_link_root / "annotations/.resolutions.lock").symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, "resolution lock must not be a symlink"):
+                load_resolution_events(lock_link_root)
+
+            directory_link_root = Path(temporary) / "directory-link"
+            directory_link_root.mkdir()
+            (directory_link_root / "annotations").symlink_to(root / "annotations", target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "resolution event directory must not be a symlink"):
+                load_resolution_events(directory_link_root)
+
     def test_resolution_fold_preserves_history_latest_wins_and_stale_anchor(self) -> None:
         annotation = {
             "schema_version": 1, "annotation_id": "A-1", "author": "reviewer", "type": "note",
