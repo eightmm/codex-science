@@ -10,7 +10,12 @@ from pathlib import Path
 from codex_science.artifact_index import render_markdown
 from codex_science.artifacts import validate_bundle
 from codex_science.evidence import _validate_study_table, review_sidecars, validate_sidecars
-from codex_science.literature import diff_review_snapshots
+from codex_science.literature import (
+    diff_review_snapshots,
+    normalize_persistent_id,
+    study_key,
+    validate_review_snapshot,
+)
 from codex_science.reference_contract import validate_reference_use_receipt
 from codex_science.review import review_manifest
 
@@ -324,6 +329,92 @@ class EvidenceSidecarTests(unittest.TestCase):
                 diff_review_snapshots(current, broken)
             with self.assertRaisesRegex(ValueError, field):
                 diff_review_snapshots(broken, current)
+
+    def test_persistent_ids_and_study_keys_normalize_with_fallback(self) -> None:
+        self.assertEqual(
+            "10.1234/example",
+            normalize_persistent_id(" HTTPS://DOI.ORG/10.1234/Example. "),
+        )
+        self.assertEqual("12345", normalize_persistent_id("PMID:12345/"))
+        self.assertEqual(
+            "10.1000/a",
+            study_key({"persistent_ids": ["doi:10.1000/z", "https://doi.org/10.1000/A"]}),
+        )
+        self.assertEqual("legacy-id", study_key({"persistent_ids": "ignored", "persistent_id": "doi:Legacy-ID."}))
+        fallback = study_key({"title": "  A Study ", "year": 2024, "first_author": " Smith "})
+        self.assertTrue(fallback.startswith("fallback:"))
+        self.assertEqual(fallback, study_key({"title": "a study", "year": 2024, "first_author": "smith"}))
+
+    def test_snapshot_validation_reports_bad_values_without_mutating_input(self) -> None:
+        valid = json.loads((self.example / "snapshot.current.json").read_text())
+        cases = [
+            (None, "must be an object"),
+            ({**valid, "schema_version": 2}, "schema version"),
+            ({**valid, "question_framework": "NOPE"}, "framework"),
+            ({**valid, "question": True}, "question"),
+            ({**valid, "question": "  "}, "question"),
+            ({**valid, "queries": "not a list"}, "queries must be a list"),
+            ({**valid, "queries": [None]}, "query 0 must be an object"),
+            ({**valid, "queries": [valid["queries"][0], valid["queries"][0]]}, "Duplicate literature query id"),
+            ({**valid, "queries": [{**valid["queries"][0], "source": ""}]}, "source"),
+            ({**valid, "studies": [None]}, "study 0 must be an object"),
+            ({**valid, "studies": [valid["studies"][0], valid["studies"][0]]}, "Duplicate literature study id"),
+            ({**valid, "studies": [{**valid["studies"][0], "eligibility": "maybe"}]}, "Invalid eligibility"),
+            ({**valid, "studies": [{**valid["studies"][0], "eligibility": "exclude", "exclusion_reason": " "}]}, "exclusion_reason"),
+            ({**valid, "claims": [None]}, "claim 0 must be an object"),
+            ({**valid, "claims": [valid["claims"][0], valid["claims"][0]]}, "Duplicate literature claim id"),
+            ({**valid, "claims": [{**valid["claims"][0], "status": None}]}, "status"),
+        ]
+        for broken, message in cases:
+            with self.subTest(message=message):
+                before = copy.deepcopy(broken)
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_review_snapshot(broken)
+                self.assertEqual(before, broken)
+
+    def test_snapshot_validation_accepts_empty_collections_and_integer_text(self) -> None:
+        snapshot = {
+            "schema_version": 1, "protocol_id": 7, "evidence_cutoff": 20261027,
+            "question_framework": "custom", "question": "Question",
+            "queries": [], "studies": [], "claims": [],
+        }
+        self.assertIsNone(validate_review_snapshot(snapshot))
+
+    def test_diff_refuses_protocol_change_without_mutating_snapshots(self) -> None:
+        previous = json.loads((self.example / "snapshot.previous.json").read_text())
+        current = json.loads((self.example / "snapshot.current.json").read_text())
+        current["protocol_id"] = "different-protocol"
+        before = (copy.deepcopy(previous), copy.deepcopy(current))
+        with self.assertRaisesRegex(ValueError, "different protocol IDs"):
+            diff_review_snapshots(previous, current)
+        self.assertEqual(before, (previous, current))
+
+    def test_diff_reports_sorted_additions_removals_and_changes(self) -> None:
+        previous = {
+            "schema_version": 1, "protocol_id": "p", "evidence_cutoff": "old",
+            "question_framework": "PICO", "question": "Q",
+            "queries": [{"query_id": "q-z", "source": "db", "query": "old"},
+                        {"query_id": "q-remove", "source": "db", "query": "x"}],
+            "studies": [{"study_id": "s-a", "title": "Old", "eligibility": "include"}],
+            "claims": [{"id": "c-z", "status": "old"}, {"id": "c-remove", "status": "old"}],
+        }
+        current = {
+            **previous, "evidence_cutoff": "new",
+            "queries": [{"query_id": "q-z", "source": "db", "query": "new"},
+                        {"query_id": "q-add", "source": "db", "query": "x"}],
+            "studies": [{"study_id": "s-add", "title": "New", "eligibility": "awaiting-full-text"}],
+            "claims": [{"id": "c-z", "status": "new"}, {"id": "c-add", "status": "new"}],
+        }
+        diff = diff_review_snapshots(previous, current)
+        self.assertEqual({"schema_version": 1, "protocol_id": "p", "previous_cutoff": "old", "current_cutoff": "new"},
+                         {key: diff[key] for key in ("schema_version", "protocol_id", "previous_cutoff", "current_cutoff")})
+        self.assertEqual({"added": ["q-add"], "removed": ["q-remove"],
+                          "changed": [{"id": "q-z", "before": previous["queries"][0], "after": current["queries"][0]}]},
+                         diff["queries"])
+        self.assertEqual({"added": ["s-add"], "removed": ["s-a"], "changed": []}, diff["studies"])
+        self.assertEqual(["c-add"], diff["claims"]["added"])
+        self.assertEqual(["c-remove"], diff["claims"]["removed"])
+        self.assertEqual("c-z", diff["claims"]["changed"][0]["id"])
 
     def test_diff_cli_reports_invalid_snapshot_without_traceback(self) -> None:
         current = json.loads((self.example / "snapshot.current.json").read_text())
