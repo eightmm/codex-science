@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `scripts/seed_review_defects.py` plants a known defect into a copy of a reviewed
+  run bundle (refreshed with review invalidation) and scores reviewer responses
+  against a hidden answer key, to measure independent-review detection.
 - `parse_unit` now raises `ValueError` (not `OverflowError`/`ZeroDivisionError`) when a unit exponent overflows or underflows the scale, e.g. `(km^64)^64`.
 - Fix SDF property names in artifact runtime previews, which kept a stray leading `<`
   (`<ID` instead of `ID`).

@@ -193,6 +193,8 @@ The checked-in corpus covers:
 
 Metrics include critical recall, major recall, severity-weighted precision/recall/F1, false-positive case rate, and unsafe-pass rate. The candidate gate requires zero unsafe passes and complete critical and major recall on the deterministic corpus.
 
+The corpus does not measure the LLM reviewer. `scripts/seed_review_defects.py seed` copies a reviewed run bundle, plants one known defect from a spec (or an unmodified `control`), and re-registers the copy through `refresh(..., invalidate_review=True)`; it writes the answer key outside the bundle. `score` matches reviewer responses or review receipts to the key by `affected_claim_id` or evidence `artifact_path`, not by finding code. One response per variant is a detection record, not a sensitivity estimate.
+
 ## Literature identity and risk of bias
 
 `codex_science.literature_v2` preserves identifier namespaces:
