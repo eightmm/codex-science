@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "design_id": "design-two-group-deterministic",
+  "question": "Does treatment change the prespecified continuous outcome in the deterministic fixture?",
+  "experimental_unit": "sample",
+  "observational_unit": "sample",
+  "outcome": {
+    "name": "response",
+    "measurement": "one prespecified continuous value per sample",
+    "subjective": false
+  },
+  "estimand": {
+    "population": "the eight deterministic fixture samples",
+    "contrast": "treatment minus control",
+    "summary_measure": "mean difference",
+    "causal": false
+  },
+  "assignment": {
+    "type": "randomized",
+    "mechanism": "balanced assignment fixed before outcome values",
+    "allocation_concealment": true
+  },
+  "analysis": {
+    "method": "difference in means with exact randomization test and bootstrap interval",
+    "aggregation_unit": "sample",
+    "cluster_adjustment": false
+  },
+  "primary_endpoints": [
+    {
+      "id": "response-primary",
+      "decision_threshold": "report effect and interval; do not equate p-value with importance"
+    }
+  ],
+  "multiplicity": {
+    "method": "none",
+    "family_size": 1
+  },
+  "missing_data": {
+    "strategy": "none-expected",
+    "assumptions": "the deterministic fixture contains no missing values"
+  },
+  "exclusions": {
+    "prespecified": true,
+    "criteria": ["exclude only malformed or non-finite records before analysis"]
+  },
+  "stopping": {
+    "planned_looks": 1,
+    "decision_rule": "analyze once after all eight fixture samples are present"
+  },
+  "sample_size": {
+    "planned": 8,
+    "rationale": "small deterministic acceptance fixture"
+  },
+  "sensitivity_analyses": ["repeat with median difference"],
+  "identification_assumptions": [],
+  "blinding": {
+    "outcome_assessor": true
+  },
+  "locked_before_outcomes": true
+}
