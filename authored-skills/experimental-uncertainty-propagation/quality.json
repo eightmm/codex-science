@@ -2,13 +2,22 @@
   "schema_version": 1,
   "skill": "experimental-uncertainty-propagation",
   "roles": ["analyzer", "reviewer"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": ["uncertainty-propagation-v1", "dimension-check-v1"],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": ["tests/test_numerical_units_uncertainty.py"],
+  "acceptance_fixtures": ["examples/experimental-uncertainty-propagation/input.json"],
+  "seeded_failures": [
+    "non-positive-semidefinite-covariance",
+    "missing-monte-carlo-seed",
+    "nonlinear-propagation-disagreement",
+    "non-finite-standard-uncertainty"
+  ],
+  "test_files": [
+    "tests/test_numerical_units_uncertainty.py",
+    "tests/test_experimental_uncertainty_propagation_acceptance.py"
+  ],
   "limitations": [
     "The built-in Monte Carlo runtime uses a correlated Gaussian input model.",
-    "Calibration, traceability, distribution choice, and model discrepancy require independent scientific evidence."
+    "Calibration, traceability, distribution choice, and model discrepancy require independent scientific evidence.",
+    "The deterministic acceptance fixture validates software behavior and is not an empirical result."
   ]
 }

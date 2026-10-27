@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "propagation_id": "uncertainty-product-acceptance",
+  "claim_id": "claim-product-uncertainty",
+  "expression": "x*y",
+  "inputs": [
+    {"name": "x", "mean": 2.0, "standard_uncertainty": 0.1, "unit": "m"},
+    {"name": "y", "mean": 3.0, "standard_uncertainty": 0.2, "unit": "N"}
+  ],
+  "covariance": [
+    {"left": "x", "right": "y", "value": 0.005}
+  ],
+  "method": "both",
+  "confidence_level": 0.95,
+  "seed": 20260722,
+  "samples": 5000,
+  "nonlinearity_threshold": 0.25
+}
