@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- An exploratory real-run reviewer seeded-defect probe caught 6/6 planted defects at major or higher with no major/critical control finding; one response per variant, not a sensitivity estimate (see `docs/EVALUATION.md`).
 - Study-table builds now reject integer excerpt locator lines that do not intersect the quoted source text, and unknown record IDs point users to screen records before extraction.
 - `scripts/diagnose_eval_trace.py` is a read-only diagnosis of a recorded evaluation task directory (or `--events FILE`): counts failed tool use, repeated exploration, plugin-source reads, manifest hand edits, lost artifacts, premature closure and per-script phase times as pattern matches, with at most 5 examples each.
 - `scripts/seed_review_defects.py` plants a known defect into a copy of a reviewed

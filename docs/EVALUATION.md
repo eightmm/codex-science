@@ -1107,6 +1107,45 @@ not replace checkpoint-derived outcomes or establish scientific correctness.
 directory without executing anything and prints JSON (`--output FILE`) with counts and
 at most 5 examples per category: failed tool use, repeated exploration, plugin-source
 reads, manifest hand edits, lost artifacts, premature closure and `phase_seconds`.
+
+### Reviewer seeded-defect probe
+
+On 2026-10-27, `scripts/seed_review_defects.py` seeded and scored one planted
+`report.md` edit per copy from two non-mRNA run37 bundles whose independent
+reviews had passed. The installed reviewer runtime was
+`0.5.0+codex.20261027061905`. The full-tier full-microbiome bundle used review
+modes method, record, and source; the standard-tier standard-single-cell bundle
+used record mode. Each copy refreshed review invalidation and stripped review
+history; `science_reviewer.py prepare` used the original modes and tier, then
+one `codex exec` reviewer run per copy used a neutral prompt that did not
+mention seeding. Every run wrote a response, had no capacity failure, and took
+310–429 seconds.
+
+| Bundle | Variant | Result |
+| --- | --- | --- |
+| full-microbiome | control | No false positive; one minor finding |
+| full-microbiome | numeric mismatch (514% → 154%, C2) | Caught, major |
+| full-microbiome | overclaim contradicting saved C5 decision | Caught, critical |
+| full-microbiome | citation swap (C2) | Caught, major |
+| standard-single-cell | control | No false positive; one minor finding |
+| standard-single-cell | overclaim (C1) | Caught, major |
+| standard-single-cell | result misattribution (C1) | Caught, major |
+| standard-single-cell | citation swap (C1) | Caught, major |
+
+The preregistered metric counted a defect as caught when a major-or-higher
+finding matched its seeded claim ID or `report.md`; any major or critical
+control finding counted as a false positive. The result was 6/6 seeded defects
+caught at major or higher and 0/2 controls with a major/critical finding. The
+preregistered 5–6/6 rule with no control false positive therefore called for no
+change to reviewer guidance from this probe. This is an exploratory detection
+record: one response per variant, two bundles, one planted defect per copy,
+and `report.md` edits only. It is not a sensitivity estimate; no rate or
+interval is claimed.
+
+Reviewers of the unmodified copies also raised pre-existing minor issues in the
+original passed bundles: an excerpt `locator.line` two lines from its quoted
+sentence, and a support edge whose excerpt stated microbiota dependence rather
+than the claimed mechanism.
 Counts are pattern matches over recorded commands, not judgments of scientific quality;
 regexes can miss shell indirection. Plugin cache paths print as `<plugin>/`; a
 `no_artifacts` completion report is informational, not premature closure. Cite the computed
