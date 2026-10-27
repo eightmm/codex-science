@@ -16,14 +16,17 @@ EPILOG = """\
 input JSON keys (schema_version must be 1):
   analysis_id, claim_id, design_id   required non-empty strings
   seed                     required integer (bool rejected); no default
-  group_labels             required list of exactly two distinct non-empty labels
+  group_labels             required list of exactly two distinct non-empty labels;
+                           effect, interval and contrast are group_labels[1] - group_labels[0]
+                           (contrast "SECOND - FIRST"), so list the reference group first
   data                     required non-empty list, up to 100000 objects:
                            group (must be one of group_labels), value (finite number),
                            unit_id (optional, default row-N; empty string rejected),
                            pair_id (required when analysis_type is paired)
   analysis_type            independent (default) or paired
   estimand                 mean-difference (default) or median-difference
-  alternative              two-sided (default), greater, or less
+  alternative              two-sided (default), greater, or less; greater means
+                           group_labels[1] - group_labels[0] > 0, less means < 0
   within_unit_aggregation  mean (default) or median
   confidence_level         optional, in (0.5, 1); default 0.95
   bootstrap_replicates     optional, 200-100000; default 5000

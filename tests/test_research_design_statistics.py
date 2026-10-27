@@ -89,6 +89,7 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         second = run_statistical_analysis(self.independent_input())
         self.assertEqual(first, second)
         self.assertAlmostEqual(2.0, first["effect"]["estimate"])
+        self.assertEqual("treatment - control", first["contrast"])
         self.assertTrue(first["test"]["exact"])
         self.assertEqual(70, first["test"]["permutations"])
         self.assertAlmostEqual(2 / 70, first["test"]["p_value"])

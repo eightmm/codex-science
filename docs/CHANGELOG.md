@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `run_statistical_analysis.py --help` and the statistical-inference runtime reference now state that the effect, interval and `alternative` are for `group_labels[1] - group_labels[0]` (`["control", "treated"]` gives `treated - control`). No behavior change.
 - `package_run.py refresh --kind PATH=KIND` with an exact (non-glob) path now also changes the
   kind of an artifact already in the manifest, instead of requiring a hand edit of
   `manifest.json`; the refresh JSON gains a `reclassified` list of `{path, from, to}`. Globs

@@ -25,6 +25,8 @@ The built-in runtime is limited to independent or paired two-group mean or media
   --output artifacts/run/statistical-analysis.json
 ```
 
+The effect, interval and `alternative` refer to `group_labels[1] - group_labels[0]`, so list the reference group first: `["control", "treated"]` gives contrast `treated - control`, and `greater` tests `treated - control > 0`.
+
 Each record contains `unit_id`, `group`, and `value`; paired records also contain `pair_id`. Repeated observations for one unit are aggregated by the explicitly selected mean or median before inference.
 
 The runtime computes:
