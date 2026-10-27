@@ -18,7 +18,7 @@ from codex_science.artifacts import (
     verify_bundle_artifacts,
     write_manifest,
 )
-from codex_science.artifact_index import _status_label, render_markdown
+from codex_science.artifact_index import _status_label, render_html, render_markdown
 from codex_science.review import review_manifest
 from codex_science import runtime_identity
 
@@ -595,6 +595,70 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertIn("**✅ Complete:** Freeze the analysis protocol", details)
             self.assertIn("**⏳ Pending:** Check evidence sidecars", details)
             self.assertIn("**⏳ Pending:** S3", details)
+
+    def test_in_process_renderers_summarize_validated_literature_bundle(self) -> None:
+        manifest_path = (
+            Path(__file__).resolve().parents[1]
+            / "examples"
+            / "literature-review-reviewed-run"
+            / "manifest.json"
+        )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        markdown = render_markdown(manifest, manifest_path.parent)
+        rendered_html = render_html(manifest, manifest_path.parent)
+
+        self.assertIn("### Evidence graph", markdown)
+        self.assertIn("### Evidence and execution lanes", markdown)
+        self.assertIn("### Query ledger", markdown)
+        self.assertIn("[Open the evidence graph]", markdown)
+        self.assertIn("Evidence graph", rendered_html)
+        self.assertIn("Evidence and execution lanes", rendered_html)
+        self.assertIn("Query ledger", rendered_html)
+        self.assertIn("No raster image artifacts recorded.", rendered_html)
+
+    def test_in_process_renderers_reject_invalid_artifact_without_writing_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest_path = self._make_run(Path(tempdir))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["artifacts"][0]["sha256"] = "b" * 64
+            write_manifest(manifest, manifest_path)
+            before = {
+                path.relative_to(manifest_path.parent): path.read_bytes()
+                for path in manifest_path.parent.rglob("*")
+                if path.is_file()
+            }
+
+            for renderer in (render_markdown, render_html):
+                with self.subTest(renderer=renderer.__name__):
+                    with self.assertRaisesRegex(ValueError, "Artifact digest mismatch: figures/result.png"):
+                        renderer(manifest, manifest_path.parent)
+
+            after = {
+                path.relative_to(manifest_path.parent): path.read_bytes()
+                for path in manifest_path.parent.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(before, after)
+            self.assertFalse((manifest_path.parent / "index.md").exists())
+            self.assertFalse((manifest_path.parent / "index.html").exists())
+
+    def test_in_process_renderers_handle_empty_manifest_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir = Path(tempdir) / "empty-run"
+            run_dir.mkdir()
+            manifest = new_manifest("empty-run", "Empty bundle", [])
+
+            markdown = render_markdown(manifest, run_dir)
+            rendered_html = render_html(manifest, run_dir)
+
+        self.assertIn("No recorded plan", markdown)
+        self.assertIn("No claims recorded.", markdown)
+        self.assertIn("No claim-specific limitations", markdown)
+        self.assertIn("No report, result, figure", markdown)
+        self.assertIn("No plan steps recorded.", markdown)
+        self.assertIn("No claims recorded.", rendered_html)
+        self.assertIn("No raster image artifacts recorded.", rendered_html)
 
     def test_renderer_rejects_missing_artifact_instead_of_creating_dead_link(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
