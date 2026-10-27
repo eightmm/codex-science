@@ -80,6 +80,74 @@ class BuildEvidenceGraphTests(unittest.TestCase):
             build_evidence_graph(self.root, extra=extra)
         self.assertEqual(before, output.read_bytes())
 
+    def test_in_process_path_refusals_preserve_existing_output(self):
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        cases = [
+            (self.root / "missing-run", {}, "run directory"),
+            (self.root, {"claims": "../outside.json"}, "claims file"),
+            (self.root, {"output": "../outside.json"}, "output file"),
+            (self.root, {"output": "claims.json"}, "must not replace an input"),
+            (self.root, {"output": "manifest.json"}, "manifest"),
+        ]
+        for run_dir, kwargs, message in cases:
+            with self.subTest(kwargs=kwargs, run_dir=run_dir.name):
+                with self.assertRaisesRegex(ValueError, message):
+                    build_evidence_graph(run_dir, **kwargs)
+                self.assertEqual(before, output.read_bytes())
+
+    def test_in_process_excerpt_source_cannot_be_replaced(self):
+        source = self.root / "sources" / "excerpt.txt"
+        source.parent.mkdir()
+        excerpt = "This exact source excerpt is sufficiently long for validation."
+        source.write_text(excerpt, encoding="utf-8")
+        studies_path = self.root / "studies.json"
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        studies["studies"][0]["support_excerpts"] = [{
+            "claim_id": "claim-method-effect", "text": excerpt,
+            "source_artifact": "sources/excerpt.txt",
+            "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        }]
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        before = source.read_bytes()
+        with self.assertRaisesRegex(ValueError, "excerpt source"):
+            build_evidence_graph(self.root, output="sources/excerpt.txt")
+        self.assertEqual(before, source.read_bytes())
+
+    def test_in_process_invalid_registers_and_extra_shape_aggregate_without_writing(self):
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        claims = self.root / "claims.json"
+        claims.write_text("{", encoding="utf-8")
+        extra = self.root / "extra.json"
+        extra.write_text(json.dumps({"schema": "wrong", "nodes": None, "edges": [None]}), encoding="utf-8")
+        with self.assertRaises(ValueError) as caught:
+            build_evidence_graph(self.root, extra=extra)
+        for detected in ("claims:", "Expecting property name", "evidence-graph-extra-v1", "extra nodes must be a list", "extra edge 0"):
+            self.assertIn(detected, str(caught.exception))
+        self.assertEqual(before, output.read_bytes())
+
+    def test_in_process_generated_graph_boundaries_and_counts(self):
+        studies_path = self.root / "studies.json"
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        studies["studies"][0]["cohort_id"] = "claim-method-effect"
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        with self.assertRaisesRegex(ValueError, "collides with a claim or study id"):
+            build_evidence_graph(self.root)
+        self.assertEqual(before, output.read_bytes())
+
+        studies["studies"][0]["cohort_id"] = None
+        studies["studies"][0]["supports_claim_ids"] = []
+        studies["studies"][0]["contradicts_claim_ids"] = []
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        result = build_evidence_graph(self.root)
+        graph = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual({"claims": 1, "studies": 1, "cohorts": 0, "nodes": 2, "edges": 0}, result["counts"])
+        self.assertEqual({"claim-method-effect", "study-example-1"}, {node["id"] for node in graph["nodes"]})
+        self.assertEqual([], graph["edges"])
+
     def test_node_type_suggestion_and_unrelated_value_has_no_suggestion(self):
         extra = self.root / "extra.json"
         extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [
