@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `parse_unit` now raises `ValueError` (not `OverflowError`/`ZeroDivisionError`) when a unit exponent overflows or underflows the scale, e.g. `(km^64)^64`.
 - Fix SDF property names in artifact runtime previews, which kept a stray leading `<`
   (`<ID` instead of `ID`).
 - `scripts/diagnose_eval_trace.py` is a read-only diagnosis of a recorded evaluation task directory (or `--events FILE`): counts failed tool use, repeated exploration, plugin-source reads, manifest hand edits, lost artifacts, premature closure and per-script phase times as pattern matches, with at most 5 examples each.

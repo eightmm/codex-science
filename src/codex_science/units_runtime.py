@@ -54,9 +54,14 @@ class Unit:
             raise ValueError("affine temperature units cannot be exponentiated")
         if abs(exponent.numerator) > 64 or exponent.denominator > 16:
             raise ValueError("unit exponent exceeds configured limits")
-        scale = self.scale ** float(exponent)
+        try:
+            scale = self.scale ** float(exponent)
+        except (OverflowError, ZeroDivisionError) as error:
+            raise ValueError("unit exponent produced a non-finite scale") from error
         if not math.isfinite(scale):
             raise ValueError("unit exponent produced a non-finite scale")
+        if scale == 0:
+            raise ValueError("unit exponent produced a zero scale")
         return Unit(
             f"({self.symbol}^{exponent})",
             scale,
