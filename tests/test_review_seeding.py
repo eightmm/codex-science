@@ -13,6 +13,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.artifacts import validate_bundle  # noqa: E402
+from codex_science.artifact_store import describe_directory  # noqa: E402
 import codex_science.review_seeding as review_seeding  # noqa: E402
 from codex_science.review_seeding import score, seed  # noqa: E402
 
@@ -131,6 +132,19 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertFalse(self.out.exists())
         self.assertFalse(self.key.exists())
 
+        real_refresh = review_seeding.refresh
+
+        def competing_key(*args: object, **kwargs: object) -> None:
+            real_refresh(*args, **kwargs)
+            self.key.write_text("foreign key", encoding="utf-8")
+
+        with mock.patch.object(review_seeding, "refresh", competing_key):
+            with self.assertRaises(FileExistsError):
+                self.run_seed()
+        self.assertFalse(self.out.exists())
+        self.assertEqual("foreign key", self.key.read_text(encoding="utf-8"))
+        self.assertEqual([], list(self.root.glob(".key-*.tmp")))
+
     def test_binary_file_refused(self) -> None:
         (self.bundle / "blob.bin").write_bytes(b"\xff\x00abc")
         with self.assertRaisesRegex(ValueError, "text artifact"):
@@ -192,6 +206,20 @@ class ReviewSeedingTests(unittest.TestCase):
     def test_drop_refusals_leave_nothing_behind(self) -> None:
         (self.bundle / "extra").mkdir()
         (self.bundle / "extra" / "note.txt").write_text("x", encoding="utf-8")
+        (self.bundle / "tree").mkdir()
+        (self.bundle / "tree" / "child.txt").write_text("x", encoding="utf-8")
+        manifest_path = self.bundle / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        descriptor = describe_directory(self.bundle / "tree")
+        manifest["artifacts"].append({"kind": "directory-tree", "path": "tree", "artifact_type": "directory-tree",
+                                      "sha256": descriptor.root_sha256, "size_bytes": descriptor.total_bytes,
+                                      "entry_count": descriptor.entry_count})
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with mock.patch.object(review_seeding, "refresh"):
+            with self.assertRaisesRegex(ValueError, "registered"):
+                self.run_seed(drop=("tree/child.txt",))
+        self.assertFalse(self.out.exists())
+        self.assertFalse(self.key.exists())
         (self.root / "outside.txt").write_text("x", encoding="utf-8")
         (self.bundle / "link.txt").symlink_to(self.root / "outside.txt")
         absolute_alias = self.bundle / "absolute-alias"

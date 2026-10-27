@@ -107,11 +107,12 @@ class DiagnoseTest(unittest.TestCase):
         bad_event_type = json.dumps({"type": []})
         bad_item_type = json.dumps({"type": "item.completed", "item": {"type": {}}})
         huge_timestamp = json.dumps({"t": 10 ** 400, "event": json.loads(cmd("huge", "false", 1))["event"]})
+        huge_integer = '{"t":' + "9" * 5000 + ',"event":{"type":"turn.completed"}}'
         lines = [cmd("a", "false", 1, wrapped=False), "not json", "[1,2]", "",
-                 bad_event_type, bad_item_type, huge_timestamp, cmd("b", "false", 1, t=2)]
+                 bad_event_type, bad_item_type, huge_timestamp, huge_integer, cmd("b", "false", 1, t=2)]
         result = self.run_events(lines)
         self.assertEqual(result["failed_tool_use"]["count"], 3)
-        self.assertEqual(result["malformed_lines"], 6)
+        self.assertEqual(result["malformed_lines"], 7)
 
     def test_oversized_line_is_malformed_not_fatal(self):
         path = self.tmp / "events.jsonl"
@@ -153,6 +154,9 @@ class DiagnoseTest(unittest.TestCase):
 
     def test_lost_artifacts_negative_and_unparseable_last(self):
         task = self.task_dir({}, "not json at all", artifacts=["report.md"])
+        self.assertEqual(diagnose_task_dir(task)["lost_artifacts"]["count"], 0)
+        malformed_number = '{"status":"completed","deliverables":[' + "9" * 5000 + ']}'
+        task = self.task_dir({}, malformed_number, artifacts=["report.md"])
         self.assertEqual(diagnose_task_dir(task)["lost_artifacts"]["count"], 0)
         self.assertFalse(self.run_events([TURN_DONE])["lost_artifacts"]["checked"])
 

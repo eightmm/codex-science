@@ -106,7 +106,8 @@ def _drop_target(root: Path, relative: str, registered: set[str], seeded: str | 
     if not target.exists():
         raise ValueError(f"--drop does not exist in the bundle: {relative}")
     overlaps = lambda other: PurePosixPath(other) == canonical or canonical in PurePosixPath(other).parents
-    if "manifest.json" == canonical.as_posix() or any(overlaps(path) for path in registered):
+    registered_ancestor = any(PurePosixPath(path) in canonical.parents for path in registered)
+    if "manifest.json" == canonical.as_posix() or registered_ancestor or any(overlaps(path) for path in registered):
         raise ValueError(f"--drop refused: {relative} is registered in the bundle manifest")
     if seeded is not None and overlaps(seeded):
         raise ValueError(f"--drop refused: {relative} contains the seeded file")
@@ -194,6 +195,7 @@ def seed(bundle: Path, spec_path: Path, out: Path, key_path: Path, drop: Iterabl
     except FileExistsError as error:
         raise ValueError(f"--out already exists: {out}") from error
     temporary = None
+    key_created = False
     try:
         shutil.copytree(bundle, out, symlinks=True, dirs_exist_ok=True)
         for relative in dropped:
@@ -232,8 +234,14 @@ def seed(bundle: Path, spec_path: Path, out: Path, key_path: Path, drop: Iterabl
         descriptor, temporary = tempfile.mkstemp(dir=key_path.parent, prefix=".key-", suffix=".tmp")
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(key, indent=2, sort_keys=True) + "\n")
-        os.replace(temporary, key_path)
+        os.link(temporary, key_path)
+        key_created = True
+        temporary_path = Path(temporary)
+        temporary_path.unlink()
+        temporary = None
     except BaseException:
+        if key_created:
+            key_path.unlink(missing_ok=True)
         if temporary is not None:
             Path(temporary).unlink(missing_ok=True)
         shutil.rmtree(out, ignore_errors=True)

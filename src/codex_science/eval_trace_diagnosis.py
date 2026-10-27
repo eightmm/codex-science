@@ -229,7 +229,7 @@ def collect_items(lines: Iterable[bytes | str | None]) -> dict[str, Any]:
             continue
         try:
             record = json.loads(line)
-        except (json.JSONDecodeError, UnicodeError, TypeError, RecursionError):
+        except (UnicodeError, TypeError, RecursionError, ValueError):
             malformed += 1
             continue
         if not isinstance(record, Mapping):
@@ -318,7 +318,7 @@ def _json_object(text: str | None) -> dict[str, Any] | None:
     fenced = re.fullmatch(r"```(?:json)?\s*\n(.*)\n```", text, re.DOTALL)
     try:
         value = json.loads(fenced.group(1) if fenced else text)
-    except (json.JSONDecodeError, RecursionError):
+    except (RecursionError, ValueError):
         return None
     return value if isinstance(value, dict) else None
 
