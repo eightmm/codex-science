@@ -9,7 +9,7 @@ from unittest import mock
 
 import codex_science.source_snapshot as source_snapshot
 from codex_science.artifact_store import describe_directory
-from test_compute_backends import initialize_repo
+from tests.test_compute_backends import initialize_repo
 
 
 class SourceSnapshotUnitTests(unittest.TestCase):
