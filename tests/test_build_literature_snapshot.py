@@ -269,6 +269,78 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
         self.assertEqual(1, bad.returncode)
         self.assertTrue(bad.stderr.startswith("error:"))
 
+    def test_build_refuses_invalid_run_directory_and_unsafe_outputs(self):
+        snapshot = self.root / "snapshot.current.json"
+        before = snapshot.read_bytes()
+        missing = self.root / "does-not-exist"
+        with self.assertRaisesRegex(ValueError, "existing, non-symlink directory"):
+            build_literature_snapshot(missing)
+        with self.assertRaisesRegex(ValueError, "inside the run directory"):
+            build_literature_snapshot(self.root, self.root.parent / "outside.json")
+        with self.assertRaisesRegex(ValueError, "output file"):
+            build_literature_snapshot(self.root, "../outside.json")
+        self.assertEqual(before, snapshot.read_bytes())
+
+    def test_invalid_registers_aggregate_errors_without_changing_output(self):
+        output = self.root / "new-snapshot.json"
+        output.write_bytes(b"preserve this output\n")
+        before = output.read_bytes()
+        (self.root / "protocol.json").write_text("[]", encoding="utf-8")
+        (self.root / "claims.json").write_text("{broken", encoding="utf-8")
+        (self.root / "queries.jsonl").write_text(
+            "not-json\n[]\n{}\n"
+            + json.dumps({"query_id": "q-empty", "source": " ", "query": "term"}) + "\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaises(ValueError) as caught:
+            build_literature_snapshot(self.root, output.name)
+        message = str(caught.exception)
+        for detected in (
+            "input JSON must be an object: protocol.json",
+            "protocol.json missing required field: question",
+            "protocol.json missing required field: protocol_id",
+            "claims:",
+            "queries.jsonl line 1: invalid JSON",
+            "queries.jsonl line 2 must be an object",
+            "queries.jsonl line 3 has invalid query_id",
+            "requires non-empty source and query for q-empty",
+        ):
+            self.assertIn(detected, message)
+        self.assertEqual(before, output.read_bytes())
+
+    def test_screening_validation_refusals_preserve_existing_snapshot(self):
+        screening_path = self.root / "screening.json"
+        output = self.root / "new-snapshot.json"
+        output.write_bytes(b"keep current data\n")
+        before = output.read_bytes()
+        screening_path.write_text(json.dumps({"schema": "wrong", "records": [
+        ]}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "screening.json must use schema screening-table-v1"):
+            build_literature_snapshot(self.root, output.name)
+        screening_path.write_text(json.dumps({"schema": "screening-table-v1", "records": [
+            None,
+            {"record_id": "", "decision": "exclude"},
+            {"record_id": "screen-1", "decision": "maybe"},
+            {"record_id": "screen-2", "decision": "exclude", "identifiers": "doi:bad"},
+            {"record_id": "screen-3", "decision": "exclude", "criterion": " ", "rationale": "missing"},
+            {"record_id": "screen-3", "decision": "exclude"},
+        ]}), encoding="utf-8")
+
+        with self.assertRaises(ValueError) as caught:
+            build_literature_snapshot(self.root, output.name)
+        message = str(caught.exception)
+        for detected in (
+            "screening record 0 must be an object",
+            "screening record 1 has invalid record_id",
+            "screening record screen-1 has invalid decision",
+            "screening record screen-2 identifiers must be a list of strings",
+            "screening record screen-3 exclusion requires criterion and rationale",
+            "duplicate screening record_id: screen-3",
+        ):
+            self.assertIn(detected, message)
+        self.assertEqual(before, output.read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()
