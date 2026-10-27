@@ -2,13 +2,22 @@
   "schema_version": 1,
   "skill": "dimensional-analysis-units",
   "roles": ["analyzer", "reviewer"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": ["dimension-check-v1"],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": ["tests/test_numerical_units_uncertainty.py"],
+  "acceptance_fixtures": ["examples/dimensional-analysis-units/input.json"],
+  "seeded_failures": [
+    "equation-dimension-mismatch",
+    "unknown-unit",
+    "incompatible-conversion",
+    "dimensionful-exponential-argument"
+  ],
+  "test_files": [
+    "tests/test_numerical_units_uncertainty.py",
+    "tests/test_dimensional_analysis_units_acceptance.py"
+  ],
   "limitations": [
     "The built-in registry is intentionally bounded and does not encode every domain-specific unit convention.",
-    "Dimensional consistency cannot validate model form, coefficients, frames, or physical mechanisms."
+    "Dimensional consistency cannot validate model form, coefficients, frames, or physical mechanisms.",
+    "The acceptance fixture is deterministic software validation, not an empirical result."
   ]
 }

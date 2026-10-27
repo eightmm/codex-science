@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "check_id": "mechanics-acceptance",
+  "claim_id": "claim-newton-work",
+  "variables": {
+    "mass": "kg",
+    "acceleration": "m/s^2",
+    "force": "N",
+    "distance": "m",
+    "energy": "J",
+    "temperature": "degC"
+  },
+  "equations": [
+    {"id": "newton-second-law", "left": "force", "right": "mass*acceleration"},
+    {"id": "work", "left": "energy", "right": "force*distance"}
+  ],
+  "conversions": [
+    {"id": "centimetres-to-metres", "value": 100.0, "from": "cm", "to": "m"},
+    {"id": "celsius-to-kelvin", "value": 25.0, "from": "degC", "to": "K"}
+  ]
+}
