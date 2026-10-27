@@ -9,7 +9,15 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-from codex_science.artifacts import add_artifact, new_manifest, validate_manifest, write_manifest
+from codex_science.artifact_store import describe_file
+from codex_science.artifacts import (
+    _validate_descriptor_path,
+    add_artifact,
+    new_manifest,
+    validate_manifest,
+    verify_bundle_artifacts,
+    write_manifest,
+)
 from codex_science.artifact_index import _status_label, render_markdown
 from codex_science.review import review_manifest
 from codex_science import runtime_identity
@@ -301,6 +309,116 @@ class ArtifactManifestTests(unittest.TestCase):
                 over = {(f["code"], f["message"].split()[1]) for f in review_manifest(manifest, run, sidecars={})["findings"]}
         self.assertEqual(at_limit, {("error-object-artifact", "claim-sufficiency.json"), ("uninspectable-generated-artifact", "citation-trace.json")})
         self.assertEqual(over, {("uninspectable-generated-artifact", "claim-sufficiency.json"), ("uninspectable-generated-artifact", "citation-trace.json")})
+
+
+class ValidateManifestRejectionTests(unittest.TestCase):
+    @staticmethod
+    def base() -> dict:
+        manifest = new_manifest("run-001", "Question", [])
+        manifest["artifacts"].append({"path": "a.csv", "kind": "table", "sha256": "a" * 64})
+        manifest["claims"].append({"id": "c1", "text": "t", "evidence": []})
+        return manifest
+
+    def assertRejects(self, manifest, message: str) -> None:
+        with self.assertRaisesRegex(ValueError, message):
+            validate_manifest(manifest)
+
+    def test_baseline_is_valid(self) -> None:
+        validate_manifest(self.base())
+
+    def test_top_level_shape_is_checked(self) -> None:
+        self.assertRejects([], "must be a JSON object")
+        cases = (
+            ("schema_version", 2, "Unsupported artifact schema version"),
+            ("question", "  ", "run_id and question are required"),
+            ("claims", {}, "must be a list: claims"),
+            ("environment", [], "environment must be an object"),
+            ("review", [], "review must be an object"),
+        )
+        for key, value, message in cases:
+            with self.subTest(key=key):
+                manifest = self.base()
+                manifest[key] = value
+                self.assertRejects(manifest, message)
+        manifest = self.base()
+        del manifest["review"]
+        self.assertRejects(manifest, "Missing manifest fields: review")
+
+    def test_artifact_records_are_checked(self) -> None:
+        duplicate = self.base()
+        duplicate["artifacts"].append(dict(duplicate["artifacts"][0]))
+        self.assertRejects(duplicate, "Duplicate artifact path: a.csv")
+        good = {"path": "b", "kind": "t", "sha256": "a" * 64}
+        cases = (
+            ("not-an-object", "Artifact records must be objects"),
+            ({**good, "kind": " "}, "kind is required"),
+            ({**good, "sha256": "xyz"}, "Invalid artifact sha256"),
+            ({**good, "sha256": "a" * 63}, "Invalid artifact sha256"),
+            ({**good, "artifact_type": "external-reference"}, "Unsupported local artifact_type"),
+            ({**good, "size_bytes": -1}, "size_bytes must be"),
+            ({**good, "entry_count": True}, "entry_count must be"),
+            ({**good, "path": "../b"}, "inside the run bundle"),
+            ({**good, "descriptor_path": "/abs.json"}, "inside the run bundle"),
+        )
+        for record, message in cases:
+            with self.subTest(message=message, record=record):
+                manifest = self.base()
+                manifest["artifacts"].append(record)
+                self.assertRejects(manifest, message)
+
+    def test_claim_records_are_checked(self) -> None:
+        cases = (
+            ({"id": "c1", "text": "again"}, "Duplicate manifest claim id: c1"),
+            ({"id": " "}, "Claim id is required"),
+            ("c2", "Claim records must be objects"),
+        )
+        for claim, message in cases:
+            with self.subTest(message=message):
+                manifest = self.base()
+                manifest["claims"].append(claim)
+                self.assertRejects(manifest, message)
+
+
+class DescriptorPathRejectionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.run_dir = Path(tmp.name)
+        self.data = self.run_dir / "data.bin"
+        self.data.write_bytes(b"payload")
+        self.digest = hashlib.sha256(b"payload").hexdigest()
+
+    def manifest(self) -> dict:
+        manifest = new_manifest("run-001", "Question", [])
+        add_artifact(
+            manifest, "data.bin", kind="blob", sha256=self.digest,
+            descriptor_path="data.descriptor.json",
+        )
+        return manifest
+
+    def write_descriptor(self, payload) -> None:
+        (self.run_dir / "data.descriptor.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_matching_descriptor_is_accepted(self) -> None:
+        self.write_descriptor(describe_file(self.data).to_dict())
+        verify_bundle_artifacts(self.manifest(), self.run_dir)
+
+    def test_missing_descriptor_file_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Artifact descriptor is missing: data.descriptor.json"):
+            verify_bundle_artifacts(self.manifest(), self.run_dir)
+
+    def test_non_object_descriptor_is_rejected(self) -> None:
+        self.write_descriptor([1, 2])
+        with self.assertRaisesRegex(ValueError, "Artifact descriptor must be an object"):
+            verify_bundle_artifacts(self.manifest(), self.run_dir)
+
+    def test_descriptor_root_must_match_record_digest(self) -> None:
+        # verify_bundle_artifacts checks the record digest against the bytes first,
+        # so the root-mismatch branch is only reachable by calling the helper.
+        self.write_descriptor(describe_file(self.data).to_dict())
+        record = {"path": "data.bin", "sha256": "b" * 64, "descriptor_path": "data.descriptor.json"}
+        with self.assertRaisesRegex(ValueError, "Artifact descriptor root mismatch: data.bin"):
+            _validate_descriptor_path(record, self.run_dir, self.data)
 
 
 class ArtifactIndexTests(unittest.TestCase):
