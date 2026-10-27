@@ -1101,6 +1101,17 @@ The evaluation runner's opt-in `--output-schema` validates Codex output against
 a supplied JSON schema and records completion metadata. This cross-check does
 not replace checkpoint-derived outcomes or establish scientific correctness.
 
+### Trace diagnosis
+
+`scripts/diagnose_eval_trace.py TASK_DIR` (or `--events FILE`) reads a recorded task
+directory without executing anything and prints JSON (`--output FILE`) with counts and
+at most 5 examples per category: failed tool use, repeated exploration, plugin-source
+reads, manifest hand edits, lost artifacts, premature closure and `phase_seconds`.
+Counts are pattern matches over recorded commands, not judgments of scientific quality;
+regexes can miss shell indirection. Plugin cache paths print as `<plugin>/`; a
+`no_artifacts` completion report is informational, not premature closure. Cite the computed
+numbers in run records.
+
 ## Acceptance
 
 - 284 skills (149 K-Dense + 3 DeepMind infra pointers + 132 Codex-native authored) appear in the deterministic inventory.

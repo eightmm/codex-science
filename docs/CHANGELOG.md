@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `scripts/diagnose_eval_trace.py` is a read-only diagnosis of a recorded evaluation task directory (or `--events FILE`): counts failed tool use, repeated exploration, plugin-source reads, manifest hand edits, lost artifacts, premature closure and per-script phase times as pattern matches, with at most 5 examples each.
 - `scripts/seed_review_defects.py` plants a known defect into a copy of a reviewed
   run bundle (refreshed with review invalidation) and scores reviewer responses
   against a hidden answer key, to measure independent-review detection.
