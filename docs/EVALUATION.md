@@ -876,6 +876,52 @@ Codex sign-in, which the recorded runs did not set up.
   tasks and one run; not an effect estimate. Runs 28, 29, and 34 also recorded
   6/6; no trend is claimed.
 
+- Run36 (`76cd4c0`, runtime `0.5.0+codex.20261026024000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%). Changes under test since run35 (`eddb1b7`) are
+  `38bf97a`, which makes bundle validation errors name the failing artifact,
+  with a risk-of-bias aggregate hint and a claim-evidence path hint; `3932c01`,
+  which adds `--output` to `estimate_saturation.py`; `2af8ce9`, docs only;
+  `14be477`, which stops decision-analysis statuses from blocking review;
+  `76f4804`, which lists accepted values in discovery enum errors; `f00d77b`,
+  which adds discovery lifecycle hints; and `76cd4c0`, which documents math
+  sidecar shapes, adds failed-execution message guidance, and labels the
+  quantitative acceptance fixture as maintainer-only. Most of these are outside
+  the literature route; the run is a regression check. quick-arxiv completed in
+  72 seconds, quick-doi in 76 seconds, standard-mrna in 895 seconds,
+  standard-single-cell in 991 seconds, full-protein-folding in 1248 seconds, and
+  full-microbiome in 1669 seconds. Stop reasons were done 6. No policy blocks,
+  no provider-capacity failures, and no re-runs. The loaded runtime matched the
+  branch in every task. The frozen grader (`src-76cd4c0`) counted completion 6/6
+  and citations 87 of 87 traced (run35 91 of 93), with 0 orphan citations.
+  Preregistered secondary metrics (predicted; observed): primary completion has
+  no numeric prediction; observed 6/6. RB risk-of-bias/claim-evidence packaging
+  failures: predicted no task with more than one; observed 2 in
+  full-protein-folding and 0 in full-microbiome. Not met. I1 `inventory.json`
+  reads: predicted 0; observed 0. Met. SO `estimate_saturation.py`
+  unknown-option failures: predicted 0; observed 0. Met. X1 excerpt-length
+  failures, no task with more than one: predicted no task above one; observed
+  0. Met. C1 untraced identifiers: none, so the prediction holds vacuously.
+  Descriptive: L1 `search_skills.py --name` lookups 1 per task (6 total); O1
+  orientation bytes median 162 KB (single-cell 141, protein-folding 162,
+  microbiome 168; run35 164); O3 `artifact-contract.md` read in all three; E1 0;
+  F1 0; P1 0; P2 0; bare `python` 0. Standard-mrna was counted only for the I1,
+  L1, and X1 command totals; its content was not analysed. Observed failures:
+  full-protein-folding's risk-of-bias validation rejected an aggregate
+  `risk-of-bias.json` keyed `assessments`, which the aggregate hint did not
+  cover; after the agent renamed that file, the refresh reported "Artifact file
+  is missing", and the manifest was resolved by hand-editing `manifest.json`.
+  standard-single-cell's `build_evidence_graph` rejected an extra key without a
+  schema, fixed after `--help` in about 20 seconds. full-microbiome's
+  `screen_candidates` reported "candidate with accessible abstract is unlisted"
+  for one round. Follow-up: `package_run.py refresh
+  --forget` and a risk-of-bias aggregate hint covering any top-level list of
+  objects. Standard-mrna has been blocked by provider policy
+  in 10 of 31 runs (runs 6–36). Caveat: an external fixture overwrote the Codex
+  user config at 08:12:14 while tasks were running; a watcher restored it,
+  plugin stanzas were intact afterwards, and every task completed with the
+  branch runtime loaded. Six tasks and one run; not an effect estimate. Runs 28,
+  29, 34, and 35 also recorded 6/6; no trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
