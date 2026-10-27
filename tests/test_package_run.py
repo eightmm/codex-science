@@ -367,6 +367,16 @@ class PackageRunTests(unittest.TestCase):
         paths = [item["path"] for item in json.loads(manifest_path.read_text())["artifacts"]]
         self.assertNotIn("gone.json", paths)
 
+    def test_refresh_kind_override_of_review_entry_refused_before_invalidation(self) -> None:
+        manifest_path = self.run_dir / "manifest.json"
+        receipt = next(i["path"] for i in json.loads(manifest_path.read_text())["artifacts"] if i["kind"].startswith("review-receipt"))
+        before = manifest_path.read_bytes()
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review", "--kind", f"{receipt}=metrics")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("managed by the review flow", result.stderr)
+        self.assertEqual(manifest_path.read_bytes(), before)
+        self.assertFalse((self.run_dir / "review-rounds").exists())
+
     def test_refresh_hashes_and_invalidates_review(self) -> None:
         (self.run_dir / "report.md").write_text("changed\n")
         result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")

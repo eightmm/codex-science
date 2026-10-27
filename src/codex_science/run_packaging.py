@@ -593,6 +593,12 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
         raise ValueError("Manifest artifacts must be a list")
+    for item in artifacts:
+        if not isinstance(item, dict) or not item.get("path") or item.get("artifact_type") == "directory-tree":
+            continue
+        new_kind = exact_overrides.get(_canonical_relative(str(item["path"])))
+        if new_kind is not None and new_kind != item.get("kind") and (item.get("kind") in REVIEW_KINDS or new_kind in REVIEW_KINDS):
+            raise ValueError(f"--kind {item['path']}={new_kind} refused: review artifact kinds are managed by the review flow")
     review = manifest.get("review", {})
     review_artifacts = [item for item in artifacts if isinstance(item, dict) and item.get("kind") in REVIEW_KINDS]
     review_files = _review_flow_files(run_dir)
@@ -729,8 +735,6 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             unchanged += 1
         new_kind = exact_overrides.get(canonical)
         if new_kind is not None and new_kind != item.get("kind") and item.get("artifact_type") != "directory-tree":
-            if item.get("kind") in REVIEW_KINDS or new_kind in REVIEW_KINDS:
-                raise ValueError(f"--kind {relative}={new_kind} refused: review artifact kinds are managed by the review flow")
             reclassified.append({"path": relative, "from": str(item.get("kind")), "to": new_kind})
             item["kind"] = new_kind
         by_path[canonical] = item
