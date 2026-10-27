@@ -5,7 +5,7 @@
     "conductor",
     "analyzer"
   ],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": [
     "research-cycle-v1"
   ],
