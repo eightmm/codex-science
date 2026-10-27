@@ -575,7 +575,14 @@ def _forget_artifacts(
 
 
 def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: bool = False, default_kind: str | None = None,
-            forget: list[str] | None = None) -> dict[str, Any]:
+            forget: list[str] | None = None, reclassify: list[tuple[str, str]] | None = None) -> dict[str, Any]:
+    # Only user-supplied exact-path overrides may change the kind of an existing entry.
+    exact_overrides = {
+        _canonical_relative(pattern): kind
+        for pattern, kind in (overrides if reclassify is None else reclassify)
+        if not any(char in pattern for char in "*?[")
+    }
+    reclassified: list[dict[str, str]] = []
     manifest_path = _write_target(run_dir, "manifest.json")
     if not manifest_path.is_file():
         raise ValueError(_missing_manifest_message(manifest_path))
@@ -720,6 +727,12 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             changed.append(relative)
         else:
             unchanged += 1
+        new_kind = exact_overrides.get(canonical)
+        if new_kind is not None and new_kind != item.get("kind") and item.get("artifact_type") != "directory-tree":
+            if item.get("kind") in REVIEW_KINDS or new_kind in REVIEW_KINDS:
+                raise ValueError(f"--kind {relative}={new_kind} refused: review artifact kinds are managed by the review flow")
+            reclassified.append({"path": relative, "from": str(item.get("kind")), "to": new_kind})
+            item["kind"] = new_kind
         by_path[canonical] = item
 
     excluded = set(EXCLUDED_NAMES)
@@ -846,7 +859,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         path.relative_to(run_dir).as_posix() for path in deterministic_files
         if _canonical_relative(path.relative_to(run_dir).as_posix()) not in archived_deterministic
     ]
-    return {"added": added, "forgotten": forgotten, "rehashed_changed": changed,
+    return {"added": added, "forgotten": forgotten, "reclassified": reclassified, "rehashed_changed": changed,
             "unchanged_count": unchanged, "lanes_updated": lanes_updated, "executions_added": executions_added,
             "code_entries": len(manifest["code"]), "review_archive": review_archive,
             "superseded_failures": superseded_failures,
@@ -870,6 +883,10 @@ def prepare_review(
     generated_kinds = [("citation-trace.json", "citation-trace"),
                        ("claim-sufficiency.json", "claim-sufficiency")]
     refresh_kinds = [*(kind_overrides or []), *generated_kinds]
+    # Generated outputs keep their generated kind even if the caller named the same path.
+    generated_paths = {_canonical_relative(path) for path, _kind_name in generated_kinds}
+    reclassify_kinds = [(path, kind_name) for path, kind_name in (kind_overrides or [])
+                        if _canonical_relative(path) not in generated_paths]
     # Refuse before run_exec writes its execution log when current review evidence
     # exists and the caller did not explicitly start a new round.
     manifest_path = _write_target(run_dir, "manifest.json")
@@ -922,6 +939,7 @@ def prepare_review(
                 invalidate_review=new_round,
                 default_kind=default_kind,
                 forget=forget,
+                reclassify=reclassify_kinds,
             )
         outputs.append("manifest.json")
     except (OSError, ValueError, json.JSONDecodeError) as error:
@@ -974,7 +992,7 @@ def prepare_review(
     final_refresh = None
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            final_refresh = refresh(run_dir, refresh_kinds, default_kind=default_kind)
+            final_refresh = refresh(run_dir, refresh_kinds, default_kind=default_kind, reclassify=reclassify_kinds)
         outputs.append("manifest.json")
     except (OSError, ValueError, json.JSONDecodeError) as error:
         problems.append({"stage": "refresh", "phase": "final", "error": str(error)})

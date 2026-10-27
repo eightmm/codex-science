@@ -39,7 +39,7 @@ def main() -> int:
     update = commands.add_parser("refresh", help="refresh manifest hashes and registrations")
     update.add_argument("--run-dir", type=Path, required=True, help="run directory containing manifest.json")
     update.add_argument("--kind", action="append", default=[], metavar="PATH=KIND",
-                        help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable")
+                        help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable; an exact PATH also reclassifies an artifact already in the manifest, a glob applies only to newly added files")
     update.add_argument("--default-kind",
                         help="artifact kind for files that match no --kind and no built-in name rule (without it, such unregistered files make the command fail)")
     update.add_argument("--invalidate-review", action="store_true",
@@ -60,7 +60,7 @@ def main() -> int:
     ready.add_argument("--new-round", action="store_true",
                        help="archive prior review files and start a new review round; required when the run already has review evidence")
     ready.add_argument("--kind", action="append", default=[], metavar="PATH=KIND",
-                       help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable")
+                       help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable; an exact PATH also reclassifies an artifact already in the manifest, a glob applies only to newly added files")
     ready.add_argument("--default-kind",
                        help="artifact kind for files that match no --kind and no built-in name rule (without it, such unregistered files make the command fail)")
     ready.add_argument("--forget", action="append", default=[], metavar="PATH",

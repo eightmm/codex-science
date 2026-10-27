@@ -327,6 +327,35 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(combined.returncode, 1)
         self.assertIn("--forget", combined.stderr)
 
+    def test_refresh_exact_kind_reclassifies_existing_entry_but_glob_does_not(self) -> None:
+        self._make_unreviewed_run()
+        manifest_path = self.run_dir / "manifest.json"
+        (self.run_dir / "results.json").write_text("{}\n")
+        base = ("refresh", "--run-dir", str(self.run_dir))
+        first = self.cli(*base, "--kind", "results.json=statistical-analysis")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(json.loads(first.stdout)["reclassified"], [])
+
+        def kind() -> str:
+            return next(i["kind"] for i in json.loads(manifest_path.read_text())["artifacts"] if i["path"] == "results.json")
+
+        glob = self.cli(*base, "--kind", "results.*=metrics")
+        self.assertEqual(glob.returncode, 0, glob.stderr)
+        self.assertEqual(json.loads(glob.stdout)["reclassified"], [])
+        self.assertEqual(kind(), "statistical-analysis")
+        same = self.cli(*base, "--kind", "results.json=statistical-analysis")
+        self.assertEqual(json.loads(same.stdout)["reclassified"], [])
+        exact = self.cli(*base, "--kind", "results.json=metrics")
+        self.assertEqual(exact.returncode, 0, exact.stderr)
+        self.assertEqual(json.loads(exact.stdout)["reclassified"],
+                         [{"path": "results.json", "from": "statistical-analysis", "to": "metrics"}])
+        self.assertEqual(kind(), "metrics")
+        before = manifest_path.read_bytes()
+        refused = self.cli(*base, "--kind", "results.json=review-receipt")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("managed by the review flow", refused.stderr)
+        self.assertEqual(manifest_path.read_bytes(), before)
+
     def test_prepare_review_forwards_forget_to_first_refresh(self) -> None:
         self._make_unreviewed_run()
         manifest_path = self.run_dir / "manifest.json"

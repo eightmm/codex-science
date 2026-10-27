@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `package_run.py refresh --kind PATH=KIND` with an exact (non-glob) path now also changes the
+  kind of an artifact already in the manifest, instead of requiring a hand edit of
+  `manifest.json`; the refresh JSON gains a `reclassified` list of `{path, from, to}`. Globs
+  still apply only to newly added files, `directory-tree` artifacts are left alone, review
+  kinds are refused, and `prepare-review` reclassifies only for user-supplied `--kind` paths.
 - `package_run.py refresh --forget PATH` (repeatable; `prepare-review` forwards it to its
   first refresh) removes the manifest entry of an artifact that was renamed or deleted on
   purpose, instead of hand-editing `manifest.json`; it refuses a file that still exists, a
