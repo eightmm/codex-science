@@ -17,7 +17,12 @@ EPILOG = """Examples:
 
 SPEC: {"schema_version":1,"defect_id","defect_class","file","find","replace",
 "claim_id"?,"expected_min_severity":"major"|"critical"}; defect_class "control"
-with no find/replace makes an unmodified copy. Keep --key outside --out.
+with no find/replace makes an unmodified copy and needs no expected_min_severity.
+--drop PATH removes an unregistered file or directory from the copy; registered
+manifest paths, the seeded file and paths with symlink components are refused.
+--strip-review-history deletes review-rounds/ from the copy so a blinded reviewer
+cannot read prior receipts.
+Keep --key outside --out.
 Responses are reviewer-response JSON or review receipts with findings[].
 One response per variant is a detection record, not a sensitivity estimate."""
 
@@ -30,13 +35,15 @@ def main() -> int:
     seeding.add_argument("--spec", type=Path, required=True, help="defect spec JSON")
     seeding.add_argument("--out", type=Path, required=True, help="new directory for the seeded copy; must not exist")
     seeding.add_argument("--key", type=Path, required=True, help="answer key JSON to write, outside --out")
+    seeding.add_argument("--drop", action="append", default=[], metavar="PATH", help="remove an unregistered file or directory from the copy before refresh; repeatable")
+    seeding.add_argument("--strip-review-history", action="store_true", help="delete review-rounds/ from the copy after refresh")
     scoring = commands.add_parser("score", help="score reviewer responses against an answer key")
     scoring.add_argument("--key", type=Path, required=True, help="answer key written by seed")
     scoring.add_argument("--response", type=Path, action="append", required=True, help="reviewer response or review receipt JSON; repeatable")
     args = parser.parse_args()
     try:
         if args.command == "seed":
-            result = seed(args.bundle, args.spec, args.out, args.key)
+            result = seed(args.bundle, args.spec, args.out, args.key, args.drop, args.strip_review_history)
         else:
             result = score(args.key, args.response)
     except (OSError, ValueError) as error:

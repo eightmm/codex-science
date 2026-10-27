@@ -3,14 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.artifacts import validate_bundle  # noqa: E402
+import codex_science.review_seeding as review_seeding  # noqa: E402
 from codex_science.review_seeding import score, seed  # noqa: E402
 
 EXAMPLE = ROOT / "examples" / "literature-review-reviewed-run"
@@ -46,8 +49,14 @@ class ReviewSeedingTests(unittest.TestCase):
         path.write_text(json.dumps({"findings": findings}), encoding="utf-8")
         return path
 
-    def run_seed(self, **overrides: object) -> dict:
-        return seed(self.bundle, self.spec(**overrides), self.out, self.key)
+    def run_seed(self, drop: tuple[str, ...] = (), strip: bool = False, **overrides: object) -> dict:
+        return seed(self.bundle, self.spec(**overrides), self.out, self.key, drop, strip)
+
+    def control(self, **kwargs: object) -> dict:
+        return self.run_seed(defect_class="control", file=None, find=None, replace=None, claim_id=None, **kwargs)
+
+    def assert_valid(self) -> None:
+        validate_bundle(json.loads((self.out / "manifest.json").read_text(encoding="utf-8")), self.out)
 
     def test_seed_leaves_valid_bundle_and_key_matches(self) -> None:
         before = sha(self.bundle / "claims.json")
@@ -61,6 +70,29 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertEqual(before, sha(EXAMPLE / "claims.json"))
         self.assertEqual(key, json.loads(self.key.read_text(encoding="utf-8")))
         self.assertFalse((self.out / "review.json").exists())
+        shutil.rmtree(self.out)
+        self.key.unlink()
+        for target in ("manifest.json", "review.json"):
+            with self.subTest(target=target):
+                with self.assertRaisesRegex(ValueError, "managed by the review flow"):
+                    self.run_seed(file=target, find="passed", claim_id=None, replace="x")
+        self.assertEqual(sha(self.bundle / "manifest.json"), sha(EXAMPLE / "manifest.json"))
+        script = ROOT / "scripts" / "seed_review_defects.py"
+        out, keyfile = self.root / "cli-out", self.root / "cli-key.json"
+        done = subprocess.run([sys.executable, str(script), "seed", "--bundle", str(self.bundle), "--spec", str(self.spec()),
+                               "--out", str(out), "--key", str(keyfile)], capture_output=True, text=True)
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual(json.loads(keyfile.read_text(encoding="utf-8")), json.loads(done.stdout))
+        self.assertIn("Archived prior review files", done.stderr)
+
+    def test_refresh_erasing_seeded_defect_is_detected(self) -> None:
+        def clobber(run_dir: Path, *args: object, **kwargs: object) -> None:
+            (run_dir / "claims.json").write_bytes((EXAMPLE / "claims.json").read_bytes())
+        with mock.patch.object(review_seeding, "refresh", clobber):
+            with self.assertRaisesRegex(ValueError, "refresh altered"):
+                self.run_seed()
+        self.assertFalse(self.out.exists())
+        self.assertFalse(self.key.exists())
 
     def test_refusals_leave_nothing_behind(self) -> None:
         cases = [({"find": "absent text"}, "found 0"), ({"find": "e"}, "found "),
@@ -74,6 +106,31 @@ class ReviewSeedingTests(unittest.TestCase):
                 self.assertFalse(self.out.exists())
                 self.assertFalse(self.key.exists())
 
+    def test_foreign_out_and_bad_key_parent_leave_nothing_of_ours(self) -> None:
+        real = review_seeding.load_spec
+
+        def racing(path: Path) -> dict:
+            self.out.mkdir()
+            (self.out / "theirs.txt").write_text("keep", encoding="utf-8")
+            return real(path)
+        with mock.patch.object(review_seeding, "load_spec", racing):
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                self.run_seed()
+        self.assertEqual("keep", (self.out / "theirs.txt").read_text(encoding="utf-8"))
+        self.assertFalse(self.key.exists())
+        shutil.rmtree(self.out)
+        blocker = self.root / "blocker"
+        blocker.write_text("file", encoding="utf-8")
+        for key in (blocker / "key.json", blocker / "sub" / "key.json"):
+            with self.assertRaisesRegex(ValueError, "not a directory"):
+                seed(self.bundle, self.spec(), self.out, key)
+            self.assertFalse(self.out.exists())
+        with mock.patch.object(review_seeding.tempfile, "mkstemp", side_effect=OSError("boom")):
+            with self.assertRaises(OSError):
+                self.run_seed()
+        self.assertFalse(self.out.exists())
+        self.assertFalse(self.key.exists())
+
     def test_binary_file_refused(self) -> None:
         (self.bundle / "blob.bin").write_bytes(b"\xff\x00abc")
         with self.assertRaisesRegex(ValueError, "text artifact"):
@@ -86,6 +143,13 @@ class ReviewSeedingTests(unittest.TestCase):
         self.out.rmdir()
         with self.assertRaisesRegex(ValueError, "inside --bundle"):
             seed(self.bundle, self.spec(), self.bundle / "nested", self.key)
+        with self.assertRaisesRegex(ValueError, "inside --bundle"):
+            seed(self.bundle, self.spec(), self.out, self.bundle / "key.json")
+        link = self.root / "bundle-link"
+        link.symlink_to(self.bundle, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "inside --bundle"):
+            seed(self.bundle, self.spec(), self.out, link / "key.json")
+        self.assertFalse((self.bundle / "key.json").exists())
         with self.assertRaisesRegex(ValueError, "inside --out"):
             seed(self.bundle, self.spec(), self.out, self.out / "key.json")
         self.assertFalse(self.out.exists())
@@ -105,6 +169,83 @@ class ReviewSeedingTests(unittest.TestCase):
     def test_control_spec_with_find_refused(self) -> None:
         with self.assertRaisesRegex(ValueError, "control"):
             self.run_seed(defect_class="control")
+
+    def test_control_spec_without_expected_severity_seeds(self) -> None:
+        key = self.control(expected_min_severity=None)
+        self.assertNotIn("expected_min_severity", key["spec"])
+        self.assertEqual([], key["dropped"])
+        self.assertFalse(key["stripped_review_history"])
+        self.assert_valid()
+
+    def test_unregistered_extra_file_needs_drop(self) -> None:
+        (self.bundle / "reviewer-findings.json").write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Unclassified files: reviewer-findings.json"):
+            self.run_seed()
+        self.assertFalse(self.out.exists())
+        self.assertFalse(self.key.exists())
+        key = self.run_seed(drop=("reviewer-findings.json",))
+        self.assertEqual(["reviewer-findings.json"], key["dropped"])
+        self.assertFalse((self.out / "reviewer-findings.json").exists())
+        self.assertTrue((self.bundle / "reviewer-findings.json").exists())
+        self.assert_valid()
+
+    def test_drop_refusals_leave_nothing_behind(self) -> None:
+        (self.bundle / "extra").mkdir()
+        (self.bundle / "extra" / "note.txt").write_text("x", encoding="utf-8")
+        (self.root / "outside.txt").write_text("x", encoding="utf-8")
+        (self.bundle / "link.txt").symlink_to(self.root / "outside.txt")
+        absolute_alias = self.bundle / "absolute-alias"
+        absolute_alias.symlink_to(self.bundle / "extra", target_is_directory=True)
+        relative_alias = self.bundle / "relative-alias"
+        relative_alias.symlink_to("extra", target_is_directory=True)
+        source_bytes = {p.relative_to(self.bundle).as_posix(): p.read_bytes()
+                        for p in self.bundle.rglob("*") if p.is_file() and not p.is_symlink()}
+        cases = [("claims.json", "registered"), ("lanes", "registered"), ("manifest.json", "registered"),
+                 ("../outside.txt", "escapes"), ("/etc/hostname", "escapes"), (".", "escapes"), ("", "escapes"),
+                 ("link.txt", "symlink"), ("absolute-alias/note.txt", "symlink"),
+                 ("relative-alias/note.txt", "symlink"), ("nothing.txt", "does not exist")]
+        for path, message in cases:
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(ValueError, message):
+                    self.run_seed(drop=(path,))
+                self.assertFalse(self.out.exists())
+                self.assertFalse(self.key.exists())
+                self.assertEqual(source_bytes, {p.relative_to(self.bundle).as_posix(): p.read_bytes()
+                                                for p in self.bundle.rglob("*") if p.is_file() and not p.is_symlink()})
+        for alias in ("absolute-alias", "relative-alias"):
+            with self.subTest(spec_alias=alias):
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    self.run_seed(file=f"{alias}/note.txt", find="x", claim_id=None, replace="y")
+                self.assertFalse(self.out.exists())
+                self.assertFalse(self.key.exists())
+                self.assertEqual(source_bytes, {p.relative_to(self.bundle).as_posix(): p.read_bytes()
+                                                for p in self.bundle.rglob("*") if p.is_file() and not p.is_symlink()})
+        (self.bundle / "extra" / "claims.json").write_text("x", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "seeded file"):
+            self.run_seed(drop=("extra",), file="extra/claims.json", find="x", claim_id=None)
+        self.assertTrue((self.bundle / "extra" / "note.txt").exists())
+
+    def test_drop_directory_and_duplicates(self) -> None:
+        (self.bundle / "extra").mkdir()
+        (self.bundle / "extra" / "note.txt").write_text("x", encoding="utf-8")
+        key = self.run_seed(drop=("extra", "extra/"))
+        self.assertEqual(["extra"], key["dropped"])
+        self.assertFalse((self.out / "extra").exists())
+        self.assert_valid()
+
+    def test_strip_review_history(self) -> None:
+        kept = self.control()
+        self.assertTrue((self.out / "review-rounds").exists())
+        self.assertFalse(kept["stripped_review_history"])
+        shutil.rmtree(self.out)
+        self.key.unlink()
+        before = {p.relative_to(self.bundle).as_posix() for p in self.bundle.rglob("*") if "review-rounds" in p.parts}
+        key = self.control(strip=True)
+        self.assertTrue(key["stripped_review_history"])
+        self.assertFalse((self.out / "review-rounds").exists())
+        self.assertEqual(key, json.loads(self.key.read_text(encoding="utf-8")))
+        self.assertEqual(before, {p.relative_to(self.bundle).as_posix() for p in self.bundle.rglob("*") if "review-rounds" in p.parts})
+        self.assert_valid()
 
     def test_score_defect_cases(self) -> None:
         self.run_seed()
