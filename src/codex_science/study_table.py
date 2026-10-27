@@ -41,8 +41,8 @@ def _string_list(value: Any, label: str) -> list[str]:
 _PMCID_STEM = re.compile(r"PMC\d+")  # exactly the names fetch_open_fulltext writes
 
 
-def _excerpt_line_spans(text: str, source: str) -> list[tuple[int, int]]:
-    """Return source line spans for every whitespace-insensitive excerpt occurrence."""
+def _excerpt_line_spans(text: str, source: str, locator_line: int) -> tuple[list[tuple[int, int]], bool]:
+    """Return bounded source spans, checking the locator before collecting error examples."""
     normalized_excerpt = _normalise_excerpt(text)
     normalized_source = _normalise_excerpt(source)
     tokens = list(re.finditer(r"\S+", source))
@@ -59,20 +59,40 @@ def _excerpt_line_spans(text: str, source: str) -> list[tuple[int, int]]:
             line += 1
             next_newline = next(newlines, None)
         token_lines.append((start_line, line))
-    # Map each normalized token's characters back to its source line span.
+    # Map normalized characters back to source lines; the separator covers intervening lines.
     char_spans: list[tuple[int, int]] = []
     for index, token in enumerate(tokens):
         char_spans.extend([token_lines[index]] * len(_normalise_excerpt(token.group())))
         if index + 1 < len(tokens):
-            char_spans.append(token_lines[index])
+            char_spans.append((token_lines[index][1], token_lines[index + 1][0]))
+
+    if not normalized_excerpt and char_spans:
+        span = (char_spans[0][0], char_spans[-1][1])
+        if span[0] <= locator_line <= span[1]:
+            return [span], False
+    elif normalized_excerpt and char_spans:
+        first_target = next((i for i, (_, end) in enumerate(char_spans) if end >= locator_line), None)
+        last_target = next((i for i in range(len(char_spans) - 1, -1, -1)
+                            if char_spans[i][0] <= locator_line), None)
+        if first_target is not None and last_target is not None:
+            first_start = max(0, first_target - len(normalized_excerpt) + 1)
+            position = normalized_source.find(normalized_excerpt, first_start)
+            while position >= 0 and position <= last_target:
+                end = position + len(normalized_excerpt) - 1
+                span = (char_spans[position][0], char_spans[end][1])
+                if span[0] <= locator_line <= span[1]:
+                    return [span], False
+                position = normalized_source.find(normalized_excerpt, position + 1)
+
     spans: list[tuple[int, int]] = []
     start = 0
-    while (position := normalized_source.find(normalized_excerpt, start)) >= 0:
+    while len(spans) < 64 and (position := normalized_source.find(normalized_excerpt, start)) >= 0:
         end = position + len(normalized_excerpt) - 1
         if position < len(char_spans) and end < len(char_spans):
             spans.append((char_spans[position][0], char_spans[end][1]))
         start = position + 1
-    return spans
+    truncated = normalized_source.find(normalized_excerpt, start) >= 0
+    return spans, truncated
 
 
 def _local(node: ET.Element) -> str:
@@ -284,7 +304,8 @@ def build_study_table(
             claim_id, text = excerpt.get("claim_id"), excerpt.get("text")
             if not isinstance(claim_id, str) or claim_id not in set(supports) | set(contradicts):
                 excerpt_problems.append(f"{label}, claim_id is not linked to this study")
-            if not isinstance(text, str) or not 20 <= len(text) <= 2000:
+            valid_excerpt_text = isinstance(text, str) and 20 <= len(text) <= 2000
+            if not valid_excerpt_text:
                 got = f"{len(text)} characters" if isinstance(text, str) else f"type {type(text).__name__}"
                 excerpt_problems.append(
                     f"{label}, text length must be 20..2000 characters (got {got}); "
@@ -304,15 +325,15 @@ def build_study_table(
                         normalized_source = _normalise_excerpt(source_text)
                         if normalized_excerpt not in normalized_source:
                             excerpt_problems.append(f"{label}, excerpt text does not occur in source")
-                        else:
+                        elif valid_excerpt_text:
                             locator = excerpt.get("locator")
                             line = locator.get("line") if isinstance(locator, dict) else None
                             if isinstance(line, int) and not isinstance(line, bool):
-                                spans = _excerpt_line_spans(text, source_text)
+                                spans, truncated = _excerpt_line_spans(text, source_text, line)
                                 if not any(start <= line <= end for start, end in spans):
                                     starts = list(dict.fromkeys(start for start, _ in spans))[:5]
                                     starts_text = ", ".join(str(value) for value in starts)
-                                    if len(set(start for start, _ in spans)) > 5:
+                                    if len(set(start for start, _ in spans)) > 5 or truncated:
                                         starts_text += ", ..."
                                     excerpt_problems.append(
                                         f"{label}, locator.line {line} does not contain the excerpt; text starts at line {starts_text}"

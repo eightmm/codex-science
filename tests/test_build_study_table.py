@@ -182,6 +182,29 @@ class BuildStudyTableTests(unittest.TestCase):
         self._write_inputs(extraction=extraction)
         build_study_table(self.root, self.extraction)
 
+    def test_repetitive_source_locator_matches_late_occurrence(self):
+        excerpt = "a" * 20
+        source = "\n".join(["a" * 100] * 6)
+        (self.root / "sources/24390308.abstract.txt").write_text(source, encoding="utf-8")
+        extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+        extraction["studies"][0]["excerpts"][0].update(text=excerpt, locator={"line": 6})
+        self._write_inputs(extraction=extraction)
+        build_study_table(self.root, self.extraction)
+
+    def test_repetitive_overlapping_matches_report_bounded_start_lines(self):
+        excerpt = "a" * 2000
+        source = "\n".join(["a" * 2001] * 8)
+        (self.root / "sources/24390308.abstract.txt").write_text(source, encoding="utf-8")
+        extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+        extraction["studies"][0]["excerpts"][0].update(text=excerpt, locator={"line": 99})
+        self._write_inputs(extraction=extraction)
+        with self.assertRaises(ValueError) as caught:
+            build_study_table(self.root, self.extraction)
+        self.assertIn(
+            "text starts at line 1, 2, 3, 4, 5, ...",
+            str(caught.exception),
+        )
+
     def test_fields_cannot_override_top_level_cohort_id(self):
         build_study_table(self.root, self.extraction)
         studies_path = self.root / "studies.json"
@@ -200,13 +223,24 @@ class BuildStudyTableTests(unittest.TestCase):
                 {"claim_id": "C1", "text": "tiny", "source_artifact": "sources/24390308.abstract.txt", "locator": "Abstract"},
                 {"claim_id": "C2", "text": "This excerpt is sufficiently long but absent.", "source_artifact": "sources/24390308.abstract.txt", "locator": ["Abstract"]},
             ]}]}
+        oversized = "x" * 2001
+        (self.root / "sources/24390308.abstract.txt").write_text(oversized, encoding="utf-8")
+        extraction["studies"][0]["excerpts"].append({
+            "claim_id": "C3", "text": oversized, "source_artifact": "sources/24390308.abstract.txt",
+            "locator": {"line": 1},
+        })
         self._write_inputs(extraction=extraction)
-        with self.assertRaises(ValueError) as caught:
-            build_study_table(self.root, self.extraction)
+        with mock.patch("codex_science.study_table._excerpt_line_spans") as line_spans:
+            with self.assertRaises(ValueError) as caught:
+                build_study_table(self.root, self.extraction)
+            line_spans.assert_not_called()
         self.assertIn("C1", str(caught.exception))
         self.assertIn("C2", str(caught.exception))
         self.assertEqual(2, str(caught.exception).count("locator must be an object"))
         self.assertIn("C1, text length must be 20..2000 characters (got 4 characters); quote only the verbatim claim-bearing sentences", str(caught.exception))
+        self.assertIn("C3, text length must be 20..2000 characters (got 2001 characters)", str(caught.exception))
+        self.assertNotIn("C3, excerpt text does not occur in source", str(caught.exception))
+        self.assertNotIn("C3, locator.line", str(caught.exception))
         self.assertFalse((self.root / "studies.json").exists())
 
     def test_unknown_missing_nonincluded_and_identifier_errors_are_aggregated(self):
