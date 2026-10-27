@@ -17,7 +17,23 @@ from codex_science.release import (
     runtime_change_requires_bump,
     validate_release,
 )
-from codex_science.typed_connectors import ClinVarConnector, GnomADConnector
+from codex_science.typed_connectors import (
+    ArrayExpressConnector,
+    BindingDBConnector,
+    ClinVarConnector,
+    ComplexPortalConnector,
+    DBSNPConnector,
+    EMDBConnector,
+    ENCODEConnector,
+    GEOConnector,
+    GnomADConnector,
+    IntActConnector,
+    JASPARConnector,
+    MetaboLightsConnector,
+    OpenFDAConnector,
+    UniBindConnector,
+    VersionedSnapshotConnector,
+)
 from codex_science.version import (
     CACHE_NEUTRAL_FILES,
     CACHE_NEUTRAL_PREFIXES,
@@ -224,6 +240,87 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         self.assertEqual("42", clinvar.search("BRCA1", limit=1)[0]["id"])
         gnomad = GnomADConnector(post_json=lambda _url, _body: {"data": {"variant": {"variant_id": "1-100-A-G", "exome": {"af": 0.1}, "genome": {"af": 0.2}}}})
         self.assertEqual("GRCh38", gnomad.search("1-100-A-G", limit=1)[0]["assembly"])
+
+    def test_typed_connectors_validate_inputs_without_transport_or_state_changes(self) -> None:
+        fetch = mock.Mock(return_value={})
+        post = mock.Mock(return_value={})
+        for connector in (ClinVarConnector(fetch_json=fetch), ENCODEConnector(fetch_json=fetch)):
+            for query, limit, message in (("  ", 1, "query"), ("x" * 501, 1, "query"), ("valid", 0, "limit"), ("valid", 11, "limit"), ("valid", True, "limit")):
+                before = (fetch.call_count, post.call_count)
+                with self.assertRaisesRegex(ValueError, message):
+                    connector.search(query, limit=limit)
+                self.assertEqual(before, (fetch.call_count, post.call_count))
+
+        gnomad = GnomADConnector(post_json=post)
+        binding = BindingDBConnector(fetch_json=fetch)
+        for connector, query, message in (
+            (gnomad, "not-a-variant", "gnomAD query must be chr-pos-ref-alt"),
+            (binding, "not-a-protein", "BindingDB query must be a UniProt accession"),
+        ):
+            before = (fetch.call_count, post.call_count)
+            with self.assertRaisesRegex(ValueError, message):
+                connector.search(query)
+            self.assertEqual(before, (fetch.call_count, post.call_count))
+
+    def test_typed_connectors_normalize_results_apply_limits_and_handle_empty_payloads(self) -> None:
+        payloads = [
+            {"esearchresult": {"idlist": ["a", "b", "c"]}},
+            {"esearchresult": {"idlist": ["GSE1"]}},
+            {"@graph": [{"accession": "ENC1", "title": "Experiment", "@type": ["Experiment"]}]},
+            {"results": [{"matrix_id": "MA0001", "name": "Motif", "collection": "CORE"}]},
+            [{"id": "ds1", "tf_name": "TF", "species": "human"}],
+            {"hits": [{"accession": "E-MTAB-1", "title": "Study"}]},
+            {"content": [{"studyIdentifier": " MTBLS1", "title": "Metabolome"}]},
+            {"results": [{"openfda": {"spl_id": ["spl1"], "brand_name": ["Brand"], "product_type": ["HUMAN PRESCRIPTION DRUG"]}}]},
+            {"affinities": [{"monomerid": "42", "ligand_name": "Ligand", "affinity_type": "Ki", "affinity": 3}]},
+            {"results": [{"emdb_id": "EMD-1"}]},
+            {"elements": [{"complexAc": "CPX-1", "complexName": "Complex"}]},
+            {"content": [{"interactionAc": "INT-1", "description": "Interaction"}]},
+        ]
+        classes = (
+            ClinVarConnector, GEOConnector, ENCODEConnector, JASPARConnector, UniBindConnector,
+            ArrayExpressConnector, MetaboLightsConnector, OpenFDAConnector,
+            BindingDBConnector, EMDBConnector, ComplexPortalConnector, IntActConnector,
+        )
+        for cls, payload in zip(classes, payloads):
+            transport = mock.Mock(return_value=payload)
+            connector = cls(fetch_json=transport)
+            query = "A12345" if cls is BindingDBConnector else "gene"
+            results = connector.search(query, limit=1)
+            self.assertEqual(1, len(results), cls.__name__)
+            self.assertTrue(results[0].get("id"), cls.__name__)
+            self.assertTrue(results[0].get("title"), cls.__name__)
+            self.assertEqual(1, transport.call_count)
+
+        fetch = mock.Mock(return_value={"esearchresult": {"idlist": [str(i) for i in range(12)]}})
+        records = DBSNPConnector(fetch_json=fetch).search("x" * 500, limit=10)
+        self.assertEqual(10, len(records))
+        self.assertEqual("snp", records[0]["database"])
+        self.assertEqual("https://www.ncbi.nlm.nih.gov/snp/0", records[0]["url"])
+
+        post = mock.Mock(return_value={"data": {"variant": {"variant_id": "1-100-A-G", "exome": {"af": 0.1}, "genome": {"af": 0.2}}}})
+        self.assertEqual("0.1", GnomADConnector(post_json=post).search("chr1:100:a:g")[0]["exome_af"])
+        self.assertEqual("", GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": "1-1-A-G"}}}).search("1-1-A-G")[0]["genome_af"])
+        self.assertEqual([], GnomADConnector(post_json=lambda *_: {"data": {"variant": None}}).search("1-1-A-G"))
+
+    def test_simple_and_snapshot_connectors_skip_bad_records_and_match_case_insensitively(self) -> None:
+        fetch = mock.Mock(return_value={"results": [None, {}, {"id": "7"}, {"id": "8", "title": "Named"}]})
+        self.assertEqual(
+            [
+                {"id": "7", "title": "7", "url": "https://www.ebi.ac.uk/emdb/"},
+                {"id": "8", "title": "Named", "url": "https://www.ebi.ac.uk/emdb/"},
+            ],
+            EMDBConnector(fetch_json=fetch).search("a/b", limit=4),
+        )
+        self.assertIn("a%2Fb", fetch.call_args.args[0])
+        self.assertEqual([], IntActConnector(fetch_json=lambda _: {"results": "not-a-list"}).search("x"))
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            (root / "snap.json").write_text(json.dumps({"releases": [{"name": "Alpha"}, {"name": "Beta"}]}), encoding="utf-8")
+            connector = VersionedSnapshotConnector("snap.json", root=root)
+            self.assertEqual([{"name": "Alpha"}], connector.search("alpha"))
+            self.assertEqual([], connector.search("absent"))
 
     def test_mcp_exposes_v2_and_preserves_legacy_tools(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
