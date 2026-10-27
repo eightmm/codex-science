@@ -10,7 +10,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from codex_science.reference_contract import (
+    _bounded_field_repr,
+    _bounded_item_repr,
+    _bounded_repr,
+    _first_non_mapping_detail,
     audit_reference_roots,
+    record_reference_uses,
     build_reference_use_receipt,
     load_reference_index,
     ReferenceIndex,
@@ -425,6 +430,208 @@ class ReferenceContractTests(unittest.TestCase):
             self.assertEqual("major", finding["severity"])
             self.assertIn("Expecting property name", finding["message"])
             self.assertEqual({invalid.name, valid.name}, {item["skill"] for item in report["skills"]})
+
+    def test_bounded_diagnostics_escape_truncate_and_survive_hostile_values(self) -> None:
+        class BrokenRepr:
+            def __repr__(self) -> str:
+                raise RuntimeError("no repr")
+
+        class BrokenGet:
+            def get(self, key):
+                raise RuntimeError("no get")
+
+        rendered = _bounded_repr("a\nb\rc")
+        self.assertNotIn("\n", rendered)
+        self.assertNotIn("\r", rendered)
+        long = _bounded_repr(["x" * 500])
+        self.assertLessEqual(len(long), 120)
+        self.assertTrue(_bounded_repr(BrokenRepr()).startswith("<BrokenRepr"))
+        self.assertEqual("<unavailable>", _bounded_field_repr(BrokenGet(), "id"))
+        self.assertEqual("<unavailable>", _bounded_item_repr({}, "missing"))
+        self.assertEqual("'v'", _bounded_item_repr({"k": "v"}, "k"))
+        self.assertEqual("None", _bounded_field_repr({}, "id"))
+        self.assertEqual(": index 1 value 'oops'", _first_non_mapping_detail([{}, "oops"]))
+        self.assertEqual("", _first_non_mapping_detail([{}, {}]))
+        self.assertEqual("", _first_non_mapping_detail([]))
+
+    def test_reference_files_without_index_are_major_only_when_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            skill = self._skill(Path(tempdir))
+            (skill / "references" / "index.json").unlink()
+            strict = validate_reference_index(skill, strict=True)
+            lenient = validate_reference_index(skill, strict=False)
+            self.assertIsNone(strict["index"])
+            self.assertEqual([], strict["references"])
+            self.assertEqual(["missing-reference-index"], [f["code"] for f in strict["findings"]])
+            self.assertEqual("major", strict["findings"][0]["severity"])
+            self.assertIn("literature-review has reference files but no references/index.json",
+                          strict["findings"][0]["message"])
+            self.assertEqual("minor", lenient["findings"][0]["severity"])
+
+    def test_skill_without_index_or_reference_files_has_no_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            skill = Path(tempdir) / "plain-skill"
+            skill.mkdir()
+            (skill / "SKILL.md").write_text("# Plain\n", encoding="utf-8")
+            report = validate_reference_index(skill, strict=True)
+            self.assertEqual({"skill": "plain-skill", "index": None, "findings": [], "references": []}, report)
+
+    def test_use_ledger_validation_names_what_was_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            record_reference_uses(run_dir, [skill / "references" / "study-identity.md"], read_reason="why")
+            ledger = json.loads((run_dir / "reference-use-ledger.json").read_text())
+            validate_reference_use_ledger(ledger)
+
+            with self.assertRaisesRegex(ValueError, r"unsupported reference use ledger schema: 2; expected: 1"):
+                validate_reference_use_ledger({**ledger, "schema_version": 2})
+            with self.assertRaisesRegex(ValueError, r"non-empty uses list: \[\]"):
+                validate_reference_use_ledger({**ledger, "uses": []})
+            with self.assertRaisesRegex(ValueError, r"non-empty uses list: None"):
+                validate_reference_use_ledger({"schema_version": 1, "skill": "s"})
+            with self.assertRaisesRegex(ValueError, r"entries must be objects: 'text'"):
+                validate_reference_use_ledger({**ledger, "uses": ["text"]})
+            with self.assertRaisesRegex(ValueError, r"duplicate reference use receipt: 'study-identity'"):
+                validate_reference_use_ledger({**ledger, "uses": ledger["uses"] * 2})
+            with self.assertRaisesRegex(ValueError, "skill is required"):
+                validate_reference_use_ledger({**ledger, "skill": "  "})
+
+    def test_record_reference_uses_in_process_creates_then_merges(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            (run_dir / "sub").mkdir()
+            created = record_reference_uses(
+                run_dir, [reference], read_reason="first", used_for=("claim-A",), sections=("S1",),
+                output="sub/ledger.json",
+            )
+            self.assertEqual(
+                {"output": "sub/ledger.json", "uses_added": 1, "uses_merged": 0, "total_uses": 1}, created)
+            merged = record_reference_uses(
+                run_dir, [reference, reference], read_reason="second", used_for=("claim-B", "claim-A"),
+                search_terms=("term",), output="sub/ledger.json")
+            self.assertEqual(
+                {"output": "sub/ledger.json", "uses_added": 0, "uses_merged": 2, "total_uses": 1}, merged)
+            use = json.loads((run_dir / "sub" / "ledger.json").read_text())["uses"][0]
+            self.assertEqual(["claim-A", "claim-B"], use["used_for"])
+            self.assertEqual(["S1"], use["sections"])
+            self.assertEqual(["term"], use["search_terms"])
+            self.assertEqual("first", use["read_reason"])
+
+    def test_record_reference_uses_empty_used_for_defaults_to_workflow_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            record_reference_uses(run_dir, [skill / "references" / "study-identity.md"],
+                                  read_reason="why", used_for=())
+            use = json.loads((run_dir / "reference-use-ledger.json").read_text())["uses"][0]
+            self.assertEqual(["workflow-route"], use["used_for"])
+
+    def test_record_reference_uses_refuses_unsafe_outputs_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            outside = root / "outside"
+            outside.mkdir()
+            (run_dir / "link").symlink_to(outside, target_is_directory=True)
+            (run_dir / "manifest.json").write_text("{}", encoding="utf-8")
+            cases = {
+                str(root / "abs.json"): "must stay inside the run directory",
+                "../escape.json": "must stay inside the run directory",
+                "manifest.json": "refusing to write over manifest.json",
+                "link/ledger.json": "refusing symlink output path",
+            }
+            for output, message in cases.items():
+                with self.subTest(output=output):
+                    with self.assertRaisesRegex(ValueError, message):
+                        record_reference_uses(run_dir, [reference], read_reason="why", output=output)
+            self.assertEqual([], list(outside.iterdir()))
+            self.assertEqual("{}", (run_dir / "manifest.json").read_text())
+            self.assertFalse((root / "escape.json").exists())
+
+    def test_record_reference_uses_aggregates_invalid_references_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            unlisted = skill / "references" / "unlisted.md"
+            unlisted.write_text("# Unlisted\n", encoding="utf-8")
+            stray = root / "stray.md"
+            stray.write_text("# Stray\n", encoding="utf-8")
+            missing = skill / "references" / "gone.md"
+            directory = skill / "references"
+            bare = root / "bare" / "references"
+            bare.mkdir(parents=True)
+            (bare / "x.md").write_text("x", encoding="utf-8")
+            with self.assertRaises(ValueError) as caught:
+                record_reference_uses(run_dir, [unlisted, stray, missing, directory, bare / "x.md"], read_reason="why")
+            message = str(caught.exception)
+            self.assertIn(f"{unlisted}: reference is not listed in", message)
+            self.assertIn("file must be directly inside a skill references/ directory with SKILL.md", message)
+            self.assertIn(f"{missing}:", message)
+            self.assertIn("not a regular file", message)
+            self.assertEqual(5, message.count("; ") + 1)
+            self.assertFalse((run_dir / "reference-use-ledger.json").exists())
+
+            (skill / "references" / "index.json").unlink()
+            with self.assertRaisesRegex(ValueError, "skill has no references/index.json"):
+                record_reference_uses(run_dir, [skill / "references" / "study-identity.md"], read_reason="why")
+
+    def test_record_reference_uses_refuses_to_overwrite_input_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            before = reference.read_bytes()
+            with self.assertRaisesRegex(ValueError, "output path must not overwrite an input reference file"):
+                record_reference_uses(skill / "references", [reference], read_reason="why",
+                                      output="study-identity.md")
+            self.assertEqual(before, reference.read_bytes())
+
+    def test_record_reference_uses_rejects_malformed_existing_ledger_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            ledger = run_dir / "reference-use-ledger.json"
+            for content in ("{not json", "[]", json.dumps({"schema_version": 1, "skill": "s", "uses": []}),
+                            json.dumps({"schema_version": 9, "skill": "s", "uses": [1]})):
+                with self.subTest(content=content):
+                    ledger.write_text(content, encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "existing ledger .*reference-use-ledger.json"):
+                        record_reference_uses(run_dir, [reference], read_reason="why")
+                    self.assertEqual(content, ledger.read_text())
+
+    def test_record_reference_uses_rejects_cross_skill_hash_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            record_reference_uses(run_dir, [reference], read_reason="why")
+            ledger_path = run_dir / "reference-use-ledger.json"
+            ledger = json.loads(ledger_path.read_text())
+            ledger["uses"][0]["skill"] = "another-skill"
+            ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+            before = ledger_path.read_text()
+            with self.assertRaisesRegex(ValueError, "collides with another skill for study-identity at "):
+                record_reference_uses(run_dir, [reference], read_reason="why")
+            self.assertEqual(before, ledger_path.read_text())
 
 
 if __name__ == "__main__":
