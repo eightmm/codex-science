@@ -2,7 +2,18 @@ import copy
 import unittest
 
 from codex_science.research_design import build_research_design, review_research_design
-from codex_science.statistics_runtime import benjamini_hochberg, run_statistical_analysis
+from codex_science.statistics_runtime import (
+    _extreme,
+    _finite,
+    _hedges_g,
+    _median,
+    _paired_standardized,
+    _quantile,
+    benjamini_hochberg,
+    review_statistical_analysis,
+    run_statistical_analysis,
+    validate_statistical_analysis,
+)
 
 
 class ResearchDesignStatisticsTests(unittest.TestCase):
@@ -159,6 +170,175 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         payload.pop("seed")
         with self.assertRaises(ValueError):
             run_statistical_analysis(payload)
+
+    def test_numeric_helpers_reject_invalid_inputs_and_handle_boundaries(self) -> None:
+        for value, message in ((True, "value must be numeric"), (float("nan"), "value must be finite")):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, message):
+                _finite(value, "value")
+        self.assertEqual(4.0, _quantile([4.0], 0.25))
+        self.assertEqual(2.0, _quantile([1.0, 3.0], 0.5))
+        with self.assertRaisesRegex(ValueError, "empty sample"):
+            _quantile([], 0.5)
+        self.assertEqual(2.5, _median([1.0, 4.0]))
+        with self.assertRaisesRegex(ValueError, "requires observations"):
+            _median([])
+
+    def test_standardized_effects_are_missing_for_degenerate_samples(self) -> None:
+        self.assertIsNone(_hedges_g([1.0], [2.0, 3.0]))
+        self.assertIsNone(_hedges_g([1.0, 1.0], [2.0, 2.0]))
+        self.assertIsNone(_paired_standardized([1.0]))
+        self.assertIsNone(_paired_standardized([1.0, 1.0]))
+
+    def test_extreme_value_supports_each_alternative_and_rejects_unknown(self) -> None:
+        self.assertTrue(_extreme(-3.0, 2.0, "two-sided"))
+        self.assertTrue(_extreme(3.0, 2.0, "greater"))
+        self.assertTrue(_extreme(-3.0, -2.0, "less"))
+        with self.assertRaisesRegex(ValueError, "unsupported alternative"):
+            _extreme(1.0, 1.0, "sideways")
+
+    def test_benjamini_hochberg_refusals_do_not_mutate_hypotheses(self) -> None:
+        for invalid, message in (
+            ([{"id": "", "p_value": 0.2}], r"hypotheses\[0\]\.id"),
+            ([{"id": "h", "p_value": 1.01}], "between 0 and 1"),
+            ([{"id": "h", "p_value": 0.2}, {"id": "h", "p_value": 0.3}], "unique"),
+        ):
+            original = copy.deepcopy(invalid)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                benjamini_hochberg(invalid)
+            self.assertEqual(original, invalid)
+        self.assertEqual([], benjamini_hochberg([]))
+
+    def test_analysis_refusals_name_detected_problem_without_mutating_payload(self) -> None:
+        cases = (
+            ("schema_version", 2, "schema"),
+            ("confidence_level", 0.5, "confidence_level"),
+            ("bootstrap_replicates", 199, "bootstrap_replicates"),
+            ("permutation_replicates", 100001, "permutation_replicates"),
+        )
+        for field, value, message in cases:
+            payload = self.independent_input()
+            payload[field] = value
+            original = copy.deepcopy(payload)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
+                run_statistical_analysis(payload)
+            self.assertEqual(original, payload)
+
+    def test_analysis_rejects_malformed_rows_and_bad_hypotheses_without_mutation(self) -> None:
+        cases = (
+            (lambda p: p["data"].__setitem__(0, None), r"data\[0\] must be an object"),
+            (lambda p: p["data"][0].update(group="other"), r"data\[0\]\.group"),
+            (lambda p: p["data"][0].update(value=float("inf")), r"data\[0\]\.value must be finite"),
+            (lambda p: p.update(hypotheses=[{"id": "h", "p_value": 2}]), "p-values"),
+            (lambda p: p.update(hypotheses=[None]), "hypotheses must be a list of objects"),
+        )
+        for change, message in cases:
+            payload = self.independent_input()
+            change(payload)
+            original = copy.deepcopy(payload)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                run_statistical_analysis(payload)
+            self.assertEqual(original, payload)
+
+    def test_row_preparation_rejects_empty_groups_and_invalid_group_contracts(self) -> None:
+        cases = (
+            (lambda p: p.update(data=[]), "non-empty list"),
+            (lambda p: p.update(group_labels=["same", "same"]), "distinct"),
+            (lambda p: p["data"][0].update(unit_id=" "), r"data\[0\]\.unit_id is empty"),
+            (lambda p: [row.update(value=None) for row in p["data"] if row["group"] == "control"], "each analysis group needs"),
+            (lambda p: p.update(within_unit_aggregation="mode"), "within_unit_aggregation"),
+        )
+        for change, message in cases:
+            payload = self.independent_input()
+            change(payload)
+            original = copy.deepcopy(payload)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                run_statistical_analysis(payload)
+            self.assertEqual(original, payload)
+
+    def test_paired_monte_carlo_and_incomplete_pairs_are_reported(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "analysis_id": "paired-mc",
+            "claim_id": "C3",
+            "design_id": "D3",
+            "analysis_type": "paired",
+            "group_labels": ["before", "after"],
+            "seed": 11,
+            "bootstrap_replicates": 200,
+            "permutation_replicates": 200,
+            "data": [],
+        }
+        for index in range(17):
+            payload["data"].extend(
+                [
+                    {"unit_id": f"b{index}", "pair_id": f"p{index}", "group": "before", "value": 1.0},
+                    {"unit_id": f"a{index}", "pair_id": f"p{index}", "group": "after", "value": 2.0 + index},
+                ]
+            )
+        payload["data"].append({"unit_id": "orphan", "pair_id": "incomplete", "group": "before", "value": 1.0})
+        result = run_statistical_analysis(payload)
+        self.assertFalse(result["test"]["exact"])
+        self.assertEqual("monte-carlo-randomization", result["test"]["method"])
+        self.assertEqual(200, result["test"]["permutations"])
+        self.assertEqual(1, result["sample"]["incomplete_pairs_excluded"])
+        self.assertEqual(17, result["sample"]["experimental_units"]["before"])
+
+    def test_independent_monte_carlo_is_seeded_and_reports_replicate_count(self) -> None:
+        payload = self.independent_input()
+        for index in range(4, 10):
+            payload["data"].append({"unit_id": f"C{index + 1}", "group": "control", "value": float(index)})
+            payload["data"].append({"unit_id": f"T{index + 1}", "group": "treatment", "value": float(index + 2)})
+        payload["permutation_replicates"] = 200
+        first = run_statistical_analysis(payload)
+        second = run_statistical_analysis(payload)
+        self.assertEqual(first, second)
+        self.assertFalse(first["test"]["exact"])
+        self.assertEqual("monte-carlo-randomization", first["test"]["method"])
+        self.assertEqual(200, first["test"]["permutations"])
+
+    def test_analysis_median_output_adjusts_hypotheses_and_records_missing_data(self) -> None:
+        payload = self.independent_input()
+        payload["estimand"] = "median-difference"
+        payload["alternative"] = "less"
+        payload["hypotheses"] = [
+            {"id": "secondary", "p_value": 0.04},
+            {"id": "primary", "p_value": 0.01},
+        ]
+        payload["data"].append({"unit_id": "C5-missing", "group": "control", "value": None})
+        result = run_statistical_analysis(payload)
+        self.assertEqual(2.0, result["effect"]["estimate"])
+        self.assertIsNone(result["effect"]["standardized_estimate"])
+        self.assertEqual("benjamini-hochberg", result["multiplicity"]["method"])
+        self.assertEqual(["secondary", "primary"], [item["id"] for item in result["multiplicity"]["hypotheses"]])
+        self.assertEqual(1, result["sample"]["missing_counts"]["control"])
+        self.assertEqual("completed", result["status"])
+        validate_statistical_analysis(result)
+        self.assertEqual([], review_statistical_analysis(result))
+
+    def test_receipt_validation_and_review_report_detected_failures(self) -> None:
+        receipt = run_statistical_analysis(self.independent_input())
+        validate_statistical_analysis(receipt)
+        broken = copy.deepcopy(receipt)
+        broken["interval"]["lower"] = broken["interval"]["upper"] + 1
+        original = copy.deepcopy(broken)
+        with self.assertRaisesRegex(ValueError, "interval lower exceeds upper"):
+            validate_statistical_analysis(broken)
+        self.assertEqual(original, broken)
+        findings = review_statistical_analysis(broken)
+        self.assertEqual("invalid-statistical-analysis", findings[0]["code"])
+        self.assertIn("interval lower exceeds upper", findings[0]["message"])
+
+    def test_receipt_validation_names_required_fields_and_fingerprint_mismatch(self) -> None:
+        receipt = run_statistical_analysis(self.independent_input())
+        for field, message in (("claim_id", "claim_id is required"), ("seed", "explicit integer seed"), ("limitations", "requires limitations")):
+            broken = copy.deepcopy(receipt)
+            broken.pop(field, None) if field == "claim_id" else broken.update({field: [] if field == "limitations" else True})
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
+                validate_statistical_analysis(broken)
+        broken = copy.deepcopy(receipt)
+        broken["analysis_id"] = "tampered"
+        with self.assertRaisesRegex(ValueError, "fingerprint mismatch"):
+            validate_statistical_analysis(broken)
 
 
 if __name__ == "__main__":
