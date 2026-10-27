@@ -922,6 +922,58 @@ Codex sign-in, which the recorded runs did not set up.
   branch runtime loaded. Six tasks and one run; not an effect estimate. Runs 28,
   29, 34, and 35 also recorded 6/6; no trend is claimed.
 
+- Run37 (`27541ae`, runtime `0.5.0+codex.20261026025000`), 6/6 (95% Wilson
+  interval 61.0%-100.0%). Changes under test since run36 (`76cd4c0`) are
+  `e8be97b`, which adds `package_run.py refresh --forget` and a risk-of-bias
+  aggregate hint for any top-level list of objects; `4904ca3`, which lets
+  exact-path `refresh --kind` reclassify an existing artifact; `f82bfa2`, which
+  documents the statistical-analysis contrast direction; `295293c`, which
+  refuses review-kind reclassification before review invalidation; `a987840`,
+  which makes quantitative receipt kinds name their producing script; and
+  `27541ae`, run36 docs. quick-arxiv completed in 67 seconds, quick-doi in 95
+  seconds, standard-single-cell in 710 seconds, standard-mrna in 750 seconds,
+  full-protein-folding in 1269 seconds, and full-microbiome in 1384 seconds.
+  Stop reasons were done 6. No policy blocks, no provider-capacity failures,
+  and no re-runs. The loaded runtime matched the branch in every task. The
+  launch waited for a concurrent test that rewrites the Codex user config to
+  finish, and the config was not overwritten during the run. The frozen grader
+  (`src-27541ae`) counted completion 6/6 and citations 75 of 81 traced (run36
+  87 of 87). All six untraced identifiers are PMCIDs in `index.md` full-text
+  file listings: full-protein-folding 3 (two were never screened as candidates;
+  PMC8673552 is the full text of included record med:34387007, which the agent
+  listed under `extraction.json` `not_extracted`), full-microbiome 1 (full text
+  of excluded record med:28733671), and standard-mrna 2 (location check only;
+  content not analysed). Preregistered secondary metrics (predicted; observed):
+  primary completion has no numeric prediction; observed 6/6. RB
+  risk-of-bias/claim-evidence packaging failures, no task with more than one:
+  predicted no task above one; observed 1 in full-protein-folding (an aggregate
+  `risk-of-bias.json` keyed `assessments`) and 0 in full-microbiome. Met. The
+  broadened aggregate hint fired, and the agent reclassified the file with
+  exact-path `refresh --kind risk-of-bias.json=risk-of-bias-summary`. HM hand
+  edits of `manifest.json` after a packaging error: predicted 0 tasks; observed
+  0 (run36 1). Met. Literal agent writes to `manifest.json`: full-protein-folding
+  and full-microbiome authored the manifest by script at protocol time, the
+  documented flow; full-microbiome cleared not-yet-existing claim evidence
+  paths once during that authoring, before any refresh. SO
+  `estimate_saturation.py` unknown-option failures 0, I1 `inventory.json` reads
+  0, and X1 excerpt-length failures 0; all met. C1 untraced identifiers: every
+  one is a full-text PMCID of a record that is not a study-table study; predicted
+  all; observed 6 of 6. Met. Descriptive: L1 `search_skills.py --name` lookups
+  7 (1, 1, 1, 1, 1, 2); O1 orientation bytes median 159 KB (single-cell 159,
+  protein-folding 143, microbiome 170; run36 162); O3 `artifact-contract.md`
+  read in all three; E1 0; F1 0; P1 0; P2 0 effective (two regex hits in
+  protein-folding are saved web-search text containing PubMed URLs).
+  Standard-mrna was counted only for the I1, L1, X1, and untraced-location
+  command totals; its content was not analysed. Observed failures, in seconds
+  lost: full-microbiome's `build_study_table` reported "extraction coverage
+  errors: unknown record_id" (about 26 seconds), followed by an own-script
+  KeyError and a prepare-review rerun after independent review without
+  `--new-round` (about 10 seconds); full-protein-folding hit an own-script
+  KeyError; standard-single-cell hit a DNS failure fetching a publisher page.
+  Standard-mrna has been blocked by provider policy in 10 of 32 runs (runs
+  6–37). Caveat: six tasks and one run; not an effect estimate. Runs 28, 29,
+  34, 35, and 36 also recorded 6/6; no trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
