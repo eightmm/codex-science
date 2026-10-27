@@ -2,7 +2,11 @@ import copy
 import unittest
 
 from codex_science.numerical_verification import run_numerical_verification
-from codex_science.uncertainty_runtime import run_uncertainty_propagation
+from codex_science.uncertainty_runtime import (
+    review_uncertainty_propagation,
+    run_uncertainty_propagation,
+    validate_uncertainty_propagation,
+)
 from codex_science.safe_expression import canonical_sha256
 from codex_science.units_runtime import (
     convert_value,
@@ -353,6 +357,160 @@ class UnitsRuntimeContractTests(unittest.TestCase):
         forged["fingerprint"] = canonical_sha256(forged)
         codes = [item["code"] for item in review_dimension_check(forged)]
         self.assertEqual(["dimension-mismatch", "unsafe-dimension-pass"], codes)
+
+
+class UncertaintyRuntimeContractTests(unittest.TestCase):
+    def payload(self, **overrides: object) -> dict:
+        payload = NumericalUnitsUncertaintyTests().uncertainty_input()
+        payload.update(overrides)
+        return payload
+
+    def assertRefusedWithoutMutation(self, payload: dict, message: str) -> None:
+        before = copy.deepcopy(payload)
+        with self.assertRaises(ValueError) as caught:
+            run_uncertainty_propagation(payload)
+        self.assertIn(message, str(caught.exception))
+        self.assertEqual(before, payload)
+
+    def test_propagation_input_refusals_name_detected_problem(self) -> None:
+        cases = [
+            (self.payload(schema_version=2), "unsupported uncertainty-propagation input schema"),
+            (self.payload(propagation_id=" "), "propagation_id, claim_id, and expression are required"),
+            (self.payload(inputs=[]), "inputs must contain 1 to 64 records"),
+            (
+                self.payload(inputs=[{"name": f"x{i}", "mean": 1, "standard_uncertainty": 1} for i in range(65)]),
+                "inputs must contain 1 to 64 records",
+            ),
+            (self.payload(inputs=[{"name": "x", "mean": True, "standard_uncertainty": 1}]), "inputs[0].mean must be numeric"),
+            (self.payload(inputs=[{"name": "x", "mean": float("inf"), "standard_uncertainty": 1}]), "inputs[0].mean must be finite"),
+            (self.payload(inputs=[{"name": "bad-name", "mean": 1, "standard_uncertainty": 1}]), "name must be an identifier"),
+            (
+                self.payload(inputs=[
+                    {"name": "x", "mean": 1, "standard_uncertainty": 1},
+                    {"name": "x", "mean": 2, "standard_uncertainty": 1},
+                ]),
+                "duplicate uncertainty input: x",
+            ),
+            (self.payload(covariance="bad"), "covariance must be a list of objects"),
+            (self.payload(covariance=[{"left": "x", "right": "unknown", "value": 0}]), "references an unknown input"),
+            (self.payload(covariance=[{"left": "x", "right": "x", "value": 2}]), "diagonal covariance conflicts"),
+            (self.payload(covariance=[{"left": "x", "right": "y", "value": 1}]), "not positive semidefinite"),
+            (
+                self.payload(
+                    inputs=[
+                        {"name": "x", "mean": 1, "standard_uncertainty": 0},
+                        {"name": "y", "mean": 1, "standard_uncertainty": 1},
+                    ],
+                    expression="x+y",
+                    covariance=[{"left": "x", "right": "y", "value": 0.1}],
+                ),
+                "singular and inconsistent",
+            ),
+            (self.payload(method="approximate"), "method must be linear, monte-carlo, or both"),
+            (self.payload(confidence_level=0.5), "confidence_level must be between 0.5 and 1"),
+            (self.payload(seed=True), "explicit integer seed"),
+            (self.payload(samples=99), "samples must be between 100 and 1000000"),
+            (self.payload(samples=1_000_001), "samples must be between 100 and 1000000"),
+            (self.payload(samples="many"), "invalid literal"),
+        ]
+        for candidate, message in cases:
+            with self.subTest(message=message):
+                self.assertRefusedWithoutMutation(candidate, message)
+
+    def test_linear_only_boundary_and_report_fields(self) -> None:
+        payload = self.payload(method="linear", covariance=[])
+        result = run_uncertainty_propagation(payload)
+        self.assertEqual("passed", result["status"])
+        self.assertEqual("linear", result["method"])
+        self.assertAlmostEqual(6.0, result["nominal_value"])
+        self.assertIsNone(result["monte_carlo"])
+        self.assertIsNone(result["nonlinearity"]["relative_uncertainty_discrepancy"])
+        self.assertEqual(["x", "y"], [item["name"] for item in result["linear"]["sensitivities"]])
+        self.assertEqual(payload, self.payload(method="linear", covariance=[]))
+
+    def test_maximum_input_count_is_accepted(self) -> None:
+        inputs = [{"name": f"x{i}", "mean": float(i), "standard_uncertainty": 0.1} for i in range(64)]
+        result = run_uncertainty_propagation(self.payload(inputs=inputs, expression="x0", method="linear"))
+        self.assertEqual(64, len(result["inputs"]))
+        self.assertAlmostEqual(0.1, result["linear"]["standard_uncertainty"])
+
+    def test_monte_carlo_minimum_sample_boundary_is_reported(self) -> None:
+        result = run_uncertainty_propagation(self.payload(samples=100))
+        self.assertEqual(100, result["monte_carlo"]["requested_samples"])
+        self.assertGreaterEqual(result["monte_carlo"]["accepted_samples"], 100)
+        self.assertEqual(["low-monte-carlo-samples"], [item["code"] for item in result["findings"]])
+        self.assertEqual("passed", result["status"])
+
+    def test_nonlinear_disagreement_is_a_major_finding(self) -> None:
+        result = run_uncertainty_propagation(
+            self.payload(
+                expression="exp(x)",
+                inputs=[{"name": "x", "mean": 0.0, "standard_uncertainty": 1.0}],
+                samples=5000,
+                nonlinearity_threshold=0.1,
+            )
+        )
+        self.assertEqual("findings", result["status"])
+        self.assertIn("nonlinear-propagation-disagreement", [item["code"] for item in result["findings"]])
+
+    def test_monte_carlo_rejects_when_expression_fails_too_often(self) -> None:
+        self.assertRefusedWithoutMutation(
+            self.payload(
+                expression="log(x)",
+                inputs=[{"name": "x", "mean": 0.01, "standard_uncertainty": 1.0}],
+                samples=100,
+            ),
+            "too many Monte Carlo samples failed expression evaluation",
+        )
+
+    def test_uncertainty_receipt_validation_and_review(self) -> None:
+        receipt = run_uncertainty_propagation(self.payload())
+        validate_uncertainty_propagation(receipt)
+        self.assertEqual([], review_uncertainty_propagation(receipt))
+
+        corrupted = copy.deepcopy(receipt)
+        corrupted["nominal_value"] += 1
+        review = review_uncertainty_propagation(corrupted)
+        self.assertEqual("invalid-uncertainty-propagation", review[0]["code"])
+        self.assertEqual("critical", review[0]["severity"])
+        self.assertIn("fingerprint mismatch", review[0]["message"])
+
+        unsafe = copy.deepcopy(receipt)
+        unsafe["status"] = "passed"
+        unsafe["findings"] = [{"code": "bad", "severity": "major", "message": "blocking"}]
+        unsafe.pop("fingerprint")
+        unsafe["fingerprint"] = canonical_sha256(unsafe)
+        self.assertEqual(["bad", "unsafe-uncertainty-pass"], [item["code"] for item in review_uncertainty_propagation(unsafe)])
+
+        missing_seed = copy.deepcopy(receipt)
+        missing_seed["monte_carlo"]["seed"] = None
+        missing_seed.pop("fingerprint")
+        missing_seed["fingerprint"] = canonical_sha256(missing_seed)
+        self.assertEqual(
+            ["uncertainty-seed-missing", "unsafe-uncertainty-pass"],
+            [item["code"] for item in review_uncertainty_propagation(missing_seed)],
+        )
+
+    def test_uncertainty_receipt_refusals_name_detected_problem(self) -> None:
+        receipt = run_uncertainty_propagation(self.payload())
+        cases = []
+        for mutate, message in (
+            (lambda value: value.update(schema_version=2), "unsupported uncertainty-propagation receipt schema"),
+            (lambda value: value.update(propagation_id=""), "propagation_id is required"),
+            (lambda value: value.update(status="unknown"), "invalid uncertainty propagation status"),
+            (lambda value: value.update(linear=[]), "linear result and findings are required"),
+            (lambda value: value.update(findings=None), "linear result and findings are required"),
+        ):
+            candidate = copy.deepcopy(receipt)
+            mutate(candidate)
+            cases.append((candidate, message))
+        for candidate, message in cases:
+            before = copy.deepcopy(candidate)
+            with self.subTest(message=message):
+                with self.assertRaises(ValueError) as caught:
+                    validate_uncertainty_propagation(candidate)
+                self.assertIn(message, str(caught.exception))
+                self.assertEqual(before, candidate)
 
 
 if __name__ == "__main__":
