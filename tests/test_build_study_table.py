@@ -125,6 +125,63 @@ class BuildStudyTableTests(unittest.TestCase):
             build_study_table(self.root, self.extraction, "sources/24390308.abstract.txt")
         self.assertEqual(original, source_path.read_bytes())
 
+    def test_excerpt_locator_line_accepts_occurrence_spans_and_ignores_nonintegers(self):
+        excerpt = "This exact source excerpt is long enough for validation."
+        source_path = self.root / "sources/24390308.abstract.txt"
+        source_path.write_text("First line.\n" + excerpt + "\nThird line.", encoding="utf-8")
+
+        def build_with(locator):
+            extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+            row = extraction["studies"][0]["excerpts"][0]
+            row["text"] = excerpt
+            if locator is None:
+                row.pop("locator", None)
+            else:
+                row["locator"] = locator
+            self._write_inputs(extraction=extraction)
+            return build_study_table(self.root, self.extraction)
+
+        build_with({"line": 2})
+        source_path.write_text("Start\n" + excerpt + "\ncontinues here.\nEnd", encoding="utf-8")
+        multiline = excerpt + " continues here."
+        extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+        extraction["studies"][0]["excerpts"][0].update(text=multiline, locator={"line": 3})
+        self._write_inputs(extraction=extraction)
+        build_study_table(self.root, self.extraction)
+
+        repeated = "Prefix.\n" + excerpt + "\nMiddle.\n" + excerpt + "\nSuffix."
+        source_path.write_text(repeated, encoding="utf-8")
+        for locator in ({"line": 4}, {"line": "4"}, {"line": True}, {"section": "Abstract"}, None):
+            build_with(locator)
+
+    def test_excerpt_locator_wrong_line_refuses_and_reports_text_start(self):
+        extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+        extraction["studies"][0]["excerpts"][0]["locator"]["line"] = 3
+        self._write_inputs(extraction=extraction)
+        with self.assertRaisesRegex(ValueError, r"locator\.line 3 does not contain the excerpt; text starts at line 1"):
+            build_study_table(self.root, self.extraction)
+
+    def test_excerpt_locator_wrong_line_zero_and_bounded_occurrence_starts(self):
+        excerpt = self.source
+        source = "\n".join([excerpt, "gap"] * 6)
+        (self.root / "sources/24390308.abstract.txt").write_text(source, encoding="utf-8")
+        extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+        extraction["studies"][0]["excerpts"][0].update(text=excerpt, locator={"line": 0})
+        self._write_inputs(extraction=extraction)
+        with self.assertRaises(ValueError) as caught:
+            build_study_table(self.root, self.extraction)
+        self.assertIn("locator.line 0 does not contain the excerpt", str(caught.exception))
+        self.assertIn("text starts at line 1, 3, 5, 7, 9, ...", str(caught.exception))
+
+    def test_excerpt_locator_line_in_large_source(self):
+        line_count = 170_000
+        source = "filler line\n" * line_count + self.source
+        (self.root / "sources/24390308.abstract.txt").write_text(source, encoding="utf-8")
+        extraction = json.loads(self.extraction.read_text(encoding="utf-8"))
+        extraction["studies"][0]["excerpts"][0]["locator"]["line"] = line_count + 1
+        self._write_inputs(extraction=extraction)
+        build_study_table(self.root, self.extraction)
+
     def test_fields_cannot_override_top_level_cohort_id(self):
         build_study_table(self.root, self.extraction)
         studies_path = self.root / "studies.json"
@@ -156,13 +213,18 @@ class BuildStudyTableTests(unittest.TestCase):
         second = dict(self.record, record_id="agr:empty", identifiers=[])
         third = dict(self.record, record_id="med:excluded", decision="exclude")
         candidates = [self.candidate, dict(self.candidate, record_id="agr:empty", identifiers=[]), dict(self.candidate, record_id="med:excluded")]
-        extraction = {"schema": "study-extraction-v1", "studies": [{"record_id": "unknown", "evidence_type": "primary",
+        extraction = {"schema": "study-extraction-v1", "studies": [{"record_id": "med:unknown", "evidence_type": "primary",
             "supports_claim_ids": [], "contradicts_claim_ids": []}, {"record_id": "agr:empty", "evidence_type": "primary",
             "supports_claim_ids": [], "contradicts_claim_ids": []}, {"record_id": "med:excluded", "evidence_type": "primary",
             "supports_claim_ids": [], "contradicts_claim_ids": []}], "not_extracted": []}
         self._write_inputs(records=[self.record, second, third], candidates=candidates, extraction=extraction)
         with self.assertRaises(ValueError) as caught:
             build_study_table(self.root, self.extraction)
+        self.assertIn(
+            "med:unknown: unknown record_id (not in screening.json; screen it before extraction)",
+            str(caught.exception),
+        )
+        self.assertNotIn("med:unknown: cannot build study", str(caught.exception))
         for expected in ("unknown", "missing", "not included", "persistent identifier"):
             self.assertIn(expected, str(caught.exception))
         self.assertFalse((self.root / "studies.json").exists())

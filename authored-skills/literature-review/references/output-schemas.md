@@ -16,6 +16,6 @@ Allowed values (each field is checked by its named validator):
 - `studies.json / studies[].relationships[].type`: `preprint_of`, `published_as`, `corrected_by`, `retracted_by`, `secondary_analysis_of`, `protocol_for`, `registry_for`; enforced by `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/resolve_study_families.py" <records.json> [--output <report.json>]`.
 - `risk-of-bias artifact / domains[].judgment and overall_judgment`: `low`, `some-concerns`, `high`, `unclear`, `not-applicable`.
 Support-excerpt text in `studies.json` must be 20..2000 characters. The set of `type: study` node IDs in `evidence_graph.json` must equal the study IDs in `studies.json`.
-Support-excerpt shape: in `studies.json`, optional `support_excerpts[].locator` must be an object; the validator defines no required keys.
+Support-excerpt shape: in `studies.json`, optional `support_excerpts[].locator` must be an object; the validator defines no required keys. An integer `line` must point into the quoted text.
 
 Reference-use-ledger shape: `reference-use-ledger.json` requires top-level `schema_version: 1`, non-empty `skill`, and a non-empty `uses` list; the `record_reference_use.py` command builds a valid ledger. Each use must be an object with `schema_version: 1` and non-empty `skill`, `reference_id`, `path`, `sha256`, `read_reason`, and `loaded_at`; `path` must stay under `references/` and `sha256` must contain 64 hexadecimal characters. Each use may include `used_for`, `sections`, and `search_terms` as lists or tuples of strings; they default to empty lists.

@@ -41,6 +41,40 @@ def _string_list(value: Any, label: str) -> list[str]:
 _PMCID_STEM = re.compile(r"PMC\d+")  # exactly the names fetch_open_fulltext writes
 
 
+def _excerpt_line_spans(text: str, source: str) -> list[tuple[int, int]]:
+    """Return source line spans for every whitespace-insensitive excerpt occurrence."""
+    normalized_excerpt = _normalise_excerpt(text)
+    normalized_source = _normalise_excerpt(source)
+    tokens = list(re.finditer(r"\S+", source))
+    token_lines = []
+    line = 1
+    newlines = iter(match.start() for match in re.finditer("\n", source))
+    next_newline = next(newlines, None)
+    for token in tokens:
+        while next_newline is not None and next_newline < token.start():
+            line += 1
+            next_newline = next(newlines, None)
+        start_line = line
+        while next_newline is not None and next_newline < token.end():
+            line += 1
+            next_newline = next(newlines, None)
+        token_lines.append((start_line, line))
+    # Map each normalized token's characters back to its source line span.
+    char_spans: list[tuple[int, int]] = []
+    for index, token in enumerate(tokens):
+        char_spans.extend([token_lines[index]] * len(_normalise_excerpt(token.group())))
+        if index + 1 < len(tokens):
+            char_spans.append(token_lines[index])
+    spans: list[tuple[int, int]] = []
+    start = 0
+    while (position := normalized_source.find(normalized_excerpt, start)) >= 0:
+        end = position + len(normalized_excerpt) - 1
+        if position < len(char_spans) and end < len(char_spans):
+            spans.append((char_spans[position][0], char_spans[end][1]))
+        start = position + 1
+    return spans
+
+
 def _local(node: ET.Element) -> str:
     return node.tag.rsplit("}", 1)[-1] if isinstance(node.tag, str) else ""
 
@@ -152,7 +186,9 @@ def build_study_table(
                 continue
             record_id = item["record_id"]
             if record_id not in screen_by_id:
-                problems.append(f"{record_id}: unknown record_id")
+                problems.append(
+                    f"{record_id}: unknown record_id (not in screening.json; screen it before extraction)"
+                )
             elif record_id not in includes:
                 problems.append(f"{record_id}: record is not included")
             if record_id in assigned:
@@ -170,6 +206,8 @@ def build_study_table(
             continue
         record_id = item["record_id"]
         screening_row = screen_by_id.get(record_id, {})
+        if record_id not in screen_by_id:
+            continue
         candidate = candidate_by_id.get(record_id, {})
         ids_a = screening_row.get("identifiers", [])
         ids_b = candidate.get("identifiers", [])
@@ -262,8 +300,23 @@ def build_study_table(
                 if isinstance(text, str):
                     try:
                         source_text = content.decode("utf-8")
-                        if _normalise_excerpt(text) not in _normalise_excerpt(source_text):
+                        normalized_excerpt = _normalise_excerpt(text)
+                        normalized_source = _normalise_excerpt(source_text)
+                        if normalized_excerpt not in normalized_source:
                             excerpt_problems.append(f"{label}, excerpt text does not occur in source")
+                        else:
+                            locator = excerpt.get("locator")
+                            line = locator.get("line") if isinstance(locator, dict) else None
+                            if isinstance(line, int) and not isinstance(line, bool):
+                                spans = _excerpt_line_spans(text, source_text)
+                                if not any(start <= line <= end for start, end in spans):
+                                    starts = list(dict.fromkeys(start for start, _ in spans))[:5]
+                                    starts_text = ", ".join(str(value) for value in starts)
+                                    if len(set(start for start, _ in spans)) > 5:
+                                        starts_text += ", ..."
+                                    excerpt_problems.append(
+                                        f"{label}, locator.line {line} does not contain the excerpt; text starts at line {starts_text}"
+                                    )
                     except UnicodeDecodeError:
                         excerpt_problems.append(f"{label}, source is not UTF-8")
                 excerpt_row = {"claim_id": claim_id, "text": text, "source_artifact": source_path.relative_to(root).as_posix(),
