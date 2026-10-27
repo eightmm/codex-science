@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `discovery assess` adds a read-only `revision_outcomes` field classifying each recorded `revise` event (`insufficient_evidence`, `repetition`, `necessary_repair_candidate`, `substantive_progress_candidate`) from recorded fields; other output and the cycle schema are unchanged.
 - `research-discovery` and `write-scientific-manuscript` now declare `L4` in their `quality.json`: each acceptance fixture is exercised by tests (`tests/test_research_discovery_acceptance.py`, `tests/test_manuscript_package.py`) and every seeded failure maps to a test that asserts its detection. The audit's computed L4 total (6) is unchanged.
 - A hand-written file registered under a receipt kind (`statistical-analysis`,
   `decision-analysis`, `numerical-verification`, `dimension-check`,

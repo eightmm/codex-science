@@ -195,6 +195,14 @@ identity, budget, event transitions, method design, and recorded evidence.
 Missing evidence or an incomplete design is a concrete next task, not
 schema-completion paperwork.
 
+`discovery assess` also returns `revision_outcomes`: each recorded `revise` event
+is classified from recorded fields only, in first-match order, as
+`insufficient_evidence` (no lesson or nothing appended), `repetition` (only
+`retry_of` experiments appended), `necessary_repair_candidate` (failed source) or
+`substantive_progress_candidate` (completed source with a changed definition or
+new non-retry experiment), with per-category `counts`. These are projections, not
+judgments of scientific substance or score change; candidate labels require review.
+
 Use the deterministic acceptance bundle to inspect the read-only views against
 real generated artifacts. The fixture is only a software acceptance example;
 it does not provide a scientific result.

@@ -145,6 +145,11 @@ Budget exhaustion, a failed implementation, or an unresolved measurement is a
 terminal recorded outcome for that attempt, not a promoted success. Continue
 only with a declared repair, revised prediction, or new experiment.
 
+`discovery assess` projects each `revise` event into `revision_outcomes`
+(`insufficient_evidence`, `repetition`, `necessary_repair_candidate`,
+`substantive_progress_candidate`) from recorded fields only; it is read-only, and
+candidate labels require review.
+
 ## Operating the evidence loop
 
 For material method work, initialize with `--require-design`. This records that

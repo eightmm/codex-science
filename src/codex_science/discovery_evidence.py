@@ -29,6 +29,51 @@ def _cycle_refs(cycle: Mapping[str, Any]) -> dict[str, str]:
     return result
 
 
+_REVISION_CATEGORIES = ("insufficient_evidence", "repetition", "necessary_repair_candidate",
+                        "substantive_progress_candidate")
+
+
+def classify_revisions(cycle: Mapping[str, Any]) -> dict[str, Any]:
+    """Project each recorded revise event into a category from recorded fields only.
+
+    Categories are not judgments of scientific substance; the first matching rule wins.
+    """
+    states = {item.get("id"): item.get("state") for item in cycle.get("experiments", [])
+              if isinstance(item, Mapping)}
+    outcomes = []
+    for index, event in enumerate(cycle.get("events", [])):
+        if not isinstance(event, Mapping) or event.get("kind") != "revise":
+            continue
+        source = event.get("source_experiment_id")
+        state = states.get(source)
+        lesson = isinstance(event.get("lesson"), Mapping)
+        definitions = [name for name in ("assumptions", "hypotheses", "methods")
+                       if isinstance(event.get(name), list) and event[name]]
+        added = [item for item in event.get("experiments") or [] if isinstance(item, Mapping)] \
+            if isinstance(event.get("experiments"), list) else []
+        new_experiments = [item for item in added if not item.get("retry_of")]
+        basis = [f"source_state={state}", "lesson=" + ("present" if lesson else "absent"),
+                 "appended=" + (",".join(definitions + (["experiments"] if added else [])) or "nothing")]
+        if not lesson or not (definitions or added):
+            category = "insufficient_evidence"
+        elif not definitions and not new_experiments:
+            category = "repetition"
+            basis.append("every appended experiment has retry_of")
+        elif state == "failed":
+            category = "necessary_repair_candidate"
+        elif state == "completed":
+            category = "substantive_progress_candidate"
+            basis.append("changed definition" if definitions else "new non-retry experiment")
+        else:
+            category = "insufficient_evidence"
+            basis.append("source experiment state is not resolved in the current cycle")
+        outcomes.append({"event_index": index, "source_experiment_id": source, "source_state": state,
+                         "category": category, "basis": basis})
+    return {"revisions": outcomes,
+            "counts": {name: sum(item["category"] == name for item in outcomes) for name in _REVISION_CATEGORIES},
+            "evidence_boundary": "Categories are projections of recorded fields, not judgments of scientific substance or score change; candidate labels require review."}
+
+
 def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
                  payload: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Project review coverage without promoting recorded observations to truth.
@@ -115,6 +160,7 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
             "method_effects": [{"experiment_id": item["id"], "method_effect": item.get("method_effect", "not_assessed"),
                                 "explanation_support": item.get("explanation_support", {})}
                                for item in cycle["experiments"]],
+            "revision_outcomes": classify_revisions(cycle),
             "evidence_boundary": "Hashes and receipts do not authenticate execution or reviewer independence. Record, source, method and reproduction reviews are separate; none proves novelty or a causal mechanism."}
 
 

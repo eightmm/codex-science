@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.discovery import attach_cycle, finite_decision
-from codex_science.discovery_evidence import assess_cycle, cycle_graph
+from codex_science.discovery_evidence import assess_cycle, classify_revisions, cycle_graph
 from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle
 from codex_science.review_receipts import build_review_receipt
 from codex_science.reviewer_runtime import build_review_packet
@@ -149,6 +149,59 @@ class DiscoveryEvidenceTests(unittest.TestCase):
         altered["observed_outcome"]["artifact_ref"] = other_ref
         with self.assertRaisesRegex(ValueError, "preregistered"):
             finite_decision(latest, altered, self.root)
+
+    def test_assess_adds_revision_outcomes_without_changing_prior_keys(self):
+        result = assess_cycle(self.start(), self.root)
+        self.assertEqual({"schema_version", "cycle_hash", "revision", "execution_integrity", "review_axes", "novelty",
+                          "review_scope", "method_effects", "evidence_boundary", "revision_outcomes"}, set(result))
+        self.assertEqual([], result["revision_outcomes"]["revisions"])
+
+
+class RevisionOutcomeTests(unittest.TestCase):
+    LESSON = {"observation": "o", "interpretation": "i", "limitation": "l", "change": "c", "next_test": "n"}
+
+    def classify(self, state, **fields):
+        event = dict({"kind": "revise", "source_experiment_id": "e1"}, **fields)
+        cycle = {"experiments": [{"id": "e1", "state": state}], "events": [{"kind": "reserve"}, event]}
+        return classify_revisions(cycle)["revisions"][0]
+
+    def test_each_category_and_event_index(self):
+        method = [{"id": "m2"}]
+        cases = [
+            ("completed", {"methods": method}, "insufficient_evidence"),
+            ("completed", {"lesson": self.LESSON}, "insufficient_evidence"),
+            ("completed", {"lesson": self.LESSON, "methods": []}, "insufficient_evidence"),
+            ("failed", {"lesson": self.LESSON, "experiments": [{"id": "x", "retry_of": "e1"}]}, "repetition"),
+            ("failed", {"lesson": self.LESSON, "methods": method}, "necessary_repair_candidate"),
+            ("failed", {"lesson": self.LESSON, "experiments": [{"id": "x"}]}, "necessary_repair_candidate"),
+            ("completed", {"lesson": self.LESSON, "hypotheses": [{"id": "h"}]}, "substantive_progress_candidate"),
+            ("completed", {"lesson": self.LESSON, "experiments": [{"id": "x"}]}, "substantive_progress_candidate"),
+            ("completed", {"lesson": self.LESSON, "methods": method, "experiments": [{"id": "x", "retry_of": "e1"}]},
+             "substantive_progress_candidate"),
+        ]
+        for state, fields, expected in cases:
+            with self.subTest(state=state, fields=sorted(fields), expected=expected):
+                item = self.classify(state, **fields)
+                self.assertEqual(expected, item["category"])
+                self.assertEqual((1, "e1", state), (item["event_index"], item["source_experiment_id"], item["source_state"]))
+                self.assertTrue(item["basis"])
+
+    def test_rule_precedence_and_unresolved_source(self):
+        self.assertEqual("insufficient_evidence", self.classify("failed", methods=[{"id": "m2"}])["category"])
+        self.assertEqual("repetition", self.classify("completed", lesson=self.LESSON,
+                                                      experiments=[{"id": "x", "retry_of": "e1"}])["category"])
+        self.assertEqual("insufficient_evidence", self.classify("planned", lesson=self.LESSON, methods=[{"id": "m"}])["category"])
+
+    def test_counts_boundary_and_empty(self):
+        empty = classify_revisions({"experiments": [], "events": []})
+        self.assertEqual([], empty["revisions"])
+        self.assertEqual(0, sum(empty["counts"].values()))
+        self.assertIn("not judgments", empty["evidence_boundary"])
+        cycle = {"experiments": [{"id": "e1", "state": "failed"}],
+                 "events": [{"kind": "revise", "source_experiment_id": "e1", "lesson": self.LESSON, "methods": [{"id": "m"}]},
+                            {"kind": "revise", "source_experiment_id": "e1"}]}
+        counts = classify_revisions(cycle)["counts"]
+        self.assertEqual((1, 1), (counts["necessary_repair_candidate"], counts["insufficient_evidence"]))
 
 
 if __name__ == "__main__":
