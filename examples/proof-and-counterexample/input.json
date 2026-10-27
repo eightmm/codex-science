@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "claim_id": "acceptance-square-nonnegative",
+  "statement": "For every integer x in {-2,-1,0,1,2}, x squared is nonnegative.",
+  "scope": "finite",
+  "variables": [
+    {
+      "name": "x",
+      "integer_range": {
+        "start": -2,
+        "stop": 2,
+        "step": 1
+      }
+    }
+  ],
+  "assumptions": ["True"],
+  "conclusion": "x*x >= 0",
+  "max_evaluations": 20
+}

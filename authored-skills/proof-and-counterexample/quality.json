@@ -2,13 +2,21 @@
   "schema_version": 1,
   "skill": "proof-and-counterexample",
   "roles": ["analyzer", "reviewer"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": ["mathematical-claim-v1", "counterexample-search-v1", "proof-obligation-graph-v1", "proof-receipt-v1"],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": ["tests/test_math_research_runtime.py"],
+  "acceptance_fixtures": ["examples/proof-and-counterexample/input.json"],
+  "seeded_failures": [
+    "false-universal-claim",
+    "sampled-grid-cannot-prove-finite-claim",
+    "truncated-search-cannot-prove-claim"
+  ],
+  "test_files": [
+    "tests/test_math_research_runtime.py",
+    "tests/test_proof_and_counterexample_acceptance.py"
+  ],
   "limitations": [
     "The bounded evaluator supports a deliberately small real-arithmetic language rather than arbitrary mathematical structures.",
-    "General proof still requires deductive or kernel-checked evidence outside finite exhaustive domains."
+    "General proof still requires deductive or kernel-checked evidence outside finite exhaustive domains.",
+    "The fixture is deterministic software validation, not an empirical result."
   ]
 }
