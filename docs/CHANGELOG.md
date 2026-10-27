@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `research-discovery` now declares `L4` in `authored-skills/research-discovery/quality.json`: its acceptance fixture is exercised by `tests/test_research_discovery_acceptance.py` and all 17 seeded failures map to named test functions. `write-scientific-manuscript` stays `L3` because `incomplete-rebuttal-identity` has no test. The audit's computed L4 total (6) is unchanged.
+- `research-discovery` and `write-scientific-manuscript` now declare `L4` in their `quality.json`: each acceptance fixture is exercised by tests (`tests/test_research_discovery_acceptance.py`, `tests/test_manuscript_package.py`) and every seeded failure maps to a test that asserts its detection. The audit's computed L4 total (6) is unchanged.
 - A hand-written file registered under a receipt kind (`statistical-analysis`,
   `decision-analysis`, `numerical-verification`, `dimension-check`,
   `uncertainty-propagation`, `counterexample-search`, `research-design`) keeps its

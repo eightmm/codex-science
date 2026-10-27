@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": "write-scientific-manuscript",
   "roles": ["conductor", "analyzer"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": [
     "manuscript-contract-v1",
     "claim-citation-map-v1",
