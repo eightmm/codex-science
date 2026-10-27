@@ -452,12 +452,12 @@ class RuntimeStateTests(unittest.TestCase):
             STATE.claim_runtime_activation(path, runtime.pin)
         self.assertEqual("not-json", path.read_text(encoding="utf-8"))
 
+    @mock.patch.dict(
+        os.environ, {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    )
     def test_runtime_file_verification_rejects_invalid_entries_and_extra_critical_files(self) -> None:
         version = "0.5.0+codex.20260803053401"
-        with mock.patch.dict(
-            os.environ, {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
-        ):
-            source = self.make_source("source-file-check", version)
+        source = self.make_source("source-file-check", version)
         runtime = self.install(source)
         files = STATE.tracked_manifest(source)
         self.assertIsNotNone(files)
@@ -495,11 +495,11 @@ class RuntimeStateTests(unittest.TestCase):
         self.assertTrue(runtime_identity._verify_runtime_files(root, files))
         self.assertEqual("scripts/entry", os.readlink(link))
 
+    @mock.patch.dict(
+        os.environ, {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    )
     def test_private_identity_refuses_corrupt_receipt_without_mutating_it(self) -> None:
-        with mock.patch.dict(
-            os.environ, {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
-        ):
-            source = self.make_source("source-corrupt-receipt", "0.5.0+codex.20260803053402")
+        source = self.make_source("source-corrupt-receipt", "0.5.0+codex.20260803053402")
         runtime = self.install(source)
         receipt_path = STATE.receipt_path(self.plugin_data, runtime.pin.runtime_version)
         receipt_path.write_text("{}\n", encoding="utf-8")
