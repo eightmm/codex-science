@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Fix SDF property names in artifact runtime previews, which kept a stray leading `<`
+  (`<ID` instead of `ID`).
+- `scripts/diagnose_eval_trace.py` is a read-only diagnosis of a recorded evaluation task directory (or `--events FILE`): counts failed tool use, repeated exploration, plugin-source reads, manifest hand edits, lost artifacts, premature closure and per-script phase times as pattern matches, with at most 5 examples each.
+- `scripts/seed_review_defects.py` plants a known defect into a copy of a reviewed
+  run bundle (refreshed with review invalidation) and scores reviewer responses
+  against a hidden answer key, to measure independent-review detection. `control`
+  specs need no `expected_min_severity`; `--drop PATH` removes unregistered files from
+  the copy while refusing symlinked path components, and `--strip-review-history`
+  deletes its `review-rounds/`.
 - `discovery assess` adds a read-only `revision_outcomes` field classifying each recorded `revise` event (`insufficient_evidence`, `repetition`, `necessary_repair_candidate`, `substantive_progress_candidate`) from recorded fields; other output and the cycle schema are unchanged.
 - `research-discovery` and `write-scientific-manuscript` now declare `L4` in their `quality.json`: each acceptance fixture is exercised by tests (`tests/test_research_discovery_acceptance.py`, `tests/test_manuscript_package.py`) and every seeded failure maps to a test that asserts its detection. The audit's computed L4 total (6) is unchanged.
 - A hand-written file registered under a receipt kind (`statistical-analysis`,

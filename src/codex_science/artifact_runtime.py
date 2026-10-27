@@ -253,7 +253,7 @@ def _molecule_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dic
                     bond_count = int(counts[3:6])
                 except ValueError:
                     pass
-            properties = [line[3:-1] for line in lines if line.startswith(">  <") and line.endswith(">")]
+            properties = [line[4:-1] for line in lines if line.startswith(">  <") and line.endswith(">")]
             records.append({
                 "record_index": index,
                 "name": lines[0].strip() if lines else "",
