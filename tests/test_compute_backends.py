@@ -1138,6 +1138,273 @@ class ComputeBackendTests(unittest.TestCase):
             self.assertEqual("missing", collected["outputs"][0]["artifact_type"])
             self.assertIn("materialized source directory is missing", collected["source_collection_error"])
 
+    def test_input_preflight_reports_external_missing_digest_and_unsupported_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            working.mkdir()
+            (working / "good.txt").write_text("bound input", encoding="utf-8")
+            (working / "bundle").mkdir()
+            (working / "bundle" / "item.txt").write_text("nested input", encoding="utf-8")
+            os.mkfifo(working / "pipe")
+            good_digest = hashlib.sha256(b"bound input").hexdigest()
+            bundle_digest = describe_directory(working / "bundle").root_sha256
+            spec = local_spec(working, command=[sys.executable, "-c", "pass"], outputs=[])
+            spec = replace(
+                spec,
+                inputs=(
+                    {"id": "external", "identifier": "record-only"},
+                    {"id": "missing", "path": "absent.txt"},
+                    {"id": "good", "path": "good.txt", "sha256": good_digest},
+                    {"id": "bundle", "path": "bundle", "root_sha256": bundle_digest},
+                    {"id": "bad", "path": "good.txt", "sha256": "0" * 64},
+                    {"id": "pipe", "path": "pipe", "sha256": good_digest},
+                ),
+            )
+
+            result = LocalBackend(root / "state").preflight(spec)
+
+            checks = {item["name"]: item for item in result["checks"]}
+            self.assertFalse(result["ready"])
+            self.assertTrue(checks["input:external"]["ready"])
+            self.assertIn("external identifier", checks["input:external"]["detail"])
+            self.assertFalse(checks["input:missing"]["ready"])
+            self.assertEqual("missing", checks["input:missing"]["detail"])
+            self.assertTrue(checks["input:good"]["ready"])
+            self.assertTrue(checks["input:bundle"]["ready"])
+            self.assertIn("digest mismatch", checks["input:bad"]["detail"])
+            self.assertIn("unsupported filesystem object", checks["input:pipe"]["detail"])
+            self.assertFalse((root / "state").exists())
+
+    def test_worker_writes_success_and_nonzero_terminal_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            working.mkdir()
+            backend = LocalBackend(root / "state")
+            outcomes = (
+                ("successful", [sys.executable, "-c", "print('worker output')"], "completed", 0),
+                ("nonzero", [sys.executable, "-c", "raise SystemExit(7)"], "failed", 7),
+            )
+            for job_id, command, expected_state, expected_code in outcomes:
+                with self.subTest(job_id=job_id):
+                    spec = local_spec(working, command=command, outputs=[])
+                    job_dir = backend._job_dir(job_id)
+                    job_dir.mkdir(parents=True)
+                    (job_dir / "spec.json").write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+                    state = compute_backends_module._state_material(
+                        spec,
+                        job_id=job_id,
+                        state="submitted",
+                        submitted_at="2026-01-01T00:00:00Z",
+                    )
+                    (job_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+                    result = compute_backends_module._worker(job_dir)
+
+                    terminal = json.loads((job_dir / "state.json").read_text(encoding="utf-8"))
+                    self.assertEqual(0 if expected_state == "completed" else 1, result)
+                    self.assertEqual(expected_state, terminal["state"])
+                    self.assertEqual(expected_code, terminal["exit_code"])
+                    if expected_state == "completed":
+                        self.assertEqual("worker output\n", (job_dir / "stdout.log").read_text(encoding="utf-8"))
+                    else:
+                        self.assertEqual("nonzero-exit", terminal["failure_class"])
+
+    def test_local_wait_rejects_nonpositive_limits_and_collect_refuses_nonterminal_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            working.mkdir()
+            backend = LocalBackend(root / "state")
+            spec = local_spec(working, command=[sys.executable, "-c", "pass"], outputs=[])
+            job_id = "pending-job"
+            job_dir = backend._job_dir(job_id)
+            job_dir.mkdir(parents=True)
+            (job_dir / "spec.json").write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+            initial = compute_backends_module._state_material(
+                spec,
+                job_id=job_id,
+                state="submitted",
+                submitted_at="2026-01-01T00:00:00Z",
+            )
+            state_path = job_dir / "state.json"
+            state_path.write_text(json.dumps(initial), encoding="utf-8")
+            before = state_path.read_bytes()
+
+            for timeout_seconds, poll_seconds in ((0, 0.2), (1, 0), (-1, 0.2)):
+                with self.subTest(timeout=timeout_seconds, poll=poll_seconds), self.assertRaisesRegex(
+                    ValueError, "must be positive"
+                ):
+                    backend.wait(job_id, timeout_seconds=timeout_seconds, poll_seconds=poll_seconds)
+            with self.assertRaisesRegex(ValueError, "nonterminal"):
+                backend.collect(job_id)
+            self.assertEqual(before, state_path.read_bytes())
+            backend.cancel(job_id)
+            self.assertEqual("cancelled", backend.status(job_id)["state"])
+
+    def test_local_status_records_dead_worker_without_terminal_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            working.mkdir()
+            backend = LocalBackend(root / "state")
+            spec = local_spec(working, command=[sys.executable, "-c", "pass"], outputs=[])
+            job_id = "lost-worker"
+            job_dir = backend._job_dir(job_id)
+            job_dir.mkdir(parents=True)
+            (job_dir / "spec.json").write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+            state = compute_backends_module._state_material(
+                spec,
+                job_id=job_id,
+                state="running",
+                submitted_at="2026-01-01T00:00:00Z",
+                worker_pid=99999999,
+            )
+            (job_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+            with mock.patch.object(compute_backends_module, "_process_alive", return_value=False), mock.patch.object(
+                compute_backends_module.time, "sleep"
+            ) as sleep:
+                lost = backend.status(job_id)
+
+            self.assertEqual("lost", lost["state"])
+            self.assertEqual("worker-lost", lost["failure_class"])
+            sleep.assert_called_once_with(0.05)
+
+    def test_slurm_status_cancel_and_collection_refusals_preserve_state_on_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            working.mkdir()
+            backend = SlurmBackend(root / "state")
+            spec = JobSpec.from_payload(
+                {
+                    "backend": "slurm",
+                    "name": "scheduler-state",
+                    "command": ["python", "analysis.py"],
+                    "working_directory": str(working),
+                    "outputs": [],
+                }
+            )
+            job_id = "scheduler-job"
+            job_dir = backend._job_dir(job_id)
+            job_dir.mkdir(parents=True)
+            (job_dir / "spec.json").write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+            state = compute_backends_module._state_material(
+                spec,
+                job_id=job_id,
+                state="submitted",
+                submitted_at="2026-01-01T00:00:00Z",
+                scheduler_job_id="42",
+            )
+            state_path = job_dir / "state.json"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            tools_available = {"sacct": False, "squeue": False}
+            cancel_outcome = {"returncode": 1}
+
+            def scheduler_tool(name: str) -> str | None:
+                return name if tools_available.get(name, False) else None
+
+            def scheduler_command(command: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+                if command[0] == "scancel":
+                    status = cancel_outcome["returncode"]
+                    error = "scheduler refused" if status else ""
+                    return subprocess.CompletedProcess(command, status, "", error)
+                if command[0] == "sacct":
+                    return subprocess.CompletedProcess(
+                        command, 0, "COMPLETED|0:0|00:01|10K\n", ""
+                    )
+                raise AssertionError(f"unexpected scheduler command: {command[0]}")
+
+            with mock.patch.object(
+                compute_backends_module.shutil, "which", side_effect=scheduler_tool
+            ) as which, mock.patch.object(
+                compute_backends_module.subprocess, "run", side_effect=scheduler_command
+            ) as run:
+                self.assertEqual("submitted", backend.status(job_id)["state"])
+                before = state_path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "scancel failed: scheduler refused"):
+                    backend.cancel(job_id)
+                expected_cancel = mock.call(
+                    ["scancel", "42"], text=True, capture_output=True, check=False
+                )
+                self.assertEqual([expected_cancel], run.call_args_list)
+                self.assertEqual(before, state_path.read_bytes())
+                with self.assertRaisesRegex(ValueError, "nonterminal Slurm job"):
+                    backend.collect(job_id)
+                self.assertEqual([expected_cancel], run.call_args_list)
+                self.assertEqual(before, state_path.read_bytes())
+
+                tools_available["sacct"] = True
+                terminal = backend.status(job_id)
+                self.assertEqual("completed", terminal["state"])
+                self.assertEqual(0, terminal["exit_code"])
+                collected = backend.collect(job_id)
+                self.assertEqual([], collected["outputs"])
+                self.assertEqual(
+                    [expected_cancel, mock.call(
+                        ["sacct", "-n", "-P", "-j", "42", "--format=State,ExitCode,Elapsed,MaxRSS"],
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )],
+                    run.call_args_list,
+                )
+
+                state_path.write_bytes(before)
+                tools_available["sacct"] = False
+                cancel_outcome["returncode"] = 0
+                cancelled = backend.cancel(job_id)
+                expected_accounting = mock.call(
+                    ["sacct", "-n", "-P", "-j", "42", "--format=State,ExitCode,Elapsed,MaxRSS"],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    [expected_cancel, expected_accounting, expected_cancel], run.call_args_list
+                )
+                self.assertEqual(
+                    [expected_cancel, expected_cancel],
+                    [call for call in run.call_args_list if call.args[0][0] == "scancel"],
+                )
+                self.assertEqual(
+                    [
+                        mock.call("sacct"),
+                        mock.call("squeue"),
+                        mock.call("sacct"),
+                        mock.call("squeue"),
+                        mock.call("sacct"),
+                        mock.call("squeue"),
+                        mock.call("sacct"),
+                        mock.call("sacct"),
+                        mock.call("squeue"),
+                    ],
+                    which.call_args_list,
+                )
+            self.assertEqual("cancelled", cancelled["state"])
+
+    def test_load_spec_backend_factory_and_worker_invocation_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            working.mkdir()
+            spec = local_spec(working, command=[sys.executable, "-c", "pass"], outputs=[])
+            spec_path = root / "spec.json"
+            spec_path.write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+
+            self.assertEqual(spec.fingerprint, compute_backends_module.load_spec(spec_path).fingerprint)
+            self.assertIsInstance(compute_backends_module.backend_for("local", root / "local"), LocalBackend)
+            self.assertIsInstance(compute_backends_module.backend_for("slurm", root / "slurm"), SlurmBackend)
+            with self.assertRaisesRegex(ValueError, "unsupported backend: remote"):
+                compute_backends_module.backend_for("remote", root / "remote")
+            with self.assertRaisesRegex(ValueError, "invalid worker invocation"):
+                compute_backends_module._worker_main(["wrong", str(root)])
+            with self.assertRaisesRegex(ValueError, "invalid worker invocation"):
+                compute_backends_module._worker_main(["_worker"])
+
 
 if __name__ == "__main__":
     unittest.main()
