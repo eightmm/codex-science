@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import os
@@ -449,6 +450,147 @@ class RuntimeStateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid"):
             STATE.claim_runtime_activation(path, runtime.pin)
         self.assertEqual("not-json", path.read_text(encoding="utf-8"))
+
+    def test_runtime_file_verification_rejects_invalid_entries_and_extra_critical_files(self) -> None:
+        version = "0.5.0+codex.20260803053401"
+        source = self.make_source("source-file-check", version)
+        runtime = self.install(source)
+        files = STATE.tracked_manifest(source)
+        self.assertIsNotNone(files)
+        assert files is not None
+
+        for invalid in (
+            {"../escape": "0" * 64},
+            {"scripts/science_mcp.py": 12},
+            {"scripts/science_mcp.py": "0" * 64},
+        ):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(runtime_identity._verify_runtime_files(runtime.root, invalid))
+
+        extra = runtime.root / "src" / "unexpected.py"
+        extra.write_text("unexpected\n", encoding="utf-8")
+        before = extra.read_bytes()
+        self.assertFalse(runtime_identity._verify_runtime_files(runtime.root, files))
+        self.assertEqual(before, extra.read_bytes())
+
+    def test_runtime_file_verification_allows_generated_cache_and_matching_link(self) -> None:
+        root = self.root / "tree"
+        (root / "scripts").mkdir(parents=True)
+        target = root / "scripts" / "entry"
+        target.write_text("entry\n", encoding="utf-8")
+        link = root / "current"
+        link.symlink_to("scripts/entry")
+        cache = root / "src" / "mod" / "__pycache__"
+        cache.mkdir(parents=True)
+        (cache / "mod.pyc").write_bytes(b"generated")
+        files = {
+            "scripts/entry": runtime_identity._sha256_file(target),
+            "current": "link:scripts/entry",
+        }
+
+        self.assertTrue(runtime_identity._verify_runtime_files(root, files))
+        self.assertEqual("scripts/entry", os.readlink(link))
+
+    def test_private_identity_refuses_corrupt_receipt_without_mutating_it(self) -> None:
+        runtime = self.install(
+            self.make_source("source-corrupt-receipt", "0.5.0+codex.20260803053402")
+        )
+        receipt_path = STATE.receipt_path(self.plugin_data, runtime.pin.runtime_version)
+        receipt_path.write_text("{}\n", encoding="utf-8")
+        before = receipt_path.read_bytes()
+
+        with mock.patch.object(runtime_identity, "ROOT", runtime.root):
+            self.assertIsNone(runtime_identity._verified_private_identity(runtime.root))
+
+        self.assertEqual(before, receipt_path.read_bytes())
+
+    def test_runtime_version_uses_manifest_then_plugin_fallback(self) -> None:
+        root = self.root / "version-root"
+        (root / "release").mkdir(parents=True)
+        (root / ".codex-plugin").mkdir()
+        (root / "release" / "manifest.json").write_text(
+            '{"runtime_version":"invalid version"}', encoding="utf-8"
+        )
+        (root / ".codex-plugin" / "plugin.json").write_text(
+            '{"version":"1.2.3+fallback"}', encoding="utf-8"
+        )
+
+        self.assertEqual("1.2.3+fallback", runtime_identity._runtime_version(root))
+        (root / ".codex-plugin" / "plugin.json").write_text("[]", encoding="utf-8")
+        self.assertEqual("unversioned", runtime_identity._runtime_version(root))
+
+    def test_development_identity_uses_git_commit_and_stable_output_fields(self) -> None:
+        version = "0.5.0+codex.20260803053403"
+        root = self.make_source("source-development-identity", version)
+        expected_commit = "a" * 40
+        runtime_identity.current_runtime_identity.cache_clear()
+        try:
+            with (
+                mock.patch.object(runtime_identity, "ROOT", root),
+                mock.patch.object(runtime_identity, "_private_runtime_layout", return_value=None),
+                mock.patch(
+                    "codex_science.runtime_identity.subprocess.run",
+                    return_value=subprocess.CompletedProcess([], 0, expected_commit + "\n", ""),
+                ),
+            ):
+                identity = runtime_identity.current_runtime_identity()
+        finally:
+            runtime_identity.current_runtime_identity.cache_clear()
+
+        self.assertEqual(expected_commit, identity["commit"])
+        self.assertEqual(version, identity["runtime_version"])
+        self.assertEqual("", identity["receipt_sha256"])
+        self.assertEqual(
+            hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:16],
+            identity["source_id"],
+        )
+
+    def test_record_runtime_identity_deduplicates_and_marks_release_span(self) -> None:
+        first = {
+            "commit": "a" * 40,
+            "runtime_version": "1.0.0",
+            "receipt_sha256": "",
+            "source_id": "source-a",
+        }
+        second = {**first, "commit": "b" * 40, "runtime_version": "2.0.0"}
+        record = {"runtime_history": [first]}
+        with mock.patch.object(runtime_identity, "current_runtime_identity", return_value=first):
+            runtime_identity.record_runtime_identity(record)
+        self.assertEqual([first], record["runtime_history"])
+        self.assertFalse(record["runtime_span"])
+        with mock.patch.object(runtime_identity, "current_runtime_identity", return_value=second):
+            runtime_identity.record_runtime_identity(record)
+        self.assertEqual([first, second], record["runtime_history"])
+        self.assertTrue(record["runtime_span"])
+
+    def test_runtime_history_validation_errors_name_detected_field_and_preserve_record(self) -> None:
+        valid = {
+            "commit": "a" * 40,
+            "runtime_version": "1.0.0",
+            "source_id": "source-a",
+            "receipt_sha256": "",
+        }
+        cases = (
+            ({"runtime_history": "bad", "runtime_span": False}, "non-empty list"),
+            ({"runtime_history": [None], "runtime_span": False}, "entries must be objects"),
+            ({"runtime_history": [{"commit": "a"}], "runtime_span": False}, "require commit"),
+            ({"runtime_history": [{**valid, "runtime_version": "bad version"},], "runtime_span": False}, "versions must be valid"),
+            ({"runtime_history": [{**valid, "receipt_sha256": "bad"}], "runtime_span": False}, "receipt digests must be valid"),
+            ({"runtime_history": [valid], "runtime_span": "false"}, "runtime_span must match"),
+        )
+        for record, message in cases:
+            before = json.loads(json.dumps(record))
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                runtime_identity.validate_runtime_history(record)
+            self.assertEqual(before, record)
+
+    def test_record_runtime_identity_rejects_non_list_history_without_mutation(self) -> None:
+        record = {"runtime_history": "unchanged", "marker": 3}
+        before = dict(record)
+        with mock.patch.object(runtime_identity, "current_runtime_identity", return_value={"commit": "a"}):
+            with self.assertRaisesRegex(ValueError, "runtime_history must be a list"):
+                runtime_identity.record_runtime_identity(record)
+        self.assertEqual(before, record)
 
 
 if __name__ == "__main__":
