@@ -2,13 +2,24 @@
   "schema_version": 1,
   "skill": "numerical-analysis-error-control",
   "roles": ["analyzer", "reviewer"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": ["numerical-verification-v1"],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": ["tests/test_numerical_units_uncertainty.py"],
+  "acceptance_fixtures": ["examples/numerical-analysis-error-control/input.json"],
+  "seeded_failures": [
+    "non-refining-resolution-sequence",
+    "nonmonotone-error",
+    "convergence-order-below-threshold",
+    "residual-threshold-failure",
+    "invariant-threshold-failure",
+    "cross-method-disagreement"
+  ],
+  "test_files": [
+    "tests/test_numerical_units_uncertainty.py",
+    "tests/test_numerical_analysis_error_control_acceptance.py"
+  ],
   "limitations": [
     "The verifier evaluates finite recorded refinement series and does not prove asymptotic convergence.",
-    "Domain-specific norms, stability theory, and model discrepancy still require explicit scientific justification."
+    "Domain-specific norms, stability theory, and model discrepancy still require explicit scientific justification.",
+    "The acceptance fixture is deterministic software validation, not an empirical result."
   ]
 }

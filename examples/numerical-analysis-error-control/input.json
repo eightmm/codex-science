@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "verification_id": "manufactured-second-order-refinement",
+  "claim_id": "manufactured-solution-convergence",
+  "method": "deterministic manufactured second-order solver",
+  "reference_value": 1.0,
+  "thresholds": {
+    "minimum_order": 1.8,
+    "max_residual": 0.01,
+    "max_invariant_deviation": 0.01,
+    "max_cross_method_z": 3.0
+  },
+  "solver": {
+    "precision": "binary64",
+    "absolute_tolerance": 1e-12,
+    "relative_tolerance": 1e-10
+  },
+  "refinements": [
+    {"resolution": 0.4, "estimate": 1.16, "residual": 0.008, "invariants": {"mass": 0.008}},
+    {"resolution": 0.2, "estimate": 1.04, "residual": 0.002, "invariants": {"mass": 0.002}},
+    {"resolution": 0.1, "estimate": 1.01, "residual": 0.0005, "invariants": {"mass": 0.0005}},
+    {"resolution": 0.05, "estimate": 1.0025, "residual": 0.000125, "invariants": {"mass": 0.000125}}
+  ],
+  "cross_method": [
+    {"method": "finite-difference", "estimate": 1.0, "uncertainty": 0.001},
+    {"method": "independent-series", "estimate": 1.001, "uncertainty": 0.001}
+  ]
+}
