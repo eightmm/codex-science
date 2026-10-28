@@ -304,7 +304,7 @@ def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
             raise ValueError("snapshot page record count mismatch")
     if "pages" in payload:
         snapshot_pages = payload["pages"]
-        if not isinstance(snapshot_pages, (list, tuple)) or len(snapshot_pages) != len(pages):
+        if not isinstance(snapshot_pages, (list, tuple)) or (snapshot_pages and len(snapshot_pages) != len(pages)):
             raise ValueError("snapshot page count mismatch")
         for page, stored in zip(pages, snapshot_pages):
             if not isinstance(stored, Mapping):

@@ -214,6 +214,17 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         self.assertEqual(result.receipt.normalized_records_sha256, replayed.receipt.normalized_records_sha256)
         self.assertEqual(result.records, replayed.records)
 
+        without_pages = execute_connector(
+            PubMedConnector(fetch_json=fetch_json), request, include_snapshot=False,
+            retrieved_at="2026-07-19T00:00:00Z",
+        ).snapshot()
+        self.assertEqual([], without_pages["pages"])
+        self.assertEqual(1, len(without_pages["receipt"]["pages"]))
+        self.assertEqual(result.records, replay_snapshot(without_pages).records)
+        for previous, current in ((without_pages, without_pages), (without_pages, snapshot), (snapshot, without_pages)):
+            with self.subTest(previous_has_pages=bool(previous["pages"]), current_has_pages=bool(current["pages"])):
+                self.assertEqual("unchanged", classify_drift(previous, current)["status"])
+
         changed = copy.deepcopy(snapshot)
         changed["records"][0]["title"] = "changed"
         changed["receipt"]["normalized_records_sha256"] = __import__("hashlib").sha256(
@@ -239,13 +250,15 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
             QueryRequest("pubmed", "search", {"query": "test"}), include_snapshot=True,
         ).snapshot()
         self.assertEqual(1, len(replay_snapshot(snapshot).records))
+        for empty_pages in ([], ()):
+            with self.subTest(empty_pages=empty_pages):
+                self.assertEqual(1, len(replay_snapshot({**snapshot, "pages": empty_pages}).records))
         mutations = [
             (("receipt", "source"), "other", "receipt source mismatch"),
             (("receipt", "operation"), "fetch", "receipt operation mismatch"),
             (("receipt", "source_contract_version"), "3", "receipt source_contract_version mismatch"),
             (("receipt", "returned_record_ids"), [], "returned record IDs mismatch"),
             (("receipt", "returned_record_ids"), ["999"], "returned record IDs mismatch"),
-            (("pages",), [], "page count mismatch"),
             (("pages",), snapshot["pages"] * 2, "page count mismatch"),
             (("pages",), "malformed", "page count mismatch"),
             (("pages", 0), None, "page must be an object"),
@@ -253,6 +266,8 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
             (("pages", 0, "url"), "", "request URL mismatch"),
             (("pages", 0, "request"), {}, "request body hash mismatch"),
         ]
+        for malformed in (None, False, 0, "", {}):
+            mutations.append((("pages",), malformed, "page count mismatch"))
         for count in (0, -1, 2, True, "1", None):
             mutations.append((("receipt", "pages", 0, "record_count"), count, "record count mismatch"))
         for path, value, message in mutations:

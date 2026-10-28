@@ -123,7 +123,7 @@ python scripts/replay_connector_snapshot.py snapshot.json
 python scripts/connector_drift_report.py previous.json current.json --output drift.json
 ```
 
-Connector v2 replay cross-checks receipt source, operation, contract version, returned IDs and page record counts against the request and normalized records. When snapshot `pages` are present, their count, methods, URLs and request-body hashes must match the receipt. Stored page responses are informational: replay does not rederive normalized records from them or bind them to the recorded response hashes. When both snapshots carry stored pages, a change to their responses is reported as `response-drift` even when recorded hashes are equal; absent stored pages alone are not evidence of a response change.
+Connector v2 replay cross-checks receipt source, operation, contract version, returned IDs and page record counts against the request and normalized records. When snapshot `pages` are non-empty, their count, methods, URLs and request-body hashes must match the receipt. Stored page responses are informational: replay does not rederive normalized records from them or bind them to the recorded response hashes. When both snapshots carry stored pages, a change to their responses is reported as `response-drift` even when recorded hashes are equal; absent or empty stored pages alone are not evidence of a response change.
 
 Drift types are:
 
