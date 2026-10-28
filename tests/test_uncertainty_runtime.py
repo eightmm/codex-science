@@ -1,0 +1,215 @@
+"""Scale and validity regressions for uncertainty propagation."""
+import copy
+import json
+import math
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from codex_science.uncertainty_runtime import (
+    _gradient,
+    _variance,
+    review_uncertainty_propagation,
+    run_uncertainty_propagation,
+)
+
+
+class UncertaintyValidityTests(unittest.TestCase):
+    def propagate(self, expression, inputs, **overrides):
+        payload = {
+            "schema_version": 1,
+            "propagation_id": "u",
+            "claim_id": "c",
+            "expression": expression,
+            "inputs": [
+                {"name": name, "mean": mean, "standard_uncertainty": uncertainty}
+                for name, mean, uncertainty in inputs
+            ],
+            "method": "both",
+            "seed": 1,
+            "samples": 10000,
+        }
+        payload.update(overrides)
+        before = copy.deepcopy(payload)
+        try:
+            return run_uncertainty_propagation(payload)
+        finally:
+            self.assertEqual(before, payload)
+
+    def test_diagonal_conflicts_are_relative_and_derived_value_is_retained(self):
+        for uncertainty in (0.0, 1e-8, 1.0):
+            derived = uncertainty ** 2
+            boundary = math.nextafter(math.nextafter(derived * (1 + 1e-9), derived), derived)
+            for value in (derived, derived * (1 + 0.5e-9), boundary):
+                with self.subTest(uncertainty=uncertainty, value=value):
+                    result = self.propagate(
+                        "x", [("x", 0, uncertainty)], method="linear",
+                        covariance=[{"left": "x", "right": "x", "value": value}],
+                    )
+                    self.assertEqual(derived, result["covariance"][0][0])
+            conflicts = (1e-30,) if uncertainty == 0 else (0, derived * (1 + 2e-9))
+            for value in conflicts:
+                with self.subTest(uncertainty=uncertainty, conflict=value):
+                    with self.assertRaisesRegex(ValueError, "diagonal covariance conflicts"):
+                        self.propagate(
+                            "x", [("x", 0, uncertainty)], method="linear",
+                            covariance=[{"left": "x", "right": "x", "value": value}],
+                        )
+
+    def test_small_indefinite_covariance_is_refused(self):
+        for scale in (1e-7, 1.0):
+            for correlation in (-2.0, 2.0, 1 + 2e-12):
+                with self.subTest(scale=scale, correlation=correlation):
+                    with self.assertRaisesRegex(ValueError, "not positive semidefinite"):
+                        self.propagate(
+                            "x-y", [("x", 0, scale), ("y", 0, scale)], method="linear",
+                            covariance=[{"left": "x", "right": "y", "value": correlation * scale ** 2}],
+                        )
+        with self.assertRaisesRegex(ValueError, "not positive semidefinite"):
+            self.propagate(
+                "x+y+z", [("x", 0, 1e-7), ("y", 0, 1e-7), ("z", 0, 1e-7)], method="linear",
+                covariance=[
+                    {"left": "x", "right": "y", "value": 9e-15},
+                    {"left": "x", "right": "z", "value": 9e-15},
+                    {"left": "y", "right": "z", "value": -9e-15},
+                ],
+            )
+
+    def test_perfect_correlation_survives_disparate_scales(self):
+        for correlation in (1.0, -1.0):
+            with self.subTest(correlation=correlation):
+                result = self.propagate(
+                    f"x/1e-13-({correlation})*y", [("x", 0, 1e-13), ("y", 0, 1)],
+                    method="monte-carlo",
+                    covariance=[{"left": "x", "right": "y", "value": correlation * 1e-13}],
+                )
+                self.assertLess(result["monte_carlo"]["standard_uncertainty"], 1e-12)
+                self.assertEqual([], result["findings"])
+        for correlation in (0.0, 1.0, 1 + 0.25e-12):
+            result = self.propagate(
+                "x-y", [("x", 0, 1e-7), ("y", 0, 1e-7)], method="linear",
+                covariance=[{"left": "x", "right": "y", "value": correlation * 1e-14}],
+            )
+            self.assertGreaterEqual(result["linear"]["variance"], 0)
+
+    def test_zero_uncertainty_cannot_hide_nonzero_covariance(self):
+        for value in (0.0, 1e-30):
+            options = {"method": "linear", "covariance": [{"left": "x", "right": "y", "value": value}]}
+            if value:
+                with self.assertRaisesRegex(ValueError, "singular and inconsistent"):
+                    self.propagate("x+y", [("x", 0, 0), ("y", 0, 1)], **options)
+            else:
+                result = self.propagate("x+y", [("x", 0, 0), ("y", 0, 1)], **options)
+                self.assertEqual(1.0, result["linear"]["variance"])
+        with self.assertRaisesRegex(ValueError, "must be numeric"):
+            self.propagate(
+                "x", [("x", 0, 1e-8)],
+                covariance=[{"left": "x", "right": "x", "value": "bad"}],
+            )
+
+    def test_negative_variance_refusal_uses_cancellation_scale(self):
+        for scale in (1e-14, 1.0):
+            with self.subTest(scale=scale):
+                with self.assertRaisesRegex(ValueError, "linear propagation produced negative variance"):
+                    _variance([1, 1], [[scale, -2 * scale], [-2 * scale, scale]])
+                self.assertEqual(0.0, _variance([1, 1], [[scale, -scale], [-scale, scale]]))
+                rounded = -scale * (1 + 1e-14)
+                self.assertEqual(0.0, _variance([1, 1], [[scale, rounded], [rounded, scale]]))
+        self.assertEqual(0.0, _variance([], []))
+
+    def test_step_unstable_derivative_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
+            self.propagate("sin(1000000*x)", [("x", 1, 1e-9)])
+        stable = self.propagate("sin(1000*x)", [("x", 1, 1e-9)], method="linear")
+        self.assertAlmostEqual(1000 * math.cos(1000), stable["linear"]["gradient"][0], delta=0.001)
+        zero = self.propagate("x*x", [("x", 0, 1e-9)], method="linear", covariance=[])
+        self.assertEqual([0.0], zero["linear"]["gradient"])
+        with self.assertRaises(ValueError):
+            self.propagate("", [("x", 0, 1)])
+
+    def test_derivative_stability_relative_limit(self):
+        # Binary steps keep the equality case exact rather than rounding
+        # the derivative difference to just beyond 0.1% of 1000.
+        width = 2.0 ** -20
+        for coarse in (999.0, 998.9):
+            with self.subTest(coarse=coarse):
+                values = [coarse * 2 * width, 0.0, 1000 * width, 0.0]
+                with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
+                    if coarse == 999.0:
+                        self.assertEqual([coarse], _gradient("x", ["x"], [width / 1e-6], [0.0]))
+                    else:
+                        with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
+                            _gradient("x", ["x"], [width / 1e-6], [0.0])
+
+    def test_domain_filtering_counterexample_is_a_major_review_finding(self):
+        result = self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo")
+        self.assertEqual(205, result["monte_carlo"]["failed_samples"])
+        self.assertEqual("findings", result["status"])
+        finding = result["findings"][0]
+        self.assertEqual("monte-carlo-domain-filtering", finding["code"])
+        self.assertEqual("major", finding["severity"])
+        self.assertIn("conditional on the accepted samples", finding["message"])
+        self.assertEqual(result["findings"], review_uncertainty_propagation(result))
+
+    def test_domain_filtering_severity_and_refusal_boundaries(self):
+        for failed in (0, 1, 9, 10, 100, 101):
+            with self.subTest(failed=failed):
+                draws = [-3.0] * failed + [0.0] * (1000 - failed)
+                with patch("codex_science.uncertainty_runtime.random.Random.gauss", side_effect=draws):
+                    if failed > 100:
+                        with self.assertRaisesRegex(ValueError, "too many Monte Carlo samples failed"):
+                            self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo", samples=1000)
+                        continue
+                    result = self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo", samples=1000)
+                self.assertEqual(failed, result["monte_carlo"]["failed_samples"])
+                if failed:
+                    self.assertEqual(1, len(result["findings"]))
+                    self.assertEqual("major" if failed >= 10 else "minor", result["findings"][0]["severity"])
+                    self.assertEqual("findings" if failed >= 10 else "passed", result["status"])
+                else:
+                    self.assertEqual([], result["findings"])
+
+    def test_public_command_refuses_invalid_clean_results(self):
+        root = Path(__file__).resolve().parents[1]
+        cases = (
+            ("x", [("x", 0, 1e-8)], [{"left": "x", "right": "x", "value": 0}],
+             "linear", "diagonal covariance conflicts"),
+            ("x-y", [("x", 0, 1e-7), ("y", 0, 1e-7)], [{"left": "x", "right": "y", "value": 2e-14}],
+             "linear", "not positive semidefinite"),
+            ("sin(1000000*x)", [("x", 1, 1e-9)], [], "linear", "unstable numerical derivative for x"),
+            ("log(x)", [("x", 2, 1)], [], "monte-carlo", None),
+        )
+        for expression, inputs, covariance, method, error in cases:
+            with self.subTest(expression=expression), tempfile.TemporaryDirectory() as directory:
+                payload = {
+                    "schema_version": 1, "propagation_id": "u", "claim_id": "c",
+                    "expression": expression, "covariance": covariance, "method": method,
+                    "inputs": [
+                        {"name": name, "mean": mean, "standard_uncertainty": uncertainty}
+                        for name, mean, uncertainty in inputs
+                    ],
+                    "seed": 1, "samples": 10000,
+                }
+                source = Path(directory) / "input.json"
+                output = Path(directory) / "output.json"
+                source.write_text(json.dumps(payload), encoding="utf-8")
+                process = subprocess.run(
+                    [sys.executable, str(root / "scripts/propagate_uncertainty.py"), str(source),
+                     "--output", str(output), "--require-clean"],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(1, process.returncode, process.stderr)
+                if error:
+                    self.assertIn(error, process.stderr)
+                    self.assertFalse(output.exists())
+                else:
+                    receipt = json.loads(output.read_text(encoding="utf-8"))
+                    self.assertEqual("findings", receipt["status"])
+                    self.assertEqual("monte-carlo-domain-filtering", receipt["findings"][0]["code"])
+
+
+if __name__ == "__main__":
+    unittest.main()

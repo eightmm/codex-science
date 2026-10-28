@@ -351,7 +351,9 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                 label = f"Study {study_id} claim {claim_id}"
                 if claim_id not in linked_claims:
                     raise ValueError(f"{label} excerpt claim is not linked to this study")
-                text = _text(excerpt.get("text"), f"{label} excerpt text")
+                text = excerpt.get("text")
+                if not isinstance(text, str):
+                    raise ValueError(f"{label} excerpt text must be a string")
                 if not 20 <= (text_length := len(text)) <= 2000:
                     raise ValueError(
                         f"{label} excerpt text length must be 20..2000 characters: "
@@ -389,6 +391,10 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                         raise ValueError(f"{label} excerpt_source_missing: source is not UTF-8") from error
                     if _normalise_excerpt(text) not in _normalise_excerpt(source_text):
                         raise ValueError(f"{label} excerpt_not_found: text does not occur in source")
+                    line = excerpt.get("locator", {}).get("line")
+                    if (isinstance(line, int) and not isinstance(line, bool)
+                            and not 1 <= line <= len(source_text.splitlines())):
+                        raise ValueError(f"{label} locator.line {line} is outside source line count")
         by_id[study_id] = study
     return by_id
 

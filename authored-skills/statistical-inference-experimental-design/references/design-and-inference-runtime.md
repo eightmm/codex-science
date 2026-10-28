@@ -14,6 +14,8 @@ Required concepts are question, experimental and observational units, outcome me
 
 The deterministic audit detects pseudoreplication, outcome-dependent design, uncorrected multiplicity, optional stopping, post-hoc exclusions, missing sample-size rationale, unstated missingness assumptions, causal-identification gaps, observational confounding gaps, incomplete randomization, and unblinded subjective outcomes.
 
+Design strings must be non-empty strings, flags must be JSON booleans, and `sample_size.planned`, `multiplicity.family_size`, and `stopping.planned_looks` must be positive integers (booleans are refused). A null optional field is treated as absent; for example, null `alpha_spending` does not control repeated looks. Invalid types raise a field-naming error before an audit can pass.
+
 A clean audit means the record is internally complete. It does not make the assumptions true.
 
 ## Statistical execution
@@ -27,17 +29,19 @@ The built-in runtime is limited to independent or paired two-group mean or media
 
 The effect, interval and `alternative` refer to `group_labels[1] - group_labels[0]`, so list the reference group first: `["control", "treated"]` gives contrast `treated - control`, and `greater` tests `treated - control > 0`.
 
-Each record contains `unit_id`, `group`, and `value`; paired records also contain `pair_id`. Repeated observations for one unit are aggregated by the explicitly selected mean or median before inference.
+Each record contains `unit_id`, `group`, and `value`; paired records also contain `pair_id`. Repeated observations for one unit are aggregated by the explicitly selected mean or median before inference. In paired analysis, aggregation occurs within each group and `unit_id` before pairing: one `unit_id` cannot appear under multiple `pair_id` values, and each complete pair must contain exactly one unit per group. Conflicting mappings are refused, including mappings on missing observations; incomplete pairs are excluded and counted. At least two experimental units per group, or two complete pairs, are required.
 
 The runtime computes:
 
-- mean or median difference in the declared direction;
+- mean or median difference in the declared direction; paired `median-difference` is the median of the within-pair differences, rather than a difference of group medians;
 - Hedges g or paired standardized mean where defined;
 - deterministic percentile-bootstrap interval;
 - exact randomization or sign-flip test when the state space is bounded;
 - seeded Monte Carlo randomization otherwise;
 - optional Benjamini-Hochberg q-values for an externally declared family;
 - raw row count, missing count, independent-unit count, duplicate aggregation, and incomplete-pair exclusions.
+
+Randomization comparisons use a tolerance tied to floating-point precision at the effect scale. Non-finite computed effects, bootstrap estimates, intervals, and standardized effects are refused before a completed receipt is returned. Receipt validation also checks probability ranges (`confidence_level` in `(0.5, 1)`, p-values and q-values in `[0, 1]`) and non-negative integer counts, refusing boolean counts.
 
 The input requires an explicit seed even when an exact test is possible, so all stochastic interval work remains reproducible.
 

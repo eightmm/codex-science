@@ -169,6 +169,67 @@ class BuildCandidatePoolTests(RunDirCase):
         self.assertNotIn("year", pool["records"][0])
         self.assertEqual(pool["records"][1]["year"], "2019")
 
+    def test_identifier_representations_merge_without_duplicate_namespaces(self):
+        cases = [("doi", "10.1234/ABC", " 10.1234/abc ", "doi:10.1234/abc"),
+                 ("doi", "10.1234/ABC", "doi: 10.1234/ABC ", "doi:10.1234/abc"),
+                 ("pmcid", "PMC22", "pmcid:PMC22", "pmcid:PMC22"),
+                 ("pmcid", "PMC22", " PMCID: pmc22 ", "pmcid:PMC22"),
+                 ("pmid", "12345", " PMID: 12345 ", "pmid:12345")]
+        for scheme in ("http", "https"):
+            for host in ("doi.org", "dx.doi.org"):
+                url = f"{scheme}://{host}/10.1234/abc"
+                cases.extend(("doi", "10.1234/ABC", value, "doi:10.1234/abc")
+                             for value in (url, " doi: " + url + " "))
+        for field, left, right, expected in cases:
+            with self.subTest(field=field, right=right):
+                self.write("r.json", {"records": [
+                    {"source": "Custom", "id": "a", field: left},
+                    {"source": "Custom", "id": "b", field: right},
+                ]})
+                self.ledger({"query_id": "q1", "result_path": "r.json"})
+                pool = build_candidate_pool(self.root)
+                self.assertEqual(pool["unique_records"], 1)
+                self.assertEqual(pool["records"][0]["identifiers"], [expected])
+                first = (self.root / "candidates.json").read_bytes()
+                self.assertEqual(build_candidate_pool(self.root), pool)
+                self.assertEqual((self.root / "candidates.json").read_bytes(), first)
+
+    def test_identifier_field_prefix_cleanup(self):
+        cases = [("doi", "doi: 10.1234/ABC ", "doi:10.1234/abc"),
+                 ("pmcid", " PMCID: pmc22 ", "pmcid:PMC22"),
+                 ("pmid", "PMID: 12345", "pmid:12345"),
+                 ("doi", "doi:10.1234/ABC/.", "doi:10.1234/abc"),
+                 ("doi", "doi: malformed", "doi:malformed"),
+                 ("doi", "doi: ", "unknown:d6f0645a4a753ffff8d5863a")]
+        for scheme in ("http", "https"):
+            for host in ("doi.org", "dx.doi.org"):
+                url = f"{scheme}://{host}/10.1234/ABC"
+                cases.extend(("doi", value, "doi:10.1234/abc")
+                             for value in (url, "doi:" + url, " DOI: " + url + " "))
+        for field, value, expected in cases:
+            with self.subTest(field=field, value=value):
+                self.assertEqual(screening_pool._identifiers({field: value}), {expected})
+        for field in ("doi", "pmid", "pmcid"):
+            for value in (None, "", "  "):
+                with self.subTest(field=field, empty=value):
+                    self.assertEqual(screening_pool._identifiers({field: value}), set())
+
+    def test_integer_pmid_aliases_merge_but_bool_and_other_types_are_ignored(self):
+        for value in (12345, 0):
+            with self.subTest(value=value):
+                self.write("r.json", {"records": [
+                    {"source": "Custom", "id": "a", "pmid": str(value)},
+                    {"source": "Custom", "id": "b", "pmid": value},
+                ]})
+                self.ledger({"query_id": "q1", "result_path": "r.json"})
+                pool = build_candidate_pool(self.root)
+                self.assertEqual(pool["unique_records"], 1)
+                self.assertEqual(pool["records"][0]["identifiers"], [f"pmid:{value}"])
+        for value in (True, False, 12345.0, None, [], {}, "", "  "):
+            with self.subTest(ignored=value):
+                self.assertEqual(screening_pool._identifiers({"pmid": value}), set())
+        self.assertEqual(screening_pool._identifiers({}), set())
+
     def test_abstract_artifact_hash_and_unsafe_ids_ignored(self):
         data = b"abstract text"
         self.write("sources/111.abstract.txt", data, mode="wb")

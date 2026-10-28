@@ -57,7 +57,7 @@ def _fit(points):
 
 
 def estimate_saturation(log, *, hard_cap, remaining_threshold=1.0, min_evaluated=30):
-    """Fit cumulative saturation-log-v1 counts; evaluated is bounded at 1e9."""
+    """Fit distinct saturation-log-v1 checkpoints; evaluated is bounded at 1e9."""
     if not isinstance(log, list):
         raise ValueError("checkpoints must be a list")
     if type(hard_cap) is not int or hard_cap <= 0:
@@ -67,14 +67,17 @@ def estimate_saturation(log, *, hard_cap, remaining_threshold=1.0, min_evaluated
     if type(min_evaluated) is not int or min_evaluated < 0:
         raise ValueError("min_evaluated must be a nonnegative integer")
     previous = (0, 0)
+    points = []
     for point in log:
         if not isinstance(point, dict) or set(point) != {"evaluated", "relevant"}:
             raise ValueError("each checkpoint must contain evaluated and relevant")
         n, r = point["evaluated"], point["relevant"]
         if (type(n) is not int or type(r) is not int or n <= 0 or n > MAX_EVALUATED_RECORDS
                 or r < 0 or r > n or n < previous[0] or r < previous[1]
-                or (n == previous[0] and r > previous[1])):
+                or r - previous[1] > n - previous[0]):
             raise ValueError("invalid or decreasing cumulative checkpoint")
+        if (n, r) != previous:
+            points.append(point)
         previous = n, r
     found = log[-1]["relevant"] if log else 0
     evaluated = log[-1]["evaluated"] if log else 0
@@ -84,12 +87,12 @@ def estimate_saturation(log, *, hard_cap, remaining_threshold=1.0, min_evaluated
     if evaluated >= hard_cap:
         result["recommendation"] = "stop_hard_cap"
         result["reasons"].append("hard_cap_reached")
-    if len(log) < 3 or evaluated < min_evaluated:
+    if len(points) < 3 or evaluated < min_evaluated:
         if result["recommendation"] != "stop_hard_cap":
             result["recommendation"] = "insufficient_data"
-        result["reasons"].append("fewer_than_three_points" if len(log) < 3 else "below_min_evaluated")
+        result["reasons"].append("fewer_than_three_points" if len(points) < 3 else "below_min_evaluated")
         return result
-    fit = _fit(log)
+    fit = _fit(points)
     if fit is None:
         result["reasons"].append("no_saturation_signal")
         return result

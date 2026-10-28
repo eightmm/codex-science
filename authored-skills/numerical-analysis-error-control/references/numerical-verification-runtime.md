@@ -23,6 +23,8 @@ Declare thresholds only for quantities that are available at every required leve
 
 Record solver precision plus absolute or relative tolerance. A receipt without these may remain usable for exploration but receives an audit finding.
 
+Threshold values must be finite numbers, not strings or booleans; `max_cross_method_z` must also be positive.
+
 ## Observed order
 
 With a complete error series, adjacent observed order is
@@ -31,13 +33,17 @@ With a complete error series, adjacent observed order is
 p_i = log(e_i/e_{i+1}) / log(h_i/h_{i+1})
 ```
 
-Without a reference, the runtime may estimate order from three successive solutions only when adjacent refinement ratios are approximately equal. At least three levels are required for an order claim.
+Without a reference, the runtime may estimate order from three successive solutions only when adjacent refinement ratios agree within relative tolerance `1e-12`. At least three levels are required for an order claim. Unequal ratios do not support this equal-ratio estimator.
 
 The validator reports non-refining sequences, incomplete errors, nonmonotone error, unavailable order, and order below threshold. Zero error or coincident solutions may make an order undefined; do not invent one.
+
+When `minimum_order` is declared, every adjacent error pair or successive solution triple must support an order estimate. A partly defined series receives `observed-order-series-incomplete`; a wholly undefined series receives `observed-order-unavailable`. A convergent prefix cannot hide a stalled tail.
 
 ## Residuals and invariants
 
 Residuals and invariant deviations are recorded as nonnegative magnitudes. A threshold requires complete coverage of the declared levels or receives a finding. Name invariants by scientific meaning, not generic indices.
+
+With `max_invariant_deviation`, every invariant name recorded anywhere must occur at every level. Missing names receive `invariant-series-incomplete`; no invariant data receives `invariant-audit-missing`.
 
 Residual is not forward error. Conservation and positivity checks may reveal defects that a residual misses. Record the norm and scaling in the method or report artifact when interpretation depends on them.
 

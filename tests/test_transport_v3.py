@@ -4,8 +4,10 @@ import tempfile
 import unittest
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from email.message import Message
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, call, patch
 
 from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, sha256_json
 from codex_science.connectors import PubMedConnector
@@ -19,6 +21,7 @@ from codex_science.transport_v3 import (
     PageRequest,
     SafeRedirectHandler,
     TransportError,
+    TransportPolicy,
     TransportResponse,
     UrllibTransport,
     execute_paginated,
@@ -54,6 +57,120 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def _retry_opener(self, value, status=503):
+        headers = Message()
+        if value is not None:
+            headers["retry-after"] = value
+        error = urllib.error.HTTPError("https://example.org/search", status, "Unavailable", headers, None)
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.status = 200
+        response.headers = {"Content-Type": "application/json"}
+        response.geturl.return_value = "https://example.org/search"
+        response.read.return_value = b"{}"
+        opener = MagicMock()
+        opener.open.return_value = response
+        opener.open.side_effect = [error, response]
+        return opener, error
+
+    def _send_retry(self, opener, policy=None):
+        with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener), \
+                patch("codex_science.transport_v3.time.sleep") as sleep:
+            result = UrllibTransport(policy).send(PageRequest("GET", "https://example.org/search", {}))
+        self.assertEqual(2, result.attempts)
+        self.assertEqual(2, opener.open.call_count)
+        self.assertEqual(b"{}", result.body)
+        return sleep
+
+    def test_retry_after_delta_seconds(self):
+        for status in (429, 500, 503, 599):
+            with self.subTest(status=status):
+                opener, _ = self._retry_opener("2", status)
+                self._send_retry(opener).assert_called_once_with(2)
+
+    def test_retry_after_cap(self):
+        for value in ("10", "999", "9" * 400):
+            with self.subTest(value=value):
+                opener, _ = self._retry_opener(value)
+                self._send_retry(opener).assert_called_once_with(10)
+
+    def test_retry_after_http_date(self):
+        now = datetime(2026, 10, 29, tzinfo=timezone.utc).timestamp()
+        for value, expected in (("Thu, 29 Oct 2026 00:00:02 GMT", 2),
+                                ("Thursday, 29-Oct-26 00:00:02 GMT", 2),
+                                ("Thu Oct 29 00:00:02 2026", 2),
+                                ("Thu, 29 Oct 2026 00:00:00 GMT", 0.5),
+                                ("Thu, 29 Oct 2026 00:01:00 GMT", 10)):
+            with self.subTest(value=value), patch("codex_science.transport_v3.time.time", return_value=now):
+                opener, _ = self._retry_opener(value)
+                self._send_retry(opener).assert_called_once_with(expected)
+
+    def test_retry_after_invalid_or_past_falls_back_to_backoff(self):
+        now = datetime(2026, 10, 29, tzinfo=timezone.utc).timestamp()
+        policy = TransportPolicy(max_retry_after_seconds=10)
+        for value in (None, "", " ", "-1", "+2", "1.5", "NaN", "inf", "invalid", "٢",
+                      "Thu, 29 Oct 2026 00:00:99 GMT", "Wed, 28 Oct 2026 23:59:59 GMT"):
+            with self.subTest(value=value), patch("codex_science.transport_v3.time.time", return_value=now):
+                opener, _ = self._retry_opener(value)
+                self._send_retry(opener, policy).assert_called_once_with(0.5)
+
+    def test_retry_after_backoff_floor_and_cap(self):
+        for value, backoff, expected in (("0", 3, 3), ("1", 3, 3), ("2", 20, 20),
+                                         ("999", 20, 20), ("2", 10, 10)):
+            with self.subTest(value=value, backoff=backoff):
+                opener, _ = self._retry_opener(value)
+                policy = TransportPolicy(backoff_seconds=(0, backoff, backoff), max_retry_after_seconds=10)
+                self._send_retry(opener, policy).assert_called_once_with(expected)
+
+    def test_retry_after_policy_limit_validation(self):
+        self.assertEqual(10, TransportPolicy().max_retry_after_seconds)
+        for value in (True, False, -1, float("nan"), float("inf"), "invalid", None, []):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "max_retry_after_seconds"):
+                UrllibTransport(TransportPolicy(max_retry_after_seconds=value))
+
+    def test_retry_after_zero_and_configured_caps(self):
+        for cap, expected in ((0, 0.5), (0.25, 0.5), (0.5, 0.5), (1.25, 1.25), (2, 2)):
+            with self.subTest(cap=cap):
+                opener, _ = self._retry_opener("2")
+                self._send_retry(opener, TransportPolicy(max_retry_after_seconds=cap)).assert_called_once_with(expected)
+
+    def test_retry_after_final_attempt_does_not_sleep(self):
+        for attempts, expected in ((1, []), (3, [call(2), call(2)])):
+            with self.subTest(attempts=attempts):
+                opener, error = self._retry_opener("2")
+                opener.open.side_effect = error
+                policy = TransportPolicy(max_attempts=attempts)
+                with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener), \
+                        patch("codex_science.transport_v3.time.sleep") as sleep:
+                    with self.assertRaises(TransportError) as caught:
+                        UrllibTransport(policy).send(PageRequest("GET", "https://example.org/search", {}))
+                self.assertEqual(503, caught.exception.status_code)
+                self.assertTrue(caught.exception.retryable)
+                self.assertEqual(attempts, opener.open.call_count)
+                self.assertEqual(expected, sleep.call_args_list)
+
+    def test_retry_after_applies_only_to_the_next_attempt(self):
+        opener, error = self._retry_opener("2")
+        opener.open.side_effect = [error, urllib.error.URLError("offline"), opener.open.return_value]
+        with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener), \
+                patch("codex_science.transport_v3.time.sleep") as sleep:
+            result = UrllibTransport().send(PageRequest("GET", "https://example.org/search", {}))
+        self.assertEqual(3, result.attempts)
+        self.assertEqual(3, opener.open.call_count)
+        self.assertEqual([call(2), call(1.5)], sleep.call_args_list)
+
+    def test_retry_after_does_not_retry_other_http_errors(self):
+        opener, _ = self._retry_opener("2", status=404)
+        policy = TransportPolicy(max_retry_after_seconds=10)
+        with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener), \
+                patch("codex_science.transport_v3.time.sleep") as sleep:
+            with self.assertRaises(TransportError) as caught:
+                UrllibTransport(policy).send(PageRequest("GET", "https://example.org/search", {}))
+        self.assertEqual(404, caught.exception.status_code)
+        self.assertFalse(caught.exception.retryable)
+        self.assertEqual(1, opener.open.call_count)
+        sleep.assert_not_called()
+
     def test_pdb_204_empty_body_is_negative_with_receipt(self) -> None:
         request = QueryRequest("pdb", "search", {"query": "no results"}, source_contract_version="3")
         result = execute_paginated(PDBSearchV3(), request, transport=FakeTransport([(204, b"", {})]))

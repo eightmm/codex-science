@@ -40,14 +40,20 @@ def _cholesky(matrix: list[list[float]], *, tolerance: float = 1e-12) -> list[li
     lower = [[0.0] * size for _ in range(size)]
     for row in range(size):
         for column in range(row + 1):
+            scale = math.sqrt(matrix[row][row]) * math.sqrt(matrix[column][column])
+            if row != column:
+                if scale == 0.0 and matrix[row][column] != 0.0:
+                    raise ValueError("covariance matrix is singular and inconsistent")
+                if abs(matrix[row][column]) > scale * (1.0 + tolerance):
+                    raise ValueError("covariance matrix is not positive semidefinite")
             value = matrix[row][column] - sum(lower[row][offset] * lower[column][offset] for offset in range(column))
             if row == column:
-                if value < -tolerance:
+                if value < -tolerance * matrix[row][row]:
                     raise ValueError("covariance matrix is not positive semidefinite")
                 lower[row][column] = math.sqrt(max(0.0, value))
-            elif lower[column][column] > tolerance:
+            elif lower[column][column] > 0.0:
                 lower[row][column] = value / lower[column][column]
-            elif abs(value) > tolerance:
+            elif abs(value) > tolerance * scale:
                 raise ValueError("covariance matrix is singular and inconsistent")
     return lower
 
@@ -57,25 +63,36 @@ def _gradient(expression: str, names: list[str], means: list[float], uncertainti
     gradient: list[float] = []
     for index, name in enumerate(names):
         step = max(abs(means[index]) * 1e-6, uncertainties[index] * 1e-3, 1e-8)
-        plus = dict(zip(names, means))
-        minus = dict(zip(names, means))
-        plus[name] += step
-        minus[name] -= step
-        numerator = float(evaluate_expression(parsed, plus)) - float(evaluate_expression(parsed, minus))
-        derivative = numerator / (2.0 * step)
-        if not math.isfinite(derivative):
-            raise ValueError(f"non-finite numerical derivative for {name}")
-        gradient.append(derivative)
+        derivatives: list[float] = []
+        values: list[float] = []
+        for width in (step, step / 2.0):
+            plus = dict(zip(names, means))
+            minus = dict(zip(names, means))
+            plus[name] += width
+            minus[name] -= width
+            high = float(evaluate_expression(parsed, plus))
+            low = float(evaluate_expression(parsed, minus))
+            derivative = (high - low) / (2.0 * width)
+            if not math.isfinite(derivative):
+                raise ValueError(f"non-finite numerical derivative for {name}")
+            derivatives.append(derivative)
+            values.extend((high, low))
+        # Allow subtraction roundoff without imposing a dimensionful absolute floor.
+        roundoff = 16.0 * math.ulp(max(abs(value) for value in values)) / step
+        if not math.isclose(derivatives[0], derivatives[1], rel_tol=1e-3, abs_tol=roundoff):
+            raise ValueError(f"unstable numerical derivative for {name}")
+        gradient.append(derivatives[0])
     return gradient
 
 
 def _variance(gradient: list[float], covariance: list[list[float]]) -> float:
-    value = sum(
+    terms = [
         gradient[row] * covariance[row][column] * gradient[column]
         for row in range(len(gradient))
         for column in range(len(gradient))
-    )
-    if value < -1e-12:
+    ]
+    value = sum(terms)
+    if value < -1e-12 * sum(abs(term) for term in terms):
         raise ValueError("linear propagation produced negative variance")
     return max(0.0, value)
 
@@ -127,23 +144,13 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError(f"covariance[{index}] references an unknown input")
         value = _finite(item.get("value"), f"covariance[{index}].value")
         left_index, right_index = index_by_name[left], index_by_name[right]
-        if left_index == right_index and not math.isclose(value, uncertainties[left_index] ** 2, rel_tol=1e-9, abs_tol=1e-15):
-            raise ValueError("diagonal covariance conflicts with standard_uncertainty")
+        if left_index == right_index:
+            if not math.isclose(value, covariance[left_index][left_index], rel_tol=1e-9, abs_tol=0.0):
+                raise ValueError("diagonal covariance conflicts with standard_uncertainty")
+            continue
         covariance[left_index][right_index] = value
         covariance[right_index][left_index] = value
     lower = _cholesky(covariance)
-    gradient = _gradient(expression, names, means, uncertainties)
-    linear_variance = _variance(gradient, covariance)
-    linear_uncertainty = math.sqrt(linear_variance)
-    sensitivities = []
-    for index, name in enumerate(names):
-        contribution = gradient[index] ** 2 * covariance[index][index]
-        sensitivities.append({
-            "name": name,
-            "derivative": gradient[index],
-            "diagonal_variance_contribution": contribution,
-            "fraction_of_linear_variance": None if linear_variance == 0 else contribution / linear_variance,
-        })
     method = str(payload.get("method", "both"))
     if method not in {"linear", "monte-carlo", "both"}:
         raise ValueError("method must be linear, monte-carlo, or both")
@@ -186,7 +193,25 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         monte_carlo_mean = None
         monte_carlo_uncertainty = None
         interval = None
+    gradient = _gradient(expression, names, means, uncertainties)
+    linear_variance = _variance(gradient, covariance)
+    linear_uncertainty = math.sqrt(linear_variance)
+    sensitivities = []
+    for index, name in enumerate(names):
+        contribution = gradient[index] ** 2 * covariance[index][index]
+        sensitivities.append({
+            "name": name,
+            "derivative": gradient[index],
+            "diagonal_variance_contribution": contribution,
+            "fraction_of_linear_variance": None if linear_variance == 0 else contribution / linear_variance,
+        })
     findings: list[dict[str, str]] = []
+    if failures:
+        findings.append({
+            "code": "monte-carlo-domain-filtering",
+            "severity": "major" if failures / samples >= 0.01 else "minor",
+            "message": "Some Monte Carlo samples failed expression evaluation; reported statistics are conditional on the accepted samples.",
+        })
     if method in {"monte-carlo", "both"} and samples < 1000:
         findings.append({"code": "low-monte-carlo-samples", "severity": "minor", "message": "Monte Carlo propagation uses fewer than 1000 accepted samples."})
     if method == "both" and monte_carlo_uncertainty is not None:

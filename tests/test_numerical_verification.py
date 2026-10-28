@@ -190,6 +190,73 @@ class NumericalVerificationContractTests(unittest.TestCase):
         self.assertIsNone(result["error_monotone"])
         self.assertEqual("findings", result["status"])
 
+    def test_unequal_refinement_ratios_do_not_invent_order(self) -> None:
+        for gap, expected in ((0, "passed"), (0.5e-12, "passed"), (2e-12, "findings")):
+            receipt = run_numerical_verification(self.payload(
+                reference_value=None, thresholds={"minimum_order": 0},
+                refinements=[{"resolution": h, "estimate": h} for h in (4 * (1 + gap), 2, 1)],
+            ))
+            self.assertEqual(expected, receipt["status"])
+        equal_order = self.payload(reference_value=None, thresholds={"minimum_order": 1}, refinements=[
+            {"resolution": h, "estimate": h} for h in (1, 0.5, 0.25)
+        ])
+        self.assertEqual("passed", run_numerical_verification(equal_order)["status"])
+        equal_order["thresholds"] = {}
+        equal_order["refinements"][-1]["estimate"] = 0.5
+        self.assertEqual("passed", run_numerical_verification(equal_order)["status"])
+        result = run_numerical_verification(self.payload(
+            reference_value=None, thresholds={"minimum_order": 2},
+            refinements=[{"resolution": h, "estimate": h} for h in (1.0302, 1.01, 1)],
+        ))
+        self.assertEqual([], result["observed_orders"])
+        self.assertEqual("findings", result["status"])
+        self.assertIn("observed-order-unavailable", {item["code"] for item in result["findings"]})
+
+    def test_stalled_tail_cannot_pass_minimum_order(self) -> None:
+        for reference in (None, 1.01):
+            with self.subTest(reference=reference):
+                result = run_numerical_verification(self.payload(
+                    reference_value=reference, thresholds={"minimum_order": 1.8},
+                    refinements=[{"resolution": h, "estimate": q} for h, q in (
+                        (1, 1.16), (0.5, 1.04), (0.25, 1.01), (0.125, 1.01),
+                    )],
+                ))
+                self.assertEqual("findings", result["status"])
+                self.assertIn("observed-order-series-incomplete", {item["code"] for item in result["findings"]})
+
+    def test_invariant_threshold_requires_each_name_at_each_level(self) -> None:
+        for invariants in (({"mass": 0}, {}), ({}, {"mass": 0}), ({"mass": 0}, {"energy": 0})):
+            with self.subTest(invariants=invariants):
+                result = run_numerical_verification(self.payload(
+                    thresholds={"max_invariant_deviation": 0.1},
+                    refinements=[{"resolution": h, "estimate": 1, "invariants": inv}
+                                 for h, inv in zip((1, 0.5), invariants)],
+                ))
+                self.assertEqual("findings", result["status"])
+                self.assertIn("invariant-series-incomplete", {item["code"] for item in result["findings"]})
+        for limit in (0, 0.1):
+            result = run_numerical_verification(self.payload(
+                thresholds={"max_invariant_deviation": limit},
+                refinements=[{"resolution": h, "estimate": 1, "invariants": {"mass": limit}}
+                             for h in (1, 0.5)],
+            ))
+            self.assertEqual("passed", result["status"])
+
+    def test_cross_method_threshold_refuses_nonfinite_and_nonnumeric_values(self) -> None:
+        for value in ("nan", "3", "", None, True, [], float("nan"), float("inf"), -1, 0):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    run_numerical_verification(self.payload(thresholds={"max_cross_method_z": value}))
+
+        for threshold, status in ((1, "passed"), (0.99, "findings")):
+            result = run_numerical_verification(self.payload(
+                thresholds={"max_cross_method_z": threshold}, cross_method=[
+                    {"method": "a", "estimate": 0, "uncertainty": 1},
+                    {"method": "b", "estimate": 1, "uncertainty": 0},
+                ],
+            ))
+            self.assertEqual(status, result["status"])
+
 
 if __name__ == "__main__":
     unittest.main()

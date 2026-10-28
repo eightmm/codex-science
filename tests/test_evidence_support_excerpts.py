@@ -29,6 +29,32 @@ def study(excerpt=None):
 
 
 class EvidenceSupportExcerptTests(unittest.TestCase):
+    def test_raw_excerpt_length_boundaries_and_string_type(self):
+        for text in ("", "x" * 19, " " * 2001 + "A sufficiently long quoted sentence."):
+            with self.subTest(length=len(text)), self.assertRaisesRegex(ValueError, "20..2000"):
+                _validate_study_table(study({"claim_id": "C1", "text": text}))
+        for text in (None, False, 0, [], {}):
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, "must be a string"):
+                _validate_study_table(study({"claim_id": "C1", "text": text}))
+        for length in (20, 2000):
+            text = " " + "x" * (length - 2) + " "
+            table = study({"claim_id": "C1", "text": text, "source_artifact": "source.txt",
+                           "source_sha256": "a" * 64})
+            self.assertEqual(text, _validate_study_table(table)["S1"]["support_excerpts"][0]["text"])
+
+    def test_locator_line_source_bounds_preserve_optional_untyped_keys(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = "A sufficiently long quoted sentence."
+            (root / "source.txt").write_text(source)
+            item = {"claim_id": "C1", "text": source, "source_artifact": "source.txt",
+                    "source_sha256": hashlib.sha256(source.encode()).hexdigest()}
+            for line in (-1, 0, 2, 999):
+                with self.subTest(line=line), self.assertRaisesRegex(ValueError, "locator.line"):
+                    _validate_study_table(study(dict(item, locator={"line": line})), root)
+            for locator in ({}, {"line": 1}, {"line": "999"}, {"line": True}, {"line": None}):
+                _validate_study_table(study(dict(item, locator=locator)), root)
+
     def test_claim_kind_enum_and_legacy_claim(self):
         _validate_claim_register(claim())
         for kind in ("descriptive", "associational", "causal", "confirmatory"):

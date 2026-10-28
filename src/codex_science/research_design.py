@@ -11,10 +11,29 @@ MULTIPLICITY_METHODS = {"none", "bonferroni", "holm", "benjamini-hochberg", "hie
 MISSING_STRATEGIES = {"complete-case", "multiple-imputation", "inverse-probability", "model-based", "none-expected", "custom"}
 
 
-def _text(payload: Mapping[str, Any], field: str) -> str:
-    value = str(payload.get(field, "")).strip()
-    if not value:
-        raise ValueError(f"{field} is required")
+def _text(payload: Mapping[str, Any], field: str, label: str | None = None) -> str:
+    value = payload.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label or field} must be a non-empty string")
+    return value.strip()
+
+
+def _optional_text(payload: Mapping[str, Any], field: str, label: str) -> str:
+    return "" if payload.get(field) is None else _text(payload, field, label)
+
+
+def _boolean(payload: Mapping[str, Any], field: str, label: str) -> bool:
+    value = payload.get(field)
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be boolean")
+    return value
+
+
+def _positive_integer(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{label} must be a positive integer")
     return value
 
 
@@ -39,59 +58,74 @@ def _finding(code: str, severity: str, message: str) -> dict[str, str]:
 
 
 def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported research-design schema")
     _text(payload, "design_id")
     _text(payload, "question")
     _text(payload, "experimental_unit")
     _text(payload, "observational_unit")
     outcome = _object(payload, "outcome")
-    _text(outcome, "name")
-    _text(outcome, "measurement")
+    _text(outcome, "name", "outcome.name")
+    _text(outcome, "measurement", "outcome.measurement")
     estimand = _object(payload, "estimand")
-    _text(estimand, "population")
-    _text(estimand, "contrast")
-    _text(estimand, "summary_measure")
+    _text(estimand, "population", "estimand.population")
+    _text(estimand, "contrast", "estimand.contrast")
+    _text(estimand, "summary_measure", "estimand.summary_measure")
     assignment = _object(payload, "assignment")
-    assignment_type = str(assignment.get("type", ""))
+    assignment_type = _text(assignment, "type", "assignment.type")
     if assignment_type not in ASSIGNMENT_TYPES:
         raise ValueError(f"invalid assignment type: {assignment_type}")
     analysis = _object(payload, "analysis")
-    _text(analysis, "method")
+    _text(analysis, "method", "analysis.method")
     endpoints = payload.get("primary_endpoints")
     if not isinstance(endpoints, list) or not endpoints or not all(isinstance(item, Mapping) for item in endpoints):
         raise ValueError("primary_endpoints must be a non-empty list of objects")
     endpoint_ids: set[str] = set()
     for index, endpoint in enumerate(endpoints):
-        identifier = str(endpoint.get("id", "")).strip()
+        identifier = _text(endpoint, "id", f"primary_endpoints[{index}].id")
         if not identifier or identifier in endpoint_ids:
             raise ValueError(f"primary endpoint {index} has missing or duplicate id")
         endpoint_ids.add(identifier)
-        if not str(endpoint.get("decision_threshold", "")).strip():
-            raise ValueError(f"primary endpoint {identifier} requires a decision_threshold")
+        _text(endpoint, "decision_threshold", f"primary_endpoints[{index}].decision_threshold")
     multiplicity = _object(payload, "multiplicity")
-    method = str(multiplicity.get("method", ""))
+    method = _text(multiplicity, "method", "multiplicity.method")
     if method not in MULTIPLICITY_METHODS:
         raise ValueError(f"invalid multiplicity method: {method}")
     missing = _object(payload, "missing_data")
-    missing_strategy = str(missing.get("strategy", ""))
+    missing_strategy = _text(missing, "strategy", "missing_data.strategy")
     if missing_strategy not in MISSING_STRATEGIES:
         raise ValueError(f"invalid missing-data strategy: {missing_strategy}")
     exclusions = _object(payload, "exclusions")
     stopping = _object(payload, "stopping")
     sample_size = _object(payload, "sample_size")
-    if isinstance(sample_size.get("planned"), bool) or int(sample_size.get("planned", 0)) <= 0:
-        raise ValueError("sample_size.planned must be a positive integer")
-    _strings(payload.get("sensitivity_analyses", []), "sensitivity_analyses")
-    _strings(payload.get("identification_assumptions", []), "identification_assumptions")
+    _positive_integer(sample_size.get("planned"), "sample_size.planned")
+    _strings([] if payload.get("sensitivity_analyses") is None else payload["sensitivity_analyses"], "sensitivity_analyses")
+    _strings([] if payload.get("identification_assumptions") is None else payload["identification_assumptions"], "identification_assumptions")
     if not isinstance(payload.get("locked_before_outcomes"), bool):
         raise ValueError("locked_before_outcomes must be boolean")
+
+    aggregation_unit = _optional_text(analysis, "aggregation_unit", "analysis.aggregation_unit")
+    confounding_strategy = _optional_text(analysis, "confounding_strategy", "analysis.confounding_strategy")
+    alpha_spending = _optional_text(stopping, "alpha_spending", "stopping.alpha_spending")
+    decision_rule = _optional_text(stopping, "decision_rule", "stopping.decision_rule")
+    rationale = _optional_text(sample_size, "rationale", "sample_size.rationale")
+    assumptions = _optional_text(missing, "assumptions", "missing_data.assumptions")
+    mechanism = _optional_text(assignment, "mechanism", "assignment.mechanism")
+    cluster_adjustment = _boolean(analysis, "cluster_adjustment", "analysis.cluster_adjustment")
+    causal = _boolean(estimand, "causal", "estimand.causal")
+    subjective = _boolean(outcome, "subjective", "outcome.subjective")
+    prespecified = _boolean(exclusions, "prespecified", "exclusions.prespecified")
+    allocation_concealment = _boolean(assignment, "allocation_concealment", "assignment.allocation_concealment")
+    blinding = {} if payload.get("blinding") is None else _object(payload, "blinding")
+    outcome_assessor = _boolean(blinding, "outcome_assessor", "blinding.outcome_assessor")
+    if exclusions.get("criteria") is not None:
+        _strings(exclusions["criteria"], "exclusions.criteria")
+    family_size = _positive_integer(len(endpoints) if multiplicity.get("family_size") is None else multiplicity["family_size"], "multiplicity.family_size")
+    looks = _positive_integer(1 if stopping.get("planned_looks") is None else stopping["planned_looks"], "stopping.planned_looks")
 
     findings: list[dict[str, str]] = []
     experimental_unit = str(payload["experimental_unit"])
     observational_unit = str(payload["observational_unit"])
-    aggregation_unit = str(analysis.get("aggregation_unit", "")).strip()
-    cluster_adjustment = bool(analysis.get("cluster_adjustment", False))
     if experimental_unit != observational_unit and not cluster_adjustment and aggregation_unit != experimental_unit:
         findings.append(_finding(
             "pseudoreplication-risk",
@@ -104,7 +138,6 @@ def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]
             "major",
             "The primary design was not locked before outcome inspection.",
         ))
-    family_size = int(multiplicity.get("family_size", len(endpoints)))
     if family_size < len(endpoints):
         findings.append(_finding(
             "multiplicity-family-understated",
@@ -117,16 +150,13 @@ def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]
             "major",
             "Multiple primary hypotheses are declared without a multiplicity strategy.",
         ))
-    looks = int(stopping.get("planned_looks", 1))
-    if looks < 1:
-        raise ValueError("stopping.planned_looks must be positive")
-    if looks > 1 and not str(stopping.get("alpha_spending", "")).strip() and not str(stopping.get("decision_rule", "")).strip():
+    if looks > 1 and not alpha_spending and not decision_rule:
         findings.append(_finding(
             "optional-stopping-uncontrolled",
             "critical",
             "Repeated outcome looks lack an alpha-spending or prespecified decision rule.",
         ))
-    if exclusions.get("prespecified") is not True:
+    if not prespecified:
         findings.append(_finding(
             "posthoc-exclusion-risk",
             "major",
@@ -138,13 +168,13 @@ def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]
             "major",
             "Explicit exclusion criteria are missing.",
         ))
-    if not str(sample_size.get("rationale", "")).strip():
+    if not rationale:
         findings.append(_finding(
             "sample-size-rationale-missing",
             "major",
             "The planned sample size has no precision, power, feasibility, or information rationale.",
         ))
-    if missing_strategy != "none-expected" and not str(missing.get("assumptions", "")).strip():
+    if missing_strategy != "none-expected" and not assumptions:
         findings.append(_finding(
             "missingness-assumptions-unstated",
             "major",
@@ -156,37 +186,33 @@ def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]
             "minor",
             "Complete-case analysis has no declared missing-data sensitivity analysis.",
         ))
-    causal = bool(estimand.get("causal", False))
-    identification = payload.get("identification_assumptions", [])
+    identification = payload.get("identification_assumptions") or []
     if causal and not identification:
         findings.append(_finding(
             "causal-identification-missing",
             "critical",
             "A causal estimand is declared without explicit identification assumptions.",
         ))
-    if causal and assignment_type == "observational" and not str(analysis.get("confounding_strategy", "")).strip():
+    if causal and assignment_type == "observational" and not confounding_strategy:
         findings.append(_finding(
             "observational-confounding-unaddressed",
             "critical",
             "An observational causal analysis has no declared confounding strategy.",
         ))
     if assignment_type == "randomized":
-        if not str(assignment.get("mechanism", "")).strip():
+        if not mechanism:
             findings.append(_finding(
                 "randomization-mechanism-missing",
                 "major",
                 "Randomized assignment is claimed without an explicit randomization mechanism.",
             ))
-        if assignment.get("allocation_concealment") is not True:
+        if not allocation_concealment:
             findings.append(_finding(
                 "allocation-concealment-missing",
                 "minor",
                 "Randomized assignment does not record allocation concealment.",
             ))
-    blinding = payload.get("blinding", {})
-    if not isinstance(blinding, Mapping):
-        raise ValueError("blinding must be an object")
-    if bool(outcome.get("subjective", False)) and not bool(blinding.get("outcome_assessor", False)):
+    if subjective and not outcome_assessor:
         findings.append(_finding(
             "subjective-outcome-unblinded",
             "major",

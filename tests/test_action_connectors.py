@@ -233,7 +233,7 @@ class ActionConnectorTests(unittest.TestCase):
                     forged = rehash_payload(forged)
                 with self.assertRaises(ValueError):
                     validate_preview(forged)
-        with self.assertRaisesRegex(ValueError, "expected_before_sha256 must be a SHA-256 digest"):
+        with self.assertRaisesRegex(ValueError, "expected_before_sha256 must be a lowercase hex SHA-256 digest"):
             ActionSpec.from_payload({**spec.to_dict(), "expected_before_sha256": preview["before_state_sha256"].upper()})
         matching = ActionSpec.from_payload({**spec.to_dict(), "expected_before_sha256": preview["before_state_sha256"]})
         validate_preview(build_preview(FakeAdapter(), matching), matching)
@@ -247,7 +247,7 @@ class ActionConnectorTests(unittest.TestCase):
                     validate_action_receipt(forged)
         for digest in (" " + receipt["after_state_sha256"], 10 ** 63):
             with self.subTest(noncanonical_digest=digest):
-                with self.assertRaisesRegex(ValueError, "after_state_sha256 must be a SHA-256 digest"):
+                with self.assertRaisesRegex(ValueError, "after_state_sha256 must be a lowercase hex SHA-256 digest"):
                     validate_action_receipt(rehash_payload({**receipt, "after_state_sha256": digest}))
 
     def test_preview_spec_inputs_and_allowed_fields_are_bound(self) -> None:
@@ -652,7 +652,7 @@ class ActionConnectorTests(unittest.TestCase):
         validate_action_receipt(rehash_payload({**receipt, "approval_fingerprint": "0" * 64}), spec)
         for digest in ("", 0, "0" * 63, "0" * 65, "g" * 64, [], {}):
             with self.subTest(digest=digest):
-                with self.assertRaisesRegex(ValueError, "approval_fingerprint must be a SHA-256 digest|approval_fingerprint is required"):
+                with self.assertRaisesRegex(ValueError, "approval_fingerprint must be a lowercase hex SHA-256 digest|approval_fingerprint is required"):
                     validate_action_receipt(rehash_payload({**receipt, "approval_fingerprint": digest}))
 
     def test_receipt_mirrored_fields_match_spec(self) -> None:

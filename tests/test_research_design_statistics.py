@@ -1,4 +1,13 @@
 import copy
+import json
+import math
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+from codex_science.safe_expression import canonical_sha256
 import unittest
 
 from codex_science.research_design import build_research_design, review_research_design
@@ -94,6 +103,213 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
             ],
             "hypotheses": [],
         }
+
+    def analysis_input(self, a, b, *, paired=False) -> dict:
+        payload = self.independent_input()
+        payload.update(seed=7, bootstrap_replicates=1000, permutation_replicates=1000)
+        payload["data"] = [
+            {"unit_id": f"{group}{index}", "group": group, "value": value, **({"pair_id": str(index)} if paired else {})}
+            for group, values in zip(payload["group_labels"], (a, b))
+            for index, value in enumerate(values)
+        ]
+        if paired:
+            payload["analysis_type"] = "paired"
+        return payload
+
+    def test_pair_group_requires_one_unit(self) -> None:
+        for value in (1, None):
+            payload = self.analysis_input([0, 0], [1, 1], paired=True)
+            payload["data"].append({"unit_id": "extra", "pair_id": "0", "group": "control", "value": value})
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "pair_id.*exactly one unit per group"):
+                run_statistical_analysis(payload)
+
+    def test_paired_units_are_aggregated_and_cannot_span_pair_ids(self) -> None:
+        for aggregation in ("mean", "median"):
+            payload = self.analysis_input([0, 3], [2, 9], paired=True)
+            expected = run_statistical_analysis(payload)
+            for row in list(payload["data"]):
+                value = row["value"]
+                row["value"] = value - 1
+                payload["data"].append({**row, "value": value + 1})
+            payload["within_unit_aggregation"] = aggregation
+            actual = run_statistical_analysis(payload)
+            for key in ("effect", "interval", "test"):
+                self.assertEqual(expected[key], actual[key])
+            self.assertEqual(4, actual["sample"]["duplicate_observations_aggregated"])
+            self.assertEqual({"control": 2, "treatment": 2}, actual["sample"]["experimental_units"])
+        median_input = self.analysis_input([0, 10, 11], [1, 2, 20], paired=True)
+        median_input["estimand"] = "median-difference"
+        median_result = run_statistical_analysis(median_input)
+        self.assertEqual(1, median_result["effect"]["estimate"])
+        self.assertEqual("median-difference", median_result["estimand"])
+        self.assertEqual("treatment - control", median_result["contrast"])
+        payload = self.analysis_input([0] * 8, [1] * 8, paired=True)
+        for row in payload["data"]:
+            row["unit_id"] = row["group"] + "-same"
+        original = copy.deepcopy(payload)
+        with self.assertRaisesRegex(ValueError, "unit_id.*more than one pair_id"):
+            run_statistical_analysis(payload)
+        self.assertEqual(original, payload)
+
+    def test_design_refuses_coerced_types(self) -> None:
+        fields = (
+            ("question",), ("design_id",), ("experimental_unit",), ("observational_unit",),
+            ("outcome", "name"), ("outcome", "measurement"), ("estimand", "population"),
+            ("estimand", "contrast"), ("estimand", "summary_measure"), ("analysis", "method"),
+            ("primary_endpoints", 0, "id"), ("primary_endpoints", 0, "decision_threshold"),
+        )
+        optional_strings = (
+            ("analysis", "aggregation_unit"), ("analysis", "confounding_strategy"),
+            ("stopping", "alpha_spending"), ("stopping", "decision_rule"),
+            ("sample_size", "rationale"), ("missing_data", "assumptions"), ("assignment", "mechanism"),
+        )
+        booleans = (
+            ("analysis", "cluster_adjustment"), ("outcome", "subjective"),
+            ("blinding", "outcome_assessor"), ("estimand", "causal"),
+            ("assignment", "allocation_concealment"), ("exclusions", "prespecified"),
+            ("locked_before_outcomes",),
+        )
+        counts = (("sample_size", "planned"), ("stopping", "planned_looks"), ("multiplicity", "family_size"))
+        for paths, invalid in (
+            (fields, (None, {}, False, 0, "", " ")),
+            (optional_strings, ({}, False, 0, "", " ")),
+            (booleans, ("false", 0, 1, "", {}, [])),
+            (counts, (0, -1, True, 1.5, "1", "")),
+            ((("exclusions", "criteria"), ("sensitivity_analyses",), ("identification_assumptions",)), (False, 0, {}, [""])),
+        ):
+            for keys in paths:
+                for value in invalid:
+                    payload = self.valid_design()
+                    target = payload
+                    for key in keys[:-1]:
+                        target = target[key]
+                    target[keys[-1]] = value
+                    original = copy.deepcopy(payload)
+                    with self.subTest(field=keys, value=value), self.assertRaisesRegex(ValueError, str(keys[-1])):
+                        build_research_design(payload)
+                    self.assertEqual(original, payload)
+        for value in (True, 1.0, "1", None):
+            payload = self.valid_design()
+            payload["schema_version"] = value
+            with self.subTest(schema_version=value), self.assertRaisesRegex(ValueError, "schema"):
+                build_research_design(payload)
+        payload = self.valid_design()
+        for keys in counts:
+            payload[keys[0]][keys[1]] = 1
+        self.assertEqual("passed", build_research_design(payload)["audit_status"])
+
+    def test_design_null_optional_fields_are_absent(self) -> None:
+        payload = self.valid_design()
+        payload["stopping"] = {"planned_looks": 4, "alpha_spending": None, "decision_rule": None}
+        payload["outcome"]["subjective"] = True
+        payload["blinding"]["outcome_assessor"] = None
+        codes = {item["code"] for item in build_research_design(payload)["audit_findings"]}
+        self.assertIn("optional-stopping-uncontrolled", codes)
+        self.assertIn("subjective-outcome-unblinded", codes)
+        payload["blinding"] = None
+        self.assertIn("subjective-outcome-unblinded", {item["code"] for item in build_research_design(payload)["audit_findings"]})
+        payload = self.valid_design()
+        for section, field in (("analysis", "cluster_adjustment"), ("stopping", "planned_looks"), ("multiplicity", "family_size")):
+            payload[section][field] = None
+        self.assertEqual("passed", build_research_design(payload)["audit_status"])
+
+    def test_exact_p_values_are_scale_invariant(self) -> None:
+        for scale in (1, 1e-16, 1e-300):
+            result = run_statistical_analysis(self.analysis_input([0] * 4, [scale] * 4))
+            self.assertEqual(2 / 70, result["test"]["p_value"])
+        for alternative in ("two-sided", "greater", "less"):
+            self.assertTrue(_extreme(0.0, 0.0, alternative))
+            self.assertTrue(_extreme(math.nextafter(1.0, 0.0), 1.0, alternative))
+        self.assertFalse(_extreme(0.0, 1e-16, "two-sided"))
+
+    def test_nonfinite_computed_effects_are_refused(self) -> None:
+        for paired in (False, True):
+            for measure in ("mean-difference", "median-difference"):
+                payload = self.analysis_input([-1e308] * 2, [1e308] * 2, paired=paired)
+                payload["estimand"] = measure
+                with self.subTest(paired=paired, measure=measure), self.assertRaisesRegex(ValueError, "finite"):
+                    run_statistical_analysis(payload)
+
+        for helper in ("_bootstrap_independent", "_hedges_g", "_paired_standardized", "_quantile"):
+            payload = self.analysis_input([0, 1], [2, 4], paired=helper == "_paired_standardized")
+            value = [float("inf")] * 1000 if helper == "_bootstrap_independent" else float("inf")
+            with self.subTest(helper=helper), patch("codex_science.statistics_runtime." + helper, return_value=value):
+                with self.assertRaisesRegex(ValueError, "finite"):
+                    run_statistical_analysis(payload)
+
+        with patch("codex_science.statistics_runtime._quantile", side_effect=[0, float("inf")]):
+            with self.assertRaisesRegex(ValueError, "interval upper must be finite"):
+                run_statistical_analysis(self.analysis_input([0, 1], [2, 4]))
+
+    def test_nonfinite_analysis_cli_fails_without_output(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "input.json"
+            output = Path(temporary) / "output.json"
+            source.write_text(json.dumps(self.analysis_input([-1e308], [1e308])), encoding="utf-8")
+            command = [sys.executable, str(root / "scripts" / "run_statistical_analysis.py"), str(source), "--output", str(output)]
+            result = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertFalse(output.exists())
+            output.write_text("previous receipt", encoding="utf-8")
+            result = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("previous receipt", output.read_text(encoding="utf-8"))
+
+    def test_receipt_refuses_invalid_probabilities_and_counts(self) -> None:
+        receipt = run_statistical_analysis(self.independent_input())
+        receipt["multiplicity"] = {"method": "benjamini-hochberg", "hypotheses": [{"id": "h", "p_value": 0.2, "q_value": 0.2}]}
+        cases = [
+            (("interval", "confidence_level"), value) for value in (95, 0, 0.5, 1, True, "0.95", None)
+        ] + [
+            (keys, value)
+            for keys in (("sample", "experimental_units", "control"), ("sample", "raw_counts", "control"),
+                         ("sample", "missing_counts", "control"), ("sample", "duplicate_observations_aggregated"),
+                         ("sample", "incomplete_pairs_excluded"), ("test", "permutations"), ("interval", "replicates"))
+            for value in (-1, True, 1.5, "1", None)
+        ] + [
+            (("multiplicity", "hypotheses", 0, field), value)
+            for field in ("p_value", "q_value") for value in (-1, 2, True, "0.5", None)
+        ] + [
+            (("effect", "standardized_estimate"), value) for value in (float("inf"), float("nan"), True)
+        ] + [
+            (("sample", field), value) for field in ("experimental_units", "raw_counts", "missing_counts") for value in ({}, [], None)
+        ] + [
+            (("multiplicity",), value) for value in ([], None)
+        ] + [
+            (("multiplicity", "hypotheses"), value) for value in (None, {}, [None])
+        ]
+        for keys, value in cases:
+            broken = copy.deepcopy(receipt)
+            target = broken
+            for key in keys[:-1]:
+                target = target[key]
+            target[keys[-1]] = value
+            broken.pop("fingerprint")
+            broken["fingerprint"] = canonical_sha256(broken)
+            with self.subTest(field=keys, value=value), self.assertRaisesRegex(ValueError, str(keys[-1])):
+                validate_statistical_analysis(broken)
+        for value in (0, 1):
+            boundary = copy.deepcopy(receipt)
+            boundary["test"]["p_value"] = value
+            boundary["test"]["permutations"] = value
+            boundary["interval"]["replicates"] = value
+            for field in ("experimental_units", "raw_counts", "missing_counts"):
+                boundary["sample"][field]["control"] = value
+            boundary["sample"]["duplicate_observations_aggregated"] = value
+            boundary["sample"]["incomplete_pairs_excluded"] = value
+            boundary["multiplicity"]["hypotheses"][0].update(p_value=value, q_value=value)
+            boundary.pop("fingerprint")
+            boundary["fingerprint"] = canonical_sha256(boundary)
+            validate_statistical_analysis(boundary)
+
+    def test_singleton_groups_and_pairs_are_refused(self) -> None:
+        for a, b in (([], [10]), ([0], [10]), ([0], [10, 11]), ([0, 1], [10])):
+            for paired in (False, True):
+                with self.subTest(a=a, b=b, paired=paired), self.assertRaisesRegex(ValueError, "each analysis group needs"):
+                    run_statistical_analysis(self.analysis_input(a, b, paired=paired))
+        for paired in (False, True):
+            run_statistical_analysis(self.analysis_input([0, 1], [10, 11], paired=paired))
 
     def test_independent_analysis_is_exact_and_deterministic(self) -> None:
         first = run_statistical_analysis(self.independent_input())

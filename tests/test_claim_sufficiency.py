@@ -152,6 +152,55 @@ class ClaimSufficiencyTests(unittest.TestCase):
                 row = check_sufficiency(path, tier=tier)["claims"][0]
                 self.assertEqual((row["required"], row["verdict"]), (2, "insufficient"))
 
+    def test_recorded_dependence_cannot_be_split_by_edge_labels(self):
+        base = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        claim = {**base, "status": "replicated"}
+        cases = [
+            ({"cohort_id": "same-cohort"}, {"cohort_id": "same-cohort"}),
+            ({"persistent_ids": ["doi:10.1234/1", "PMID:12345678"]},
+             {"persistent_id": "pmid:12345678"}),
+            ({"persistent_id": "https://doi.org/10.1234/SHARED"},
+             {"persistent_ids": ["doi:10.1234/shared"]}),
+        ]
+        for field in ("sample_id", "site_id", "database_id", "portal_id", "author_group_id",
+                      "analysis_pipeline_id", "independence_group"):
+            cases.append(({field: "shared"}, {field: "shared"}))
+        for kind in ("preprint_of", "published_as", "corrected_by", "retracted_by",
+                     "secondary_analysis_of", "protocol_for", "registry_for"):
+            cases.append(({}, {"relationships": [{"type": kind, "target_study_id": "S1"}]}))
+        for index, (left, right) in enumerate(cases):
+            with self.subTest(index=index):
+                studies = [{"study_id": sid, "persistent_id": f"doi:10.1234/{sid}",
+                            "title": sid, "evidence_type": "primary", "included": True,
+                            "supports_claim_ids": [claim["id"]], **extra}
+                           for sid, extra in (("S1", left), ("S2", right))]
+                nodes = [{"id": claim["id"], "label": "claim", "type": "claim"}] + [
+                    {"id": s["study_id"], "label": s["title"], "type": "study"} for s in studies]
+                edges = [{"source": s["study_id"], "target": claim["id"],
+                          "relation": "supports", "independence_group": s["study_id"]} for s in studies]
+                path = self._bundle(self._temp / str(index), claims=[claim], studies=studies,
+                                    nodes=nodes, edges=edges)
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
+                                         "--run-dir", str(path), "--tier", "standard", "--require-sufficient"],
+                                        text=True, capture_output=True)
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                row = json.loads(result.stdout)["claims"][0]
+                self.assertEqual((1, "insufficient"), (row["supporting_groups"], row["verdict"]))
+
+    def test_transitive_recorded_dependence_through_unincluded_study(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        studies = [{"study_id": sid, "persistent_id": f"doi:10.1234/{sid}", "title": sid,
+                    "evidence_type": "primary", "included": sid != "bridge",
+                    "supports_claim_ids": [claim["id"]] if sid != "bridge" else []}
+                   for sid in ("S1", "S2", "bridge")]
+        studies[0]["persistent_ids"] = ["pmid:12345678"]
+        studies[1]["cohort_id"] = "shared"
+        studies[2].update(persistent_id="pmid:12345678", cohort_id="shared")
+        nodes = [{"id": claim["id"], "label": "claim", "type": "claim"}] + [
+            {"id": s["study_id"], "label": s["title"], "type": "study"} for s in studies]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, nodes=nodes, edges=[])
+        self.assertEqual(1, check_sufficiency(path, tier="standard")["claims"][0]["supporting_groups"])
+
     def test_zero_support_recommends_unsupported(self):
         study = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
         study["supports_claim_ids"] = []
@@ -170,11 +219,14 @@ class ClaimSufficiencyTests(unittest.TestCase):
             path = self._bundle(Path(tmp), claims=[claim], studies=[study], edges=graph["edges"])
             row = check_sufficiency(path, tier="quick")["claims"][0]
             self.assertEqual(row["verdict"], "contradicted_unresolved")
-            claim["contradiction_resolution"] = 7
-            resolved = self._bundle(Path(tmp) / "resolved", claims=[claim], studies=[study],
-                                    edges=graph["edges"])
-            row = check_sufficiency(resolved, tier="quick")["claims"][0]
-            self.assertEqual((row["contradicting_groups"], row["verdict"]), (1, "sufficient"))
+            for index, resolution in enumerate((None, False, "", "  ", 0, 7, [], {}, "Reviewed discrepancy")):
+                with self.subTest(resolution=resolution):
+                    claim["contradiction_resolution"] = resolution
+                    resolved = self._bundle(Path(tmp) / str(index), claims=[claim], studies=[study],
+                                            edges=graph["edges"])
+                    row = check_sufficiency(resolved, tier="quick")["claims"][0]
+                    expected = "sufficient" if resolution == "Reviewed discrepancy" else "contradicted_unresolved"
+                    self.assertEqual((1, expected), (row["contradicting_groups"], row["verdict"]))
 
     def test_cli_malformed_sidecar_returns_error_v1(self):
         with tempfile.TemporaryDirectory(dir="/tmp") as tmp:

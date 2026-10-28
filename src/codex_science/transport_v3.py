@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Mapping, Protocol
 
@@ -78,12 +80,18 @@ class TransportPolicy:
     backoff_seconds: tuple[float, ...] = (0.0, 0.5, 1.5)
     max_response_bytes: int = 50 * 1024 * 1024
     user_agent: str = f"codex-science/{PACKAGE_VERSION} (+https://github.com/eightmm/codex-science)"
+    max_retry_after_seconds: float = 10.0
 
     def validate(self) -> None:
         if self.timeout_seconds <= 0 or self.max_attempts < 1 or self.max_response_bytes < 1:
             raise ValueError("transport policy values must be positive")
         if len(self.backoff_seconds) < self.max_attempts:
             raise ValueError("backoff_seconds must cover every attempt")
+        if (isinstance(self.max_retry_after_seconds, bool)
+                or not isinstance(self.max_retry_after_seconds, (int, float))
+                or not math.isfinite(self.max_retry_after_seconds)
+                or self.max_retry_after_seconds < 0):
+            raise ValueError("max_retry_after_seconds must be finite and non-negative")
 
 
 @dataclass(frozen=True)
@@ -135,6 +143,23 @@ class TransportError(RuntimeError):
         self.retryable = retryable
 
 
+def _retry_after_seconds(value: str | None) -> float | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if value.isascii() and value.isdecimal():
+        return float(value)
+    try:
+        date = parsedate_to_datetime(value)
+        # RFC 9110's obsolete asctime format has no explicit timezone.
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=timezone.utc)
+        delay = date.timestamp() - time.time()
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return delay if delay >= 0 else None
+
+
 class UrllibTransport:
     def __init__(self, policy: TransportPolicy | None = None) -> None:
         self.policy = policy or TransportPolicy()
@@ -142,8 +167,12 @@ class UrllibTransport:
 
     def send(self, request: PageRequest) -> TransportResponse:
         last_error: BaseException | None = None
+        retry_after = None
         for attempt in range(1, self.policy.max_attempts + 1):
             delay = self.policy.backoff_seconds[attempt - 1]
+            if retry_after is not None:
+                delay = max(delay, min(retry_after, self.policy.max_retry_after_seconds))
+            retry_after = None
             if delay:
                 time.sleep(delay)
             headers = {"User-Agent": self.policy.user_agent, "Accept": "application/json", **request.headers}
@@ -174,6 +203,7 @@ class UrllibTransport:
                 last_error = error
                 retryable = error.code == 429 or 500 <= error.code < 600
                 if retryable and attempt < self.policy.max_attempts:
+                    retry_after = _retry_after_seconds(error.headers.get("Retry-After") if error.headers else None)
                     continue
                 raise TransportError(
                     f"HTTP {error.code} for {_redact_url(request.url)}",

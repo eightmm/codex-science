@@ -64,6 +64,30 @@ class StatementSupportTests(unittest.TestCase):
             self.assertEqual(3, rows[0]["line"])
             self.assertEqual("no_excerpt", rows[0]["pair_statuses"][0]["status"])
 
+    def test_direct_sidecar_refuses_raw_excerpt_length_and_outside_locator(self):
+        sentence = "The source reports improved cohort survival in treated participants."
+        cases = [(" " * 2001 + sentence, None, "20..2000"),
+                 (sentence, {"line": 999}, "locator.line")]
+        for index, (text, locator, message) in enumerate(cases):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as temp:
+                run = self.make_run(Path(temp), f"{sentence} {IDENTIFIER}.", sentence)
+                path = run / "studies.json"
+                studies = json.loads(path.read_text())
+                excerpt = studies["studies"][0]["support_excerpts"][0]
+                excerpt["text"] = text
+                if locator is not None:
+                    excerpt["locator"] = locator
+                path.write_text(json.dumps(studies))
+                manifest_path = run / "manifest.json"
+                manifest = json.loads(manifest_path.read_text())
+                for artifact in manifest["artifacts"]:
+                    artifact["sha256"] = hashlib.sha256((run / artifact["path"]).read_bytes()).hexdigest()
+                manifest_path.write_text(json.dumps(manifest))
+                result = subprocess.run([sys.executable, str(CLI), "--run-dir", str(run), "--require-excerpts"],
+                                        text=True, capture_output=True)
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertIn(message, json.loads(result.stdout)["error"]["message"])
+
     def test_cli_exit_codes_and_error_json(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

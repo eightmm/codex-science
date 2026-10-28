@@ -1137,7 +1137,13 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         manifest = json.loads((self.run_dir / "manifest.json").read_text())
         self.assertTrue(any(item.get("id") == "unretried-failure" for item in manifest["executions"]))
-        self.assertTrue(any(item["code"] == "failed-execution" for item in review_manifest(manifest)["findings"]))
+        finding = next(item for item in review_manifest(manifest)["findings"] if item["code"] == "failed-execution")
+        self.assertEqual("major", finding["severity"])
+        self.assertIn("If the nonzero exit was the expected outcome of a negative check", finding["message"])
+        self.assertIn(
+            "A transient source failure clears when the identical command is rerun and succeeds.",
+            finding["message"],
+        )
 
     def test_different_success_does_not_supersede_failure(self) -> None:
         failed = self.cli(

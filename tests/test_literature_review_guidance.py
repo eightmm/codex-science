@@ -24,6 +24,20 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
         self.assertIn("Author `manifest.json` once", text)
         self.assertIn("after every sidecar edit", text)
 
+    def test_transient_source_failure_recovery_guidance(self):
+        text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
+        for phrase in (
+            "After a transient source failure (HTTP 429/5xx or timeout), retry the identical command",
+            "reusing the same `--id` is fine",
+            "so success automatically supersedes the earlier failure",
+            "A changed query is a new search; the failed exec stays a finding",
+            "A transport failure writes no `queries.jsonl` row",
+            "record the outage in `source-availability` or lane `limitations`",
+            "List in a lane's `queries` only queries whose results the lane used",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
     def test_reviewer_is_spawned_early_and_wait_work_avoids_reviewed_artifacts(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("then spawn the independent reviewer immediately with `review-task.json`", text)

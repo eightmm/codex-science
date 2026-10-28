@@ -41,21 +41,23 @@ u_y^2 = g^T C g
 
 using the full covariance matrix. It reports each diagonal sensitivity contribution, but correlated cross-terms remain part of the total variance and must be interpreted from the matrix.
 
-Finite-difference scale is chosen from input magnitude and uncertainty. Review the result when the model is nonsmooth, near a boundary, or has severe cancellation.
+Finite-difference scale is chosen from input magnitude and uncertainty. All methods report the linear result, so all check the derivative again at half that step. The runtime raises `ValueError` (`unstable numerical derivative for <name>`) if the two estimates differ by more than 0.1% relative to the larger magnitude, allowing subtraction roundoff of 16 output-value ulps divided by the original step. Stable results retain the original derivative. This bounded check cannot prove derivative accuracy or detect every oscillatory alias. Review nonsmooth models, boundaries, and severe cancellation independently.
+
+Negative propagated variance raises `ValueError` unless its magnitude is within `1e-12` times the sum of absolute covariance contributions, where cancellation roundoff is clamped to zero.
 
 ## Monte Carlo
 
 `monte-carlo` and `both` require an explicit integer seed and 100–1,000,000 requested samples. The covariance matrix is checked for a valid positive-semidefinite factorization. The built-in sampler uses a correlated Gaussian input model.
 
-The receipt records requested, accepted, and failed samples, output mean, standard uncertainty, percentile interval, seed, and expression hash. Too many invalid or non-finite samples fail the run.
+The receipt records requested, accepted, and failed samples, output mean, standard uncertainty, percentile interval, seed, and expression hash. Too many invalid or non-finite samples fail the run. Any failed samples add the `monte-carlo-domain-filtering` review finding: the reported statistics are conditional on the accepted samples. The finding is major when failures are at least 1% of requested samples and minor otherwise. A major finding changes status to `findings`; a minor finding alone leaves status `passed`, so inspect findings even with `--require-clean`.
 
 When `both` is selected, the runtime compares linear and Monte Carlo uncertainty plus nominal-to-Monte-Carlo mean shift. Material disagreement produces a nonlinearity finding.
 
 ## Covariance rules
 
-- Diagonal entries are fixed by `standard_uncertainty^2`.
+- Diagonal entries are fixed by `standard_uncertainty^2`. A supplied diagonal must agree within relative tolerance `1e-9`, with no absolute floor; the derived value is retained. Zero uncertainty requires an exactly zero diagonal and zero covariance with every other input.
 - Off-diagonal covariance must reflect a scientific shared source, not an arbitrary tuning parameter.
-- The matrix must be symmetric and positive semidefinite.
+- The matrix must be symmetric and positive semidefinite. Correlation bounds and factorization residuals use relative tolerance `1e-12` against the corresponding standard-uncertainty product or diagonal variance. Every positive pivot is used regardless of magnitude, preserving correlations between inputs with very different scales. Invalid correlations, indefinite matrices, and inconsistent singular matrices raise `ValueError`.
 - Shared calibration, environmental exposure, batch correction, common preprocessing, and reused parameters can induce covariance.
 - Independence is an assumption that must be justified, not the default because no covariance was reported.
 

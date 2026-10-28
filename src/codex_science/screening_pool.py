@@ -60,7 +60,14 @@ def _identifiers(record: dict[str, Any]) -> set[str]:
     values: set[str] = set()
     for namespace in ("doi", "pmid", "pmcid"):
         value = record.get(namespace)
+        if namespace == "pmid" and type(value) is int:
+            value = str(value)
         if isinstance(value, str) and value.strip():
+            value = value.strip()
+            if value.lower().startswith(f"{namespace}:"):
+                value = value[len(namespace) + 1:].strip()
+            if namespace == "doi":
+                value = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", value, flags=re.I)
             values.add(normalize_identifier(f"{namespace}:{value}"))
     source = str(record.get("source", "")).strip().lower()
     record_id = str(record.get("id", "")).strip()

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import ast
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from decimal import Decimal, DecimalException, localcontext
 from fractions import Fraction
 from typing import Any, Mapping
 
@@ -16,6 +17,18 @@ ZERO_DIMENSION: Dimension = tuple(Fraction(0) for _ in BASE_DIMENSIONS)  # type:
 
 def _dimension(**values: int) -> Dimension:
     return tuple(Fraction(values.get(name, 0)) for name in BASE_DIMENSIONS)  # type: ignore[return-value]
+
+
+class _UnitScaleError(ValueError):
+    pass
+
+
+def _checked_scale(scale: float, operation: str) -> float:
+    if not math.isfinite(scale):
+        raise _UnitScaleError(f"unit {operation} produced a non-finite scale")
+    if scale == 0:
+        raise _UnitScaleError(f"unit {operation} produced a zero scale")
+    return scale
 
 
 @dataclass(frozen=True)
@@ -34,7 +47,7 @@ class Unit:
             raise ValueError("affine temperature units cannot be multiplied or divided")
         return Unit(
             f"({self.symbol}*{other.symbol})",
-            self.scale * other.scale,
+            _checked_scale(self.scale * other.scale, "multiplication"),
             tuple(left + right for left, right in zip(self.dimension, other.dimension)),  # type: ignore[arg-type]
         )
 
@@ -45,7 +58,7 @@ class Unit:
             raise ValueError("unit scale cannot be zero")
         return Unit(
             f"({self.symbol}/{other.symbol})",
-            self.scale / other.scale,
+            _checked_scale(self.scale / other.scale, "division"),
             tuple(left - right for left, right in zip(self.dimension, other.dimension)),  # type: ignore[arg-type]
         )
 
@@ -57,11 +70,8 @@ class Unit:
         try:
             scale = self.scale ** float(exponent)
         except (OverflowError, ZeroDivisionError) as error:
-            raise ValueError("unit exponent produced a non-finite scale") from error
-        if not math.isfinite(scale):
-            raise ValueError("unit exponent produced a non-finite scale")
-        if scale == 0:
-            raise ValueError("unit exponent produced a zero scale")
+            raise _UnitScaleError("unit exponent produced a non-finite scale") from error
+        scale = _checked_scale(scale, "exponent")
         return Unit(
             f"({self.symbol}^{exponent})",
             scale,
@@ -147,27 +157,28 @@ def _fraction(node: ast.AST) -> Fraction:
     raise ValueError("unit powers must be integer or rational constants")
 
 
-def _eval_unit(node: ast.AST) -> Unit:
+def _eval_unit(node: ast.AST, *, scale_free: bool = False) -> Unit:
     if isinstance(node, ast.Expression):
-        return _eval_unit(node.body)
+        return _eval_unit(node.body, scale_free=scale_free)
     if isinstance(node, ast.Name):
         try:
-            return UNIT_REGISTRY[node.id]
+            unit = UNIT_REGISTRY[node.id]
+            return replace(unit, scale=1.0) if scale_free else unit
         except KeyError as error:
             raise ValueError(f"unknown unit: {node.id}") from error
-    if isinstance(node, ast.Constant) and node.value == 1:
+    if isinstance(node, ast.Constant) and type(node.value) is int and node.value == 1:
         return UNIT_REGISTRY["one"]
     if isinstance(node, ast.BinOp):
         if isinstance(node.op, ast.Mult):
-            return _eval_unit(node.left).multiply(_eval_unit(node.right))
+            return _eval_unit(node.left, scale_free=scale_free).multiply(_eval_unit(node.right, scale_free=scale_free))
         if isinstance(node.op, ast.Div):
-            return _eval_unit(node.left).divide(_eval_unit(node.right))
+            return _eval_unit(node.left, scale_free=scale_free).divide(_eval_unit(node.right, scale_free=scale_free))
         if isinstance(node.op, ast.Pow):
-            return _eval_unit(node.left).power(_fraction(node.right))
+            return _eval_unit(node.left, scale_free=scale_free).power(_fraction(node.right))
     raise ValueError(f"unsupported unit expression element: {type(node).__name__}")
 
 
-def parse_unit(source: str) -> Unit:
+def _unit_tree(source: str) -> ast.Expression:
     text = str(source).strip()
     if not text:
         raise ValueError("unit expression is required")
@@ -180,7 +191,49 @@ def parse_unit(source: str) -> Unit:
         raise ValueError(f"invalid unit expression: {error.msg}") from error
     if len(list(ast.walk(tree))) > 128:
         raise ValueError("unit expression is too complex")
-    return _eval_unit(tree)
+    return tree
+
+
+def _decimal_scale(node: ast.AST) -> Decimal:
+    if isinstance(node, ast.Expression):
+        return _decimal_scale(node.body)
+    if isinstance(node, ast.Name):
+        return Decimal(str(UNIT_REGISTRY[node.id].scale))
+    if isinstance(node, ast.BinOp):
+        left = _decimal_scale(node.left)
+        if isinstance(node.op, ast.Pow):
+            exponent = _fraction(node.right)
+            return left ** (Decimal(exponent.numerator) / Decimal(exponent.denominator))
+        right = _decimal_scale(node.right)
+        return left * right if isinstance(node.op, ast.Mult) else left / right
+    return Decimal(1)
+
+
+def _wide_unit(source: str) -> tuple[Unit, Decimal]:
+    tree = _unit_tree(source)
+    unit = _eval_unit(tree, scale_free=True)
+    try:
+        scale = _decimal_scale(tree)
+    except DecimalException as error:
+        raise ValueError("unit arithmetic exceeded extended scale range") from error
+    if not scale.is_finite() or scale == 0:
+        raise ValueError("unit arithmetic produced a non-finite or zero scale")
+    return unit, scale
+
+
+def parse_unit(source: str) -> Unit:
+    tree = _unit_tree(source)
+    try:
+        return _eval_unit(tree)
+    except _UnitScaleError:
+        # Recover cancellation without changing ordinary binary64 rounding.
+        with localcontext() as context:
+            context.prec = 80
+            unit, scale = _wide_unit(source)
+            numeric_scale = float(scale)
+        if not math.isfinite(numeric_scale) or numeric_scale == 0:
+            raise
+        return replace(unit, scale=numeric_scale)
 
 
 def dimension_dict(dimension: Dimension) -> dict[str, str]:
@@ -192,17 +245,44 @@ def dimension_dict(dimension: Dimension) -> dict[str, str]:
 
 
 def convert_value(value: float, source: str, target: str) -> float:
-    source_unit = parse_unit(source)
-    target_unit = parse_unit(target)
-    if source_unit.dimension != target_unit.dimension:
-        raise ValueError(f"incompatible dimensions: {source} and {target}")
+    if isinstance(value, bool):
+        raise ValueError("conversion value must be numeric")
     numeric = float(value)
     if not math.isfinite(numeric):
         raise ValueError("conversion value must be finite")
+    try:
+        source_unit = parse_unit(source)
+        target_unit = parse_unit(target)
+    except _UnitScaleError:
+        return _wide_conversion(numeric, source, target)
+    if source_unit.dimension != target_unit.dimension:
+        raise ValueError(f"incompatible dimensions: {source} and {target}")
     si_value = numeric * source_unit.scale + source_unit.offset
     converted = (si_value - target_unit.offset) / target_unit.scale
+    if (not math.isfinite(converted)
+            or (numeric != 0 and si_value == 0 and source_unit.offset == 0)
+            or (si_value != target_unit.offset and converted == 0)):
+        return _wide_conversion(numeric, source, target)
+    return converted
+
+
+def _wide_conversion(numeric: float, source: str, target: str) -> float:
+    with localcontext() as context:
+        context.prec = 80
+        source_unit, source_scale = _wide_unit(source)
+        target_unit, target_scale = _wide_unit(target)
+        if source_unit.dimension != target_unit.dimension:
+            raise ValueError(f"incompatible dimensions: {source} and {target}")
+        try:
+            exact = (Decimal(str(numeric)) * source_scale + Decimal(str(source_unit.offset))
+                     - Decimal(str(target_unit.offset))) / target_scale
+            converted = float(exact)
+        except DecimalException as error:
+            raise ValueError("unit conversion exceeded extended scale range") from error
     if not math.isfinite(converted):
         raise ValueError("unit conversion produced a non-finite value")
+    if converted == 0 and exact != 0:
+        raise ValueError("unit conversion produced a zero value")
     return converted
 
 
@@ -341,6 +421,8 @@ def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
             })
     conversions: list[dict[str, Any]] = []
     for index, item in enumerate(conversions_raw):
+        if isinstance(item.get("value"), bool):
+            raise ValueError("conversion value must be numeric")
         value = float(item.get("value"))
         source = str(item.get("from", "")).strip()
         target = str(item.get("to", "")).strip()

@@ -42,6 +42,9 @@ class BuildStudyTableTests(unittest.TestCase):
         self.temp.cleanup()
 
     def _write_inputs(self, records=None, candidates=None, extraction=None):
+        for record in records if records is not None else [self.record]:
+            source = self.root / record["evidence_artifact"]
+            record["evidence_sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
         candidates_path = self.root / "candidates.json"
         candidates_path.write_text(json.dumps({"schema": "literature-candidates-v1", "records": candidates or [self.candidate]}), encoding="utf-8")
         candidates_sha256 = hashlib.sha256(candidates_path.read_bytes()).hexdigest()
@@ -117,6 +120,83 @@ class BuildStudyTableTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rerun screen_candidates.py apply"):
             build_study_table(self.root, self.extraction)
         self.assertEqual(original, studies_path.read_bytes())
+
+    def test_screening_and_extraction_must_belong_to_candidate_pool(self):
+        extraction = json.loads(self.extraction.read_text())
+        extraction["studies"][0]["record_id"] = "med:99999"
+        self._write_inputs(records=[dict(self.record, record_id="med:99999")], extraction=extraction)
+        with self.assertRaisesRegex(ValueError, "not in candidates.json"):
+            build_study_table(self.root, self.extraction)
+        self.assertFalse((self.root / "studies.json").exists())
+
+    def test_stale_screening_source_refuses_and_preserves_output(self):
+        build_study_table(self.root, self.extraction)
+        before = (self.root / "studies.json").read_bytes()
+        source = self.root / self.record["evidence_artifact"]
+        source.write_bytes(b"CHANGED SOURCE. " + source.read_bytes())
+        with self.assertRaisesRegex(ValueError, "evidence_sha256 does not match"):
+            build_study_table(self.root, self.extraction)
+        self.assertEqual(before, (self.root / "studies.json").read_bytes())
+
+    def test_nonfinite_extraction_fields_are_refused_recursively(self):
+        extraction = json.loads(self.extraction.read_text())
+        for value in (float("inf"), float("-inf"), float("nan"), 1e999):
+            for fields in ({"effect_estimate": value}, {"details": [{"standard_error": value}]}):
+                with self.subTest(fields=fields):
+                    extraction["studies"][0]["fields"] = fields
+                    self.extraction.write_text(json.dumps(extraction))
+                    result = subprocess.run([sys.executable, str(CLI), "--run-dir", str(self.root),
+                                             "--extraction", str(self.extraction)], text=True, capture_output=True)
+                    self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("must be finite", result.stderr)
+                    self.assertFalse((self.root / "studies.json").exists())
+
+    def test_numeric_extraction_fields_refuse_booleans(self):
+        extraction = json.loads(self.extraction.read_text())
+        for name in ("sample_size", "effect_estimate", "standard_error"):
+            for value in (True, False):
+                with self.subTest(name=name, value=value):
+                    extraction["studies"][0]["fields"] = {name: value}
+                    self.extraction.write_text(json.dumps(extraction))
+                    with self.assertRaisesRegex(ValueError, "must not be boolean"):
+                        build_study_table(self.root, self.extraction)
+                    self.assertFalse((self.root / "studies.json").exists())
+
+        extraction = json.loads(self.extraction.read_text())
+        fields = {"sample_size": 0, "effect_estimate": -1.5, "standard_error": 0.0,
+                  "details": [True, None, {}, [], {"effect_estimate": 1e308}], "flag": False}
+        extraction["studies"][0]["fields"] = fields
+        self.extraction.write_text(json.dumps(extraction))
+        first = build_study_table(self.root, self.extraction)
+        before = (self.root / "studies.json").read_bytes()
+        self.assertEqual(first, build_study_table(self.root, self.extraction))
+        self.assertEqual(before, (self.root / "studies.json").read_bytes())
+        study = json.loads(before)["studies"][0]
+        for key, value in fields.items():
+            self.assertEqual(value, study[key])
+
+    def test_empty_candidate_pool_cannot_admit_screening_record(self):
+        path = self.root / "candidates.json"
+        path.write_text(json.dumps({"schema": "literature-candidates-v1", "records": []}))
+        screening_path = self.root / "screening.json"
+        screening = json.loads(screening_path.read_text())
+        screening["candidates_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        screening_path.write_text(json.dumps(screening))
+        with self.assertRaisesRegex(ValueError, "not in candidates.json"):
+            build_study_table(self.root, self.extraction)
+
+    def test_screening_digest_missing_empty_malformed_and_matching(self):
+        screening_path = self.root / "screening.json"
+        original = json.loads(screening_path.read_text())
+        for digest in (None, "", 0, False, "invalid", "0" * 64):
+            with self.subTest(digest=digest):
+                screening = json.loads(json.dumps(original))
+                screening["records"][0]["evidence_sha256"] = digest
+                screening_path.write_text(json.dumps(screening))
+                with self.assertRaisesRegex(ValueError, "evidence_sha256 does not match"):
+                    build_study_table(self.root, self.extraction)
+        screening_path.write_text(json.dumps(original))
+        build_study_table(self.root, self.extraction)
 
     def test_output_cannot_replace_excerpt_source(self):
         source_path = self.root / "sources/24390308.abstract.txt"

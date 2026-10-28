@@ -178,7 +178,7 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
     artifacts = {str(item.get("path")) for item in manifest.get("artifacts", [])}
     for execution in manifest.get("executions", []):
         if not _execution_succeeded(execution):
-            findings.append({"code": "failed-execution", "severity": "major", "message": f"Execution failed: {execution.get('command', '<unknown>')}. If the nonzero exit was the expected outcome of a negative check, record it as a command that exits 0 only when the expected rejection is observed."})
+            findings.append({"code": "failed-execution", "severity": "major", "message": f"Execution failed: {execution.get('command', '<unknown>')}. If the nonzero exit was the expected outcome of a negative check, record it as a command that exits 0 only when the expected rejection is observed. A transient source failure clears when the identical command is rerun and succeeds."})
     for step in manifest.get("plan", []):
         if step.get("status") != "completed":
             findings.append({"code": "incomplete-plan", "severity": "major", "message": f"Plan step is not complete: {step.get('id', '<unknown>')}"})

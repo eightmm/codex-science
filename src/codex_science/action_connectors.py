@@ -57,7 +57,7 @@ def _text(value: Any, label: str) -> str:
 def _sha(value: Any, label: str) -> str:
     text = _text(value, label)
     if not isinstance(value, str) or value != text or len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
-        raise ValueError(f"{label} must be a SHA-256 digest")
+        raise ValueError(f"{label} must be a lowercase hex SHA-256 digest")
     return text
 
 

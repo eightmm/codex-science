@@ -8,6 +8,7 @@ from typing import Any
 from codex_science.artifacts import validate_bundle
 from codex_science.evidence import _persistent_id
 from codex_science.evidence_graph_v2 import INDEPENDENCE_RELATIONS, UnionFind
+from codex_science.literature_v2 import RELATIONSHIPS, _identifiers
 
 
 SCHEMA = "claim-sufficiency-v1"
@@ -74,6 +75,27 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
     for edge in independence_edges:
         union.union(str(edge["source"]), str(edge["target"]))
 
+    # Every recorded dependency adds a union; a more specific edge label cannot
+    # undo a shared cohort, publication identity, or study-family relationship.
+    owners: dict[tuple[str, str], str] = {}
+    for study_id, study in studies.items():
+        labels = {("identifier", value) for value in _identifiers(study)}
+        for field in ("cohort_id", "sample_id", "site_id", "database_id", "portal_id",
+                      "author_group_id", "analysis_pipeline_id", "independence_group"):
+            value = str(study.get(field) or "").strip()
+            if value:
+                labels.add((field, value))
+        for label in labels:
+            union.union(study_id, owners.setdefault(label, study_id))
+        relationships = study.get("relationships", [])
+        if isinstance(relationships, list):
+            for relationship in relationships:
+                if not isinstance(relationship, dict):
+                    continue
+                kind, target = relationship.get("type"), relationship.get("target_study_id")
+                if isinstance(kind, str) and kind in RELATIONSHIPS and isinstance(target, str) and target in studies:
+                    union.union(study_id, target)
+
     supporting: dict[str, list[tuple[str, str]]] = {claim_id: [] for claim_id in claims}
     contradicting: dict[str, list[tuple[str, str]]] = {claim_id: [] for claim_id in claims}
     # The study table records which studies were included and which claims they
@@ -116,7 +138,8 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
             required = max(required, SUFFICIENCY_POLICY["full_claim_kinds"].get(kind, 0))
         support_count = count_groups(supporting[claim_id])
         contradiction_count = count_groups(contradicting[claim_id])
-        unresolved = contradiction_count > 0 and not str(claim.get("contradiction_resolution", "")).strip()
+        resolution = claim.get("contradiction_resolution")
+        unresolved = contradiction_count > 0 and not (isinstance(resolution, str) and resolution.strip())
         if unresolved:
             verdict = "contradicted_unresolved"
         elif support_count < required:

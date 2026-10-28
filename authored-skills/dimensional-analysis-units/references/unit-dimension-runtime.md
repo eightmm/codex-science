@@ -15,6 +15,10 @@ m^(1/2)/s
 
 Unknown units fail loudly. Normalize domain-specific units explicitly rather than treating them as dimensionless.
 
+Boolean constants and floating-point spellings such as `1.0` are refused as unit literals; the numeric dimensionless literal is `1`. Conversion values cannot be booleans.
+
+Ordinary scale arithmetic preserves binary64 rounding. If a scale operation overflows or underflows, the runtime retries with 80-digit Decimal arithmetic to recover cancellation and representable conversions even when an individual source or target scale exceeds binary64 range. `parse_unit` still requires its final scale to be finite and nonzero in binary64. Unrecoverable scale range failures and nonzero conversions that round to zero raise `ValueError`; conversion failures are recorded as `unit-conversion-failed` findings.
+
 ## Equation check
 
 ```bash

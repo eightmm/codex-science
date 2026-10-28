@@ -36,11 +36,13 @@ One underlying study may have:
 - correction or retraction;
 - secondary analysis.
 
-Union records through shared identifiers and explicit relationships. Prefer the corrected peer-reviewed version as canonical, but retain every version and its publication state.
+Union records through shared normalized `persistent_id` and `persistent_ids` aliases and explicit relationships: `preprint_of`, `published_as`, `corrected_by`, `retracted_by`, `secondary_analysis_of`, `protocol_for`, and `registry_for`. Prefer the corrected peer-reviewed version as canonical, but retain every version and its publication state.
 
 ## Independence
 
 Record shared cohort, sample, site, database, portal, author group, and analysis pipeline. Multiple papers, endpoints, or portal views from one cohort are not independent replication.
+
+The sufficiency checker unions shared `cohort_id`, `sample_id`, `site_id`, `database_id`, `portal_id`, `author_group_id`, `analysis_pipeline_id`, and study-level `independence_group` labels, identifier aliases, study-family relationships, and evidence-graph dependence. Edge-level `independence_group` labels can merge groups but cannot split an already linked study family or cohort. Only a non-empty string in `contradiction_resolution` resolves a recorded contradiction; null, boolean, numeric, and blank values leave it unresolved.
 
 ## Exclusion records
 

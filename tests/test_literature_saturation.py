@@ -73,6 +73,70 @@ class SaturationTests(unittest.TestCase):
                 estimate_saturation(bad, hard_cap=100)
         self.assertEqual(estimate_saturation(curve(), hard_cap=500), estimate_saturation(curve(), hard_cap=500))
 
+    def test_repeated_checkpoints_do_not_supply_fit_points(self):
+        points = [{"evaluated": n, "relevant": r}
+                  for n, r in ((10, 10), (30, 15), (30, 15))]
+        for log in ([], points[:1] * 3, points):
+            with self.subTest(log=log):
+                result = estimate_saturation(log, hard_cap=1000, min_evaluated=0)
+                self.assertEqual(result["recommendation"], "insufficient_data")
+                self.assertEqual(result["reasons"], ["fewer_than_three_points"])
+                self.assertIsNone(result["expected_recall"])
+        capped = estimate_saturation(points, hard_cap=30)
+        self.assertEqual(capped["recommendation"], "stop_hard_cap")
+        self.assertIn("fewer_than_three_points", capped["reasons"])
+
+    def test_repeated_checkpoints_do_not_reweight_the_fit(self):
+        points = curve()
+        original = [dict(point) for point in points]
+        repeated = [point for i, point in enumerate(points) for _ in range(i + 1)]
+        self.assertEqual(estimate_saturation(points, hard_cap=500),
+                         estimate_saturation(repeated, hard_cap=500))
+        self.assertEqual(points, original)
+
+    def test_relevant_increment_cannot_exceed_evaluated_increment(self):
+        for pairs in (((50, 40), (51, 50), (100, 50)),
+                      ((50, 40), (50, 41)), ((50, 40), (51, 42)),
+                      ((50, 40), (51.0, 41)), ((0, 0),)):
+            with self.subTest(pairs=pairs):
+                points = [{"evaluated": n, "relevant": r} for n, r in pairs]
+                with self.assertRaisesRegex(ValueError, "invalid or decreasing cumulative checkpoint"):
+                    estimate_saturation(points, hard_cap=50)
+        for relevant in (40, 41):
+            with self.subTest(relevant=relevant):
+                points = [{"evaluated": n, "relevant": r}
+                          for n, r in ((50, 40), (51, relevant), (100, relevant))]
+                result = estimate_saturation(points, hard_cap=1000)
+                self.assertEqual(result["found"], relevant)
+                self.assertNotIn("fewer_than_three_points", result["reasons"])
+
+    def test_cli_checkpoint_validity_preserves_existing_output_on_refusal(self):
+        script = ROOT / "scripts" / "estimate_saturation.py"
+        cases = ((((10, 10), (30, 15), (30, 15)), 0),
+                 (((50, 40), (51, 50), (100, 50)), 2))
+        with tempfile.TemporaryDirectory() as cwd:
+            target = Path(cwd) / "estimate.json"
+            for pairs, status in cases:
+                with self.subTest(pairs=pairs):
+                    target.write_text("keep", encoding="utf-8")
+                    payload = {"hard_cap": 1000, "checkpoints": [
+                        {"evaluated": n, "relevant": r} for n, r in pairs]}
+                    proc = subprocess.run(
+                        [sys.executable, str(script), "--input", "-", "--output", str(target)],
+                        input=json.dumps(payload), text=True, capture_output=True, cwd=cwd)
+                    self.assertEqual(proc.returncode, status, proc.stderr)
+                    result = json.loads(proc.stdout)
+                    if status:
+                        self.assertEqual(result["schema"], "saturation-estimate-error-v1")
+                        self.assertEqual(result["error"], {
+                            "code": "invalid_request",
+                            "message": "invalid or decreasing cumulative checkpoint"})
+                        self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+                    else:
+                        self.assertEqual(result["recommendation"], "insufficient_data")
+                        self.assertIsNone(result["expected_recall"])
+                        self.assertEqual(json.loads(target.read_text(encoding="utf-8")), result)
+
     def test_cli(self):
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)

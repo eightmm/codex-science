@@ -48,7 +48,7 @@ def _difference_orders(resolutions: list[float], estimates: list[float]) -> list
         ratio_2 = resolutions[index + 1] / resolutions[index + 2]
         if first <= 0 or second <= 0 or ratio_1 <= 1 or ratio_2 <= 1:
             continue
-        if not math.isclose(ratio_1, ratio_2, rel_tol=0.05, abs_tol=0.0):
+        if not math.isclose(ratio_1, ratio_2, rel_tol=1e-12, abs_tol=0.0):
             continue
         orders.append(math.log(first / second) / math.log(ratio_1))
     return orders
@@ -73,7 +73,7 @@ def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
     max_residual = None if thresholds.get("max_residual") is None else _finite(thresholds.get("max_residual"), "max_residual")
     max_invariant = None if thresholds.get("max_invariant_deviation") is None else _finite(thresholds.get("max_invariant_deviation"), "max_invariant_deviation")
     minimum_order = None if thresholds.get("minimum_order") is None else _finite(thresholds.get("minimum_order"), "minimum_order")
-    max_cross_method_z = float(thresholds.get("max_cross_method_z", 3.0))
+    max_cross_method_z = _finite(thresholds.get("max_cross_method_z", 3.0), "max_cross_method_z")
     if max_cross_method_z <= 0:
         raise ValueError("max_cross_method_z must be positive")
 
@@ -158,7 +158,15 @@ def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "major",
                 "Observed convergence order could not be estimated from the refinement series.",
             ))
-        elif min(orders) < minimum_order:
+        else:
+            expected_orders = len(refinements) - (1 if len(errors) == len(refinements) else 2)
+            if len(orders) != expected_orders:
+                findings.append(_finding(
+                    "observed-order-series-incomplete",
+                    "major",
+                    "A minimum order is declared but some refinement intervals have undefined observed order.",
+                ))
+        if orders and len(refinements) >= 3 and min(orders) < minimum_order:
             findings.append(_finding(
                 "convergence-order-below-threshold",
                 "major",
@@ -178,13 +186,20 @@ def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"Maximum residual {max(residuals):.6g} exceeds {max_residual:.6g}.",
             ))
     if max_invariant is not None:
+        invariant_names = {name for record in refinements for name in record["invariants"]}
         if not invariant_deviations:
             findings.append(_finding(
                 "invariant-audit-missing",
                 "major",
                 "An invariant threshold is declared but no invariant deviations were recorded.",
             ))
-        elif max(invariant_deviations) > max_invariant:
+        elif any(set(record["invariants"]) != invariant_names for record in refinements):
+            findings.append(_finding(
+                "invariant-series-incomplete",
+                "major",
+                "An invariant threshold is declared but some refinement levels lack declared invariants.",
+            ))
+        if invariant_deviations and max(invariant_deviations) > max_invariant:
             findings.append(_finding(
                 "invariant-threshold-failed",
                 "major",

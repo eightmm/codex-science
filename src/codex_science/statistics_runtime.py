@@ -85,7 +85,10 @@ def _paired_standardized(differences: list[float]) -> float | None:
     return statistics.fmean(differences) / standard_deviation
 
 
-def _extreme(value: float, observed: float, alternative: str, *, tolerance: float = 1e-15) -> bool:
+def _extreme(value: float, observed: float, alternative: str, *, tolerance: float | None = None) -> bool:
+    if tolerance is None:
+        # Tie slack tracks representable precision, including very small effects.
+        tolerance = 4 * math.ulp(max(abs(observed), abs(value)))
     if alternative == "two-sided":
         return abs(value) >= abs(observed) - tolerance
     if alternative == "greater":
@@ -223,7 +226,8 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
     if analysis_type not in {"independent", "paired"}:
         raise ValueError("analysis_type must be independent or paired")
     values_by_unit: dict[tuple[str, str], list[float]] = defaultdict(list)
-    values_by_pair: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    units_by_pair: dict[str, dict[str, str]] = defaultdict(dict)
+    pair_by_unit: dict[str, str] = {}
     missing_by_group = {group_a_label: 0, group_b_label: 0}
     raw_counts = {group_a_label: 0, group_b_label: 0}
     for index, row in enumerate(rows):
@@ -233,20 +237,24 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
         if group not in {group_a_label, group_b_label}:
             raise ValueError(f"data[{index}].group is not one of group_labels")
         raw_counts[group] += 1
-        value = row.get("value")
-        if value is None or value == "":
-            missing_by_group[group] += 1
-            continue
-        numeric = _finite(value, f"data[{index}].value")
         unit_id = str(row.get("unit_id", f"row-{index}")).strip()
         if not unit_id:
             raise ValueError(f"data[{index}].unit_id is empty")
-        values_by_unit[(group, unit_id)].append(numeric)
         if analysis_type == "paired":
             pair_id = str(row.get("pair_id", "")).strip()
             if not pair_id:
                 raise ValueError(f"data[{index}].pair_id is required for paired analysis")
-            values_by_pair[pair_id][group].append(numeric)
+            if unit_id in pair_by_unit and pair_by_unit[unit_id] != pair_id:
+                raise ValueError("unit_id appears under more than one pair_id")
+            pair_by_unit[unit_id] = pair_id
+            if group in units_by_pair[pair_id] and units_by_pair[pair_id][group] != unit_id:
+                raise ValueError("pair_id must map to exactly one unit per group")
+            units_by_pair[pair_id][group] = unit_id
+        value = row.get("value")
+        if value is None or value == "":
+            missing_by_group[group] += 1
+            continue
+        values_by_unit[(group, unit_id)].append(_finite(value, f"data[{index}].value"))
     aggregation = str(payload.get("within_unit_aggregation", "mean"))
     if aggregation not in {"mean", "median"}:
         raise ValueError("within_unit_aggregation must be mean or median")
@@ -254,23 +262,26 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
     def aggregate(values: list[float]) -> float:
         return statistics.fmean(values) if aggregation == "mean" else _median(values)
 
-    values_a = [aggregate(values) for (group, _unit), values in sorted(values_by_unit.items()) if group == group_a_label]
-    values_b = [aggregate(values) for (group, _unit), values in sorted(values_by_unit.items()) if group == group_b_label]
+    unit_values = {key: _finite(aggregate(values), "aggregated unit value") for key, values in sorted(values_by_unit.items())}
+    values_a = [value for (group, _unit), value in unit_values.items() if group == group_a_label]
+    values_b = [value for (group, _unit), value in unit_values.items() if group == group_b_label]
     differences: list[float] | None = None
     if analysis_type == "paired":
         differences = []
         incomplete_pairs = 0
-        for pair_id, groups in sorted(values_by_pair.items()):
-            if group_a_label not in groups or group_b_label not in groups:
-                incomplete_pairs += 1
+        for _pair_id, groups in sorted(units_by_pair.items()):
+            members = {group: unit_values[(group, unit)] for group, unit in groups.items() if (group, unit) in unit_values}
+            if group_a_label not in members or group_b_label not in members:
+                # Pairs with only missing observations never contributed to the analysis.
+                incomplete_pairs += bool(members)
                 continue
-            differences.append(aggregate(groups[group_b_label]) - aggregate(groups[group_a_label]))
+            differences.append(_finite(members[group_b_label] - members[group_a_label], "paired difference"))
         values_a = [0.0] * len(differences)
         values_b = list(differences)
     else:
         incomplete_pairs = 0
-    if not values_a or not values_b:
-        raise ValueError("each analysis group needs at least one experimental unit")
+    if len(values_a) < 2 or len(values_b) < 2:
+        raise ValueError("each analysis group needs at least two experimental units (two complete pairs for paired analysis)")
     summary = {
         "raw_counts": raw_counts,
         "missing_counts": missing_by_group,
@@ -283,6 +294,13 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
 
 
 def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        return _run_statistical_analysis(payload)
+    except OverflowError as error:
+        raise ValueError("statistical computation must be finite") from error
+
+
+def _run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported statistical-analysis input schema")
     analysis_id = str(payload.get("analysis_id", "")).strip()
@@ -313,7 +331,7 @@ def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
     analysis_type = str(payload.get("analysis_type", "independent"))
     if analysis_type == "paired":
         assert differences is not None
-        estimate = statistics.fmean(differences) if measure == "mean-difference" else _median(differences)
+        estimate = _finite(statistics.fmean(differences) if measure == "mean-difference" else _median(differences), "effect estimate")
         bootstrap = _bootstrap_paired(differences, replicates=bootstrap_replicates, randomizer=randomizer, measure=measure)
         p_value, permutation_count, exact = _permutation_paired(
             differences,
@@ -324,7 +342,7 @@ def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         standardized = _paired_standardized(differences) if measure == "mean-difference" else None
     else:
-        estimate = _estimate(values_a, values_b, measure)
+        estimate = _finite(_estimate(values_a, values_b, measure), "effect estimate")
         bootstrap = _bootstrap_independent(
             values_a,
             values_b,
@@ -341,9 +359,13 @@ def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
             randomizer=randomizer,
         )
         standardized = _hedges_g(values_a, values_b) if measure == "mean-difference" else None
+    if standardized is not None:
+        _finite(standardized, "standardized effect")
+    for value in bootstrap:
+        _finite(value, "bootstrap estimate")
     alpha = 1.0 - confidence_level
-    lower = _quantile(bootstrap, alpha / 2.0)
-    upper = _quantile(bootstrap, 1.0 - alpha / 2.0)
+    lower = _finite(_quantile(bootstrap, alpha / 2.0), "interval lower")
+    upper = _finite(_quantile(bootstrap, 1.0 - alpha / 2.0), "interval upper")
     hypotheses_raw = payload.get("hypotheses", [])
     if not isinstance(hypotheses_raw, list) or not all(isinstance(item, Mapping) for item in hypotheses_raw):
         raise ValueError("hypotheses must be a list of objects")
@@ -393,6 +415,11 @@ def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _nonnegative_integer(value: Any, label: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{label} must be a non-negative integer")
+
+
 def validate_statistical_analysis(payload: Mapping[str, Any]) -> None:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported statistical-analysis receipt schema")
@@ -406,6 +433,32 @@ def validate_statistical_analysis(payload: Mapping[str, Any]) -> None:
     if not all(isinstance(item, Mapping) for item in (effect, interval, test, sample)):
         raise ValueError("effect, interval, test, and sample must be objects")
     _finite(effect.get("estimate"), "effect estimate")
+    if effect.get("standardized_estimate") is not None:
+        _finite(effect["standardized_estimate"], "standardized_estimate")
+    confidence_level = _finite(interval.get("confidence_level"), "confidence_level")
+    if not 0.5 < confidence_level < 1:
+        raise ValueError("confidence_level must be between 0.5 and 1")
+    for field in ("raw_counts", "missing_counts", "experimental_units"):
+        counts = sample.get(field)
+        if not isinstance(counts, Mapping) or not counts:
+            raise ValueError(f"sample.{field} must be a non-empty object")
+        for group, count in counts.items():
+            _nonnegative_integer(count, f"sample.{field}.{group}")
+    for field in ("duplicate_observations_aggregated", "incomplete_pairs_excluded"):
+        _nonnegative_integer(sample.get(field), f"sample.{field}")
+    _nonnegative_integer(test.get("permutations"), "test.permutations")
+    _nonnegative_integer(interval.get("replicates"), "interval.replicates")
+    multiplicity = payload.get("multiplicity")
+    if not isinstance(multiplicity, Mapping):
+        raise ValueError("multiplicity must be an object")
+    hypotheses = multiplicity.get("hypotheses")
+    if not isinstance(hypotheses, list) or not all(isinstance(item, Mapping) for item in hypotheses):
+        raise ValueError("multiplicity.hypotheses must be a list of objects")
+    for index, hypothesis in enumerate(hypotheses):
+        for field in ("p_value", "q_value"):
+            value = _finite(hypothesis.get(field), f"multiplicity.hypotheses[{index}].{field}")
+            if not 0 <= value <= 1:
+                raise ValueError(f"multiplicity.hypotheses[{index}].{field} must be between 0 and 1")
     lower = _finite(interval.get("lower"), "interval lower")
     upper = _finite(interval.get("upper"), "interval upper")
     if lower > upper:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
@@ -36,6 +37,19 @@ def _string_list(value: Any, label: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
         raise ValueError(f"{label} must be a list of non-empty strings")
     return value
+
+
+def _validate_extraction_numbers(value: Any, label: str, field: str = "") -> None:
+    if isinstance(value, bool) and field in {"sample_size", "effect_estimate", "standard_error"}:
+        raise ValueError(f"{label} must not be boolean")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{label} must be finite")
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _validate_extraction_numbers(item, f"{label}.{key}", key)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_extraction_numbers(item, f"{label}[{index}]", field)
 
 
 _PMCID_STEM = re.compile(r"PMC\d+")  # exactly the names fetch_open_fulltext writes
@@ -195,6 +209,9 @@ def build_study_table(
         if not isinstance(row, dict) or not isinstance(row.get("record_id"), str) or row["record_id"] in candidate_by_id:
             raise ValueError("candidates.json contains invalid or duplicate record_id")
         candidate_by_id[row["record_id"]] = row
+    unknown = sorted(screen_by_id.keys() - candidate_by_id.keys())
+    if unknown:
+        raise ValueError(f"screening.json record_id not in candidates.json: {', '.join(unknown)}")
     includes = {key for key, row in screen_by_id.items() if row.get("decision") == "include"}
 
     problems: list[str] = []
@@ -205,6 +222,8 @@ def build_study_table(
                 problems.append(f"{kind}[{index}]: record_id must be a non-empty string")
                 continue
             record_id = item["record_id"]
+            if record_id not in candidate_by_id:
+                problems.append(f"{record_id}: record_id not in candidates.json")
             if record_id not in screen_by_id:
                 problems.append(
                     f"{record_id}: unknown record_id (not in screening.json; screen it before extraction)"
@@ -229,6 +248,17 @@ def build_study_table(
         if record_id not in screen_by_id:
             continue
         candidate = candidate_by_id.get(record_id, {})
+        evidence_path = None
+        screening_content = b""
+        try:
+            evidence_relative = _relative_path(screening_row.get("evidence_artifact"), f"{record_id} evidence_artifact")
+            evidence_path = _safe_file(root, evidence_relative)
+            assert evidence_path is not None
+            screening_content = evidence_path.read_bytes()
+            if hashlib.sha256(screening_content).hexdigest() != screening_row.get("evidence_sha256"):
+                raise ValueError(f"{record_id}: evidence_sha256 does not match screening evidence_artifact; rerun screening")
+        except (ValueError, OSError, TypeError) as error:
+            problems.append(str(error))
         ids_a = screening_row.get("identifiers", [])
         ids_b = candidate.get("identifiers", [])
         if (not isinstance(ids_a, list) or not isinstance(ids_b, list)
@@ -259,6 +289,10 @@ def build_study_table(
         if not isinstance(fields, dict):
             problems.append(f"{record_id}: fields must be an object")
             fields = {}
+        try:
+            _validate_extraction_numbers(fields, f"{record_id} fields")
+        except ValueError as error:
+            problems.append(str(error))
         owned = {"study_id", "record_id", "title", "identifiers", "persistent_id", "persistent_ids", "included",
                  "evidence_type", "supports_claim_ids", "contradicts_claim_ids", "support_excerpts", "publication_date", "query_ids", "cohort_id"}
         for key in fields:
@@ -317,7 +351,7 @@ def build_study_table(
                 source_file = _safe_file(root, relative)
                 assert source_file is not None
                 source_path = _support_source_path(root, source, study_id, str(claim_id))
-                content = source_path.read_bytes()
+                content = screening_content if source_path == evidence_path else source_path.read_bytes()
                 if isinstance(text, str):
                     try:
                         source_text = content.decode("utf-8")
