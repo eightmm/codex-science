@@ -206,6 +206,14 @@ def convert_value(value: float, source: str, target: str) -> float:
     return converted
 
 
+def _affine_variables(node: ast.AST, variables: Mapping[str, Unit]) -> list[str]:
+    return sorted({
+        item.id
+        for item in ast.walk(node)
+        if isinstance(item, ast.Name) and item.id in variables and variables[item.id].affine
+    })
+
+
 def _eval_dimension(node: ast.AST, variables: Mapping[str, Unit]) -> Dimension:
     if isinstance(node, ast.Expression):
         return _eval_dimension(node.body, variables)
@@ -227,19 +235,31 @@ def _eval_dimension(node: ast.AST, variables: Mapping[str, Unit]) -> Dimension:
                 raise ValueError("addition or subtraction combines incompatible dimensions")
             return left
         if isinstance(node.op, ast.Mult):
+            affine = _affine_variables(node, variables)
+            if affine:
+                raise ValueError(f"affine variable {affine[0]} cannot be multiplied")
             right = _eval_dimension(node.right, variables)
             return tuple(a + b for a, b in zip(left, right))  # type: ignore[return-value]
         if isinstance(node.op, ast.Div):
+            affine = _affine_variables(node, variables)
+            if affine:
+                raise ValueError(f"affine variable {affine[0]} cannot be divided")
             right = _eval_dimension(node.right, variables)
             return tuple(a - b for a, b in zip(left, right))  # type: ignore[return-value]
         if isinstance(node.op, ast.Pow):
             exponent = _fraction(node.right)
+            affine = _affine_variables(node.left, variables)
+            if affine and exponent != 1:
+                raise ValueError(f"affine variable {affine[0]} cannot be exponentiated")
             return tuple(value * exponent for value in left)  # type: ignore[return-value]
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
         if node.keywords or len(node.args) != 1:
             raise ValueError("dimensional functions accept exactly one positional argument")
         argument = _eval_dimension(node.args[0], variables)
         if node.func.id == "sqrt":
+            affine = _affine_variables(node.args[0], variables)
+            if affine:
+                raise ValueError(f"affine variable {affine[0]} cannot be exponentiated")
             return tuple(value / 2 for value in argument)  # type: ignore[return-value]
         if node.func.id == "abs":
             return argument

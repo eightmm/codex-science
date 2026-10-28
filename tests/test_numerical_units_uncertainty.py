@@ -268,6 +268,40 @@ class UnitsRuntimeContractTests(unittest.TestCase):
         self.assertIsNone(result["equations"][0]["error"])
         self.assertEqual("Equation bad is dimensionally inconsistent.", result["findings"][0]["message"])
 
+    def test_affine_temperature_arithmetic_fails_in_equations(self) -> None:
+        for expression, right in (
+            ("temperature*2", "temperature"),
+            ("temperature*0", "temperature*0"),
+            ("2*temperature", "temperature"),
+            ("temperature/2", "temperature"),
+            ("temperature**2", "temperature**2"),
+            ("temperature**0", "temperature**0"),
+            ("sqrt(temperature)", "sqrt(temperature)"),
+        ):
+            with self.subTest(expression=expression):
+                result = run_dimension_check(self.check_payload(
+                    variables={"temperature": "degC"},
+                    equations=[{"id": "affine-product", "left": expression, "right": right}],
+                ))
+                self.assertEqual("findings", result["status"])
+                equation = result["equations"][0]
+                self.assertFalse(equation["compatible"])
+                self.assertIn("temperature", equation["error"])
+                self.assertIn("affine", equation["error"])
+                self.assertIn("affine-product", result["findings"][0]["message"])
+                self.assertIn("temperature", result["findings"][0]["message"])
+
+        preserved = run_dimension_check(self.check_payload(
+            variables={"temperature": "degC"},
+            equations=[{"id": "absolute", "left": "temperature**1", "right": "temperature"}],
+        ))
+        self.assertEqual("passed", preserved["status"])
+        kelvin = run_dimension_check(self.check_payload(
+            variables={"temperature": "K"},
+            equations=[{"id": "kelvin", "left": "temperature*2", "right": "temperature"}],
+        ))
+        self.assertEqual("passed", kelvin["status"])
+
     def test_equation_default_ids(self) -> None:
         result = run_dimension_check(self.check_payload(equations=[{"left": "x", "right": "x"}], conversions=[{"value": 1, "from": "m", "to": "cm"}]))
         self.assertEqual("equation-0", result["equations"][0]["id"])

@@ -47,6 +47,8 @@ Unknown units fail loudly. Normalize domain-specific units explicitly rather tha
 
 Addition and subtraction require equal dimensions. Multiplication, division, powers, square roots, and absolute values propagate dimensions. Exponential, logarithmic, and trigonometric arguments must be dimensionless.
 
+In equation expressions, variables declared in affine units such as `degC` cannot be multiplied, divided, raised to a power other than 1, or passed to `sqrt` (a power of 1/2); dimensionless literals count as multiplication.
+
 The receipt records variable dimensions, left and right dimensions for every equation, conversion values, failures, input hash, limitations, and deterministic fingerprint.
 
 ## Affine quantities
