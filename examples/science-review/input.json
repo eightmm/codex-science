@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "run_id": "science-review-acceptance",
+  "question": "Does the deterministic recorded estimate agree with its saved evidence?",
+  "plan": [
+    {
+      "id": "record-review",
+      "description": "Check the saved fixture record without claiming empirical reproduction.",
+      "status": "completed"
+    }
+  ],
+  "inputs": [],
+  "code": [],
+  "executions": [],
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence.txt",
+      "kind": "fixture-evidence",
+      "sha256": "42018e515a09dea02d54fad95578ff21cc035e4519399705611a00720adc3b03"
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "text": "The saved deterministic fixture estimate is 0.72.",
+      "evidence": [
+        "evidence.txt"
+      ]
+    }
+  ],
+  "review": {
+    "status": "pending",
+    "findings": []
+  }
+}

@@ -1,8 +1,10 @@
 {
   "schema_version": 1,
   "skill": "science-review",
-  "roles": ["reviewer"],
-  "declared_maturity": "L3",
+  "roles": [
+    "reviewer"
+  ],
+  "declared_maturity": "L4",
   "output_schemas": [
     "review-receipt-v2",
     "scientific-finding-v1",
@@ -10,11 +12,28 @@
     "review-task-v1",
     "review-response-v1"
   ],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": [],
+  "acceptance_fixtures": [
+    "examples/science-review/input.json"
+  ],
+  "seeded_failures": [
+    "stale-reviewed-artifact",
+    "open-blocking-finding",
+    "nonindependent-review",
+    "response-packet-mismatch",
+    "finding-outside-packet",
+    "omitted-material-claim"
+  ],
+  "test_files": [
+    "tests/test_reviewer_runtime.py",
+    "tests/test_evidence_review_v2.py",
+    "tests/test_review_action_receipts.py",
+    "tests/test_package_run.py",
+    "tests/test_science_review_acceptance.py"
+  ],
   "limitations": [
     "Deterministic review checks do not replace domain-expert judgment.",
-    "Independent reproduction is claimed only after a separate execution recreates the material result."
+    "Independent reproduction is claimed only after a separate execution recreates the material result.",
+    "The acceptance fixture is deterministic software validation rather than an empirical scientific result.",
+    "Finding evidence paths are bound to the packet by respond; direct finalize does not enforce that binding."
   ]
 }
