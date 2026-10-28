@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.collaboration import selective_rerun_plan  # noqa: E402
 from codex_science.evidence import _validate_evidence_graph  # noqa: E402
-from codex_science.evidence_graph_v2 import graph_records  # noqa: E402
+from codex_science.evidence_graph_v2 import validate_graph_payload  # noqa: E402
 
 PLAN_EPILOG = """\
 graph JSON (schema_version 1 as written by build_evidence_graph.py, or 2; required):
@@ -15,6 +15,7 @@ graph JSON (schema_version 1 as written by build_evidence_graph.py, or 2; requir
             supports, contradicts, depends_on, duplicates, derived_from,
             shares_cohort, shares_samples, propagated_from, training_overlap
             (no duplicate source/target/relation triple)
+  v2 graphs must pass typed-graph validation.
   supports and contradicts propagate impact source -> target;
   depends_on, derived_from and propagated_from propagate target -> source;
   training_overlap propagates both ways. Other relations do not propagate.
@@ -56,7 +57,9 @@ def main() -> int:
         if payload.get("schema_version") == 1:
             _nodes, edges = _validate_evidence_graph(payload)
         elif payload.get("schema_version") == 2:
-            _nodes, edges = graph_records(payload)
+            _nodes, edges, findings = validate_graph_payload(payload)
+            if findings:
+                raise ValueError("; ".join(item["message"] for item in findings))
         else:
             raise ValueError(f"unsupported evidence graph schema_version {payload.get('schema_version')!r}; expected 1 or 2")
         unknown = [node for node in args.changed if node not in _nodes]

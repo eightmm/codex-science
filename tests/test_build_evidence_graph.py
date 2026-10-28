@@ -261,9 +261,79 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         self.assertEqual(["s1"], [step["id"] for step in json.loads(proc.stdout)["rerun_steps"]])
         v2 = self.root / "graph-v2.json"
         v2.write_text(json.dumps({**graph, "schema_version": 2}), encoding="utf-8")
+        self._assert_plan_refused(v2, "study-example-1",
+                                  "Evidence edge study-example-1 depends_on cohort-example-a has invalid types study->cohort.")
+        # The v1 cohort node must use a permitted v2 dependency type.
+        graph["nodes"] = [{**node, "type": "dataset"} if node["type"] == "cohort" else node for node in graph["nodes"]]
+        v2.write_text(json.dumps({**graph, "schema_version": 2}), encoding="utf-8")
         proc2 = self._plan(v2, "--changed", "study-example-1")
         self.assertEqual(0, proc2.returncode, proc2.stderr)
         self.assertEqual(proc.stdout, proc2.stdout)
+
+    def _assert_plan_refused(self, graph, changed, message):
+        output = self.root / "rerun-plan.json"
+        for existing in (False, True):
+            with self.subTest(existing_output=existing):
+                if existing:
+                    output.write_text("existing plan\n", encoding="utf-8")
+                proc = self._plan(graph, "--changed", changed, "--output", str(output))
+                self.assertEqual(1, proc.returncode, proc.stdout + proc.stderr)
+                self.assertEqual("", proc.stdout)
+                self.assertEqual(f"error: {message}\n", proc.stderr)
+                if existing:
+                    self.assertEqual("existing plan\n", output.read_text(encoding="utf-8"))
+                else:
+                    self.assertFalse(output.exists())
+        output.unlink()
+
+    def test_selective_rerun_rejects_v2_dependency_cycles(self):
+        graph = self.root / "graph-v2.json"
+        nodes = [{"id": node, "type": "study"} for node in ("a", "b")]
+        for edges, message in [
+            ([], None),
+            ([{"source": "a", "target": "a", "relation": "depends_on"}],
+             "Evidence dependency cycle: a -> a"),
+            ([{"source": "a", "target": "b", "relation": "depends_on"},
+              {"source": "b", "target": "a", "relation": "depends_on"}],
+             "Evidence dependency cycle: a -> b -> a"),
+        ]:
+            with self.subTest(edges=edges):
+                payload = {"nodes": nodes, "edges": edges}
+                graph.write_text(json.dumps({**payload, "schema_version": 1}), encoding="utf-8")
+                legacy = self._plan(graph, "--changed", "a")
+                self.assertEqual(0, legacy.returncode, legacy.stderr)
+                graph.write_text(json.dumps({**payload, "schema_version": 2}), encoding="utf-8")
+                if message:
+                    self._assert_plan_refused(graph, "a", message)
+                else:
+                    valid = self._plan(graph, "--changed", "a")
+                    self.assertEqual(0, valid.returncode, valid.stderr)
+                    self.assertEqual(legacy.stdout, valid.stdout)
+
+    def test_selective_rerun_rejects_v2_forbidden_relation_types(self):
+        graph = self.root / "graph-v2.json"
+        nodes = [{"id": node, "type": node} for node in ("claim", "dataset")]
+        forbidden = {"source": "claim", "target": "dataset", "relation": "supports"}
+        type_message = "Evidence edge claim supports dataset has invalid types claim->dataset."
+        for edges, message in [
+            ([forbidden], type_message),
+            ([forbidden, {"source": "dataset", "target": "dataset", "relation": "depends_on"}],
+             "Evidence dependency cycle: dataset -> dataset; " + type_message),
+        ]:
+            with self.subTest(edges=edges):
+                payload = {"nodes": nodes, "edges": edges}
+                graph.write_text(json.dumps({**payload, "schema_version": 1}), encoding="utf-8")
+                legacy = self._plan(graph, "--changed", "claim")
+                self.assertEqual(0, legacy.returncode, legacy.stderr)
+                graph.write_text(json.dumps({**payload, "schema_version": 2}), encoding="utf-8")
+                self._assert_plan_refused(graph, "claim", message)
+        for malformed, message in [
+            ({"nodes": [], "edges": []}, "--changed id is not a node in the evidence graph: claim"),
+            ({"nodes": None, "edges": []}, "evidence graph nodes and edges must be lists"),
+        ]:
+            with self.subTest(graph=malformed):
+                graph.write_text(json.dumps({**malformed, "schema_version": 2}), encoding="utf-8")
+                self._assert_plan_refused(graph, "claim", message)
 
     def test_selective_rerun_rejects_bad_input_without_traceback(self):
         build_evidence_graph(self.root)
