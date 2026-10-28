@@ -8,6 +8,8 @@ Record the question framework, population or system, intervention or exposure, c
 
 A change to eligibility, primary outcome, evidence cutoff, or permitted inference creates a protocol revision. Preserve the prior protocol and explain the change.
 
+For every procedure promised per study, record, or other set member, declare the procedure, target unit, authoritative membership source and selection rule in the commitment ledger before execution. Resolve and record the full target set and denominator when known. Before review preparation, reconcile every commitment: either document completion for every target or record actual coverage, the reason for the deviation, and its effect on claims. Narrow affected claims in the claim register and report. Do not remove targets, rewrite commitments, or treat unavailable evidence as completed work to make coverage appear complete.
+
 ## Namespaced identifiers
 
 Use namespaced persistent identifiers:

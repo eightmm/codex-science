@@ -6,9 +6,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from codex_science.artifact_index import render_markdown
 from codex_science.artifacts import validate_bundle
+from codex_science.commitment_ledger import resolve_target_ids
 from codex_science.evidence import _validate_study_table, review_sidecars, validate_sidecars
 from codex_science.literature import (
     diff_review_snapshots,
@@ -18,6 +20,7 @@ from codex_science.literature import (
 )
 from codex_science.reference_contract import validate_reference_use_receipt
 from codex_science.review import review_manifest
+from codex_science.reviewer_runtime import build_review_packet
 
 
 class EvidenceSidecarTests(unittest.TestCase):
@@ -437,6 +440,409 @@ class EvidenceSidecarTests(unittest.TestCase):
                 self.assertIn(expected, result.stderr)
                 self.assertNotIn("Traceback", result.stderr)
 
+
+    @staticmethod
+    def _ledger_procedure():
+        return {
+            "id": "test-procedure",
+            "procedure": "One reference pass per included study",
+            "target_set": {"unit": "study", "source_artifact": "studies.json", "selection": "included"},
+            "target_ids": ["study-example-1"],
+            "denominator": 1,
+            "completed": [{"target_id": "study-example-1", "evidence_artifact": "studies.json"}],
+            "completed_count": 1,
+        }
+
+    def _write_ledger(self, manifest, run_dir, ledger):
+        protocol_path = run_dir / "protocol.json"
+        protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+        protocol["commitment_ledger"] = ledger
+        protocol_path.write_text(json.dumps(protocol) + "\n", encoding="utf-8")
+        self._rehash(manifest, run_dir, "protocol.json")
+
+    def _write_screening(self, manifest, run_dir, records):
+        payload = {"schema": "screening-table-v1", "records": records}
+        path = run_dir / "screening.json"
+        path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        manifest["artifacts"].append({
+            "kind": "screening-table", "path": "screening.json",
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        })
+
+    def test_commitment_ledger_complete_passes_and_reaches_reviewer_packet(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._ledger_procedure()
+            field = "api_" + "key"
+            procedure["target_set"][field] = "fixture-value"
+            procedure["target_set"]["producer_rationale"] = "producer-only"
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            self.assertEqual(sidecars["protocol_commitment_context"]["procedures"][0]["id"], "test-procedure")
+            packet = build_review_packet(run_dir / "manifest.json", review_modes=["record"])
+            target_set = packet["protocol_commitment_context"]["procedures"][0]["target_set"]
+            self.assertEqual(target_set[field], "[REDACTED]")
+            self.assertNotIn("producer_rationale", target_set)
+            self.assertEqual(sidecars["protocol_commitment_context"]["procedures"][0]["target_set"][field], "fixture-value")
+
+    def test_commitment_ledger_shortfall_without_deviation_fails(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._ledger_procedure()
+            procedure.update(id="test-shortfall", completed=[], completed_count=0)
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaises(ValueError) as raised:
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            msg = str(raised.exception)
+            self.assertIn("test-shortfall", msg)
+            self.assertIn("study-example-1", msg)
+            self.assertIn("deviation", msg)
+
+    def test_commitment_ledger_valid_deviation_passes_and_reaches_packet(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            limitation = "Backward reference screening covered 0 of 1 included studies."
+            (run_dir / "report.md").write_text(limitation + "\n", encoding="utf-8")
+            self._rehash(manifest, run_dir, "report.md")
+            procedure = self._ledger_procedure()
+            procedure.update(completed=[], completed_count=0, deviation={
+                "reason": "The reference list was unavailable.",
+                "affected_claims": [{"claim_id": "claim-method-effect", "limitation": limitation}],
+            })
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            self.assertEqual([], review_sidecars(sidecars))
+            packet = build_review_packet(run_dir / "manifest.json", review_modes=["record"])
+            self.assertEqual(packet["protocol_commitment_context"], sidecars["protocol_commitment_context"])
+            self.assertEqual(1, sum(item["path"] == "report.md" for item in manifest["artifacts"]))
+            manifest["artifacts"] = [item for item in manifest["artifacts"] if item["kind"] not in {"report", "lane-receipt"}]
+            with self.assertRaisesRegex(ValueError, "test-procedure.*report.md"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_legacy_fixture_unchanged_has_no_ledger_context(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            self.assertNotIn("protocol_commitment_context", sidecars)
+
+    def test_unknown_target_set_refused(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            protocol_path = run_dir / "protocol.json"
+            protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+            protocol["commitment_ledger"] = {
+                "schema_version": 1,
+                "procedures": [
+                    {
+                        "id":"bad-target",
+                        "target_set":{"unit":"study","source_artifact":"bad.json","selection":"included"},
+                        "target_ids":["S1"],
+                        "denominator":1,
+                        "completed":[{"target_id":"S1","evidence_artifact":"studies.json"}],
+                        "completed_count":1
+                    }
+                ]
+            }
+            protocol_path.write_text(json.dumps(protocol, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            self._rehash(manifest, run_dir, "protocol.json")
+            with self.assertRaises(ValueError) as raised:
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            self.assertIn("unsupported target_set", str(raised.exception))
+
+    def test_bool_count_refused(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            protocol_path = run_dir / "protocol.json"
+            protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+            protocol["commitment_ledger"] = {
+                "schema_version": 1,
+                "procedures": [
+                    {
+                        "id":"bool-count",
+                        "target_set":{"unit":"study","source_artifact":"studies.json","selection":"included"},
+                        "target_ids":["study-example-1"],
+                        "denominator":True,
+                        "completed":[{"target_id":"study-example-1","evidence_artifact":"studies.json"}],
+                        "completed_count":1
+                    }
+                ]
+            }
+            protocol_path.write_text(json.dumps(protocol, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            self._rehash(manifest, run_dir, "protocol.json")
+            with self.assertRaises(ValueError) as raised:
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            msg = str(raised.exception)
+            self.assertIn("bool-count", msg)
+            self.assertIn("bool", msg)
+
+    def test_unextracted_included_record_blocks_exact_study_denominator(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            self._write_screening(manifest, run_dir, [{"record_id": "R1", "decision": "include"}])
+            procedure = self._ledger_procedure()
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaisesRegex(ValueError, "test-procedure.*unextracted.*screening.json.*R1"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            studies_path = run_dir / "studies.json"
+            studies = json.loads(studies_path.read_text(encoding="utf-8"))
+            studies["studies"][0]["record_id"] = "R1"
+            studies_path.write_text(json.dumps(studies), encoding="utf-8")
+            self._rehash(manifest, run_dir, "studies.json")
+            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_requires_registered_source_artifact(self):
+        for unit, source, kind in (("record", "screening.json", "screening-table"),
+                                   ("study", "studies.json", "study-table")):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                manifest["artifacts"] = [item for item in manifest["artifacts"] if item["kind"] not in {kind, "lane-receipt"}]
+                procedure = self._ledger_procedure()
+                procedure.update(target_set={"unit": unit, "source_artifact": source, "selection": "included"},
+                                 target_ids=[], denominator=0, completed=[], completed_count=0)
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                with self.assertRaisesRegex(ValueError, "test-procedure.*missing source_artifact.*" + source):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_rejects_malformed_json(self):
+        for relative, contents in (("protocol.json", "{"), ("protocol.json", "[]"),
+                                   ("screening.json", "{"), ("screening.json", "[]"),
+                                   ("studies.json", "{")):
+            with self.subTest(relative=relative, contents=contents), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                self._write_screening(manifest, run_dir, [])
+                procedure = self._ledger_procedure()
+                procedure.update(target_set={"unit": "record", "source_artifact": "screening.json", "selection": "all"},
+                                 target_ids=[], denominator=0, completed=[], completed_count=0)
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                (run_dir / relative).write_text(contents, encoding="utf-8")
+                self._rehash(manifest, run_dir, relative)
+                with self.assertRaises(ValueError):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_namespace_shape_and_empty_procedures(self):
+        for ledger in (None, [], False, 0, "", {}, {"schema_version": 1},
+                       {"schema_version": 1, "procedures": None},
+                       {"schema_version": 1, "procedures": {}},
+                       {"schema_version": 1, "procedures": [None]},
+                       {"schema_version": 2, "procedures": []}):
+            with self.subTest(ledger=ledger), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                self._write_ledger(manifest, run_dir, ledger)
+                with self.assertRaisesRegex(ValueError, "commitment_ledger|procedure"):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": []})
+            sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            self.assertNotIn("protocol_commitment_context", sidecars)
+
+    def test_commitment_ledger_study_membership_requires_explicit_true(self):
+        studies = [{"study_id": "included", "included": True}, {"study_id": "missing"}]
+        studies.extend({"study_id": str(index), "included": value}
+                       for index, value in enumerate((False, None, 0, 1, "true")))
+        self.assertEqual(["included"], resolve_target_ids(
+            {"unit": "study", "source_artifact": "studies.json", "selection": "included"},
+            {"studies": studies}, None,
+        ))
+
+    def test_commitment_ledger_record_membership_reuses_loaded_payloads(self):
+        from codex_science import evidence
+        for records, selection, targets in (([], "included", []), ([], "all", []),
+                ([{"record_id": "R1", "decision": "include"}, {"record_id": "R2", "decision": "exclude"}], "included", ["R1"]),
+                ([{"record_id": "R1", "decision": "include"}, {"record_id": "R2", "decision": "exclude"}], "all", ["R1", "R2"])):
+            with self.subTest(selection=selection, targets=targets), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                self._write_screening(manifest, run_dir, records)
+                procedure = self._ledger_procedure()
+                procedure.update(target_set={"unit": "record", "source_artifact": "screening.json", "selection": selection},
+                                 target_ids=targets, denominator=len(targets), completed_count=len(targets),
+                                 completed=[{"target_id": item, "evidence_artifact": "screening.json"} for item in targets])
+                other = copy.deepcopy(procedure)
+                other["id"] = "second-procedure"
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure, other]})
+                with patch.object(evidence, "_load_json", wraps=evidence._load_json) as load:
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                names = [call.args[0].name for call in load.call_args_list]
+                self.assertEqual(1, names.count("screening.json"))
+                self.assertEqual(1, names.count("studies.json"))
+
+    def test_commitment_ledger_rejects_malformed_screening(self):
+        for payload in ({}, {"schema": "other", "records": []},
+                {"schema": "screening-table-v1", "records": None},
+                {"schema": "screening-table-v1", "records": [None]},
+                {"schema": "screening-table-v1", "records": [{"record_id": "", "decision": "include"}]},
+                {"schema": "screening-table-v1", "records": [{"record_id": "R1", "decision": "bad"}]},
+                {"schema": "screening-table-v1", "records": [{"record_id": "R1", "decision": "include"}] * 2}):
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                self._write_screening(manifest, run_dir, [])
+                (run_dir / "screening.json").write_text(json.dumps(payload), encoding="utf-8")
+                self._rehash(manifest, run_dir, "screening.json")
+                procedure = self._ledger_procedure()
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                with self.assertRaisesRegex(ValueError, "screening.json"):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_rejects_invalid_closure_fields(self):
+        cases = [({"target_ids": ["study-example-1", None]}, "target_ids"),
+                 ({"target_ids": ["study-example-1", "study-example-1"]}, "target_ids"),
+                 ({"target_set": {"unit": [], "source_artifact": "studies.json", "selection": "included"}}, "target_set")]
+        for field in ("denominator", "completed_count"):
+            cases.extend(({field: value}, field) for value in (None, True, -1, 0, 1.5, "1"))
+        for update, message in cases:
+            with self.subTest(update=update), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                procedure = self._ledger_procedure()
+                procedure.update(update)
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_deviation_needs_claim_register_or_no_impact(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            limitation = "No reference lists were screened."
+            (run_dir / "report.md").write_text(limitation, encoding="utf-8")
+            self._rehash(manifest, run_dir, "report.md")
+            procedure = self._ledger_procedure()
+            procedure.update(completed=[], completed_count=0, deviation={
+                "reason": "References unavailable.",
+                "affected_claims": [{"claim_id": "claim-method-effect", "limitation": limitation}],
+            })
+            manifest["artifacts"] = [item for item in manifest["artifacts"] if item["kind"] != "claim-register"]
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            procedure["deviation"]["affected_claims"][0]["claim_id"] = "unknown-claim"
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaisesRegex(ValueError, "unknown-claim.*claims.json"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            for reason in (None, "", "No material claim depends on this procedure."):
+                with self.subTest(reason=reason):
+                    procedure["deviation"] = {"reason": "References unavailable.", "no_claim_impact_reason": reason}
+                    self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                    if reason:
+                        validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                    else:
+                        with self.assertRaisesRegex(ValueError, "no_claim_impact_reason"):
+                            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_ignores_markdown_protocols(self):
+        for with_json in (False, True):
+            with self.subTest(with_json=with_json), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                record = next(item for item in manifest["artifacts"] if item["kind"] == "protocol")
+                record["path"] = "protocol.md"
+                (run_dir / "protocol.md").write_text("# Frozen protocol\nMarkdown remains supported.\n", encoding="utf-8")
+                self._rehash(manifest, run_dir, "protocol.md")
+                if with_json:
+                    manifest["artifacts"].append({"kind": "protocol", "path": "protocol.json", "sha256": "0" * 64})
+                    self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [self._ledger_procedure()]})
+                sidecars = validate_bundle(manifest, run_dir)
+                self.assertEqual(with_json, "protocol_commitment_context" in sidecars)
+
+    def test_commitment_ledger_source_ids_require_strings(self):
+        for kind, relative, field in (("record", "screening.json", "record_id"),
+                                      ("study", "studies.json", "study_id")):
+            for value in (0, 5, None, ["x"]):
+                with self.subTest(kind=kind, value=value), tempfile.TemporaryDirectory() as tempdir:
+                    run_dir, manifest = self._copy_example(Path(tempdir))
+                    omitted = []
+                    if kind == "record":
+                        self._write_screening(manifest, run_dir, [{"record_id": value, "decision": "include"}])
+                    else:
+                        payload = json.loads((run_dir / relative).read_text(encoding="utf-8"))
+                        payload["studies"][0][field] = value
+                        (run_dir / relative).write_text(json.dumps(payload), encoding="utf-8")
+                        self._rehash(manifest, run_dir, relative)
+                        omitted = [item for item in manifest["artifacts"] if item["kind"] in {"evidence-graph", "lane-receipt"}]
+                        manifest["artifacts"] = [item for item in manifest["artifacts"] if item not in omitted]
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                    manifest["artifacts"].extend(omitted)
+                    procedure = self._ledger_procedure()
+                    procedure["target_set"] = {"unit": kind, "source_artifact": relative, "selection": "included"}
+                    self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                    with self.assertRaises(ValueError) as raised:
+                        validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                    message = str(raised.exception)
+                    for detail in ("test-procedure", field, "expected: string", repr(value)):
+                        self.assertIn(detail, message)
+
+        for unit, field in (("record", "record_id"), ("study", "study_id")):
+            for value in ("", "   "):
+                with self.subTest(unit=unit, empty=value):
+                    row = {field: value, "decision": "include", "included": True}
+                    with self.assertRaisesRegex(ValueError, "empty-source.*" + field + ".*expected: string"):
+                        resolve_target_ids(
+                            {"unit": unit, "selection": "included"},
+                            {"studies": [row]}, {"records": [row]}, procedure_id="empty-source",
+                        )
+
+    def test_commitment_ledger_empty_procedures_require_schema_one(self):
+        for version in (None, 0, 2, "1", {}, []):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                self._write_ledger(manifest, run_dir, {"schema_version": version, "procedures": []})
+                with self.assertRaisesRegex(ValueError, "commitment_ledger.*schema_version.*1"):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_completed_ids_are_trimmed(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._ledger_procedure()
+            procedure["target_ids"] = [" study-example-1 "]
+            procedure["completed"][0]["target_id"] = "  study-example-1\t"
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            procedure["completed"].append({"target_id": "study-example-1", "evidence_artifact": "studies.json"})
+            procedure["completed_count"] = 2
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaisesRegex(ValueError, "duplicate target_id"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            for value in ("", "   ", None, 5):
+                with self.subTest(value=value):
+                    procedure["completed"] = [{"target_id": value, "evidence_artifact": "studies.json"}]
+                    procedure["completed_count"] = 1
+                    self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                    with self.assertRaisesRegex(ValueError, "target_id.*non-empty string"):
+                        validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_requires_unambiguous_source_artifacts(self):
+        for kind in ("screening-table", "report"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                procedure = self._ledger_procedure()
+                if kind == "screening-table":
+                    self._write_screening(manifest, run_dir, [])
+                    procedure.update(target_set={"unit": "record", "source_artifact": "screening.json", "selection": "all"},
+                                     target_ids=[], denominator=0, completed=[], completed_count=0)
+                    original, extra = "screening.json", "screening-extra.json"
+                else:
+                    limitation = "Reference screening was unavailable."
+                    (run_dir / "report.md").write_text(limitation, encoding="utf-8")
+                    self._rehash(manifest, run_dir, "report.md")
+                    procedure.update(completed=[], completed_count=0, deviation={
+                        "reason": "References unavailable.",
+                        "affected_claims": [{"claim_id": "claim-method-effect", "limitation": limitation}],
+                    })
+                    original, extra = "report.md", "report-extra.md"
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                (run_dir / extra).write_bytes((run_dir / original).read_bytes())
+                manifest["artifacts"].append({"kind": kind, "path": extra,
+                    "sha256": hashlib.sha256((run_dir / extra).read_bytes()).hexdigest()})
+                with self.assertRaisesRegex(ValueError, kind):
+                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                if kind == "report":
+                    procedure["deviation"] = {"reason": "No coverage.", "no_claim_impact_reason": "No material claim depends on it."}
+                    procedures = [procedure]
+                else:
+                    procedures = []
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": procedures})
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def _verified(self, manifest, run_dir):
+        from codex_science.artifacts import verify_bundle_artifacts
+        return verify_bundle_artifacts(manifest, run_dir)
 
 if __name__ == "__main__":
     unittest.main()

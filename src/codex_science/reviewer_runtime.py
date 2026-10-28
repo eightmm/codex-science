@@ -318,6 +318,8 @@ def build_review_packet(
         },
         "evidence_boundary": "This packet exposes recorded run evidence while excluding producer-only rationale fields. It does not authenticate the reviewer, guarantee true independence, or include unrecorded evidence."
     }
+    if isinstance(sidecars.get("protocol_commitment_context"), dict):
+        material["protocol_commitment_context"] = _redact(sidecars["protocol_commitment_context"])
     if sidecars.get("research_cycles"):
         material["research_cycles"] = _redact(sidecars["research_cycles"])
         material["review_questions"].extend([

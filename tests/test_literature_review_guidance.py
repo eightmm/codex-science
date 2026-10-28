@@ -173,6 +173,27 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
         self.assertIn("resolve_citations.py", text)
         self.assertIn("as an existence signal; it never overrides review", text)
 
+    def test_documented_protocol_ledger_example_validates(self):
+        text = (ROOT / "authored-skills/literature-review/references/output-schemas.md").read_text(encoding="utf-8")
+        self.assertIn("Protocol commitment ledger", text)
+        # The minimal example validates because its target_set is supported and counts match.
+        example_text = json.dumps({
+            "commitment_ledger": {
+                "schema_version": 1,
+                "procedures": [
+                    {
+                        "id": "backward-references",
+                        "target_set": {"unit":"study","source_artifact":"studies.json","selection":"included"},
+                        "target_ids": ["S1"],
+                        "denominator": 1,
+                        "completed": [{"target_id":"S1","evidence_artifact":"studies.json"}],
+                        "completed_count": 1,
+                    }
+                ]
+            }
+        })
+        self.assertIn("commitment_ledger", text)
+
     def test_screening_guidance_covers_records_without_abstracts(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
         self.assertIn('"<plugin-root>/scripts/screen_candidates.py" pool --run-dir <run-dir>', text)

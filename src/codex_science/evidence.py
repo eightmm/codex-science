@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from codex_science.rigor import CLAIM_STRENGTHS
+from codex_science import commitment_ledger
 
 
 SIDECAR_KINDS = {
@@ -476,6 +477,33 @@ def load_sidecars(
     return loaded
 
 
+def _verified_artifact_path(
+    manifest: dict[str, Any], verified: dict[str, Path], kind: str, *, suffix: str | None = None,
+) -> Path | None:
+    paths = [
+        verified[record["path"]] for record in manifest.get("artifacts", [])
+        if record.get("kind") == kind and record.get("path") in verified
+        and (suffix is None or record["path"].endswith(suffix))
+    ]
+    if kind in {"screening-table", "report"} and len(paths) > 1:
+        raise ValueError(f"commitment_ledger requires only one {kind} artifact; actual: {len(paths)}")
+    return paths[0] if paths else None
+
+
+def _validate_screening_table(payload: dict[str, Any]) -> None:
+    if payload.get("schema") != "screening-table-v1":
+        raise ValueError("screening.json schema must be screening-table-v1")
+    seen: set[str] = set()
+    for index, raw in enumerate(_list(payload.get("records"), "screening.json records")):
+        record = _mapping(raw, f"screening.json record {index}")
+        record_id = _text(record.get("record_id"), f"screening.json record {index} record_id")
+        if record_id in seen:
+            raise ValueError(f"screening.json duplicate record_id: {record_id}")
+        seen.add(record_id)
+        if record.get("decision") not in ("include", "exclude", "awaiting-full-text"):
+            raise ValueError(f"screening.json record {record_id} has invalid decision: {_bounded_field_repr(record, 'decision')}")
+
+
 def validate_sidecars(
     manifest: dict[str, Any],
     run_dir: Path,
@@ -541,15 +569,49 @@ def validate_sidecars(
                     raise ValueError(
                         f"Study {study_id} references unknown claims in {field}: {sorted(unknown)}"
                     )
-        if node_by_id:
-            graph_study_ids = {
-                node_id for node_id, node in node_by_id.items() if node.get("type") == "study"
-            }
-            if graph_study_ids != set(study_by_id):
-                raise ValueError(
-                    "Evidence graph study nodes differ from study table: "
-                    f"expected={sorted(study_by_id)} actual={sorted(graph_study_ids)}"
-                )
+    protocol_path = _verified_artifact_path(manifest, verified, "protocol", suffix=".json")
+    if protocol_path is not None:
+        protocol = _load_json(protocol_path, "protocol")
+        if "commitment_ledger" in protocol:
+            ledger = protocol["commitment_ledger"]
+            if not isinstance(ledger, dict):
+                raise ValueError("protocol.json commitment_ledger must be an object; actual: " + type(ledger).__name__)
+            procedures = ledger.get("procedures")
+            screening = None
+            if procedures != []:
+                screening_path = _verified_artifact_path(manifest, verified, "screening-table")
+                if screening_path is not None:
+                    screening = _load_json(screening_path, "screening.json")
+                    _validate_screening_table(screening)
+            needs_report = isinstance(procedures, list) and any(
+                isinstance(procedure, dict)
+                and isinstance(procedure.get("completed_count"), int)
+                and isinstance(procedure.get("denominator"), int)
+                and procedure["completed_count"] < procedure["denominator"]
+                and isinstance(procedure.get("deviation"), dict)
+                and procedure["deviation"].get("affected_claims")
+                for procedure in procedures
+            )
+            context = commitment_ledger.validate_ledger(
+                ledger,
+                study_table_payload=loaded["study_table"],
+                screening_payload=screening,
+                claim_ids=set(claim_by_id) or manifest_claim_ids,
+                verified=verified,
+                report_path=_verified_artifact_path(manifest, verified, "report") if needs_report else None,
+            )
+            if context["procedures"]:
+                loaded["protocol_commitment_context"] = context
+
+    if loaded["study_table"] is not None and node_by_id:
+        graph_study_ids = {
+            node_id for node_id, node in node_by_id.items() if node.get("type") == "study"
+        }
+        if graph_study_ids != set(study_by_id):
+            raise ValueError(
+                "Evidence graph study nodes differ from study table: "
+                f"expected={sorted(study_by_id)} actual={sorted(graph_study_ids)}"
+            )
 
     lane_ids: set[str] = set()
     known_claims = set(claim_by_id) or manifest_claim_ids
