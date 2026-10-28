@@ -569,39 +569,59 @@ def validate_sidecars(
                     raise ValueError(
                         f"Study {study_id} references unknown claims in {field}: {sorted(unknown)}"
                     )
-    protocol_path = _verified_artifact_path(manifest, verified, "protocol", suffix=".json")
-    if protocol_path is not None:
-        protocol = _load_json(protocol_path, "protocol")
+    protocols: list[tuple[str, dict[str, Any]]] = []
+    for record in manifest.get("artifacts", []):
+        relative = record.get("path")
+        if record.get("kind") != "protocol" or relative not in verified or not relative.endswith(".json"):
+            continue
+        raw = verified[relative].read_text(encoding="utf-8")
+        try:
+            protocol = json.loads(raw)
+        except json.JSONDecodeError as error:
+            if "commitment_ledger" in raw:
+                raise ValueError(f"Invalid JSON in protocol: {relative}: {error}") from error
+            continue
+        if not isinstance(protocol, dict):
+            if "commitment_ledger" in raw:
+                raise ValueError(f"protocol {relative} must be an object to declare commitment_ledger")
+            continue
         if "commitment_ledger" in protocol:
-            ledger = protocol["commitment_ledger"]
-            if not isinstance(ledger, dict):
-                raise ValueError("protocol.json commitment_ledger must be an object; actual: " + type(ledger).__name__)
-            procedures = ledger.get("procedures")
-            screening = None
-            if procedures != []:
-                screening_path = _verified_artifact_path(manifest, verified, "screening-table")
-                if screening_path is not None:
-                    screening = _load_json(screening_path, "screening.json")
-                    _validate_screening_table(screening)
-            needs_report = isinstance(procedures, list) and any(
-                isinstance(procedure, dict)
-                and isinstance(procedure.get("completed_count"), int)
-                and isinstance(procedure.get("denominator"), int)
-                and procedure["completed_count"] < procedure["denominator"]
-                and isinstance(procedure.get("deviation"), dict)
-                and procedure["deviation"].get("affected_claims")
-                for procedure in procedures
-            )
-            context = commitment_ledger.validate_ledger(
-                ledger,
-                study_table_payload=loaded["study_table"],
-                screening_payload=screening,
-                claim_ids=set(claim_by_id) or manifest_claim_ids,
-                verified=verified,
-                report_path=_verified_artifact_path(manifest, verified, "report") if needs_report else None,
-            )
-            if context["procedures"]:
-                loaded["protocol_commitment_context"] = context
+            protocols.append((relative, protocol))
+    if len(protocols) > 1:
+        raise ValueError(
+            f"commitment_ledger is declared in {len(protocols)} protocol artifacts: "
+            f"{sorted(relative for relative, _ in protocols)}; must be declared in exactly one"
+        )
+    if protocols:
+        ledger = protocols[0][1]["commitment_ledger"]
+        if not isinstance(ledger, dict):
+            raise ValueError("protocol.json commitment_ledger must be an object; actual: " + type(ledger).__name__)
+        procedures = ledger.get("procedures")
+        screening = None
+        if procedures != []:
+            screening_path = _verified_artifact_path(manifest, verified, "screening-table")
+            if screening_path is not None:
+                screening = _load_json(screening_path, "screening.json")
+                _validate_screening_table(screening)
+        needs_report = isinstance(procedures, list) and any(
+            isinstance(procedure, dict)
+            and isinstance(procedure.get("completed_count"), int)
+            and isinstance(procedure.get("denominator"), int)
+            and procedure["completed_count"] < procedure["denominator"]
+            and isinstance(procedure.get("deviation"), dict)
+            and procedure["deviation"].get("affected_claims")
+            for procedure in procedures
+        )
+        context = commitment_ledger.validate_ledger(
+            ledger,
+            study_table_payload=loaded["study_table"],
+            screening_payload=screening,
+            claim_ids=set(claim_by_id) or manifest_claim_ids,
+            verified=verified,
+            report_path=_verified_artifact_path(manifest, verified, "report") if needs_report else None,
+        )
+        if context["procedures"]:
+            loaded["protocol_commitment_context"] = context
 
     if loaded["study_table"] is not None and node_by_id:
         graph_study_ids = {

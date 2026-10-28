@@ -522,8 +522,14 @@ class EvidenceSidecarTests(unittest.TestCase):
     def test_legacy_fixture_unchanged_has_no_ledger_context(self):
         with tempfile.TemporaryDirectory() as tempdir:
             run_dir, manifest = self._copy_example(Path(tempdir))
-            sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
-            self.assertNotIn("protocol_commitment_context", sidecars)
+            protocol_path = run_dir / "protocol.json"
+            original = protocol_path.read_text(encoding="utf-8")
+            for contents in (original, "[]", '"legacy protocol"', "null", "0", "false", "{", ""):
+                with self.subTest(contents=contents):
+                    protocol_path.write_text(contents, encoding="utf-8")
+                    self._rehash(manifest, run_dir, "protocol.json")
+                    sidecars = validate_bundle(manifest, run_dir)
+                    self.assertNotIn("protocol_commitment_context", sidecars)
 
     def test_unknown_target_set_refused(self):
         with tempfile.TemporaryDirectory() as tempdir:
@@ -604,7 +610,9 @@ class EvidenceSidecarTests(unittest.TestCase):
                     validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
 
     def test_commitment_ledger_rejects_malformed_json(self):
-        for relative, contents in (("protocol.json", "{"), ("protocol.json", "[]"),
+        for relative, contents in (("protocol.json", '{"commitment_ledger":'),
+                                   ("protocol.json", '["commitment_ledger"]'),
+                                   ("protocol.json", '"commitment_ledger"'),
                                    ("screening.json", "{"), ("screening.json", "[]"),
                                    ("studies.json", "{")):
             with self.subTest(relative=relative, contents=contents), tempfile.TemporaryDirectory() as tempdir:
@@ -616,8 +624,8 @@ class EvidenceSidecarTests(unittest.TestCase):
                 self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
                 (run_dir / relative).write_text(contents, encoding="utf-8")
                 self._rehash(manifest, run_dir, relative)
-                with self.assertRaises(ValueError):
-                    validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                with self.assertRaisesRegex(ValueError, relative):
+                    validate_bundle(manifest, run_dir)
 
     def test_commitment_ledger_namespace_shape_and_empty_procedures(self):
         for ledger in (None, [], False, 0, "", {}, {"schema_version": 1},
@@ -839,6 +847,63 @@ class EvidenceSidecarTests(unittest.TestCase):
                     procedures = []
                 self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": procedures})
                 validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_protocol_revisions_are_order_independent(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._ledger_procedure()
+            procedure.update(completed=[], completed_count=0)
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaisesRegex(ValueError, "deviation is required.*study-example-1") as raised:
+                validate_bundle(manifest, run_dir)
+            shortfall = str(raised.exception)
+            original = next(item for item in manifest["artifacts"] if item["kind"] == "protocol")
+            extra = {"kind": "protocol", "path": "protocol-extra.json"}
+            manifest["artifacts"].append(extra)
+            for contents in ("{}", "[]", "{"):
+                (run_dir / extra["path"]).write_text(contents, encoding="utf-8")
+                self._rehash(manifest, run_dir, extra["path"])
+                for ledger_first in (False, True):
+                    with self.subTest(contents=contents, ledger_first=ledger_first):
+                        protocols = [original, extra] if ledger_first else [extra, original]
+                        manifest["artifacts"] = protocols + [
+                            item for item in manifest["artifacts"] if item["kind"] != "protocol"
+                        ]
+                        with self.assertRaises(ValueError) as raised:
+                            validate_bundle(manifest, run_dir)
+                        self.assertEqual(shortfall, str(raised.exception))
+            procedure["completed"] = self._ledger_procedure()["completed"]
+            procedure["completed_count"] = 1
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            for protocols in ([extra, original], [original, extra]):
+                with self.subTest(paths=[item["path"] for item in protocols]):
+                    manifest["artifacts"] = protocols + [
+                        item for item in manifest["artifacts"] if item["kind"] != "protocol"
+                    ]
+                    sidecars = validate_bundle(manifest, run_dir)
+                    self.assertEqual("test-procedure", sidecars["protocol_commitment_context"]["procedures"][0]["id"])
+
+    def test_commitment_ledger_requires_exactly_one_declaring_protocol(self):
+        for count in (2, 3):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": []})
+                paths = ["protocol.json"]
+                for index in range(1, count):
+                    relative = f"protocol-revision-{index}.json"
+                    paths.append(relative)
+                    (run_dir / relative).write_bytes((run_dir / "protocol.json").read_bytes())
+                    manifest["artifacts"].append({"kind": "protocol", "path": relative})
+                    self._rehash(manifest, run_dir, relative)
+                for reverse in (False, True):
+                    with self.subTest(reverse=reverse):
+                        manifest["artifacts"].reverse()
+                        with self.assertRaisesRegex(ValueError, f"commitment_ledger is declared in {count} protocol artifacts") as raised:
+                            validate_bundle(manifest, run_dir)
+                        message = str(raised.exception)
+                        self.assertIn("must be declared in exactly one", message)
+                        for relative in paths:
+                            self.assertIn(relative, message)
 
     def _verified(self, manifest, run_dir):
         from codex_science.artifacts import verify_bundle_artifacts
