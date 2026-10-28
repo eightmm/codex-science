@@ -25,7 +25,7 @@ When a reference controls artifact registration or review, save a `reference-use
 ## Run contract
 
 1. Use a stable run ID. Create a new run when the question, estimand, baseline, metric, data split, success threshold, or intended decision changes.
-2. Record the exact research question, decision context, deliverable, evidence cutoff, non-goals, approved plan, objective done criteria, and every material assumption. Mark plan steps `completed`, `pending`, or `blocked`.
+2. Record the exact research question, decision context, deliverable, evidence cutoff, non-goals, approved plan, objective done criteria, and every material assumption. Initially mark plan steps `pending` or `blocked`; complete finished steps with `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/package_run.py" refresh --run-dir <run-dir> --complete-step <id>`. Do not hand-edit the manifest.
 3. Give each planned claim a stable ID before synthesis. Record its type, permitted inference level, required support, falsifier, dependencies, and final status.
 4. For parallel work, save a lane receipt for each evidence or execution lane: normalized inputs, sources or code revision, exact queries or commands, included and excluded records, outputs, hashes, supported and contradicted claim IDs, limitations, confidence, and next action.
 

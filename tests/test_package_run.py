@@ -390,6 +390,133 @@ class PackageRunTests(unittest.TestCase):
         validation = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"), str(self.run_dir / "manifest.json")], text=True, capture_output=True, check=False)
         self.assertEqual(validation.returncode, 0, validation.stderr)
 
+    def test_refresh_completes_plan_steps_and_reports_ids(self) -> None:
+        self._make_unreviewed_run()
+        path = self.run_dir / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["plan"][0]["status"] = "pending"
+        manifest["plan"][1]["status"] = "blocked"
+        manifest["plan"].append({"id": "protocol", "description": "Second matching record", "status": "pending", "order": 9})
+        manifest["plan"].append({"id": "0", "description": "Zero is a string ID", "status": "pending"})
+        expected = [{**step, "status": "completed"} if step["id"] in {"protocol", "search", "0"} else step
+                    for step in manifest["plan"]]
+        path.write_text(json.dumps(manifest) + "\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--complete-step", "search",
+                          "--complete-step", "protocol", "--complete-step", "search", "--complete-step", "0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(path.read_text())["plan"], expected)
+        self.assertEqual(json.loads(result.stdout)["completed_steps"], ["search", "protocol", "0"])
+        self.assertFalse(any(item["code"] == "incomplete-plan" for item in
+                             review_manifest(json.loads(path.read_text()), self.run_dir)["findings"]))
+
+    def test_refresh_unknown_complete_step_changes_no_files(self) -> None:
+        base = ("refresh", "--run-dir", str(self.run_dir), "--invalidate-review", "--complete-step", "protocol")
+        for identifier in ("missing", "", " ", "0", "protocol?[]"):
+            with self.subTest(identifier=identifier):
+                before = {p.relative_to(self.run_dir): p.read_bytes() for p in self.run_dir.rglob("*") if p.is_file()}
+                result = self.cli(*base, "--complete-step", identifier)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(f"Unknown plan step IDs: {identifier!r}; known step IDs:", result.stderr)
+                for known in ("protocol", "search", "extract", "synthesize"):
+                    self.assertIn(repr(known), result.stderr)
+                self.assertTrue(result.stderr.rstrip().endswith("; no files were changed"), result.stderr)
+                self.assertEqual({p.relative_to(self.run_dir): p.read_bytes() for p in self.run_dir.rglob("*") if p.is_file()}, before)
+        path = self.run_dir / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["plan"] = []
+        path.write_text(json.dumps(manifest) + "\n")
+        before_bytes = path.read_bytes()
+        result = self.cli(*base)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("known step IDs: (none)", result.stderr)
+        self.assertEqual(path.read_bytes(), before_bytes)
+
+    def test_refresh_complete_step_refuses_malformed_plan(self) -> None:
+        self._make_unreviewed_run()
+        path = self.run_dir / "manifest.json"
+        manifest = json.loads(path.read_text())
+        for plan in ({}, [None]):
+            with self.subTest(plan=plan):
+                manifest["plan"] = plan
+                path.write_text(json.dumps(manifest) + "\n")
+                before = path.read_bytes()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--complete-step", "protocol")
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("Manifest plan must be a list of step objects", result.stderr)
+                self.assertTrue(result.stderr.rstrip().endswith("; no files were changed"), result.stderr)
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_refresh_completed_step_is_noop(self) -> None:
+        self._make_unreviewed_run()
+        initial = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertEqual(initial.returncode, 0, initial.stderr)
+        self.assertEqual(json.loads(initial.stdout)["completed_steps"], [])
+        path = self.run_dir / "manifest.json"
+        before = path.read_bytes()
+        for _ in range(2):
+            result = self.cli("refresh", "--run-dir", str(self.run_dir), "--complete-step", "protocol")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["completed_steps"], [])
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_refresh_complete_step_refuses_receipt_registration(self) -> None:
+        error = self._refused_register("--run-dir", str(self.run_dir), "--complete-step", "protocol",
+                                       "--register-receipt", "review.json")
+        self.assertIn("--register-receipt cannot be combined with refresh options (--complete-step)", error)
+        self.assertIn("rerun with only --run-dir and --register-receipt", error)
+
+    def test_refresh_complete_step_keeps_review_guard(self) -> None:
+        path = self.run_dir / "manifest.json"
+        manifest = json.loads(path.read_text())
+        for status in ("pending", "completed"):
+            with self.subTest(status=status):
+                manifest["plan"][0]["status"] = status
+                path.write_text(json.dumps(manifest) + "\n")
+                before = self._snapshot()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--complete-step", "protocol")
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("Run has independent review evidence", result.stderr)
+                self.assertEqual(self._snapshot(), before)
+
+    def test_refresh_complete_step_combines_options_transactionally(self) -> None:
+        path = self.run_dir / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["plan"][0]["status"] = "pending"
+        manifest["artifacts"].append({"path": "retired.txt", "kind": "provenance-record", "sha256": "0" * 64})
+        path.write_text(json.dumps(manifest) + "\n")
+        (self.run_dir / "extra.txt").write_text("extra\n")
+        (self.run_dir / "notes.txt").write_text("notes\n")
+        base = ("refresh", "--run-dir", str(self.run_dir), "--invalidate-review", "--complete-step", "protocol",
+                "--kind", "extra.txt=report", "--default-kind", "provenance-record")
+        before = self._snapshot()
+        refused = self.cli(*base, "--forget", "absent.txt")
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn("--forget", refused.stderr)
+        self.assertEqual(self._snapshot(), before)
+        result = self.cli(*base, "--forget", "retired.txt")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout.splitlines()[-1])
+        self.assertEqual(summary["completed_steps"], ["protocol"])
+        self.assertEqual(summary["forgotten"], ["retired.txt"])
+        manifest = json.loads(path.read_text())
+        self.assertEqual(manifest["plan"][0]["status"], "completed")
+        self.assertEqual(manifest["review"]["status"], "pending")
+        kinds = {item["path"]: item["kind"] for item in manifest["artifacts"]}
+        self.assertEqual(kinds["extra.txt"], "report")
+        self.assertEqual(kinds["notes.txt"], "provenance-record")
+        self.assertTrue((self.run_dir / summary["review_archive"] / "review.json").is_file())
+
+    def test_refresh_complete_step_help_and_guidance(self) -> None:
+        result = self.cli("refresh", "--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--complete-step ID", result.stdout)
+        self.assertIn("completed_steps", result.stdout)
+        command = '"<plugin-root>/scripts/package_run.py" refresh --run-dir <run-dir> --complete-step <id>'
+        for relative in ("authored-skills/literature-review/SKILL.md", "runtime-skills/codex-science/SKILL.md",
+                         "runtime-skills/science-provenance/SKILL.md"):
+            with self.subTest(relative=relative):
+                self.assertIn(command, (ROOT / relative).read_text())
+
     def _write_review_flow_files(self) -> list[str]:
         files = {
             "review-task.json": {

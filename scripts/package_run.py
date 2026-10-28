@@ -47,6 +47,9 @@ def main() -> int:
     update.add_argument("--forget", action="append", default=[], metavar="PATH",
                         help="remove the manifest entry for a file that was renamed or deleted on purpose (run-relative PATH); "
                         "refused if the file still exists, is not a manifest artifact, or is listed as claim evidence; repeatable")
+    update.add_argument("--complete-step", action="append", default=[], metavar="ID",
+                        help="set matching manifest plan steps to completed; repeatable, already completed steps are unchanged; "
+                        "newly completed IDs appear in the summary's completed_steps list")
     update.add_argument("--register-receipt", metavar="PATH",
                         help="register a passed review receipt (run-relative path) instead of refreshing; cannot be combined with other refresh options")
     ready = commands.add_parser("prepare-review", help="run deterministic gates and build an independent review packet")
@@ -83,13 +86,15 @@ def main() -> int:
         if args.register_receipt:
             given = (["--kind"] if overrides else []) + (["--default-kind"] if args.default_kind else []) \
                 + (["--forget"] if args.forget else []) \
+                + (["--complete-step"] if args.complete_step else []) \
                 + (["--invalidate-review"] if args.invalidate_review else [])
             if given:
                 raise ValueError(f"--register-receipt cannot be combined with refresh options ({', '.join(given)}); "
                                  "rerun with only --run-dir and --register-receipt")
             summary = register_receipt(args.run_dir, args.register_receipt)
         else:
-            summary = refresh(args.run_dir, overrides, args.invalidate_review, args.default_kind, args.forget)
+            summary = refresh(args.run_dir, overrides, args.invalidate_review, args.default_kind, args.forget,
+                              complete_steps=args.complete_step)
         print(json.dumps(summary, sort_keys=True))
     except (OSError, ValueError, json.JSONDecodeError) as error:
         suffix = "; no files were changed" if args.action == "refresh" else ""

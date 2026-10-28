@@ -575,7 +575,8 @@ def _forget_artifacts(
 
 
 def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: bool = False, default_kind: str | None = None,
-            forget: list[str] | None = None, reclassify: list[tuple[str, str]] | None = None) -> dict[str, Any]:
+            forget: list[str] | None = None, reclassify: list[tuple[str, str]] | None = None,
+            *, complete_steps: list[str] | None = None) -> dict[str, Any]:
     # Only user-supplied exact-path overrides may change the kind of an existing entry.
     exact_overrides = {
         _canonical_relative(pattern): kind
@@ -589,6 +590,22 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("Manifest must be a JSON object")
+    completed_steps: list[str] = []
+    requested_steps = list(dict.fromkeys(complete_steps or []))
+    if requested_steps:
+        plan = manifest.get("plan")
+        if not isinstance(plan, list) or any(not isinstance(step, dict) for step in plan):
+            raise ValueError("Manifest plan must be a list of step objects")
+        known_ids = list(dict.fromkeys(step["id"] for step in plan if isinstance(step.get("id"), str)))
+        unknown = [identifier for identifier in requested_steps if identifier not in known_ids]
+        if unknown:
+            raise ValueError("Unknown plan step IDs: " + ", ".join(repr(identifier) for identifier in unknown)
+                             + "; known step IDs: " + (", ".join(repr(identifier) for identifier in known_ids) or "(none)"))
+        completed_steps = [identifier for identifier in requested_steps
+                           if any(step.get("id") == identifier and step.get("status") != "completed" for step in plan)]
+        for step in plan:
+            if step.get("id") in requested_steps:
+                step["status"] = "completed"
     record_runtime_identity(manifest)
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
@@ -863,7 +880,8 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         path.relative_to(run_dir).as_posix() for path in deterministic_files
         if _canonical_relative(path.relative_to(run_dir).as_posix()) not in archived_deterministic
     ]
-    return {"added": added, "forgotten": forgotten, "reclassified": reclassified, "rehashed_changed": changed,
+    return {"added": added, "forgotten": forgotten, "completed_steps": completed_steps,
+            "reclassified": reclassified, "rehashed_changed": changed,
             "unchanged_count": unchanged, "lanes_updated": lanes_updated, "executions_added": executions_added,
             "code_entries": len(manifest["code"]), "review_archive": review_archive,
             "superseded_failures": superseded_failures,
