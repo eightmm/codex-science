@@ -207,6 +207,10 @@ def build_preview(adapter: ConnectorActionAdapter, spec: ActionSpec, *, created_
     return {**material, "preview_id": f"preview-{fingerprint[:20]}", "fingerprint": fingerprint}
 
 
+class _ExpectedBeforeStateMismatch(ValueError):
+    """Let execution preserve its existing error for this validation failure."""
+
+
 def validate_preview(payload: Mapping[str, Any], spec: ActionSpec | None = None) -> None:
     if payload.get("schema_version") != 1 or payload.get("status") != "preview" or payload.get("executed") is not False:
         raise ValueError("invalid action preview state")
@@ -235,6 +239,8 @@ def validate_preview(payload: Mapping[str, Any], spec: ActionSpec | None = None)
             expected = list(spec.requested_scopes) if field == "requested_scopes" else getattr(spec, field)
             if _canonical_bytes(payload.get(field)) != _canonical_bytes(expected):
                 raise ValueError(f"action preview {field} does not match spec")
+        if spec.expected_before_sha256 is not None and payload.get("before_state_sha256") != spec.expected_before_sha256:
+            raise _ExpectedBeforeStateMismatch("action preview before_state_sha256 does not match spec.expected_before_sha256")
 
 
 def build_action_approval(preview: Mapping[str, Any], *, approved_by: str, approved_scopes: list[str], approved_at: str | None = None) -> dict[str, Any]:
@@ -342,7 +348,10 @@ def execute_action(
         raise ValueError("write actions must require approval")
     if spec.destructive and spec.mode != "write":
         raise ValueError("destructive actions must use write mode")
-    validate_preview(preview, spec)
+    try:
+        validate_preview(preview, spec)
+    except _ExpectedBeforeStateMismatch as error:
+        raise ValueError("current remote state does not match expected_before_sha256") from error
     if adapter.connector_name != spec.connector:
         raise ValueError("adapter connector does not match action spec")
     if approval is None:
@@ -434,6 +443,10 @@ def validate_action_receipt(
     fingerprint = material.pop("fingerprint", "")
     if _fingerprint(material) != fingerprint:
         raise ValueError("action receipt fingerprint mismatch")
+    if _fingerprint(payload.get("after_state")) != payload.get("after_state_sha256"):
+        raise ValueError("action receipt after_state does not match after_state_sha256")
+    if "before_state" in payload and _fingerprint(payload["before_state"]) != payload.get("before_state_sha256"):
+        raise ValueError("action receipt before_state does not match before_state_sha256")
     if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
         raise ValueError("action receipt covers a different spec")
     mode = payload.get("mode")
@@ -451,6 +464,8 @@ def validate_action_receipt(
         for field in ("connector", "operation", "mode", "target", "idempotency_key"):
             if payload.get(field) != getattr(spec, field):
                 raise ValueError(f"action receipt {field} does not match spec")
+        if spec.expected_before_sha256 is not None and payload.get("before_state_sha256") != spec.expected_before_sha256:
+            raise _ExpectedBeforeStateMismatch("action receipt before_state_sha256 does not match spec.expected_before_sha256")
     if approval is not None and spec is not None:
         _validate_approval_state(approval)
         material = dict(approval)

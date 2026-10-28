@@ -72,6 +72,66 @@ def rehash_payload(payload: dict) -> dict:
 
 
 class ActionConnectorTests(unittest.TestCase):
+    def test_spec_expected_before_hash_binds_preview_and_receipt(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+        validate_preview(preview, spec)
+        validate_action_receipt(receipt, spec, approval)
+        for expected in ("0" * 64, "", 0, "malformed"):
+            constrained = replace(spec, expected_before_sha256=expected)
+            forged_preview = rehash_payload({**preview, "action_spec_sha256": constrained.fingerprint})
+            forged_approval = build_action_approval(forged_preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+            forged_receipt = rehash_payload({
+                **receipt, "action_spec_sha256": constrained.fingerprint,
+                "preview_id": forged_preview["preview_id"], "preview_fingerprint": forged_preview["fingerprint"],
+                "approval_fingerprint": forged_approval["fingerprint"],
+            })
+            with self.subTest(expected=expected, validator="preview"):
+                with self.assertRaisesRegex(ValueError, "action preview before_state_sha256 does not match spec.expected_before_sha256"):
+                    validate_preview(forged_preview, constrained)
+            with self.subTest(expected=expected, validator="receipt"):
+                with self.assertRaisesRegex(ValueError, "action receipt before_state_sha256 does not match spec.expected_before_sha256"):
+                    validate_action_receipt(forged_receipt, constrained, forged_approval)
+        constrained = replace(spec, expected_before_sha256=preview["before_state_sha256"])
+        honest = build_preview(FakeAdapter(), constrained)
+        validate_preview(honest, constrained)
+        honest_approval = build_action_approval(honest, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        honest_receipt = execute_action(FakeAdapter(), constrained, honest, approval=honest_approval, ledger=ActionLedger(directory / "constrained.sqlite"))
+        validate_action_receipt(honest_receipt, constrained, honest_approval)
+
+    def test_receipt_recorded_states_match_their_hashes(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+        validate_action_receipt(receipt)
+        validate_action_receipt(receipt, spec, approval)
+        with_before = rehash_payload({**receipt, "before_state": preview["before_state"]})
+        validate_action_receipt(with_before, spec, approval)
+        for field in ("after_state", "before_state"):
+            for state in ({"status": "never-executed"}, {}, [], 0, None, "malformed"):
+                with self.subTest(field=field, state=state):
+                    forged = rehash_payload({**receipt, field: state})
+                    with self.assertRaisesRegex(ValueError, f"action receipt {field} does not match {field}_sha256"):
+                        validate_action_receipt(forged, spec, approval)
+        for field, payload in (("after_state", receipt), ("before_state", with_before)):
+            with self.subTest(digest=field):
+                forged = rehash_payload({**payload, f"{field}_sha256": "0" * 64})
+                with self.assertRaisesRegex(ValueError, f"action receipt {field} does not match {field}_sha256"):
+                    validate_action_receipt(forged)
+        empty_adapter = FakeAdapter()
+        empty_preview = build_preview(empty_adapter, spec)
+        empty_approval = build_action_approval(empty_preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        with patch.object(empty_adapter, "execute", return_value={"after_state": {}}):
+            empty_receipt = execute_action(empty_adapter, spec, empty_preview, approval=empty_approval, ledger=ActionLedger(directory / "empty-after.sqlite"))
+        validate_action_receipt(empty_receipt, spec, empty_approval)
+
     def test_payload_key_sets_match_original_contract(self) -> None:
         # Frozen producer key sets from e49900c.
         expected = {
@@ -399,6 +459,8 @@ class ActionConnectorTests(unittest.TestCase):
                 spec = replace(base, expected_before_sha256=expected)
                 forged = rehash_payload({**preview, "action_spec_sha256": spec.fingerprint})
                 approval = build_action_approval(forged, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+                with self.assertRaisesRegex(ValueError, "action preview before_state_sha256 does not match spec.expected_before_sha256"):
+                    validate_preview(forged, spec)
                 self.assert_refused_before_execution(
                     FakeAdapter(), spec, forged, approval,
                     "current remote state does not match expected_before_sha256",
@@ -416,6 +478,10 @@ class ActionConnectorTests(unittest.TestCase):
         receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
         validate_action_receipt(receipt, spec)
         self.assertEqual(1, adapter.execute_count)
+        self.assert_refused_before_execution(
+            adapter, spec, preview, approval,
+            "current remote state does not match expected_before_sha256",
+        )
 
     def test_supplied_read_approval_is_validated_before_execution(self) -> None:
         spec = replace(write_spec(), mode="read", approval_required=False)

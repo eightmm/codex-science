@@ -172,6 +172,8 @@ Adapters must return the same proposal for the same spec and state, without time
 
 Proposal comparisons use canonical JSON bytes: booleans, integers and floats such as `true`, `1` and `1.0` remain distinct. Receipt approval binding always requires the exact spec and checks its requested scopes and action identity; scopes are never read from receipt fields. Approved scopes must be a list of non-empty strings covering the requested scopes; an empty list is valid when no scopes were requested. The same approval policy governs execution and receipt validation with a spec. Digests in previews, approvals and receipts must be lowercase 64-hex SHA-256 values. Hashes check content consistency and artifact bindings; they do not establish human authorization.
 
+Spec-bound preview and receipt validation also compares the recorded before-state hash with `spec.expected_before_sha256` when supplied. Receipt validation recomputes the after-state hash from `after_state` and checks the before-state body too if one is present.
+
 A repeated request with the same idempotency key and same spec returns the original receipt without another provider call, provided any supplied or required approval matches the one recorded in that receipt. Reusing the key for a different spec fails.
 
 ## Provider pack requirements
