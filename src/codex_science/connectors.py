@@ -65,6 +65,27 @@ def fetch_text(url: str) -> str:
         return _read_limited(response).decode("utf-8")
 
 
+def parse_esearch_ids(payload: Any) -> list[str]:
+    if not isinstance(payload, dict):
+        raise ValueError("NCBI ESearch response must be a JSON object")
+    top_error = payload.get("ERROR") or payload.get("error")
+    if isinstance(top_error, str) and top_error:
+        raise ValueError(f"NCBI ESearch error: {top_error}")
+    result = payload.get("esearchresult")
+    if result is None:
+        raise ValueError("NCBI ESearch response missing esearchresult")
+    if not isinstance(result, dict):
+        raise ValueError("NCBI ESearch esearchresult must be an object")
+    if isinstance(result.get("ERROR"), str) and result.get("ERROR"):
+        raise ValueError(f"NCBI ESearch error: {result['ERROR']}")
+    if "idlist" not in result:
+        raise ValueError("NCBI ESearch esearchresult missing idlist")
+    ids = result["idlist"]
+    if not isinstance(ids, list):
+        raise ValueError("NCBI ESearch esearchresult.idlist must be a list")
+    return [str(identifier) for identifier in ids]
+
+
 class PubMedConnector:
     def __init__(self, *, fetch_json: Callable[[str], dict[str, Any]] = fetch_json) -> None:
         self._fetch_json = fetch_json
@@ -75,7 +96,7 @@ class PubMedConnector:
             {"db": "pubmed", "term": query, "retmode": "json", "retmax": limit}
         )
         payload = self._fetch_json(f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}")
-        ids = payload.get("esearchresult", {}).get("idlist", [])
+        ids = parse_esearch_ids(payload)
         return [
             {"id": str(identifier), "title": "", "url": f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"}
             for identifier in ids[:limit]
@@ -502,13 +523,14 @@ class NCBIGeneConnector:
         payload = self._fetch_json(
             f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}"
         )
+        ids = parse_esearch_ids(payload)
         return [
             {
                 "id": str(identifier),
                 "title": query,
                 "url": f"https://www.ncbi.nlm.nih.gov/gene/{identifier}",
             }
-            for identifier in payload.get("esearchresult", {}).get("idlist", [])[:limit]
+            for identifier in ids[:limit]
         ]
 
 

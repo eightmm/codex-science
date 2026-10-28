@@ -7,7 +7,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Callable
 
-from codex_science.connectors import fetch_json, post_json
+from codex_science.connectors import fetch_json, post_json, parse_esearch_ids
 
 VARIANT_RE = re.compile(r"^(?:chr)?([0-9XYM]+)[:\-](\d+)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
 UNIPROT_RE = re.compile(r"^[A-NR-Z][0-9][A-Z0-9]{3}[0-9](?:-\d+)?$", re.I)
@@ -31,7 +31,8 @@ class NCBIESearchConnector:
         query, limit = _validate(query, limit)
         params = urllib.parse.urlencode({"db": self.database, "term": query, "retmode": "json", "retmax": limit})
         payload = self._fetch_json(f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}")
-        return [{"id": str(identifier), "title": query, "database": self.database, "url": self.record_url.format(id=identifier)} for identifier in payload.get("esearchresult", {}).get("idlist", [])[:limit]]
+        ids = parse_esearch_ids(payload)
+        return [{"id": str(identifier), "title": query, "database": self.database, "url": self.record_url.format(id=identifier)} for identifier in ids[:limit]]
 
 class ClinVarConnector(NCBIESearchConnector):
     database = "clinvar"

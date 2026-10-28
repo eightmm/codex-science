@@ -41,6 +41,7 @@ from codex_science.connectors import (
     UKBTopMedConnector,
     UniProtConnector,
     fetch_json,
+    parse_esearch_ids,
 )
 
 
@@ -474,6 +475,49 @@ class ConnectorTests(unittest.TestCase):
             connector.search("TP53")
         with self.assertRaisesRegex(ValueError, "did not match"):
             connector.search("PXD000001")
+
+    def test_parse_esearch_ids_raises_on_error_payload(self) -> None:
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch error: Empty term"):
+            parse_esearch_ids({"esearchresult": {"ERROR": "Empty term and query_key - nothing todo"}})
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch error"):
+            parse_esearch_ids({"ERROR": "backend failure"})
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch response missing esearchresult"):
+            parse_esearch_ids({})
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch response must be a JSON object"):
+            parse_esearch_ids("not a dict")
+
+    def test_parse_esearch_ids_returns_empty_for_zero_hit(self) -> None:
+        self.assertEqual([], parse_esearch_ids({"esearchresult": {"count": "0", "idlist": []}}))
+
+    def test_parse_esearch_ids_ignores_errorlist(self) -> None:
+        payload = {
+            "esearchresult": {
+                "count": "3",
+                "idlist": ["1", "2", "3"],
+                "errorlist": {"phrasesnotfound": ["unknown"]},
+            }
+        }
+        self.assertEqual(["1", "2", "3"], parse_esearch_ids(payload))
+
+    def test_pubmed_connector_raises_on_ncbi_error(self) -> None:
+        connector = PubMedConnector(fetch_json=lambda _url: {"esearchresult": {"ERROR": "Empty term"}})
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch error: Empty term"):
+            connector.search("x")
+
+    def test_ncbi_gene_connector_raises_on_ncbi_error(self) -> None:
+        connector = NCBIGeneConnector(fetch_json=lambda _url: {"esearchresult": {"ERROR": "Empty term"}})
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch error: Empty term"):
+            connector.search("x")
+
+    def test_parse_esearch_ids_missing_idlist_raises(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing idlist"):
+            parse_esearch_ids({"esearchresult": {"count": "0"}})
+
+    def test_typed_ncbi_connector_raises_on_ncbi_error(self) -> None:
+        from codex_science.typed_connectors import ClinVarConnector
+        connector = ClinVarConnector(fetch_json=lambda _url: {"esearchresult": {"ERROR": "Empty term"}})
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch error: Empty term"):
+            connector.search("x")
 
 
 if __name__ == "__main__":

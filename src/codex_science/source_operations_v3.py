@@ -7,6 +7,7 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from codex_science.connectors import parse_esearch_ids
 from codex_science.connector_contract import QueryRequest
 from codex_science.transport_v3 import PageRequest
 
@@ -69,6 +70,7 @@ def _pagination_drift(source: str, error: ValueError) -> ValueError:
 
 def _pubmed_result(payload: Any) -> Mapping[str, Any]:
     result = _required_mapping(payload, "esearchresult")
+    parse_esearch_ids(payload)
     _required_list(result, "idlist")
     return result
 
@@ -126,9 +128,10 @@ class PubMedSearchV3:
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
         result = _pubmed_result(payload)
+        ids = result["idlist"]
         return [
             {"id": str(identifier), "title": "", "url": f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"}
-            for identifier in result["idlist"]
+            for identifier in ids
         ]
 
     def source_release(self, payload: Any, headers: Mapping[str, str]) -> str | None:

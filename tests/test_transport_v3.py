@@ -366,6 +366,27 @@ class TransportV3Tests(unittest.TestCase):
         self.assertEqual("partial", result.receipt.missingness)
         self.assertEqual(0, result.receipt.fetched_pages)
 
+    def test_pubmed_search_v3_raises_on_ncbi_error_payload(self) -> None:
+        request = QueryRequest("pubmed", "search", {"query": "x"}, source_contract_version="3")
+        with self.assertRaisesRegex(ValueError, "NCBI ESearch error"):
+            execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([({"esearchresult": {"ERROR": "Empty term"}}, {})]))
+
+    def test_pubmed_search_v3_raises_on_missing_esearchresult(self) -> None:
+        request = QueryRequest("pubmed", "search", {"query": "x"}, source_contract_version="3")
+        with self.assertRaisesRegex(ValueError, "missing esearchresult"):
+            execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([({"count": "0"}, {})]))
+
+    def test_pubmed_search_v3_zero_hit_returns_empty(self) -> None:
+        request = QueryRequest("pubmed", "search", {"query": "no results"}, source_contract_version="3")
+        result = execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([({"esearchresult": {"count": "0", "retstart": "0", "idlist": []}}, {})]))
+        self.assertEqual("negative", result.receipt.status)
+        self.assertEqual(0, len(result.records))
+
+    def test_pubmed_search_v3_ignores_errorlist_with_ids(self) -> None:
+        request = QueryRequest("pubmed", "search", {"query": "x"}, source_contract_version="3")
+        result = execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([({"esearchresult": {"count": "3", "retstart": "0", "idlist": ["1", "2", "3"], "errorlist": {"phrasesnotfound": ["unknown"]}}}, {})]))
+        self.assertEqual(["1", "2", "3"], [record["id"] for record in result.records])
+
 
 if __name__ == "__main__":
     unittest.main()
