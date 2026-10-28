@@ -202,8 +202,9 @@ def export_run(
 
     Destinations must preserve the manifest, listed artifacts and their contents,
     and descriptor files, including symlink and hard-link aliases. The extra
-    receipt must differ from every export output and cannot be an existing
-    directory. Preflight rejection creates no files.
+    receipt must differ from every export output. All destinations must be
+    absent; unrelated output-directory files are preserved. Preflight rejection
+    creates no files.
     """
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -227,16 +228,22 @@ def export_run(
             protected_paths.update(path.resolve() for path in artifact_path.rglob("*") if path.is_file())
         if item.get("descriptor_path") is not None:
             protected_paths.add((manifest_path.parent / str(item["descriptor_path"])).resolve())
+    existing_destination = None
     for destination in [*files.values(), *receipt_paths]:
         resolved = destination.resolve()
         if any(path in resolved.parents or _same_file(path, resolved) for path in protected_paths):
             raise ValueError(f"export destination overlaps protected bundle path: {str(destination)!r}")
+        if existing_destination is None and (destination.exists() or destination.is_symlink()):
+            existing_destination = destination
     if receipt_path is not None:
         resolved_receipt = receipt_path.resolve()
         if resolved_receipt.is_dir():
             raise ValueError(f"receipt destination is an existing directory: {str(receipt_path)!r}")
         if any(_same_file(resolved_receipt, path.resolve()) for path in [*files.values(), receipt_paths[0]]):
             raise ValueError(f"receipt destination overlaps export output: {str(receipt_path)!r}")
+    if existing_destination is not None:
+        raise ValueError(f"export destination already exists: {str(existing_destination)!r}; "
+                         "choose a new versioned output directory or archive the old export explicitly")
     timestamp = exported_at or _now()
     ro_crate = build_ro_crate(manifest, exported_at=timestamp)
     prov = build_prov(manifest, exported_at=timestamp)

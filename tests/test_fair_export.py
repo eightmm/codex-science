@@ -63,6 +63,90 @@ class FairExportTests(unittest.TestCase):
         write_manifest(manifest, manifest_path)
         return manifest_path
 
+    def test_existing_export_destinations_are_refused_before_any_writes(self) -> None:
+        for name in EXPORT_FILES:
+            for content in (b"", b"0", b"{", None):
+                with self.subTest(name=name, content=content), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root)
+                    output = root / "export"
+                    output.mkdir()
+                    destination = output / name
+                    if content is None:
+                        destination.mkdir()
+                    else:
+                        destination.write_bytes(content)
+                    self._refused(manifest, output, root / "receipts" / "extra.json", root,
+                                  f"export destination already exists: {str(destination)!r}; "
+                                  "choose a new versioned output directory or archive the old export explicitly")
+
+    def test_existing_receipt_path_is_refused_before_any_writes(self) -> None:
+        for content in (b"", b"0", b"{"):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                manifest = self._bundle(root)
+                receipt = root / "receipt.json"
+                receipt.write_bytes(content)
+                self._refused(manifest, root / "absent" / "export", receipt, root,
+                              f"export destination already exists: {str(receipt)!r}; "
+                              "choose a new versioned output directory or archive the old export explicitly")
+
+    def test_existing_destination_symlinks_are_refused_before_any_writes(self) -> None:
+        for name in (*EXPORT_FILES, "receipt.json"):
+            for dangling in (False, True):
+                with self.subTest(name=name, dangling=dangling), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root)
+                    output = root / "export"
+                    output.mkdir()
+                    target = root / "older.json"
+                    if not dangling:
+                        target.write_bytes(b"older export\n")
+                    receipt = root / "receipt.json"
+                    destination = receipt if name == "receipt.json" else output / name
+                    destination.symlink_to(target)
+                    self._refused(manifest, output, receipt, root,
+                                  f"export destination already exists: {str(destination)!r}; "
+                                  "choose a new versioned output directory or archive the old export explicitly")
+                    self.assertTrue(destination.is_symlink())
+                    self.assertEqual(target, destination.readlink())
+
+    def test_repeated_export_refuses_first_existing_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = self._bundle(root)
+            output = root / "export"
+            receipt = root / "receipt.json"
+            export_run(manifest, output, receipt_path=receipt)
+            first = output / EXPORT_FILES[0]
+            self._refused(manifest, output, receipt, root,
+                          f"export destination already exists: {str(first)!r}; "
+                          "choose a new versioned output directory or archive the old export explicitly")
+
+    def test_fresh_exports_preserve_unrelated_files_and_identical_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = self._bundle(root)
+            baseline = root / "baseline"
+            timestamp = "2026-07-21T00:00:00Z"
+            expected = export_run(manifest, baseline, exported_at=timestamp)
+            for state in ("missing", "empty", "unrelated"):
+                with self.subTest(state=state):
+                    output = root / state
+                    if state != "missing":
+                        output.mkdir()
+                    unrelated = output / "notes.txt"
+                    if state == "unrelated":
+                        unrelated.write_bytes(b"retain these notes\n")
+                    receipt = root / "receipts" / f"{state}.json"
+                    actual = export_run(manifest, output, exported_at=timestamp, receipt_path=receipt)
+                    self.assertEqual(expected, actual)
+                    for name in EXPORT_FILES:
+                        self.assertEqual((baseline / name).read_bytes(), (output / name).read_bytes())
+                    self.assertEqual((baseline / "export-receipt.json").read_bytes(), receipt.read_bytes())
+                    if state == "unrelated":
+                        self.assertEqual(b"retain these notes\n", unrelated.read_bytes())
+
     def test_descriptor_destinations_are_refused_before_any_writes(self) -> None:
         for destination in ("receipt", "output"):
             for external in (False, True):
