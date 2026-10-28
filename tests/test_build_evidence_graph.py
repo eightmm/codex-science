@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.evidence import _validate_evidence_graph
+from codex_science.evidence import _validate_evidence_graph, review_sidecars
 from codex_science.evidence_graph_build import build_evidence_graph
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +20,52 @@ _DEFAULT_STEPS = object()
 
 
 class BuildEvidenceGraphTests(unittest.TestCase):
+    def test_excluded_study_keeps_provenance_without_evidence_edges(self):
+        path = self.root / "studies.json"
+        table = json.loads(path.read_text())
+        study = table["studies"][0]
+        study["included"] = False
+        study["contradicts_claim_ids"] = ["claim-method-effect"]
+        path.write_text(json.dumps(table))
+        build_evidence_graph(self.root)
+        graph = json.loads((self.root / "evidence_graph.json").read_text())
+        self.assertIn(study["study_id"], {n["id"] for n in graph["nodes"]})
+        self.assertTrue(any(e["relation"] == "depends_on" for e in graph["edges"]))
+        self.assertFalse(any(e["relation"] in {"supports", "contradicts"} for e in graph["edges"]))
+        claims = {"claim-method-effect": {"status": "supported"}}
+        for edges in (graph["edges"], [
+            {"source": study["study_id"], "target": "claim-method-effect", "relation": relation}
+            for relation in ("supports", "contradicts")]):
+            findings = review_sidecars({"claim_by_id": claims, "study_by_id": {study["study_id"]: study}, "edges": edges})
+            self.assertIn("unsupported-conclusion", {f["code"] for f in findings})
+            self.assertNotIn("unresolved-contradiction", {f["code"] for f in findings})
+        study["included"] = True
+        path.write_text(json.dumps(table))
+        build_evidence_graph(self.root)
+        graph = json.loads((self.root / "evidence_graph.json").read_text())
+        self.assertEqual(2, sum(e["relation"] in {"supports", "contradicts"} for e in graph["edges"]))
+
+    def test_claim_evidence_sources_are_refused_without_rejecting_legacy_cycles(self):
+        (self.root / "studies.json").write_text(json.dumps({"schema_version": 1, "studies": []}))
+        extra = self.root / "extra.json"
+        before = (self.root / "evidence_graph.json").read_bytes()
+        for relation in ("supports", "contradicts"):
+            edge = {"source": "claim-method-effect", "target": "claim-method-effect", "relation": relation}
+            extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [], "edges": [edge]}))
+            with self.subTest(relation=relation), self.assertRaisesRegex(ValueError, "claim.*source"):
+                build_evidence_graph(self.root, extra=extra)
+            self.assertEqual(before, (self.root / "evidence_graph.json").read_bytes())
+            with self.assertRaisesRegex(ValueError, "claim.*source"):
+                _validate_evidence_graph({"schema_version": 1, "nodes": [
+                    {"id": "claim-method-effect", "type": "claim"}], "edges": [edge]})
+        for relation in ("depends_on", "derived_from"):
+            extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [], "edges": [
+                {"source": "claim-method-effect", "target": "claim-method-effect", "relation": relation}]}))
+            build_evidence_graph(self.root, extra=extra)
+        findings = review_sidecars({"claim_by_id": {"claim-method-effect": {"status": "supported"}},
+            "edges": [{"source": "claim-method-effect", "target": "claim-method-effect", "relation": "supports"}]})
+        self.assertIn("unsupported-conclusion", {f["code"] for f in findings})
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name) / "run"
@@ -324,7 +370,8 @@ class BuildEvidenceGraphTests(unittest.TestCase):
                 payload = {"nodes": nodes, "edges": edges}
                 graph.write_text(json.dumps({**payload, "schema_version": 1}), encoding="utf-8")
                 legacy = self._plan(graph, "--changed", "claim")
-                self.assertEqual(0, legacy.returncode, legacy.stderr)
+                self.assertEqual(1, legacy.returncode, legacy.stderr)
+                self.assertIn("cannot use a claim as its source", legacy.stderr)
                 graph.write_text(json.dumps({**payload, "schema_version": 2}), encoding="utf-8")
                 self._assert_plan_refused(graph, "claim", message)
         for malformed, message in [

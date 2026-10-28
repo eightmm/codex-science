@@ -17,6 +17,63 @@ from codex_science.citation_resolve import _CitationRedirectHandler
 
 
 class CitationResolveTests(unittest.TestCase):
+    def test_response_identity_must_match_requested_identifier(self):
+        for returned, status in (("10.1234/other", "unavailable"), ("10.1234/EXPECTED", "resolved"),
+                                 ("", "unavailable"), (None, "unavailable"), (0, "unavailable")):
+            with self.subTest(doi=returned):
+                result = resolve_identifiers(["doi:10.1234/expected"], fetch=lambda *a, **k: (
+                    200, json.dumps({"message": {"DOI": returned, "title": ["Other work"]}}).encode()))["results"][0]
+                self.assertEqual(status, result["status"])
+                if status == "unavailable":
+                    self.assertNotIn("title", result)
+        for returned, status in (("2401.00002", "unavailable"), ("2401.00001v2", "resolved"),
+                                 ("", "unavailable"), ("garbage", "unavailable")):
+            with self.subTest(arxiv=returned):
+                feed = ('<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                        f'<id>https://arxiv.org/abs/{returned}</id><title>Paper</title></entry></feed>')
+                result = resolve_identifiers(["arxiv:2401.00001v1"], fetch=lambda *a, **k: (200, feed.encode()))["results"][0]
+                self.assertEqual(status, result["status"])
+
+    def test_cli_offline_fixture_identity_prevents_colliding_names(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = Path(tmp)
+            (fixtures / "doi_10.1234_a_b.json").write_text(json.dumps({"http_status": 200,
+                "body": {"message": {"DOI": "10.1234/a/b", "title": ["Paper"]}}}))
+            result = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/a/b", "doi:10.1234/a_b",
+                                     "--offline-fixture", str(fixtures)], capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            rows = {r["identifier"]: r for r in json.loads(result.stdout)["results"]}
+            self.assertEqual("resolved", rows["doi:10.1234/a/b"]["status"])
+            self.assertEqual("unavailable", rows["doi:10.1234/a_b"]["status"])
+            (fixtures / "doi_10.1234_a_b.json").write_text(json.dumps({"http_status": 200,
+                "body": {"message": {"title": ["Unidentified paper"]}}}))
+            result = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/a_b",
+                                     "--offline-fixture", str(fixtures)], capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("unavailable", json.loads(result.stdout)["results"][0]["status"])
+
+    def test_duplicate_expected_metadata_is_order_independent(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "manifest.json").write_text(json.dumps({"artifacts": []}))
+            (root / "doi_10.1234_a.json").write_text(json.dumps({"http_status": 200, "body": {"message": {
+                "DOI": "10.1234/a", "title": ["Correct record"], "issued": {"date-parts": [[2020]]}}}}))
+            correct = {"persistent_id": "doi:10.1234/a", "title": "Correct record", "year": 2020}
+            wrong = {"persistent_id": "DOI:10.1234/A", "title": "Completely unrelated incorrect study", "year": 1990}
+            cases = (([wrong, correct], "mismatch"), ([correct, wrong], "mismatch"),
+                     ([correct, correct], "match"), ([correct], "match"), ([], "unverified"),
+                     ([correct, {"persistent_id": "doi:10.1234/a", "year": "2020"}], "match"))
+            for rows, expected in cases:
+                with self.subTest(rows=rows):
+                    (root / "studies.json").write_text(json.dumps({"studies": rows}))
+                    result = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/a",
+                        "--offline-fixture", str(root), "--run-dir", str(root)], capture_output=True, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual(expected, json.loads(result.stdout)["results"][0]["metadata_check"])
+                    self.assertIn(f"metadata mismatches: {int(expected == 'mismatch')}", result.stderr)
+
     def test_redirect_handler_allows_https_lookup_host(self):
         request = urllib.request.Request("https://api.crossref.org/works/10.1234/example")
         redirected = _CitationRedirectHandler().redirect_request(

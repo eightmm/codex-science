@@ -256,6 +256,8 @@ def _validate_evidence_graph(
             raise ValueError(
                 f"Invalid evidence relation: {_bounded_repr(relation)}; allowed: {sorted(RELATIONS)}"
             )
+        if relation in {"supports", "contradicts"} and by_id[source].get("type") == "claim":
+            raise ValueError(f"Evidence {relation} edge {source} -> {target} cannot use a claim as its source")
         key = (source, target, relation)
         if key in seen_edges:
             raise ValueError(f"Duplicate evidence edge: {source} {relation} {target}")
@@ -720,12 +722,13 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
     contradiction_edges: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for edge in edges:
         target = str(edge["target"])
-        if edge["relation"] == "supports":
+        source = str(edge["source"])
+        eligible = source not in claims and studies.get(source, {}).get("included") is not False
+        if eligible and edge["relation"] == "supports":
             support_edges[target].append(edge)
-        elif edge["relation"] == "contradicts":
+        elif eligible and edge["relation"] == "contradicts":
             contradiction_edges[target].append(edge)
 
-        source = str(edge["source"])
         if target in claims and source in studies:
             declared_field = (
                 "supports_claim_ids" if edge["relation"] == "supports" else "contradicts_claim_ids"

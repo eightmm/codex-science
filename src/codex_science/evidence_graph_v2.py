@@ -54,7 +54,7 @@ def graph_records(payload: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], l
             raise ValueError(f"node {index} requires id and type")
         if node_id in nodes:
             raise ValueError(f"duplicate evidence node: {node_id}")
-        nodes[node_id] = dict(raw)
+        nodes[node_id] = {**raw, "id": node_id, "type": node_type}
     edges: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     for index, raw in enumerate(raw_edges):
@@ -69,7 +69,7 @@ def graph_records(payload: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], l
         if key in seen:
             raise ValueError(f"duplicate evidence edge: {source} {relation} {target}")
         seen.add(key)
-        edges.append(dict(raw))
+        edges.append({**raw, "source": source, "target": target, "relation": relation})
     return nodes, edges
 
 

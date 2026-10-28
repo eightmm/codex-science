@@ -108,12 +108,20 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
             if len(entries) == 1 and title.casefold() == "error":
                 result["status"] = "not_found"
                 return result
+            returned_id = entries[0].findtext("a:id", default=None, namespaces=ns)
+            if returned_id is not None:
+                returned = normalize_identifier(returned_id)
+                if re.sub(r"v\d+$", "", returned) != re.sub(r"v\d+$", "", identifier):
+                    return result
             published = entries[0].findtext("a:published", default="", namespaces=ns)
             year = int(published[:4]) if published[:4].isdigit() else None
         else:
             payload = json.loads(text)
             if kind == "doi":
                 item = payload["message"]
+                if "DOI" in item and (not isinstance(item["DOI"], str)
+                                      or item["DOI"].strip().casefold() != value.casefold()):
+                    return result
                 titles = item.get("title", [])
                 title = titles[0] if isinstance(titles, list) and titles else ""
                 date = item.get("published-print") or item.get("published-online") or item.get("issued") or item.get("created", {})

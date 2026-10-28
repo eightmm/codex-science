@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from codex_science.cli_io import write_text_atomic  # noqa: E402
 from codex_science.reference_contract import (  # noqa: E402
     build_reference_use_receipt,
     load_reference_index,
@@ -19,7 +20,7 @@ from codex_science.reference_contract import (  # noqa: E402
 REFERENCE_INDEX_EPILOG = """\
 references/index.json (schema_version 1; missing file is an error):
   schema_version   1
-  skill            non-empty string
+  skill            non-empty string; no path separators or '..'
   references       non-empty list of objects:
     id             non-empty string, unique
     path           "references/<file>", exactly one level deep, not index.json; unique
@@ -63,7 +64,10 @@ def main() -> int:
     )
     args = parser.parse_args()
     skill_dir = args.skill_dir.resolve()
-    index = load_reference_index(skill_dir)
+    try:
+        index = load_reference_index(skill_dir)
+    except ValueError as error:
+        parser.error(str(error))
     if index is None:
         raise SystemExit(f"skill has no references/index.json: {skill_dir}")
     selected = select_references(index, route=args.route, query=args.query, limit=args.limit)
@@ -73,9 +77,16 @@ def main() -> int:
         "selected": [entry.to_dict() for entry in selected],
     }
     if args.receipt_dir:
+        destinations = []
+        for entry in selected:
+            path = args.receipt_dir / f"{index.skill}--{entry.id}.json"
+            if (any(part in entry.id for part in ("/", "\\", ".."))
+                    or path.resolve().parent != args.receipt_dir.resolve()):
+                parser.error("receipt destination must stay inside --receipt-dir")
+            destinations.append(path)
         args.receipt_dir.mkdir(parents=True, exist_ok=True)
         receipts = []
-        for entry in selected:
+        for entry, path in zip(selected, destinations):
             receipt = build_reference_use_receipt(
                 skill_dir,
                 entry,
@@ -83,8 +94,7 @@ def main() -> int:
                 used_for=args.claim or ["workflow-route"],
                 search_terms=[args.query] if args.query else [],
             )
-            path = args.receipt_dir / f"{index.skill}--{entry.id}.json"
-            path.write_text(json.dumps(receipt.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            write_text_atomic(path, json.dumps(receipt.to_dict(), indent=2, sort_keys=True) + "\n")
             receipts.append(path.as_posix())
         payload["receipt_paths"] = receipts
     print(json.dumps(payload, indent=2, sort_keys=True))

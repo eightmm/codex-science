@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.citation_resolve import (
     EVIDENCE_BOUNDARY, normalize_identifiers, resolve_identifiers, supported_identifiers_from_text,
+    _normalized_text, _year_value,
 )
 
 
@@ -38,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
             content = sys.stdin.read() if input_path == "-" else Path(input_path).read_text(encoding="utf-8")
             ids, skipped = supported_identifiers_from_text(content)
         expected = {}
+        metadata_conflicts: set[str] = set()
         if args.run_dir:
             run_dir = args.run_dir.resolve()
             manifest_path = run_dir / "manifest.json"
@@ -88,13 +90,27 @@ def main(argv: list[str] | None = None) -> int:
                 first = study.get("first_author") or first
                 if first and not study.get("first_author"):
                     first = (str(first).split() or [None])[-1]
-                expected[identifier] = {"title": study.get("title"), "year": study.get("year"),
-                                        "first_author": first}
+                metadata = {"title": study.get("title"), "year": study.get("year"), "first_author": first}
+                previous = expected.setdefault(identifier, {})
+                for field, value in metadata.items():
+                    if value is None or value == "":
+                        continue
+                    if field in previous:
+                        old = previous[field]
+                        normalize = _year_value if field == "year" else _normalized_text
+                        if normalize(old) != normalize(value) or (normalize(value) is None and old != value):
+                            metadata_conflicts.add(identifier)
+                    else:
+                        previous[field] = value
         if args.offline_fixture:
             def fetch(url: str, *, timeout: float):
                 del timeout
+                ambiguous_doi = False
                 if "crossref.org/works/" in url:
-                    name = "doi_" + urllib.parse.unquote(url.rsplit("/", 1)[-1]).replace("/", "_")
+                    value = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+                    suffix = value.split("/", 1)[1]
+                    ambiguous_doi = "/" in suffix or "_" in suffix
+                    name = "doi_" + value.replace("/", "_")
                 elif "esummary.fcgi" in url:
                     query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
                     name = "pmid_" + query["id"][0]
@@ -103,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
                     name = "arxiv_" + query["id_list"][0].replace("/", "_")
                 fixture = args.offline_fixture / (name + ".json")
                 payload = json.loads(fixture.read_text(encoding="utf-8"))
+                if ambiguous_doi and "DOI" not in payload.get("body", {}).get("message", {}):
+                    raise ValueError("ambiguous DOI fixture requires response identity")
                 return payload["http_status"], json.dumps(payload.get("body", {})).encode()
             output = resolve_identifiers(ids, fetch=fetch, expected_metadata=expected)
         elif not args.network:
@@ -112,6 +130,9 @@ def main(argv: list[str] | None = None) -> int:
             output = resolve_identifiers(ids, expected_metadata=expected)
         if args.offline_fixture or args.network:
             output["skipped_identifiers"] = skipped
+            for item in output["results"]:
+                if item["identifier"] in metadata_conflicts:
+                    item["metadata_check"] = "mismatch"
             if args.run_dir:
                 mismatches = sum(item.get("metadata_check") == "mismatch" for item in output["results"])
                 print(f"metadata mismatches: {mismatches}", file=sys.stderr)

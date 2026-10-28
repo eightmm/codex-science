@@ -82,7 +82,7 @@ def _sha256(path: Path) -> str:
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
+    text = value.strip() if isinstance(value, str) else ""
     if not text:
         raise ValueError(f"{label} is required: {_bounded_repr(value)}; expected: non-empty text")
     return text
@@ -165,7 +165,7 @@ class ReferenceIndex:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "ReferenceIndex":
-        if payload.get("schema_version") != 1:
+        if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
             raise ValueError(
                 f"unsupported reference index schema: "
                 f"{_bounded_field_repr(payload, 'schema_version')}; expected: 1"
@@ -192,9 +192,12 @@ class ReferenceIndex:
             raise ValueError("reference IDs must be unique")
         if len(paths) != len(set(paths)):
             raise ValueError("reference paths must be unique")
+        skill = _text(payload.get("skill"), "skill")
+        if "/" in skill or "\\" in skill or ".." in skill:
+            raise ValueError("skill must be a file name without path separators or '..'")
         return cls(
             schema_version=1,
-            skill=_text(payload.get("skill"), "skill"),
+            skill=skill,
             references=references,
             default_policy=_text(
                 payload.get("default_policy", "load-minimum-required"), "default_policy"
@@ -413,7 +416,7 @@ def audit_reference_roots(
 
 
 def validate_reference_use_receipt(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError(
             f"unsupported reference use receipt schema: "
             f"{_bounded_field_repr(payload, 'schema_version')}; expected: 1"
@@ -443,12 +446,12 @@ def validate_reference_use_receipt(payload: Mapping[str, Any]) -> None:
 
 
 def validate_reference_use_ledger(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError(
             f"unsupported reference use ledger schema: "
             f"{_bounded_field_repr(payload, 'schema_version')}; expected: 1"
         )
-    _text(payload.get("skill"), "skill")
+    skill = _text(payload["skill"], "skill") if "skill" in payload else None
     uses = payload.get("uses")
     if not isinstance(uses, list) or not uses:
         raise ValueError(
@@ -461,7 +464,7 @@ def validate_reference_use_ledger(payload: Mapping[str, Any]) -> None:
             raise ValueError(
                 f"reference use ledger entries must be objects: {_bounded_repr(item)}; expected: object"
             )
-        validate_reference_use_receipt(item)
+        validate_reference_use_receipt({**item, "skill": item.get("skill", skill)})
         key = (str(item["reference_id"]), str(item["sha256"]))
         if key in seen:
             raise ValueError(

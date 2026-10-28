@@ -146,11 +146,11 @@ class EvidenceSidecarTests(unittest.TestCase):
             cases = [
                 ("empty graph with unlinked study", lambda: validate_sidecars(
                     manifest, root, {"graph.json": graph, "studies.json": studies}), ("accept", None)),
-                ("receipt missing reference_id", lambda: validate_reference_use_receipt(valid_base), ("accept", None)),
+                ("receipt missing reference_id", lambda: validate_reference_use_receipt(valid_base), ("reject", ValueError)),
                 ("path with leading whitespace", lambda: validate_reference_use_receipt(
                     {**valid_base, "reference_id": "r", "path": " references/a.md"}), ("reject", ValueError)),
                 ("reference_id=7", lambda: validate_reference_use_receipt(
-                    {**valid_base, "reference_id": 7}), ("accept", None)),
+                    {**valid_base, "reference_id": 7}), ("reject", ValueError)),
             ]
             for label, call, expected in cases:
                 with self.subTest(case=label):

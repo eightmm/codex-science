@@ -108,6 +108,8 @@ def build_evidence_graph(
             for claim_id in study.get(field, []):
                 if claim_id not in claim_by_id:
                     problems.append(f"study {study_id} references unknown claim id {claim_id}")
+                if study.get("included") is False:
+                    continue
                 edge = {"source": study_id, "target": claim_id, "relation": relation}
                 if cohort:
                     edge["independence_group"] = cohort
@@ -157,6 +159,9 @@ def build_evidence_graph(
                 continue
             if not isinstance(source, str) or not isinstance(target, str) or source not in by_id or target not in by_id:
                 problems.append(f"extra edge endpoint is missing: {source} -> {target}")
+                continue
+            if relation in {"supports", "contradicts"} and by_id[source].get("type") == "claim":
+                problems.append(f"extra {relation} edge {source} -> {target} cannot use a claim as its source")
                 continue
             if relation in {"supports", "contradicts"} and by_id[source].get("type") == "study" and by_id[target].get("type") == "claim":
                 problems.append(f"extra {relation} edge {source} -> {target} must be declared in studies.json")

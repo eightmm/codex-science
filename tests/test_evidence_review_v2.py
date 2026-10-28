@@ -9,6 +9,30 @@ from codex_science.reviewer_benchmark import load_cases, score_cases
 
 
 class EvidenceReviewV2Tests(unittest.TestCase):
+    def test_numeric_graph_ids_preserve_dependency_components(self):
+        from codex_science.advanced_sidecars import review_advanced_sidecars
+
+        for first, second in ((1, 2), (0, 1), (" 1 ", " 2 ")):
+            with self.subTest(first=first):
+                graph = {"schema_version": 2, "nodes": [
+                    {"id": first, "type": "study"}, {"id": second, "type": "study"},
+                    {"id": "C", "type": "claim"}], "edges": [
+                    {"source": first, "target": "C", "relation": "supports"},
+                    {"source": second, "target": "C", "relation": "supports"},
+                    {"source": first, "target": second, "relation": "shares_samples"}]}
+                nodes, edges, findings = validate_graph_payload(graph)
+                self.assertEqual([], findings)
+                self.assertEqual(1, len(independent_support_groups("C", nodes, edges)))
+                self.assertTrue(all(node["id"] == key for key, node in nodes.items()))
+                reviewed = review_advanced_sidecars({"graph_v2_nodes": nodes, "graph_v2_edges": edges,
+                    "base_sidecars": {"claim_by_id": {"C": {"status": "replicated"}}}})
+                self.assertIn("dependent-evidence-v2", {item["code"] for item in reviewed})
+        nodes, edges, findings = validate_graph_payload({"schema_version": 2, "nodes": [], "edges": []})
+        self.assertEqual(set(), independent_support_groups("C", nodes, edges))
+        with self.assertRaisesRegex(ValueError, "endpoint missing"):
+            validate_graph_payload({"schema_version": 2, "nodes": [], "edges": [
+                {"source": 0, "target": "C", "relation": "supports"}]})
+
     def setUp(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
 

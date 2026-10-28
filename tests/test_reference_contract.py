@@ -26,6 +26,109 @@ from codex_science.reference_contract import (
 
 
 class ReferenceContractTests(unittest.TestCase):
+    def test_required_reference_text_and_schema_are_not_coerced(self):
+        receipt = {"schema_version": 1, "skill": "s", "reference_id": "r", "path": "references/r.md",
+                   "sha256": "a" * 64, "read_reason": "why", "loaded_at": "now"}
+        ledger = {"schema_version": 1, "skill": "s", "uses": [receipt]}
+        validate_reference_use_ledger(ledger)
+        for at_use, field in ((False, "skill"), (True, "skill"), (True, "reference_id"),
+                              (True, "read_reason"), (True, "loaded_at")):
+            for value in (None, "", " ", 0, False, [], {}):
+                with self.subTest(at_use=at_use, field=field, value=value):
+                    changed = json.loads(json.dumps(ledger))
+                    (changed["uses"][0] if at_use else changed)[field] = value
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        validate_reference_use_ledger(changed)
+            changed = json.loads(json.dumps(ledger))
+            del (changed["uses"][0] if at_use else changed)[field]
+            if field == "skill":
+                validate_reference_use_ledger(changed)
+            else:
+                with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                    validate_reference_use_ledger(changed)
+        for value in (True, False, 0, "1", None):
+            for at_use in (True, False):
+                with self.subTest(schema=value, at_use=at_use):
+                    changed = json.loads(json.dumps(ledger))
+                    (changed["uses"][0] if at_use else changed)["schema_version"] = value
+                    with self.assertRaisesRegex(ValueError, "unsupported reference use"):
+                        validate_reference_use_ledger(changed)
+        with tempfile.TemporaryDirectory() as tmp:
+            skill = self._skill(Path(tmp))
+            payload = json.loads((skill / "references/index.json").read_text())
+            payload["schema_version"] = True
+            with self.assertRaisesRegex(ValueError, "unsupported reference index schema"):
+                ReferenceIndex.from_payload(payload)
+
+    def test_use_ledger_inherits_only_absent_skill_without_mutating_payload(self):
+        receipt = {"schema_version": 1, "reference_id": "r", "path": "references/r.md",
+                   "sha256": "a" * 64, "read_reason": "why", "loaded_at": "now",
+                   "search_terms": [], "sections": [], "used_for": ["review"]}
+        ledger = {"schema_version": 1, "skill": "parent", "uses": [receipt]}
+        before = json.dumps(ledger, sort_keys=True)
+        validate_reference_use_ledger(ledger)
+        self.assertEqual(before, json.dumps(ledger, sort_keys=True))
+        explicit = {**receipt, "skill": "child"}
+        validate_reference_use_ledger({**ledger, "uses": [explicit]})
+        validate_reference_use_ledger({"schema_version": 1, "uses": [explicit]})
+        with self.assertRaisesRegex(ValueError, "skill is required"):
+            validate_reference_use_ledger({"schema_version": 1, "uses": [receipt]})
+        for value in (None, "", " ", 0, False, [], {}):
+            with self.subTest(skill=value), self.assertRaisesRegex(ValueError, "skill is required"):
+                validate_reference_use_ledger({**ledger, "uses": [{**receipt, "skill": value}]})
+
+
+    def test_lookup_receipt_destinations_stay_inside_requested_directory(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/reference_lookup.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = self._skill(root)
+            path = skill / "references/index.json"
+            payload = json.loads(path.read_text())
+            receipt_dir = root / "run/receipts"
+            for name in (str(root / "outside"), "../outside", "a/b", "a\\b", "a..b", "", None, 0):
+                with self.subTest(name=name):
+                    payload["skill"] = name
+                    path.write_text(json.dumps(payload))
+                    result = subprocess.run([sys.executable, str(script), str(skill), "--receipt-dir", str(receipt_dir)],
+                                            capture_output=True, text=True)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn("skill", result.stderr)
+                    self.assertFalse(receipt_dir.exists())
+                    self.assertFalse((root / "outside--study-identity.json").exists())
+            payload["skill"] = "literature-review"
+            path.write_text(json.dumps(payload))
+            result = subprocess.run([sys.executable, str(script), str(skill), "--receipt-dir", str(receipt_dir)],
+                                    capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(1, len(list(receipt_dir.iterdir())))
+            receipt = next(receipt_dir.iterdir())
+            receipt.unlink()
+            outside = root / "outside.json"
+            outside.write_text("unchanged")
+            receipt.symlink_to(outside)
+            result = subprocess.run([sys.executable, str(script), str(skill), "--receipt-dir", str(receipt_dir)],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("receipt destination", result.stderr)
+            self.assertEqual("unchanged", outside.read_text())
+            receipt.unlink()
+            for reference_id in ("../escape", "a/b", "a\\b", "a..b"):
+                payload["references"][0]["id"] = reference_id
+                path.write_text(json.dumps(payload))
+                result = subprocess.run([sys.executable, str(script), str(skill), "--receipt-dir", str(receipt_dir)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("receipt destination", result.stderr)
+                self.assertEqual([], list(receipt_dir.iterdir()))
+
+            payload["references"][0]["id"] = "study-identity"
+            path.write_text(json.dumps(payload))
+            result = subprocess.run([sys.executable, str(script), str(skill), "--limit", "0",
+                "--receipt-dir", str(receipt_dir)], capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual([], json.loads(result.stdout)["receipt_paths"])
+
     def _skill(self, root: Path) -> Path:
         skill = root / "literature-review"
         references = skill / "references"
