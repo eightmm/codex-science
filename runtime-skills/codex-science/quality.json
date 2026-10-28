@@ -43,6 +43,8 @@
     "The coordinator delegates domain validity to specialist skills and independent review.",
     "Task persistence depends on the installed Codex host and trusted hooks.",
     "The acceptance fixture validates deterministic local connector trust gates, not an empirical scientific result or a real provider integration.",
-    "Empty remote_object_ids on executed write receipts are not validated; remote-ID availability depends on the provider. Receipt approval digests are only format-checked unless an approval artifact is supplied for binding."
+    "Empty remote_object_ids on executed write receipts are not validated; remote-ID availability depends on the provider. Receipt approval digests are only format-checked unless an approval artifact is supplied for binding.",
+    "Receipt approval binding requires its spec; scope coverage and the spec's approval policy are not inferred from receipt fields.",
+    "Canonical hashes do not establish human authorization; they only check content consistency and artifact bindings."
   ]
 }

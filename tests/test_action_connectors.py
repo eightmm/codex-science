@@ -72,6 +72,235 @@ def rehash_payload(payload: dict) -> dict:
 
 
 class ActionConnectorTests(unittest.TestCase):
+    def test_payload_key_sets_match_original_contract(self) -> None:
+        # Frozen producer key sets from e49900c.
+        expected = {
+            "preview": {
+                "schema_version", "connector", "operation", "mode", "target",
+                "action_spec_sha256", "idempotency_key", "requested_scopes",
+                "before_state_sha256", "before_state", "proposed_changes",
+                "approval_required", "destructive", "paid", "sensitive_data",
+                "compensation", "created_at", "status", "executed",
+                "evidence_boundary", "preview_id", "fingerprint",
+            },
+            "approval": {
+                "schema_version", "preview_id", "preview_fingerprint", "action_spec_sha256",
+                "connector", "operation", "target", "before_state_sha256", "idempotency_key",
+                "approved_by", "approved_scopes", "approved_at", "approved", "evidence_boundary", "fingerprint",
+            },
+            "receipt": {
+                "schema_version", "action_id", "connector", "operation", "mode", "target",
+                "action_spec_sha256", "preview_id", "preview_fingerprint", "approval_fingerprint",
+                "idempotency_key", "before_state_sha256", "after_state_sha256", "after_state",
+                "remote_object_ids", "provider_receipt", "compensation", "executed_at", "status",
+                "evidence_boundary", "fingerprint",
+            },
+        }
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+        for name, payload in (("preview", preview), ("approval", approval), ("receipt", receipt)):
+            with self.subTest(payload=name):
+                self.assertEqual(expected[name], set(payload))
+        with self.assertRaisesRegex(ValueError, "action preview has unsupported field: parameters"):
+            validate_preview(rehash_payload({**preview, "parameters": {"status": "draft"}}), spec)
+
+    def test_approval_rejects_unsupported_fields(self) -> None:
+        spec = write_spec()
+        preview = build_preview(FakeAdapter(), spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        receipt = execute_action(FakeAdapter(), spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+        for field, value in (("mode", "read"), ("parameters", {"status": "draft"}), ("proposed_changes", {}), ("", 0)):
+            with self.subTest(field=field):
+                forged = rehash_payload({**approval, field: value})
+                with self.assertRaisesRegex(ValueError, f"action approval has unsupported field: {field}"):
+                    validate_action_approval(forged, preview)
+                self.assert_refused_before_execution(FakeAdapter(), spec, preview, forged, f"action approval has unsupported field: {field}")
+                with self.assertRaisesRegex(ValueError, f"action approval has unsupported field: {field}"):
+                    validate_action_receipt(rehash_payload({**receipt, "approval_fingerprint": forged["fingerprint"]}), spec, forged)
+
+    def test_receipt_approval_binding_requires_spec(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+        validate_action_receipt(receipt, spec, approval)
+        for extras in ({}, {"requested_scopes": []}, {"requested_scopes": list(spec.requested_scopes)}, {"requested_scopes": None}):
+            with self.subTest(extras=extras):
+                forged = rehash_payload({**receipt, **extras})
+                with self.assertRaisesRegex(ValueError, "action receipt approval binding requires spec"):
+                    validate_action_receipt(forged, approval=approval)
+        for payload in ({}, {"schema_version": 0}, receipt):
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(ValueError, "action receipt approval binding requires spec"):
+                    validate_action_receipt(payload, approval={})
+        validate_action_receipt(receipt)
+
+    def test_approval_required_read_receipt_requires_approval_digest(self) -> None:
+        for flag in ("approval_required", "paid", "sensitive_data"):
+            with self.subTest(flag=flag):
+                spec = ActionSpec.from_payload({**write_spec().to_dict(), "mode": "read", "approval_required": False, flag: True})
+                adapter = FakeAdapter()
+                preview = build_preview(adapter, spec)
+                approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+                directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+                receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+                validate_action_receipt(receipt, spec, approval)
+                for digest in (None, "", 0, "0" * 63, "0" * 65, "g" * 64):
+                    with self.subTest(digest=digest):
+                        forged = rehash_payload({**receipt, "approval_fingerprint": digest})
+                        with self.assertRaisesRegex(ValueError, "action receipt requires approval_fingerprint"):
+                            validate_action_receipt(forged, spec)
+
+    def test_uppercase_approval_fingerprint_is_refused_before_execution(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        self.assertNotEqual(approval["fingerprint"], approval["fingerprint"].upper())
+        forged = {**approval, "fingerprint": approval["fingerprint"].upper()}
+        self.assert_refused_before_execution(adapter, spec, preview, forged, "action approval fingerprint mismatch")
+        for field in ("fingerprint", "action_spec_sha256", "before_state_sha256"):
+            with self.subTest(preview_field=field):
+                forged = {**preview, field: preview[field].upper()}
+                if field != "fingerprint":
+                    forged = rehash_payload(forged)
+                with self.assertRaises(ValueError):
+                    validate_preview(forged)
+        with self.assertRaisesRegex(ValueError, "expected_before_sha256 must be a SHA-256 digest"):
+            ActionSpec.from_payload({**spec.to_dict(), "expected_before_sha256": preview["before_state_sha256"].upper()})
+        matching = ActionSpec.from_payload({**spec.to_dict(), "expected_before_sha256": preview["before_state_sha256"]})
+        validate_preview(build_preview(FakeAdapter(), matching), matching)
+        _, receipt = self.executed_receipt()
+        for field in ("fingerprint", "action_spec_sha256", "preview_fingerprint", "before_state_sha256", "after_state_sha256", "approval_fingerprint"):
+            with self.subTest(receipt_field=field):
+                forged = {**receipt, field: receipt[field].upper()}
+                if field != "fingerprint":
+                    forged = rehash_payload(forged)
+                with self.assertRaises(ValueError):
+                    validate_action_receipt(forged)
+        for digest in (" " + receipt["after_state_sha256"], 10 ** 63):
+            with self.subTest(noncanonical_digest=digest):
+                with self.assertRaisesRegex(ValueError, "after_state_sha256 must be a SHA-256 digest"):
+                    validate_action_receipt(rehash_payload({**receipt, "after_state_sha256": digest}))
+
+    def test_preview_spec_inputs_and_allowed_fields_are_bound(self) -> None:
+        spec = write_spec()
+        preview = build_preview(FakeAdapter(), spec)
+        for field, values in (
+            ("parameters", ({"status": "draft"}, {}, 0, None, "malformed")),
+            ("expected_before_sha256", ("0" * 64, "", 0, [], "malformed")),
+        ):
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    forged = rehash_payload({**preview, field: value})
+                    with self.assertRaisesRegex(ValueError, f"action preview has unsupported field: {field}"):
+                        validate_preview(forged, spec)
+                    with self.assertRaisesRegex(ValueError, f"action preview has unsupported field: {field}"):
+                        build_action_approval(forged, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+                    self.assert_refused_before_execution(FakeAdapter(), spec, forged, None, f"action preview has unsupported field: {field}")
+        for field, value in (("review_note", "other instructions"), ("output_target", {}), ("", 0)):
+            with self.subTest(field=field):
+                forged = rehash_payload({**preview, field: value})
+                with self.assertRaisesRegex(ValueError, f"action preview has unsupported field: {field}"):
+                    validate_preview(forged)
+        self.assertNotIn("parameters", preview)
+        self.assertNotIn("expected_before_sha256", preview)
+        validate_preview(json.loads(json.dumps(preview)), spec)
+        typed_spec = replace(spec, parameters={"status": True})
+        typed_preview = build_preview(FakeAdapter(), typed_spec)
+        validate_preview(json.loads(json.dumps(typed_preview)), typed_spec)
+        with self.assertRaisesRegex(ValueError, "action preview approval_required does not match spec"):
+            validate_preview(rehash_payload({**preview, "approval_required": 1}), spec)
+
+    def test_proposals_use_canonical_json_equality(self) -> None:
+        spec = write_spec()
+        for value in ({}, [], 0, 1, 1.0, True, {1: "same"}):
+            with self.subTest(valid=value):
+                adapter = FakeAdapter()
+                with patch.object(adapter, "preview", return_value={"value": value}):
+                    preview = json.loads(json.dumps(build_preview(adapter, spec)))
+                    approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+                    directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+                    try:
+                        execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+                    except ValueError as error:
+                        self.fail(f"canonical-equivalent proposal was refused: {error}")
+                    self.assertEqual(1, adapter.execute_count)
+        for actual, displayed in ((True, 1), (1, True), (1, 1.0), (1.0, 1), (False, 0), (0.0, 0)):
+            with self.subTest(actual=actual, displayed=displayed):
+                adapter = FakeAdapter()
+                with patch.object(adapter, "preview", return_value={"value": actual}):
+                    preview = rehash_payload({**build_preview(adapter, spec), "proposed_changes": {"value": displayed}})
+                    approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+                    self.assert_refused_before_execution(
+                        adapter, spec, preview, approval,
+                        "preview proposed_changes do not match the adapter proposal; create a new preview",
+                    )
+
+    def test_receipt_approval_semantics_and_before_state_are_bound(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+        for version in (None, 0, 2, True, "1", 1.0):
+            with self.subTest(version=version):
+                other = rehash_payload({**approval, "schema_version": version})
+                forged = rehash_payload({**receipt, "approval_fingerprint": other["fingerprint"]})
+                with self.assertRaisesRegex(ValueError, "valid action approval is required"):
+                    validate_action_receipt(forged, spec, other)
+        for scopes in ([], 0, None, "malformed", ["sample:read"], list(spec.requested_scopes) + [""], list(spec.requested_scopes) + [0]):
+            with self.subTest(scopes=scopes):
+                other = rehash_payload({**approval, "approved_scopes": scopes})
+                forged = rehash_payload({**receipt, "approval_fingerprint": other["fingerprint"]})
+                with self.assertRaisesRegex(ValueError, "approved scopes do not cover requested scopes"):
+                    validate_action_receipt(forged, spec, other)
+        for field, value in (("before_state_sha256", "0" * 64), ("connector", "other-lab"), ("operation", "archive-sample"), ("target", "other-target")):
+            with self.subTest(field=field):
+                other = rehash_payload({**approval, field: value})
+                forged = rehash_payload({**receipt, "approval_fingerprint": other["fingerprint"]})
+                with self.assertRaisesRegex(ValueError, "action receipt approval does not match"):
+                    validate_action_receipt(forged, spec, other)
+        for before in (None, "", 0, "malformed"):
+            with self.subTest(before=before):
+                other = rehash_payload({**approval, "before_state_sha256": before})
+                forged = rehash_payload({**receipt, "approval_fingerprint": other["fingerprint"]})
+                with self.assertRaisesRegex(ValueError, "action receipt approval does not match"):
+                    validate_action_receipt(forged, spec, other)
+        self.assertNotIn("requested_scopes", receipt)
+        validate_action_receipt(receipt, spec, approval)
+        with self.assertRaisesRegex(ValueError, "action receipt approval binding requires spec"):
+            validate_action_receipt(receipt, approval=approval)
+        empty_spec = replace(spec, requested_scopes=())
+        empty_adapter = FakeAdapter()
+        empty_preview = build_preview(empty_adapter, empty_spec)
+        empty_approval = build_action_approval(empty_preview, approved_by="reviewer", approved_scopes=[])
+        empty_ledger = ActionLedger(directory / "empty-scopes.sqlite")
+        empty_receipt = execute_action(empty_adapter, empty_spec, empty_preview, approval=empty_approval, ledger=empty_ledger)
+        try:
+            validate_action_receipt(empty_receipt, empty_spec, empty_approval)
+        except ValueError as error:
+            self.fail(f"zero-scope execution receipt cannot bind to its own approval: {error}")
+        self.assertEqual(empty_receipt, execute_action(empty_adapter, empty_spec, empty_preview, approval=empty_approval, ledger=empty_ledger))
+        self.assertEqual(1, empty_adapter.execute_count)
+        validate_action_receipt(receipt)
+        insufficient = rehash_payload({**approval, "approved_scopes": ["sample:read"]})
+        for requested in (None, [], ["sample:read"]):
+            with self.subTest(requested=requested):
+                forged = rehash_payload({**receipt, "approval_fingerprint": insufficient["fingerprint"], "requested_scopes": requested})
+                with self.assertRaisesRegex(ValueError, "approved scopes do not cover requested scopes"):
+                    validate_action_receipt(forged, spec, insufficient)
+        other = rehash_payload({**approval, "approved_scopes": list(spec.requested_scopes) + ["sample:archive"]})
+        validate_action_receipt(rehash_payload({**receipt, "approval_fingerprint": other["fingerprint"]}), spec, other)
+
     def assert_refused_before_execution(self, adapter, spec, preview, approval, message) -> None:
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         ledger = ActionLedger(directory / "actions.sqlite")
@@ -176,6 +405,12 @@ class ActionConnectorTests(unittest.TestCase):
                 )
         spec = replace(base, expected_before_sha256=preview["before_state_sha256"])
         preview = build_preview(adapter, spec)
+        with self.subTest(displayed_expected=None):
+            forged = rehash_payload({**preview, "expected_before_sha256": None})
+            self.assert_refused_before_execution(
+                FakeAdapter(), spec, forged, None,
+                "action preview has unsupported field: expected_before_sha256",
+            )
         approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))

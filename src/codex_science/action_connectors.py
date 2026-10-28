@@ -55,8 +55,8 @@ def _text(value: Any, label: str) -> str:
 
 
 def _sha(value: Any, label: str) -> str:
-    text = _text(value, label).lower()
-    if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
+    text = _text(value, label)
+    if not isinstance(value, str) or value != text or len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise ValueError(f"{label} must be a SHA-256 digest")
     return text
 
@@ -155,6 +155,22 @@ class ConnectorActionAdapter(Protocol):
     def execute(self, spec: ActionSpec, preview: Mapping[str, Any]) -> Mapping[str, Any]: ...
 
 
+_PREVIEW_FIELDS = {
+    "schema_version", "connector", "operation", "mode", "target",
+    "action_spec_sha256", "idempotency_key",
+    "requested_scopes", "before_state_sha256", "before_state", "proposed_changes",
+    "approval_required", "destructive", "paid", "sensitive_data", "compensation",
+    "created_at", "status", "executed", "evidence_boundary", "preview_id", "fingerprint",
+}
+
+
+_APPROVAL_FIELDS = {
+    "schema_version", "preview_id", "preview_fingerprint", "action_spec_sha256",
+    "connector", "operation", "target", "before_state_sha256", "idempotency_key",
+    "approved_by", "approved_scopes", "approved_at", "approved", "evidence_boundary", "fingerprint",
+}
+
+
 def build_preview(adapter: ConnectorActionAdapter, spec: ActionSpec, *, created_at: str | None = None) -> dict[str, Any]:
     if adapter.connector_name != spec.connector:
         raise ValueError("adapter connector does not match action spec")
@@ -200,9 +216,12 @@ def validate_preview(payload: Mapping[str, Any], spec: ActionSpec | None = None)
     _sha(payload.get("before_state_sha256"), "before_state_sha256")
     material = dict(payload)
     preview_id = str(material.pop("preview_id"))
-    fingerprint = str(material.pop("fingerprint", "")).lower()
+    fingerprint = material.pop("fingerprint", "")
     if _fingerprint(material) != fingerprint or preview_id != f"preview-{fingerprint[:20]}":
         raise ValueError("action preview fingerprint or ID mismatch")
+    for field in payload:
+        if field not in _PREVIEW_FIELDS:
+            raise ValueError(f"action preview has unsupported field: {field}")
     if _fingerprint(payload.get("before_state")) != payload.get("before_state_sha256"):
         raise ValueError("action preview before_state does not match before_state_sha256")
     if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
@@ -214,7 +233,7 @@ def validate_preview(payload: Mapping[str, Any], spec: ActionSpec | None = None)
             "sensitive_data", "compensation",
         ):
             expected = list(spec.requested_scopes) if field == "requested_scopes" else getattr(spec, field)
-            if payload.get(field) != expected:
+            if _canonical_bytes(payload.get(field)) != _canonical_bytes(expected):
                 raise ValueError(f"action preview {field} does not match spec")
 
 
@@ -243,27 +262,39 @@ def build_action_approval(preview: Mapping[str, Any], *, approved_by: str, appro
     return {**material, "fingerprint": _fingerprint(material)}
 
 
+def _validate_approval_state(approval: Mapping[str, Any]) -> None:
+    if type(approval.get("schema_version")) is not int or approval.get("schema_version") != 1 or approval.get("approved") is not True:
+        raise ValueError("valid action approval is required")
+    for field in approval:
+        if field not in _APPROVAL_FIELDS:
+            raise ValueError(f"action approval has unsupported field: {field}")
+
+
+def _validate_approved_scopes(scopes: Any, requested: Any) -> None:
+    if (
+        not isinstance(scopes, list)
+        or any(not isinstance(scope, str) or not scope.strip() for scope in scopes)
+        or not isinstance(requested, list)
+        or any(not isinstance(scope, str) or not scope.strip() for scope in requested)
+        or not set(requested).issubset(scopes)
+    ):
+        raise ValueError("approved scopes do not cover requested scopes")
+
+
 def validate_action_approval(approval: Mapping[str, Any], preview: Mapping[str, Any]) -> None:
     validate_preview(preview)
-    if approval.get("schema_version") != 1 or approval.get("approved") is not True:
-        raise ValueError("valid action approval is required")
+    _validate_approval_state(approval)
     for field in ("preview_id", "preview_fingerprint", "action_spec_sha256", "before_state_sha256", "idempotency_key"):
         if approval.get(field) != preview.get(field if field != "preview_fingerprint" else "fingerprint"):
             raise ValueError(f"approval {field} does not match preview")
     material = dict(approval)
-    fingerprint = str(material.pop("fingerprint", "")).lower()
+    fingerprint = material.pop("fingerprint", "")
     if _fingerprint(material) != fingerprint:
         raise ValueError("action approval fingerprint mismatch")
     for field in ("connector", "operation", "target"):
         if approval.get(field) != preview.get(field):
             raise ValueError(f"approval {field} does not match preview")
-    scopes = approval.get("approved_scopes")
-    if (
-        not isinstance(scopes, list)
-        or any(not isinstance(scope, str) or not scope.strip() for scope in scopes)
-        or not set(preview.get("requested_scopes", [])).issubset(scopes)
-    ):
-        raise ValueError("approved scopes do not cover requested scopes")
+    _validate_approved_scopes(approval.get("approved_scopes"), preview.get("requested_scopes", []))
 
 
 class ActionLedger:
@@ -294,6 +325,10 @@ class ActionLedger:
             )
 
 
+def _requires_approval(spec: ActionSpec) -> bool:
+    return any((spec.mode == "write", spec.approval_required, spec.destructive, spec.paid, spec.sensitive_data))
+
+
 def execute_action(
     adapter: ConnectorActionAdapter,
     spec: ActionSpec,
@@ -311,7 +346,7 @@ def execute_action(
     if adapter.connector_name != spec.connector:
         raise ValueError("adapter connector does not match action spec")
     if approval is None:
-        if spec.approval_required or spec.destructive or spec.paid or spec.sensitive_data:
+        if _requires_approval(spec):
             raise ValueError("write action requires explicit approval" if spec.mode == "write" else "action requires explicit approval")
     else:
         validate_action_approval(approval, preview)
@@ -332,7 +367,7 @@ def execute_action(
     # Adapters must produce the same proposal for a given spec and state.
     proposed = dict(adapter.preview(spec, current))
     _json_value(proposed, "provider proposed changes")
-    if proposed != preview.get("proposed_changes"):
+    if _canonical_bytes(proposed) != _canonical_bytes(preview.get("proposed_changes")):
         raise ValueError("preview proposed_changes do not match the adapter proposal; create a new preview")
     result = dict(adapter.execute(spec, preview))
     _json_value(result, "provider execution result")
@@ -368,6 +403,8 @@ def execute_action(
 def validate_action_receipt(
     payload: Mapping[str, Any], spec: ActionSpec | None = None, approval: Mapping[str, Any] | None = None,
 ) -> None:
+    if approval is not None and spec is None:
+        raise ValueError("action receipt approval binding requires spec")
     if payload.get("schema_version") != 1 or payload.get("status") != "executed":
         raise ValueError("invalid action receipt state")
     for field in (
@@ -394,7 +431,7 @@ def validate_action_receipt(
     ):
         _sha(payload.get(field), field)
     material = dict(payload)
-    fingerprint = str(material.pop("fingerprint", "")).lower()
+    fingerprint = material.pop("fingerprint", "")
     if _fingerprint(material) != fingerprint:
         raise ValueError("action receipt fingerprint mismatch")
     if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
@@ -402,29 +439,32 @@ def validate_action_receipt(
     mode = payload.get("mode")
     if not isinstance(mode, str) or mode not in MODES:
         raise ValueError("invalid action receipt mode")
-    if mode == "write":
+    if mode == "write" or (spec is not None and _requires_approval(spec)):
         try:
             _sha(payload.get("approval_fingerprint"), "approval_fingerprint")
         except ValueError as error:
-            raise ValueError("write action receipt requires approval_fingerprint") from error
+            message = "write action receipt requires approval_fingerprint" if mode == "write" else "action receipt requires approval_fingerprint"
+            raise ValueError(message) from error
     elif payload.get("approval_fingerprint") is not None:
         _sha(payload["approval_fingerprint"], "approval_fingerprint")
     if spec is not None:
         for field in ("connector", "operation", "mode", "target", "idempotency_key"):
             if payload.get(field) != getattr(spec, field):
                 raise ValueError(f"action receipt {field} does not match spec")
-    if approval is not None:
-        if approval.get("approved") is not True:
-            raise ValueError("valid action approval is required")
+    if approval is not None and spec is not None:
+        _validate_approval_state(approval)
         material = dict(approval)
         fingerprint = material.pop("fingerprint", None)
         if _fingerprint(material) != fingerprint:
             raise ValueError("action approval fingerprint mismatch")
+        _validate_approved_scopes(approval.get("approved_scopes"), list(spec.requested_scopes))
         if (
             payload.get("approval_fingerprint") != fingerprint
             or payload.get("preview_id") != approval.get("preview_id")
             or payload.get("action_spec_sha256") != approval.get("action_spec_sha256")
             or payload.get("preview_fingerprint") != approval.get("preview_fingerprint")
             or payload.get("idempotency_key") != approval.get("idempotency_key")
+            or payload.get("before_state_sha256") != approval.get("before_state_sha256")
+            or any(approval.get(field) != getattr(spec, field) for field in ("connector", "operation", "target"))
         ):
             raise ValueError("action receipt approval does not match")

@@ -107,6 +107,8 @@ The adapter should minimize `before_state`; do not include full private records 
 
 Validate a provider-created preview:
 
+Previews and approvals accept only their original payload fields. The preview shows the spec-mirrored fields and the adapter's proposed changes; it does not duplicate spec parameters or expected before-state hashes. Validate the exact spec alongside its preview. An original-format preview for an executed write can replay with its recorded approval. The ledger receipt remains the record of that execution; incompatible extensions are refused rather than rewritten to force a replay.
+
 ```bash
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/connector_action_contract.py" validate-preview \
   artifacts/run-014/action-preview.json \
@@ -167,6 +169,8 @@ Execution procedure:
 10. add the action receipt to run provenance when material.
 
 Adapters must return the same proposal for the same spec and state, without timestamps or fresh draft IDs in the `adapter.preview` result. This adds one preview call per execution.
+
+Proposal comparisons use canonical JSON bytes: booleans, integers and floats such as `true`, `1` and `1.0` remain distinct. Receipt approval binding always requires the exact spec and checks its requested scopes and action identity; scopes are never read from receipt fields. Approved scopes must be a list of non-empty strings covering the requested scopes; an empty list is valid when no scopes were requested. The same approval policy governs execution and receipt validation with a spec. Digests in previews, approvals and receipts must be lowercase 64-hex SHA-256 values. Hashes check content consistency and artifact bindings; they do not establish human authorization.
 
 A repeated request with the same idempotency key and same spec returns the original receipt without another provider call, provided any supplied or required approval matches the one recorded in that receipt. Reusing the key for a different spec fails.
 

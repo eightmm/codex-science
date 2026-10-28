@@ -105,6 +105,10 @@ class CodexScienceConductorAcceptanceTests(unittest.TestCase):
             ledger=self.ledger, executed_at=STAMP,
         )
         validate_action_receipt(receipt, self.spec)
+        self.assertNotIn("requested_scopes", receipt)
+        validate_action_receipt(receipt, self.spec, approval)
+        with self.assertRaisesRegex(ValueError, "action receipt approval binding requires spec"):
+            validate_action_receipt(receipt, approval=approval)
         self.assertEqual("executed", receipt["status"])
         self.assertEqual(self.spec.fingerprint, receipt["action_spec_sha256"])
         self.assertEqual(self.preview["fingerprint"], receipt["preview_fingerprint"])
@@ -220,6 +224,8 @@ class CodexScienceConductorAcceptanceTests(unittest.TestCase):
 
     def test_quality_declares_exactly_the_exercised_failures(self) -> None:
         quality = json.loads(QUALITY.read_text(encoding="utf-8"))
+        self.assertIn("hashes do not establish human authorization", " ".join(quality["limitations"]))
+        self.assertIn("Receipt approval binding requires its spec", " ".join(quality["limitations"]))
         self.assertEqual("L4", quality["declared_maturity"])
         self.assertEqual([FIXTURE.relative_to(ROOT).as_posix()], quality["acceptance_fixtures"])
         self.assertIn(Path(__file__).relative_to(ROOT).as_posix(), quality["test_files"])
