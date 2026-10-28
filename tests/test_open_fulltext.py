@@ -4,7 +4,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from contextlib import redirect_stdout
+from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 import tempfile
 import time
@@ -12,7 +14,7 @@ import unittest
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import codex_science.open_fulltext as open_fulltext
 from codex_science.open_fulltext import _EuropePMCRedirectHandler, fetch_fulltext, identifiers_from_run
@@ -33,6 +35,123 @@ class OpenFulltextTests(unittest.TestCase):
 
     def _study_table(self):
         (self.run / "studies.json").write_text('{"studies":[{"pmid":"12345"}]}')
+
+    def test_fulltext_refuses_conflicting_identity_nonarticle_and_empty_text(self):
+        self.assertEqual("", open_fulltext._plain_text(b"<article/>"))
+        self.assertEqual("Metadata check", open_fulltext._plain_text(b"<html><p>Metadata check</p></html>"))
+        for xml in (
+            b'<article><front><article-meta><article-id pub-id-type="pmc">99999</article-id></article-meta></front><p>Wrong</p></article>',
+            b'<article><front><article-meta><article-id pub-id-type="pmcid">PMC99999</article-id></article-meta></front><p>Wrong</p></article>',
+            b'<article><front><article-meta><article-id pub-id-type="pmid">99999</article-id></article-meta></front><p>Wrong</p></article>',
+            b'<article><article-meta><article-id pub-id-type="pmc">99999</article-id></article-meta><p>Wrong</p></article>',
+            b'<html><body><p>Service error</p></body></html>',
+            b'<article/>', b'<article><p> </p></article>',
+        ):
+            with self.subTest(xml=xml), tempfile.TemporaryDirectory() as temp:
+                metadata = {"resultList": {"result": [{"pmid": "12345", "pmcid": "PMC12345",
+                    "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}]}}
+                fetch = Mock(side_effect=[(200, json.dumps(metadata).encode()), (200, xml)])
+                result = fetch_fulltext(["pmid:12345"], temp, execute=True, fetch=fetch)
+                self.assertEqual("unavailable", result["results"][0]["status"])
+                output = Path(temp) / "fulltext"
+                self.assertFalse(list(output.glob("*.xml")))
+                self.assertFalse(list(output.glob("*.txt")))
+                rows = [json.loads(line) for line in (output / "fetch-ledger.jsonl").read_text().splitlines()]
+                self.assertEqual(["complete", "unavailable"], [row["status"] for row in rows])
+        for ids in (b'', b'<article-id pub-id-type="pmc">12345</article-id>',
+                    b'<article-id pub-id-type="pmcid">pmc12345</article-id><article-id pub-id-type="pmid">12345</article-id>'):
+            with self.subTest(ids=ids):
+                xml = b'<article xmlns="urn:jats"><front><article-meta>' + ids + b'</article-meta></front><p>Text</p><ref-list><article-id pub-id-type="pmc">99999</article-id></ref-list></article>'
+                fetch = Mock(side_effect=[(200, json.dumps(metadata).encode()), (200, xml)])
+                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=fetch)
+                self.assertEqual("fetched", result["results"][0]["status"])
+
+    def test_http_fetch_rejects_declared_body_shortfall(self):
+        for headers, body, refused in (
+            ({"Content-Length": "3"}, b"{}", True),
+            ({"Content-Length": "1"}, b"", True),
+            ({"Content-Length": "bad"}, b"{}", True),
+            ({"Content-Length": "-1"}, b"{}", True),
+            ({"Content-Length": ""}, b"{}", True),
+            ({"Content-Length": "0"}, b"", False),
+            ({"Content-Length": "2"}, b"{}", False),
+            ({}, b"{}", False),
+            ({"Transfer-Encoding": "chunked", "Content-Length": "3"}, b"{}", False),
+        ):
+            with self.subTest(headers=headers):
+                response = MagicMock()
+                response.__enter__.return_value = response
+                response.status, response.headers = 200, headers
+                response.read.return_value = body
+                opener = Mock()
+                opener.open.return_value = response
+                with patch.object(open_fulltext.urllib.request, "build_opener", return_value=opener):
+                    if refused:
+                        with self.assertRaises(ValueError):
+                            open_fulltext._http_fetch(open_fulltext.BASE + "/search", timeout=1, max_body_bytes=10)
+                        result = fetch_fulltext(["pmid:12345"], self.run, execute=True)
+                        self.assertEqual("unavailable", result["results"][0]["status"])
+                    else:
+                        self.assertEqual((200, body), open_fulltext._http_fetch(
+                            open_fulltext.BASE + "/search", timeout=1, max_body_bytes=10))
+
+    def test_fetch_ledger_preserves_row_boundary_without_final_newline(self):
+        output = self.run / "fulltext"
+        output.mkdir()
+        ledger = output / "fetch-ledger.jsonl"
+        prior = {"query_id": "prior", "status": "complete"}
+        for suffix in ("", "\n"):
+            with self.subTest(suffix=suffix):
+                original = json.dumps(prior) + suffix
+                ledger.write_text(original)
+                for _ in range(2):
+                    fetch_fulltext(["pmid:12345"], self.run, execute=True,
+                                   fetch=Mock(return_value=(200, b'{"resultList":{"result":[]}}')))
+                content = ledger.read_text()
+                self.assertTrue(content.startswith(json.dumps(prior) + "\n"))
+                self.assertEqual(prior, json.loads(content.splitlines()[0]))
+                self.assertEqual(3, len([json.loads(line) for line in content.splitlines()]))
+        ledger.write_bytes(b"")
+        fetch_fulltext(["pmid:12345"], self.run, execute=True,
+                       fetch=Mock(return_value=(200, b'{"resultList":{"result":[]}}')))
+        self.assertEqual(1, len(ledger.read_text().splitlines()))
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [pool.submit(fetch_fulltext, ["pmid:12345"], self.run, execute=True,
+                                   fetch=Mock(return_value=(200, b'{"resultList":{"result":[]}}')))
+                       for _ in range(4)]
+            for future in futures:
+                result = future.result(timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(1, result["requests_recorded"])
+        self.assertEqual(5, len([json.loads(line) for line in ledger.read_text().splitlines()]))
+
+    def test_only_explicit_open_licenses_allow_retention(self):
+        for license_value, expected in (
+            ("All rights reserved", "not-open-access"), ("publisher-specific", "not-open-access"),
+            ("not CC BY", "not-open-access"), ("cc by permission only", "not-open-access"),
+            ("https://creativecommons.org.example/licenses/by/4.0/", "not-open-access"),
+            ("https://creativecommons.org:bad/licenses/by/4.0/", "not-open-access"),
+            ("https://[bad", "not-open-access"),
+            ("https://creativecommons.org:444/licenses/by/4.0/", "not-open-access"),
+            ("https://reader@creativecommons.org/licenses/by/4.0/", "not-open-access"),
+            ("ftp://creativecommons.org/licenses/by/4.0/", "not-open-access"),
+            ("", "license-unknown"), (None, "license-unknown"), (True, "license-unknown"),
+            ("cc by", "fetched"), ("cc by-nc", "fetched"), ("cc by-nc-nd", "fetched"),
+            ("cc-by", "fetched"), ("CC BY 4.0", "fetched"), ("CC0", "fetched"),
+            ("Creative Commons Attribution 4.0 International", "fetched"),
+            ("Creative Commons CC-BY 4.0", "fetched"),
+            ("Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International", "fetched"),
+            ("https://creativecommons.org/licenses/by/4.0/", "fetched"),
+            ("http://creativecommons.org/publicdomain/zero/1.0/", "fetched"),
+            ("public-domain", "fetched"),
+        ):
+            with self.subTest(license_value=license_value), tempfile.TemporaryDirectory() as temp:
+                metadata = {"resultList": {"result": [{"pmid": "12345", "pmcid": "PMC12345",
+                    "source": "MED", "isOpenAccess": "Y", "license": license_value}]}}
+                fetch = Mock(side_effect=[(200, json.dumps(metadata).encode()), (200, b"<article><p>Text</p></article>")])
+                result = fetch_fulltext(["pmid:12345"], temp, execute=True, fetch=fetch)
+                self.assertEqual(expected, result["results"][0]["status"])
+                self.assertEqual(2 if expected == "fetched" else 1, fetch.call_count)
+                self.assertEqual(expected == "fetched", (Path(temp) / "fulltext/PMC12345.xml").exists())
 
     def test_open_access_writes_xml_text_and_request_ledger(self):
         xml = b"<article><title>A title</title><body><sec><title>Methods</title><p>Useful text.</p></sec></body></article>"
@@ -465,20 +584,25 @@ class OpenFulltextTests(unittest.TestCase):
             open_fulltext._plain_text(hidden)
 
     def test_elapsed_wall_cap_marks_remaining_skipped(self):
-        times = iter([0, 0, 0, 0, 2])
-        calls = []
-        def fetch(url, **kwargs):
-            calls.append(url)
-            if "search?" in url:
-                query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["query"][0]
-                pmid = query.split(":", 1)[1].split()[0]
-                return 200, json.dumps({"resultList": {"result": [{"pmcid": "PMC12345", "pmid": pmid,
-                    "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}]}}).encode()
-            return 200, b"<article/>"
-        result = fetch_fulltext(["pmid:12345", "pmid:12346"], self.run, execute=True,
-                                fetch=fetch, max_seconds=1, clock=lambda: next(times))
-        self.assertEqual(["fetched", "skipped-cap"], [item["status"] for item in result["results"]])
-        self.assertEqual(2, len(calls))
+        for xml, expected in ((b"<article><p>Text</p></article>", "fetched"),
+                              (b"<article/>", "unavailable")):
+            with self.subTest(xml=xml):
+                times = iter([0, 0, 0, 0, 2])
+                calls = []
+                def fetch(url, **kwargs):
+                    calls.append(url)
+                    if "search?" in url:
+                        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["query"][0]
+                        pmid = query.split(":", 1)[1].split()[0]
+                        return 200, json.dumps({"resultList": {"result": [{"pmcid": "PMC12345", "pmid": pmid,
+                            "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}]}}).encode()
+                    return 200, xml
+                result = fetch_fulltext(["pmid:12345", "pmid:12346"], self.run, execute=True,
+                                        fetch=fetch, max_seconds=1, clock=lambda: next(times))
+                self.assertEqual([expected, "skipped-cap"], [item["status"] for item in result["results"]])
+                if expected == "unavailable":
+                    self.assertEqual("xml-parse-error", result["results"][0]["reason"])
+                self.assertEqual(2, len(calls))
 
     def test_exactly_ten_fetches_without_remaining_candidate_does_not_report_cap_reached(self):
         def fetch(url, **kwargs):

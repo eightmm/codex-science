@@ -1,6 +1,7 @@
 """Opt-in, bounded retrieval of openly licensed Europe PMC full text."""
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import http.client
 import json
@@ -95,6 +96,12 @@ def _http_fetch(url: str, *, timeout: float, max_body_bytes: int) -> tuple[int, 
             body = response.read(max_body_bytes + 1)
             if len(body) > max_body_bytes:
                 raise ValueError("response exceeds body cap")
+            length = response.headers.get("Content-Length")
+            if length is not None and "chunked" not in response.headers.get("Transfer-Encoding", "").lower():
+                if not re.fullmatch(r"[0-9]+", length.strip()):
+                    raise ValueError("invalid Content-Length")
+                if len(body) < int(length):
+                    raise ValueError("incomplete response body")
             return response.status, body
     except urllib.error.HTTPError as exc:
         body = exc.read(max_body_bytes + 1)
@@ -292,7 +299,7 @@ def _record_matches(record: dict[str, Any], identifier: str) -> bool:
     return str(record.get("source", "")).upper() == "MED" and str(record.get("pmid", "")) == value
 
 
-def _plain_text(xml: bytes) -> str:
+def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> str:
     # UTF-16/32 can hide markup from the byte-level declaration checks.
     body = xml.removeprefix(b"\xef\xbb\xbf")
     if b"\x00" in body:
@@ -329,6 +336,28 @@ def _plain_text(xml: bytes) -> str:
 
     def name(node: ET.Element) -> str:
         return node.tag.rsplit("}", 1)[-1].lower()
+
+    # Alias extraction also checks metadata-only XML; fetch callers pass expected_ids.
+    if expected_ids is not None and name(root) != "article":
+        raise ET.ParseError("expected an article document")
+    if expected_ids:
+        metadata = [root]
+        metadata.extend(meta for meta in root if name(meta) == "article-meta")
+        metadata.extend(meta for front in root if name(front) == "front"
+                        for meta in front if name(meta) == "article-meta")
+        for parent in metadata:
+            for node in parent:
+                if name(node) != "article-id":
+                    continue
+                kind = node.get("pub-id-type", "").lower()
+                kind = "pmc" if kind == "pmcid" else kind
+                if kind not in expected_ids:
+                    continue
+                value = "".join(node.itertext()).strip().upper()
+                if kind == "pmc" and value.isdigit():
+                    value = "PMC" + value
+                if value and value != expected_ids[kind].upper():
+                    raise ET.ParseError("article identity conflicts with request")
 
     block_tags = {
         "abstract", "caption", "fig", "list", "list-item", "p", "sec",
@@ -406,7 +435,36 @@ def _plain_text(xml: bytes) -> str:
             walk(child)
 
     walk(root)
-    return "\n\n".join(pieces)
+    plain = "\n\n".join(pieces)
+    if expected_ids is not None and not plain:
+        raise ET.ParseError("article contains no extracted text")
+    return plain
+
+
+def _open_license(value: str) -> bool:
+    normalized = re.sub(r"[\s-]+", " ", value.casefold()).strip()
+    if re.fullmatch(
+        r"(?:cc(?:0| by(?: nc)?(?: nd| sa)?)(?: \d+(?:\.\d+)?)?"
+        r"|public domain(?: dedication| license)?)", normalized.removeprefix("creative commons "),
+    ):
+        return True
+    if re.fullmatch(
+        r"creative commons (?:attribution(?: noncommercial)?(?: noderivatives| sharealike)?|zero|public domain)"
+        r"(?: \d+(?:\.\d+)?)?(?: international| unported| generic)?(?: license)?", normalized,
+    ):
+        return True
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        if parsed.scheme.lower() not in {"https", "http"} or parsed.hostname not in {"creativecommons.org", "www.creativecommons.org"}:
+            return False
+        if parsed.port not in (None, 80 if parsed.scheme.lower() == "http" else 443) or "@" in parsed.netloc:
+            return False
+        return re.fullmatch(
+            r"/(?:licenses/by(?:-nc)?(?:-nd|-sa)?/\d+\.\d+|publicdomain/(?:zero|mark)/1\.0)"
+            r"(?:/(?:deed(?:\.[a-zA-Z_-]+)?|legalcode)?)?", parsed.path,
+        ) is not None
+    except ValueError:
+        return False
 
 
 def _prepare_output_paths(root: Path, ids: list[str]) -> tuple[Path, Path]:
@@ -469,14 +527,16 @@ def fetch_fulltext(
     requests_recorded = 0
     resolved_pmcids: set[str] = set()
 
-    def request(url: str, query: str, pmcid: str | None = None, license_value: str | None = None):
+    def request(url: str, query: str, pmcid: str | None = None, license_value: str | None = None,
+                expected_ids: dict[str, str] | None = None):
         nonlocal stop_for_cap, ledger_failed, requests_recorded
         remaining = max_seconds - (clock() - started)
         if remaining <= 0:
             stop_for_cap = True
-            return None, b"", False, False
+            return None, b"", False, False, None
         response_status: int | None = None
         body = b""
+        plain: str | Exception | None = None
         try:
             response = fetcher(url, timeout=min(10.0, remaining), max_body_bytes=max_body_bytes)
             response_status, body = response if isinstance(response, tuple) else (response.status, response.read(max_body_bytes + 1))
@@ -490,25 +550,37 @@ def fetch_fulltext(
             response_status, body = None, b""
             if clock() - started > max_seconds:
                 stop_for_cap = True
+        if response_status == 200 and pmcid is not None:
+            try:
+                plain = _plain_text(body, expected_ids=expected_ids)
+            except (ET.ParseError, ValueError, RecursionError) as error:
+                plain = error
         row = {
             "query_id": "fulltext-" + uuid.uuid4().hex,
             "source": "europepmc",
             "query": query,
             "url": url,
             "accessed_at": datetime.now(timezone.utc).isoformat(),
-            "status": "complete" if response_status == 200 else "unavailable",
+            "status": "complete" if response_status == 200 and not isinstance(plain, Exception) else "unavailable",
             "response_sha256": hashlib.sha256(body).hexdigest() if response_status is not None else None,
             "fulltext_pmcid": pmcid,
             "license": license_value,
         }
         try:
-            with ledger_path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
+            with ledger_path.open("a+b") as stream:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                stream.seek(0, 2)
+                prefix = b""
+                if stream.tell():
+                    stream.seek(-1, 2)
+                    if stream.read(1) != b"\n":
+                        prefix = b"\n"
+                stream.write(prefix + (json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
             requests_recorded += 1
         except OSError:
             ledger_failed = True
-            return response_status, body, False, True
-        return response_status, body, True, True
+            return response_status, body, False, True, plain
+        return response_status, body, True, True, plain
 
     for identifier in normalized:
         if not execute:
@@ -524,7 +596,7 @@ def fetch_fulltext(
         query = _search_query(identifier)
         params = urllib.parse.urlencode({"query": query, "resultType": "core", "format": "json"})
         core_url = f"{BASE}/search?{params}"
-        status, body, ledger_ok, did_request = request(core_url, query)
+        status, body, ledger_ok, did_request, _ = request(core_url, query)
         if not did_request:
             results.append({"identifier": identifier, "status": "skipped-cap"})
             continue
@@ -567,13 +639,22 @@ def fetch_fulltext(
         if not license_value:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid, "status": "license-unknown"})
             continue
+        if not _open_license(license_value):
+            results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
+                            "license": license_value, "status": "not-open-access"})
+            continue
         if stop_for_cap:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "skipped-cap"})
             stop_for_cap = True
             continue
         full_url = f"{BASE}/{pmcid}/fullTextXML"
-        status, xml, ledger_ok, did_request = request(full_url, f"PMCID:{pmcid} fullTextXML", pmcid, license_value)
+        expected_ids = {"pmc": pmcid}
+        pmid = identifier.split(":", 1)[1] if identifier.startswith("pmid:") else record.get("pmid")
+        if isinstance(pmid, (str, int)) and not isinstance(pmid, bool) and str(pmid):
+            expected_ids["pmid"] = str(pmid)
+        status, xml, ledger_ok, did_request, plain = request(
+            full_url, f"PMCID:{pmcid} fullTextXML", pmcid, license_value, expected_ids)
         if not did_request:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "skipped-cap"})
@@ -589,7 +670,8 @@ def fetch_fulltext(
                             "reason": f"http-{status}" if status is not None else "request-failed"})
             continue
         try:
-            plain = _plain_text(xml)
+            if isinstance(plain, Exception):
+                raise plain
         except ET.ParseError:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "unavailable", "reason": "xml-parse-error"})

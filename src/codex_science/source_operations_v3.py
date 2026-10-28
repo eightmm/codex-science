@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from codex_science.connectors import raise_esearch_error
 from codex_science.connector_contract import QueryRequest
-from codex_science.transport_v3 import PageRequest
+from codex_science.transport_v3 import PageRequest, SafeRedirectHandler
 
 
 def _query(request: QueryRequest) -> str:
@@ -68,6 +68,18 @@ def _pagination_drift(source: str, error: ValueError) -> ValueError:
     return ValueError(f"schema-drift: {source} pagination {detail}")
 
 
+def _record_identifier(value: Any) -> str:
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        raise ValueError("invalid record identifier: expected string or integer")
+    return str(value)
+
+
+@dataclass(frozen=True)
+class _EuropePMCPageRequest(PageRequest):
+    # Cursor pages can be shorter than page_size; page_index cannot count hits.
+    _records_received: int = 0
+
+
 def _pubmed_result(payload: Any) -> Mapping[str, Any]:
     raise_esearch_error(payload)
     result = _required_mapping(payload, "esearchresult")
@@ -118,6 +130,8 @@ class PubMedSearchV3:
             raise _pagination_drift(self.source, error) from error
         returned = len(result["idlist"])
         next_start = current + returned
+        if returned == 0 and count > 0:
+            raise _pagination_drift(self.source, ValueError("invalid empty page before count was reached"))
         if returned == 0 or next_start >= count:
             return None
         parsed = urllib.parse.urlsplit(page_request.url)
@@ -131,7 +145,8 @@ class PubMedSearchV3:
         ids = result["idlist"]
         return [
             {"id": str(identifier), "title": "", "url": f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"}
-            for identifier in ids
+            for value in ids
+            if (identifier := _record_identifier(value))
         ]
 
     def source_release(self, payload: Any, headers: Mapping[str, str]) -> str | None:
@@ -155,11 +170,19 @@ class EuropePMCSearchV3:
             "resultType": str(request.parameters.get("result_type", "core")),
         }
         url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?" + urllib.parse.urlencode(params)
-        return PageRequest("GET", url, {}, cursor="*")
+        return _EuropePMCPageRequest("GET", url, {}, cursor="*")
 
     def next_request(self, request: QueryRequest, page_request: PageRequest, payload: Any, page_index: int) -> PageRequest | None:
         try:
             returned = _europepmc_results(payload)
+            received = getattr(page_request, "_records_received", page_index * request.page_size) + len(returned)
+            hit_count = None
+            if isinstance(payload, Mapping) and "hitCount" in payload:
+                hit_count = _required_value(payload, "hitCount")
+                if isinstance(hit_count, bool) or not isinstance(hit_count, int) or hit_count < 0:
+                    raise ValueError("invalid hitCount: expected non-negative integer")
+            if not returned and hit_count is not None and received < hit_count:
+                raise ValueError("invalid empty page before hitCount was reached")
         except ValueError as error:
             raise _pagination_drift(self.source, error) from error
         if not isinstance(payload, Mapping) or "nextCursorMark" not in payload:
@@ -167,7 +190,7 @@ class EuropePMCSearchV3:
                 hit_count = _required_value(payload, "hitCount")
                 if isinstance(hit_count, bool) or not isinstance(hit_count, int) or hit_count < 0:
                     raise ValueError("invalid hitCount: expected non-negative integer")
-                if hit_count > page_index * request.page_size + len(returned):
+                if hit_count > received:
                     raise ValueError("missing nextCursorMark")
             except ValueError as error:
                 if str(error) == "missing hitCount":
@@ -183,18 +206,20 @@ class EuropePMCSearchV3:
         if not returned:
             return None
         if not cursor or cursor == page_request.cursor:
+            if hit_count is not None and received < hit_count:
+                raise _pagination_drift(self.source, ValueError("invalid nextCursorMark: stopped before hitCount was reached"))
             return None
         parsed = urllib.parse.urlsplit(page_request.url)
         params = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
         params["cursorMark"] = cursor
         url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(params), parsed.fragment))
-        return PageRequest("GET", url, {}, cursor=cursor)
+        return _EuropePMCPageRequest("GET", url, {}, cursor=cursor, _records_received=received)
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
         results = _europepmc_results(payload)
         records = []
         for item in results:
-            identifier = str(item.get("id") or "")
+            identifier = _record_identifier(item.get("id", ""))
             source = str(item.get("source") or "")
             if identifier:
                 record = {
@@ -235,9 +260,14 @@ class ChEMBLMoleculeSearchV3:
             raise _pagination_drift(self.source, error) from error
         if next_url is None or next_url == "":
             return None
-        if next_url.startswith("/"):
-            next_url = "https://www.ebi.ac.uk" + next_url
-        parsed = urllib.parse.urlsplit(next_url)
+        try:
+            next_url = urllib.parse.urljoin(page_request.url, next_url)
+            parsed = urllib.parse.urlsplit(next_url)
+            initial_origin = SafeRedirectHandler._origin(self.first_request(request).url)
+            if SafeRedirectHandler._origin(next_url) != initial_origin or "@" in parsed.netloc:
+                raise ValueError("invalid page_meta.next: outside ChEMBL API origin")
+        except ValueError as error:
+            raise _pagination_drift(self.source, error) from error
         cursor = dict(urllib.parse.parse_qsl(parsed.query)).get("offset")
         return PageRequest("GET", next_url, {}, cursor=cursor)
 
@@ -245,7 +275,7 @@ class ChEMBLMoleculeSearchV3:
         molecules = _required_list(payload, "molecules")
         records = []
         for item in molecules:
-            identifier = str(item.get("molecule_chembl_id") or "")
+            identifier = _record_identifier(item.get("molecule_chembl_id", ""))
             if not identifier:
                 continue
             structures = item.get("molecule_structures") or {}
@@ -292,6 +322,8 @@ class PDBSearchV3:
             raise _pagination_drift(self.source, error) from error
         start = _integer(page_request.cursor or 0, "cursor")
         next_start = start + len(result_set)
+        if not result_set and total > 0:
+            raise _pagination_drift(self.source, ValueError("invalid empty page before total_count was reached"))
         if not result_set or next_start >= total:
             return None
         return PageRequest(
@@ -306,13 +338,13 @@ class PDBSearchV3:
         result_set = _pdb_results(payload)
         return [
             {
-                "id": str(item["identifier"]),
+                "id": identifier,
                 "title": "",
                 "score": item.get("score"),
-                "url": f"https://www.rcsb.org/structure/{item['identifier']}",
+                "url": f"https://www.rcsb.org/structure/{identifier}",
             }
             for item in result_set
-            if item.get("identifier")
+            if (identifier := _record_identifier(item.get("identifier", "")))
         ]
 
     def source_release(self, payload: Any, headers: Mapping[str, str]) -> str | None:

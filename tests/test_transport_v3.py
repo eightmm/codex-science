@@ -57,6 +57,91 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_inconsistent_counts_and_stalled_cursors_are_not_complete(self):
+        cases = [
+            (PubMedSearchV3(), [{"esearchresult": {"count": "1", "idlist": []}}]),
+            (PubMedSearchV3(), [{"esearchresult": {"count": "1", "retstart": "1", "idlist": []}}]),
+            (PDBSearchV3(), [{"total_count": 1, "result_set": []}]),
+            (EuropePMCSearchV3(), [{"hitCount": 1, "nextCursorMark": "*", "resultList": {"result": []}}]),
+            (EuropePMCSearchV3(), [{"hitCount": 2, "nextCursorMark": "*", "resultList": {"result": [{"id": "1"}]}}]),
+            (EuropePMCSearchV3(), [{"hitCount": 2, "nextCursorMark": "", "resultList": {"result": [{"id": "1"}]}}]),
+            (PubMedSearchV3(), [
+                {"esearchresult": {"count": "2", "idlist": ["1"]}},
+                {"esearchresult": {"count": "2", "retstart": "1", "idlist": []}},
+            ]),
+            (PDBSearchV3(), [{"total_count": 2, "result_set": [{"identifier": "1"}]},
+                             {"total_count": 2, "result_set": []}]),
+            (EuropePMCSearchV3(), [
+                {"hitCount": 3, "nextCursorMark": "next", "resultList": {"result": [{"id": "1"}]}},
+                {"hitCount": 3, "nextCursorMark": "next", "resultList": {"result": [{"id": "2"}]}},
+            ]),
+        ]
+        for operation, pages in cases:
+            with self.subTest(source=operation.source, pages=pages):
+                request = QueryRequest(operation.source, "search", {"query": "fixture"},
+                                       page_size=2, max_pages=3, source_contract_version="3")
+                with self.assertRaisesRegex(ValueError, "schema-drift"):
+                    execute_paginated(operation, request, transport=FakeTransport([(page, {}) for page in pages]))
+        operation = EuropePMCSearchV3()
+        request = QueryRequest("europepmc", "search", {"query": "fixture"},
+                               page_size=2, max_pages=2, source_contract_version="3")
+        first = {"hitCount": 2, "nextCursorMark": "next", "resultList": {"result": [{"id": "1"}]}}
+        second = {"hitCount": 2, "nextCursorMark": "next", "resultList": {"result": [{"id": "2"}]}}
+        result = execute_paginated(operation, request, transport=FakeTransport([(first, {}), (second, {})]))
+        self.assertEqual("complete", result.receipt.status)
+        bounded = QueryRequest("europepmc", "search", {"query": "fixture"},
+                               page_size=2, max_pages=1, source_contract_version="3")
+        result = execute_paginated(operation, bounded, transport=FakeTransport([(first, {})]))
+        self.assertEqual("bounded-by-user", result.receipt.status)
+
+    def test_source_identifiers_refuse_booleans_and_non_scalar_types(self):
+        cases = (
+            (PubMedSearchV3(), lambda value: {"esearchresult": {"idlist": [value]}}),
+            (EuropePMCSearchV3(), lambda value: {"resultList": {"result": [{"id": value}]}}),
+            (ChEMBLMoleculeSearchV3(), lambda value: {"molecules": [{"molecule_chembl_id": value}]}),
+            (PDBSearchV3(), lambda value: {"result_set": [{"identifier": value}]}),
+        )
+        for operation, payload in cases:
+            for value in (True, False, None, 1.5, [], {}, ["1"]):
+                with self.subTest(source=operation.source, value=value), self.assertRaises(ValueError):
+                    operation.normalize(payload(value))
+            for value in (0, 123, "123"):
+                with self.subTest(source=operation.source, value=value):
+                    self.assertEqual([str(value)], [row["id"] for row in operation.normalize(payload(value))])
+            with self.subTest(source=operation.source, value=""):
+                self.assertEqual([], operation.normalize(payload("")))
+
+    def test_chembl_pagination_stays_on_initial_api_origin(self):
+        operation = ChEMBLMoleculeSearchV3()
+        request = QueryRequest("chembl", "search", {"query": "fixture"}, max_pages=2,
+                               source_contract_version="3")
+        for next_url in (
+            "https://example.org/collect?offset=1", "//example.org/collect?offset=1",
+            "http://www.ebi.ac.uk/chembl/api/data/molecule.json?offset=1",
+            "https://www.ebi.ac.uk:444/chembl/api/data/molecule.json?offset=1",
+            "https://www.ebi.ac.uk.example/collect?offset=1", "https://[bad",
+            "https://www.ebi.ac.uk:bad/path", "file:///tmp/next", True, 0, {},
+            "https://reader@www.ebi.ac.uk/chembl/api/data/molecule.json?offset=1",
+        ):
+            with self.subTest(next_url=next_url):
+                payload = {"molecules": [], "page_meta": {"next": next_url}}
+                transport = FakeTransport([(payload, {}), ({"molecules": [], "page_meta": {"next": None}}, {})])
+                with self.assertRaisesRegex(ValueError, "schema-drift: chembl pagination"):
+                    execute_paginated(operation, request, transport=transport)
+                self.assertEqual(1, len(transport.requests))
+        for next_url in ("/chembl/api/data/molecule.json?offset=1", "?offset=1", "next.json?offset=1",
+                         "https://www.ebi.ac.uk:443/chembl/api/data/molecule.json?offset=1"):
+            with self.subTest(next_url=next_url):
+                first = {"molecules": [{"molecule_chembl_id": "CHEMBL1"}], "page_meta": {"next": next_url}}
+                last = {"molecules": [], "page_meta": {"next": None}}
+                transport = FakeTransport([(first, {}), (last, {})])
+                result = execute_paginated(operation, request, transport=transport)
+                self.assertEqual("complete", result.receipt.status)
+                self.assertTrue(transport.requests[1].url.startswith(("https://www.ebi.ac.uk/", "https://www.ebi.ac.uk:443/")))
+        for next_url in (None, ""):
+            self.assertIsNone(operation.next_request(request, operation.first_request(request),
+                {"page_meta": {"next": next_url}}, 0))
+
     def _retry_opener(self, value, status=503):
         headers = Message()
         if value is not None:

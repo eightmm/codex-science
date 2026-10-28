@@ -37,7 +37,9 @@ class FakeTransport:
         return TransportResponse(200, request.url, {}, body, media_type, "2026-07-20T00:00:00Z", 1)
 
 
-def europe_payload(rows=None, hit_count=1):
+def europe_payload(rows=None, hit_count=None):
+    if hit_count is None:
+        hit_count = len(rows or [])
     return {"hitCount": hit_count, "nextCursorMark": "*", "resultList": {"result": rows or []}}
 
 
@@ -50,6 +52,30 @@ def pubmed_esummary(ids):
 
 
 class RetrieveLiteratureTests(unittest.TestCase):
+    def test_inconsistent_search_pages_never_publish_complete_query_rows(self):
+        for source, payload in (
+            ("pubmed", {"esearchresult": {"count": "1", "idlist": []}}),
+            ("europepmc", europe_payload([], 1)),
+            ("europepmc", europe_payload([{"id": "1"}], 2)),
+        ):
+            with self.subTest(source=source, payload=payload), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                with self.assertRaisesRegex(ValueError, "schema-drift"):
+                    retrieve_literature(root, source, "inconsistent", transport=FakeTransport([payload]))
+                self.assertFalse((root / "queries.jsonl").exists())
+                self.assertEqual([], list(root.iterdir()))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            payload = europe_payload([{"id": "1"}], 2)
+            payload["nextCursorMark"] = "next"
+            summary = retrieve_literature(root, "europepmc", "capped", page_size=1, max_pages=1,
+                                          transport=FakeTransport([payload]))
+            row = json.loads((root / "queries.jsonl").read_text())
+            self.assertEqual("partial", summary["status"])
+            self.assertEqual("partial", row["status"])
+            self.assertEqual(2, row["hit_count"])
+            self.assertEqual(1, row["records_returned"])
+
     def test_plain_abstract_strips_markup_without_deleting_comparisons(self):
         cases = {
             '<p>p < 0.05 and fold change > 2</p>': 'p < 0.05 and fold change > 2\n',
