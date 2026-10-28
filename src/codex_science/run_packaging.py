@@ -467,7 +467,11 @@ def _review_packet_content_matches(run_dir: Path, manifest: dict[str, Any], pack
     by_id = {str(item.get("id")): item for item in claims if isinstance(item, dict)}
     for claim in _redact(manifest.get("claims", [])):
         reviewed = by_id.get(str(claim.get("id")), {})
-        if "text" in claim and claim["text"] != reviewed.get("text"):
+        if "text" in claim and (
+            not isinstance(claim["text"], str)
+            or not isinstance(reviewed.get("text"), str)
+            or " ".join(claim["text"].split()) != " ".join(reviewed["text"].split())
+        ):
             return False
     current_contract = _redact({
         "question": str(manifest.get("question", "")),

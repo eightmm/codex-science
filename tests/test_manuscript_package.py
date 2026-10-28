@@ -300,6 +300,86 @@ class ManuscriptPackageTests(unittest.TestCase):
         for text in (value, "(" + value + ")", value + "."):
             self.assertTrue(_scalar_appears_in_text(value, text))
 
+    def test_bibtex_doi_literals_are_interpreted_before_comparison(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        bib = self.package / "references.bib"
+        cases = [
+            ("10.1234/abc_1", "{10.1234/} # {abc_1}", False),
+            ("10.1234/abc_1", '"https://DOI.ORG/10.1234/" # "AbC_1"', False),
+            ("10.1234/abc_1", r"{doi:10.1234/abc\_1}", False),
+            ("10.1234/abc_1", "{10.1234/{abc}_1}", False),
+            ("10.1234/abc_1", '"10.1234/{abc}_1"', False),
+            ("10.1234/abc_1", "{10.} # 1234 # {/abc_1}", False),
+            ("10.1234/abc_1", "doi_macro", False),
+            ("10.1234/abc_1", "{10.1234/} # suffix", False),
+            ("10.1234/abc_1", "{10.1234/} #", False),
+            ("10.1234/abc_1", "{10.1234/} # ", False),
+            ("10.1234/abc_1", "{10.1234/} # # {abc_1}", False),
+            ("10.1234/abc_1", "{10.1234/abc_1} trailing", False),
+            ("10.1234/abc_1", r"{10.1234/abc\unknown}", False),
+            ("10.1234/abc_1", '"10.1234/{abc"', False),
+            ("10.1234/abc_1", "{}", False),
+            ("10.1234/abc_1", "0", False),
+            ("10.1234/abc_1", "{10.1234/} # {other}", True),
+            ("10.1234/abc_1", r"{10.1234/other\_1}", True),
+        ]
+        for character in "_&%#${}":
+            cases.append(("10.1234/a" + character + "b", "{10.1234/a\\" + character + "b}", False))
+        for reference, value, mismatch in cases:
+            with self.subTest(value=value):
+                trace["citations"][0]["persistent_id"] = reference
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                bib.write_text(f"@article{{ref-method, doi={value}}}\n", encoding="utf-8")
+                self.refresh_submission_hash(bib.name)
+                result = validate_manuscript_package(self.package)
+                if mismatch:
+                    self.assertIn("bibtex-doi-mismatch", {item["code"] for item in result["findings"]})
+                else:
+                    self.assertEqual("passed", result["status"], result["findings"])
+
+    def test_reported_source_units_accept_attached_symbols(self) -> None:
+        artifact = self.package / "reported-unit.json"
+        artifact.write_text("{}", encoding="utf-8")
+        submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
+        submission["files"].append({"path": artifact.name, "kind": "manuscript-package-file",
+                                    "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()})
+        self.rewrite_json("submission-package.json", submission)
+        name = "claim-citation-map.json"
+        original_trace = (self.package / name).read_text(encoding="utf-8")
+        manuscript = self.package / "manuscript.md"
+        original_text = manuscript.read_text(encoding="utf-8")
+        for estimate, unit, text, mismatch in (
+            (2.5, "%", "2.5%", False), (2.5, "%", "2.5 %", False),
+            (0, "%", "0%", False), (2.5, "‰", "2.5‰", False),
+            (37, "°", "37°", False), (37, "°C", "37°C", False),
+            (37, "°C", "37 °C", False), (2.5, "µm", "2.5µm", False),
+            (2.5, "μm", "2.5μm", False), (2.5, "Å", "2.5 Å", False),
+            (2.5, "µm", "2.5 µm", False), (2.5, "mg", "2.5 mg", False),
+            (2.5, "mg", "2.5 mgx", True), (2.5, "%", "2.5‰", True),
+            (2.5, "µm", "2.5 xµm", True), (2.5, "µm", "2.5 µmx", True),
+            (37, "°C", "37 °F", True), (2.5, "mg", "2.5mg", True),
+            (2.5, "Å", "2.5Å", True), (2.5, "", "2.5", False),
+        ):
+            with self.subTest(unit=unit, text=text):
+                self.rewrite_json(artifact.name, {"estimate": estimate, "unit": unit})
+                trace = json.loads(original_trace)
+                trace["claims"][0]["reported_values"][0].update(
+                    artifact_path=artifact.name, artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                    locator="/estimate", text=text,
+                )
+                trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5 response units", text)
+                manuscript.write_text(original_text.replace("2.5 response units", text), encoding="utf-8")
+                self.rewrite_json(name, trace)
+                for relative in (artifact.name, name, manuscript.name):
+                    self.refresh_submission_hash(relative)
+                result = validate_manuscript_package(self.package)
+                if mismatch:
+                    self.assertIn("reported-value-unit-mismatch", {item["code"] for item in result["findings"]})
+                else:
+                    self.assertEqual("passed", result["status"], result["findings"])
+
     def test_string_reported_value_counterexample_is_refused_by_cli(self) -> None:
         artifact = self.package / "string-value.json"
         artifact.write_text(json.dumps("2.5 response units"), encoding="utf-8")

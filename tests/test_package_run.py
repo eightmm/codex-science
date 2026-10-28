@@ -167,6 +167,54 @@ class PackageRunTests(unittest.TestCase):
             result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
             self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_register_receipt_accepts_manifest_claim_whitespace(self) -> None:
+        from codex_science.reviewer_runtime import build_review_packet, finalize_review_response
+
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["claims"][0]["text"] += " \n\t"
+        manifest_path.write_text(json.dumps(manifest))
+        packet = build_review_packet(manifest_path, review_modes=["record"])
+        self.assertNotEqual(manifest["claims"][0]["text"], packet["claims"][0]["text"])
+        (self.run_dir / "review-task.json").write_text(json.dumps(packet))
+        response = {"review_task_id": packet["review_task_id"], "packet_fingerprint": packet["fingerprint"],
+                    "reviewer": "fixture-reviewer", "independent": True, "review_modes": ["record"], "status": "passed",
+                    "reviewed_claim_ids": packet["material_claim_ids"], "reviewed_artifacts": packet["artifacts"],
+                    "findings": [
+                        {"id": severity, "severity": severity, "code": "wording", "message": "Optional wording edit",
+                         "resolution_status": "open", "evidence": [{"artifact_path": packet["artifacts"][0]["path"]}]}
+                        for severity in ("minor", "suggestion")
+                    ], "limitations": ["fixture only"]}
+        (self.run_dir / "final-review.json").write_text(json.dumps(finalize_review_response(packet, response)))
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(
+                lambda _: self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json"),
+                range(2),
+            ))
+        for result in results:
+            self.assertEqual(0, result.returncode, result.stderr)
+        before = manifest_path.read_bytes()
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(before, manifest_path.read_bytes())
+        current = json.loads(manifest_path.read_text())
+        self.assertEqual("passed", current["review"]["status"])
+        self.assertEqual({"minor", "suggestion"}, {item["severity"] for item in current["review"]["findings"]})
+        current["claims"][0]["text"] = " \t".join(current["claims"][0]["text"].split())
+        manifest_path.write_text(json.dumps(current))
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+        self.assertEqual(0, result.returncode, result.stderr)
+        registered = manifest_path.read_bytes()
+        for text in ("", " ", "0", 0, None, [], "Changed decision."):
+            with self.subTest(text=text):
+                changed = json.loads(registered)
+                changed["claims"][0]["text"] = text
+                manifest_path.write_text(json.dumps(changed))
+                before = manifest_path.read_bytes()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertEqual(before, manifest_path.read_bytes())
+
     def test_register_receipt_accepts_honest_exec_refresh_and_completed_step(self) -> None:
         from codex_science.reviewer_runtime import build_review_packet, finalize_review_response
         from codex_science.run_packaging import plan_receipt_registration

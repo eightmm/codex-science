@@ -198,6 +198,17 @@ def _scalar_appears_in_text(value: Any, text: str) -> bool:
     return False
 
 
+def _unit_appears_in_text(unit: str, text: str) -> bool:
+    unit = unit.strip()
+    if not unit:
+        return False
+    # Symbol-led units (including the micro sign) may adjoin a numeric value.
+    prefix = r"(?<![^\W\d])"
+    if re.match(r"\w", unit) and unit[0] not in "µμ":
+        prefix = r"(?<![\w.])"
+    return re.search(prefix + re.escape(unit) + r"(?!\w|\.\d)", text) is not None
+
+
 def _normalized_doi(value: object) -> str:
     if not isinstance(value, str):
         return ""
@@ -207,8 +218,64 @@ def _normalized_doi(value: object) -> str:
     return value.casefold() if value.lower().startswith("10.") and "/" in value else ""
 
 
+def _bibtex_literal_value(value: str) -> str | None:
+    """Interpret literal concatenations; unresolved macros cannot establish a mismatch."""
+    parts: list[str] = []
+    position = 0
+    while position < len(value):
+        while position < len(value) and value[position].isspace():
+            position += 1
+        if position == len(value):
+            return None
+        opening = value[position]
+        if opening in {'{', '"'}:
+            position += 1
+            depth = 1 if opening == "{" else 0
+            literal: list[str] = []
+            while position < len(value):
+                character = value[position]
+                position += 1
+                if character == "\\":
+                    if position == len(value) or value[position] not in "_&%#${}":
+                        return None
+                    literal.append(value[position])
+                    position += 1
+                elif character == "{":
+                    depth += 1
+                elif character == "}":
+                    depth -= 1
+                    if depth < 0:
+                        return None
+                    if depth == 0 and opening == "{":
+                        break
+                elif character == '"' and depth == 0 and opening == '"':
+                    break
+                else:
+                    literal.append(character)
+            else:
+                return None
+            parts.append("".join(literal))
+        else:
+            end = value.find("#", position)
+            end = len(value) if end < 0 else end
+            literal_value = value[position:end].strip()
+            # Retain the existing support for bare DOI fields, alongside BibTeX numbers.
+            if not _normalized_doi(literal_value) and not literal_value.isdecimal():
+                return None
+            parts.append(literal_value)
+            position = end
+        while position < len(value) and value[position].isspace():
+            position += 1
+        if position == len(value):
+            return "".join(parts)
+        if value[position] != "#":
+            return None
+        position += 1
+    return None
+
+
 def _bibtex_entries(text: str) -> list[tuple[str, dict[str, str]]]:
-    """Read literal fields without treating nested titles or quoted text as entries."""
+    """Read raw fields without treating nested titles or quoted text as entries."""
     entries: list[tuple[str, dict[str, str]]] = []
     header = re.compile(r"@(\w+)\s*([({])")
     position = 0
@@ -255,10 +322,7 @@ def _bibtex_entries(text: str) -> list[tuple[str, dict[str, str]]]:
         for part in parts[1:]:
             name, separator, value = part.partition("=")
             if separator:
-                value = value.strip()
-                if (value.startswith("{") and value.endswith("}")) or (value.startswith('"') and value.endswith('"')):
-                    value = value[1:-1]
-                fields[name.strip().lower()] = value
+                fields[name.strip().lower()] = value.strip()
         entries.append((parts[0], fields))
     return entries
 
@@ -1076,7 +1140,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                                     artifact_payload, locator_value.rsplit("/", 1)[0]
                                 )
                                 unit = source_record.get("unit") if isinstance(source_record, Mapping) else None
-                                if isinstance(unit, str) and unit.strip() and not _scalar_appears_in_text(unit, text):
+                                if isinstance(unit, str) and unit.strip() and not _unit_appears_in_text(unit, text):
                                     findings.append(_finding(
                                         "reported-value-unit-mismatch",
                                         f"Reported value for {claim_id} omits its source unit {unit}",
@@ -1095,7 +1159,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     _finding("bibtex-entry-missing", f"BibTeX entry is missing: {citation_id}")
                 )
                 continue
-            bib_doi = _normalized_doi(entries[citation_id].get("doi", ""))
+            bib_doi = _normalized_doi(_bibtex_literal_value(entries[citation_id].get("doi", "")))
             reference_doi = _normalized_doi(citation.get("persistent_id", ""))
             if bib_doi and reference_doi and bib_doi != reference_doi:
                 findings.append(_finding("bibtex-doi-mismatch", f"BibTeX DOI differs from verified reference: {citation_id}"))
