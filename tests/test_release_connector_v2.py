@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 import codex_science.release as release_contract
-from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, replay_snapshot
+from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, replay_snapshot, sha256_json
 from codex_science.connector_sources import SOURCE_BY_KEY
 from codex_science.connectors import PubMedConnector
 from codex_science.mcp_server import CodexScienceMCP
@@ -232,6 +232,99 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         connector = PubMedConnector(fetch_json=lambda _url: {"esearchresult": {"idlist": []}})
         with self.assertRaisesRegex(ValueError, "evidence_cutoff is not supported"):
             execute_connector(connector, request)
+
+    def test_replay_cross_checks_receipt_facts_and_stored_requests(self) -> None:
+        snapshot = execute_connector(
+            PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": ["123"]}}),
+            QueryRequest("pubmed", "search", {"query": "test"}), include_snapshot=True,
+        ).snapshot()
+        self.assertEqual(1, len(replay_snapshot(snapshot).records))
+        mutations = [
+            (("receipt", "source"), "other", "receipt source mismatch"),
+            (("receipt", "operation"), "fetch", "receipt operation mismatch"),
+            (("receipt", "source_contract_version"), "3", "receipt source_contract_version mismatch"),
+            (("receipt", "returned_record_ids"), [], "returned record IDs mismatch"),
+            (("receipt", "returned_record_ids"), ["999"], "returned record IDs mismatch"),
+            (("pages",), [], "page count mismatch"),
+            (("pages",), snapshot["pages"] * 2, "page count mismatch"),
+            (("pages",), "malformed", "page count mismatch"),
+            (("pages", 0), None, "page must be an object"),
+            (("pages", 0, "method"), "POST", "request method mismatch"),
+            (("pages", 0, "url"), "", "request URL mismatch"),
+            (("pages", 0, "request"), {}, "request body hash mismatch"),
+        ]
+        for count in (0, -1, 2, True, "1", None):
+            mutations.append((("receipt", "pages", 0, "record_count"), count, "record count mismatch"))
+        for path, value, message in mutations:
+            with self.subTest(path=path, value=value):
+                changed = copy.deepcopy(snapshot)
+                target = changed
+                for component in path[:-1]:
+                    target = target[component]
+                target[path[-1]] = value
+                with self.assertRaisesRegex(ValueError, message):
+                    replay_snapshot(changed)
+
+    def test_replay_accepts_empty_fallback_ids_and_post_request_hashes(self) -> None:
+        normalized_only = execute_connector(
+            mock.Mock(query_v2=mock.Mock(return_value=[]), spec=["query_v2"]),
+            QueryRequest("fixture", "search", {}), include_snapshot=True,
+        ).snapshot()
+        self.assertEqual((), replay_snapshot(normalized_only).records)
+
+        class FixtureConnector:
+            def __init__(self, records):
+                self.records = records
+                self._post_json = lambda _url, _body: {"results": records}
+
+            def query_v2(self, _request):
+                return self._post_json("https://example.test/query", {"limit": 0})["results"]
+
+        for records in ([], [{}, {"id": 0}, {"id": "123"}, {"id": "123"}]):
+            with self.subTest(records=records):
+                snapshot = execute_connector(
+                    FixtureConnector(records), QueryRequest("fixture", "search", {}), include_snapshot=True,
+                ).snapshot()
+                self.assertEqual(tuple(records), replay_snapshot(snapshot).records)
+                self.assertEqual(sha256_json({"limit": 0}), snapshot["receipt"]["pages"][0]["request_body_sha256"])
+                altered = copy.deepcopy(snapshot)
+                altered["pages"][0]["request"] = None
+                with self.assertRaisesRegex(ValueError, "request body hash mismatch"):
+                    replay_snapshot(altered)
+                altered = copy.deepcopy(snapshot)
+                altered["receipt"]["returned_record_ids"] = ["extra"]
+                with self.assertRaisesRegex(ValueError, "returned record IDs mismatch"):
+                    replay_snapshot(altered)
+                del snapshot["pages"]
+                self.assertEqual(tuple(records), replay_snapshot(snapshot).records)
+
+    def test_stored_response_change_reports_response_drift_with_equal_hashes(self) -> None:
+        snapshot = execute_connector(
+            PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": ["123"]}}),
+            QueryRequest("pubmed", "search", {"query": "test"}), include_snapshot=True,
+        ).snapshot()
+        self.assertEqual("unchanged", classify_drift(snapshot, snapshot)["status"])
+        absent = copy.deepcopy(snapshot)
+        del absent["pages"]
+        for previous, current in ((absent, snapshot), (snapshot, absent), (absent, absent)):
+            with self.subTest(previous_has_pages="pages" in previous, current_has_pages="pages" in current):
+                self.assertEqual("unchanged", classify_drift(previous, current)["status"])
+        changed_hash = copy.deepcopy(absent)
+        changed_hash["receipt"]["pages"][0]["response_sha256"] = "0" * 64
+        self.assertEqual(["response-drift"], classify_drift(snapshot, changed_hash)["drift_types"])
+        for response in ({"esearchresult": {"idlist": ["999"]}}, {}, None, [], 0, "malformed"):
+            with self.subTest(response=response):
+                changed = copy.deepcopy(snapshot)
+                changed["pages"][0]["response"] = response
+                self.assertEqual(snapshot["receipt"], changed["receipt"])
+                report = classify_drift(snapshot, changed)
+                self.assertEqual("changed", report["status"])
+                self.assertEqual(["response-drift"], report["drift_types"])
+        numeric = copy.deepcopy(snapshot)
+        numeric["pages"][0]["response"] = {"value": 0}
+        boolean = copy.deepcopy(numeric)
+        boolean["pages"][0]["response"] = {"value": False}
+        self.assertEqual(["response-drift"], classify_drift(numeric, boolean)["drift_types"])
 
     def test_typed_source_registry_and_parsers_are_available(self) -> None:
         for key in ("clinvar", "dbsnp", "gnomad", "encode", "jaspar", "geo", "arrayexpress", "metabolights", "bindingdb", "openfda", "emdb", "complex_portal", "intact", "eqtl_catalogue"):

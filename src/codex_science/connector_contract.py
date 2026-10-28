@@ -292,7 +292,30 @@ def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
         raise ValueError("snapshot request hash mismatch")
     if receipt_payload.get("normalized_records_sha256") != sha256_json(records):
         raise ValueError("snapshot record hash mismatch")
+    for field in ("source", "operation", "source_contract_version"):
+        if receipt_payload.get(field) != getattr(request, field):
+            raise ValueError(f"snapshot receipt {field} mismatch")
+    ids = tuple(str(item.get("id") or f"record-{index}") for index, item in enumerate(records))
+    if tuple(receipt_payload.get("returned_record_ids") or []) != ids:
+        raise ValueError("snapshot returned record IDs mismatch")
     pages = tuple(PageReceipt(**item) for item in receipt_payload.get("pages") or [])
+    for page in pages:
+        if type(page.record_count) is not int or page.record_count != len(records):
+            raise ValueError("snapshot page record count mismatch")
+    if "pages" in payload:
+        snapshot_pages = payload["pages"]
+        if not isinstance(snapshot_pages, (list, tuple)) or len(snapshot_pages) != len(pages):
+            raise ValueError("snapshot page count mismatch")
+        for page, stored in zip(pages, snapshot_pages):
+            if not isinstance(stored, Mapping):
+                raise ValueError("snapshot page must be an object")
+            if stored.get("method") != page.request_method:
+                raise ValueError("snapshot page request method mismatch")
+            if stored.get("url") != page.request_url:
+                raise ValueError("snapshot page request URL mismatch")
+            body_digest = None if stored.get("request") is None else sha256_json(stored["request"])
+            if body_digest != page.request_body_sha256:
+                raise ValueError("snapshot page request body hash mismatch")
     receipt_payload["pages"] = pages
     for field in ("returned_record_ids", "excluded_records", "warnings"):
         receipt_payload[field] = tuple(receipt_payload.get(field) or [])
@@ -310,7 +333,14 @@ def classify_drift(previous: Mapping[str, Any], current: Mapping[str, Any]) -> d
         changes.append("pagination-drift")
     if old.receipt.source_release != new.receipt.source_release:
         changes.append("release-drift")
-    if [p.response_sha256 for p in old.receipt.pages] != [p.response_sha256 for p in new.receipt.pages]:
+    if (
+        [p.response_sha256 for p in old.receipt.pages] != [p.response_sha256 for p in new.receipt.pages]
+        or (
+            old.snapshot_pages and new.snapshot_pages
+            and sha256_json([p.get("response") for p in old.snapshot_pages])
+            != sha256_json([p.get("response") for p in new.snapshot_pages])
+        )
+    ):
         changes.append("response-drift")
     if old.receipt.normalized_records_sha256 != new.receipt.normalized_records_sha256:
         changes.append("semantic-drift")

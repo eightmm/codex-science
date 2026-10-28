@@ -112,7 +112,7 @@ The response contains normalized records plus a receipt with:
 - normalized-record SHA-256;
 - explicit missingness, exclusions, and warnings.
 
-Use `include_snapshot: true` only when a replayable raw response snapshot is required. Snapshots must not contain credentials or secret-bearing URLs.
+Use `include_snapshot: true` when stored page responses are required. Snapshots must not contain credentials or secret-bearing URLs.
 
 `evidence_cutoff` is enforced only by typed source implementations. Legacy search adapters reject a cutoff instead of silently returning evidence outside the requested boundary.
 
@@ -122,6 +122,8 @@ Use `include_snapshot: true` only when a replayable raw response snapshot is req
 python scripts/replay_connector_snapshot.py snapshot.json
 python scripts/connector_drift_report.py previous.json current.json --output drift.json
 ```
+
+Connector v2 replay cross-checks receipt source, operation, contract version, returned IDs and page record counts against the request and normalized records. When snapshot `pages` are present, their count, methods, URLs and request-body hashes must match the receipt. Stored page responses are informational: replay does not rederive normalized records from them or bind them to the recorded response hashes. When both snapshots carry stored pages, a change to their responses is reported as `response-drift` even when recorded hashes are equal; absent stored pages alone are not evidence of a response change.
 
 Drift types are:
 

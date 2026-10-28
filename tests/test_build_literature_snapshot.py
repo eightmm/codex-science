@@ -177,6 +177,48 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
             build_literature_snapshot(self.root, output.name)
         self.assertFalse(output.exists())
 
+    def test_duplicate_query_metadata_must_match_including_presence(self):
+        queries = self.root / "queries.jsonl"
+        original = queries.read_text(encoding="utf-8")
+        record = json.loads(original.splitlines()[0])
+        output = self.root / "new-snapshot.json"
+        before = (self.root / "snapshot.current.json").read_bytes()
+        for field, replacement in (
+            ("status", "failed"), ("accessed_at", "2026-07-20T00:00:00Z"),
+            ("status", ""), ("status", 0), ("status", {}),
+            ("accessed_at", ""), ("accessed_at", 0), ("accessed_at", {}),
+            ("status", None), ("accessed_at", None),
+        ):
+            for reverse in (False, True):
+                with self.subTest(field=field, replacement=replacement, reverse=reverse):
+                    duplicate = dict(record)
+                    if replacement is None:
+                        duplicate.pop(field)
+                    else:
+                        duplicate[field] = replacement
+                    rows = [record, duplicate]
+                    if reverse:
+                        rows.reverse()
+                    queries.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "conflicting duplicate query_id: q-pubmed-1"):
+                        build_literature_snapshot(self.root, output.name)
+                    self.assertFalse(output.exists())
+                    self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        for field in ("status", "accessed_at"):
+            for first, second in ((0, False), (False, 0), (0, 0.0), (0.0, 0), (1, True), (True, 1)):
+                with self.subTest(field=field, first=first, second=second):
+                    output.unlink(missing_ok=True)
+                    rows = [{**record, field: first}, {**record, field: second}]
+                    queries.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "conflicting duplicate query_id: q-pubmed-1"):
+                        build_literature_snapshot(self.root, output.name)
+                    self.assertFalse(output.exists())
+                    self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        queries.write_text(original + original, encoding="utf-8")
+        result = build_literature_snapshot(self.root, output.name)
+        self.assertEqual(1, result["counts"]["queries"])
+        self.assertEqual(record["status"], json.loads(output.read_text())["queries"][0]["status"])
+
     def test_missing_protocol_field_and_other_problems_are_aggregated(self):
         protocol_path = self.root / "protocol.json"
         protocol = json.loads(protocol_path.read_text(encoding="utf-8"))

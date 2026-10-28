@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from codex_science.cli_io import write_json_atomic
+from codex_science.connector_contract import canonical_json_bytes
 from codex_science.evidence import _support_source_path, _validate_claim_register, _validate_study_table
 from codex_science.literature import validate_review_snapshot
 from codex_science.screening_pool import _relative_path, _safe_file
@@ -121,7 +122,7 @@ def build_literature_snapshot(
                     entry[field] = record[field]
             previous = by_query_id.get(query_id)
             if previous is not None:
-                if previous["source"] != source or previous["query"] != query:
+                if canonical_json_bytes(previous) != canonical_json_bytes(entry):
                     problems.append(f"conflicting duplicate query_id: {query_id}")
                 continue
             by_query_id[query_id] = entry

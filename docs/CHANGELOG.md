@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Connector v2 replay now cross-checks derivable receipt facts and reports stored response changes as `response-drift`; source snapshots preserve leading and trailing whitespace in paths while refusing blank names, and literature snapshot builds reject duplicate query IDs with conflicting `status` or `accessed_at` metadata. Snapshot and receipt formats are unchanged.
 - `package_run.py refresh --complete-step ID` (repeatable) marks manifest `plan` steps `completed` in the same refresh write, refuses unknown IDs before writing, and reports `completed_steps`; skill guidance now uses it instead of hand-editing `manifest.json`.
 - `scripts/plan_selective_rerun.py` now runs typed-graph validation on schema_version 2 evidence graphs before planning and exits 1 on any finding instead of planning over an invalid graph.
 - `scripts/export_scientific_run.py` refuses an export whose output files or `--receipt` path already exist, and refuses destinations that overlap the manifest, listed artifacts or descriptor files (including symlink and hard-link aliases); preflight rejection creates no files.

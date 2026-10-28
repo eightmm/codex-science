@@ -9,7 +9,7 @@ from unittest import mock
 
 import codex_science.source_snapshot as source_snapshot
 from codex_science.artifact_store import describe_directory
-from tests.test_compute_backends import initialize_repo
+from tests.test_compute_backends import git, initialize_repo
 
 
 class SourceSnapshotUnitTests(unittest.TestCase):
@@ -76,6 +76,51 @@ class SourceSnapshotUnitTests(unittest.TestCase):
                 with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "bounded bundle limit"):
                     source_snapshot._safe_extract(too_large, destination)
             self.assertEqual(["nested"], sorted(path.name for path in destination.iterdir()))
+
+    def test_safe_extract_preserves_whitespace_names_and_refuses_blank_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            entries = [(" leading.txt", b"a"), ("trailing.txt ", b"b"), (" dir / file ", b"")]
+            source_snapshot._safe_extract(self._archive(entries), root)
+            for name, content in entries:
+                self.assertTrue((root / name).is_file(), name)
+                self.assertEqual(content, (root / name).read_bytes())
+            self.assertFalse((root / "leading.txt").exists())
+            self.assertFalse((root / "trailing.txt").exists())
+            for name in ("", " ", "\t", "../bad", "/bad", ".git/config"):
+                with self.subTest(name=name), self.assertRaises(source_snapshot.SourceSnapshotError):
+                    source_snapshot._safe_extract(self._archive([(name, b"")]), root)
+
+    def test_git_bundle_and_input_paths_preserve_whitespace_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working, _ = initialize_repo(root)
+            entries = [(" leading.txt", "a"), ("trailing.txt ", "b"), (" dir / file ", "")]
+            for name, content in entries:
+                path = working / name
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            git(working, "add", ".")
+            git(working, "commit", "-qm", "whitespace fixture")
+            commit = git(working, "rev-parse", "HEAD")
+            job_dir = root / "bundle"
+            expected_spec = hashlib.sha256(b"job spec").hexdigest()
+            receipt = source_snapshot.create_git_source_bundle(
+                working_directory=working, commit=commit, inputs=[],
+                job_spec_sha256=expected_spec, job_dir=job_dir,
+            )
+            cwd = source_snapshot.materialize_source_bundle(
+                job_dir, receipt, expected_job_spec_sha256=expected_spec,
+            )
+            for name, content in entries:
+                self.assertTrue((cwd / name).is_file(), name)
+                self.assertEqual(content, (cwd / name).read_text(encoding="utf-8"))
+            self.assertFalse((cwd / "leading.txt").exists())
+            verified = source_snapshot._verify_inputs(working, [{
+                "id": "spaced", "path": " leading.txt", "sha256": hashlib.sha256(b"a").hexdigest(),
+            }])
+            self.assertEqual(" leading.txt", verified[0]["path"])
+            self.assertEqual(working / " leading.txt", verified[0]["target"])
 
     def test_materialize_outputs_cwd_and_cleans_up_after_extraction_refusal(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

@@ -50,9 +50,9 @@ def _sha256(value: Any, label: str) -> str:
 
 
 def _safe_relative(value: Any, label: str, *, allow_dot: bool = False) -> str:
-    text = str(value).strip()
+    text = str(value)
     pure = PurePosixPath(text)
-    if not text or pure.is_absolute() or ".." in pure.parts:
+    if not text.strip() or pure.is_absolute() or ".." in pure.parts:
         raise SourceSnapshotError(f"{label} must be a safe relative path")
     normalized = pure.as_posix()
     if normalized == "." and not allow_dot:
