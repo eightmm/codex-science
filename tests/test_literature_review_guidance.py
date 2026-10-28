@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 import re
 
-from codex_science import evidence, literature, literature_v2
+from codex_science import commitment_ledger, evidence, literature, literature_v2
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -175,24 +175,43 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
 
     def test_documented_protocol_ledger_example_validates(self):
         text = (ROOT / "authored-skills/literature-review/references/output-schemas.md").read_text(encoding="utf-8")
-        self.assertIn("Protocol commitment ledger", text)
-        # The minimal example validates because its target_set is supported and counts match.
-        example_text = json.dumps({
-            "commitment_ledger": {
-                "schema_version": 1,
-                "procedures": [
-                    {
-                        "id": "backward-references",
-                        "target_set": {"unit":"study","source_artifact":"studies.json","selection":"included"},
-                        "target_ids": ["S1"],
-                        "denominator": 1,
-                        "completed": [{"target_id":"S1","evidence_artifact":"studies.json"}],
-                        "completed_count": 1,
-                    }
-                ]
+        section = text.split("## Protocol commitment ledger\n", 1)[1].split("\n## ", 1)[0]
+        example_text = section.split("Minimal validating example:\n", 1)[1]
+        example_text = example_text.split("```json\n", 1)[1].split("\n```", 1)[0]
+        ledger = json.loads(example_text)["commitment_ledger"]
+        procedure = next(item for item in ledger["procedures"] if item["id"] == "backward-references")
+        deviation = procedure["deviation"]
+        limitation = deviation["affected_claims"][0]["limitation"]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir)
+            artifact = procedure["completed"][0]["evidence_artifact"]
+            evidence_path = run_dir / artifact
+            evidence_path.parent.mkdir(parents=True, exist_ok=True)
+            evidence_path.write_text("Reference pass for S1.\n", encoding="utf-8")
+            report_path = run_dir / "report.md"
+            report_path.write_text(limitation + "\n", encoding="utf-8")
+            inputs = {
+                "study_table_payload": {"studies": [
+                    {"study_id": "S1", "included": True},
+                    {"study_id": "S2", "included": True},
+                ]},
+                "screening_payload": None,
+                "claim_ids": {"C1"},
+                "verified": {artifact: evidence_path},
+                "report_path": report_path,
             }
-        })
-        self.assertIn("commitment_ledger", text)
+            context = commitment_ledger.validate_ledger(ledger, **inputs)
+            recorded = next(item for item in context["procedures"] if item["id"] == "backward-references")
+            self.assertEqual(deviation["reason"], recorded["deviation"]["reason"])
+            self.assertEqual(
+                [{"claim_id": "C1", "limitation": limitation}],
+                recorded["deviation"]["affected_claims"],
+            )
+            for report_text in ("", "Report without the required limitation.\n"):
+                with self.subTest(report_text=report_text):
+                    report_path.write_text(report_text, encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "limitation text does not appear verbatim in report.md"):
+                        commitment_ledger.validate_ledger(ledger, **inputs)
 
     def test_screening_guidance_covers_records_without_abstracts(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")
