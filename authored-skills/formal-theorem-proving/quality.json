@@ -2,13 +2,24 @@
   "schema_version": 1,
   "skill": "formal-theorem-proving",
   "roles": ["executor", "analyzer", "reviewer"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": ["mathematical-claim-v1", "proof-obligation-graph-v1", "formal-proof-check-v1", "proof-receipt-v1"],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": ["tests/test_math_research_runtime.py"],
+  "acceptance_fixtures": ["examples/formal-theorem-proving/input.json"],
+  "seeded_failures": [
+    "sorry-placeholder",
+    "admit-placeholder",
+    "unsafe-declaration",
+    "nonzero-kernel-exit",
+    "source-mutation",
+    "checker-timeout"
+  ],
+  "test_files": [
+    "tests/test_math_research_runtime.py",
+    "tests/test_formal_theorem_proving_acceptance.py"
+  ],
   "limitations": [
     "The runtime requires an existing approved Lean workspace and does not install or certify a toolchain.",
-    "Kernel checking does not replace a separate informal-to-formal statement correspondence review."
+    "Kernel checking does not replace a separate informal-to-formal statement correspondence review.",
+    "The fixture is deterministic software validation using a fake Lean executable or injected runner, not an empirical result or real Lean kernel verification."
   ]
 }

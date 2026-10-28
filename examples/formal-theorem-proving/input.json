@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "check_id": "check-nat-add-zero",
+  "receipt_id": "proof-nat-add-zero",
+  "claim_id": "claim-nat-add-zero",
+  "statement": "For every natural number n, n + 0 = n.",
+  "theorem_file": "Main.lean",
+  "command_mode": "lean",
+  "timeout_seconds": 30,
+  "assumptions": []
+}

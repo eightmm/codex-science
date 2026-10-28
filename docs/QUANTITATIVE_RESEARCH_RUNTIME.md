@@ -184,7 +184,7 @@ The following skills now use DeepMind-style progressive reference contracts and 
 - `quantitative-research` — L4 conductor;
 - `mathematical-problem-execution` — L3;
 - `proof-and-counterexample` — L4;
-- `formal-theorem-proving` — L3;
+- `formal-theorem-proving` — L4;
 - `statistical-inference-experimental-design` — L4;
 - `statistical-decision-analysis` — L4;
 - `numerical-analysis-error-control` — L4;
