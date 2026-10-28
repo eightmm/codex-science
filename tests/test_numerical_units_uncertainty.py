@@ -269,14 +269,14 @@ class UnitsRuntimeContractTests(unittest.TestCase):
         self.assertEqual("Equation bad is dimensionally inconsistent.", result["findings"][0]["message"])
 
     def test_affine_temperature_arithmetic_fails_in_equations(self) -> None:
-        for expression, right in (
-            ("temperature*2", "temperature"),
-            ("temperature*0", "temperature*0"),
-            ("2*temperature", "temperature"),
-            ("temperature/2", "temperature"),
-            ("temperature**2", "temperature**2"),
-            ("temperature**0", "temperature**0"),
-            ("sqrt(temperature)", "sqrt(temperature)"),
+        for expression, right, operation in (
+            ("temperature*2", "temperature", "multiplied"),
+            ("temperature*0", "temperature*0", "multiplied"),
+            ("2*temperature", "temperature", "multiplied"),
+            ("temperature/2", "temperature", "divided"),
+            ("temperature**2", "temperature**2", "exponentiated"),
+            ("temperature**0", "temperature**0", "exponentiated"),
+            ("sqrt(temperature)", "sqrt(temperature)", "exponentiated"),
         ):
             with self.subTest(expression=expression):
                 result = run_dimension_check(self.check_payload(
@@ -286,10 +286,13 @@ class UnitsRuntimeContractTests(unittest.TestCase):
                 self.assertEqual("findings", result["status"])
                 equation = result["equations"][0]
                 self.assertFalse(equation["compatible"])
-                self.assertIn("temperature", equation["error"])
-                self.assertIn("affine", equation["error"])
+                refusal = f"affine variable temperature cannot be {operation}"
+                hint = "declare a temperature difference as a separate variable in K"
+                self.assertIn(refusal, equation["error"])
+                self.assertIn(hint, equation["error"])
                 self.assertIn("affine-product", result["findings"][0]["message"])
-                self.assertIn("temperature", result["findings"][0]["message"])
+                self.assertIn(refusal, result["findings"][0]["message"])
+                self.assertIn(hint, result["findings"][0]["message"])
 
         preserved = run_dimension_check(self.check_payload(
             variables={"temperature": "degC"},
@@ -301,6 +304,31 @@ class UnitsRuntimeContractTests(unittest.TestCase):
             equations=[{"id": "kelvin", "left": "temperature*2", "right": "temperature"}],
         ))
         self.assertEqual("passed", kelvin["status"])
+
+    def test_affine_function_names_are_distinct_from_variable_uses(self) -> None:
+        for expression, right in (
+            ("abs(x)*2", "x"),
+            ("abs(x)*0", "x"),
+            ("abs(x)/2", "x"),
+            ("abs(x)**1", "x"),
+            ("abs(x)**2", "x**2"),
+            ("sqrt(abs(x))", "sqrt(x)"),
+        ):
+            with self.subTest(expression=expression):
+                result = run_dimension_check(self.check_payload(
+                    variables={"abs": "degC", "sqrt": "degC", "x": "m"},
+                    equations=[{"id": "collision", "left": expression, "right": right}],
+                ))
+                self.assertEqual("passed", result["status"], msg=f"{expression} should pass")
+                self.assertEqual([], result["findings"])
+                self.assertTrue(all(item["compatible"] and item["error"] is None for item in result["equations"]))
+
+        for expression in ("abs*2", "abs(abs)*2", "abs(abs)/2", "abs(abs)**2", "sqrt(abs)"):
+            with self.subTest(expression=expression):
+                self.assertEquationError(
+                    expression, "abs", "affine variable abs cannot be",
+                    variables={"abs": "degC"},
+                )
 
     def test_equation_default_ids(self) -> None:
         result = run_dimension_check(self.check_payload(equations=[{"left": "x", "right": "x"}], conversions=[{"value": 1, "from": "m", "to": "cm"}]))
