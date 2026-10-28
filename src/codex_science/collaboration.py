@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import stat
@@ -223,16 +224,52 @@ def fold_annotation_resolutions(
     return results
 
 
-def _artifact_map(manifest: Mapping[str, Any]) -> dict[str, str]:
-    return {str(item["path"]): str(item["sha256"]).lower() for item in manifest.get("artifacts", [])}
+def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any]:
+    if not isinstance(manifest, Mapping):
+        raise ValueError("manifest must be an object")
+    records = manifest.get(section, [])
+    if not isinstance(records, list):
+        raise ValueError(f"manifest {section} must be a list")
+    fields, label = {
+        "artifacts": (("path",), "artifact path"),
+        "claims": (("id",), "claim id"),
+        "inputs": (("identifier", "id", "query_id", "url", "path"), "input identity"),
+    }[section]
+    result: dict[str, Any] = {}
+    explicit_identities: set[str] = set()
+    for record in records:
+        if not isinstance(record, Mapping):
+            raise ValueError(f"manifest {section} records must be objects")
+        identity = next((record[field] for field in fields
+                         if isinstance(record.get(field), str) and record[field].strip()), None)
+        if identity is None and section == "inputs":
+            canonical = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            identity = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        else:
+            if identity is None:
+                raise ValueError(f"{label} must be a non-empty string")
+            if identity in explicit_identities:
+                raise ValueError(f"duplicate {label}: {identity}")
+            explicit_identities.add(identity)
+        value = record
+        if section == "artifacts":
+            digest = record.get("sha256")
+            if not isinstance(digest, str) or not digest.strip():
+                raise ValueError("artifact sha256 must be a non-empty string")
+            value = digest.lower()
+        result[identity] = value
+    return result
 
 
 def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[str, Any]:
-    old, new = _artifact_map(previous), _artifact_map(current)
+    old, new = _diff_record_map(previous, "artifacts"), _diff_record_map(current, "artifacts")
     changed = sorted(path for path in old.keys() & new.keys() if old[path] != new[path])
-    old_claims = {str(item.get("id")): item for item in previous.get("claims", [])}
-    new_claims = {str(item.get("id")): item for item in current.get("claims", [])}
+    old_claims = _diff_record_map(previous, "claims")
+    new_claims = _diff_record_map(current, "claims")
     changed_claims = sorted(key for key in old_claims.keys() & new_claims.keys() if old_claims[key] != new_claims[key])
+    old_inputs = _diff_record_map(previous, "inputs")
+    new_inputs = _diff_record_map(current, "inputs")
+    changed_inputs = sorted(key for key in old_inputs.keys() & new_inputs.keys() if old_inputs[key] != new_inputs[key])
     environment_changed = previous.get("environment") != current.get("environment")
     code_changed = previous.get("code") != current.get("code")
     return {
@@ -249,9 +286,15 @@ def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[s
             "removed": sorted(old_claims.keys() - new_claims.keys()),
             "changed": changed_claims,
         },
+        "inputs": {
+            "added": sorted(new_inputs.keys() - old_inputs.keys()),
+            "removed": sorted(old_inputs.keys() - new_inputs.keys()),
+            "changed": changed_inputs,
+        },
         "code_changed": code_changed,
         "environment_changed": environment_changed,
-        "review_invalidated": bool(changed or old.keys() != new.keys() or changed_claims or code_changed or environment_changed),
+        "review_invalidated": bool(changed or old.keys() != new.keys() or changed_claims or code_changed or environment_changed
+                                   or changed_inputs or old_inputs.keys() != new_inputs.keys()),
     }
 
 

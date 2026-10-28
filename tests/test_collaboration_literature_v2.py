@@ -298,6 +298,264 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                     self.assertEqual(["review.json"], plan["invalidated_review_receipts"])
                     self.assertTrue(plan["approval_required"])
 
+    def test_diff_runs_rejects_duplicate_artifact_paths(self) -> None:
+        previous = {"artifacts": [
+            {"path": "metrics.json", "sha256": "a" * 64},
+            {"path": "metrics.json", "sha256": "b" * 64},
+        ]}
+        current = deepcopy(previous)
+        current["artifacts"][0]["sha256"] = "c" * 64
+        for old, new in ((previous, current), ({}, current), (previous, {})):
+            with self.subTest(previous=old, current=new):
+                with self.assertRaisesRegex(ValueError, "duplicate artifact path: metrics.json"):
+                    diff_runs(old, new)
+
+    def test_diff_runs_rejects_invalid_and_duplicate_claim_ids(self) -> None:
+        cases = [([{"text": "first"}, {"text": "second"}], "claim id must be a non-empty string")]
+        for value in (None, "", " ", 0, 7, False, [], {}):
+            cases.append(([{"id": value}], "claim id must be a non-empty string"))
+        cases.append(([{"id": "C1"}, {"id": "C1", "text": "other"}], "duplicate claim id: C1"))
+        for claims, message in cases:
+            manifest = {"claims": claims}
+            for old, new in ((manifest, {}), ({}, manifest)):
+                with self.subTest(claims=claims, previous=old):
+                    with self.assertRaisesRegex(ValueError, message):
+                        diff_runs(old, new)
+
+    def test_diff_runs_rejects_malformed_manifests(self) -> None:
+        cases = [(value, "manifest must be an object") for value in ([], None, 0, "")]
+        for section in ("artifacts", "claims", "inputs"):
+            for value in (None, {}, "", 0):
+                cases.append(({section: value}, f"manifest {section} must be a list"))
+            for value in (None, [], 0, ""):
+                cases.append(({section: [value]}, f"manifest {section} records must be objects"))
+        for field in ("path", "sha256"):
+            valid = {"path": "metrics.json", "sha256": "a" * 64}
+            missing = dict(valid)
+            del missing[field]
+            cases.append(({"artifacts": [missing]}, f"artifact {field} must be a non-empty string"))
+            for value in (None, "", " ", 0, [], {}):
+                cases.append(({"artifacts": [{**valid, field: value}]},
+                              f"artifact {field} must be a non-empty string"))
+        for invalid, message in cases:
+            for old, new in ((invalid, {}), ({}, invalid)):
+                with self.subTest(invalid=invalid, previous=old):
+                    before = deepcopy((old, new))
+                    with self.assertRaisesRegex(ValueError, message):
+                        diff_runs(old, new)
+                    self.assertEqual(before, (old, new))
+
+    def test_diff_runs_reports_inputs_and_preserves_existing_output(self) -> None:
+        empty = {"added": [], "removed": [], "changed": []}
+        self.assertEqual({
+            "schema_version": 1, "previous_run_id": None, "current_run_id": None,
+            "artifacts": empty, "claims": empty, "inputs": empty,
+            "code_changed": False, "environment_changed": False, "review_invalidated": False,
+        }, diff_runs({}, {}))
+        inputs = [
+            {"identifier": "dataset", "url": "https://example.org/data", "path": "data.csv", "release": "v1"},
+            {"url": "https://example.org/other", "path": "other.csv", "sha256": "a" * 64},
+            {"path": "local.csv", "query": "old"},
+        ]
+        for index, field, value, identity in (
+            (0, "release", "v2", "dataset"),
+            (0, "url", "https://example.org/new", "dataset"),
+            (1, "sha256", "b" * 64, "https://example.org/other"),
+            (1, "path", "new.csv", "https://example.org/other"),
+            (2, "query", "new", "local.csv"),
+        ):
+            previous = {"inputs": deepcopy(inputs)}
+            current = deepcopy(previous)
+            current["inputs"][index][field] = value
+            with self.subTest(field=field, identity=identity):
+                report = diff_runs(previous, current)
+                self.assertEqual({**empty, "changed": [identity]}, report["inputs"])
+                self.assertTrue(report["review_invalidated"])
+                self.assertEqual(empty, report["artifacts"])
+                self.assertEqual(empty, report["claims"])
+                self.assertFalse(report["code_changed"])
+                self.assertFalse(report["environment_changed"])
+                self.assertEqual({**empty, "added": [identity]}, diff_runs({}, {"inputs": [inputs[index]]})["inputs"])
+                self.assertTrue(diff_runs({}, {"inputs": [inputs[index]]})["review_invalidated"])
+                self.assertEqual({**empty, "removed": [identity]}, diff_runs({"inputs": [inputs[index]]}, {})["inputs"])
+                self.assertTrue(diff_runs({"inputs": [inputs[index]]}, {})["review_invalidated"])
+        unchanged = {"inputs": list(reversed(inputs)), "claims": [{"id": "C1"}],
+                     "artifacts": [{"path": "metrics.json", "sha256": "A" * 64}]}
+        report = diff_runs({**unchanged, "inputs": inputs,
+                            "artifacts": [{"path": "metrics.json", "sha256": "a" * 64}]}, unchanged)
+        self.assertEqual(empty, report["inputs"])
+        self.assertFalse(report["review_invalidated"])
+        self.assertEqual(sorted(["dataset", "https://example.org/other", "local.csv"]),
+                         diff_runs({}, {"inputs": inputs})["inputs"]["added"])
+        for record, identity in (({"identifier": "", "url": "source"}, "source"),
+                                 ({"identifier": " ", "url": "", "path": "local"}, "local")):
+            with self.subTest(fallback=record):
+                self.assertEqual([identity], diff_runs({}, {"inputs": [record]})["inputs"]["added"])
+
+    def test_diff_runs_rejects_duplicate_explicit_input_ids(self) -> None:
+        cases = []
+        for field in ("identifier", "id", "query_id", "url", "path"):
+            cases.append(([{field: "data"}, {field: "data", "release": "v2"}], "duplicate input identity: data"))
+        cases.append(([{"identifier": "data"}, {"path": "data"}], "duplicate input identity: data"))
+        for inputs, message in cases:
+            for old, new in (({"inputs": inputs}, {}), ({}, {"inputs": inputs})):
+                with self.subTest(inputs=inputs, previous=old):
+                    with self.assertRaisesRegex(ValueError, message):
+                        diff_runs(old, new)
+
+    def test_diff_runs_accepts_real_input_shapes_and_canonical_fallback(self) -> None:
+        import hashlib
+
+        inputs = [
+            {"accessed_at": "2026-10-28", "query": "query", "query_id": "Q1",
+             "response_sha256": "a" * 64, "source": "catalog", "status": "complete"},
+            {"accessed_at": "2026-10-28", "id": "I1", "license": "CC0", "source": "catalog"},
+            {"id": "I2", "release": "v1", "sha256": "b" * 64, "snapshot": "snapshot", "source": "catalog"},
+            {"query_ledger": "queries.jsonl", "release": "v1", "source": "catalog"},
+            {"release": "v1", "source": "catalog"},
+        ]
+        empty = {"added": [], "removed": [], "changed": []}
+        self.assertEqual(empty, diff_runs({"inputs": inputs}, {"inputs": inputs})["inputs"])
+        self.assertFalse(diff_runs({"inputs": inputs}, {"inputs": inputs})["review_invalidated"])
+        for index in (2, 3, 4):
+            current = deepcopy(inputs)
+            current[index]["release"] = "v2"
+            report = diff_runs({"inputs": inputs}, {"inputs": current})
+            with self.subTest(shape=index):
+                self.assertTrue(report["review_invalidated"])
+                if index == 2:
+                    self.assertEqual({**empty, "changed": ["I2"]}, report["inputs"])
+                else:
+                    old_key = hashlib.sha256(json.dumps(inputs[index], sort_keys=True, separators=(",", ":"),
+                                                       ensure_ascii=False).encode("utf-8")).hexdigest()
+                    new_key = hashlib.sha256(json.dumps(current[index], sort_keys=True, separators=(",", ":"),
+                                                       ensure_ascii=False).encode("utf-8")).hexdigest()
+                    self.assertEqual({"added": [new_key], "removed": [old_key], "changed": []}, report["inputs"])
+        for record in ({}, {"release": "v1"}, {"identifier": "", "id": " ", "query_id": 0},
+                       {"url": [], "path": None}, {"source": "caf\u00e9", "release": "v1"}):
+            reordered = dict(reversed(list(record.items())))
+            with self.subTest(unidentified=record):
+                report = diff_runs({"inputs": [record]}, {"inputs": [record, reordered]})
+                self.assertEqual(empty, report["inputs"])
+                self.assertFalse(report["review_invalidated"])
+                self.assertEqual(1, len(diff_runs({}, {"inputs": [record, reordered]})["inputs"]["added"]))
+        identities = {"identifier": "primary", "id": "secondary", "query_id": "query", "url": "url", "path": "path"}
+        for field, identity in list(identities.items()):
+            with self.subTest(precedence=field):
+                self.assertEqual([identity], diff_runs({}, {"inputs": [dict(identities)]})["inputs"]["added"])
+                del identities[field]
+
+    def test_diff_runs_cli_clean_error_exit_and_output(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "diff_runs.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            previous = Path(temporary) / "previous.json"
+            current = Path(temporary) / "current.json"
+            output = Path(temporary) / "diff.json"
+            previous.write_text("{}", encoding="utf-8")
+            invalid = [
+                ([], "manifest must be an object"),
+                ({"artifacts": [{"path": "metrics.json"}]}, "artifact sha256 must be a non-empty string"),
+                ({"artifacts": [{"path": "metrics.json", "sha256": "a" * 64}] * 2},
+                 "duplicate artifact path: metrics.json"),
+                ({"claims": [{"text": "claim"}]}, "claim id must be a non-empty string"),
+                ({"claims": [{"id": "C1"}] * 2}, "duplicate claim id: C1"),
+                ({"inputs": [{"path": "data"}, {"path": "data"}]}, "duplicate input identity: data"),
+            ]
+            for manifest, message in invalid:
+                for bad_path, good_path in ((current, previous), (previous, current)):
+                    good_path.write_text("{}", encoding="utf-8")
+                    bad_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    output.write_text("existing report\n", encoding="utf-8")
+                    with self.subTest(manifest=manifest, bad_path=bad_path.name):
+                        result = subprocess.run([sys.executable, str(script), str(previous), str(current),
+                                                 "--output", str(output)], capture_output=True, text=True, check=False)
+                        self.assertEqual(1, result.returncode)
+                        self.assertEqual(f"error: {message}\n", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual("existing report\n", output.read_text(encoding="utf-8"))
+            previous.write_text("{}", encoding="utf-8")
+            for malformed in ("", "{", "\xff"):
+                current.write_bytes(malformed.encode("latin-1"))
+                result = subprocess.run([sys.executable, str(script), str(previous), str(current)],
+                                        capture_output=True, text=True, check=False)
+                self.assertEqual(1, result.returncode)
+                self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual("", result.stdout)
+            current.unlink()
+            result = subprocess.run([sys.executable, str(script), str(previous), str(current)],
+                                    capture_output=True, text=True, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            current.write_text('{"inputs": [{"path": "data", "release": "v2"}]}', encoding="utf-8")
+            for options in ([], ["--output", str(output)]):
+                result = subprocess.run([sys.executable, str(script), str(previous), str(current), *options],
+                                        capture_output=True, text=True, check=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual("", result.stderr)
+                report = json.loads(output.read_text(encoding="utf-8") if options else result.stdout)
+                self.assertEqual(["data"], report["inputs"]["added"])
+                self.assertTrue(report["review_invalidated"])
+            result = subprocess.run([sys.executable, str(script), str(previous), str(current),
+                                     "--output", temporary], capture_output=True, text=True, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual("", result.stdout)
+
+    def test_diff_runs_project_store_reports_accepted_legacy_manifest_errors(self) -> None:
+        from codex_science.artifacts import write_manifest
+        from codex_science.project_store import ProjectStore
+        from tests.test_project_store import make_run
+
+        cases = (
+            ("claims", [{"id": 7, "text": "legacy"}], "claim id must be a non-empty string"),
+            ("inputs", [{"identifier": "data"}, {"identifier": "data"}], "duplicate input identity: data"),
+        )
+        for field, records, message in cases:
+            with self.subTest(field=field, records=records), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                manifest_path, _ = make_run(root, "legacy", "Claim", 0.5)
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                manifest[field] = records
+                write_manifest(manifest, manifest_path)
+                original = manifest_path.read_bytes()
+                store = ProjectStore(root / "project.sqlite")
+                store.create_project(project_id="project", title="Legacy", question="Compare?")
+                store.import_run(project_id="project", manifest_path=manifest_path)
+                store.fork_branch(project_id="project", source_run_id="legacy", branch_name="fork")
+                before = store.summary(project_id="project")
+                with self.assertRaisesRegex(ValueError, message):
+                    store.compare_runs(project_id="project", previous_run_id="legacy", current_run_id="legacy")
+                with self.assertRaisesRegex(ValueError, message):
+                    store.prepare_merge_plan(project_id="project", source_branch="fork", target_branch="main")
+                self.assertEqual(before, store.summary(project_id="project"))
+                self.assertEqual(original, manifest_path.read_bytes())
+
+    def test_diff_runs_project_store_accepts_unidentified_inputs(self) -> None:
+        from codex_science.artifacts import write_manifest
+        from codex_science.project_store import ProjectStore
+        from tests.test_project_store import make_run
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path, _ = make_run(root, "legacy", "Claim", 0.5)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["inputs"] = [{"source": "catalog", "release": "v1"}] * 2
+            write_manifest(manifest, manifest_path)
+            original = manifest_path.read_bytes()
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="project", title="Legacy", question="Compare?")
+            store.import_run(project_id="project", manifest_path=manifest_path)
+            store.fork_branch(project_id="project", source_run_id="legacy", branch_name="fork")
+            report = store.compare_runs(project_id="project", previous_run_id="legacy", current_run_id="legacy")
+            self.assertFalse(report["review_invalidated"])
+            self.assertEqual({"added": [], "removed": [], "changed": []}, report["inputs"])
+            plan = store.prepare_merge_plan(project_id="project", source_branch="fork", target_branch="main")
+            self.assertFalse(plan["review_receipts_invalidated"])
+            self.assertEqual(original, manifest_path.read_bytes())
+
     def test_namespace_safe_identifiers_and_union_find_study_families(self) -> None:
         self.assertEqual("doi:10.1000/abc", normalize_identifier("https://doi.org/10.1000/ABC"))
         self.assertEqual("pmid:12345678", normalize_identifier("PMID:12345678"))
