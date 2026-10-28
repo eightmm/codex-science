@@ -202,7 +202,8 @@ def export_run(
 
     Destinations must preserve the manifest, listed artifacts and their contents,
     and descriptor files, including symlink and hard-link aliases. The extra
-    receipt must differ from every export output. All destinations must be
+    receipt must be outside the output directory and have no ancestor/descendant
+    overlap with any export output. All destinations must be
     absent; unrelated output-directory files are preserved. Preflight rejection
     creates no files.
     """
@@ -241,6 +242,9 @@ def export_run(
             raise ValueError(f"receipt destination is an existing directory: {str(receipt_path)!r}")
         if any(_same_file(resolved_receipt, path.resolve()) for path in [*files.values(), receipt_paths[0]]):
             raise ValueError(f"receipt destination overlaps export output: {str(receipt_path)!r}")
+        if any(resolved_receipt == path or resolved_receipt in path.parents or path in resolved_receipt.parents
+               for path in (destination.resolve() for destination in [output_dir, *files.values(), receipt_paths[0]])):
+            raise ValueError(f"receipt destination has ancestor/descendant overlap with export output: {str(receipt_path)!r}")
     if existing_destination is not None:
         raise ValueError(f"export destination already exists: {str(existing_destination)!r}; "
                          "choose a new versioned output directory or archive the old export explicitly")

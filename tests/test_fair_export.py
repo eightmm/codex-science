@@ -202,6 +202,29 @@ class FairExportTests(unittest.TestCase):
             self._refused(manifest, output, output / "prov.json", root,
                           "receipt destination overlaps export output:")
 
+    def test_receipt_refuses_export_ancestor_collisions_before_any_writes(self) -> None:
+        cases = [
+            ("export", "export"),
+            ("export", "export/extra.json"),
+            ("receipt.json/export", "receipt.json"),
+            *(("export", f"export/{name}/receipt.json") for name in EXPORT_FILES),
+        ]
+        for output_name, receipt_name in cases:
+            for alias in ("direct", "receipt", "output"):
+                with self.subTest(output=output_name, receipt=receipt_name, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root)
+                    parent = root / "paths"
+                    alias_parent = parent
+                    if alias != "direct":
+                        parent.mkdir()
+                        alias_parent = root / "alias"
+                        alias_parent.symlink_to(parent, target_is_directory=True)
+                    output = (alias_parent if alias == "output" else parent) / output_name
+                    receipt = (alias_parent if alias == "receipt" else parent) / receipt_name
+                    self._refused(manifest, output, receipt, root,
+                                  f"receipt destination has ancestor/descendant overlap with export output: {str(receipt)!r}")
+
     def test_receipt_refuses_existing_directories_before_any_writes(self) -> None:
         for empty in (False, True):
             for alias in (False, True):

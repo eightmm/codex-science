@@ -22,7 +22,8 @@ def main() -> int:
     parser.add_argument("output", type=Path, help="export directory (created if absent); writes ro-crate-metadata.json, prov.json, scientific-bom.json and export-receipt.json; "
         "existing export files are refused, so choose a new versioned directory; must not overlap the manifest, listed artifacts or descriptor files")
     parser.add_argument("--receipt", type=Path, required=True, help="separate output file for the receipt JSON: exports[] with name, path, sha256 and size_bytes; "
-        "an existing file or directory is refused (choose a new path); must differ from all export outputs, including aliases")
+        "an existing file or directory is refused (choose a new path); must be outside the export directory, "
+        "with no ancestor/descendant overlap with export outputs, including aliases")
     args = parser.parse_args()
     try:
         export_run(args.manifest, args.output, receipt_path=args.receipt)
