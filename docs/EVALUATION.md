@@ -1007,6 +1007,51 @@ Codex sign-in, which the recorded runs did not set up.
   run do not establish an effect. Replicate at a test-only descendant SHA with
   no concurrent workers (run39).
 
+- Run39 (`f512503`, runtime `0.5.0+codex.20261028074617`), 4/6 (95% Wilson
+  interval 30.0%-90.3%). quick-doi completed in 108 seconds, quick-arxiv in 130
+  seconds, standard-mrna in 1009 seconds, and standard-single-cell in 1162
+  seconds; full-microbiome and full-protein-folding timed out at 1800 seconds.
+  Only the completion time was recorded for standard-mrna. There were 0 policy
+  blocks. The frozen grader (`src-f512503`) counted completion 4/6, citations
+  77/77 traced (four runs with traceable output), and partial credit 0.89. The
+  first full-protein-folding attempt failed at 247 seconds with a
+  provider-capacity failure ("Selected model is at capacity", `turn.failed`);
+  per protocol it was re-run once (`t-full-protein-folding-r2`), and only the
+  re-run was graded. Every task loaded `0.5.0+codex.20261028074617`. The grader
+  aggregate `runtime_under_test_matches_branch` was false only because
+  full-microbiome's trace contains a plugin cache path followed by a backtick
+  (parsed as a second cache version); the loaded runtime
+  matched. This parsing artifact was recorded without changing the frozen
+  grader. There were 8 external codex exec processes from other sessions at
+  the start; owner workers were idle during the primary runs. One owner
+  finalize (`check.sh fast`) ran during the protein-folding re-run. Single-cell
+  spent 569 seconds in model-wait gaps over 30 seconds across 70 commands
+  (run37 288, run38 575); microbiome spent 1187 seconds across 135 commands
+  (run37 802, run38 866); the protein-folding re-run spent 1079 seconds across
+  56 commands (run38 1100 seconds / 128 commands). Microbiome's independent
+  review passed at 1557 seconds with no major and 2 minor findings. Earlier, at 1345
+  seconds, the agent had found a published correction to an included pig
+  portal-flux study; after the pass it recorded the correction, fixed the 2
+  minor findings, archived round 1
+  (`refresh --invalidate-review`), and started round 2 (`prepare-review` at
+  1787 seconds), then reached the cap. Guidance already forbids a new round
+  solely for minor findings; the published correction triggered this round.
+  The agent hit four refusals involving agent-named files (an aggregate
+  `risk-of-bias.json` and the unclassified `validation-corrections.json` and
+  `independent-review-findings.json`), each costing one turn. The
+  protein-folding re-run passed review at 1730 seconds with 3 open minor
+  findings. Its checkpoint state was `complete`, and the index rendered at
+  1778 seconds, but the final answer was not emitted before 1800 seconds. The
+  reviewer's minor finding IR-003 said retrospective/context-only studies
+  counted as independence groups in claim-sufficiency (5 vs 3 blind groups).
+  The owner checked that run's study table: the context-only and historical
+  studies support no claim, and the five support groups are distinct
+  assessment cohorts (CASP14, CASP15, CASP16, CAMEO, CAPRI). The reviewer's
+  "3 blind groups" is a judgement about which assessment cohorts are
+  independent, not a counting defect, so no code change followed. Six tasks
+  and one run under uncontrolled external load cannot separate external
+  provider load from code effects with n=1.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
