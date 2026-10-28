@@ -35,9 +35,10 @@ Every method has an ID and links one or more hypotheses to:
 - prediction, falsifier, and invalidation conditions.
 
 Allowed generation operators are `representation`, `objective`,
-`assumption_removal`, `conditional`, `compute_restructuring`, and
-`cross_domain_mapping`. A cross-domain mapping must name the source formalism,
-the target object, the correspondence, and the boundary where the analogy
+`assumption`, `conditioning`, `computation`, and `transfer`. A cross-domain
+mapping uses `transfer` and its `mapping` fields: `source_variables`,
+`target_variables`, `correspondence`, and `validity_conditions`. These name the
+source formalism, target object, correspondence, and boundary where the analogy
 breaks.
 
 Literature-guided candidates: reference the allocation artifact from the cycle
@@ -157,7 +158,10 @@ a reservation requires a complete theory-to-code contract: the current method
 and unexplained observation, assumptions, linked hypotheses, operator,
 inputs/outputs, computation, invariants, complexity, failure modes,
 applicability, predictions, baseline difference, and implementation/correctness
-references. `discovery audit` reports readiness; it does not certify that a
+references (`design.implementation.code_refs` and `design.correctness_refs`).
+Missing correctness references block implementation readiness and reservation
+under this policy; legacy readiness is unchanged. `discovery audit` reports
+readiness; it does not certify that a
 method works. An idea may be recorded without `code_refs`, but cannot be
 reserved until its implementation identity is present.
 

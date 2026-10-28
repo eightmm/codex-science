@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Discovery comparisons distinguish boolean, integer and float identities/outcomes/costs and avoid mean overflow for finite scores; strict design reservations require correctness references, assessment and synthesis refuse stale embedded cycle hashes, and the RDL reference names the runtime generation operators. Existing payload keys and ordinary aggregate rounding are unchanged.
 - Normalize typed evidence-graph identities, exclude ineligible studies and claim-source evidence edges from support, verify returned citation identities and conflicting duplicate metadata, and validate reference text/schema fields and receipt destinations while preserving omitted per-use ledger skills inherited from the top level, without changing payload keys or CLI options.
 
 - Literature saturation rejects relevant-count increments larger than evaluated-count increments and fits only distinct checkpoints; repeated observations cannot meet the three-point minimum. Screening pools locally merge DOI URL, whitespace and namespaced identifier aliases, including integer PMID fields (excluding bool), while preserving the shared identifier normalizer, output schemas and existing trailing slash/period stripping.

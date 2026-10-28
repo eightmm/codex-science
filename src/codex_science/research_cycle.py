@@ -541,6 +541,11 @@ def _stored_hash(cycle: Mapping[str, Any]) -> str:
     value = dict(cycle); value.pop("cycle_hash", None); return _hash(value)
 
 
+def _validate_cycle_hash(cycle: Mapping[str, Any]) -> None:
+    if cycle.get("cycle_hash") != _stored_hash(cycle):
+        raise ValueError("research cycle hash mismatch")
+
+
 def _intent_hash(cycle: Mapping[str, Any]) -> str:
     value = dict(cycle)
     for key in ("revision", "parent_hash", "cycle_hash"): value.pop(key, None)
@@ -601,7 +606,7 @@ def validate_history(cycles: list[Mapping[str, Any]], run_dir: Path | str | None
     latest: Mapping[str, Any] | None = None
     for index, value in enumerate(cycles, 1):
         if not isinstance(value, dict) or value.get("revision") != index or value.get("parent_hash") != parent: raise ValueError("research cycle lineage is invalid")
-        if value.get("cycle_hash") != _stored_hash(value): raise ValueError("research cycle hash mismatch")
+        _validate_cycle_hash(value)
         validate_cycle(value, run_dir)
         if index == 1:
             genesis = dict(value); genesis.update({"revision": 0, "parent_hash": None}); genesis.pop("cycle_hash", None)

@@ -1,4 +1,4 @@
-import hashlib, json, subprocess, sys, tempfile, unittest
+import hashlib, json, math, shutil, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from codex_science.discovery_comparison import evaluate_comparison, _digest, _frozen_contract
 
@@ -21,6 +21,69 @@ def _fixture():
     return root,contract,records
 
 class DiscoveryComparisonTests(unittest.TestCase):
+    def test_numeric_types_cannot_alias_artifacts_or_frozen_cells(self):
+        for artifact in ("result_ref", "execution_receipt_ref"):
+            for field, values in (("score", (True, 1.0, False, 0.0)),
+                                  ("cost", (True, 1.0)),
+                                  ("repetition", (False, 0.0)), ("seed", (7.0,))):
+                for value in values:
+                    with self.subTest(artifact=artifact, field=field, value=value):
+                        root, contract, records = _fixture()
+                        self.addCleanup(shutil.rmtree, root)
+                        record = records[0]
+                        if field == "score" and value in (False, 0.0):
+                            record["outcome"]["metrics"]["score"] = 0
+                        result = json.loads((root / record["result_ref"]["path"]).read_text())
+                        receipt = json.loads((root / record["execution_receipt_ref"]["path"]).read_text())
+                        result["outcome"] = json.loads(json.dumps(record["outcome"]))
+                        receipt["outcome"] = json.loads(json.dumps(record["outcome"]))
+                        payload = result if artifact == "result_ref" else receipt
+                        if field == "score":
+                            payload["outcome"]["metrics"]["score"] = value
+                        elif field == "cost":
+                            payload["cost"]["wall_time_seconds"] = value
+                        else:
+                            payload[field] = value
+                        record["result_ref"]["sha256"] = _write(root, record["result_ref"]["path"], result)
+                        receipt["result_ref"] = record["result_ref"]
+                        record["execution_receipt_ref"]["sha256"] = _write(root, record["execution_receipt_ref"]["path"], receipt)
+                        report = evaluate_comparison(contract, records, root)
+                        self.assertEqual("rejected", report["status"])
+        for field, values in (("repetition", (False, 0.0, "", None, [], -1, 1)),
+                              ("seed", (7.0, True, "", None, [])), ("task_id", (0, None, []))):
+            for value in values:
+                with self.subTest(record_field=field, value=value):
+                    root, contract, records = _fixture()
+                    self.addCleanup(shutil.rmtree, root)
+                    records[0][field] = value
+                    self.assertEqual("rejected", evaluate_comparison(contract, records, root)["status"])
+
+    def test_finite_scores_do_not_overflow_aggregate_means(self):
+        for score in (0, 0.1, 1e308, -1e308, float.fromhex("0x1.fffffffffffffp+1023")):
+            with self.subTest(score=score):
+                root, contract, records = _fixture()
+                self.addCleanup(shutil.rmtree, root)
+                for record in records:
+                    record["outcome"]["metrics"]["score"] = 0 if record["arm"] == "ordinary" else score
+                    for ref_key in ("result_ref", "execution_receipt_ref"):
+                        payload = json.loads((root / record[ref_key]["path"]).read_text())
+                        payload["outcome"] = record["outcome"]
+                        if ref_key == "execution_receipt_ref":
+                            payload["result_ref"] = record["result_ref"]
+                        record[ref_key]["sha256"] = _write(root, record[ref_key]["path"], payload)
+                report = evaluate_comparison(contract, records, root)
+                self.assertEqual("passed", report["status"])
+                for arm in ("prior", "rdl"):
+                    mean = report["aggregation"]["by_arm"][arm]["metrics"]["score"]["mean_success_conditioned"]
+                    difference = report["aggregation"]["paired_differences_vs_ordinary"][arm]["score"]["mean_difference"]
+                    self.assertTrue(math.isfinite(mean))
+                    self.assertEqual(score, mean)
+                    self.assertEqual(score, difference)
+                empty = evaluate_comparison(contract, [], root)
+                self.assertEqual("incomplete", empty["status"])
+                self.assertIsNone(empty["aggregation"]["by_arm"]["rdl"]["metrics"]["score"]["mean_success_conditioned"])
+                self.assertIsNone(empty["aggregation"]["paired_differences_vs_ordinary"]["rdl"]["score"]["mean_difference"])
+
     def test_complete_synthetic_fixture_is_descriptive_only(self):
         root,c,r=_fixture(); report=evaluate_comparison(c,r,root); self.assertEqual(report["status"],"passed"); self.assertIn("not empirical P4",report["evidence_boundary"]); self.assertEqual(report["aggregation"]["paired_differences_vs_ordinary"]["rdl"]["score"]["mean_difference"],2)
     def test_missing_cell_is_incomplete(self):

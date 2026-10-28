@@ -7,6 +7,7 @@ from pathlib import Path
 
 from codex_science.discovery import attach_cycle, finite_decision
 from codex_science.discovery_evidence import assess_cycle, classify_revisions, cycle_graph
+from codex_science.discovery_synthesis import summarize_cycle
 from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle
 from codex_science.review_receipts import build_review_receipt
 from codex_science.reviewer_runtime import build_review_packet
@@ -155,6 +156,17 @@ class DiscoveryEvidenceTests(unittest.TestCase):
         self.assertEqual({"schema_version", "cycle_hash", "revision", "execution_integrity", "review_axes", "novelty",
                           "review_scope", "method_effects", "evidence_boundary", "revision_outcomes"}, set(result))
         self.assertEqual([], result["revision_outcomes"]["revisions"])
+
+    def test_rewritten_snapshot_with_stale_cycle_hash_is_refused_by_views(self):
+        cycle = self.start()
+        cycle["problem"]["observed"] = "edited after saving"
+        snapshot = self.root / "discovery/revisions/000001.json"
+        snapshot.write_text(json.dumps(cycle))
+        for view in (assess_cycle, summarize_cycle):
+            with self.subTest(view=view.__name__), self.assertRaisesRegex(ValueError, "research cycle hash mismatch"):
+                view(cycle, self.root)
+        with self.assertRaisesRegex(ValueError, "research cycle hash mismatch"):
+            load_cycle(self.root)
 
 
 class RevisionOutcomeTests(unittest.TestCase):

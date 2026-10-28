@@ -2,11 +2,12 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.discovery_design import audit_design, validate_design
+from codex_science.discovery_design import OPERATORS, audit_design, validate_design
 from codex_science.research_cycle import apply_cycle_event, new_cycle
 
 
@@ -46,6 +47,7 @@ class DiscoveryDesignTests(unittest.TestCase):
             "invariants": ["evaluation split is unchanged"], "complexity": "O(n)",
             "failure_modes": ["feature is noisy"], "applicability": "measured features", "predictions": "h1 predicts higher held-out score",
             "baseline_difference": "adds one input feature", "implementation": {"code_refs": code_ref},
+            "correctness_refs": code_ref,
         }
         return cycle
 
@@ -157,6 +159,34 @@ class DiscoveryDesignTests(unittest.TestCase):
             cycle["methods"][0]["design"].pop("implementation")
             with self.assertRaisesRegex(ValueError, "complete problem and computational method design"):
                 apply_cycle_event(cycle, {"kind": "reserve", "experiment_id": "e1", "request_id": "r2"}, temporary)
+
+    def test_strict_reservation_requires_correctness_refs_only_under_policy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cycle = self.designed(Path(temporary))
+            cycle["methods"][0]["design"].pop("correctness_refs")
+            cycle["experiments"] = [{"id": "e1", "method_id": "m1", "cost": 1,
+                                     "predictions": {"h1": [0, 1]}, "resolution": 0.1, "controls": ["baseline"]}]
+            event = {"kind": "reserve", "experiment_id": "e1", "request_id": "r1"}
+            self.assertTrue(audit_design(cycle, temporary)["methods"][0]["implementation_ready"])
+            self.assertEqual("reserved", apply_cycle_event(cycle, event, temporary)["experiments"][0]["state"])
+            cycle["design_policy"] = "required-for-reservation"
+            audit = audit_design(cycle, temporary)
+            self.assertFalse(audit["methods"][0]["implementation_ready"])
+            self.assertTrue(audit["methods"][0]["design_ready"])
+            self.assertEqual(["methods[0].design.correctness_refs"], audit["methods"][0]["missing"])
+            with self.assertRaisesRegex(ValueError, "complete problem and computational method design"):
+                apply_cycle_event(cycle, event, temporary)
+            for invalid in ([], 0, "malformed", [{"path": "method.py", "sha256": "0" * 64}]):
+                cycle["methods"][0]["design"]["correctness_refs"] = invalid
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    apply_cycle_event(cycle, event, temporary)
+            cycle["methods"][0]["design"]["correctness_refs"] = cycle["methods"][0]["code_refs"]
+            self.assertEqual("reserved", apply_cycle_event(cycle, event, temporary)["experiments"][0]["state"])
+
+    def test_documented_generation_operators_match_runtime(self):
+        text = (ROOT / "authored-skills/research-discovery/references/rdl-contract.md").read_text()
+        paragraph = text.split("Allowed generation operators are ", 1)[1].split(". ", 1)[0]
+        self.assertEqual(OPERATORS, set(re.findall(r"`([^`]+)`", paragraph)))
 
     def test_acceptance_runner_records_strict_ready_designs_for_all_scenarios(self) -> None:
         spec = importlib.util.spec_from_file_location("strict_discovery_acceptance", RUNNER_PATH)

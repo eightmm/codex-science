@@ -239,13 +239,17 @@ def audit_design(cycle: Mapping[str, Any], run_dir: Path | str | None = None) ->
         implementation_ready = not missing and structurally_valid and isinstance(implementation, Mapping) and bool(implementation.get("code_refs")) and bool(code_refs)
         if not implementation_ready:
             missing.append(f"methods[{index}].design.implementation.code_refs")
+        design_ready = structurally_valid and (not missing or missing == [f"methods[{index}].design.implementation.code_refs"])
+        if cycle.get("design_policy") == "required-for-reservation" and isinstance(design, Mapping) and not design.get("correctness_refs"):
+            missing.append(f"methods[{index}].design.correctness_refs")
+            implementation_ready = False
         method_readiness.append({
             "method_id": method.get("id") if isinstance(method.get("id"), str) else None,
-            "design_ready": structurally_valid and (not missing or missing == [f"methods[{index}].design.implementation.code_refs"]),
+            "design_ready": design_ready,
             "implementation_ready": implementation_ready,
             "missing": missing,
         })
-        design_missing.extend(item for item in missing if not item.endswith(".implementation.code_refs"))
+        design_missing.extend(item for item in missing if not item.endswith((".implementation.code_refs", ".correctness_refs")))
 
     implementation_missing = list(design_missing)
     for item in method_readiness:

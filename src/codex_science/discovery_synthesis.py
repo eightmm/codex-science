@@ -220,10 +220,11 @@ def _experiment_evidence(
 def summarize_cycle(cycle: Mapping[str, Any], run_dir: Path | str) -> dict[str, Any]:
     """Return a read-only evidence ledger for one fully validated cycle snapshot."""
     from codex_science.discovery import plan_cycle
-    from codex_science.research_cycle import validate_cycle
+    from codex_science.research_cycle import _validate_cycle_hash, validate_cycle
 
     root = Path(run_dir)
     validate_cycle(cycle, run_dir=root)
+    _validate_cycle_hash(cycle)
     evaluation_id, evaluation_material = _evaluation_identity(cycle)
     methods = {item["id"]: item for item in cycle["methods"]}
     experiments_by_method: dict[str, list[Mapping[str, Any]]] = {item["id"]: [] for item in cycle["methods"]}

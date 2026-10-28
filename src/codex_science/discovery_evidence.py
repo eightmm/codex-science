@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from codex_science.cli_io import load_json_object
-from codex_science.research_cycle import _confined_file, _refs, _text, validate_cycle
+from codex_science.research_cycle import _confined_file, _refs, _text, _validate_cycle_hash, validate_cycle
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
 
@@ -91,6 +91,7 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
     revision = cycle.get("revision", 0)
     if not cycle.get("cycle_hash") or revision < 1:
         raise ValueError("assessment requires a saved cycle snapshot")
+    _validate_cycle_hash(cycle)
     snapshot_path = f"discovery/revisions/{revision:06d}.json"
     snapshot = load_json_object(_confined_file(run_dir, snapshot_path))
     if snapshot != cycle:
