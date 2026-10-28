@@ -236,6 +236,25 @@ class TransportV3Tests(unittest.TestCase):
                 execute_paginated(EuropePMCSearchV3(), paged_request, transport=FakeTransport([(page, {})]))
 
     def test_v3_pagination_missing_keys_have_schema_drift_labels(self) -> None:
+        operation = PubMedSearchV3()
+        request = QueryRequest("pubmed", "search", {"query": "fixture"}, source_contract_version="3")
+        first_request = operation.first_request(request)
+        pubmed_cases = (
+            ({}, "missing esearchresult"),
+            (None, "invalid response object while reading esearchresult"),
+            ({"esearchresult": None}, "invalid esearchresult: expected object"),
+            ({"esearchresult": {"count": "0"}}, "missing idlist"),
+            ({"esearchresult": {"count": "0", "idlist": "1"}}, "invalid idlist: expected list"),
+            ({"esearchresult": {"ERROR": "Empty term"}}, "invalid response: NCBI ESearch error: Empty term"),
+            ({"ERROR": "backend failure"}, "invalid response: NCBI ESearch error: backend failure"),
+            ({"error": "backend failure"}, "invalid response: NCBI ESearch error: backend failure"),
+        )
+        for payload, detail in pubmed_cases:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError) as caught:
+                    operation.next_request(request, first_request, payload, 0)
+                self.assertEqual(f"schema-drift: pubmed pagination {detail}", str(caught.exception))
+
         cases = (
             (
                 PubMedSearchV3(),

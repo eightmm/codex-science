@@ -65,19 +65,27 @@ def fetch_text(url: str) -> str:
         return _read_limited(response).decode("utf-8")
 
 
-def parse_esearch_ids(payload: Any) -> list[str]:
+def raise_esearch_error(payload: Any) -> None:
+    """Reject explicit NCBI errors without imposing a response schema."""
     if not isinstance(payload, dict):
-        raise ValueError("NCBI ESearch response must be a JSON object")
+        return
     top_error = payload.get("ERROR") or payload.get("error")
     if isinstance(top_error, str) and top_error:
         raise ValueError(f"NCBI ESearch error: {top_error}")
+    result = payload.get("esearchresult")
+    if isinstance(result, dict) and isinstance(result.get("ERROR"), str) and result.get("ERROR"):
+        raise ValueError(f"NCBI ESearch error: {result['ERROR']}")
+
+
+def parse_esearch_ids(payload: Any) -> list[str]:
+    raise_esearch_error(payload)
+    if not isinstance(payload, dict):
+        raise ValueError("NCBI ESearch response must be a JSON object")
     result = payload.get("esearchresult")
     if result is None:
         raise ValueError("NCBI ESearch response missing esearchresult")
     if not isinstance(result, dict):
         raise ValueError("NCBI ESearch esearchresult must be an object")
-    if isinstance(result.get("ERROR"), str) and result.get("ERROR"):
-        raise ValueError(f"NCBI ESearch error: {result['ERROR']}")
     if "idlist" not in result:
         raise ValueError("NCBI ESearch esearchresult missing idlist")
     ids = result["idlist"]

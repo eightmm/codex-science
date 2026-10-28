@@ -7,7 +7,7 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from codex_science.connectors import parse_esearch_ids
+from codex_science.connectors import raise_esearch_error
 from codex_science.connector_contract import QueryRequest
 from codex_science.transport_v3 import PageRequest
 
@@ -69,8 +69,8 @@ def _pagination_drift(source: str, error: ValueError) -> ValueError:
 
 
 def _pubmed_result(payload: Any) -> Mapping[str, Any]:
+    raise_esearch_error(payload)
     result = _required_mapping(payload, "esearchresult")
-    parse_esearch_ids(payload)
     _required_list(result, "idlist")
     return result
 
