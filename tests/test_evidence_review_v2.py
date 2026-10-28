@@ -136,6 +136,22 @@ class EvidenceReviewV2Tests(unittest.TestCase):
             },
         )
 
+    def test_blocking_severity_normalization_preserves_honest_receipts(self) -> None:
+        for severity in ("major ", " critical\t", "major", "critical", "minor", ""):
+            for resolution in ("open", "resolved", "not-applicable"):
+                with self.subTest(severity=severity, resolution=resolution):
+                    receipt = build_review_receipt(
+                        review_id="review-normalized", reviewer="reviewer", independent=True,
+                        review_modes=["record"], status="passed",
+                        covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+                        covered_claim_ids=[], findings=[{"severity": severity, "resolution_status": resolution}],
+                    )
+                    codes = {item["code"] for item in review_receipt_findings(receipt, {"metrics.json": "a" * 64})}
+                    self.assertEqual(
+                        severity.strip() in {"major", "critical"} and resolution == "open",
+                        "unsafe-review-pass" in codes,
+                    )
+
     def test_review_receipt_requires_an_actual_reviewer_string(self) -> None:
         receipt = build_review_receipt(
             review_id="review-without-reviewer",

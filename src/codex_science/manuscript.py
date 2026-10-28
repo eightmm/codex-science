@@ -50,7 +50,7 @@ REQUIRED_SUBMISSION_REVIEW_MODES = frozenset({"record", "source", "method"})
 REVIEW_RECEIPT_KINDS = frozenset({"review-receipt", "review-receipt-v2"})
 REVIEW_PACKET_KINDS = frozenset({"review-packet", "review-packet-v1"})
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-CLAIM_MARKER_RE = re.compile(r"<!--\s*claim:[^>]+-->")
+CLAIM_MARKER_RE = re.compile(r"<!--\s*claim\s*:\s*[^\s>]+\s*-->")
 NUMBER_RE = re.compile(
     r"(?<![0-9A-Za-z_.])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?(?![0-9A-Za-z_]|\.\d)"
 )
@@ -91,6 +91,9 @@ def _load_json(
     findings: list[dict[str, str]],
 ) -> dict[str, Any] | None:
     path = root / name
+    if not path.resolve().is_relative_to(root.resolve()):
+        findings.append(_finding("package-path-escape", f"File resolves outside the package: {name}"))
+        return None
     if not path.is_file():
         findings.append(_finding("required-file-missing", f"Required file is missing: {name}"))
         return None
@@ -132,11 +135,15 @@ def _check_file_ref(
 
 
 def _claim_segment(manuscript: str, locator: str) -> tuple[str | None, str | None]:
-    marker = f"<!-- {locator} -->"
-    occurrences = manuscript.count(marker)
-    if occurrences != 1:
-        return None, "missing" if occurrences == 0 else "ambiguous"
-    start = manuscript.index(marker) + len(marker)
+    pattern = (
+        r"<!--\s*"
+        + r"\s*:\s*".join(re.escape(part.strip()) for part in locator.split(":"))
+        + r"\s*-->"
+    )
+    matches = list(re.finditer(pattern, manuscript))
+    if len(matches) != 1:
+        return None, "missing" if not matches else "ambiguous"
+    start = matches[0].end()
     next_marker = CLAIM_MARKER_RE.search(manuscript, start)
     end = len(manuscript) if next_marker is None else next_marker.start()
     return manuscript[start:end], None
@@ -170,7 +177,9 @@ def _resolve_json_pointer(payload: Any, pointer: str) -> Any:
 
 def _scalar_appears_in_text(value: Any, text: str) -> bool:
     if isinstance(value, str):
-        return value in text
+        return bool(value) and re.search(
+            r"(?<![\w.])" + re.escape(value) + r"(?!\w|\.\d)", text
+        ) is not None
     if value is None or isinstance(value, bool):
         return json.dumps(value) in text.lower()
     if isinstance(value, (int, float)):
@@ -187,6 +196,71 @@ def _scalar_appears_in_text(value: Any, text: str) -> bool:
                 continue
         return False
     return False
+
+
+def _normalized_doi(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    value = re.sub(
+        r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", value.strip(), flags=re.IGNORECASE
+    )
+    return value.casefold() if value.lower().startswith("10.") and "/" in value else ""
+
+
+def _bibtex_entries(text: str) -> list[tuple[str, dict[str, str]]]:
+    """Read literal fields without treating nested titles or quoted text as entries."""
+    entries: list[tuple[str, dict[str, str]]] = []
+    header = re.compile(r"@(\w+)\s*([({])")
+    position = 0
+    while position < len(text):
+        if text[position] == "%":
+            end = text.find("\n", position)
+            position = len(text) if end < 0 else end + 1
+            continue
+        match = header.match(text, position)
+        if match is None:
+            position += 1
+            continue
+        closing = "}" if match[2] == "{" else ")"
+        position = match.end()
+        depth = 0
+        quoted = False
+        parts: list[str] = []
+        buffer: list[str] = []
+        while position < len(text):
+            character = text[position]
+            position += 1
+            if character == "\\" and position < len(text):
+                buffer.extend((character, text[position]))
+                position += 1
+                continue
+            if character == '"' and depth == 0:
+                quoted = not quoted
+            elif not quoted:
+                if depth == 0 and character == closing:
+                    break
+                if character == "{":
+                    depth += 1
+                elif character == "}":
+                    depth -= 1
+                elif character == "," and depth == 0:
+                    parts.append("".join(buffer).strip())
+                    buffer = []
+                    continue
+            buffer.append(character)
+        parts.append("".join(buffer).strip())
+        if match[1].lower() in {"comment", "preamble", "string"} or len(parts) < 2 or not parts[0]:
+            continue
+        fields: dict[str, str] = {}
+        for part in parts[1:]:
+            name, separator, value = part.partition("=")
+            if separator:
+                value = value.strip()
+                if (value.startswith("{") and value.endswith("}")) or (value.startswith('"') and value.endswith('"')):
+                    value = value[1:-1]
+                fields[name.strip().lower()] = value
+        entries.append((parts[0], fields))
+    return entries
 
 
 def _review_packet_scope(
@@ -759,6 +833,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
     citation_support_by_id: dict[str, set[str]] = {}
     claim_ids: set[str] = set()
     material_claim_ids: set[str] = set()
+    claim_locators: set[str] = set()
     if trace is not None:
         if trace.get("schema_version") != 1:
             findings.append(_finding("trace-schema-invalid", "Unsupported claim-citation schema"))
@@ -810,7 +885,8 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
             if not isinstance(claim, Mapping):
                 findings.append(_finding("claim-invalid", "Claim record must be an object"))
                 continue
-            claim_id = str(claim.get("claim_id", "")).strip()
+            raw_claim_id = claim.get("claim_id")
+            claim_id = raw_claim_id.strip() if isinstance(raw_claim_id, str) else ""
             if not claim_id or claim_id in claim_ids:
                 findings.append(_finding("claim-id-invalid", "Claim IDs must be unique and nonempty"))
                 continue
@@ -818,6 +894,8 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
             status = claim.get("status")
             if status not in CLAIM_STATUSES:
                 findings.append(_finding("claim-status-invalid", f"{claim_id} has invalid status"))
+            if not isinstance(claim.get("material"), bool):
+                findings.append(_finding("claim-material-invalid", f"{claim_id} material must be boolean"))
             material = claim.get("material") is True
             if material:
                 material_claim_ids.add(claim_id)
@@ -853,6 +931,10 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     _finding("unsupported-material-claim", f"{claim_id} has no evidence or citation support")
                 )
             locator = str(claim.get("manuscript_locator", "")).strip()
+            canonical_locator = re.sub(r"\s*:\s*", ":", locator)
+            if canonical_locator in claim_locators:
+                findings.append(_finding("claim-locator-duplicate", f"Multiple claims use locator {canonical_locator}"))
+            claim_locators.add(canonical_locator)
             segment, locator_error = _claim_segment(manuscript, locator) if locator else (None, "missing")
             if locator_error is not None:
                 findings.append(
@@ -870,13 +952,29 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     )
                 )
             for evidence in evidence_refs:
-                _check_file_ref(
+                valid_evidence = _check_file_ref(
                     root,
                     evidence,
                     findings,
                     code="claim-evidence-mismatch",
                     label=f"evidence for {claim_id}",
                 )
+                if valid_evidence:
+                    artifact_path = root / evidence["path"]
+                    if artifact_path.suffix.lower() == ".json":
+                        try:
+                            evidence_locator = evidence.get("locator")
+                            if not isinstance(evidence_locator, str):
+                                raise ValueError("JSON evidence locator must be a string")
+                            _resolve_json_pointer(
+                                json.loads(artifact_path.read_text(encoding="utf-8")),
+                                evidence_locator,
+                            )
+                        except (OSError, UnicodeDecodeError, ValueError) as error:
+                            findings.append(_finding(
+                                "claim-evidence-locator-invalid",
+                                f"Evidence for {claim_id} has an invalid JSON locator: {error}",
+                            ))
             for citation_id_value in citation_ids:
                 citation_id = str(citation_id_value)
                 citation = citation_by_id.get(citation_id)
@@ -968,15 +1066,39 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                                         f"Reported value for {claim_id} does not match its JSON locator",
                                     )
                                 )
+                            if (
+                                locator_value
+                                and isinstance(resolved_value, (int, float))
+                                and not isinstance(resolved_value, bool)
+                            ):
+                                # A sibling unit describes this value; array endpoints may share units in prose.
+                                source_record = _resolve_json_pointer(
+                                    artifact_payload, locator_value.rsplit("/", 1)[0]
+                                )
+                                unit = source_record.get("unit") if isinstance(source_record, Mapping) else None
+                                if isinstance(unit, str) and unit.strip() and not _scalar_appears_in_text(unit, text):
+                                    findings.append(_finding(
+                                        "reported-value-unit-mismatch",
+                                        f"Reported value for {claim_id} omits its source unit {unit}",
+                                    ))
 
     if "bibtex" in output_formats and (root / "references.bib").is_file():
         bibtex = (root / "references.bib").read_text(encoding="utf-8")
-        for citation_id in sorted(citation_by_id):
-            pattern = re.compile(r"@\w+\s*\{\s*" + re.escape(citation_id) + r"\s*,")
-            if pattern.search(bibtex) is None:
+        entries: dict[str, dict[str, str]] = {}
+        for citation_id, fields in _bibtex_entries(bibtex):
+            if citation_id in entries:
+                findings.append(_finding("bibtex-entry-duplicate", f"Duplicate BibTeX key: {citation_id}"))
+            entries[citation_id] = fields
+        for citation_id, citation in sorted(citation_by_id.items()):
+            if citation_id not in entries:
                 findings.append(
                     _finding("bibtex-entry-missing", f"BibTeX entry is missing: {citation_id}")
                 )
+                continue
+            bib_doi = _normalized_doi(entries[citation_id].get("doi", ""))
+            reference_doi = _normalized_doi(citation.get("persistent_id", ""))
+            if bib_doi and reference_doi and bib_doi != reference_doi:
+                findings.append(_finding("bibtex-doi-mismatch", f"BibTeX DOI differs from verified reference: {citation_id}"))
 
     if checklist is not None:
         if checklist.get("schema_version") != 1:
@@ -994,9 +1116,19 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
         items = checklist.get("items")
         if not isinstance(items, list):
             findings.append(_finding("checklist-items-invalid", "Checklist items must be a list"))
-        elif package_status in {"review-ready", "submission-ready"}:
+        else:
             for item in items:
-                if isinstance(item, Mapping) and item.get("status") == "unresolved":
+                if not isinstance(item, Mapping):
+                    findings.append(_finding("checklist-item-invalid", "Checklist item must be an object"))
+                    continue
+                status = item.get("status")
+                if not isinstance(status, str) or status not in {"met", "not-applicable", "unresolved"}:
+                    findings.append(_finding("checklist-status-invalid", f"Reporting item has invalid status: {item.get('id')}"))
+                if "manuscript_locator" in item:
+                    locator = item["manuscript_locator"]
+                    if not isinstance(locator, str) or not locator.strip() or _claim_segment(manuscript, locator.strip())[1] is not None:
+                        findings.append(_finding("checklist-locator-invalid", f"Reporting item has no unique manuscript anchor: {item.get('id')}"))
+                if package_status in {"review-ready", "submission-ready"} and status == "unresolved":
                     findings.append(
                         _finding(
                             "reporting-checklist-unresolved",

@@ -148,6 +148,207 @@ class ManuscriptPackageTests(unittest.TestCase):
             with self.subTest(path=unsafe):
                 self.assertIsNone(_relative_path(unsafe))
 
+    def test_submission_manifest_must_resolve_inside_package(self) -> None:
+        path = self.package / "submission-package.json"
+        outside = Path(self.tempdir.name) / "outside.json"
+        original = path.read_bytes()
+        outside.write_bytes(original)
+        path.unlink()
+        path.symlink_to(outside)
+        self.assertIn("package-path-escape", self.findings())
+        self.assertEqual(original, outside.read_bytes())
+
+        path.unlink()
+        inside = self.package / "manifest-copy.json"
+        inside.write_bytes(original)
+        path.symlink_to(inside.name)
+        self.assertNotIn("package-path-escape", self.findings())
+
+    def test_claim_id_requires_nonempty_string(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        for value in (None, "", "  ", 0, 1, [], {}):
+            with self.subTest(value=value):
+                trace["claims"][0]["claim_id"] = value
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assertIn("claim-id-invalid", self.findings())
+
+    def test_claim_material_requires_boolean(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        for value in ("true", "false", "", 0, 1, None, [], {}):
+            with self.subTest(value=value):
+                trace["claims"][0]["material"] = value
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assertIn("claim-material-invalid", self.findings())
+        for value in (False, True):
+            trace["claims"][0]["material"] = value
+            self.rewrite_json(name, trace)
+            self.refresh_submission_hash(name)
+            self.assertEqual("passed", validate_manuscript_package(self.package)["status"])
+
+    def test_claim_evidence_json_locator_must_resolve(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        for locator in ("/absent", "/interval/2", "/interval/-1", "bad", None, 0, []):
+            with self.subTest(locator=locator):
+                trace["claims"][0]["evidence_refs"][0]["locator"] = locator
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assertIn("claim-evidence-locator-invalid", self.findings())
+        for locator in ("", "/interval/0", "/interval/1", "/estimate"):
+            trace["claims"][0]["evidence_refs"][0]["locator"] = locator
+            self.rewrite_json(name, trace)
+            self.refresh_submission_hash(name)
+            self.assertEqual("passed", validate_manuscript_package(self.package)["status"])
+
+    def test_trace_records_cannot_share_manuscript_locator(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        claim = dict(trace["claims"][0], claim_id="M-004")
+        trace["claims"].append(claim)
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assertIn("claim-locator-duplicate", self.findings())
+
+    def test_anchor_whitespace_variants_are_counted_together(self) -> None:
+        for marker in ("<!--claim:M-001-->", "<!--\tclaim:M-001\n-->", "<!-- claim : M-001 -->"):
+            with self.subTest(marker=marker):
+                manuscript = f"<!-- claim:M-001 --> first {marker} second"
+                self.assertEqual((None, "ambiguous"), _claim_segment(manuscript, "claim:M-001"))
+                self.assertEqual((" text", None), _claim_segment(marker + " text", "claim:M-001"))
+
+    def test_checklist_status_must_use_documented_enum(self) -> None:
+        name = "reporting-checklist.json"
+        checklist = json.loads((self.package / name).read_text(encoding="utf-8"))
+        for status in ("complete", "", None, 0, [], {}):
+            with self.subTest(status=status):
+                checklist["items"][0]["status"] = status
+                self.rewrite_json(name, checklist)
+                self.refresh_submission_hash(name)
+                self.assertIn("checklist-status-invalid", self.findings())
+        for status in ("met", "not-applicable", "unresolved"):
+            checklist["items"][0]["status"] = status
+            self.rewrite_json(name, checklist)
+            self.refresh_submission_hash(name)
+            self.assertNotIn("checklist-status-invalid", self.findings())
+            self.assertEqual(status == "unresolved", "reporting-checklist-unresolved" in self.findings())
+        checklist["items"] = [None]
+        self.rewrite_json(name, checklist)
+        self.refresh_submission_hash(name)
+        self.assertIn("checklist-item-invalid", self.findings())
+        checklist["items"] = []
+        self.rewrite_json(name, checklist)
+        self.refresh_submission_hash(name)
+        self.assertEqual("passed", validate_manuscript_package(self.package)["status"])
+
+    def test_checklist_locator_must_name_existing_anchor(self) -> None:
+        name = "reporting-checklist.json"
+        checklist = json.loads((self.package / name).read_text(encoding="utf-8"))
+        for locator in ("claim:absent", "", None, 0, []):
+            with self.subTest(locator=locator):
+                checklist["items"][0]["manuscript_locator"] = locator
+                self.rewrite_json(name, checklist)
+                self.refresh_submission_hash(name)
+                self.assertIn("checklist-locator-invalid", self.findings())
+
+    def test_bibtex_duplicate_keys_are_refused(self) -> None:
+        path = self.package / "references.bib"
+        original = path.read_text(encoding="utf-8")
+        path.write_text(original + original, encoding="utf-8")
+        self.refresh_submission_hash(path.name)
+        self.assertIn("bibtex-entry-duplicate", self.findings())
+        for text in ("", "@article{}", "% @article{ref-method,}\n", "@comment{ref-method, ignored}", "@article{ref-method}"):
+            with self.subTest(text=text):
+                path.write_text(text, encoding="utf-8")
+                self.refresh_submission_hash(path.name)
+                self.assertIn("bibtex-entry-missing", self.findings())
+
+    def test_bibtex_doi_must_match_verified_reference(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        trace["citations"][0]["persistent_id"] = "https://doi.org/10.1234/ABC"
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        bib = self.package / "references.bib"
+        for value in ("{10.1234/other}", '"10.1234/other"', "10.1234/other"):
+            with self.subTest(value=value):
+                bib.write_text(f"@article{{ref-method, title={{Nested {{title}}}}, doi={value}}}\n", encoding="utf-8")
+                self.refresh_submission_hash(bib.name)
+                self.assertIn("bibtex-doi-mismatch", self.findings())
+        for value in ("{10.1234/abc}", '"https://DOI.ORG/10.1234/AbC"', "{doi:10.1234/ABC}"):
+            bib.write_text(f"@article(ref-method, title={{Nested {{title}}}}, doi={value})\n", encoding="utf-8")
+            self.refresh_submission_hash(bib.name)
+            self.assertEqual("passed", validate_manuscript_package(self.package)["status"])
+        bib.write_text(
+            '@comment{Ignore @article{ref-method, doi={10.1234/other}}}\n'
+            '@preamble{"preamble"}\n@string{journal = "Fixture"}\n'
+            '@article{ref-method, title="Quoted @article{ref-method,} and \\"text\\"", doi={10.1234/abc}}\n',
+            encoding="utf-8",
+        )
+        self.refresh_submission_hash(bib.name)
+        self.assertEqual("passed", validate_manuscript_package(self.package)["status"])
+
+    def test_string_reported_values_require_token_boundaries(self) -> None:
+        value = "2.5 response units"
+        for text in ("12.5 response units", "x2.5 response units", ".2.5 response units", value + "2", value + "x", value + ".5"):
+            with self.subTest(text=text):
+                self.assertFalse(_scalar_appears_in_text(value, text))
+        self.assertFalse(_scalar_appears_in_text("", value))
+        for text in (value, "(" + value + ")", value + "."):
+            self.assertTrue(_scalar_appears_in_text(value, text))
+
+    def test_string_reported_value_counterexample_is_refused_by_cli(self) -> None:
+        artifact = self.package / "string-value.json"
+        artifact.write_text(json.dumps("2.5 response units"), encoding="utf-8")
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        trace["claims"][0]["reported_values"][0].update(
+            artifact_path=artifact.name, artifact_sha256=digest, locator="", text="12.5 response units",
+        )
+        trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5 response units", "12.5 response units")
+        manuscript = self.package / "manuscript.md"
+        manuscript.write_text(manuscript.read_text(encoding="utf-8").replace("2.5 response units", "12.5 response units"), encoding="utf-8")
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.refresh_submission_hash(manuscript.name)
+        submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
+        submission["files"].append({"path": artifact.name, "kind": "manuscript-package-file", "sha256": digest})
+        self.rewrite_json("submission-package.json", submission)
+
+        self.assertIn("reported-value-content-mismatch", self.findings())
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "validate_manuscript_package.py"), str(self.package), "--require-clean"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertIn("reported-value-content-mismatch", result.stdout)
+
+    def test_reported_estimate_requires_explicit_source_unit(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text(encoding="utf-8"))
+        trace["claims"][0]["reported_values"][0]["text"] = "2.5"
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assertIn("reported-value-unit-mismatch", self.findings())
+
+    def test_passed_submission_receipt_cannot_hide_blocking_severity_whitespace(self) -> None:
+        self.make_submission_ready()
+        name = "review-receipt.json"
+        receipt = json.loads((self.package / name).read_text(encoding="utf-8"))
+        receipt["findings"] = [{"severity": "major ", "resolution_status": "open", "code": "gap", "message": "Open gap", "evidence": []}]
+        receipt.pop("fingerprint")
+        receipt["fingerprint"] = canonical_sha256(receipt)
+        self.rewrite_json(name, receipt)
+        self.refresh_submission_hash(name)
+        submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
+        submission["review"]["receipt"]["sha256"] = hashlib.sha256((self.package / name).read_bytes()).hexdigest()
+        self.rewrite_json("submission-package.json", submission)
+        self.assertIn("unsafe-review-pass", self.findings())
+
     def test_json_pointer_decodes_escapes_and_reports_invalid_traversals(self) -> None:
         payload = {"a/b": {"tilde~key": ["value"]}}
         self.assertEqual("value", _resolve_json_pointer(payload, "/a~1b/tilde~0key/0"))
@@ -339,7 +540,7 @@ class ManuscriptPackageTests(unittest.TestCase):
         end = manuscript.index("## Discussion", start)
         replacement = (
             "<!-- claim:M-001 -->\n"
-            "The recorded effect estimate was 2.50. The fixture interval was "
+            "The recorded effect estimate was 2.50 response units. The fixture interval was "
             "1.2 to 3.8 response units.\n\n"
         )
         manuscript_path.write_text(
@@ -351,15 +552,19 @@ class ManuscriptPackageTests(unittest.TestCase):
         trace_path = self.package / "claim-citation-map.json"
         trace = json.loads(trace_path.read_text(encoding="utf-8"))
         trace["claims"][0]["text"] = (
-            "The recorded effect estimate was 2.50. The fixture interval was "
+            "The recorded effect estimate was 2.50 response units. The fixture interval was "
             "1.2 to 3.8 response units."
         )
-        trace["claims"][0]["reported_values"][0]["text"] = "2.50."
+        trace["claims"][0]["reported_values"][0]["text"] = "2.50 response units."
         self.rewrite_json(trace_path.name, trace)
         self.refresh_submission_hash(trace_path.name)
 
         result = validate_manuscript_package(self.package)
         self.assertEqual("passed", result["status"], result["findings"])
+        trace["claims"][0]["reported_values"][0]["text"] = "2.50"
+        self.rewrite_json(trace_path.name, trace)
+        self.refresh_submission_hash(trace_path.name)
+        self.assertIn("reported-value-unit-mismatch", self.findings())
 
     def test_numeric_matching_preserves_sign_and_grouping(self) -> None:
         self.assertFalse(_scalar_appears_in_text(2.5, "−2.5 response units"))

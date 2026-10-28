@@ -128,7 +128,7 @@ def review_receipt_findings(
     if expected_registry is not None and registry_sha256 != expected_registry:
         findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} covers a different model registry."})
     if payload.get("status") == "passed" and any(
-        item.get("severity") in {"critical", "major"}
+        str(item.get("severity", "")).strip() in {"critical", "major"}
         and item.get("resolution_status", "open")
         not in {"resolved", "not-applicable"}
         for item in payload.get("findings", [])
