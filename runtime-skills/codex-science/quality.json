@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": "codex-science",
   "roles": ["conductor"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": [
     "research-contract-v1",
     "checkpoint-v4",
@@ -16,11 +16,28 @@
     "connector-action-approval-v1",
     "connector-action-receipt-v1"
   ],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": [],
+  "acceptance_fixtures": [
+    "examples/codex-science/input.json"
+  ],
+  "seeded_failures": [
+    "missing-write-approval",
+    "approval-spec-digest-mismatch",
+    "approval-reused-for-different-target",
+    "preview-spec-mismatch",
+    "remote-state-drift",
+    "idempotency-key-reuse"
+  ],
+  "test_files": [
+    "tests/test_action_connectors.py",
+    "tests/test_review_action_receipts.py",
+    "tests/test_pipeline_compiler.py",
+    "tests/test_pipeline_compiler_security.py",
+    "tests/test_codex_science_conductor_acceptance.py"
+  ],
   "limitations": [
     "The coordinator delegates domain validity to specialist skills and independent review.",
-    "Task persistence depends on the installed Codex host and trusted hooks."
+    "Task persistence depends on the installed Codex host and trusted hooks.",
+    "The acceptance fixture validates deterministic local connector trust gates, not an empirical scientific result or a real provider integration.",
+    "Known detection gaps remain for rehashed approval scopes, preview/spec target consistency, and receipt approval and remote-ID validation."
   ]
 }

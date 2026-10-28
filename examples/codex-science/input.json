@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "connector": "fake-lab",
+  "operation": "publish-sample",
+  "mode": "write",
+  "target": "workspace-1/sample-1",
+  "parameters": {"status": "published"},
+  "requested_scopes": ["sample:read", "sample:write"],
+  "idempotency_key": "conductor-acceptance-sample-1-v1",
+  "expected_before_sha256": null,
+  "approval_required": true,
+  "destructive": false,
+  "paid": false,
+  "sensitive_data": false,
+  "compensation": "Restore draft status through a separately approved action."
+}
