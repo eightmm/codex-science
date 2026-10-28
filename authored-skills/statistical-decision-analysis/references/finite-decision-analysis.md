@@ -66,6 +66,8 @@ The command writes files atomically. Standard output contains only the output lo
 
 IDs must be unique. `state_model` must be `exogenous`; action-dependent state probabilities require another model. Every value must use one consequence horizon and unit. The table must contain exactly one finite value for every action-state pair. Priors are all-or-none and must sum to one. For each experiment and state, likelihoods over all outcomes must sum to one. Experiment cost is expressed on the same scale as the table.
 
+`schema_version` must be the integer `1`, not a boolean or floating-point value. Required prose fields must be non-empty strings; objects, lists, numbers and booleans are rejected rather than stringified. Identifiers and optional labels retain the runtime's existing string coercion.
+
 ## Supported criteria
 
 | Scale | Required declaration | Criteria |
@@ -90,9 +92,11 @@ Experiments are allowed only with `bayes-risk`, `expected-utility`, or `expected
 
 The runtime verifies `EVPI >= 0` and `0 <= EVSI <= EVPI` up to numeric tolerance. A zero-probability outcome is retained as `unreachable` and is not assigned a fabricated posterior. `EVPI < cost` rules out that experiment under the model; `EVPI > cost` is only an upper-bound screen, while actual value requires net EVSI.
 
+Expected-action comparisons and information improvements use a common centred consequence table when same-sign values have a common offset of magnitude at least one and a nonzero spread no greater than that magnitude divided by `2**26`. This avoids cancellation in large-offset cases while preserving ordinary receipt bytes. Reported absolute values retain the original scale. Bayes normalization uses scaled likelihoods when the marginal is subnormal (including zero). It refuses with a precision error only if the scaled marginal or the sum of scaled weights is still zero. An individual posterior component may correctly round to zero with a normal marginal; nonzero subnormal weights may retain reduced precision. Finite floating-point inputs cannot recover distinctions already lost before submission.
+
 ## Prior sensitivity
 
-`sensitivity.two_state_prior` is available only for two-state expected criteria. It varies the named state's prior over the declared interval, sets the other prior to its complement, finds action-score intersections, and reports only positive-width optimal regions and decision-relevant boundary ties. Crossings between actions that are never optimal are omitted. `decision-sensitive` means the interior-optimal policy changes within that range; a tie only at one exact boundary is not presented as a robust action reversal.
+`sensitivity.two_state_prior` is available only for two-state expected criteria. It varies the named state's prior over the declared interval, sets the other prior to its complement, splits the range at exact action-score crossings, and reports positive-width optimal regions and decision-relevant boundary ties. To suppress floating-point artifacts at coincident crossings or range endpoints, crossing coordinates within `8 * ulp(1.0)` (about `1.78e-15` on `[0,1]`) are coalesced; endpoints take precedence. No region is narrower than that coordinate allowance, and a requested range narrower than it is refused. This rounding rule is independent of `tie_tolerance`, which is measured in consequence units. Region action sets are evaluated at interval midpoints; they do not describe tolerance bands near the crossings. Near an exact crossing, direct evaluation reports tied actions whenever their score difference is within `tie_tolerance`; the existing boundary entry lists both actions at the crossing. Crossings between actions that are never optimal are omitted. `decision-sensitive` means the interior-optimal policy changes within that range; a tie only at one exact boundary is not presented as a robust action reversal.
 
 Do not choose the sensitivity range after finding a desired conclusion. For more than two states, supply preregistered scenarios and analyze them separately; the bounded runtime does not invent a path through a probability simplex.
 
@@ -108,13 +112,14 @@ Reject rather than silently repair:
 
 - incomplete or duplicate table cells;
 - unknown action, state, outcome, or sensitivity IDs;
-- non-finite values, negative experiment cost, or mixed scale units;
+- non-finite values or computed quantities (including overflowed regrets), negative experiment cost, or mixed scale units;
+- wrong-type required text or schema fields, or compromised posterior normalization;
 - partial priors or probabilities outside `[0,1]`;
 - priors or state-conditional likelihoods that do not sum to one;
 - payoff without `risk-neutral`, or utility/loss without an encoded preference declaration;
 - a criterion incompatible with the scale;
 - experiment valuation under a non-expected criterion;
-- a prior-sensitivity request outside the supported two-state expected route;
+- a prior-sensitivity request outside the supported two-state expected route, or a range narrower than the probability rounding allowance;
 - a modified receipt whose fingerprint or deterministic recomputation fails.
 
 Review the probability and likelihood sources, causal assumptions, value elicitation, omitted actions and states, applicability, criterion rationale, sensitivity range, and information timing independently. Use `$science-provenance` for hashes and `$science-review` before using a material result.

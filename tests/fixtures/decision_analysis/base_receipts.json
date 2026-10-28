@@ -1,0 +1,16 @@
+{
+  "component-subnormal": "1e28e1b89b2ded05d7f57647dd9544f7f5513bd368f059ed6c0436bdff8b7de3",
+  "component-underflow": "f9e39259e6227a976154ccb2593a59f0f5dbd88b596568b3b731431fee00ee1b",
+  "component-zero": "2c5651f740d68d7b83db44f5823af3b462e9f334828040530e797f9b36d2e549",
+  "fixture": "57d1627b3557d007c92ccc8d5e269b86bcb6697511cb61503d83acec7b2d6d72",
+  "near-normalized": "7b28a9686cadfd310ade756a31ae9bb06d9f7b9cfc4379468c285ec7dacb20ce",
+  "numeric-ids": "96ef9e82f4fbc0e5f54a41a4157786035acc0c0d69ce4593d8c909b7b03b8fe0",
+  "ordinary-negative": "f7594d67be1f9407515e153c208dcdaf5aaefe4d55c72e9cd81e80778add2eac",
+  "ordinary-positive": "b110291f0cb3e294ec4d6143ac2f75d619b3fe21e3e1b457130fac90631c46e1",
+  "payoff": "4e7cff5b72d4ee0f2cb1e197793ebfcff43509dbbc9590aefd45fbeae25710b8",
+  "permuted": "57d1627b3557d007c92ccc8d5e269b86bcb6697511cb61503d83acec7b2d6d72",
+  "rare-signal": "929c906a8075ed1641b8408466401433dd7cc4d39fbe39b4e80395bd620e4581",
+  "uninformative": "48a759d472e59223a494bed50bb14325467ec9eb543abf9bf3439b28902a5530",
+  "unreachable": "3c067fac8e7473ad0bdfaeac9b03cf04d7d338af194f1d09e4a0e37d082322b9",
+  "utility": "ced57cbeb2c4e36efb2af5ece5d4b43a5859ff379ab8aaa387fb3b6ed901c17b"
+}

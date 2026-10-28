@@ -18,6 +18,9 @@ MAX_EXPERIMENTS = 64
 MAX_OUTCOMES = 256
 PROBABILITY_TOLERANCE = 1e-9
 DEFAULT_TIE_TOLERANCE = 1e-12
+# Priors lie in [0, 1], so eight epsilons * max(1, abs(p)) is constant.
+# This coordinate rounding allowance is independent of consequence units.
+PRIOR_ROUNDING_TOLERANCE = 8.0 * math.ulp(1.0)
 
 EXPECTED_CRITERIA = {"bayes-risk", "expected-utility", "expected-payoff"}
 ALLOWED_CRITERIA = {
@@ -39,13 +42,42 @@ def _text(value: Any, label: str) -> str:
     return result
 
 
+def _required_text(value: Any, label: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a non-empty string")
+    return _text(value, label)
+
+
 def _finite(value: Any, label: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{label} must be numeric")
-    result = float(value)
+    try:
+        result = float(value)
+    except OverflowError as error:
+        raise ValueError(f"{label} must be finite") from error
     if not math.isfinite(result):
         raise ValueError(f"{label} must be finite")
     return result
+
+
+def _finite_sum(values: Any, label: str) -> float:
+    try:
+        result = math.fsum(_finite(value, label) for value in values)
+    except OverflowError as error:
+        raise ValueError(f"{label} must be finite") from error
+    return _finite(result, label)
+
+
+def _center_values(
+    values: Mapping[tuple[str, str], float],
+) -> tuple[dict[tuple[str, str], float], float]:
+    lower, upper = min(values.values()), max(values.values())
+    offset = lower if lower > 0.0 else upper if upper < 0.0 else 0.0
+    # Preserve receipt bytes unless a same-sign common offset of at least one
+    # exceeds the nonzero table spread by 2**26 (half the float significand).
+    if abs(offset) < 1.0 or not 0.0 < upper - lower <= abs(offset) * 2.0 ** -26:
+        return dict(values), 0.0
+    return {key: _finite(value - offset, "centered consequence") for key, value in values.items()}, offset
 
 
 def _probability(value: Any, label: str) -> float:
@@ -138,28 +170,28 @@ def _normalize_distribution(
 
 
 def _normalize_problem(payload: Mapping[str, Any]) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported decision-analysis input schema")
     analysis_id = _text(payload.get("analysis_id"), "analysis_id")
     claim_id = _text(payload.get("claim_id"), "claim_id")
-    question = _text(payload.get("question"), "question")
-    information_boundary = _text(payload.get("information_boundary"), "information_boundary")
-    consequence_horizon = _text(payload.get("consequence_horizon"), "consequence_horizon")
-    state_model = _text(payload.get("state_model"), "state_model")
+    question = _required_text(payload.get("question"), "question")
+    information_boundary = _required_text(payload.get("information_boundary"), "information_boundary")
+    consequence_horizon = _required_text(payload.get("consequence_horizon"), "consequence_horizon")
+    state_model = _required_text(payload.get("state_model"), "state_model")
     if state_model != "exogenous":
         raise ValueError("state_model must be exogenous for the finite one-stage runtime")
-    applicability = _text(payload.get("applicability"), "applicability")
-    criterion = _text(payload.get("criterion"), "criterion")
-    criterion_rationale = _text(payload.get("criterion_rationale"), "criterion_rationale")
+    applicability = _required_text(payload.get("applicability"), "applicability")
+    criterion = _required_text(payload.get("criterion"), "criterion")
+    criterion_rationale = _required_text(payload.get("criterion_rationale"), "criterion_rationale")
 
     scale_raw = payload.get("scale")
     if not isinstance(scale_raw, Mapping):
         raise ValueError("scale must be an object")
-    scale_kind = _text(scale_raw.get("kind"), "scale.kind")
+    scale_kind = _required_text(scale_raw.get("kind"), "scale.kind")
     if scale_kind not in ALLOWED_CRITERIA:
         raise ValueError("scale.kind must be loss, utility, or payoff")
-    unit = _text(scale_raw.get("unit"), "scale.unit")
-    risk_attitude = _text(scale_raw.get("risk_attitude"), "scale.risk_attitude")
+    unit = _required_text(scale_raw.get("unit"), "scale.unit")
+    risk_attitude = _required_text(scale_raw.get("risk_attitude"), "scale.risk_attitude")
     required_attitude = REQUIRED_RISK_ATTITUDE[scale_kind]
     if risk_attitude != required_attitude:
         raise ValueError(
@@ -320,6 +352,8 @@ def _normalize_problem(payload: Mapping[str, Any]) -> dict[str, Any]:
         maximum = _probability(route.get("maximum", 1.0), "sensitivity.two_state_prior.maximum")
         if not minimum < maximum:
             raise ValueError("sensitivity prior minimum must be less than maximum")
+        if maximum - minimum < PRIOR_ROUNDING_TOLERANCE:
+            raise ValueError("sensitivity prior range is narrower than probability rounding tolerance")
         sensitivity = {
             "two_state_prior": {
                 "state_id": focus_state,
@@ -375,6 +409,8 @@ def _optimal_actions(
 ) -> tuple[list[str], float]:
     if not scores:
         raise ValueError("cannot choose from an empty score table")
+    for action, value in scores.items():
+        _finite(value, f"action {action} score")
     target = min(scores.values()) if direction == "minimize" else max(scores.values())
     selected = sorted(
         action
@@ -410,7 +446,10 @@ def _expected_scores(
     probabilities: Mapping[str, float],
 ) -> dict[str, float]:
     return {
-        action: math.fsum(probabilities[state] * values[(action, state)] for state in states)
+        action: _finite_sum(
+            (probabilities[state] * values[(action, state)] for state in states),
+            f"action {action} expected score",
+        )
         for action in actions
     }
 
@@ -428,6 +467,7 @@ def _regret_table(
         best = min(state_values) if direction == "minimize" else max(state_values)
         for action in actions:
             raw = values[(action, state)] - best if direction == "minimize" else best - values[(action, state)]
+            _finite(raw, f"regret for action {action} state {state}")
             regrets[(action, state)] = max(0.0, _normalize_zero(raw, tolerance))
     maximum = {action: max(regrets[(action, state)] for state in states) for action in actions}
     return regrets, maximum
@@ -474,13 +514,20 @@ def _criterion_results(
     kind = str(problem["scale"]["kind"])
     results: dict[str, dict[str, Any]] = {}
     if priors:
-        expected = _expected_scores(actions, states, values, priors)
+        centered, offset = _center_values(values)
+        expected = _expected_scores(actions, states, centered, priors)
         expected_name = {
             "loss": "bayes-risk",
             "utility": "expected-utility",
             "payoff": "expected-payoff",
         }[kind]
         results[expected_name] = _result_for_scores(expected_name, expected, direction, tolerance)
+        if offset:
+            result = results[expected_name]
+            target = min(expected.values()) if direction == "minimize" else max(expected.values())
+            result["optimal_value"] = _normalize_zero(_finite(target + offset, "optimal expected value"), tolerance)
+            for score in result["scores"]:
+                score["value"] = _normalize_zero(_finite(expected[score["action"]] + offset, "expected score"), tolerance)
     if kind == "loss":
         worst_loss = {action: max(values[(action, state)] for state in states) for action in actions}
         results["minimax-loss"] = _result_for_scores(
@@ -506,27 +553,35 @@ def _information_value(
     experiments = problem.get("experiments", [])
     if not experiments:
         return None
+    # Keep the legacy arithmetic route for ordinary stored receipts.
+    values, offset = _center_values(values)
     baseline_value = float(baseline["optimal_value"])
+    if offset:
+        baseline_scores = _expected_scores(actions, states, values, priors)
+        baseline_value = min(baseline_scores.values()) if direction == "minimize" else max(baseline_scores.values())
     if direction == "minimize":
-        perfect_value = math.fsum(
-            priors[state] * min(values[(action, state)] for action in actions) for state in states
+        perfect_value = _finite_sum(
+            (priors[state] * min(values[(action, state)] for action in actions) for state in states),
+            "perfect information value",
         )
         evpi = baseline_value - perfect_value
     else:
-        perfect_value = math.fsum(
-            priors[state] * max(values[(action, state)] for action in actions) for state in states
+        perfect_value = _finite_sum(
+            (priors[state] * max(values[(action, state)] for action in actions) for state in states),
+            "perfect information value",
         )
         evpi = perfect_value - baseline_value
-    evpi = max(0.0, _normalize_zero(evpi, tolerance))
+    evpi = max(0.0, _normalize_zero(_finite(evpi, "EVPI"), tolerance))
     experiment_results: list[dict[str, Any]] = []
     for experiment in experiments:
         outcome_results: list[dict[str, Any]] = []
         preposterior_terms: list[float] = []
         for outcome in experiment["outcomes"]:
-            marginal = math.fsum(
-                priors[state] * float(outcome["likelihoods"][state]) for state in states
-            )
-            if marginal == 0.0:
+            likelihoods = outcome["likelihoods"]
+            weights = {state: priors[state] * float(likelihoods[state]) for state in states}
+            marginal = _finite_sum(weights.values(), "outcome probability")
+            reachable = any(priors[state] > 0.0 and likelihoods[state] > 0.0 for state in states)
+            if not reachable:
                 outcome_results.append(
                     {
                         "outcome": outcome["id"],
@@ -538,14 +593,30 @@ def _information_value(
                     }
                 )
                 continue
+            normalizer = marginal
+            # A component may correctly round to zero with a normal marginal;
+            # scale only when the marginal itself has lost normal precision.
+            if marginal < float.fromhex("0x1p-1022"):
+                likelihood_scale = max(float(likelihoods[state]) for state in states if priors[state] > 0.0)
+                weights = {
+                    state: priors[state] * (float(likelihoods[state]) / likelihood_scale)
+                    if priors[state] > 0.0 else 0.0
+                    for state in states
+                }
+                normalizer = _finite_sum(weights.values(), "scaled outcome probability")
+                marginal = _finite(normalizer * likelihood_scale, "outcome probability")
+                if marginal == 0.0 or normalizer == 0.0:
+                    raise ValueError(f"outcome {outcome['id']} posterior normalization lost precision")
             posterior = {
-                state: priors[state] * float(outcome["likelihoods"][state]) / marginal
+                state: weights[state] / normalizer
                 for state in states
             }
             posterior_total = math.fsum(posterior.values())
             posterior = {state: posterior[state] / posterior_total for state in states}
             scores = _expected_scores(actions, states, values, posterior)
             selected, optimal_value = _optimal_actions(scores, direction, tolerance)
+            if offset:
+                optimal_value = min(scores.values()) if direction == "minimize" else max(scores.values())
             preposterior_terms.append(marginal * optimal_value)
             outcome_results.append(
                 {
@@ -554,22 +625,23 @@ def _information_value(
                     "status": "reachable",
                     "posterior": posterior,
                     "optimal_actions": selected,
-                    "optimal_value": optimal_value,
+                    "optimal_value": _normalize_zero(_finite(optimal_value + offset, "posterior optimal value"), tolerance),
                 }
             )
-        preposterior_value = math.fsum(preposterior_terms)
+        preposterior_value = _finite_sum(preposterior_terms, "preposterior value")
         gross = (
             baseline_value - preposterior_value
             if direction == "minimize"
             else preposterior_value - baseline_value
         )
+        _finite(gross, "gross EVSI")
         if gross < -max(tolerance, PROBABILITY_TOLERANCE):
             raise ValueError(f"experiment {experiment['id']} produced negative information value")
         gross = max(0.0, _normalize_zero(gross, tolerance))
         if gross > evpi + max(tolerance, PROBABILITY_TOLERANCE):
             raise ValueError(f"experiment {experiment['id']} exceeds perfect information value")
         cost = float(experiment["cost_in_scale_units"])
-        net = _normalize_zero(gross - cost, tolerance)
+        net = _normalize_zero(_finite(gross - cost, "net EVSI"), tolerance)
         if net > tolerance:
             decision = "worth-cost"
         elif net < -tolerance:
@@ -580,7 +652,7 @@ def _information_value(
             {
                 "experiment": experiment["id"],
                 "cost_in_scale_units": cost,
-                "preposterior_value": preposterior_value,
+                "preposterior_value": _finite(preposterior_value + offset, "preposterior value"),
                 "gross_evsi": gross,
                 "net_evsi": net,
                 "decision": decision,
@@ -589,7 +661,7 @@ def _information_value(
         )
     return {
         "basis": str(problem["criterion"]),
-        "perfect_information_value": perfect_value,
+        "perfect_information_value": _finite(perfect_value + offset, "perfect information value"),
         "evpi": evpi,
         "experiments": experiment_results,
     }
@@ -611,38 +683,49 @@ def _prior_sensitivity(
     other = next(state for state in states if state != focus)
     minimum = float(route["minimum"])
     maximum = float(route["maximum"])
+    values, offset = _center_values(values)
 
     def scores_at(probability: float) -> dict[str, float]:
         return {
-            action: probability * values[(action, focus)] + (1.0 - probability) * values[(action, other)]
+            action: _finite(
+                probability * values[(action, focus)] + (1.0 - probability) * values[(action, other)],
+                f"action {action} sensitivity score",
+            )
             for action in actions
         }
 
     points = [minimum, maximum]
     for index, action_a in enumerate(actions):
         intercept_a = values[(action_a, other)]
-        slope_a = values[(action_a, focus)] - intercept_a
+        slope_a = _finite(values[(action_a, focus)] - intercept_a, "sensitivity slope")
         for action_b in actions[index + 1 :]:
             intercept_b = values[(action_b, other)]
-            slope_b = values[(action_b, focus)] - intercept_b
-            denominator = slope_a - slope_b
-            if math.isclose(denominator, 0.0, rel_tol=0.0, abs_tol=tolerance):
+            slope_b = _finite(values[(action_b, focus)] - intercept_b, "sensitivity slope")
+            denominator = _finite(slope_a - slope_b, "sensitivity crossing denominator")
+            if denominator == 0.0:
                 continue
-            crossing = (intercept_b - intercept_a) / denominator
-            if minimum - tolerance <= crossing <= maximum + tolerance:
-                points.append(min(maximum, max(minimum, crossing)))
-    points.sort()
-    unique_points: list[float] = []
-    for point in points:
-        if not unique_points or not math.isclose(
-            point, unique_points[-1], rel_tol=0.0, abs_tol=tolerance
-        ):
-            unique_points.append(_normalize_zero(point, tolerance))
+            numerator = _finite(intercept_b - intercept_a, "sensitivity crossing numerator")
+            # Exact endpoint equalities avoid cancellation in slope subtraction.
+            if values[(action_a, focus)] == values[(action_b, focus)]:
+                crossing = 1.0
+            elif intercept_a == intercept_b:
+                crossing = 0.0
+            else:
+                crossing = _finite(numerator / denominator, "sensitivity crossing")
+            if minimum - PRIOR_ROUNDING_TOLERANCE <= crossing <= maximum + PRIOR_ROUNDING_TOLERANCE:
+                points.append(crossing)
+    # Keep range endpoints fixed and suppress rounding-sized crossing gaps.
+    unique_points = [minimum]
+    for point in sorted(points):
+        if point - unique_points[-1] <= PRIOR_ROUNDING_TOLERANCE:
+            continue
+        if maximum - point <= PRIOR_ROUNDING_TOLERANCE:
+            continue
+        unique_points.append(point)
+    unique_points.append(maximum)
 
     raw_regions: list[dict[str, Any]] = []
     for lower, upper in zip(unique_points, unique_points[1:]):
-        if upper - lower <= tolerance:
-            continue
         midpoint = (lower + upper) / 2.0
         selected, _ = _optimal_actions(scores_at(midpoint), direction, tolerance)
         raw_regions.append(
@@ -657,12 +740,7 @@ def _prior_sensitivity(
         if (
             regions
             and regions[-1]["optimal_actions"] == region["optimal_actions"]
-            and math.isclose(
-                float(regions[-1]["maximum"]),
-                float(region["minimum"]),
-                rel_tol=0.0,
-                abs_tol=tolerance,
-            )
+            and regions[-1]["maximum"] == region["minimum"]
         ):
             regions[-1]["maximum"] = region["maximum"]
         else:
@@ -670,12 +748,14 @@ def _prior_sensitivity(
 
     boundary_candidates: list[dict[str, Any]] = []
     for point in unique_points:
-        selected, value = _optimal_actions(scores_at(point), direction, tolerance)
+        scores = scores_at(point)
+        selected, _ = _optimal_actions(scores, direction, tolerance)
+        value = min(scores.values()) if direction == "minimize" else max(scores.values())
         boundary_candidates.append(
             {
                 "prior": point,
                 "optimal_actions": selected,
-                "optimal_value": value,
+                "optimal_value": _normalize_zero(_finite(value + offset, "sensitivity optimal value"), tolerance),
             }
         )
     boundaries: list[dict[str, Any]] = []
@@ -772,7 +852,7 @@ def run_decision_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 def validate_decision_analysis(payload: Mapping[str, Any]) -> None:
     """Validate both receipt integrity and deterministic recomputation."""
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported decision-analysis receipt schema")
     for field in ("analysis_id", "claim_id", "question", "selected_criterion", "status"):
         _text(payload.get(field), field)

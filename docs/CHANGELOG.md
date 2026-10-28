@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Statistical decision analysis preserves narrow exact-crossing prior regions while coalescing rounding-sized crossing gaps, centres information-value arithmetic when large common offsets threaten precision, scales subnormal Bayes calculations without rejecting correctly rounded zero posterior components, and refuses non-finite computed quantities and wrong-type required prose or schema fields. Ordinary receipts are unchanged; receipts whose values were wrong in these fixed cases will fail revalidation and must be regenerated. Inputs with non-string `criterion`, `state_model` or `scale` fields, and reachable outcomes whose posterior normalisation underflows, are now refused instead of coerced or marked unreachable.
 - Connector v2 replay now cross-checks derivable receipt facts and reports stored response changes as `response-drift`; source snapshots preserve leading and trailing whitespace in paths while refusing blank names, and literature snapshot builds reject duplicate query IDs with conflicting `status` or `accessed_at` metadata. Snapshot and receipt formats are unchanged.
 - `package_run.py refresh --complete-step ID` (repeatable) marks manifest `plan` steps `completed` in the same refresh write, refuses unknown IDs before writing, and reports `completed_steps`; skill guidance now uses it instead of hand-editing `manifest.json`.
 - `scripts/plan_selective_rerun.py` now runs typed-graph validation on schema_version 2 evidence graphs before planning and exits 1 on any finding instead of planning over an invalid graph.
