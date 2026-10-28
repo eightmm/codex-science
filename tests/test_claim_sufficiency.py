@@ -245,6 +245,103 @@ class ClaimSufficiencyTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(json.loads(proc.stdout)["schema"], "claim-sufficiency-v1")
 
+    def test_duplicates_edge_merges_support_groups(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        studies = [
+            {"study_id": "study-a", "persistent_id": "doi:10.1/a", "cohort_id": "c1",
+             "title": "a", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+            {"study_id": "study-b", "persistent_id": "doi:10.1/b", "cohort_id": "c2",
+             "title": "b", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+        ]
+        graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
+        nodes = [n for n in graph["nodes"] if n.get("type") == "claim"] + [
+            {"id": s["study_id"], "label": s["study_id"], "type": "study"} for s in studies
+        ]
+        edges = [
+            {"source": s["study_id"], "target": claim["id"], "relation": "supports"}
+            for s in studies
+        ] + [{"source": "study-a", "target": "study-b", "relation": "duplicates"}]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=edges, nodes=nodes)
+        row = check_sufficiency(path, tier="standard")["claims"][0]
+        self.assertEqual(row["supporting_groups"], 1)
+
+    def test_transitive_merge_via_shared_cohort_node(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        studies = [
+            {"study_id": "study-a", "persistent_id": "doi:10.1/a", "cohort_id": None,
+             "title": "a", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+            {"study_id": "study-b", "persistent_id": "doi:10.1/b", "cohort_id": None,
+             "title": "b", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+        ]
+        graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
+        nodes = [n for n in graph["nodes"] if n.get("type") == "claim"] + [
+            {"id": s["study_id"], "label": s["study_id"], "type": "study"} for s in studies
+        ] + [{"id": "cohort-x", "label": "shared cohort", "type": "dataset"}]
+        edges = [
+            {"source": s["study_id"], "target": claim["id"], "relation": "supports"}
+            for s in studies
+        ] + [
+            {"source": "study-a", "target": "cohort-x", "relation": "shares_cohort"},
+            {"source": "study-b", "target": "cohort-x", "relation": "shares_cohort"},
+        ]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=edges, nodes=nodes)
+        row = check_sufficiency(path, tier="standard")["claims"][0]
+        self.assertEqual(row["supporting_groups"], 1)
+
+    def test_depends_on_does_not_merge(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        studies = [
+            {"study_id": "study-a", "persistent_id": "doi:10.1/a", "cohort_id": "c1",
+             "title": "a", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+            {"study_id": "study-b", "persistent_id": "doi:10.1/b", "cohort_id": "c2",
+             "title": "b", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+        ]
+        graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
+        nodes = [n for n in graph["nodes"] if n.get("type") == "claim"] + [
+            {"id": s["study_id"], "label": s["study_id"], "type": "study"} for s in studies
+        ]
+        edges = [
+            {"source": s["study_id"], "target": claim["id"], "relation": "supports"}
+            for s in studies
+        ] + [{"source": "study-a", "target": "study-b", "relation": "depends_on"}]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=edges, nodes=nodes)
+        row = check_sufficiency(path, tier="standard")["claims"][0]
+        self.assertEqual(row["supporting_groups"], 2)
+
+    def test_full_tier_confirmatory_with_duplicates_is_insufficient(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        claim["status"] = "supported"
+        claim["kind"] = "confirmatory"
+        studies = [
+            {"study_id": "study-a", "persistent_id": "doi:10.1/a", "cohort_id": "c1",
+             "title": "a", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+            {"study_id": "study-b", "persistent_id": "doi:10.1/b", "cohort_id": "c2",
+             "title": "b", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+            {"study_id": "study-c", "persistent_id": "doi:10.1/c", "cohort_id": "c3",
+             "title": "c", "evidence_type": "primary", "included": True,
+             "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
+        ]
+        graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
+        nodes = [n for n in graph["nodes"] if n.get("type") == "claim"] + [
+            {"id": s["study_id"], "label": s["study_id"], "type": "study"} for s in studies
+        ]
+        edges = [
+            {"source": s["study_id"], "target": claim["id"], "relation": "supports"}
+            for s in studies
+        ] + [{"source": "study-a", "target": "study-b", "relation": "duplicates"}]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=edges, nodes=nodes)
+        row = check_sufficiency(path, tier="full")["claims"][0]
+        self.assertEqual(row["supporting_groups"], 2)
+        self.assertEqual((row["required"], row["verdict"], row["recommended_status"]), (3, "insufficient", "suggestive"))
+
     def setUp(self):
         self._temp_context = tempfile.TemporaryDirectory(dir="/tmp")
         self._temp = Path(self._temp_context.name)

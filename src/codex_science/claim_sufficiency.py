@@ -7,11 +7,15 @@ from typing import Any
 
 from codex_science.artifacts import validate_bundle
 from codex_science.evidence import _persistent_id
+from codex_science.evidence_graph_v2 import INDEPENDENCE_RELATIONS, UnionFind
 
 
 SCHEMA = "claim-sufficiency-v1"
 EVIDENCE_BOUNDARY = "counts recorded links only; does not judge whether evidence entails the claim"
 TIERS = ("quick", "standard", "full")
+EVIDENCE_NODE_TYPES = frozenset({
+    "study", "dataset", "artifact", "execution", "model", "portal", "cohort", "sample",
+})
 SUFFICIENCY_POLICY = {
     "schema": "sufficiency-policy-v1",
     "tiers": {"quick": 1, "standard": 2, "full": 2},
@@ -54,8 +58,24 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
         (str(edge.get("source", "")), str(edge.get("target", "")), str(edge.get("relation", ""))): edge
         for edge in edges
     }
-    supporting: dict[str, set[str]] = {claim_id: set() for claim_id in claims}
-    contradicting: dict[str, set[str]] = {claim_id: set() for claim_id in claims}
+    # Claims and queries describe evidence without making it dependent.
+    nodes = sidecars.get("node_by_id", {})
+    keys = {
+        str(node_id) for node_id, node in nodes.items()
+        if node.get("type") in EVIDENCE_NODE_TYPES
+    }
+    keys.update(str(sid) for sid in studies)
+    independence_edges = [
+        edge for edge in edges
+        if str(edge.get("relation", "")) in INDEPENDENCE_RELATIONS
+        and str(edge["source"]) in keys and str(edge["target"]) in keys
+    ]
+    union = UnionFind(keys)
+    for edge in independence_edges:
+        union.union(str(edge["source"]), str(edge["target"]))
+
+    supporting: dict[str, list[tuple[str, str]]] = {claim_id: [] for claim_id in claims}
+    contradicting: dict[str, list[tuple[str, str]]] = {claim_id: [] for claim_id in claims}
     # The study table records which studies were included and which claims they
     # support or contradict; graph edges add optional independence metadata.
     for study_id, study in studies.items():
@@ -69,7 +89,17 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
                 claim_id = str(claim_id)
                 if claim_id in claims:
                     edge = edge_groups.get((study_id, claim_id, relation), {"source": study_id})
-                    groups[claim_id].add(_group_id(study, edge))
+                    groups[claim_id].append((str(study_id), _group_id(study, edge)))
+
+    def count_groups(memberships: list[tuple[str, str]]) -> int:
+        # Shared labels and graph connectivity merge only within this claim/relation.
+        gids = {gid for _, gid in memberships}
+        local = UnionFind(gids)
+        first_gid: dict[str, str] = {}
+        for study_id, gid in memberships:
+            study_root = union.find(study_id)
+            local.union(gid, first_gid.setdefault(study_root, gid))
+        return len({local.find(gid) for gid in gids})
 
     rows: list[dict[str, Any]] = []
     for claim_id in sorted(claims):
@@ -84,8 +114,8 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
             required = max(required, SUFFICIENCY_POLICY["replicated_minimum"])
         if tier == "full":
             required = max(required, SUFFICIENCY_POLICY["full_claim_kinds"].get(kind, 0))
-        support_count = len(supporting[claim_id])
-        contradiction_count = len(contradicting[claim_id])
+        support_count = count_groups(supporting[claim_id])
+        contradiction_count = count_groups(contradicting[claim_id])
         unresolved = contradiction_count > 0 and not str(claim.get("contradiction_resolution", "")).strip()
         if unresolved:
             verdict = "contradicted_unresolved"

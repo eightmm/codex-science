@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Claim sufficiency now counts studies linked by evidence-graph independence relations (`duplicates`, `derived_from`, `shares_cohort`, `shares_samples`, `propagated_from`, `training_overlap`) as one support group; merging runs only through evidence nodes (study, dataset, artifact, execution, model, portal, cohort, sample), never through claim or query nodes, and only within one claim and relation.
 - NCBI ESearch parsers (`connectors`, `typed_connectors`, `source_operations_v3`) now fail closed on `ERROR` payloads instead of returning empty results; a shared `parse_esearch_ids` helper validates `esearchresult` and top-level errors.
 - `dimension-check` equations now refuse multiplying, dividing, exponentiating (power other than 1) or taking `sqrt` of a variable declared in an affine unit such as `degC`; previously only unit arithmetic enforced this.
 - An exploratory real-run reviewer seeded-defect probe caught 6/6 planted defects at major or higher with no major/critical control finding; one response per variant, not a sensitivity estimate (see `docs/EVALUATION.md`).
