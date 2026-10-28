@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -31,6 +32,7 @@ SEEDED_FAILURE_TESTS = {
     "nonindependent-review": "test_nonindependent_review_cannot_pass",
     "response-packet-mismatch": "test_response_packet_mismatch_is_refused",
     "finding-outside-packet": "test_finding_outside_packet_is_refused",
+    "finalize-unbound-evidence": "test_finalize_unbound_evidence_is_refused",
     "omitted-material-claim": "test_omitted_material_claim_is_refused",
 }
 
@@ -212,6 +214,45 @@ class ScienceReviewAcceptanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "evidence 0 path not in packet"):
                     self.respond(findings_path=findings_path)
                 self.assertFalse(self.response_path.exists())
+
+    def test_finalize_unbound_evidence_is_refused(self) -> None:
+        _, response = self.respond()
+        path = self.packet["artifacts"][0]["path"]
+        cases = (
+            ({"artifact_path": "unreviewed.txt", "artifact_sha256": "0" * 64},
+             "path not in packet: unreviewed.txt"),
+            ({"artifact_path": path, "artifact_sha256": "0" * 64},
+             f"hash differs from packet: {path}"),
+            ({"url": "https://example.org/study", "locator": "Table 1"},
+             "path not in packet: <missing>"),
+            ({}, "path not in packet: <missing>"),
+            (None, "must be an object"),
+            (0, "must be an object"),
+            ("", "must be an object"),
+            ([], "must be an object"),
+        )
+        output = self.run_dir / "review-receipt-v2.json"
+        for evidence, message in cases:
+            for existing in (False, True):
+                with self.subTest(evidence=evidence, existing=existing):
+                    if existing:
+                        output.write_text("existing receipt\n", encoding="utf-8")
+                    finding = self.finding()
+                    finding["evidence"] = [evidence]
+                    response["findings"] = [finding]
+                    self.write(self.response_path, response)
+                    result = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts" / "science_reviewer.py"), "finalize",
+                         str(self.task_path), str(self.response_path), "--output", str(output)],
+                        capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual(f"error: finding F-denominator evidence 0 {message}", result.stderr.strip())
+                    if existing:
+                        self.assertEqual("existing receipt\n", output.read_text(encoding="utf-8"))
+                        output.unlink()
+                    else:
+                        self.assertFalse(output.exists())
 
     def test_omitted_material_claim_is_refused(self) -> None:
         _, response = self.respond()

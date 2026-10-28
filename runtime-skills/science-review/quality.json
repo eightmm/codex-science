@@ -21,6 +21,7 @@
     "nonindependent-review",
     "response-packet-mismatch",
     "finding-outside-packet",
+    "finalize-unbound-evidence",
     "omitted-material-claim"
   ],
   "test_files": [
@@ -33,7 +34,6 @@
   "limitations": [
     "Deterministic review checks do not replace domain-expert judgment.",
     "Independent reproduction is claimed only after a separate execution recreates the material result.",
-    "The acceptance fixture is deterministic software validation rather than an empirical scientific result.",
-    "Finding evidence paths are bound to the packet by respond; direct finalize does not enforce that binding."
+    "The acceptance fixture is deterministic software validation rather than an empirical scientific result."
   ]
 }

@@ -459,6 +459,27 @@ def finalize_review_response(packet: Mapping[str, Any], response: Mapping[str, A
     findings = [_validate_finding(item, index) for index, item in enumerate(findings_raw) if isinstance(item, Mapping)]
     if len(findings) != len(findings_raw):
         raise ValueError("all findings must be objects")
+    problems: list[str] = []
+    for finding in findings:
+        evidence = []
+        for number, entry in enumerate(finding["evidence"]):
+            label = f"finding {finding['id']} evidence {number}"
+            if not isinstance(entry, Mapping):
+                problems.append(f"{label} must be an object")
+                evidence.append(entry)
+                continue
+            entry = dict(entry)
+            path = str(entry.get("artifact_path", ""))
+            if path not in packet_artifacts:
+                problems.append(f"{label} path not in packet: {path or '<missing>'}")
+            elif "artifact_sha256" not in entry:
+                entry["artifact_sha256"] = packet_artifacts[path]
+            elif str(entry["artifact_sha256"]).lower() != packet_artifacts[path]:
+                problems.append(f"{label} hash differs from packet: {path}")
+            evidence.append(entry)
+        finding["evidence"] = evidence
+    if problems:
+        raise ValueError("; ".join(problems))
     if packet.get("independent_required") and not independent:
         findings.append({
             "id": "F-review-independence",

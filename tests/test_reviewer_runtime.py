@@ -739,6 +739,68 @@ class ReviewerRuntimeRejectionTests(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertResponseRejected(message, findings=[{**good, **change}])
 
+    def test_finalize_finding_evidence_path_must_be_in_packet(self) -> None:
+        finding = {"id": "F1", "severity": "minor", "code": "c", "message": "m"}
+        for path in ("unreviewed.txt", "", 0, None, [], {}):
+            with self.subTest(path=path):
+                evidence = [{"artifact_path": path, "artifact_sha256": "0" * 64}]
+                with self.assertRaises(ValueError) as caught:
+                    finalize_review_response(self.packet, {**valid_response(self.packet), "findings": [{**finding, "evidence": evidence}]})
+                self.assertEqual(f"finding F1 evidence 0 path not in packet: {str(path) or '<missing>'}", str(caught.exception))
+        for digest in ("0" * 64, None):
+            with self.subTest(missing_path=digest):
+                self.assertResponseRejected("finding F1 evidence 0 path not in packet: <missing>", findings=[{**finding, "evidence": [{"artifact_sha256": digest}]}])
+        path = self.packet["artifacts"][0]["path"]
+        findings = [{**finding, "evidence": [{"artifact_path": "unreviewed.txt"}]},
+                    {**finding, "id": "F2", "evidence": [{"artifact_path": path, "artifact_sha256": "0" * 64}]}]
+        with self.assertRaises(ValueError) as caught:
+            finalize_review_response(self.packet, {**valid_response(self.packet), "findings": findings})
+        self.assertEqual(f"finding F1 evidence 0 path not in packet: unreviewed.txt; finding F2 evidence 0 hash differs from packet: {path}", str(caught.exception))
+
+    def test_finalize_finding_evidence_hash_must_match_packet(self) -> None:
+        path = self.packet["artifacts"][0]["path"]
+        finding = {"id": "F1", "severity": "minor", "code": "c", "message": "m"}
+        for digest in ("0" * 64, "", "xyz", "0" * 63, "0" * 65, None, 0, [], {}):
+            with self.subTest(digest=digest):
+                evidence = [{"artifact_path": path, "artifact_sha256": digest}]
+                with self.assertRaises(ValueError) as caught:
+                    finalize_review_response(self.packet, {**valid_response(self.packet), "findings": [{**finding, "evidence": evidence}]})
+                self.assertEqual(f"finding F1 evidence 0 hash differs from packet: {path}", str(caught.exception))
+
+    def test_finalize_fills_missing_finding_evidence_hash_without_mutating_response(self) -> None:
+        artifact = self.packet["artifacts"][0]
+        evidence = [{"artifact_path": artifact["path"], "line_range": [1, 1]},
+                    {"artifact_path": artifact["path"], "artifact_sha256": artifact["sha256"].upper()}]
+        finding = {"id": "F1", "severity": "minor", "code": "c", "message": "m", "evidence": evidence}
+        response = {**valid_response(self.packet), "findings": [finding]}
+        original = copy.deepcopy(response)
+        receipt = finalize_review_response(self.packet, response)
+        expected = [{**evidence[0], "artifact_sha256": artifact["sha256"]}, evidence[1]]
+        self.assertEqual(expected, receipt["findings"][0]["evidence"])
+        self.assertEqual(original, response)
+        self.assertEqual(receipt, finalize_review_response(self.packet, response))
+
+    def test_finalize_url_only_evidence_is_refused(self) -> None:
+        entries = ({"url": "https://example.org/study", "locator": "Table 1"}, {},
+                   {"path": self.packet["artifacts"][0]["path"], "sha256": self.packet["artifacts"][0]["sha256"]})
+        for entry in entries:
+            with self.subTest(entry=entry):
+                finding = {"id": "F1", "severity": "minor", "code": "c", "message": "m", "evidence": [entry]}
+                response = {**valid_response(self.packet), "findings": [finding]}
+                original = copy.deepcopy(response)
+                with self.assertRaises(ValueError) as caught:
+                    finalize_review_response(self.packet, response)
+                self.assertEqual("finding F1 evidence 0 path not in packet: <missing>", str(caught.exception))
+                self.assertEqual(original, response)
+
+    def test_finalize_nonobject_evidence_is_refused(self) -> None:
+        for entry in (None, 0, False, "", "evidence.json", []):
+            with self.subTest(entry=entry):
+                finding = {"id": "F1", "severity": "minor", "code": "c", "message": "m", "evidence": [entry, {}]}
+                with self.assertRaises(ValueError) as caught:
+                    finalize_review_response(self.packet, {**valid_response(self.packet), "findings": [finding]})
+                self.assertEqual("finding F1 evidence 0 must be an object; finding F1 evidence 1 path not in packet: <missing>", str(caught.exception))
+
     def test_finalize_status_must_be_known(self) -> None:
         for status in ("done", "", None, "PASSED"):
             with self.subTest(status=status):
