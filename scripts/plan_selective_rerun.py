@@ -15,8 +15,9 @@ graph JSON (schema_version 1 as written by build_evidence_graph.py, or 2; requir
             supports, contradicts, depends_on, duplicates, derived_from,
             shares_cohort, shares_samples, propagated_from, training_overlap
             (no duplicate source/target/relation triple)
-  Only supports, contradicts, depends_on, derived_from, propagated_from and
-  training_overlap edges propagate impact; edge direction is source -> target.
+  supports and contradicts propagate impact source -> target;
+  depends_on, derived_from and propagated_from propagate target -> source;
+  training_overlap propagates both ways. Other relations do not propagate.
 steps JSON: a list of step objects, or an object whose steps[] is used.
   id                  echoed in rerun_steps (not validated)
   consumes[]          node ids this step reads
@@ -24,6 +25,8 @@ steps JSON: a list of step objects, or an object whose steps[] is used.
   description         optional (default: the id)
   requires_approval   optional (default: false)
 A step is selected when any consumes or produces id is impacted.
+Selected steps' produces ids become impacted, propagating through graph edges
+and further steps until no additional nodes are impacted; input step order is kept.
 Output keys: changed_nodes, impacted_nodes, rerun_steps, invalidated_review_receipts,
 approval_required.
 """

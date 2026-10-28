@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from copy import deepcopy
@@ -224,6 +226,77 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         )
         self.assertIn("claim", plan["impacted_nodes"])
         self.assertEqual(["review.json"], plan["invalidated_review_receipts"])
+
+    def test_selective_rerun_closes_step_and_graph_chains_in_input_order(self) -> None:
+        steps = [
+            {"id": "s4", "consumes": ["claim"], "requires_approval": True},
+            {"id": "s3", "consumes": ["Z"], "produces": ["report"]},
+            {"id": "s2", "consumes": ["Y"], "produces": ["Z"]},
+            {"id": "unrelated", "consumes": ["other"], "produces": ["unused"]},
+            {"id": "s1", "consumes": ["D"], "produces": ["Y"]},
+            {"id": "empty", "consumes": [], "produces": []},
+        ]
+        edges = [{"source": "Z", "target": "claim", "relation": "supports"}]
+        original = deepcopy(steps)
+        for changed in ([], ["0"], ["D", "D"]):
+            with self.subTest(changed=changed):
+                plan = selective_rerun_plan(
+                    changed_nodes=changed, edges=edges, steps=steps,
+                    review_paths=iter(["review.json", "review.json"]),
+                )
+                self.assertEqual(sorted(set(changed)), plan["changed_nodes"])
+                if "D" in changed:
+                    self.assertEqual(["D", "Y", "Z", "claim", "report"], plan["impacted_nodes"])
+                    self.assertEqual(["s4", "s3", "s2", "s1"], [step["id"] for step in plan["rerun_steps"]])
+                    self.assertEqual(["report"], plan["rerun_steps"][1]["produces"])
+                    self.assertTrue(plan["approval_required"])
+                else:
+                    self.assertEqual(changed, plan["impacted_nodes"])
+                    self.assertEqual([], plan["rerun_steps"])
+                    self.assertFalse(plan["approval_required"])
+                self.assertEqual(["review.json"] if changed else [], plan["invalidated_review_receipts"])
+                self.assertEqual(plan, selective_rerun_plan(
+                    changed_nodes=iter(changed), edges=edges, steps=iter(steps),
+                    review_paths=iter(["review.json", "review.json"]),
+                ))
+        self.assertEqual(original, steps)
+
+    def test_selective_rerun_cli_reaches_real_shape_dependencies_and_step_outputs(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        graph = {
+            "nodes": [
+                {"id": node, "type": node}
+                for node in ("dataset", "study", "claim", "portal")
+            ],
+            "edges": [
+                {"source": "study", "target": "dataset", "relation": "depends_on"},
+                {"source": "study", "target": "claim", "relation": "supports"},
+                {"source": "portal", "target": "study", "relation": "propagated_from"},
+            ],
+        }
+        steps = [
+            {"id": "publish", "consumes": ["summary"], "produces": ["report"], "requires_approval": True},
+            {"id": "summarize", "consumes": ["claim", "portal"], "produces": ["summary"]},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            graph_path = Path(tmp) / "graph.json"
+            steps_path = Path(tmp) / "steps.json"
+            steps_path.write_text(json.dumps({"steps": steps}), encoding="utf-8")
+            for version in (1, 2):
+                with self.subTest(schema_version=version):
+                    graph_path.write_text(json.dumps({**graph, "schema_version": version}), encoding="utf-8")
+                    proc = subprocess.run(
+                        [sys.executable, str(root / "scripts" / "plan_selective_rerun.py"),
+                         str(graph_path), str(steps_path), "--changed", "dataset", "--review-path", "review.json"],
+                        capture_output=True, text=True,
+                    )
+                    self.assertEqual(0, proc.returncode, proc.stderr)
+                    plan = json.loads(proc.stdout)
+                    self.assertEqual(["dataset"], plan["changed_nodes"])
+                    self.assertEqual(["claim", "dataset", "portal", "report", "study", "summary"], plan["impacted_nodes"])
+                    self.assertEqual(["publish", "summarize"], [step["id"] for step in plan["rerun_steps"]])
+                    self.assertEqual(["review.json"], plan["invalidated_review_receipts"])
+                    self.assertTrue(plan["approval_required"])
 
     def test_namespace_safe_identifiers_and_union_find_study_families(self) -> None:
         self.assertEqual("doi:10.1000/abc", normalize_identifier("https://doi.org/10.1000/ABC"))

@@ -259,20 +259,29 @@ def selective_rerun_plan(
     *, changed_nodes: Iterable[str], edges: list[dict[str, Any]],
     steps: Iterable[dict[str, Any]], review_paths: Iterable[str] = (),
 ) -> dict[str, Any]:
+    changed_nodes = list(changed_nodes)
+    steps = list(steps)
     impacted = impacted_nodes(changed_nodes, edges)
     impacted_set = set(impacted)
-    selected: list[dict[str, Any]] = []
-    for step in steps:
-        produced = set(map(str, step.get("produces", [])))
-        consumes = set(map(str, step.get("consumes", [])))
-        if produced & impacted_set or consumes & impacted_set:
-            selected.append({
-                "id": step.get("id"),
-                "description": step.get("description", step.get("id")),
-                "requires_approval": bool(step.get("requires_approval", False)),
-                "consumes": sorted(consumes),
-                "produces": sorted(produced),
-            })
+    while True:
+        selected: list[dict[str, Any]] = []
+        outputs = set(impacted_set)
+        for step in steps:
+            produced = set(map(str, step.get("produces", [])))
+            consumes = set(map(str, step.get("consumes", [])))
+            if produced & impacted_set or consumes & impacted_set:
+                outputs.update(produced)
+                selected.append({
+                    "id": step.get("id"),
+                    "description": step.get("description", step.get("id")),
+                    "requires_approval": bool(step.get("requires_approval", False)),
+                    "consumes": sorted(consumes),
+                    "produces": sorted(produced),
+                })
+        impacted = impacted_nodes(outputs, edges)
+        if set(impacted) == impacted_set:
+            break
+        impacted_set = set(impacted)
     return {
         "schema_version": 1,
         "changed_nodes": sorted(set(map(str, changed_nodes))),

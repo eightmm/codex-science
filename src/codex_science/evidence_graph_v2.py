@@ -131,8 +131,11 @@ def independent_support_groups(claim_id: str, nodes: dict[str, dict[str, Any]], 
 def impacted_nodes(changed: Iterable[str], edges: list[dict[str, Any]]) -> list[str]:
     forward: dict[str, set[str]] = defaultdict(set)
     for edge in edges:
-        if edge.get("relation") in {"supports", "contradicts", "depends_on", "derived_from", "propagated_from", "training_overlap"}:
+        relation = edge.get("relation")
+        if relation in {"supports", "contradicts", "training_overlap"}:
             forward[str(edge["source"])].add(str(edge["target"]))
+        if relation in {"depends_on", "derived_from", "propagated_from", "training_overlap"}:
+            forward[str(edge["target"])].add(str(edge["source"]))
     queue = deque(map(str, changed))
     seen = set(queue)
     while queue:

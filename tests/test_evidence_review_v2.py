@@ -31,7 +31,8 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         nodes, edges, findings = validate_graph_payload(graph)
         self.assertEqual([], findings)
         self.assertEqual(1, len(independent_support_groups("claim", nodes, edges)))
-        self.assertEqual(["artifact", "claim"], impacted_nodes(["artifact"], edges))
+        self.assertEqual(["artifact"], impacted_nodes(["artifact"], edges))
+        self.assertEqual(["artifact", "claim"], impacted_nodes(["claim"], edges))
 
         cyclic = {
             "schema_version": 2,
@@ -40,6 +41,36 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         }
         _nodes, _edges, findings = validate_graph_payload(cyclic)
         self.assertIn("evidence-dependency-cycle", {item["code"] for item in findings})
+
+    def test_impact_follows_relation_direction_and_ignores_independence_only_edges(self) -> None:
+        cases = (
+            ("supports", ["a", "b"], ["b"]),
+            ("contradicts", ["a", "b"], ["b"]),
+            ("depends_on", ["a"], ["a", "b"]),
+            ("derived_from", ["a"], ["a", "b"]),
+            ("propagated_from", ["a"], ["a", "b"]),
+            ("training_overlap", ["a", "b"], ["a", "b"]),
+        )
+        for relation, from_source, from_target in cases:
+            edges = [{"source": "a", "target": "b", "relation": relation}]
+            for changed, expected in (("a", from_source), ("b", from_target)):
+                with self.subTest(relation=relation, changed=changed):
+                    self.assertEqual(expected, impacted_nodes([changed, changed], edges))
+
+        edges = [
+            {"source": "study", "target": "dataset", "relation": "depends_on"},
+            {"source": "study", "target": "claim", "relation": "supports"},
+            {"source": "portal", "target": "study", "relation": "propagated_from"},
+        ]
+        for relation in ("duplicates", "shares_cohort", "shares_samples", "unknown"):
+            edges.extend([
+                {"source": "study", "target": relation + "-out", "relation": relation},
+                {"source": relation + "-in", "target": "study", "relation": relation},
+            ])
+        self.assertEqual(["claim", "dataset", "portal", "study"], impacted_nodes(["dataset"], edges))
+        self.assertEqual([], impacted_nodes([], edges))
+        self.assertEqual(["0"], impacted_nodes(["0"], []))
+        self.assertEqual(["dataset"], impacted_nodes(["dataset"], [{}]))
 
     def test_review_receipts_are_hash_covered_and_stale_after_changes(self) -> None:
         receipt = build_review_receipt(
