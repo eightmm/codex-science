@@ -1,10 +1,14 @@
 import copy
+import itertools
 import json
 import math
+import random
+import statistics
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from fractions import Fraction
 from unittest.mock import patch
 
 from codex_science.safe_expression import canonical_sha256
@@ -17,6 +21,8 @@ from codex_science.statistics_runtime import (
     _hedges_g,
     _median,
     _paired_standardized,
+    _permutation_independent,
+    _permutation_paired,
     _quantile,
     benjamini_hochberg,
     review_statistical_analysis,
@@ -229,11 +235,135 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
                 with self.subTest(shift=shift, scale=scale):
                     shifted = [[(value + shift) * scale for value in group] for group in groups]
                     result = run_statistical_analysis(self.analysis_input(*shifted))
-                    self.assertEqual(0.6, result["test"]["p_value"])
+                    oracle = self.fraction_permutation_oracle(*shifted)
+                    self.assertEqual(Fraction(3, 5), oracle)
+                    self.assertEqual(float(oracle), result["test"]["p_value"])
         for alternative in ("two-sided", "greater", "less"):
             self.assertTrue(_extreme(0.0, 0.0, alternative))
-            self.assertTrue(_extreme(math.nextafter(1.0, 0.0), 1.0, alternative))
+            self.assertEqual(alternative == "less", _extreme(math.nextafter(1.0, 0.0), 1.0, alternative))
         self.assertFalse(_extreme(0.0, 1e-16, "two-sided"))
+
+    def hybrid_fraction(self, value):
+        value = float(value)
+        text = repr(value)
+        digits = text.lower().split("e")[0].lstrip("-").replace(".", "").lstrip("0")
+        return Fraction(text) if len(digits) <= sys.float_info.dig else Fraction(value)
+
+    def fraction_permutation_oracle(self, a, b, measure="mean-difference", alternative="two-sided", *,
+                                    paired=False, replicates=None, seed=7):
+        a, b = ([self.hybrid_fraction(value) for value in group] for group in (a, b))
+        summary = statistics.mean if measure == "mean-difference" else statistics.median
+        randomizer = random.Random(seed)
+        if paired:
+            differences = [right - left for left, right in zip(a, b)]
+            observed = summary(differences)
+            signs_to_test = (itertools.product((-1, 1), repeat=len(differences)) if replicates is None else
+                             ([1 if randomizer.random() < 0.5 else -1 for _ in differences]
+                              for _ in range(replicates)))
+            estimates = (summary([sign * value for sign, value in zip(signs, differences)])
+                         for signs in signs_to_test)
+        else:
+            combined = a + b
+            observed = summary(b) - summary(a)
+
+            def sampled_selections():
+                for _ in range(replicates):
+                    indices = list(range(len(combined)))
+                    randomizer.shuffle(indices)
+                    yield indices[:len(a)]
+
+            selections = (itertools.combinations(range(len(combined)), len(a)) if replicates is None
+                          else sampled_selections())
+            estimates = (summary([value for index, value in enumerate(combined) if index not in selected])
+                         - summary([combined[index] for index in selected])
+                         for selected in selections)
+        total = extreme = 0
+        for value in estimates:
+            total += 1
+            extreme += (abs(value) >= abs(observed) if alternative == "two-sided" else
+                        value >= observed if alternative == "greater" else value <= observed)
+        adjustment = int(replicates is not None)
+        return Fraction(extreme + adjustment, total + adjustment)
+
+    def assert_fraction_permutation(self, a, b, expected, *, measure="mean-difference", paired=False):
+        for alternative in ("two-sided", "greater", "less"):
+            oracle = self.fraction_permutation_oracle(a, b, measure, alternative, paired=paired)
+            if alternative == "two-sided":
+                self.assertEqual(expected, oracle)
+            payload = self.analysis_input(a, b, paired=paired)
+            payload.update(estimand=measure, alternative=alternative, bootstrap_replicates=200)
+            result = run_statistical_analysis(payload)
+            self.assertTrue(result["test"]["exact"])
+            self.assertEqual(float(oracle), result["test"]["p_value"])
+
+    def test_exact_mean_round_two_fraction_oracle(self) -> None:
+        self.assert_fraction_permutation([0.96875, 1.0], [0.96875, 1.03125, 1.03125], Fraction(3, 5))
+
+    def test_exact_mean_large_offset_fraction_oracle(self) -> None:
+        self.assert_fraction_permutation([1e9] * 4, [1e9 + 2 ** -21] * 4, Fraction(2, 70))
+
+    def test_exact_median_outlier_fraction_oracle(self) -> None:
+        u = 2 ** -26
+        self.assert_fraction_permutation([i * u for i in range(7)] + [1e9],
+                                         [i * u for i in range(10, 18)], Fraction(268, 12870),
+                                         measure="median-difference")
+
+    def test_integer_observations_use_binary_values_above_decimal_precision(self) -> None:
+        from codex_science.statistics_runtime import _integer_observations
+
+        for value, digits in ((0.123456789012345, 15), (0.1234567890123456, 16),
+                              (0.12345678901234567, 17)):
+            for sign in (-1, 1):
+                observation = sign * value
+                with self.subTest(digits=digits, sign=sign):
+                    integers = _integer_observations([observation, 1.0])
+                    actual = Fraction(integers[0], integers[1])
+                    self.assertEqual(self.hybrid_fraction(observation), actual)
+                    if digits > sys.float_info.dig:
+                        self.assertEqual(Fraction(observation), actual)
+                        self.assertNotEqual(Fraction(repr(observation)), actual)
+                    else:
+                        self.assertEqual(Fraction(repr(observation)), actual)
+
+    def test_exact_independent_decimal_ties_fraction_oracle(self) -> None:
+        for measure in ("mean-difference", "median-difference"):
+            self.assert_fraction_permutation([0.1, 0.2], [0.3, 0.0], Fraction(1), measure=measure)
+
+    def test_exact_paired_decimal_ties_fraction_oracle(self) -> None:
+        for measure in ("mean-difference", "median-difference"):
+            self.assert_fraction_permutation([0.1, 0.0], [0.3, 0.2], Fraction(1, 2),
+                                             measure=measure, paired=True)
+            self.assert_fraction_permutation([0.1, 0.2], [0.3, 0.0], Fraction(1),
+                                             measure=measure, paired=True)
+
+    def test_monte_carlo_integer_statistics_match_fraction_oracle(self) -> None:
+        u = 2 ** -26
+        cases = (([0.1, 0.2], [0.3, 0.0]),
+                 ([i * u for i in range(7)] + [1e9], [i * u for i in range(10, 18)]),
+                 ([0.0, 0.0, 0.0], [u, 2 * u, 1e9]))
+        for paired in (False, True):
+            helper = _permutation_paired if paired else _permutation_independent
+            for a, b in cases:
+                for measure in ("mean-difference", "median-difference"):
+                    for alternative in ("two-sided", "greater", "less"):
+                        oracle = self.fraction_permutation_oracle(a, b, measure, alternative,
+                                                                  paired=paired, replicates=200)
+                        with self.subTest(paired=paired, a=a, measure=measure, alternative=alternative):
+                            with patch("codex_science.statistics_runtime.MAX_EXACT_PERMUTATIONS", 0):
+                                actual = helper(a, b, measure, alternative, replicates=200, randomizer=random.Random(7))
+                            self.assertEqual((float(oracle), 200, False), actual)
+
+    def test_integer_permutation_statistics_cover_decimal_range_and_zero(self) -> None:
+        for a, b in (([0.0, -0.0], [0.0, 0.0]),
+                     ([1e-300, 0.0], [0.1, 0.2]),
+                     ([1e20, 1e20], [2e20, 2e20]),
+                     ([-0.1, -0.0], [0.2, 0.2]),
+                     ([0.0] * 3, [2 ** -26, 2 ** -25, 1e9]),
+                     ([0.0, 1.0, 2.0], [2.0, 3.0, 4.0])):
+            for paired in (False, True):
+                for measure in ("mean-difference", "median-difference"):
+                    expected = self.fraction_permutation_oracle(a, b, measure, paired=paired)
+                    self.assert_fraction_permutation(a, b, expected, measure=measure, paired=paired)
 
     def test_nonfinite_computed_effects_are_refused(self) -> None:
         for paired in (False, True):

@@ -10,7 +10,10 @@ import itertools
 import math
 import random
 import statistics
+import sys
 from collections import defaultdict
+from decimal import Decimal
+from fractions import Fraction
 from typing import Any, Iterable, Mapping
 
 from codex_science.safe_expression import canonical_sha256
@@ -85,20 +88,37 @@ def _paired_standardized(differences: list[float]) -> float | None:
     return statistics.fmean(differences) / standard_deviation
 
 
-def _extreme(
-    value: float, observed: float, alternative: str, *, tolerance: float | None = None,
-    data_scale: float = 0.0,
-) -> bool:
-    if tolerance is None:
-        # Allow summary-rounding ties at the scale used by the randomization test.
-        tolerance = 4 * math.ulp(max(data_scale, abs(observed), abs(value)))
+def _extreme(value: int, observed: int, alternative: str) -> bool:
     if alternative == "two-sided":
-        return abs(value) >= abs(observed) - tolerance
+        return abs(value) >= abs(observed)
     if alternative == "greater":
-        return value >= observed - tolerance
+        return value >= observed
     if alternative == "less":
-        return value <= observed + tolerance
+        return value <= observed
     raise ValueError(f"unsupported alternative: {alternative}")
+
+
+def _integer_observations(values: list[float]) -> list[int]:
+    # Reprs with at most float_info.dig significant digits preserve typed decimal
+    # ties; longer reprs use exact binary values to preserve computed-value ties.
+    decimals = [Decimal(repr(value)) for value in values]
+    fractions = [Fraction(decimal) if len(decimal.as_tuple().digits) <= sys.float_info.dig else Fraction(value)
+                 for value, decimal in zip(values, decimals)]
+    denominator = math.lcm(*(value.denominator for value in fractions))
+    return [value.numerator * (denominator // value.denominator) for value in fractions]
+
+
+def _doubled_median(values: list[int]) -> int:
+    ordered = sorted(values)
+    return ordered[(len(ordered) - 1) // 2] + ordered[len(ordered) // 2]
+
+
+def _integer_contrast(values_a: list[int], values_b: list[int], measure: str) -> int:
+    if measure == "mean-difference":
+        return sum(values_b) * len(values_a) - sum(values_a) * len(values_b)
+    if measure == "median-difference":
+        return _doubled_median(values_b) - _doubled_median(values_a)
+    raise ValueError(f"unsupported estimand: {measure}")
 
 
 def _bootstrap_independent(
@@ -140,14 +160,9 @@ def _permutation_independent(
     replicates: int,
     randomizer: random.Random,
 ) -> tuple[float, int, bool]:
-    combined = values_a + values_b
+    combined = _integer_observations(values_a + values_b)
     count_a = len(values_a)
-    # A shared shift preserves both estimands without letting a common offset
-    # dominate the tie tolerance. Use a data value to avoid midpoint overflow.
-    centre = float(statistics.median_low(combined))
-    combined = [value - centre for value in combined]
-    observed = _estimate(combined[:count_a], combined[count_a:], measure)
-    data_scale = max(abs(value) for value in combined)
+    observed = _integer_contrast(combined[:count_a], combined[count_a:], measure)
     combinations = math.comb(len(combined), count_a)
     extreme = 0
     if combinations <= MAX_EXACT_PERMUTATIONS:
@@ -157,39 +172,41 @@ def _permutation_independent(
             selected_set = set(selected)
             group_a = [combined[index] for index in selected]
             group_b = [combined[index] for index in indexes if index not in selected_set]
-            extreme += int(_extreme(_estimate(group_a, group_b, measure), observed, alternative, data_scale=data_scale))
+            extreme += int(_extreme(_integer_contrast(group_a, group_b, measure), observed, alternative))
             total += 1
         return extreme / total, total, True
     total = replicates
     for _ in range(replicates):
         shuffled = list(combined)
         randomizer.shuffle(shuffled)
-        extreme += int(_extreme(_estimate(shuffled[:count_a], shuffled[count_a:], measure), observed, alternative, data_scale=data_scale))
+        extreme += int(_extreme(_integer_contrast(shuffled[:count_a], shuffled[count_a:], measure), observed, alternative))
     return (extreme + 1) / (total + 1), total, False
 
 
 def _permutation_paired(
-    differences: list[float],
+    values_a: list[float],
+    values_b: list[float],
     measure: str,
     alternative: str,
     *,
     replicates: int,
     randomizer: random.Random,
 ) -> tuple[float, int, bool]:
-    observed = statistics.fmean(differences) if measure == "mean-difference" else _median(differences)
-    data_scale = max(abs(value) for value in differences)
+    combined = _integer_observations(values_a + values_b)
+    differences = [right - left for left, right in zip(combined[:len(values_a)], combined[len(values_a):])]
+    observed = sum(differences) if measure == "mean-difference" else _doubled_median(differences)
     combinations = 2 ** len(differences)
     extreme = 0
     if combinations <= MAX_EXACT_PERMUTATIONS:
         for mask in range(combinations):
             signed = [value if mask & (1 << index) else -value for index, value in enumerate(differences)]
-            estimate = statistics.fmean(signed) if measure == "mean-difference" else _median(signed)
-            extreme += int(_extreme(estimate, observed, alternative, data_scale=data_scale))
+            estimate = sum(signed) if measure == "mean-difference" else _doubled_median(signed)
+            extreme += int(_extreme(estimate, observed, alternative))
         return extreme / combinations, combinations, True
     for _ in range(replicates):
         signed = [value if randomizer.random() < 0.5 else -value for value in differences]
-        estimate = statistics.fmean(signed) if measure == "mean-difference" else _median(signed)
-        extreme += int(_extreme(estimate, observed, alternative, data_scale=data_scale))
+        estimate = sum(signed) if measure == "mean-difference" else _doubled_median(signed)
+        extreme += int(_extreme(estimate, observed, alternative))
     return (extreme + 1) / (replicates + 1), replicates, False
 
 
@@ -277,6 +294,8 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
     differences: list[float] | None = None
     if analysis_type == "paired":
         differences = []
+        values_a = []
+        values_b = []
         incomplete_pairs = 0
         for _pair_id, groups in sorted(units_by_pair.items()):
             members = {group: unit_values[(group, unit)] for group, unit in groups.items() if (group, unit) in unit_values}
@@ -285,8 +304,8 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
                 incomplete_pairs += bool(members)
                 continue
             differences.append(_finite(members[group_b_label] - members[group_a_label], "paired difference"))
-        values_a = [0.0] * len(differences)
-        values_b = list(differences)
+            values_a.append(members[group_a_label])
+            values_b.append(members[group_b_label])
     else:
         incomplete_pairs = 0
     if len(values_a) < 2 or len(values_b) < 2:
@@ -343,7 +362,8 @@ def _run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
         estimate = _finite(statistics.fmean(differences) if measure == "mean-difference" else _median(differences), "effect estimate")
         bootstrap = _bootstrap_paired(differences, replicates=bootstrap_replicates, randomizer=randomizer, measure=measure)
         p_value, permutation_count, exact = _permutation_paired(
-            differences,
+            values_a,
+            values_b,
             measure,
             alternative,
             replicates=permutation_replicates,
