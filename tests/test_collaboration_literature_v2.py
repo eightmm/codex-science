@@ -392,6 +392,38 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
             with self.subTest(fallback=record):
                 self.assertEqual([identity], diff_runs({}, {"inputs": [record]})["inputs"]["added"])
 
+    def test_diff_runs_cli_distinguishes_nested_json_types(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "diff_runs.py"
+        empty = {"added": [], "removed": [], "changed": []}
+        cases = [(False, 0, True), (True, 1, True), (1, 1.0, True)]
+        cases.extend((value, value, False) for value in (None, False, 0, True, 1, 1.0, "", [], {}))
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_path = Path(temporary) / "previous.json"
+            current_path = Path(temporary) / "current.json"
+            for section in ("inputs", "claims", "code", "environment"):
+                for before, after, changed in cases:
+                    with self.subTest(section=section, before=before, after=after, changed=changed):
+                        previous_record = {"id": "record", "parameters": {"values": [before], "source": "caf\u00e9"}}
+                        current_record = {"parameters": {"source": "caf\u00e9", "values": [after]}, "id": "record"}
+                        previous = {section: previous_record if section == "environment" else [previous_record]}
+                        current = {section: current_record if section == "environment" else [current_record]}
+                        previous_path.write_text(json.dumps(previous), encoding="utf-8")
+                        current_path.write_text(json.dumps(current), encoding="utf-8")
+                        result = subprocess.run([sys.executable, str(script), str(previous_path), str(current_path)],
+                                                capture_output=True, text=True, check=False)
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertEqual("", result.stderr)
+                        expected = {
+                            "schema_version": 1, "previous_run_id": None, "current_run_id": None,
+                            "artifacts": empty, "claims": empty, "inputs": empty,
+                            "code_changed": False, "environment_changed": False, "review_invalidated": changed,
+                        }
+                        if section in ("inputs", "claims"):
+                            expected[section] = {**empty, "changed": ["record"] if changed else []}
+                        else:
+                            expected[f"{section}_changed"] = changed
+                        self.assertEqual(expected, json.loads(result.stdout))
+
     def test_diff_runs_rejects_duplicate_explicit_input_ids(self) -> None:
         cases = []
         for field in ("identifier", "id", "query_id", "url", "path"):

@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from codex_science.connector_contract import canonical_json_bytes
 from codex_science.evidence_graph_v2 import impacted_nodes
 
 ANNOTATION_TYPES = {"question", "finding", "decision", "note", "correction"}
@@ -262,16 +263,19 @@ def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any
 
 
 def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[str, Any]:
+    """Preserve JSON numeric and boolean distinctions when invalidating reviews."""
     old, new = _diff_record_map(previous, "artifacts"), _diff_record_map(current, "artifacts")
     changed = sorted(path for path in old.keys() & new.keys() if old[path] != new[path])
     old_claims = _diff_record_map(previous, "claims")
     new_claims = _diff_record_map(current, "claims")
-    changed_claims = sorted(key for key in old_claims.keys() & new_claims.keys() if old_claims[key] != new_claims[key])
+    changed_claims = sorted(key for key in old_claims.keys() & new_claims.keys()
+                            if canonical_json_bytes(old_claims[key]) != canonical_json_bytes(new_claims[key]))
     old_inputs = _diff_record_map(previous, "inputs")
     new_inputs = _diff_record_map(current, "inputs")
-    changed_inputs = sorted(key for key in old_inputs.keys() & new_inputs.keys() if old_inputs[key] != new_inputs[key])
-    environment_changed = previous.get("environment") != current.get("environment")
-    code_changed = previous.get("code") != current.get("code")
+    changed_inputs = sorted(key for key in old_inputs.keys() & new_inputs.keys()
+                            if canonical_json_bytes(old_inputs[key]) != canonical_json_bytes(new_inputs[key]))
+    environment_changed = canonical_json_bytes(previous.get("environment")) != canonical_json_bytes(current.get("environment"))
+    code_changed = canonical_json_bytes(previous.get("code")) != canonical_json_bytes(current.get("code"))
     return {
         "schema_version": 1,
         "previous_run_id": previous.get("run_id"),
