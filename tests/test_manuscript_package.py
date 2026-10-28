@@ -380,6 +380,58 @@ class ManuscriptPackageTests(unittest.TestCase):
                 else:
                     self.assertEqual("passed", result["status"], result["findings"])
 
+    def test_reported_source_unit_applies_only_to_measurement_values(self) -> None:
+        artifact = self.package / "reported-unit-scope.json"
+        artifact.write_text("{}", encoding="utf-8")
+        submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
+        submission["files"].append({
+            "path": artifact.name, "kind": "manuscript-package-file",
+            "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+        })
+        self.rewrite_json("submission-package.json", submission)
+        name = "claim-citation-map.json"
+        original_trace = (self.package / name).read_text(encoding="utf-8")
+        manuscript = self.package / "manuscript.md"
+        original_text = manuscript.read_text(encoding="utf-8")
+        cases = [
+            ({"estimate": 2.5, "unit": "mg", "p_value": 0.03}, "/p_value", "p = 0.03", False),
+            ({"estimate": 2.5, "unit": "mg", "p_value": 0}, "/p_value", "p = 0", False),
+            ({"estimate": 2.5, "unit": "mg", "p_value": 0.03}, "/estimate", "2.5 g", True),
+            ({"statistic": 2.5, "unit": "mg"}, "/statistic", "2.5", True),
+            ({"statistic": 2.5, "unit": "mg"}, "/statistic", "2.5 mg", False),
+            ({"statistic": 0, "unit": "mg", "flag": True}, "/statistic", "0", True),
+            ({"statistic": 2.5, "unit": "mg", "count": "3", "ci": [1, 4]}, "/statistic", "2.5", True),
+            ({"": 2.5, "unit": "mg"}, "/", "2.5", True),
+            ({"estimate": 2.5, "unit": "mg", "ci": [1, 4]}, "/ci/0", "1", False),
+            ({"flag": True, "unit": "mg"}, "/flag", "true", False),
+            ({"statistic": "2.5", "unit": "mg"}, "/statistic", "2.5", False),
+        ]
+        for key in ("value", "estimate", "point_estimate", "mean", "median"):
+            cases.append(({key: 2.5, "unit": "mg", "p_value": 0.03}, "/" + key, "2.5", True))
+            cases.append(({key: 2.5, "unit": "mg", "p_value": 0.03}, "/" + key, "2.5 mg", False))
+        for unit in ("", " ", None, 17, {}, []):
+            cases.append(({"statistic": 2.5, "unit": unit}, "/statistic", "2.5", False))
+        for payload, locator, text, mismatch in cases:
+            with self.subTest(payload=payload, locator=locator, text=text):
+                self.rewrite_json(artifact.name, payload)
+                trace = json.loads(original_trace)
+                trace["claims"][0]["reported_values"][0].update(
+                    artifact_path=artifact.name,
+                    artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                    locator=locator, text=text,
+                )
+                trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5 response units", text)
+                manuscript.write_text(original_text.replace("2.5 response units", text), encoding="utf-8")
+                self.rewrite_json(name, trace)
+                for relative in (artifact.name, name, manuscript.name):
+                    self.refresh_submission_hash(relative)
+                result = validate_manuscript_package(self.package)
+                if mismatch:
+                    self.assertIn("reported-value-unit-mismatch", {item["code"] for item in result["findings"]})
+                    self.assertNotEqual("passed", result["status"])
+                else:
+                    self.assertEqual("passed", result["status"], result["findings"])
+
     def test_string_reported_value_counterexample_is_refused_by_cli(self) -> None:
         artifact = self.package / "string-value.json"
         artifact.write_text(json.dumps("2.5 response units"), encoding="utf-8")

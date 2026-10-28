@@ -1135,11 +1135,18 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                                 and isinstance(resolved_value, (int, float))
                                 and not isinstance(resolved_value, bool)
                             ):
-                                # A sibling unit describes this value; array endpoints may share units in prose.
+                                # Units describe measurements, not every numeric statistic in a record.
                                 source_record = _resolve_json_pointer(
                                     artifact_payload, locator_value.rsplit("/", 1)[0]
                                 )
-                                unit = source_record.get("unit") if isinstance(source_record, Mapping) else None
+                                unit = None
+                                if isinstance(source_record, Mapping):
+                                    source_key = locator_value.rsplit("/", 1)[1]
+                                    if source_key in {"value", "estimate", "point_estimate", "mean", "median"} or sum(
+                                        isinstance(item, (int, float)) and not isinstance(item, bool)
+                                        for item in source_record.values()
+                                    ) == 1:
+                                        unit = source_record.get("unit")
                                 if isinstance(unit, str) and unit.strip() and not _unit_appears_in_text(unit, text):
                                     findings.append(_finding(
                                         "reported-value-unit-mismatch",
