@@ -162,7 +162,7 @@ class NativeSkillQualityTests(unittest.TestCase):
             "## Completion test",
             "lane receipt",
             "weakest essential evidence link",
-            "Set every finished manifest `plan` step to `completed`",
+            "Complete every finished manifest `plan` step with",
             "only for runs using `$cx-literature-review` or carrying a `study-table` sidecar",
             "--review-output <run-dir>/deterministic-review.json",
             "separate, unreviewed",
