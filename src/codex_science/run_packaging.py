@@ -452,6 +452,43 @@ def register_receipt(run_dir: Path, relative: str) -> dict[str, Any]:
     return summary
 
 
+def _review_packet_content_matches(run_dir: Path, manifest: dict[str, Any], packet: dict[str, Any]) -> bool:
+    from codex_science.reviewer_runtime import _claim_kinds_with_manifest_fallback, _material_claim_ids, _redact
+
+    sidecars = validate_bundle(manifest, run_dir)
+    register = sidecars.get("claim_register")
+    claims = register.get("claims") if isinstance(register, dict) else None
+    if not isinstance(claims, list):
+        claims = [dict(item) for item in manifest.get("claims", []) if isinstance(item, dict)]
+    claims = _redact(_claim_kinds_with_manifest_fallback(claims, manifest))
+    if claims != packet.get("claims") or _material_claim_ids(manifest, sidecars) != packet.get("material_claim_ids"):
+        return False
+    # A register supplies packet text, but must not conceal a changed manifest claim.
+    by_id = {str(item.get("id")): item for item in claims if isinstance(item, dict)}
+    for claim in _redact(manifest.get("claims", [])):
+        reviewed = by_id.get(str(claim.get("id")), {})
+        if "text" in claim and claim["text"] != reviewed.get("text"):
+            return False
+    current_contract = _redact({
+        "question": str(manifest.get("question", "")),
+        "plan": manifest.get("plan", []),
+        "inputs": manifest.get("inputs", []),
+        "code": manifest.get("code", []),
+        "environment": manifest.get("environment", {}),
+    })
+    reviewed_contract = copy.deepcopy(packet.get("decision_contract"))
+    if not isinstance(reviewed_contract, dict):
+        return False
+    # Refresh may merge reviewer executions and complete steps without changing the method.
+    reviewed_contract.pop("executions", None)
+    for contract in (current_contract, reviewed_contract):
+        plan = contract.get("plan")
+        if not isinstance(plan, list) or any(not isinstance(step, dict) for step in plan):
+            return False
+        contract["plan"] = [{key: value for key, value in step.items() if key != "status"} for step in plan]
+    return current_contract == reviewed_contract
+
+
 def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """Validate a receipt against the manifest and return the updated manifest without writing.
 
@@ -525,6 +562,24 @@ def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative:
     fresh_entry = {"path": canonical_receipt, "kind": kind, "sha256": _sha(receipt_path)}
     if existing_entry is not None and "size_bytes" in existing_entry:
         fresh_entry["size_bytes"] = receipt_path.stat().st_size
+    if payload.get("review_task_id") or payload.get("packet_fingerprint"):
+        from codex_science.reviewer_runtime import validate_review_packet
+
+        packets = []
+        for path in _review_flow_files(run_dir):
+            if path.suffix.lower() != ".json":
+                continue
+            candidate = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(candidate, dict) and "response_contract" in candidate and "source_manifest_sha256" in candidate:
+                packets.append(candidate)
+        if packets:
+            packet = next((item for item in packets if item.get("review_task_id") == payload.get("review_task_id")
+                           and item.get("fingerprint") == payload.get("packet_fingerprint")), None)
+            if packet is None:
+                raise ValueError("Cannot register receipt; review packet identity mismatch")
+            validate_review_packet(packet)
+            if not _review_packet_content_matches(run_dir, manifest, packet):
+                raise ValueError("Cannot register receipt; review packet covers changed decision content; rebuild the packet and review again")
     if (
         existing_entry is not None
         and existing_entry == fresh_entry

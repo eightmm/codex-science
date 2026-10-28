@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from codex_science.artifact_store import stream_sha256
+
 
 def _execution_succeeded(execution: dict[str, Any]) -> bool:
     # bool is an int subclass, but it is not a recorded process exit status.
@@ -166,6 +168,51 @@ def _error_object_artifact_findings(manifest: dict[str, Any], run_dir: Path | No
     return found
 
 
+def _execution_record_findings(manifest: dict[str, Any], run_dir: Path | None) -> list[dict[str, str]]:
+    if run_dir is None:
+        return []
+    root = Path(run_dir).resolve()
+    records = [*manifest.get("executions", []), *manifest.get("superseded_executions", [])]
+    findings = []
+    for execution in records:
+        relative, expected = execution.get("log_path"), execution.get("log_sha256")
+        if relative is None or expected is None:
+            continue
+        code = None
+        try:
+            if not isinstance(relative, str) or not relative or not isinstance(expected, str):
+                raise ValueError("invalid log metadata")
+            path = (root / relative).resolve()
+            if not path.is_relative_to(root):
+                raise ValueError("log escapes run directory")
+            if not path.is_file():
+                code = "execution-log-missing"
+            elif stream_sha256(path)[0] != expected.lower():
+                code = "execution-log-mismatch"
+        except (OSError, ValueError, RuntimeError):
+            code = "execution-log-mismatch"
+        if code:
+            findings.append({"code": code, "severity": "major", "message": f"Execution {execution.get('id', '<unknown>')} log is missing, outside the run directory or differs from its recorded digest: {relative}."})
+    journal = root / "execution-log.jsonl"
+    known_ids = {item.get("id") for item in records}
+    try:
+        if journal.is_symlink() and not journal.resolve().is_relative_to(root):
+            raise ValueError("execution journal escapes run directory")
+        if journal.exists():
+            with journal.open(encoding="utf-8") as stream:
+                for number, line in enumerate(stream, 1):
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not entry["id"].strip():
+                        raise ValueError(f"invalid execution record at line {number}")
+                    if entry["id"] not in known_ids:
+                        findings.append({"code": "unincorporated-execution", "severity": "major", "message": f"Execution {entry['id']} is not in the manifest; run package_run.py refresh before reviewing."})
+    except (OSError, ValueError, RuntimeError) as error:
+        findings.append({"code": "invalid-execution-journal", "severity": "major", "message": f"Cannot verify execution-log.jsonl: {error}. Run package_run.py refresh after repairing the journal."})
+    return findings
+
+
 def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, sidecars: dict[str, Any] | None = None) -> dict[str, Any]:
     findings: list[dict[str, str]] = []
     declared_review = manifest.get("review", {})
@@ -175,6 +222,11 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
             findings.extend(declared_findings)
         else:
             findings.append({"code": "declared-review-not-passed", "severity": "major", "message": f"Manifest review status is {declared_review.get('status', 'unknown')}."})
+    elif declared_review.get("status") == "passed":
+        findings.extend(item for item in declared_review.get("findings", [])
+                        if isinstance(item, dict) and item.get("severity") in {"major", "critical"}
+                        and item.get("resolution_status", "open") not in {"resolved", "not-applicable"})
+    findings.extend(_execution_record_findings(manifest, run_dir))
     artifacts = {str(item.get("path")) for item in manifest.get("artifacts", [])}
     for execution in manifest.get("executions", []):
         if not _execution_succeeded(execution):
@@ -199,6 +251,6 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
         findings.extend(review_sidecars(sidecars))
         findings.extend(sidecars.get("advanced_findings", []))
     findings.extend(_error_object_artifact_findings(manifest, run_dir))
-    unique = {(item["code"], item.get("claim_id", ""), item["message"]): item for item in findings}
+    unique = {(item["code"], item.get("claim_id", ""), item.get("id", ""), item.get("affected_claim_id", ""), item["message"]): item for item in findings}
     ordered = sorted(unique.values(), key=lambda item: (item.get("severity", ""), item["code"], item.get("claim_id", ""), item["message"]))
     return {"status": "findings" if ordered else "passed", "findings": ordered}

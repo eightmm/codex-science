@@ -1,5 +1,7 @@
 import unittest
 import json
+import hashlib
+import tempfile
 from pathlib import Path
 
 from codex_science.artifacts import add_artifact, new_manifest, validate_bundle
@@ -21,6 +23,71 @@ def computed_review(manifest: dict, supporting_nodes: list[dict], supporting_edg
 
 
 class ReviewerTests(unittest.TestCase):
+    def test_passed_review_keeps_only_unresolved_blocking_declared_findings(self) -> None:
+        for severity in ("major", "critical", "minor", "suggestion"):
+            for resolution in (None, "open", "", "accepted-risk", "resolved", "not-applicable", "unknown"):
+                with self.subTest(severity=severity, resolution=resolution):
+                    manifest = new_manifest("run", "Question", [])
+                    finding = {"code": "declared", "severity": severity, "message": "Check evidence"}
+                    if resolution is not None:
+                        finding["resolution_status"] = resolution
+                    manifest["review"] = {"status": "passed", "findings": [finding]}
+                    blocking = severity in {"major", "critical"} and resolution not in {"resolved", "not-applicable"}
+                    result = review_manifest(manifest)
+                    self.assertEqual("findings" if blocking else "passed", result["status"])
+                    self.assertEqual([finding] if blocking else [], result["findings"])
+        manifest["review"] = {"status": "passed", "findings": ["invalid", None, 0]}
+        self.assertEqual("passed", review_manifest(manifest)["status"])
+
+    def test_distinct_declared_finding_ids_and_affected_claims_survive_dedup(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        critical = {"id": "F1", "affected_claim_id": "C1", "code": "unsupported", "message": "Check evidence", "severity": "critical"}
+        minor = {**critical, "id": "F2", "affected_claim_id": "C2", "severity": "minor"}
+        same_id = {**minor, "affected_claim_id": "C3"}
+        same_claim = {**minor, "id": "F3"}
+        manifest["review"] = {"status": "findings", "findings": [critical, minor, same_id, same_claim, minor]}
+        findings = review_manifest(manifest)["findings"]
+        self.assertEqual(4, len(findings))
+        self.assertIn(critical, findings)
+        self.assertIn(same_id, findings)
+        self.assertIn(same_claim, findings)
+
+    def test_execution_log_integrity_checks_active_and_superseded_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "run"
+            run.mkdir()
+            log = run / "execution.log"
+            outside = root / "outside.log"
+            outside.write_bytes(b"recorded")
+            alias = run / "alias.log"
+            alias.symlink_to(outside)
+            for field in ("executions", "superseded_executions"):
+                for relative, content, expected in (
+                    ("execution.log", b"recorded", None),
+                    ("execution.log", b"", None),
+                    ("execution.log", b"changed", "execution-log-mismatch"),
+                    ("execution.log", None, "execution-log-missing"),
+                    ("../outside.log", b"recorded", "execution-log-mismatch"),
+                    ("alias.log", b"recorded", "execution-log-mismatch"),
+                    ("\x00", b"recorded", "execution-log-mismatch"),
+                ):
+                    with self.subTest(field=field, relative=relative, content=content):
+                        log.unlink(missing_ok=True)
+                        if content is not None:
+                            log.write_bytes(content)
+                        manifest = new_manifest("run", "Question", [])
+                        digest = hashlib.sha256(b"" if content == b"" else b"recorded").hexdigest()
+                        manifest[field] = [{"id": "E1", "exit_code": 0, "log_path": relative, "log_sha256": digest}]
+                        findings = review_manifest(manifest, run, sidecars={})["findings"]
+                        self.assertEqual([] if expected is None else [expected], [item["code"] for item in findings])
+                        if expected:
+                            self.assertEqual("major", findings[0]["severity"])
+            for entry in ({"log_path": "missing"}, {"log_sha256": "0" * 64}, {}):
+                manifest["executions"] = [{"exit_code": 0, **entry}]
+                manifest["superseded_executions"] = []
+                self.assertEqual("passed", review_manifest(manifest, run, sidecars={})["status"])
+
     def test_flags_failed_execution_missing_evidence_and_incomplete_plan(self) -> None:
         manifest = new_manifest(
             "run-001",

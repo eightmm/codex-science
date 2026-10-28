@@ -29,6 +29,28 @@ def _values(values: set[str]) -> str:
     return ", ".join(sorted(values))
 
 
+def _check_review_output(output: Path, manifest_path: Path, manifest: dict) -> None:
+    root = manifest_path.parent
+    target = output.resolve()
+    protected = [manifest_path, root / "manifest.json"]
+    directories = [root / name for name in (".review", "review", "reviews", "review-rounds")]
+    for item in manifest.get("artifacts", []):
+        protected.append(root / item["path"])
+        if item.get("descriptor_path"):
+            protected.append(root / item["descriptor_path"])
+        if item.get("artifact_type") == "directory-tree":
+            directories.append(root / item["path"])
+    receipt = manifest.get("review", {}).get("receipt")
+    if receipt:
+        protected.append(root / receipt)
+        parent = (root / receipt).resolve().parent
+        if parent != root:
+            directories.append(parent)
+    if any(target == path.resolve() or (output.exists() and path.exists() and output.samefile(path))
+           for path in protected) or any(target.is_relative_to(path.resolve()) for path in directories):
+        raise ValueError("--review-output must not overwrite the manifest, artifacts, review receipts or sidecars")
+
+
 EPILOG = f"""\
 Recognized sidecar manifest kinds: {_values(SIDECAR_KINDS)}.
 Allowed values (conventional file: field):
@@ -50,13 +72,15 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("manifest", type=Path, help="path to the run manifest.json")
-    parser.add_argument("--review-output", type=Path, help="also write the deterministic record/source review JSON here; not the independent review receipt or a reviewed artifact")
+    parser.add_argument("--review-output", type=Path, help="also write the deterministic record/source review JSON here; refuses the manifest, artifacts, review receipts and sidecar locations")
     parser.add_argument("--require-passed-review", action="store_true", help="exit non-zero unless the review status is passed; requires --review-output")
     args = parser.parse_args()
     manifest_path = args.manifest.resolve()
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         sidecars = validate_bundle(manifest, manifest_path.parent)
+        if args.review_output:
+            _check_review_output(args.review_output, manifest_path, manifest)
     except (ValueError, OSError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         if "Artifact digest mismatch" in str(error):

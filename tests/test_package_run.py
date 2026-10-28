@@ -41,6 +41,236 @@ class PackageRunTests(unittest.TestCase):
         manifest["review"] = {"status": "pending", "findings": []}
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
+    def test_validator_refuses_review_output_over_evidence(self) -> None:
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        tree = self.run_dir / "tree"
+        tree.mkdir()
+        (tree / "data.json").write_text("{}")
+        descriptor = describe_directory(tree)
+        descriptor_path = self.run_dir / "tree.descriptor.json"
+        descriptor_path.write_text(json.dumps(descriptor.to_dict()))
+        manifest["artifacts"].append({"path": "tree", "kind": "data", "artifact_type": "directory-tree",
+                                      "sha256": descriptor.root_sha256, "descriptor_path": descriptor_path.name})
+        receipt = self.run_dir / "receipts" / "review.json"
+        receipt.parent.mkdir()
+        receipt.write_text("{}")
+        manifest["review"]["receipt"] = "receipts/review.json"
+        manifest_path.write_text(json.dumps(manifest))
+        targets = [manifest_path, *(self.run_dir / item["path"] for item in manifest["artifacts"])]
+        targets.extend((descriptor_path, tree / "new.json", receipt, receipt.parent / "new.json"))
+        targets.extend(self.run_dir / name for name in (".review/new.json", "reviews/new.json", "review/new.json", "review-rounds/1/new.json"))
+        alias = self.run_dir / "alias.json"
+        alias.symlink_to(manifest_path)
+        targets.append(alias)
+        hardlink = self.run_dir / "hardlink.json"
+        hardlink.hardlink_to(manifest_path)
+        targets.append(hardlink)
+        for target in targets:
+            with self.subTest(target=target.relative_to(self.run_dir)):
+                before = {path: path.read_bytes() for path in self.run_dir.rglob("*") if path.is_file()}
+                result = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"),
+                                         str(manifest_path), "--review-output", str(target), "--require-passed-review"],
+                                        text=True, capture_output=True, check=False)
+                after = {path: path.read_bytes() for path in self.run_dir.rglob("*") if path.is_file()}
+                for path in after.keys() - before.keys():
+                    path.unlink()
+                for path, content in before.items():
+                    path.write_bytes(content)
+                self.assertEqual(before, after)
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("--review-output", result.stderr)
+        for _ in range(2):
+            result = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"),
+                                     str(manifest_path), "--review-output", str(self.run_dir / "deterministic-review.json"),
+                                     "--require-passed-review"], text=True, capture_output=True, check=False)
+            self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_unincorporated_execution_blocks_passed_review_until_refresh(self) -> None:
+        from codex_science.artifacts import new_manifest
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        journal = self.run_dir / "execution-log.jsonl"
+        journal.write_text("\n")
+        self.assertEqual("passed", review_manifest(manifest, self.run_dir)["status"])
+        result = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "new-failure", "--",
+                          sys.executable, "-c", "raise SystemExit(1)")
+        self.assertEqual(1, result.returncode, result.stderr)
+        output = Path(self.temp.name) / "review-output.json"
+        result = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"),
+                                 str(manifest_path), "--review-output", str(output), "--require-passed-review"],
+                                text=True, capture_output=True, check=False)
+        self.assertEqual(1, result.returncode, result.stderr)
+        findings = json.loads(output.read_text())["findings"]
+        self.assertIn("unincorporated-execution", {item["code"] for item in findings})
+        self.assertIn("package_run.py refresh", next(item["message"] for item in findings if item["code"] == "unincorporated-execution"))
+        entry = json.loads(journal.read_text().strip())
+        for field in ("executions", "superseded_executions"):
+            current = new_manifest("run", "Question", [])
+            current[field] = [entry]
+            codes = {item["code"] for item in review_manifest(current, self.run_dir, sidecars={})["findings"]}
+            self.assertNotIn("unincorporated-execution", codes)
+        for malformed in ("{", "[]", "{}", '{"id":0}', '{"id":""}'):
+            journal.write_text(malformed + "\n")
+            findings = review_manifest(manifest, self.run_dir, sidecars={})["findings"]
+            self.assertIn("invalid-execution-journal", {item["code"] for item in findings})
+        journal.write_text(json.dumps(entry) + "\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(0, result.returncode, result.stderr)
+        refreshed = json.loads(manifest_path.read_text())
+        codes = {item["code"] for item in review_manifest(refreshed, self.run_dir)["findings"]}
+        self.assertNotIn("unincorporated-execution", codes)
+        self.assertIn("failed-execution", codes)
+        log = self.run_dir / entry["log_path"]
+        for content, code in ((b"changed", "execution-log-mismatch"), (None, "execution-log-missing")):
+            if content is None:
+                log.unlink()
+            else:
+                log.write_bytes(content)
+            codes = {item["code"] for item in review_manifest(refreshed, self.run_dir)["findings"]}
+            self.assertIn(code, codes)
+
+    def test_register_receipt_refuses_changed_packet_manifest_contract(self) -> None:
+        from codex_science.reviewer_runtime import build_review_packet, finalize_review_response
+        manifest_path = self.run_dir / "manifest.json"
+        packet = build_review_packet(manifest_path, review_modes=["record"])
+        (self.run_dir / "review-task.json").write_text(json.dumps(packet))
+        response = {"review_task_id": packet["review_task_id"], "packet_fingerprint": packet["fingerprint"],
+                    "reviewer": "fixture-reviewer", "independent": True, "review_modes": ["record"], "status": "passed",
+                    "reviewed_claim_ids": packet["material_claim_ids"], "reviewed_artifacts": packet["artifacts"],
+                    "findings": [], "limitations": ["fixture only"]}
+        receipt = finalize_review_response(packet, response)
+        (self.run_dir / "final-review.json").write_text(json.dumps(receipt))
+        original = manifest_path.read_bytes()
+        for change in ("claim", "inputs"):
+            with self.subTest(change=change):
+                manifest = json.loads(original)
+                if change == "claim":
+                    manifest["claims"][0]["text"] += " Changed decision."
+                else:
+                    manifest["inputs"] = [{"id": "changed-input"}]
+                manifest_path.write_text(json.dumps(manifest))
+                before = manifest_path.read_bytes()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("packet", result.stderr)
+                self.assertEqual(before, manifest_path.read_bytes())
+        manifest_path.write_bytes(original)
+        changed = {**packet, "fingerprint": "0" * 64}
+        (self.run_dir / "review-task.json").write_text(json.dumps(changed))
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("packet identity mismatch", result.stderr)
+        self.assertEqual(original, manifest_path.read_bytes())
+        (self.run_dir / "review-task.json").write_text(json.dumps(packet))
+        for _ in range(2):
+            result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+            self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_register_receipt_accepts_honest_exec_refresh_and_completed_step(self) -> None:
+        from codex_science.reviewer_runtime import build_review_packet, finalize_review_response
+        from codex_science.run_packaging import plan_receipt_registration
+
+        self._make_unreviewed_run()
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["plan"][-1]["status"] = "pending"
+        manifest_path.write_text(json.dumps(manifest))
+        packet = build_review_packet(manifest_path, review_modes=["record"])
+        # The reviewer retains the packet outside the run while refresh updates bookkeeping.
+        retained_packet = Path(self.temp.name) / "review-task.json"
+        retained_packet.write_text(json.dumps(packet))
+        result = self.cli("exec", "--run-dir", str(self.run_dir), "--id", "review-check", "--",
+                          sys.executable, "-c", "print('checked')")
+        self.assertEqual(0, result.returncode, result.stderr)
+        (self.run_dir / "review-summary.txt").write_text("Review complete.\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--complete-step", "review",
+                          "--kind", "review-summary.txt=provenance-record")
+        self.assertEqual(0, result.returncode, result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(["review"], summary["completed_steps"])
+        self.assertEqual(1, summary["executions_added"])
+        self.assertIn("review-summary.txt", summary["added"])
+        (self.run_dir / "reviewer-notes.md").write_text("Checked the saved record.\n")
+        shutil.copyfile(retained_packet, self.run_dir / "review-task.json")
+        response = {"review_task_id": packet["review_task_id"], "packet_fingerprint": packet["fingerprint"],
+                    "reviewer": "fixture-reviewer", "independent": True, "review_modes": ["record"], "status": "passed",
+                    "reviewed_claim_ids": packet["material_claim_ids"], "reviewed_artifacts": packet["artifacts"],
+                    "findings": [], "limitations": ["fixture only"]}
+        receipt = finalize_review_response(packet, response)
+        (self.run_dir / "final-review.json").write_text(json.dumps(receipt))
+        current = json.loads(manifest_path.read_text())
+        for change in ("bookkeeping", "inputs", "claim", "question", "plan", "code", "environment"):
+            with self.subTest(change=change):
+                proposed = json.loads(json.dumps(current))
+                if change == "bookkeeping":
+                    proposed["review"] = {"status": "pending", "findings": [], "reason": "Bookkeeping updated"}
+                    proposed["updated_at"] = "2026-10-29T00:00:00Z"
+                elif change == "inputs":
+                    proposed["inputs"] = []
+                elif change == "claim":
+                    proposed["claims"][0]["text"] += " Changed decision."
+                elif change == "question":
+                    proposed["question"] += " Changed question."
+                elif change == "plan":
+                    proposed["plan"][0]["description"] += " Changed method."
+                elif change == "code":
+                    proposed["code"] = []
+                else:
+                    proposed["environment"] = {}
+                before = manifest_path.read_bytes()
+                if change == "bookkeeping":
+                    planned, _summary = plan_receipt_registration(self.run_dir, proposed, "final-review.json")
+                    self.assertEqual("passed", planned["review"]["status"])
+                else:
+                    with self.assertRaisesRegex(ValueError, "review packet"):
+                        plan_receipt_registration(self.run_dir, proposed, "final-review.json")
+                self.assertEqual(before, manifest_path.read_bytes())
+        for _ in range(2):
+            result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+            self.assertEqual(0, result.returncode, result.stderr)
+        registered = json.loads(manifest_path.read_text())
+        self.assertEqual("passed", registered["review"]["status"])
+        self.assertEqual("completed", registered["plan"][-1]["status"])
+        self.assertIn("review-check", {item.get("id") for item in registered["executions"]})
+        registered["inputs"] = []
+        with self.assertRaisesRegex(ValueError, "review packet"):
+            plan_receipt_registration(self.run_dir, registered, "final-review.json")
+
+    def test_register_receipt_compares_manifest_claims_without_sidecars(self) -> None:
+        from codex_science.artifacts import add_artifact, new_manifest
+        from codex_science.reviewer_runtime import build_review_packet, finalize_review_response
+        from codex_science.run_packaging import plan_receipt_registration
+
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = new_manifest("run", "Question", [])
+        add_artifact(manifest, "report.md", kind="report",
+                     sha256=hashlib.sha256((self.run_dir / "report.md").read_bytes()).hexdigest())
+        manifest["claims"] = [{"id": "C1", "text": "Bounded result", "evidence": ["report.md"]}]
+        manifest_path.write_text(json.dumps(manifest))
+        packet = build_review_packet(manifest_path, review_modes=["record"])
+        (self.run_dir / "review-task.json").write_text(json.dumps(packet))
+        response = {"review_task_id": packet["review_task_id"], "packet_fingerprint": packet["fingerprint"],
+                    "reviewer": "fixture-reviewer", "independent": True, "review_modes": ["record"], "status": "passed",
+                    "reviewed_claim_ids": packet["material_claim_ids"], "reviewed_artifacts": packet["artifacts"],
+                    "findings": [], "limitations": ["fixture only"]}
+        (self.run_dir / "final-review.json").write_text(json.dumps(finalize_review_response(packet, response)))
+        manifest["review"]["reason"] = "In-memory bookkeeping"
+        planned, _summary = plan_receipt_registration(self.run_dir, manifest, "final-review.json")
+        self.assertEqual("passed", planned["review"]["status"])
+        from codex_science.run_packaging import _review_packet_content_matches
+
+        for field, value in (("claims", []), ("claims", [{"id": "C2", "text": "Other", "evidence": ["report.md"]}]),
+                             ("plan", [0]), ("inputs", ["changed"])):
+            with self.subTest(field=field, value=value):
+                changed = {**manifest, field: value}
+                with self.assertRaisesRegex(ValueError, "review packet"):
+                    plan_receipt_registration(self.run_dir, changed, "final-review.json")
+        for field, value in (("claims", []), ("material_claim_ids", []), ("decision_contract", None),
+                             ("decision_contract", {}), ("decision_contract", {**packet["decision_contract"], "plan": [0]})):
+            with self.subTest(packet_field=field, value=value):
+                self.assertFalse(_review_packet_content_matches(self.run_dir, manifest, {**packet, field: value}))
+
     def test_prepare_review_writes_outputs_and_fresh_deterministic_review(self) -> None:
         self._make_unreviewed_run()
         (self.run_dir / "report.md").write_text((self.run_dir / "report.md").read_text() + " refreshed content\n")
