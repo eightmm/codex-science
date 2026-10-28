@@ -60,10 +60,13 @@ def _cholesky(matrix: list[list[float]], *, tolerance: float = 1e-12) -> list[li
 
 def _gradient(
     expression: str, names: list[str], means: list[float], uncertainties: list[float],
-    *, check_stability: bool = True,
-) -> list[float]:
+) -> tuple[list[float], list[float], float]:
+    """Keep coarse sensitivities for receipt compatibility while measuring refinement error."""
     parsed = parse_expression(expression, allowed_names=names)
     gradient: list[float] = []
+    changes: list[float] = []
+    noise_floor = 0.0
+    stationary = True
     for index, name in enumerate(names):
         step = max(abs(means[index]) * 1e-6, uncertainties[index] * 1e-3, 1e-8)
         derivatives: list[float] = []
@@ -80,17 +83,17 @@ def _gradient(
                 raise ValueError(f"non-finite numerical derivative for {name}")
             derivatives.append(derivative)
             values.extend((high, low))
-        # Central differences have O(step**2) truncation near stationary points.
-        function_scale = max(1.0, *(abs(value) for value in values))
         roundoff = 16.0 * math.ulp(max(abs(value) for value in values)) / step
-        input_scale = max(1.0, abs(means[index]), uncertainties[index])
-        truncation = function_scale * (step / input_scale) ** 2 / input_scale
-        if check_stability and not math.isclose(
-            derivatives[0], derivatives[1], rel_tol=1e-3, abs_tol=max(roundoff, truncation),
-        ):
-            raise ValueError(f"unstable numerical derivative for {name}")
+        changes.append(abs(derivatives[0] - derivatives[1]) * uncertainties[index])
+        noise_floor = max(noise_floor, roundoff * uncertainties[index])
+        # Richardson cancellation distinguishes O(step**2) stationary truncation
+        # from a derivative that remains material as the step is refined.
+        extrapolated = (4.0 * derivatives[1] - derivatives[0]) / 3.0
+        stationary = stationary and abs(extrapolated) <= roundoff
         gradient.append(derivatives[0])
-    return gradient
+    if stationary:
+        noise_floor = max(noise_floor, *changes)
+    return gradient, changes, noise_floor
 
 
 def _variance(gradient: list[float], covariance: list[list[float]]) -> float:
@@ -201,7 +204,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         monte_carlo_mean = None
         monte_carlo_uncertainty = None
         interval = None
-    gradient = _gradient(expression, names, means, uncertainties, check_stability=method != "monte-carlo")
+    gradient, derivative_changes, derivative_floor = _gradient(expression, names, means, uncertainties)
     linear_variance = _variance(gradient, covariance)
     linear_uncertainty = math.sqrt(linear_variance)
     sensitivities = []
@@ -214,6 +217,14 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
             "fraction_of_linear_variance": None if linear_variance == 0 else contribution / linear_variance,
         })
     findings: list[dict[str, str]] = []
+    if method in {"linear", "both"}:
+        for name, change in zip(names, derivative_changes):
+            if change > max(0.01 * linear_uncertainty, derivative_floor):
+                findings.append({
+                    "code": "linearization-derivative-unstable",
+                    "severity": "major",
+                    "message": f"Step refinement for {name} changes its uncertainty contribution by more than 1% of the propagated linear standard uncertainty; review the linear result.",
+                })
     if failures:
         findings.append({
             "code": "monte-carlo-domain-filtering",

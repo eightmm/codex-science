@@ -10,7 +10,6 @@ import unittest
 from unittest.mock import patch
 
 from codex_science.uncertainty_runtime import (
-    _gradient,
     _variance,
     review_uncertainty_propagation,
     run_uncertainty_propagation,
@@ -120,10 +119,17 @@ class UncertaintyValidityTests(unittest.TestCase):
                 self.assertEqual(0.0, _variance([1, 1], [[scale, rounded], [rounded, scale]]))
         self.assertEqual(0.0, _variance([], []))
 
-    def test_step_unstable_derivative_is_refused(self):
-        with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
-            self.propagate("sin(1000000*x)", [("x", 1, 1e-9)])
+    def test_step_unstable_derivative_is_a_linear_review_finding(self):
+        for method in ("linear", "both"):
+            with self.subTest(method=method):
+                result = self.propagate("sin(1000000*x)", [("x", 1, 1e-9)], method=method, samples=1000)
+                finding = next(item for item in result["findings"] if item["code"] == "linearization-derivative-unstable")
+                self.assertEqual("major", finding["severity"])
+                self.assertIn("x", finding["message"])
+                self.assertEqual("findings", result["status"])
+                self.assertEqual(result["findings"], review_uncertainty_propagation(result))
         stable = self.propagate("sin(1000*x)", [("x", 1, 1e-9)], method="linear")
+        self.assertEqual([], stable["findings"])
         self.assertAlmostEqual(1000 * math.cos(1000), stable["linear"]["gradient"][0], delta=0.001)
         zero = self.propagate("x*x", [("x", 0, 1e-9)], method="linear", covariance=[])
         self.assertEqual([0.0], zero["linear"]["gradient"])
@@ -131,53 +137,56 @@ class UncertaintyValidityTests(unittest.TestCase):
             self.propagate("", [("x", 0, 1)])
 
     def test_stationary_cubic_completes_for_all_methods(self):
-        for method in ("linear", "monte-carlo", "both"):
-            with self.subTest(method=method):
-                result = self.propagate("x**3", [("x", 0, 1)], method=method, samples=1000)
-                self.assertEqual([1e-6], result["linear"]["gradient"])
-                if method != "linear":
-                    self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
-                if method == "both":
-                    self.assertIn("nonlinear-propagation-disagreement", {
-                        item["code"] for item in result["findings"]
-                    })
+        for expression in ("x**3", "2*x**3"):
+            for uncertainty in (1, 2, 1e-3, 1e3):
+                for method in ("linear", "monte-carlo", "both"):
+                    with self.subTest(expression=expression, uncertainty=uncertainty, method=method):
+                        result = self.propagate(expression, [("x", 0, uncertainty)], method=method, samples=1000)
+                        expected = (2 if expression == "2*x**3" else 1) * (uncertainty * 1e-3) ** 2
+                        self.assertAlmostEqual(expected, result["linear"]["gradient"][0], delta=expected * 1e-14)
+                        self.assertNotIn("linearization-derivative-unstable", {item["code"] for item in result["findings"]})
+                        if method != "linear":
+                            self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
+                        if method == "both":
+                            self.assertIn("nonlinear-propagation-disagreement", {item["code"] for item in result["findings"]})
 
     def test_monte_carlo_does_not_require_stable_linear_derivatives(self):
         result = self.propagate(
             "sin(1000000*x)", [("x", 1, 1e-9)], method="monte-carlo", samples=1000,
         )
         self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
-        for method in ("linear", "both"):
-            with self.subTest(method=method):
-                with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
-                    self.propagate("sin(1000000*x)", [("x", 1, 1e-9)], method=method, samples=1000)
+        self.assertEqual([], result["findings"])
 
     def test_derivative_stability_relative_limit(self):
-        # Binary steps keep the equality case exact rather than rounding
-        # the derivative difference to just beyond 0.1% of 1000.
         width = 2.0 ** -20
-        for coarse in (999.0, 998.9):
-            with self.subTest(coarse=coarse):
-                values = [coarse * 2 * width, 0.0, 1000 * width, 0.0]
-                with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
-                    if coarse == 999.0:
-                        self.assertEqual([coarse], _gradient("x", ["x"], [width / 1e-6], [0.0]))
-                    else:
-                        with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
-                            _gradient("x", ["x"], [width / 1e-6], [0.0])
+        for change in (0, 0.5, 1, 1.01):
+            for uncertainty in (0.0, 1e-9):
+                with self.subTest(change=change, uncertainty=uncertainty):
+                    # A binary step makes the 1% equality case exact.
+                    values = [0.0, 100 * 2 * width, 0.0, (100 - change) * width, 0.0]
+                    with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
+                        result = self.propagate("x", [("x", width / 1e-6, uncertainty)], method="linear")
+                    self.assertEqual(change > 1 and uncertainty > 0, bool(result["findings"]))
+
+    def test_derivative_stability_uses_total_linear_uncertainty(self):
+        width = 2.0 ** -20
+        values = [0.0, 100 * 2 * width, 0.0, 98 * width, 0.0,
+                  1000 * 2 * width, 0.0, 1000 * width, 0.0]
+        with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
+            result = self.propagate("x+y", [("x", width / 1e-6, 1e-9), ("y", width / 1e-6, 1e-9)], method="linear")
+        self.assertEqual([], result["findings"])
 
     def test_derivative_stability_absolute_floor_boundary(self):
-        width = 2.0 ** -10
-        for factor in (0, 0.5, 1, 1.01):
+        width = 2.0 ** -20
+        floor = 16 * math.ulp(1.0) / width
+        for factor in (0, 0.5, 1, 2):
             with self.subTest(factor=factor):
-                derivative = factor * width ** 2
-                values = [2 * width * derivative, 0.0, 0.0, 0.0]
+                derivative = factor * floor
+                values = [1.0, 1.0 + 2 * width * derivative, 1.0, 1.0, 1.0,
+                          1.0 + 2 * width, 1.0, 1.0 + width, 1.0]
                 with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
-                    if factor <= 1:
-                        self.assertEqual([derivative], _gradient("x", ["x"], [0.0], [width * 1000]))
-                    else:
-                        with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
-                            _gradient("x", ["x"], [0.0], [width * 1000])
+                    result = self.propagate("x+y", [("x", width / 1e-6, 1e-9), ("y", width / 1e-6, 0)], method="linear")
+                self.assertEqual(factor > 1, bool(result["findings"]))
 
     def test_domain_filtering_counterexample_is_a_major_review_finding(self):
         result = self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo")
@@ -214,7 +223,7 @@ class UncertaintyValidityTests(unittest.TestCase):
              "linear", "diagonal covariance conflicts"),
             ("x-y", [("x", 0, 1e-7), ("y", 0, 1e-7)], [{"left": "x", "right": "y", "value": 2e-14}],
              "linear", "not positive semidefinite"),
-            ("sin(1000000*x)", [("x", 1, 1e-9)], [], "linear", "unstable numerical derivative for x"),
+            ("sin(1000000*x)", [("x", 1, 1e-9)], [], "linear", None),
             ("log(x)", [("x", 2, 1)], [], "monte-carlo", None),
         )
         for expression, inputs, covariance, method, error in cases:
@@ -243,7 +252,8 @@ class UncertaintyValidityTests(unittest.TestCase):
                 else:
                     receipt = json.loads(output.read_text(encoding="utf-8"))
                     self.assertEqual("findings", receipt["status"])
-                    self.assertEqual("monte-carlo-domain-filtering", receipt["findings"][0]["code"])
+                    expected = "linearization-derivative-unstable" if method == "linear" else "monte-carlo-domain-filtering"
+                    self.assertEqual(expected, receipt["findings"][0]["code"])
 
 
 if __name__ == "__main__":

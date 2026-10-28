@@ -85,10 +85,13 @@ def _paired_standardized(differences: list[float]) -> float | None:
     return statistics.fmean(differences) / standard_deviation
 
 
-def _extreme(value: float, observed: float, alternative: str, *, tolerance: float | None = None) -> bool:
+def _extreme(
+    value: float, observed: float, alternative: str, *, tolerance: float | None = None,
+    data_scale: float = 0.0,
+) -> bool:
     if tolerance is None:
-        # Tie slack tracks representable precision, including very small effects.
-        tolerance = 4 * math.ulp(max(abs(observed), abs(value)))
+        # Subtracting group summaries can lose precision at the observation scale.
+        tolerance = 4 * math.ulp(max(data_scale, abs(observed), abs(value)))
     if alternative == "two-sided":
         return abs(value) >= abs(observed) - tolerance
     if alternative == "greater":
@@ -139,6 +142,7 @@ def _permutation_independent(
 ) -> tuple[float, int, bool]:
     observed = _estimate(values_a, values_b, measure)
     combined = values_a + values_b
+    data_scale = max(abs(value) for value in combined)
     count_a = len(values_a)
     combinations = math.comb(len(combined), count_a)
     extreme = 0
@@ -149,14 +153,14 @@ def _permutation_independent(
             selected_set = set(selected)
             group_a = [combined[index] for index in selected]
             group_b = [combined[index] for index in indexes if index not in selected_set]
-            extreme += int(_extreme(_estimate(group_a, group_b, measure), observed, alternative))
+            extreme += int(_extreme(_estimate(group_a, group_b, measure), observed, alternative, data_scale=data_scale))
             total += 1
         return extreme / total, total, True
     total = replicates
     for _ in range(replicates):
         shuffled = list(combined)
         randomizer.shuffle(shuffled)
-        extreme += int(_extreme(_estimate(shuffled[:count_a], shuffled[count_a:], measure), observed, alternative))
+        extreme += int(_extreme(_estimate(shuffled[:count_a], shuffled[count_a:], measure), observed, alternative, data_scale=data_scale))
     return (extreme + 1) / (total + 1), total, False
 
 
@@ -169,18 +173,19 @@ def _permutation_paired(
     randomizer: random.Random,
 ) -> tuple[float, int, bool]:
     observed = statistics.fmean(differences) if measure == "mean-difference" else _median(differences)
+    data_scale = max(abs(value) for value in differences)
     combinations = 2 ** len(differences)
     extreme = 0
     if combinations <= MAX_EXACT_PERMUTATIONS:
         for mask in range(combinations):
             signed = [value if mask & (1 << index) else -value for index, value in enumerate(differences)]
             estimate = statistics.fmean(signed) if measure == "mean-difference" else _median(signed)
-            extreme += int(_extreme(estimate, observed, alternative))
+            extreme += int(_extreme(estimate, observed, alternative, data_scale=data_scale))
         return extreme / combinations, combinations, True
     for _ in range(replicates):
         signed = [value if randomizer.random() < 0.5 else -value for value in differences]
         estimate = statistics.fmean(signed) if measure == "mean-difference" else _median(signed)
-        extreme += int(_extreme(estimate, observed, alternative))
+        extreme += int(_extreme(estimate, observed, alternative, data_scale=data_scale))
     return (extreme + 1) / (replicates + 1), replicates, False
 
 

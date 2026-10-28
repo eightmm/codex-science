@@ -41,7 +41,7 @@ The runtime computes:
 - optional Benjamini-Hochberg q-values for an externally declared family;
 - raw row count, missing count, independent-unit count, duplicate aggregation, and incomplete-pair exclusions.
 
-Randomization comparisons use a tolerance tied to floating-point precision at the effect scale. Non-finite computed effects, bootstrap estimates, intervals, and standardized effects are refused before a completed receipt is returned. Receipt validation also checks probability ranges (`confidence_level` in `(0.5, 1)`, p-values and q-values in `[0, 1]`) and non-negative integer counts, refusing boolean counts.
+Randomization comparisons allow four ulps at the largest absolute observation or compared effect, including the within-pair differences for sign flips. This accounts for cancellation when group summaries are subtracted while retaining scale-sensitive ties for very small data. Non-finite computed effects, bootstrap estimates, intervals, and standardized effects are refused before a completed receipt is returned. Receipt validation also checks probability ranges (`confidence_level` in `(0.5, 1)`, p-values and q-values in `[0, 1]`) and non-negative integer counts, refusing boolean counts.
 
 The input requires an explicit seed even when an exact test is possible, so all stochastic interval work remains reproducible.
 
