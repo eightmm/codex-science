@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `dimension-check` equations now refuse multiplying, dividing, exponentiating (power other than 1) or taking `sqrt` of a variable declared in an affine unit such as `degC`; previously only unit arithmetic enforced this.
 - An exploratory real-run reviewer seeded-defect probe caught 6/6 planted defects at major or higher with no major/critical control finding; one response per variant, not a sensitivity estimate (see `docs/EVALUATION.md`).
 - Study-table builds now reject integer excerpt locator lines that do not intersect the quoted source text, and unknown record IDs point users to screen records before extraction.
 - L4 executable acceptance now covers five additional skills: dimensional
