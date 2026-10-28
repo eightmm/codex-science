@@ -19,13 +19,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path, help="run manifest JSON (schema_version 1 with run_id, question, plan, inputs, code, executions, environment, artifacts, claims, review); "
         "artifact files and sidecars are validated before export")
-    parser.add_argument("output", type=Path, help="export directory (created if absent); writes ro-crate-metadata.json, prov.json and scientific-bom.json")
-    parser.add_argument("--receipt", type=Path, required=True, help="output path for the receipt JSON: exports[] with name, path, sha256 and size_bytes")
+    parser.add_argument("output", type=Path, help="export directory (created if absent); writes ro-crate-metadata.json, prov.json, scientific-bom.json and export-receipt.json; "
+        "destinations preserve the manifest, listed artifacts and their contents, and descriptor files, including symlink and hard-link aliases")
+    parser.add_argument("--receipt", type=Path, required=True, help="separate output file for the receipt JSON: exports[] with name, path, sha256 and size_bytes; "
+        "preserves the manifest, listed artifacts and their contents, and descriptor files; must differ from all export outputs, including aliases; existing directories refused")
     args = parser.parse_args()
     try:
-        receipt = export_run(args.manifest, args.output)
-        args.receipt.parent.mkdir(parents=True, exist_ok=True)
-        args.receipt.write_text(json.dumps(receipt, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+        export_run(args.manifest, args.output, receipt_path=args.receipt)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}{digest_mismatch_hint(error, args.manifest.resolve().parent)}", file=sys.stderr)
         return 1

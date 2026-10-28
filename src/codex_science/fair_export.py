@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -189,23 +190,57 @@ def build_scientific_bom(manifest: Mapping[str, Any], sidecars: Mapping[str, Any
     }
 
 
-def export_run(manifest_path: Path, output_dir: Path, *, exported_at: str | None = None) -> dict[str, Any]:
+def _same_file(left: Path, right: Path) -> bool:
+    return left == right or (left.exists() and right.exists() and os.path.samefile(left, right))
+
+
+def export_run(
+    manifest_path: Path, output_dir: Path, *, exported_at: str | None = None,
+    receipt_path: Path | None = None,
+) -> dict[str, Any]:
+    """Export metadata and optional extra receipt after checking all destinations.
+
+    Destinations must preserve the manifest, listed artifacts and their contents,
+    and descriptor files, including symlink and hard-link aliases. The extra
+    receipt must differ from every export output and cannot be an existing
+    directory. Preflight rejection creates no files.
+    """
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("manifest must be an object")
     sidecars = validate_bundle(manifest, manifest_path.parent)
     output_dir = output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = exported_at or _now()
-    ro_crate = build_ro_crate(manifest, exported_at=timestamp)
-    prov = build_prov(manifest, exported_at=timestamp)
-    bom = build_scientific_bom(manifest, sidecars, exported_at=timestamp)
     files = {
         "ro_crate": output_dir / "ro-crate-metadata.json",
         "prov": output_dir / "prov.json",
         "scientific_bom": output_dir / "scientific-bom.json",
     }
+    receipt_paths = [output_dir / "export-receipt.json"]
+    if receipt_path is not None:
+        receipt_paths.append(receipt_path)
+    protected_paths = {manifest_path}
+    for item in manifest["artifacts"]:
+        artifact_path = (manifest_path.parent / item["path"]).resolve()
+        protected_paths.add(artifact_path)
+        if item.get("artifact_type") == "directory-tree":
+            protected_paths.update(path.resolve() for path in artifact_path.rglob("*") if path.is_file())
+        if item.get("descriptor_path") is not None:
+            protected_paths.add((manifest_path.parent / str(item["descriptor_path"])).resolve())
+    for destination in [*files.values(), *receipt_paths]:
+        resolved = destination.resolve()
+        if any(path in resolved.parents or _same_file(path, resolved) for path in protected_paths):
+            raise ValueError(f"export destination overlaps protected bundle path: {str(destination)!r}")
+    if receipt_path is not None:
+        resolved_receipt = receipt_path.resolve()
+        if resolved_receipt.is_dir():
+            raise ValueError(f"receipt destination is an existing directory: {str(receipt_path)!r}")
+        if any(_same_file(resolved_receipt, path.resolve()) for path in [*files.values(), receipt_paths[0]]):
+            raise ValueError(f"receipt destination overlaps export output: {str(receipt_path)!r}")
+    timestamp = exported_at or _now()
+    ro_crate = build_ro_crate(manifest, exported_at=timestamp)
+    prov = build_prov(manifest, exported_at=timestamp)
+    bom = build_scientific_bom(manifest, sidecars, exported_at=timestamp)
     _write_json(files["ro_crate"], ro_crate)
     _write_json(files["prov"], prov)
     _write_json(files["scientific_bom"], bom)
@@ -227,5 +262,6 @@ def export_run(manifest_path: Path, output_dir: Path, *, exported_at: str | None
         "evidence_boundary": "The export packages validated recorded metadata. It does not certify RO-Crate, W3C PROV, regulatory, or legal compliance."
     }
     receipt = {**receipt_material, "fingerprint": _sha(receipt_material)}
-    _write_json(output_dir / "export-receipt.json", receipt)
+    for path in receipt_paths:
+        _write_json(path, receipt)
     return receipt

@@ -1,14 +1,237 @@
 import hashlib
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from codex_science.artifact_store import describe_directory
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
 from codex_science.fair_export import export_run
 
 
+CLI = Path(__file__).resolve().parents[1] / "scripts" / "export_scientific_run.py"
+EXPORT_FILES = ("ro-crate-metadata.json", "prov.json", "scientific-bom.json", "export-receipt.json")
+
+
 class FairExportTests(unittest.TestCase):
+    def _bundle(self, root: Path, artifact_name: str = "result.csv") -> Path:
+        run = root / "run"
+        run.mkdir()
+        artifact = run / artifact_name
+        artifact.write_bytes(b"recorded artifact\n")
+        manifest = new_manifest("run-fair", "Q", [])
+        add_artifact(manifest, artifact_name, kind="result", sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+        path = run / "manifest.json"
+        write_manifest(manifest, path)
+        return path
+
+    def _snapshot(self, root: Path) -> dict[str, bytes | None]:
+        return {str(path.relative_to(root)): path.read_bytes() if path.is_file() else None
+                for path in root.rglob("*")}
+
+    def _refused(self, manifest: Path, output: Path, receipt: Path, root: Path,
+                 error: str = "export destination overlaps protected bundle path:") -> None:
+        before = self._snapshot(root)
+        result = subprocess.run(
+            [sys.executable, str(CLI), str(manifest), str(output), "--receipt", str(receipt)],
+            capture_output=True, text=True, check=False,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertEqual("", result.stdout)
+        self.assertEqual(1, len(result.stderr.splitlines()), result.stderr)
+        self.assertIn("error: " + error, result.stderr)
+        self.assertEqual(before, self._snapshot(root))
+
+    def _descriptor_bundle(self, root: Path, name: str = "descriptor.json", *, external: bool = False) -> Path:
+        manifest_path = self._bundle(root)
+        tree = manifest_path.parent / "tree"
+        tree.mkdir()
+        (tree / "frame.bin").write_bytes(b"recorded frame\n")
+        descriptor = describe_directory(tree)
+        descriptor_path = manifest_path.parent / name
+        if external:
+            target = root / "external-descriptor.json"
+            descriptor_path.symlink_to(target)
+        descriptor_path.write_text(json.dumps(descriptor.to_dict()))
+        manifest = json.loads(manifest_path.read_text())
+        add_artifact(manifest, "tree", kind="result", artifact_type="directory-tree",
+                     sha256=descriptor.root_sha256, descriptor_path=name)
+        write_manifest(manifest, manifest_path)
+        return manifest_path
+
+    def test_descriptor_destinations_are_refused_before_any_writes(self) -> None:
+        for destination in ("receipt", "output"):
+            for external in (False, True):
+                with self.subTest(destination=destination, external=external), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    name = "prov.json" if destination == "output" else "descriptor.json"
+                    manifest = self._descriptor_bundle(root, name, external=external)
+                    receipt = root / "receipt.json"
+                    output = manifest.parent if destination == "output" else root / "absent" / "export"
+                    if destination == "receipt":
+                        receipt = (manifest.parent / name).resolve()
+                    self._refused(manifest, output, receipt, root)
+
+    def test_hard_links_refuse_all_protected_bundle_files(self) -> None:
+        for target in ("manifest.json", "result.csv", "descriptor.json", "tree/frame.bin"):
+            for destination in ("receipt", *EXPORT_FILES):
+                with self.subTest(target=target, destination=destination), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._descriptor_bundle(root)
+                    output = root / "export"
+                    receipt = root / "receipt.json"
+                    linked = receipt
+                    if destination != "receipt":
+                        output.mkdir()
+                        linked = output / destination
+                    os.link(manifest.parent / target, linked)
+                    self._refused(manifest, output, receipt, root)
+
+    def test_receipt_refuses_own_export_output_files(self) -> None:
+        for name in EXPORT_FILES:
+            for alias in ("direct", "symlink", "hardlink"):
+                for content in (b"", b"0", b"{"):
+                    with self.subTest(name=name, alias=alias, content=content), tempfile.TemporaryDirectory() as tempdir:
+                        root = Path(tempdir)
+                        manifest = self._bundle(root)
+                        output = root / "export"
+                        output.mkdir()
+                        target = output / name
+                        target.write_bytes(content)
+                        receipt = target
+                        if alias != "direct":
+                            receipt = root / "receipt-alias.json"
+                            if alias == "symlink":
+                                receipt.symlink_to(target)
+                            else:
+                                os.link(target, receipt)
+                        self._refused(manifest, output, receipt, root,
+                                      "receipt destination overlaps export output:")
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = self._bundle(root)
+            output = root / "absent" / "export"
+            self._refused(manifest, output, output / "prov.json", root,
+                          "receipt destination overlaps export output:")
+
+    def test_receipt_refuses_existing_directories_before_any_writes(self) -> None:
+        for empty in (False, True):
+            for alias in (False, True):
+                with self.subTest(empty=empty, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root)
+                    directory = root / "receipts"
+                    directory.mkdir()
+                    if not empty:
+                        (directory / "record.json").write_bytes(b"0")
+                    receipt = directory
+                    if alias:
+                        receipt = root / "receipt-alias"
+                        receipt.symlink_to(directory, target_is_directory=True)
+                    self._refused(manifest, root / "absent" / "export", receipt, root,
+                                  "receipt destination is an existing directory:")
+
+    def test_receipt_refuses_manifest_and_artifact_before_any_writes(self) -> None:
+        for name in ("manifest.json", "result.csv"):
+            for alias in (False, True):
+                with self.subTest(name=name, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root)
+                    receipt = manifest.parent / name
+                    if alias:
+                        receipt = root / "receipt-alias.json"
+                        receipt.symlink_to(manifest.parent / name)
+                    self._refused(manifest, root / "absent" / "export", receipt, root)
+
+    def test_bundle_output_refuses_each_listed_export_artifact(self) -> None:
+        for name in EXPORT_FILES:
+            for alias in (False, True):
+                with self.subTest(name=name, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root, name)
+                    output = manifest.parent
+                    if alias:
+                        output = root / "output-alias"
+                        output.symlink_to(manifest.parent, target_is_directory=True)
+                    self._refused(manifest, output, root / "receipt.json", root)
+
+    def test_export_file_symlinks_refuse_manifest_and_artifact(self) -> None:
+        for name in EXPORT_FILES:
+            for target in ("manifest.json", "result.csv"):
+                with self.subTest(name=name, target=target), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root)
+                    output = root / "export"
+                    output.mkdir()
+                    (output / name).symlink_to(manifest.parent / target)
+                    self._refused(manifest, output, root / "receipt.json", root)
+
+    def test_directory_artifact_refuses_export_and_receipt_inside_it(self) -> None:
+        for empty in (False, True):
+            for destination in ("output", "receipt", "directory-itself"):
+                with self.subTest(empty=empty, destination=destination), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest_path = self._bundle(root)
+                    tree = manifest_path.parent / "tree"
+                    tree.mkdir()
+                    if not empty:
+                        (tree / "prov.json").write_bytes(b"recorded tree entry\n")
+                    manifest = json.loads(manifest_path.read_text())
+                    add_artifact(manifest, "tree", kind="result", artifact_type="directory-tree",
+                                 sha256=describe_directory(tree).root_sha256)
+                    write_manifest(manifest, manifest_path)
+                    output = tree / "new-export" if destination == "output" else root / "export"
+                    receipt = root / "receipt.json"
+                    if destination == "receipt":
+                        receipt = tree / "receipt.json"
+                    elif destination == "directory-itself":
+                        receipt = tree
+                    self._refused(manifest_path, output, receipt, root)
+
+    def test_empty_artifact_list_protects_manifest_and_allows_honest_export(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest_path = self._bundle(root)
+            manifest = json.loads(manifest_path.read_text())
+            manifest["artifacts"] = []
+            write_manifest(manifest, manifest_path)
+            before = manifest_path.read_bytes()
+            for malformed in (b"", b"0", b"{"):
+                with self.subTest(malformed=malformed):
+                    manifest_path.write_bytes(malformed)
+                    snapshot = self._snapshot(root)
+                    result = subprocess.run(
+                        [sys.executable, str(CLI), str(manifest_path), str(root / "export"),
+                         "--receipt", str(root / "receipt.json")],
+                        capture_output=True, text=True, check=False,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(1, len(result.stderr.splitlines()), result.stderr)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertEqual(snapshot, self._snapshot(root))
+            manifest_path.write_bytes(before)
+            self._refused(manifest_path, root / "export", manifest_path, root)
+            # Exporting beside the manifest is safe when no listed path collides.
+            result = subprocess.run(
+                [sys.executable, str(CLI), str(manifest_path), str(manifest_path.parent),
+                 "--receipt", str(root / "receipts" / "extra.json")],
+                capture_output=True, text=True, check=False,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stderr)
+            self.assertEqual(before, manifest_path.read_bytes())
+            self.assertEqual((manifest_path.parent / "export-receipt.json").read_bytes(),
+                             (root / "receipts" / "extra.json").read_bytes())
+            for name in EXPORT_FILES:
+                self.assertTrue((manifest_path.parent / name).is_file())
+
     def test_validated_run_exports_ro_crate_prov_bom_and_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
