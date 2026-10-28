@@ -251,12 +251,13 @@ def build_study_table(
         evidence_path = None
         screening_content = b""
         try:
-            evidence_relative = _relative_path(screening_row.get("evidence_artifact"), f"{record_id} evidence_artifact")
-            evidence_path = _safe_file(root, evidence_relative)
-            assert evidence_path is not None
-            screening_content = evidence_path.read_bytes()
-            if hashlib.sha256(screening_content).hexdigest() != screening_row.get("evidence_sha256"):
-                raise ValueError(f"{record_id}: evidence_sha256 does not match screening evidence_artifact; rerun screening")
+            if screening_row.get("evidence_artifact") is not None:
+                evidence_relative = _relative_path(screening_row["evidence_artifact"], f"{record_id} evidence_artifact")
+                evidence_path = _safe_file(root, evidence_relative)
+                assert evidence_path is not None
+                screening_content = evidence_path.read_bytes()
+                if hashlib.sha256(screening_content).hexdigest() != screening_row.get("evidence_sha256"):
+                    raise ValueError(f"{record_id}: evidence_sha256 does not match screening evidence_artifact; rerun screening")
         except (ValueError, OSError, TypeError) as error:
             problems.append(str(error))
         ids_a = screening_row.get("identifiers", [])

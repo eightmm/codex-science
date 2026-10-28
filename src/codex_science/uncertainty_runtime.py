@@ -58,7 +58,10 @@ def _cholesky(matrix: list[list[float]], *, tolerance: float = 1e-12) -> list[li
     return lower
 
 
-def _gradient(expression: str, names: list[str], means: list[float], uncertainties: list[float]) -> list[float]:
+def _gradient(
+    expression: str, names: list[str], means: list[float], uncertainties: list[float],
+    *, check_stability: bool = True,
+) -> list[float]:
     parsed = parse_expression(expression, allowed_names=names)
     gradient: list[float] = []
     for index, name in enumerate(names):
@@ -77,9 +80,14 @@ def _gradient(expression: str, names: list[str], means: list[float], uncertainti
                 raise ValueError(f"non-finite numerical derivative for {name}")
             derivatives.append(derivative)
             values.extend((high, low))
-        # Allow subtraction roundoff without imposing a dimensionful absolute floor.
+        # Central differences have O(step**2) truncation near stationary points.
+        function_scale = max(1.0, *(abs(value) for value in values))
         roundoff = 16.0 * math.ulp(max(abs(value) for value in values)) / step
-        if not math.isclose(derivatives[0], derivatives[1], rel_tol=1e-3, abs_tol=roundoff):
+        input_scale = max(1.0, abs(means[index]), uncertainties[index])
+        truncation = function_scale * (step / input_scale) ** 2 / input_scale
+        if check_stability and not math.isclose(
+            derivatives[0], derivatives[1], rel_tol=1e-3, abs_tol=max(roundoff, truncation),
+        ):
             raise ValueError(f"unstable numerical derivative for {name}")
         gradient.append(derivatives[0])
     return gradient
@@ -193,7 +201,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         monte_carlo_mean = None
         monte_carlo_uncertainty = None
         interval = None
-    gradient = _gradient(expression, names, means, uncertainties)
+    gradient = _gradient(expression, names, means, uncertainties, check_stability=method != "monte-carlo")
     linear_variance = _variance(gradient, covariance)
     linear_uncertainty = math.sqrt(linear_variance)
     sensitivities = []

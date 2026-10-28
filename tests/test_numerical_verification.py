@@ -1,4 +1,6 @@
 import copy
+import math
+import struct
 import unittest
 
 from codex_science.numerical_verification import (
@@ -170,7 +172,7 @@ class NumericalVerificationContractTests(unittest.TestCase):
                     validate_numerical_verification(changed)
                 self.assertIn(message, str(caught.exception))
 
-    def test_estimate_differences_without_reference_report_unavailable_order(self) -> None:
+    def test_estimate_differences_without_reference_report_order(self) -> None:
         payload = self.payload(
             reference_value=None,
             refinements=[
@@ -184,19 +186,22 @@ class NumericalVerificationContractTests(unittest.TestCase):
         )
         result = run_numerical_verification(payload)
         codes = {item["code"] for item in result["findings"]}
-        self.assertIn("observed-order-unavailable", codes)
+        self.assertAlmostEqual(math.log2(1 + math.sqrt(3)), result["observed_orders"][0])
         self.assertIn("floating-precision-unstated", codes)
         self.assertIn("solver-tolerance-unstated", codes)
         self.assertIsNone(result["error_monotone"])
-        self.assertEqual("findings", result["status"])
+        self.assertEqual("passed", result["status"])
 
-    def test_unequal_refinement_ratios_do_not_invent_order(self) -> None:
-        for gap, expected in ((0, "passed"), (0.5e-12, "passed"), (2e-12, "findings")):
+    def test_unequal_refinement_ratios_solve_power_model(self) -> None:
+        for gap, expected in ((0, "passed"), (0.5e-12, "passed"), (2e-12, "passed")):
             receipt = run_numerical_verification(self.payload(
                 reference_value=None, thresholds={"minimum_order": 0},
                 refinements=[{"resolution": h, "estimate": h} for h in (4 * (1 + gap), 2, 1)],
             ))
             self.assertEqual(expected, receipt["status"])
+            if gap <= 0.5e-12:
+                expected_order = math.log((2 + 4 * gap) / 1) / math.log(2 * (1 + gap))
+                self.assertEqual(expected_order, receipt["observed_orders"][0])
         equal_order = self.payload(reference_value=None, thresholds={"minimum_order": 1}, refinements=[
             {"resolution": h, "estimate": h} for h in (1, 0.5, 0.25)
         ])
@@ -204,13 +209,46 @@ class NumericalVerificationContractTests(unittest.TestCase):
         equal_order["thresholds"] = {}
         equal_order["refinements"][-1]["estimate"] = 0.5
         self.assertEqual("passed", run_numerical_verification(equal_order)["status"])
+
+    def test_critic_unequal_grid_reports_first_order(self) -> None:
         result = run_numerical_verification(self.payload(
             reference_value=None, thresholds={"minimum_order": 2},
             refinements=[{"resolution": h, "estimate": h} for h in (1.0302, 1.01, 1)],
         ))
-        self.assertEqual([], result["observed_orders"])
+        self.assertAlmostEqual(1, result["observed_orders"][0])
         self.assertEqual("findings", result["status"])
-        self.assertIn("observed-order-unavailable", {item["code"] for item in result["findings"]})
+        self.assertIn("convergence-order-below-threshold", {item["code"] for item in result["findings"]})
+
+    def test_binary32_grid_reports_second_order(self) -> None:
+        grid = [struct.unpack("f", struct.pack("f", h))[0] for h in (0.09, 0.03, 0.01)]
+        result = run_numerical_verification(self.payload(
+            reference_value=None, thresholds={"minimum_order": 1.8},
+            refinements=[{"resolution": h, "estimate": 1 + h * h} for h in grid],
+        ))
+        self.assertEqual("passed", result["status"])
+        self.assertAlmostEqual(2, result["observed_orders"][0], places=8)
+
+    def test_unequal_ratio_root_bracket_boundaries(self) -> None:
+        # h1/h2=4 and h2/h3=2 make the difference ratio t*(t+1), t=2**p.
+        for order in (-65, -64, -1, 0, 1, 64, 65):
+            with self.subTest(order=order):
+                ratio = 2.0 ** order * (2.0 ** order + 1)
+                result = run_numerical_verification(self.payload(
+                    reference_value=None, thresholds={"minimum_order": -100},
+                    refinements=[{"resolution": h, "estimate": q}
+                                 for h, q in ((4, ratio), (1, 0), (0.5, -1))],
+                ))
+                if abs(order) > 64:
+                    self.assertEqual([], result["observed_orders"])
+                    self.assertIn("observed-order-unavailable", {f["code"] for f in result["findings"]})
+                else:
+                    self.assertAlmostEqual(order, result["observed_orders"][0], places=10)
+        for estimates in ((0, 0, 0), (1, 0, 1)):
+            result = run_numerical_verification(self.payload(
+                reference_value=None, thresholds={"minimum_order": 0},
+                refinements=[{"resolution": h, "estimate": q} for h, q in zip((4, 1, 0.5), estimates)],
+            ))
+            self.assertEqual([], result["observed_orders"])
 
     def test_stalled_tail_cannot_pass_minimum_order(self) -> None:
         for reference in (None, 1.01):

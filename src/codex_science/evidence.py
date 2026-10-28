@@ -361,6 +361,8 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                         "expected: 20..2000 characters; quote only the verbatim "
                         "claim-bearing sentences, not the whole abstract"
                     )
+                if not text.strip():
+                    raise ValueError(f"{label} excerpt text must be non-blank")
                 try:
                     source_artifact = _text(excerpt["source_artifact"], f"{label} source_artifact")
                 except (KeyError, ValueError) as error:

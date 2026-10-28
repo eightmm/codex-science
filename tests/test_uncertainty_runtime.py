@@ -130,6 +130,28 @@ class UncertaintyValidityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.propagate("", [("x", 0, 1)])
 
+    def test_stationary_cubic_completes_for_all_methods(self):
+        for method in ("linear", "monte-carlo", "both"):
+            with self.subTest(method=method):
+                result = self.propagate("x**3", [("x", 0, 1)], method=method, samples=1000)
+                self.assertEqual([1e-6], result["linear"]["gradient"])
+                if method != "linear":
+                    self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
+                if method == "both":
+                    self.assertIn("nonlinear-propagation-disagreement", {
+                        item["code"] for item in result["findings"]
+                    })
+
+    def test_monte_carlo_does_not_require_stable_linear_derivatives(self):
+        result = self.propagate(
+            "sin(1000000*x)", [("x", 1, 1e-9)], method="monte-carlo", samples=1000,
+        )
+        self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
+        for method in ("linear", "both"):
+            with self.subTest(method=method):
+                with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
+                    self.propagate("sin(1000000*x)", [("x", 1, 1e-9)], method=method, samples=1000)
+
     def test_derivative_stability_relative_limit(self):
         # Binary steps keep the equality case exact rather than rounding
         # the derivative difference to just beyond 0.1% of 1000.
@@ -143,6 +165,19 @@ class UncertaintyValidityTests(unittest.TestCase):
                     else:
                         with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
                             _gradient("x", ["x"], [width / 1e-6], [0.0])
+
+    def test_derivative_stability_absolute_floor_boundary(self):
+        width = 2.0 ** -10
+        for factor in (0, 0.5, 1, 1.01):
+            with self.subTest(factor=factor):
+                derivative = factor * width ** 2
+                values = [2 * width * derivative, 0.0, 0.0, 0.0]
+                with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
+                    if factor <= 1:
+                        self.assertEqual([derivative], _gradient("x", ["x"], [0.0], [width * 1000]))
+                    else:
+                        with self.assertRaisesRegex(ValueError, "unstable numerical derivative for x"):
+                            _gradient("x", ["x"], [0.0], [width * 1000])
 
     def test_domain_filtering_counterexample_is_a_major_review_finding(self):
         result = self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo")

@@ -49,9 +49,44 @@ def _difference_orders(resolutions: list[float], estimates: list[float]) -> list
         if first <= 0 or second <= 0 or ratio_1 <= 1 or ratio_2 <= 1:
             continue
         if not math.isclose(ratio_1, ratio_2, rel_tol=1e-12, abs_tol=0.0):
+            if (estimates[index] > estimates[index + 1]) != (estimates[index + 1] > estimates[index + 2]):
+                continue
+            order = _unequal_difference_order(math.log(ratio_1), math.log(ratio_2), math.log(first) - math.log(second))
+            if order is not None:
+                orders.append(order)
             continue
         orders.append(math.log(first / second) / math.log(ratio_1))
     return orders
+
+
+def _unequal_difference_order(log_ratio_1: float, log_ratio_2: float, target: float) -> float | None:
+    """Fit Q0 + C*h**p on [-64, 64] with at most 80 bisections.
+
+    The log difference ratio is strictly increasing in p. Its continuous
+    p=0 limit is log(log_ratio_1/log_ratio_2); exponential differences are
+    evaluated with expm1 to avoid cancellation and overflow.
+    """
+    def log_difference_ratio(order: float) -> float:
+        if order == 0:
+            return math.log(log_ratio_1 / log_ratio_2)
+        width = abs(order)
+        offset = order * (log_ratio_1 if order > 0 else log_ratio_2)
+        return (offset + math.log(-math.expm1(-width * log_ratio_1))
+                - math.log(-math.expm1(-width * log_ratio_2)))
+
+    lower, upper = -64.0, 64.0
+    if not log_difference_ratio(lower) <= target <= log_difference_ratio(upper):
+        return None
+    for _ in range(80):
+        middle = (lower + upper) / 2.0
+        value = log_difference_ratio(middle)
+        if value == target:
+            return middle
+        if value < target:
+            lower = middle
+        else:
+            upper = middle
+    return (lower + upper) / 2.0
 
 
 def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:

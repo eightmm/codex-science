@@ -33,7 +33,7 @@ With a complete error series, adjacent observed order is
 p_i = log(e_i/e_{i+1}) / log(h_i/h_{i+1})
 ```
 
-Without a reference, the runtime may estimate order from three successive solutions only when adjacent refinement ratios agree within relative tolerance `1e-12`. At least three levels are required for an order claim. Unequal ratios do not support this equal-ratio estimator.
+Without a reference, the runtime estimates order from three successive solutions. When adjacent refinement ratios agree within relative tolerance `1e-12`, it preserves the closed-form equal-ratio estimator. Otherwise it fits `Q = Q0 + C*h^p` by solving `(h1^p - h2^p)/(h2^p - h3^p) = (Q1 - Q2)/(Q2 - Q3)`. A monotone log-space bisection on `[-64, 64]` uses at most 80 iterations, evaluating the zero-order limit continuously and using `expm1` to avoid exponential cancellation and overflow. No order is reported when the root lies outside the bracket, differences have opposite signs, or a difference is zero. At least three levels are required for an order claim.
 
 The validator reports non-refining sequences, incomplete errors, nonmonotone error, unavailable order, and order below threshold. Zero error or coincident solutions may make an order undefined; do not invent one.
 

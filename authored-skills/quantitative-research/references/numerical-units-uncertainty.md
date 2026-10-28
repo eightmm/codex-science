@@ -57,7 +57,7 @@ Input:
 }
 ```
 
-Resolution must strictly decrease from coarse to fine. If `error` is absent and `reference_value` is present, absolute error is computed. Without a reference, observed order is estimated from successive solution differences only when adjacent refinement ratios are approximately equal.
+Resolution must strictly decrease from coarse to fine. If `error` is absent and `reference_value` is present, absolute error is computed. Without a reference, observed order uses the closed-form successive-difference estimator when adjacent refinement ratios agree within relative tolerance `1e-12`. Otherwise, a monotone log-space bisection fits `Q = Q0 + C*h^p` on `[-64, 64]` with at most 80 iterations; no order is reported for an unbracketed root or opposite-sign differences. The zero-order limit is evaluated continuously.
 
 The receipt detects:
 
@@ -146,7 +146,7 @@ The receipt reports nominal value, gradient, covariance, variance contributions,
 
 A covariance matrix must be positive semidefinite. Supplied diagonals must agree with `standard_uncertainty^2` within relative tolerance `1e-9` without an absolute floor; the derived diagonal is retained. Correlation bounds and factorization residuals use scale-relative tolerance `1e-12`, and small positive pivots preserve supplied correlations. Materially negative propagated variance is refused relative to the sum of absolute covariance contributions.
 
-Every method checks central finite-difference derivatives against estimates at half the original step. A discrepancy exceeding 0.1% of the larger magnitude, allowing subtraction roundoff of 16 output-value ulps divided by the original step, raises `ValueError` (`unstable numerical derivative for <name>`). This is a bounded stability check, not proof of derivative accuracy; stable outputs retain their original derivatives.
+`linear` and `both` check central finite-difference derivatives against estimates at half the original step. A discrepancy exceeding 0.1% of the larger magnitude raises `ValueError` (`unstable numerical derivative for <name>`), allowing the larger of subtraction roundoff (16 output-value ulps divided by the original step) and the stationary-point truncation floor `function_scale * (step / input_scale)^2 / input_scale`, with `function_scale = max(1, absolute sampled function values)` and `input_scale = max(1, absolute input mean, input uncertainty)`. Monte Carlo-only propagation retains the original linear fields but does not enforce derivative stability. This is a bounded stability check, not proof of derivative accuracy; stable outputs retain their original derivatives.
 
 Monte Carlo requires an explicit seed. Any failed sample adds `monte-carlo-domain-filtering`, stating that reported statistics are conditional on accepted samples. Failed fractions of at least 1% of requested samples produce a major finding and status `findings`; smaller nonzero fractions produce a minor finding, which alone leaves status `passed` even with `--require-clean`. The Gaussian model, standard uncertainties, and covariance are scientific assumptions, not facts established by the runtime.
 

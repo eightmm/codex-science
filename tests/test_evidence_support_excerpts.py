@@ -42,6 +42,20 @@ class EvidenceSupportExcerptTests(unittest.TestCase):
                            "source_sha256": "a" * 64})
             self.assertEqual(text, _validate_study_table(table)["S1"]["support_excerpts"][0]["text"])
 
+    def test_blank_excerpt_with_valid_source_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            content = b"A sufficiently long quoted sentence."
+            (root / "source.txt").write_bytes(content)
+            for text in (" " * 20, "\t\n" * 10, " " * 2000):
+                for run_dir in (None, root):
+                    with self.subTest(text=text, bound=run_dir is not None):
+                        with self.assertRaisesRegex(ValueError, "non-blank"):
+                            _validate_study_table(study({
+                                "claim_id": "C1", "text": text, "source_artifact": "source.txt",
+                                "source_sha256": hashlib.sha256(content).hexdigest(),
+                            }), run_dir)
+
     def test_locator_line_source_bounds_preserve_optional_untyped_keys(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

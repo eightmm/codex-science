@@ -138,6 +138,32 @@ class BuildStudyTableTests(unittest.TestCase):
             build_study_table(self.root, self.extraction)
         self.assertEqual(before, (self.root / "studies.json").read_bytes())
 
+    def test_title_screening_without_evidence_uses_extraction_source(self):
+        screening_path = self.root / "screening.json"
+        screening = json.loads(screening_path.read_text())
+        screening["records"][0].update(stage="title", evidence_artifact=None, evidence_sha256=None)
+        screening_path.write_text(json.dumps(screening))
+        extraction = json.loads(self.extraction.read_text())
+        extraction["studies"][0]["excerpts"][0]["source_artifact"] = self.candidate["abstract_artifact"]
+        self.extraction.write_text(json.dumps(extraction))
+        first = build_study_table(self.root, self.extraction)
+        before = (self.root / "studies.json").read_bytes()
+        self.assertEqual(first, build_study_table(self.root, self.extraction))
+        self.assertEqual(before, (self.root / "studies.json").read_bytes())
+        _validate_study_table(json.loads(before), self.root)
+        self.assertEqual(1, first["counts"]["excerpts"])
+        for source in (None, "", 0, "missing.txt"):
+            with self.subTest(source=source):
+                extraction["studies"][0]["excerpts"][0]["source_artifact"] = source
+                self.extraction.write_text(json.dumps(extraction))
+                with self.assertRaises(ValueError):
+                    build_study_table(self.root, self.extraction)
+                self.assertEqual(before, (self.root / "studies.json").read_bytes())
+        screening["records"][0]["evidence_artifact"] = ""
+        screening_path.write_text(json.dumps(screening))
+        with self.assertRaisesRegex(ValueError, "evidence_artifact"):
+            build_study_table(self.root, self.extraction)
+
     def test_nonfinite_extraction_fields_are_refused_recursively(self):
         extraction = json.loads(self.extraction.read_text())
         for value in (float("inf"), float("-inf"), float("nan"), 1e999):
