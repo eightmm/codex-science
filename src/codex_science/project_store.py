@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Mapping
 
-from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
-from codex_science.collaboration import diff_runs
+from codex_science.collaboration import _resolve_json_pointer, diff_runs
+from codex_science.connector_contract import canonical_json_bytes
 
 
 SCHEMA_VERSION = 1
@@ -304,12 +304,13 @@ class ProjectStore:
         project_id = _text(project_id, "project_id")
         branch_name = _text(branch_name, "branch_name")
         manifest_path = manifest_path.resolve()
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
         if not isinstance(manifest, dict):
             raise ValueError("run manifest must be an object")
         validate_bundle(manifest, manifest_path.parent)
         run_id = _text(manifest.get("run_id"), "manifest run_id")
-        digest, _size = stream_sha256(manifest_path)
+        digest = hashlib.sha256(manifest_bytes).hexdigest()
         question = _text(manifest.get("question"), "manifest question")
         review_status = str(manifest.get("review", {}).get("status", "unknown"))
         imported_at = _now()
@@ -410,7 +411,7 @@ class ProjectStore:
         locator_payload = _json_object(locator, "locator")
         artifact_path = _relative(locator_payload.get("artifact_path"), "locator artifact_path")
         artifact_sha = _sha(locator_payload.get("artifact_sha256"), "locator artifact_sha256")
-        if not any(locator_payload.get(field) not in (None, "") for field in ("page", "table", "figure", "cell", "json_pointer", "line_range", "record_id")):
+        if "json_pointer" not in locator_payload and not any(locator_payload.get(field) not in (None, "") for field in ("page", "table", "figure", "cell", "line_range", "record_id")):
             raise ValueError("assertion locator needs a page, table, figure, cell, JSON pointer, line range, or record ID")
         locator_payload["artifact_path"] = artifact_path
         locator_payload["artifact_sha256"] = artifact_sha
@@ -442,15 +443,25 @@ class ProjectStore:
         fingerprint = _sha256_json(material)
         assertion_id = f"assertion-{fingerprint[:20]}"
         with self.connect() as connection:
-            self._require_run(connection, project_id, run_id)
+            self._load_manifest_for_run(connection, project_id, run_id)
             if connection.execute("SELECT 1 FROM run_claims WHERE project_id=? AND run_id=? AND claim_id=?", (project_id, run_id, claim_id)).fetchone() is None:
                 raise ValueError(f"claim is not present in imported run: {claim_id}")
             artifact = connection.execute(
-                "SELECT sha256 FROM run_artifacts WHERE project_id=? AND run_id=? AND artifact_path=?",
+                "SELECT sha256, payload_json FROM run_artifacts WHERE project_id=? AND run_id=? AND artifact_path=?",
                 (project_id, run_id, artifact_path),
             ).fetchone()
             if artifact is None or str(artifact["sha256"]) != artifact_sha:
                 raise ValueError("assertion locator does not match an imported artifact hash")
+            if "json_pointer" in locator_payload:
+                row = self._require_run(connection, project_id, run_id)
+                path = Path(str(row["manifest_path"])).parent / artifact_path
+                record = json.loads(artifact["payload_json"])
+                media_type = str(record.get("media_type", "")).split(";", 1)[0].strip().lower()
+                if path.suffix.lower() == ".json" or media_type == "application/json" or media_type.endswith("+json"):
+                    artifact_bytes = path.read_bytes()
+                    if hashlib.sha256(artifact_bytes).hexdigest() != artifact_sha:
+                        raise ValueError("assertion artifact changed during locator validation")
+                    _resolve_json_pointer(json.loads(artifact_bytes), locator_payload["json_pointer"])
             existing = connection.execute("SELECT fingerprint FROM assertions WHERE project_id=? AND assertion_id=?", (project_id, assertion_id)).fetchone()
             if existing is not None:
                 return {**material, "assertion_id": assertion_id, "fingerprint": fingerprint}
@@ -474,12 +485,14 @@ class ProjectStore:
     def _load_manifest_for_run(self, connection: sqlite3.Connection, project_id: str, run_id: str) -> dict[str, Any]:
         row = self._require_run(connection, project_id, run_id)
         path = Path(str(row["manifest_path"]))
-        digest, _size = stream_sha256(path)
+        manifest_bytes = path.read_bytes()
+        digest = hashlib.sha256(manifest_bytes).hexdigest()
         if digest != str(row["manifest_sha256"]):
             raise ValueError(f"imported run manifest changed on disk: {run_id}")
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(manifest_bytes.decode("utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"run manifest is not an object: {run_id}")
+        validate_bundle(payload, path.parent)
         return payload
 
     def compare_runs(self, *, project_id: str, previous_run_id: str, current_run_id: str) -> dict[str, Any]:
@@ -543,16 +556,16 @@ class ProjectStore:
             base_claims, source_claims, target_claims = (_manifest_claims(item) for item in (base_manifest, source_manifest, target_manifest))
             base_artifacts, source_artifacts, target_artifacts = (_manifest_artifacts(item) for item in (base_manifest, source_manifest, target_manifest))
             claim_conflicts = sorted(
-                claim_id for claim_id in source_claims.keys() & target_claims.keys()
-                if source_claims[claim_id] != base_claims.get(claim_id)
-                and target_claims[claim_id] != base_claims.get(claim_id)
-                and source_claims[claim_id] != target_claims[claim_id]
+                claim_id for claim_id in source_claims.keys() | target_claims.keys()
+                if canonical_json_bytes(source_claims.get(claim_id)) != canonical_json_bytes(base_claims.get(claim_id))
+                and canonical_json_bytes(target_claims.get(claim_id)) != canonical_json_bytes(base_claims.get(claim_id))
+                and canonical_json_bytes(source_claims.get(claim_id)) != canonical_json_bytes(target_claims.get(claim_id))
             )
             artifact_conflicts = sorted(
-                artifact_path for artifact_path in source_artifacts.keys() & target_artifacts.keys()
-                if source_artifacts[artifact_path] != base_artifacts.get(artifact_path)
-                and target_artifacts[artifact_path] != base_artifacts.get(artifact_path)
-                and source_artifacts[artifact_path] != target_artifacts[artifact_path]
+                artifact_path for artifact_path in source_artifacts.keys() | target_artifacts.keys()
+                if canonical_json_bytes(source_artifacts.get(artifact_path)) != canonical_json_bytes(base_artifacts.get(artifact_path))
+                and canonical_json_bytes(target_artifacts.get(artifact_path)) != canonical_json_bytes(base_artifacts.get(artifact_path))
+                and canonical_json_bytes(source_artifacts.get(artifact_path)) != canonical_json_bytes(target_artifacts.get(artifact_path))
             )
             payload = {
                 "schema_version": 1,

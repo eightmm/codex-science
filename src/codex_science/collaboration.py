@@ -5,6 +5,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import stat
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,6 +23,25 @@ def _sha(value: Any, label: str) -> str:
     if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise ValueError(f"{label} must be a SHA-256 digest")
     return text
+
+
+def _resolve_json_pointer(value: Any, pointer: Any) -> Any:
+    """Resolve RFC 6901 tokens, preserving empty keys and strict array indices."""
+    if not isinstance(pointer, str) or (pointer and not pointer.startswith("/")):
+        raise ValueError("json_pointer must be an RFC 6901 pointer")
+    if pointer == "":
+        return value
+    for raw in pointer[1:].split("/"):
+        if re.search(r"~(?![01])", raw):
+            raise ValueError("json_pointer contains an invalid escape")
+        part = raw.replace("~1", "/").replace("~0", "~")
+        if isinstance(value, Mapping) and part in value:
+            value = value[part]
+        elif isinstance(value, list) and re.fullmatch(r"0|[1-9][0-9]*", part) and int(part) < len(value):
+            value = value[int(part)]
+        else:
+            raise ValueError("json_pointer does not resolve")
+    return value
 
 
 def validate_annotation(payload: dict[str, Any]) -> None:
@@ -257,7 +277,7 @@ def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any
             digest = record.get("sha256")
             if not isinstance(digest, str) or not digest.strip():
                 raise ValueError("artifact sha256 must be a non-empty string")
-            value = digest.lower()
+            value = {**record, "sha256": digest.lower()}
         result[identity] = value
     return result
 
@@ -265,7 +285,8 @@ def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any
 def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[str, Any]:
     """Preserve JSON numeric and boolean distinctions when invalidating reviews."""
     old, new = _diff_record_map(previous, "artifacts"), _diff_record_map(current, "artifacts")
-    changed = sorted(path for path in old.keys() & new.keys() if old[path] != new[path])
+    changed = sorted(path for path in old.keys() & new.keys()
+                     if canonical_json_bytes(old[path]) != canonical_json_bytes(new[path]))
     old_claims = _diff_record_map(previous, "claims")
     new_claims = _diff_record_map(current, "claims")
     changed_claims = sorted(key for key in old_claims.keys() & new_claims.keys()
@@ -297,8 +318,10 @@ def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[s
         },
         "code_changed": code_changed,
         "environment_changed": environment_changed,
-        "review_invalidated": bool(changed or old.keys() != new.keys() or changed_claims or code_changed or environment_changed
-                                   or changed_inputs or old_inputs.keys() != new_inputs.keys()),
+        "review_invalidated": bool(
+            changed or old.keys() != new.keys() or changed_claims or old_claims.keys() != new_claims.keys()
+            or code_changed or environment_changed or changed_inputs or old_inputs.keys() != new_inputs.keys()
+        ),
     }
 
 

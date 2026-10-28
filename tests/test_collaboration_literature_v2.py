@@ -298,6 +298,29 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                     self.assertEqual(["review.json"], plan["invalidated_review_receipts"])
                     self.assertTrue(plan["approval_required"])
 
+    def test_claim_identity_changes_invalidate_review(self) -> None:
+        claim = {"id": "C1", "text": "Claim"}
+        for previous, current, added, removed in (([], [claim], ["C1"], []), ([claim], [], [], ["C1"])):
+            with self.subTest(previous=previous, current=current):
+                report = diff_runs({"claims": previous}, {"claims": current})
+                self.assertTrue(report["review_invalidated"])
+                self.assertEqual({"added": added, "removed": removed, "changed": []}, report["claims"])
+        self.assertFalse(diff_runs({"claims": []}, {"claims": []})["review_invalidated"])
+
+    def test_artifact_record_metadata_changes_invalidate_review(self) -> None:
+        original = {"path": "metrics.json", "sha256": "a" * 64, "kind": "metrics"}
+        for field, value in (("kind", "data"), ("size_bytes", 0), ("description", ""), ("result", False)):
+            with self.subTest(field=field):
+                updated = {**original, field: value}
+                for previous, current in ((original, updated), (updated, original)):
+                    report = diff_runs({"artifacts": [previous]}, {"artifacts": [current]})
+                    self.assertEqual(["metrics.json"], report["artifacts"]["changed"])
+                    self.assertTrue(report["review_invalidated"])
+        typed = {**original, "result": 0}
+        report = diff_runs({"artifacts": [typed]}, {"artifacts": [{**typed, "result": False}]})
+        self.assertTrue(report["review_invalidated"])
+        self.assertFalse(diff_runs({"artifacts": [original]}, {"artifacts": [dict(reversed(list(original.items())))]})["review_invalidated"])
+
     def test_diff_runs_rejects_duplicate_artifact_paths(self) -> None:
         previous = {"artifacts": [
             {"path": "metrics.json", "sha256": "a" * 64},
