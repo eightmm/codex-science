@@ -151,11 +151,38 @@ class UncertaintyValidityTests(unittest.TestCase):
                             self.assertIn("nonlinear-propagation-disagreement", {item["code"] for item in result["findings"]})
 
     def test_monte_carlo_does_not_require_stable_linear_derivatives(self):
-        result = self.propagate(
-            "sin(1000000*x)", [("x", 1, 1e-9)], method="monte-carlo", samples=1000,
-        )
-        self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
-        self.assertEqual([], result["findings"])
+        for expression, inputs in (
+            ("sin(1000000*x)", [("x", 1, 1e-9)]),
+            ("log(abs(x))", [("x", 0.0005, 1)]),
+        ):
+            with self.subTest(expression=expression):
+                result = self.propagate(expression, inputs, method="monte-carlo", samples=1000)
+                self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
+                self.assertEqual([], result["findings"])
+
+    def test_failed_refinement_is_a_linear_review_finding(self):
+        for method in ("linear", "both"):
+            with self.subTest(method=method):
+                result = self.propagate("log(abs(x))", [("x", 0.0005, 1)], method=method, samples=1000)
+                finding = next(item for item in result["findings"] if item["code"] == "linearization-derivative-unstable")
+                self.assertEqual("major", finding["severity"])
+                self.assertIn("x", finding["message"])
+                self.assertIn("failed", finding["message"])
+                self.assertEqual("findings", result["status"])
+                self.assertAlmostEqual(math.log(3) / 0.002, result["linear"]["gradient"][0])
+                self.assertEqual(result["findings"], review_uncertainty_propagation(result))
+                if method == "both":
+                    self.assertEqual(1000, result["monte_carlo"]["accepted_samples"])
+        for method in ("linear", "monte-carlo", "both"):
+            with self.subTest(base_failure=method), self.assertRaisesRegex(ValueError, "function log failed"):
+                self.propagate("log(abs(x))", [("x", 0.001, 1)], method=method, samples=1000)
+        for error in (ValueError("domain"), OverflowError("overflow"), ZeroDivisionError("zero"), None):
+            with self.subTest(refinement_error=error):
+                values = [1.0, 1.002, 0.998, error if error is not None else float("inf"), 1.0]
+                with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=values):
+                    result = self.propagate("x", [("x", 1, 0)], method="linear")
+                self.assertEqual("linearization-derivative-unstable", result["findings"][0]["code"])
+                self.assertEqual(0.0, result["linear"]["standard_uncertainty"])
 
     def test_derivative_stability_relative_limit(self):
         width = 2.0 ** -20
@@ -224,6 +251,8 @@ class UncertaintyValidityTests(unittest.TestCase):
             ("x-y", [("x", 0, 1e-7), ("y", 0, 1e-7)], [{"left": "x", "right": "y", "value": 2e-14}],
              "linear", "not positive semidefinite"),
             ("sin(1000000*x)", [("x", 1, 1e-9)], [], "linear", None),
+            ("log(abs(x))", [("x", 0.0005, 1)], [], "linear", None),
+            ("log(abs(x))", [("x", 0.0005, 1)], [], "both", None),
             ("log(x)", [("x", 2, 1)], [], "monte-carlo", None),
         )
         for expression, inputs, covariance, method, error in cases:
@@ -252,7 +281,7 @@ class UncertaintyValidityTests(unittest.TestCase):
                 else:
                     receipt = json.loads(output.read_text(encoding="utf-8"))
                     self.assertEqual("findings", receipt["status"])
-                    expected = "linearization-derivative-unstable" if method == "linear" else "monte-carlo-domain-filtering"
+                    expected = "monte-carlo-domain-filtering" if method == "monte-carlo" else "linearization-derivative-unstable"
                     self.assertEqual(expected, receipt["findings"][0]["code"])
 
 

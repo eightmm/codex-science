@@ -217,12 +217,14 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         for scale in (1, 1e-16, 1e-300):
             result = run_statistical_analysis(self.analysis_input([0] * 4, [scale] * 4))
             self.assertEqual(2 / 70, result["test"]["p_value"])
+        result = run_statistical_analysis(self.analysis_input([1e9] * 4, [1e9 + 2 ** -21] * 4))
+        self.assertEqual(2 / 70, result["test"]["p_value"])
         for paired in (False, True):
             for scale in (1, 1e-16):
                 result = run_statistical_analysis(self.analysis_input([0] * 4, [scale] * 4, paired=paired))
                 self.assertEqual(2 / 16 if paired else 2 / 70, result["test"]["p_value"])
         groups = ([0.96875, 1.0], [0.96875, 1.03125, 1.03125])
-        for shift in (0, -1, 1, 15):
+        for shift in (0, -1, 1, 15, 1e9, -1e9):
             for scale in (1, 2 ** -40, 2 ** 40):
                 with self.subTest(shift=shift, scale=scale):
                     shifted = [[(value + shift) * scale for value in group] for group in groups]

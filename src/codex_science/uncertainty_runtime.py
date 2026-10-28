@@ -60,29 +60,42 @@ def _cholesky(matrix: list[list[float]], *, tolerance: float = 1e-12) -> list[li
 
 def _gradient(
     expression: str, names: list[str], means: list[float], uncertainties: list[float],
-) -> tuple[list[float], list[float], float]:
+    *, refine: bool = True,
+) -> tuple[list[float], list[float | None], float]:
     """Keep coarse sensitivities for receipt compatibility while measuring refinement error."""
     parsed = parse_expression(expression, allowed_names=names)
     gradient: list[float] = []
-    changes: list[float] = []
+    changes: list[float | None] = []
     noise_floor = 0.0
     stationary = True
     for index, name in enumerate(names):
         step = max(abs(means[index]) * 1e-6, uncertainties[index] * 1e-3, 1e-8)
         derivatives: list[float] = []
         values: list[float] = []
-        for width in (step, step / 2.0):
+        for width in ((step, step / 2.0) if refine else (step,)):
             plus = dict(zip(names, means))
             minus = dict(zip(names, means))
             plus[name] += width
             minus[name] -= width
-            high = float(evaluate_expression(parsed, plus))
-            low = float(evaluate_expression(parsed, minus))
-            derivative = (high - low) / (2.0 * width)
-            if not math.isfinite(derivative):
-                raise ValueError(f"non-finite numerical derivative for {name}")
+            try:
+                high = float(evaluate_expression(parsed, plus))
+                low = float(evaluate_expression(parsed, minus))
+                derivative = (high - low) / (2.0 * width)
+                if not math.isfinite(derivative):
+                    raise ValueError(f"non-finite numerical derivative for {name}")
+            except (ValueError, OverflowError, ZeroDivisionError):
+                if width == step:
+                    raise
+                break
             derivatives.append(derivative)
             values.extend((high, low))
+        gradient.append(derivatives[0])
+        if not refine:
+            continue
+        if len(derivatives) < 2:
+            changes.append(None)
+            stationary = False
+            continue
         roundoff = 16.0 * math.ulp(max(abs(value) for value in values)) / step
         changes.append(abs(derivatives[0] - derivatives[1]) * uncertainties[index])
         noise_floor = max(noise_floor, roundoff * uncertainties[index])
@@ -90,8 +103,7 @@ def _gradient(
         # from a derivative that remains material as the step is refined.
         extrapolated = (4.0 * derivatives[1] - derivatives[0]) / 3.0
         stationary = stationary and abs(extrapolated) <= roundoff
-        gradient.append(derivatives[0])
-    if stationary:
+    if refine and stationary:
         noise_floor = max(noise_floor, *changes)
     return gradient, changes, noise_floor
 
@@ -204,7 +216,9 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         monte_carlo_mean = None
         monte_carlo_uncertainty = None
         interval = None
-    gradient, derivative_changes, derivative_floor = _gradient(expression, names, means, uncertainties)
+    gradient, derivative_changes, derivative_floor = _gradient(
+        expression, names, means, uncertainties, refine=method in {"linear", "both"},
+    )
     linear_variance = _variance(gradient, covariance)
     linear_uncertainty = math.sqrt(linear_variance)
     sensitivities = []
@@ -219,11 +233,15 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     findings: list[dict[str, str]] = []
     if method in {"linear", "both"}:
         for name, change in zip(names, derivative_changes):
-            if change > max(0.01 * linear_uncertainty, derivative_floor):
+            if change is None or change > max(0.01 * linear_uncertainty, derivative_floor):
                 findings.append({
                     "code": "linearization-derivative-unstable",
                     "severity": "major",
-                    "message": f"Step refinement for {name} changes its uncertainty contribution by more than 1% of the propagated linear standard uncertainty; review the linear result.",
+                    "message": (
+                        f"Step refinement for {name} failed expression evaluation; review the linear result."
+                        if change is None else
+                        f"Step refinement for {name} changes its uncertainty contribution by more than 1% of the propagated linear standard uncertainty; review the linear result."
+                    ),
                 })
     if failures:
         findings.append({

@@ -90,7 +90,7 @@ def _extreme(
     data_scale: float = 0.0,
 ) -> bool:
     if tolerance is None:
-        # Subtracting group summaries can lose precision at the observation scale.
+        # Allow summary-rounding ties at the scale used by the randomization test.
         tolerance = 4 * math.ulp(max(data_scale, abs(observed), abs(value)))
     if alternative == "two-sided":
         return abs(value) >= abs(observed) - tolerance
@@ -140,10 +140,14 @@ def _permutation_independent(
     replicates: int,
     randomizer: random.Random,
 ) -> tuple[float, int, bool]:
-    observed = _estimate(values_a, values_b, measure)
     combined = values_a + values_b
-    data_scale = max(abs(value) for value in combined)
     count_a = len(values_a)
+    # A shared shift preserves both estimands without letting a common offset
+    # dominate the tie tolerance. Use a data value to avoid midpoint overflow.
+    centre = float(statistics.median_low(combined))
+    combined = [value - centre for value in combined]
+    observed = _estimate(combined[:count_a], combined[count_a:], measure)
+    data_scale = max(abs(value) for value in combined)
     combinations = math.comb(len(combined), count_a)
     extreme = 0
     if combinations <= MAX_EXACT_PERMUTATIONS:
