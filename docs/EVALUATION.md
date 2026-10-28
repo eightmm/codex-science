@@ -974,6 +974,39 @@ Codex sign-in, which the recorded runs did not set up.
   6–37). Caveat: six tasks and one run; not an effect estimate. Runs 28, 29,
   34, 35, and 36 also recorded 6/6; no trend is claimed.
 
+- Run38 (`3d35445`, runtime `0.5.0+codex.20261027090104`), 5/6 (95% Wilson
+  interval 43.6%-97.0%). quick-arxiv completed in 82 seconds, quick-doi in 109,
+  standard-mrna in 919, standard-single-cell in 1103, and full-microbiome in
+  1395; full-protein-folding timed out at the 1800-second cap. Stop reasons were
+  done 5 and timeout 1. No policy blocks, provider-capacity failures, or
+  re-runs occurred; the loaded runtime matched the branch in every task. The
+  frozen grader (`src-3d35445`) counted completion 5/6 and citations 70 of 72
+  traced (four runs with traceable output). Preregistered locator-line (LL)
+  refusals were 0 in every non-mRNA task and unknown-record (UR) refusals were
+  0; neither new check fired. HM hand edits after a packaging error were 0;
+  protein-folding authored its manifest by script at protocol time (113 s),
+  counted by trace diagnosis as one manifest write. Trace diagnosis found one
+  benign search miss in single-cell, three failed microbiome commands (one
+  plugin-script-tagged own heredoc and two others), and five protein-folding
+  plugin-script failures, all substantive gates: screen exclusion without an
+  abstract, orphan citations, missing study exclusion reason, unclassified
+  files, and claim C2 support count.
+
+  Protein-folding's own protocol committed to "one bounded backward reference
+  pass per included study," absent from run36/run37 protocols. Its first
+  independent review found only 3 of 14 included studies received that pass,
+  plus three minor findings. The agent revised C2 from supported to suggestive,
+  added a context row, re-ran prepare-review, and started review round 2 at
+  1683 seconds before reaching the cap. It issued 128 commands (run37: 55).
+  During the run, three OMS test-builder workers using the same Codex provider
+  account and an owner finalize loop were running `check.sh`. Model-wait time
+  rose: single-cell had 46 commands (run37: 48) but 575 seconds in gaps over
+  30 seconds (run37: 288); protein-folding had 1100 seconds (run37: 735). The
+  timeout cannot be attributed to run38 code changes: the only agent-path
+  checks for locator lines and unknown records never fired. Six tasks and one
+  run do not establish an effect. Replicate at a test-only descendant SHA with
+  no concurrent workers (run39).
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent

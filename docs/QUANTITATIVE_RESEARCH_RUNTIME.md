@@ -183,13 +183,17 @@ The following skills now use DeepMind-style progressive reference contracts and 
 
 - `quantitative-research` — L4 conductor;
 - `mathematical-problem-execution` — L3;
-- `proof-and-counterexample` — L3;
+- `proof-and-counterexample` — L4;
 - `formal-theorem-proving` — L3;
-- `statistical-inference-experimental-design` — L3;
+- `statistical-inference-experimental-design` — L4;
 - `statistical-decision-analysis` — L4;
-- `numerical-analysis-error-control` — L3;
-- `dimensional-analysis-units` — L3;
-- `experimental-uncertainty-propagation` — L3.
+- `numerical-analysis-error-control` — L4;
+- `dimensional-analysis-units` — L4;
+- `experimental-uncertainty-propagation` — L4.
+
+The five L4 declarations include deterministic acceptance fixtures and named
+seeded failures exercised through each skill's public entry point. They validate
+software behavior and are not empirical results.
 
 Each `SKILL.md` carries the decision-bearing workflow. Detailed CLI arguments, schemas, failure rules, and interpretation boundaries live under indexed `references/` files and can be recorded in a `reference-use-ledger`.
 

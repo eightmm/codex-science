@@ -4,10 +4,13 @@
 
 - An exploratory real-run reviewer seeded-defect probe caught 6/6 planted defects at major or higher with no major/critical control finding; one response per variant, not a sensitivity estimate (see `docs/EVALUATION.md`).
 - Study-table builds now reject integer excerpt locator lines that do not intersect the quoted source text, and unknown record IDs point users to screen records before extraction.
-- `scripts/diagnose_eval_trace.py` is a read-only diagnosis of a recorded evaluation task directory (or `--events FILE`): counts failed tool use, repeated exploration, plugin-source reads, manifest hand edits, lost artifacts, premature closure and per-script phase times as pattern matches, with at most 5 examples each.
-- `scripts/seed_review_defects.py` plants a known defect into a copy of a reviewed
-  run bundle (refreshed with review invalidation) and scores reviewer responses
-  against a hidden answer key, to measure independent-review detection.
+- L4 executable acceptance now covers five additional skills: dimensional
+  analysis, experimental uncertainty propagation, numerical error control,
+  statistical inference and experimental design, and proof and counterexample.
+  Each declares a fixture, named seeded failures, and tests that send those
+  failures through the public entry point. The maturity audit now reports 124
+  L3 and 11 L4 skills; these deterministic fixtures validate software
+  contracts, not empirical results.
 - `parse_unit` now raises `ValueError` (not `OverflowError`/`ZeroDivisionError`) when a unit exponent overflows or underflows the scale, e.g. `(km^64)^64`.
 - Fix SDF property names in artifact runtime previews, which kept a stray leading `<`
   (`<ID` instead of `ID`).
@@ -19,7 +22,7 @@
   the copy while refusing symlinked path components, and `--strip-review-history`
   deletes its `review-rounds/`.
 - `discovery assess` adds a read-only `revision_outcomes` field classifying each recorded `revise` event (`insufficient_evidence`, `repetition`, `necessary_repair_candidate`, `substantive_progress_candidate`) from recorded fields; other output and the cycle schema are unchanged.
-- `research-discovery` and `write-scientific-manuscript` now declare `L4` in their `quality.json`: each acceptance fixture is exercised by tests (`tests/test_research_discovery_acceptance.py`, `tests/test_manuscript_package.py`) and every seeded failure maps to a test that asserts its detection. The audit's computed L4 total (6) is unchanged.
+- `research-discovery` and `write-scientific-manuscript` declare `L4` in their `quality.json`: each acceptance fixture is exercised by tests (`tests/test_research_discovery_acceptance.py`, `tests/test_manuscript_package.py`) and every seeded failure maps to a test that asserts its detection. The audit's computed L4 total is now 11 after the five additional acceptance fixtures.
 - A hand-written file registered under a receipt kind (`statistical-analysis`,
   `decision-analysis`, `numerical-verification`, `dimension-check`,
   `uncertainty-propagation`, `counterexample-search`, `research-design`) keeps its
