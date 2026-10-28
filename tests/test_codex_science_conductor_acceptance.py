@@ -34,6 +34,8 @@ SEEDED_FAILURE_TESTS = {
     "preview-target-mismatch": "test_preview_target_mismatch",
     "approval-scope-not-covering": "test_approval_scope_not_covering",
     "write-receipt-without-approval": "test_write_receipt_without_approval",
+    "preview-changes-substituted": "test_preview_changes_substituted",
+    "read-paid-without-approval": "test_read_paid_without_approval",
     "remote-state-drift": "test_remote_state_drift",
     "idempotency-key-reuse": "test_idempotency_key_reuse",
 }
@@ -182,6 +184,22 @@ class CodexScienceConductorAcceptanceTests(unittest.TestCase):
         forged = rehash_payload({**receipt, "approval_fingerprint": None})
         with self.assertRaisesRegex(ValueError, "write action receipt requires approval_fingerprint"):
             validate_action_receipt(forged, self.spec)
+
+    def test_preview_changes_substituted(self) -> None:
+        preview = rehash_payload({**self.preview, "proposed_changes": {"changes": {"status": "draft"}}})
+        approval = build_action_approval(
+            preview, approved_by="fixture-reviewer",
+            approved_scopes=self.payload["requested_scopes"], approved_at=STAMP,
+        )
+        self.assert_refused(
+            self.spec, preview, approval,
+            "preview proposed_changes do not match the adapter proposal; create a new preview",
+        )
+
+    def test_read_paid_without_approval(self) -> None:
+        spec = ActionSpec.from_payload({**self.payload, "mode": "read", "approval_required": False, "paid": True})
+        preview = build_preview(self.adapter, spec, created_at=STAMP)
+        self.assert_refused(spec, preview, None, "action requires explicit approval")
 
     def test_idempotency_key_reuse(self) -> None:
         execute_action(

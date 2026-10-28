@@ -27,6 +27,8 @@
     "preview-target-mismatch",
     "approval-scope-not-covering",
     "write-receipt-without-approval",
+    "preview-changes-substituted",
+    "read-paid-without-approval",
     "remote-state-drift",
     "idempotency-key-reuse"
   ],
@@ -41,6 +43,6 @@
     "The coordinator delegates domain validity to specialist skills and independent review.",
     "Task persistence depends on the installed Codex host and trusted hooks.",
     "The acceptance fixture validates deterministic local connector trust gates, not an empirical scientific result or a real provider integration.",
-    "Empty remote_object_ids on executed write receipts are not validated; remote-ID availability depends on the provider."
+    "Empty remote_object_ids on executed write receipts are not validated; remote-ID availability depends on the provider. Receipt approval digests are only format-checked unless an approval artifact is supplied for binding."
   ]
 }

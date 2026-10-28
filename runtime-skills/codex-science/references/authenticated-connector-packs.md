@@ -135,7 +135,7 @@ Approval binds:
 - approved scopes;
 - approver attestation and time.
 
-Approved scopes must cover requested scopes. A changed preview or before-state requires new approval.
+Approval is required for write, destructive, paid, sensitive-data, or `approval_required` actions, including on replay with the same approval. Approved scopes must cover requested scopes. A changed preview or before-state requires new approval.
 
 Approval authorizes the provider action boundary. It does not establish scientific validity, consent, privacy compliance, regulatory permission, affordability, or downstream interpretation.
 
@@ -156,17 +156,19 @@ receipt = execute_action(
 Execution procedure:
 
 1. validate spec and preview;
-2. resolve the exact approval for writes;
+2. validate every supplied approval, requiring one for write, destructive, paid, sensitive-data, or `approval_required` actions;
 3. check the idempotency ledger;
 4. obtain a fresh current-state snapshot;
 5. compare its hash with preview before-state;
 6. reject state drift;
-7. call the provider adapter once;
+7. re-run `adapter.preview(spec, current)`, reject a differing proposal, then call the provider adapter once;
 8. record after-state hash, remote object IDs, provider receipt, compensation, and fingerprint;
 9. persist the idempotency receipt;
 10. add the action receipt to run provenance when material.
 
-A repeated request with the same idempotency key and same spec returns the original receipt without another provider call. Reusing the key for a different spec fails.
+Adapters must return the same proposal for the same spec and state, without timestamps or fresh draft IDs in the `adapter.preview` result. This adds one preview call per execution.
+
+A repeated request with the same idempotency key and same spec returns the original receipt without another provider call, provided any supplied or required approval matches the one recorded in that receipt. Reusing the key for a different spec fails.
 
 ## Provider pack requirements
 
