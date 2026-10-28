@@ -1052,6 +1052,60 @@ Codex sign-in, which the recorded runs did not set up.
   and one run under uncontrolled external load cannot separate external
   provider load from code effects with n=1.
 
+- Run40 (`46c7693`, runtime `0.5.0+codex.20261028103543`), 5/6 (95% Wilson
+  interval 43.6%-97.0%). quick-arxiv completed in 70 seconds, quick-doi in 112
+  seconds, standard-single-cell in 1101 seconds, standard-mrna in 1139 seconds,
+  and full-microbiome in 1388 seconds; full-protein-folding timed out at 1800
+  seconds. No policy blocks, provider-capacity failures, or re-runs occurred.
+  The loaded runtime matched the branch in every task; the grader's
+  `runtime_under_test_matches_branch` was true. The frozen grader
+  (`src-46c7693`) counted completion 5/6, citations 65/66 traced (four runs with
+  traceable output), and partial credit 0.92. The one untraced citation was a
+  figshare dataset DOI (`doi:10.6084/m9.figshare.5715025`) in single-cell's
+  auxiliary `evidence_table.md` and `notes/delegated-extraction.md`, absent from
+  `report.md`; the run's own report-only trace had 0 orphans.
+
+  There were 0 external codex exec processes at the start. Owner workers,
+  reviewers, and finalize loops were idle. Another session ran pi (openrouter)
+  analysis workers at launch; about four minutes before all tasks finished,
+  that session ran codex builder workers (2 codex exec processes) and the
+  oh-my-setting operator-tools smoke, overlapping only protein-folding's last
+  minutes. Model-wait gaps over 30 seconds totaled 615 seconds across 54
+  commands for single-cell (run39: 569 seconds), 864 seconds across 79 commands
+  for microbiome (run39: 1187 seconds), and 1197 seconds across 60 commands for
+  protein-folding (run39 re-run: 1079 seconds). With no external codex exec at
+  the start, model-wait stayed near run39 levels, so local codex process count
+  does not explain it; provider-side latency remains plausible but unmeasured.
+  Preregistered secondaries: both full-tier tasks declared `commitment_ledger`
+  with an empty `procedures` list: no entries, deviations, or reviewer context,
+  and no ledger refusal. Single-cell did not declare one; quick tasks had no
+  `protocol.json`. ESearch ERROR refusals were 0 in every non-mRNA task. Trace
+  diagnosis found 0 plugin-script failures in the three non-mRNA standard/full
+  tasks; failed commands were 5/1/4 and manifest hand edits were 4/2/0 for
+  microbiome, protein-folding, and single-cell, respectively.
+
+  Protein-folding first ran prepare-review at 932 seconds. The independent
+  reviewer responded at about 1264 seconds and found a material eligibility
+  error: PMID:34387007 had been excluded on its abstract, although its saved
+  full text contained an original blinded CAMEO evaluation. The agent
+  re-adjudicated and admitted it as S-CAMEO2020, sought the supplement through
+  four routes (all inaccessible or timed out, with access states recorded and
+  no values fabricated), updated the study table, graph, bias record, and
+  report, and archived the round. No prepare-review or reviewer command ran
+  after 1264 seconds; the agent was still correcting artifacts for re-review
+  at the cap. Review caught a real major defect, and the agent corrected it
+  rather than attesting; the timeout followed legitimate rework.
+  Microbiome's first prepare-review failure involved agent-written checkpoint
+  output redirected into the run directory (`progress-*.json` unclassified).
+  The next involved an agent-added `review` plan step left incomplete and
+  missing primary evidence for C5. Each was fixed in one turn; this friction
+  was seen once across runs 37–40. Microbiome's protocol did not promise a
+  comprehensive backward/forward citation search; protein-folding's protocol
+  contained no per-study or per-record procedure promise. The empty commitment
+  ledgers were consistent with those protocols; the feature was dormant in
+  this run. Runs 38, 39, and 40 completed 5/6, 4/6, and 5/6 tasks, respectively;
+  with six tasks per run, no trend is claimed.
+
 Runs 10 and 11 used the same SHA and differed by one completed task. With six
 tasks per run, variance dominates; these results do not establish an improvement
 trend. Full-tier runs are at the edge of the 1800-second cap, and independent
@@ -1059,7 +1113,7 @@ review rounds often do not fit.
 
 Per-run results are appended to `docs/EXPERIMENTS.jsonl` by
 `scripts/report_literature_evaluation.py --append-ledger`: one row per task
-receipt, then one summary row per run, for runs 6–35 in order, with run16b and
+receipt, then one summary row per run, for runs 6–40 in order, with run16b and
 run26b as two-task reruns; duplicate receipts are skipped. Each summary's
 `branch_runtime_version` identifies the runtime under test; runs 10 and 11
 share one, as do runs 14 and 15. Runs 15 and 16 differ in SHA; runs 16 and 17
