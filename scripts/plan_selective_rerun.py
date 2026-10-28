@@ -15,7 +15,8 @@ graph JSON (schema_version 1 as written by build_evidence_graph.py, or 2; requir
             supports, contradicts, depends_on, duplicates, derived_from,
             shares_cohort, shares_samples, propagated_from, training_overlap
             (no duplicate source/target/relation triple)
-  v2 graphs must pass typed-graph validation.
+  v2 graphs must pass typed-graph validation; the allowed type pairs and acyclic
+  relations are RELATION_TYPES and ACYCLIC_RELATIONS in src/codex_science/evidence_graph_v2.py.
   supports and contradicts propagate impact source -> target;
   depends_on, derived_from and propagated_from propagate target -> source;
   training_overlap propagates both ways. Other relations do not propagate.

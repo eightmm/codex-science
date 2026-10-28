@@ -31,9 +31,10 @@ Preconditions:
 2. every manifest artifact exists and matches SHA-256 or Merkle root;
 3. recognized sidecars validate;
 4. secrets and credential-bearing URLs are absent;
-5. external inputs use canonical identifier, source, release, and checksum when available.
+5. external inputs use canonical identifier, source, release, and checksum when available;
+6. the destination must not already contain this export's files (`ro-crate-metadata.json`, `prov.json`, `scientific-bom.json`, `export-receipt.json`) or the `--receipt` path, and must not overlap the manifest, listed artifacts, or descriptor files, including symlink and hard-link aliases.
 
-The exporter refuses changed artifact bytes because it calls complete bundle validation first.
+The exporter refuses changed artifact bytes because it calls complete bundle validation first. It refuses existing export destinations before writing anything.
 
 ## Outputs
 
@@ -206,7 +207,7 @@ Describe these as compliance-supporting controls unless the complete system has 
 | --- | --- |
 | artifact digest mismatch | stop; restore or regenerate the source run bundle |
 | missing external source release | add the release or mark it unavailable explicitly |
-| output directory contains older exports | preserve or clear it through an explicit versioned archival action |
+| destination already contains export files or the receipt | refused; choose a new versioned output directory and receipt path, or archive the old export explicitly |
 | absolute path not portable | retain it as local provenance and add a portable identifier or package-relative mapping |
 | license unknown | record unknown/restricted and stop redistribution until resolved |
 | external bytes unavailable | preserve immutable reference and missingness; do not invent inclusion |

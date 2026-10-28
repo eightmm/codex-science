@@ -20,9 +20,9 @@ def main() -> int:
     parser.add_argument("manifest", type=Path, help="run manifest JSON (schema_version 1 with run_id, question, plan, inputs, code, executions, environment, artifacts, claims, review); "
         "artifact files and sidecars are validated before export")
     parser.add_argument("output", type=Path, help="export directory (created if absent); writes ro-crate-metadata.json, prov.json, scientific-bom.json and export-receipt.json; "
-        "destinations preserve the manifest, listed artifacts and their contents, and descriptor files, including symlink and hard-link aliases")
+        "existing export files are refused, so choose a new versioned directory; must not overlap the manifest, listed artifacts or descriptor files")
     parser.add_argument("--receipt", type=Path, required=True, help="separate output file for the receipt JSON: exports[] with name, path, sha256 and size_bytes; "
-        "preserves the manifest, listed artifacts and their contents, and descriptor files; must differ from all export outputs, including aliases; existing directories refused")
+        "an existing file or directory is refused (choose a new path); must differ from all export outputs, including aliases")
     args = parser.parse_args()
     try:
         export_run(args.manifest, args.output, receipt_path=args.receipt)
