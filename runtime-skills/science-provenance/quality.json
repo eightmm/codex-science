@@ -2,7 +2,7 @@
   "schema_version": 1,
   "skill": "science-provenance",
   "roles": ["infrastructure"],
-  "declared_maturity": "L3",
+  "declared_maturity": "L4",
   "output_schemas": [
     "artifact-manifest-v1",
     "claim-register-v1",
@@ -16,11 +16,29 @@
     "ro-crate-oriented-v1",
     "prov-oriented-v1"
   ],
-  "acceptance_fixtures": [],
-  "seeded_failures": [],
-  "test_files": [],
+  "acceptance_fixtures": [
+    "examples/science-provenance/input.json"
+  ],
+  "seeded_failures": [
+    "artifact-digest-mismatch",
+    "missing-artifact",
+    "escaping-artifact-path",
+    "unregistered-claim-evidence",
+    "unknown-evidence-endpoint",
+    "invalid-reference-digest"
+  ],
+  "test_files": [
+    "tests/test_artifacts.py",
+    "tests/test_evidence_sidecars.py",
+    "tests/test_reference_contract.py",
+    "tests/test_artifact_runtime_sidecars.py",
+    "tests/test_science_provenance_acceptance.py"
+  ],
   "limitations": [
     "A provenance bundle can be internally valid while the scientific design remains invalid.",
-    "Large or proprietary external inputs may be represented only by immutable references and checksums."
+    "Large or proprietary external inputs may be represented only by immutable references and checksums.",
+    "The acceptance fixture is deterministic software validation, not an empirical result.",
+    "Missing claim evidence is detected by the record/source review gate, not bundle validation alone.",
+    "Reference-use ledger validation checks digest syntax, not freshness against current reference bytes."
   ]
 }

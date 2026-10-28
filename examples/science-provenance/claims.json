@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "claims": [
+    {
+      "id": "claim-fixture-values",
+      "text": "The synthetic table records values 1 and 2.",
+      "permitted_inference": "Inspection of this deterministic software fixture only.",
+      "status": "supported",
+      "required_support": 1,
+      "required_evidence": [
+        "dataset"
+      ],
+      "dependencies": [],
+      "falsifier": "The recorded synthetic values differ from 1 and 2.",
+      "uncertainty": "No empirical or population inference is supported.",
+      "next_action": "Validate artifact identity and recorded links."
+    }
+  ]
+}

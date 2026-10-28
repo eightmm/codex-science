@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "skill": "science-provenance",
+  "uses": [
+    {
+      "schema_version": 1,
+      "skill": "science-provenance",
+      "reference_id": "artifact-contract",
+      "path": "references/artifact-contract.md",
+      "sha256": "63466491417f36f12b1cb1fc9a49f7552b4864a82b36cb8d7f6ffbb78afe4d8a",
+      "read_reason": "Synthetic receipt demonstrating the artifact contract schema.",
+      "used_for": [
+        "deterministic bundle acceptance"
+      ],
+      "sections": [
+        "Bundle validation"
+      ],
+      "search_terms": [],
+      "loaded_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}

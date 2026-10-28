@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "id": "claim-fixture-values",
+      "type": "claim"
+    },
+    {
+      "id": "dataset-fixture",
+      "type": "dataset",
+      "path": "observations.csv"
+    }
+  ],
+  "edges": [
+    {
+      "source": "dataset-fixture",
+      "target": "claim-fixture-values",
+      "relation": "supports"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "run_id": "science-provenance-acceptance",
+  "question": "Can deterministic provenance validation distinguish intact fixture records from seeded defects?",
+  "plan": [
+    {
+      "id": "inspect-fixture",
+      "description": "Inspect the two synthetic observations.",
+      "status": "completed"
+    }
+  ],
+  "inputs": [
+    {
+      "source": "synthetic fixture",
+      "release": "v1",
+      "description": "Two invented observations; no empirical data."
+    }
+  ],
+  "code": [],
+  "executions": [],
+  "environment": {
+    "fixture": "deterministic software validation; no empirical execution claimed"
+  },
+  "artifacts": [
+    {
+      "path": "observations.csv",
+      "kind": "dataset",
+      "sha256": "45b5b30d82f6655599265e4ef94a399242387fffca1ab00787cd09b98cb28023"
+    },
+    {
+      "path": "claims.json",
+      "kind": "claim-register",
+      "sha256": "3163b0e480680f2b39f6b1e497821cdf8ca0bc0a3f4fbdafd395442a46fd24f9"
+    },
+    {
+      "path": "evidence_graph.json",
+      "kind": "evidence-graph",
+      "sha256": "6c996c782f774ba11eebc07086310aa63aba978b15921a5223fe8f1061286ea0"
+    },
+    {
+      "path": "reference-use-ledger.json",
+      "kind": "reference-use-ledger",
+      "sha256": "fd4a38bda81e3f6506b143f20f0c97026458688b40fb7f7b27325f58a2afed37"
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-fixture-values",
+      "text": "The synthetic table records values 1 and 2.",
+      "evidence": [
+        "observations.csv"
+      ]
+    }
+  ],
+  "review": {
+    "status": "pending",
+    "findings": []
+  }
+}
