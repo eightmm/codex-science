@@ -205,6 +205,15 @@ def validate_preview(payload: Mapping[str, Any], spec: ActionSpec | None = None)
         raise ValueError("action preview fingerprint or ID mismatch")
     if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
         raise ValueError("action preview covers a different spec")
+    if spec is not None:
+        for field in (
+            "connector", "operation", "mode", "target", "idempotency_key",
+            "requested_scopes", "approval_required", "destructive", "paid",
+            "sensitive_data", "compensation",
+        ):
+            expected = list(spec.requested_scopes) if field == "requested_scopes" else getattr(spec, field)
+            if payload.get(field) != expected:
+                raise ValueError(f"action preview {field} does not match spec")
 
 
 def build_action_approval(preview: Mapping[str, Any], *, approved_by: str, approved_scopes: list[str], approved_at: str | None = None) -> dict[str, Any]:
@@ -243,6 +252,16 @@ def validate_action_approval(approval: Mapping[str, Any], preview: Mapping[str, 
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if _fingerprint(material) != fingerprint:
         raise ValueError("action approval fingerprint mismatch")
+    for field in ("connector", "operation", "target"):
+        if approval.get(field) != preview.get(field):
+            raise ValueError(f"approval {field} does not match preview")
+    scopes = approval.get("approved_scopes")
+    if (
+        not isinstance(scopes, list)
+        or any(not isinstance(scope, str) or not scope.strip() for scope in scopes)
+        or not set(preview.get("requested_scopes", [])).issubset(scopes)
+    ):
+        raise ValueError("approved scopes do not cover requested scopes")
 
 
 class ActionLedger:
@@ -362,3 +381,17 @@ def validate_action_receipt(payload: Mapping[str, Any], spec: ActionSpec | None 
         raise ValueError("action receipt fingerprint mismatch")
     if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
         raise ValueError("action receipt covers a different spec")
+    mode = payload.get("mode")
+    if not isinstance(mode, str) or mode not in MODES:
+        raise ValueError("invalid action receipt mode")
+    if mode == "write":
+        try:
+            _sha(payload.get("approval_fingerprint"), "approval_fingerprint")
+        except ValueError as error:
+            raise ValueError("write action receipt requires approval_fingerprint") from error
+    elif payload.get("approval_fingerprint") is not None:
+        _sha(payload["approval_fingerprint"], "approval_fingerprint")
+    if spec is not None:
+        for field in ("connector", "operation", "mode", "target", "idempotency_key"):
+            if payload.get(field) != getattr(spec, field):
+                raise ValueError(f"action receipt {field} does not match spec")

@@ -19,7 +19,7 @@ from codex_science.action_connectors import (
     execute_action,
     validate_action_receipt,
 )
-from tests.test_action_connectors import FakeAdapter
+from tests.test_action_connectors import FakeAdapter, rehash_payload
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +31,9 @@ SEEDED_FAILURE_TESTS = {
     "approval-spec-digest-mismatch": "test_approval_spec_digest_mismatch",
     "approval-reused-for-different-target": "test_approval_reused_for_different_target",
     "preview-spec-mismatch": "test_preview_spec_mismatch",
+    "preview-target-mismatch": "test_preview_target_mismatch",
+    "approval-scope-not-covering": "test_approval_scope_not_covering",
+    "write-receipt-without-approval": "test_write_receipt_without_approval",
     "remote-state-drift": "test_remote_state_drift",
     "idempotency-key-reuse": "test_idempotency_key_reuse",
 }
@@ -154,6 +157,31 @@ class CodexScienceConductorAcceptanceTests(unittest.TestCase):
         self.assert_refused(
             self.spec, self.preview, self.approval, "remote state changed after preview",
         )
+
+    def test_preview_target_mismatch(self) -> None:
+        preview = rehash_payload({**self.preview, "target": "workspace-1/sample-2"})
+        approval = build_action_approval(
+            preview, approved_by="fixture-reviewer",
+            approved_scopes=self.payload["requested_scopes"], approved_at=STAMP,
+        )
+        self.assert_refused(
+            self.spec, preview, approval, "action preview target does not match spec",
+        )
+
+    def test_approval_scope_not_covering(self) -> None:
+        approval = rehash_payload({**self.approval, "approved_scopes": []})
+        self.assert_refused(
+            self.spec, self.preview, approval, "approved scopes do not cover requested scopes",
+        )
+
+    def test_write_receipt_without_approval(self) -> None:
+        receipt = execute_action(
+            self.adapter, self.spec, self.preview, approval=self.approval,
+            ledger=self.ledger, executed_at=STAMP,
+        )
+        forged = rehash_payload({**receipt, "approval_fingerprint": None})
+        with self.assertRaisesRegex(ValueError, "write action receipt requires approval_fingerprint"):
+            validate_action_receipt(forged, self.spec)
 
     def test_idempotency_key_reuse(self) -> None:
         execute_action(
