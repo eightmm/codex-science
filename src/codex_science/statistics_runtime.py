@@ -12,7 +12,6 @@ import random
 import statistics
 import sys
 from collections import defaultdict
-from decimal import Decimal
 from fractions import Fraction
 from typing import Any, Iterable, Mapping
 
@@ -89,21 +88,20 @@ def _paired_standardized(differences: list[float]) -> float | None:
 
 
 def _extreme(value: int, observed: int, alternative: str) -> bool:
+    gamma = 100 * Fraction(sys.float_info.epsilon) * abs(observed)
     if alternative == "two-sided":
-        return abs(value) >= abs(observed)
+        return abs(value) >= abs(observed) - gamma
     if alternative == "greater":
-        return value >= observed
+        return value >= observed - gamma
     if alternative == "less":
-        return value <= observed
+        return value <= observed + gamma
     raise ValueError(f"unsupported alternative: {alternative}")
 
 
 def _integer_observations(values: list[float]) -> list[int]:
-    # Reprs with at most float_info.dig significant digits preserve typed decimal
-    # ties; longer reprs use exact binary values to preserve computed-value ties.
-    decimals = [Decimal(repr(value)) for value in values]
-    fractions = [Fraction(decimal) if len(decimal.as_tuple().digits) <= sys.float_info.dig else Fraction(value)
-                 for value, decimal in zip(values, decimals)]
+    # Exact binary statistics use scipy-style relative tie tolerance for
+    # typed-decimal near-ties in _extreme.
+    fractions = [Fraction(value) for value in values]
     denominator = math.lcm(*(value.denominator for value in fractions))
     return [value.numerator * (denominator // value.denominator) for value in fractions]
 

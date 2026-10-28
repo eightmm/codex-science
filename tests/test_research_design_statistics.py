@@ -19,6 +19,7 @@ from codex_science.statistics_runtime import (
     _extreme,
     _finite,
     _hedges_g,
+    _integer_observations,
     _median,
     _paired_standardized,
     _permutation_independent,
@@ -240,18 +241,30 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
                     self.assertEqual(float(oracle), result["test"]["p_value"])
         for alternative in ("two-sided", "greater", "less"):
             self.assertTrue(_extreme(0.0, 0.0, alternative))
-            self.assertEqual(alternative == "less", _extreme(math.nextafter(1.0, 0.0), 1.0, alternative))
+            self.assertTrue(_extreme(math.nextafter(1.0, 0.0), 1.0, alternative))
         self.assertFalse(_extreme(0.0, 1e-16, "two-sided"))
 
-    def hybrid_fraction(self, value):
-        value = float(value)
-        text = repr(value)
-        digits = text.lower().split("e")[0].lstrip("-").replace(".", "").lstrip("0")
-        return Fraction(text) if len(digits) <= sys.float_info.dig else Fraction(value)
+    def test_extreme_relative_tolerance_includes_exact_boundary(self) -> None:
+        for observed in (2 ** 52, -(2 ** 52), 2 ** 2000, -(2 ** 2000)):
+            gamma = 100 * Fraction(sys.float_info.epsilon) * abs(observed)
+            for alternative in ("two-sided", "greater", "less"):
+                for distance in (gamma - 1, gamma, gamma + 1):
+                    value = (abs(observed) - distance if alternative == "two-sided" else
+                             observed - distance if alternative == "greater" else observed + distance)
+                    with self.subTest(observed=observed, alternative=alternative, distance=distance):
+                        self.assertEqual(distance <= gamma, _extreme(value, observed, alternative))
+            for value in (-1, 0, 1):
+                for alternative in ("two-sided", "greater", "less"):
+                    expected = (True if alternative == "two-sided" else
+                                value >= 0 if alternative == "greater" else value <= 0)
+                    self.assertEqual(expected, _extreme(value, 0, alternative))
+        for alternative in ("", None, "sideways"):
+            with self.subTest(alternative=alternative), self.assertRaisesRegex(ValueError, "unsupported alternative"):
+                _extreme(0, 0, alternative)
 
     def fraction_permutation_oracle(self, a, b, measure="mean-difference", alternative="two-sided", *,
                                     paired=False, replicates=None, seed=7):
-        a, b = ([self.hybrid_fraction(value) for value in group] for group in (a, b))
+        a, b = ([Fraction(value) for value in group] for group in (a, b))
         summary = statistics.mean if measure == "mean-difference" else statistics.median
         randomizer = random.Random(seed)
         if paired:
@@ -277,11 +290,12 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
             estimates = (summary([value for index, value in enumerate(combined) if index not in selected])
                          - summary([combined[index] for index in selected])
                          for selected in selections)
+        gamma = 100 * Fraction(sys.float_info.epsilon) * abs(observed)
         total = extreme = 0
         for value in estimates:
             total += 1
-            extreme += (abs(value) >= abs(observed) if alternative == "two-sided" else
-                        value >= observed if alternative == "greater" else value <= observed)
+            extreme += (abs(value) >= abs(observed) - gamma if alternative == "two-sided" else
+                        value >= observed - gamma if alternative == "greater" else value <= observed + gamma)
         adjustment = int(replicates is not None)
         return Fraction(extreme + adjustment, total + adjustment)
 
@@ -308,22 +322,32 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
                                          [i * u for i in range(10, 18)], Fraction(268, 12870),
                                          measure="median-difference")
 
-    def test_integer_observations_use_binary_values_above_decimal_precision(self) -> None:
-        from codex_science.statistics_runtime import _integer_observations
+    def test_integer_observations_preserve_exact_binary_values(self) -> None:
+        values = [0.0, -0.0, 0.1, -0.2, math.nextafter(0.1, math.inf),
+                  math.ulp(0.0), 1e300, 1.0]
+        integers = _integer_observations(values)
+        for value, integer in zip(values, integers):
+            with self.subTest(value=value):
+                self.assertEqual(Fraction(value), Fraction(integer, integers[-1]))
+        self.assertEqual([], _integer_observations([]))
 
-        for value, digits in ((0.123456789012345, 15), (0.1234567890123456, 16),
-                              (0.12345678901234567, 17)):
-            for sign in (-1, 1):
-                observation = sign * value
-                with self.subTest(digits=digits, sign=sign):
-                    integers = _integer_observations([observation, 1.0])
-                    actual = Fraction(integers[0], integers[1])
-                    self.assertEqual(self.hybrid_fraction(observation), actual)
-                    if digits > sys.float_info.dig:
-                        self.assertEqual(Fraction(observation), actual)
-                        self.assertNotEqual(Fraction(repr(observation)), actual)
-                    else:
-                        self.assertEqual(Fraction(repr(observation)), actual)
+    def test_mixed_decimal_and_computed_values_preserve_base_ties(self) -> None:
+        a, base = [0.0, 0.1], [0.1, 0.1]
+        b = [0.1, math.nextafter(0.1, math.inf)]
+        for paired in (False, True):
+            helper = _permutation_paired if paired else _permutation_independent
+            for measure in ("mean-difference", "median-difference"):
+                self.assert_fraction_permutation(a, b, Fraction(1), measure=measure, paired=paired)
+                for alternative in ("two-sided", "greater", "less"):
+                    for limit in (0, 100_000):
+                        with self.subTest(paired=paired, measure=measure, alternative=alternative, limit=limit):
+                            with patch("codex_science.statistics_runtime.MAX_EXACT_PERMUTATIONS", limit):
+                                actual = helper(a, b, measure, alternative, replicates=200, randomizer=random.Random(7))
+                                expected = helper(a, base, measure, alternative, replicates=200, randomizer=random.Random(7))
+                            self.assertEqual(expected, actual)
+                            oracle = self.fraction_permutation_oracle(
+                                a, b, measure, alternative, paired=paired, replicates=200 if limit == 0 else None)
+                            self.assertEqual(float(oracle), actual[0])
 
     def test_exact_independent_decimal_ties_fraction_oracle(self) -> None:
         for measure in ("mean-difference", "median-difference"):
@@ -339,6 +363,8 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
     def test_monte_carlo_integer_statistics_match_fraction_oracle(self) -> None:
         u = 2 ** -26
         cases = (([0.1, 0.2], [0.3, 0.0]),
+                 ([0.1, 0.0], [0.3, 0.2]),
+                 ([0.0, 0.1], [0.1, math.nextafter(0.1, math.inf)]),
                  ([i * u for i in range(7)] + [1e9], [i * u for i in range(10, 18)]),
                  ([0.0, 0.0, 0.0], [u, 2 * u, 1e9]))
         for paired in (False, True):
