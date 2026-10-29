@@ -740,7 +740,7 @@ def respond_to_review(
             problems.append(str(error))
     if problems:
         raise ValueError("; ".join(problems))
-    write_json_atomic(destination, response)
+    write_json_atomic(resolved, response)
     return {
         "output": str(resolved),
         "requested_status": status,

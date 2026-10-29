@@ -937,6 +937,15 @@ class RespondToReviewRejectionTests(unittest.TestCase):
         self.response_path.unlink()
         tree.rmdir()
         self.assertRefused("stale packet.*tree")
+        destination = tree / ".." / "responses" / "safe.json"
+        resolved = self.task.parent.resolve() / "responses" / "safe.json"
+        summary = self.respond(reviewed_all=False, reviewed_paths=[self.artifact_path], output=destination)
+        self.assertEqual("passed", summary["effective_status"])
+        self.assertEqual(str(resolved), summary["output"])
+        self.assertTrue(resolved.is_file())
+        self.assertFalse(tree.exists())
+        resolved.unlink()
+        resolved.parent.rmdir()
         alias.symlink_to(tree, target_is_directory=True)
         before = sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*"))
         for destination in (tree, tree / "new.json", tree / "nested" / "new.json", alias / "new.json"):
