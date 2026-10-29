@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,73 @@ from codex_science.reference_contract import (
 
 
 class ReferenceContractTests(unittest.TestCase):
+    def test_audit_cli_refuses_invalid_roots_without_writing(self) -> None:
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        empty_file = directory / "empty-file"
+        empty_file.touch()
+        binary_file = directory / "binary-file"
+        binary_file.write_bytes(b"\xff")
+        output = directory / "output" / "report.json"
+        script = Path(__file__).resolve().parents[1] / "scripts" / "audit_skill_references.py"
+        for existing in (False, True):
+            if existing:
+                output.parent.mkdir(exist_ok=True)
+                output.write_bytes(b"prior output\n")
+            for root in (directory / "missing", empty_file, binary_file):
+                for clean in ([], ["--require-clean"]):
+                    with self.subTest(existing=existing, root=root.name, clean=clean):
+                        result = subprocess.run(
+                            [sys.executable, str(script), "--root", str(root), "--output", str(output), *clean],
+                            capture_output=True, text=True,
+                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                        )
+                        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertIn("root must be an existing directory", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        if existing:
+                            self.assertEqual(b"prior output\n", output.read_bytes())
+                        else:
+                            self.assertFalse(output.parent.exists())
+
+    def test_audit_cli_requires_at_least_one_skill_only_when_clean_is_required(self) -> None:
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = directory / "repository"
+        root.mkdir()
+        output = directory / "output" / "report.json"
+        script = Path(__file__).resolve().parents[1] / "scripts" / "audit_skill_references.py"
+        for existing in (False, True):
+            if existing:
+                output.parent.mkdir(exist_ok=True)
+                output.write_bytes(b"prior output\n")
+            for destination in ([], ["--output", str(output)]):
+                with self.subTest(existing=existing, destination=destination):
+                    result = subprocess.run(
+                        [sys.executable, str(script), "--root", str(root), "--require-clean", *destination],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertIn("error: no skills audited", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    if existing:
+                        self.assertEqual(b"prior output\n", output.read_bytes())
+                    else:
+                        self.assertFalse(output.parent.exists())
+        command = [sys.executable, str(script), "--root", str(root)]
+        result = subprocess.run(command, capture_output=True, text=True,
+                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, json.loads(result.stdout)["summary"]["skills"])
+        self._skill(root / "authored-skills")
+        result = subprocess.run([*command, "--require-clean"], capture_output=True, text=True,
+                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(1, json.loads(result.stdout)["summary"]["skills"])
+        self.assertIn("skills=1 indexed=1 references=1 findings=0 major=0", result.stderr)
+
     def test_required_reference_text_and_schema_are_not_coerced(self):
         receipt = {"schema_version": 1, "skill": "s", "reference_id": "r", "path": "references/r.md",
                    "sha256": "a" * 64, "read_reason": "why", "loaded_at": "now"}

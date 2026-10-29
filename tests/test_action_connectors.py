@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_science.action_connectors import (
+    _canonical_bytes,
     ActionLedger,
     ActionSpec,
     build_action_approval,
@@ -111,6 +112,80 @@ def rehash_payload(payload: dict) -> dict:
 
 
 class ActionConnectorTests(unittest.TestCase):
+    def test_spec_flags_require_booleans_and_preserve_defaults(self) -> None:
+        base = write_spec().to_dict()
+        flags = ("approval_required", "destructive", "paid", "sensitive_data")
+        for flag in flags:
+            for value in (None, 0, 1, -1, 0.0, 1.0, "", "false", "true", [], [False], {},
+                          {"value": True}, 10 ** 400, float("nan"), float("inf")):
+                with self.subTest(flag=flag, value=value):
+                    with self.assertRaisesRegex(ValueError, flag + " must be a boolean"):
+                        ActionSpec.from_payload({**base, flag: value})
+            for value in (False, True):
+                with self.subTest(flag=flag, valid=value):
+                    mode = "read" if flag == "approval_required" and not value else "write"
+                    spec = ActionSpec.from_payload({**base, "mode": mode, flag: value})
+                    self.assertIs(value, getattr(spec, flag))
+        without_flags = {key: value for key, value in base.items() if key not in flags}
+        for mode in ("read", "write"):
+            spec = ActionSpec.from_payload({**without_flags, "mode": mode})
+            self.assertIs(mode == "write", spec.approval_required)
+            self.assertFalse(spec.destructive or spec.paid or spec.sensitive_data)
+
+    def test_spec_parameters_and_canonical_json_refuse_nonfinite_values(self) -> None:
+        for value in (float("nan"), float("inf"), float("-inf")):
+            for parameters in ({"x": value}, {"x": [value]}, {"x": [{"y": value}]}):
+                with self.subTest(parameters=parameters):
+                    with self.assertRaisesRegex(ValueError, "parameters.*finite"):
+                        ActionSpec.from_payload({**write_spec().to_dict(), "parameters": parameters})
+                    with self.assertRaises(ValueError):
+                        _canonical_bytes(parameters)
+        for parameters in ({}, {"x": 0}, {"x": -0.0}, {"x": sys.float_info.max},
+                           {"x": [None, True, "", [], {}]}):
+            with self.subTest(valid=parameters):
+                spec = ActionSpec.from_payload({**write_spec().to_dict(), "parameters": parameters})
+                self.assertEqual(parameters, spec.parameters)
+                self.assertEqual(parameters, json.loads(_canonical_bytes(parameters)))
+
+    def test_spec_schema_requires_integer_version(self) -> None:
+        for value in (None, True, False, 1.0, "1", [], {}, 0, 2):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "unsupported action spec schema"):
+                    ActionSpec.from_payload({**write_spec().to_dict(), "schema_version": value})
+
+    def test_cli_refuses_invalid_flags_and_nonfinite_parameters_without_writing(self) -> None:
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        source = directory / "spec.json"
+        output = directory / "new" / "validated.json"
+        script = Path(__file__).resolve().parents[1] / "scripts" / "connector_action_contract.py"
+        base = write_spec().to_dict()
+        invalid = [{**base, flag: value} for flag, value in (
+            ("approval_required", "false"), ("destructive", None),
+            ("paid", []), ("sensitive_data", 1),
+        )]
+        invalid.extend({**base, "parameters": {"x": [{"y": value}]}}
+                       for value in (float("nan"), float("inf"), float("-inf")))
+        invalid.append({**base, "schema_version": True})
+        for existing in (False, True):
+            if existing:
+                output.parent.mkdir(exist_ok=True)
+                output.write_bytes(b"prior output\n")
+            for payload in invalid:
+                with self.subTest(existing=existing, payload=payload):
+                    source.write_text(json.dumps(payload), encoding="utf-8")
+                    result = subprocess.run(
+                        [sys.executable, str(script), "validate-spec", str(source), "--output", str(output)],
+                        capture_output=True, text=True, timeout=CALL_TIMEOUT,
+                    )
+                    self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    if existing:
+                        self.assertEqual(b"prior output\n", output.read_bytes())
+                    else:
+                        self.assertFalse(output.parent.exists())
+
     def test_documented_preview_matches_producer_and_validates_through_cli(self) -> None:
         root = Path(__file__).resolve().parents[1]
         text = (root / "runtime-skills" / "codex-science" / "references" /

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -47,7 +48,7 @@ def _now() -> str:
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def _fingerprint(value: Mapping[str, Any]) -> str:
@@ -73,6 +74,8 @@ def _sha(value: Any, label: str) -> str:
 
 
 def _json_value(value: Any, label: str) -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{label} must be finite")
     if value is None or isinstance(value, (str, int, float, bool)):
         return
     if isinstance(value, list):
@@ -87,6 +90,12 @@ def _json_value(value: Any, label: str) -> None:
             _json_value(item, f"{label}.{key_text}")
         return
     raise ValueError(f"{label} must contain JSON values")
+
+
+def _boolean(value: Any, label: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be a boolean")
+    return value
 
 
 @dataclass(frozen=True)
@@ -108,7 +117,8 @@ class ActionSpec:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "ActionSpec":
-        if payload.get("schema_version", 1) != 1:
+        version = payload.get("schema_version", 1)
+        if not isinstance(version, int) or isinstance(version, bool) or version != 1:
             raise ValueError("unsupported action spec schema")
         mode = _text(payload.get("mode"), "mode")
         if mode not in MODES:
@@ -132,10 +142,10 @@ class ActionSpec:
             requested_scopes=scopes,
             idempotency_key=_text(payload.get("idempotency_key"), "idempotency_key"),
             expected_before_sha256=before,
-            approval_required=bool(payload.get("approval_required", mode == "write")),
-            destructive=bool(payload.get("destructive", False)),
-            paid=bool(payload.get("paid", False)),
-            sensitive_data=bool(payload.get("sensitive_data", False)),
+            approval_required=_boolean(payload.get("approval_required", mode == "write"), "approval_required"),
+            destructive=_boolean(payload.get("destructive", False), "destructive"),
+            paid=_boolean(payload.get("paid", False), "paid"),
+            sensitive_data=_boolean(payload.get("sensitive_data", False), "sensitive_data"),
             compensation=None if payload.get("compensation") is None else str(payload["compensation"]),
         )
         if spec.mode == "write" and not spec.approval_required:

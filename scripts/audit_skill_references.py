@@ -24,15 +24,23 @@ STRICT_SKILLS = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--root", type=Path, default=ROOT, help="existing repository directory to audit")
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--require-clean", action="store_true")
+    parser.add_argument("--require-clean", action="store_true", help="require at least one audited skill and no major findings")
     args = parser.parse_args()
-    root = args.root.resolve()
-    report = audit_reference_roots(
-        [root / "runtime-skills", root / "authored-skills"],
-        strict_names=STRICT_SKILLS,
-    )
+    try:
+        root = args.root.resolve()
+        if not root.is_dir():
+            raise ValueError(f"root must be an existing directory: {args.root}")
+        report = audit_reference_roots(
+            [root / "runtime-skills", root / "authored-skills"],
+            strict_names=STRICT_SKILLS,
+        )
+        if args.require_clean and report["summary"]["skills"] == 0:
+            raise ValueError("no skills audited; --require-clean requires at least one skill")
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
