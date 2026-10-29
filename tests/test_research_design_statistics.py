@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import itertools
 import json
 import math
@@ -71,6 +72,9 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         self.assertEqual([], design["audit_findings"])
         self.assertEqual([], review_research_design(design))
         self.assertEqual(64, len(design["fingerprint"]))
+        material = {key: value for key, value in design.items() if key != "fingerprint"}
+        payload = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        self.assertEqual(hashlib.sha256(payload.encode("utf-8")).hexdigest(), design["fingerprint"])
 
     def test_design_detects_pseudoreplication_optional_stopping_and_causal_gap(self) -> None:
         broken = self.valid_design()

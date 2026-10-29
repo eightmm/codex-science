@@ -785,6 +785,7 @@ class CheckpointTests(unittest.TestCase):
         )
         outside = Path(self.tempdir.name) / "outside"
         outside.mkdir()
+        (outside / "checkpoint.json").write_bytes((self.run_dir / "checkpoint.json").read_bytes())
         (self.run_dir.parent / "linked").symlink_to(outside, target_is_directory=True)
 
         found = find_active_checkpoint(Path(self.tempdir.name), self.session_key)

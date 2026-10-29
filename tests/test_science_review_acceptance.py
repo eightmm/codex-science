@@ -136,6 +136,7 @@ class ScienceReviewAcceptanceTests(unittest.TestCase):
                     "--require-passed-review"], capture_output=True, text=True)
                 self.assertNotEqual(0, result.returncode, result.stdout)
                 self.assertIn("finding", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
     def test_completion_cli_flags_changed_finding_evidence_outside_coverage(self) -> None:
         counter = self.run_dir / "counter.json"
