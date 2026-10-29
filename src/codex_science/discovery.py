@@ -1,6 +1,7 @@
 """Connect scientific cycle snapshots to existing run artifacts and project indexes."""
 from __future__ import annotations
 
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -184,12 +185,13 @@ def _observed_policy(cycle: dict[str, Any], payload: dict[str, Any],
 
 
 def plan_cycle(cycle: dict[str, Any], run_dir: Path) -> dict[str, Any]:
-    """Rank only unreserved experiments against the remaining frozen budget."""
+    """Rank unreserved experiments against the exact remaining frozen budget."""
     from codex_science.experiment_planner import plan_discriminating_experiment
     from codex_science.research_cycle import _remaining_budget, validate_cycle
 
     validate_cycle(cycle, run_dir=run_dir)
-    remaining = float(_remaining_budget(cycle))
+    remaining_exact = _remaining_budget(cycle)
+    remaining = float(remaining_exact)
     ranked = []
     if cycle["status"] == "active":
         for experiment in cycle["experiments"]:
@@ -202,6 +204,11 @@ def plan_cycle(cycle: dict[str, Any], run_dir: Path) -> dict[str, Any]:
                 "hypotheses": [item for item in cycle["hypotheses"] if item["id"] in identifiers],
                 "candidates": [experiment], "budget": remaining,
             })
+            # Float output can round either way; reservation uses decimal spellings.
+            for item in result["ranked"]:
+                item["reasons"] = [reason for reason in item["reasons"] if reason != "budget"]
+                if Fraction(str(experiment["cost"])) + Fraction(str(experiment.get("control_cost", 0))) > remaining_exact:
+                    item["reasons"].insert(0, "budget")
             ranked.extend(result["ranked"])
     ranked.sort(key=lambda item: (bool(item["reasons"]), -len(item["distinguishable_pairs"]), item["total_cost"], item["id"]))
     return {"schema_version": 1, "policy": "discriminate_first_v1", "cycle_hash": cycle["cycle_hash"],

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from codex_science.artifacts import validate_bundle
 from codex_science.discovery import attach_cycle, plan_cycle
-from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_history
+from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_cycle, validate_history
 from tests.test_discovery_integration import prepare, execution_ref
 
 
@@ -155,9 +155,13 @@ class DiscoveryBoundaryTests(unittest.TestCase):
     def test_planner_excludes_reserved_experiments_and_uses_remaining_budget(self):
         plan = plan_cycle(self.cycle, self.root)
         self.assertEqual("e1", plan["selected"]["id"])
+        validate_cycle(apply_cycle_event(self.cycle, {
+            "kind": "reserve", "experiment_id": plan["selected"]["id"], "request_id": "selected",
+        }, self.root), self.root)
         self.event("reserve", experiment_id="e1", request_id="r1")
         plan = plan_cycle(self.cycle, self.root)
         self.assertIsNone(plan["selected"])
+        self.assertEqual([], plan["ranked"])
         self.assertEqual(2, plan["remaining_budget"])
 
         root = Path(self.temp.name) / "decimal-budget"
@@ -177,6 +181,9 @@ class DiscoveryBoundaryTests(unittest.TestCase):
         self.assertIsInstance(plan["remaining_budget"], float)
         self.assertEqual("e2", plan["selected"]["id"])
         self.assertEqual(["e2"], [item["id"] for item in plan["ranked"]])
+        validate_cycle(apply_cycle_event(load_cycle(root), {
+            "kind": "reserve", "experiment_id": plan["selected"]["id"], "request_id": "zero-cost",
+        }, root), root)
 
         # affordable decimal-cost case: budget 0.4, reserved 0.1, candidate 0.1+0.2 fits remaining 0.3
         root_affordable = Path(self.temp.name) / "affordable-decimal"
@@ -204,9 +211,50 @@ class DiscoveryBoundaryTests(unittest.TestCase):
         self.assertIsNotNone(selected_ranked)
         self.assertNotIn("budget", selected_ranked["reasons"])
         # reserving selected validates
-        apply_cycle_event(load_cycle(root_affordable), {
+        selected_cycle = apply_cycle_event(load_cycle(root_affordable), {
             "kind": "reserve", "experiment_id": plan_before["selected"]["id"], "request_id": "affordable-reserve",
         }, root_affordable)
+        validate_cycle(selected_cycle, root_affordable)
+
+        for index, (budget, reserved, cost, control_cost, affordable) in enumerate([
+            (1, 0.1 + 0.2, 0.7, 0, False),
+            (1, 0.1 + 0.2, 0.4, 0.3, False),
+            (1, 0.1 + 0.2, 0.71, 0, False),
+            (0.5, 0.10000000000000002, 0.19999999999999998, 0.2, True),
+        ]):
+            with self.subTest(budget=budget, reserved=reserved, cost=cost, control_cost=control_cost):
+                boundary_root = Path(self.temp.name) / f"rounding-boundary-{index}"
+                payload = prepare(boundary_root)
+                payload["evaluation"]["budget"] = budget
+                payload["experiments"][0].update(cost=reserved, control_cost=0)
+                other = copy.deepcopy(payload["experiments"][0])
+                other.update(id="e2", cost=cost, control_cost=control_cost)
+                payload["experiments"].append(other)
+                save_cycle(new_cycle(payload), boundary_root)
+                save_cycle(apply_cycle_event(load_cycle(boundary_root), {
+                    "kind": "reserve", "experiment_id": "e1", "request_id": "first",
+                }, boundary_root), boundary_root)
+                cycle = load_cycle(boundary_root)
+                plan = plan_cycle(cycle, boundary_root)
+                self.assertIsInstance(plan["remaining_budget"], float)
+                self.assertEqual(["e2"], [item["id"] for item in plan["ranked"]])
+                self.assertEqual([] if affordable else ["budget"], plan["ranked"][0]["reasons"])
+                event = {"kind": "reserve", "experiment_id": "e2", "request_id": "second"}
+                if affordable:
+                    self.assertEqual("e2", plan["selected"]["id"])
+                    validate_cycle(apply_cycle_event(cycle, event, boundary_root), boundary_root)
+                else:
+                    self.assertIsNone(plan["selected"])
+                    with self.assertRaisesRegex(ValueError, "reserved experiment cost exceeds frozen budget"):
+                        apply_cycle_event(cycle, event, boundary_root)
+
+        for field in ("cost", "control_cost"):
+            for invalid in (None, "", True, -1, float("nan")):
+                with self.subTest(field=field, invalid=invalid):
+                    malformed = copy.deepcopy(self.cycle)
+                    malformed["experiments"][0][field] = invalid
+                    with self.assertRaises(ValueError):
+                        plan_cycle(malformed, self.root)
 
     def test_code_free_idea_cannot_be_reserved(self):
         payload = copy.deepcopy(self.input)
