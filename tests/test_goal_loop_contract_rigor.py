@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from codex_science.rigor import classify_rigor
+
 from codex_science.checkpoints import (
     create_checkpoint,
     escalate_checkpoint,
@@ -144,6 +146,20 @@ class RigorCheckpointContractTests(unittest.TestCase):
         self.assertIn("classify_rigor.py", content)
         self.assertIn("never lower it", content)
         self.assertIn("Tiers never relax the audit", content)
+        checkpoint_rule = content.split("6. For standard and full tiers,", 1)[1].split("7.", 1)[0]
+        self.assertIn("create a checkpoint for a quick-tier answer", checkpoint_rule)
+        self.assertNotRegex(checkpoint_rule, r"one-step|step-count")
+        decision = classify_rigor({
+            "schema": "rigor-request-v1", "deliverable": "answer", "source_count": 1,
+            "claim_strength": "descriptive", "computation": True,
+        })
+        self.assertEqual("standard", decision["tier"])
+        self.assertTrue(decision["requirements"]["checkpoint"])
+        self.assertIn(
+            "a `completed` completion report does not by itself verify review-mode coverage "
+            "or full-tier contract, graph, and lane presence",
+            content,
+        )
 
 
 if __name__ == "__main__":
