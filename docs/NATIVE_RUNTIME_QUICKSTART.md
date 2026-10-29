@@ -2,7 +2,32 @@
 
 Codex Science uses progressive references: keep the decision flow in `SKILL.md`, then load the exact command/schema reference only when the route is selected. Do not guess a command or output field from a skill summary. In this document, `<plugin-root>` means the absolute activation-pinned runtime root injected by the hook, not the managed checkout or a newly installed runtime.
 
+Start in a new, dedicated workspace. The command fails if the directory already
+exists. Sections 1–3 assume you are working inside this fresh workspace.
+
+```bash
+mkdir codex-science-quickstart && cd codex-science-quickstart
+```
+
 ## 1. Inspect and annotate an artifact
+
+Inputs: create a small synthetic PDB and compute its digest before running the
+commands below. These records are only for exercising the artifact tools.
+
+```bash
+(
+mkdir -p artifacts/run
+set -o noclobber
+cat > artifacts/run/receptor.pdb <<'PDB' || exit 1
+ATOM      1  CA  ALA A 145      11.000  12.000  13.000  1.00 20.00           C
+END
+PDB
+sha256sum artifacts/run/receptor.pdb
+)
+```
+
+Copy the digest from the first column of `sha256sum` into `<manifest-sha256>`
+in the `describe` command below.
 
 Read first:
 
@@ -52,6 +77,21 @@ The proposal does not edit or rerun anything. Feed it into impact analysis, appr
 
 ## 2. Manage hypothesis branches
 
+Inputs: copy the shipped synthetic provenance bundle into the run directory.
+Its manifest records the run ID `science-provenance-acceptance`, which is the
+value to pass to `--source-run` below.
+
+```bash
+(
+if [ -e artifacts/run-001 ] || [ -L artifacts/run-001 ]; then
+  printf '%s\n' 'error: artifacts/run-001 already exists' >&2
+  exit 1
+fi
+mkdir artifacts/run-001 && \
+  cp "<plugin-root>"/examples/science-provenance/* artifacts/run-001/
+)
+```
+
 Read first:
 
 ```text
@@ -66,17 +106,40 @@ Then:
   --output project/created.json
 
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite import-run \
-  --project-id project-1 --manifest artifacts/run-001/manifest.json \
+  --project-id project-1 --manifest artifacts/run-001/input.json \
   --branch main --output project/import-001.json
 
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_project.py" --database project/evidence.sqlite fork \
-  --project-id project-1 --source-run run-001 \
+  --project-id project-1 --source-run science-provenance-acceptance \
   --branch receptor-state-inactive --output project/fork.json
 ```
 
 Import each later branch run as a new immutable run. Use `compare` and `merge-plan`; never overwrite or auto-merge scientific claims.
 
 ## 3. Execute a durable job
+
+Inputs: write a bounded local job spec that runs a no-op command through the
+runtime's Python launcher in the current directory. The submit command writes a
+JSON record; use its `job_id` field in place of `<job-id>` in the wait and
+collect commands.
+
+```bash
+(
+mkdir -p artifacts/run
+set -o noclobber
+cat > artifacts/run/job-spec.json <<'JSON' || exit 1
+{
+  "backend": "local",
+  "name": "quickstart-noop",
+  "command": ["<plugin-root>/scripts/python_runtime.sh", "-c", "pass"],
+  "working_directory": ".",
+  "outputs": [],
+  "resources": {"cpus": 1, "gpus": 0},
+  "timeout_seconds": 30
+}
+JSON
+)
+```
 
 Read first:
 
