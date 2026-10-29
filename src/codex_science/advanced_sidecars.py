@@ -62,8 +62,8 @@ def validate_advanced_sidecars(
         "transform_proposals": [],
         "runtime_descriptor_stale": [],
         "artifact_hashes": {
-            str(item["path"]): str(item["sha256"]).lower()
-            for item in manifest.get("artifacts", [])
+            str(item.get("path", "")): str(item["sha256"]).lower()
+            for item in manifest.get("artifacts", []) if item.get("path")
         },
         "advanced_paths": {},
         **empty_quantitative_sidecars(),
@@ -75,7 +75,9 @@ def validate_advanced_sidecars(
         kind, relative = str(record.get("kind", "")), str(record.get("path", ""))
         if kind not in ADVANCED_KINDS:
             continue
-        path = verified[relative]
+        path = verified.get(relative)
+        if not relative or path is None:
+            raise ValueError(f"{relative or '<missing path>'} ({kind}): advanced sidecar path is not verified")
         if not path.is_file():
             raise ValueError(f"advanced sidecar must be a file: {relative}")
         payload = _load(path, kind)

@@ -13,6 +13,7 @@ this module mutates the source artifact.
 
 from __future__ import annotations
 
+import codecs
 import csv
 import hashlib
 import html
@@ -49,6 +50,7 @@ MAX_RUNTIME_RECORDS = 10_000
 MAX_SELECTION_BYTES = 64 * 1024
 MAX_PROPOSAL_PARAMETER_BYTES = 64 * 1024
 MAX_REASON_CHARACTERS = 4_000
+_COMPLETE_TABLE_HEADER_WARNING = "The byte-bounded table preview includes the complete header."
 
 STRUCTURE_SUFFIXES = {".pdb", ".ent", ".cif", ".mmcif"}
 MOLECULE_SUFFIXES = {".sdf", ".mol", ".mol2", ".smi", ".smiles"}
@@ -111,13 +113,27 @@ def _read_head(path: Path, max_bytes: int) -> tuple[bytes, bool]:
     return data[:max_bytes], len(data) > max_bytes
 
 
-def _decode_text(data: bytes) -> tuple[str, str]:
+def _decode_text(data: bytes, *, truncated: bool = False) -> tuple[str, str]:
+    for marker, encoding in ((b"\xff\xfe\x00\x00", "utf-32"), (b"\x00\x00\xfe\xff", "utf-32"),
+                             (b"\xff\xfe", "utf-16"), (b"\xfe\xff", "utf-16")):
+        if data.startswith(marker):
+            try:
+                decoder = codecs.getincrementaldecoder(encoding)(errors="strict")
+                return decoder.decode(data, final=not truncated), encoding
+            except UnicodeDecodeError as exc:
+                raise ValueError(f"Incomplete or malformed {encoding} text inside the byte bound") from exc
     for encoding in ("utf-8", "utf-8-sig", "latin-1"):
         try:
-            return data.decode(encoding), encoding
+            decoder = codecs.getincrementaldecoder(encoding)(errors="strict")
+            return decoder.decode(data, final=not truncated), encoding
         except UnicodeDecodeError:
             continue
     return data.decode("utf-8", errors="replace"), "utf-8-replacement"
+
+
+def _is_json(path: Path, media_type: str | None = None) -> bool:
+    media = (media_type or "").lower()
+    return path.suffix.lower() == ".json" or media.endswith("+json") or media == "application/json"
 
 
 def detect_viewer(path: Path, *, kind: str = "", media_type: str | None = None) -> str:
@@ -143,7 +159,7 @@ def detect_viewer(path: Path, *, kind: str = "", media_type: str | None = None) 
         return "evidence-graph"
     if suffix in TRAJECTORY_SUFFIXES or "trajectory" in kind_lower:
         return "trajectory"
-    if suffix in TEXT_SUFFIXES or media.startswith("text/") or media.endswith("+json") or media == "application/json":
+    if suffix in TEXT_SUFFIXES or media.startswith("text/") or _is_json(path, media_type):
         return "text"
     return "binary"
 
@@ -165,7 +181,7 @@ def _bounded(items: Iterable[Any], maximum: int) -> tuple[list[Any], bool]:
 
 def _structure_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[str, Any], list[str]]:
     data, truncated_bytes = _read_head(path, max_bytes)
-    text, encoding = _decode_text(data)
+    text, encoding = _decode_text(data, truncated=truncated_bytes)
     warnings: list[str] = []
     atoms: list[dict[str, Any]] = []
     chains: set[str] = set()
@@ -193,7 +209,7 @@ def _structure_preview(path: Path, max_bytes: int, max_records: int) -> tuple[di
                 warnings.append("At least one coordinate record could not be normalized.")
                 continue
             chains.add(atom["chain"] or "_")
-            residues.add(f"{atom['chain'] or '_'}:{atom['resname']}:{atom['resseq']}")
+            residues.add(f"{atom['chain'] or '_'}:{atom['resname']}:{atom['resseq']}:{line[26:27].strip()}")
             if atom["record"] == "HETATM" and atom["resname"] not in {"HOH", "WAT"}:
                 ligands.add(atom["resname"])
             if len(atoms) < max_records:
@@ -224,7 +240,7 @@ def _structure_preview(path: Path, max_bytes: int, max_records: int) -> tuple[di
 
 def _molecule_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[str, Any], list[str]]:
     data, truncated_bytes = _read_head(path, max_bytes)
-    text, encoding = _decode_text(data)
+    text, encoding = _decode_text(data, truncated=truncated_bytes)
     warnings: list[str] = []
     suffix = path.suffix.lower()
     if suffix in {".smi", ".smiles"}:
@@ -274,7 +290,7 @@ def _genome_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[
         data, truncated = _read_head(path, min(max_bytes, 4096))
         return ({"format": "bigwig", "magic_hex": data[:4].hex(), "header_bytes_preview": data[:64].hex()}, ["bigWig is represented by bounded binary metadata; track values require a dedicated indexed reader."] + (["Header preview truncated."] if truncated else []))
     data, truncated_bytes = _read_head(path, max_bytes)
-    text, encoding = _decode_text(data)
+    text, encoding = _decode_text(data, truncated=truncated_bytes)
     headers: list[str] = []
     records: list[dict[str, Any]] = []
     suffix = path.suffix.lower()
@@ -288,7 +304,9 @@ def _genome_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[
         fields = line.split("\t")
         if suffix == ".vcf" and len(fields) >= 8:
             record = {"line": line_number, "chrom": fields[0], "pos": fields[1], "id": fields[2], "ref": fields[3], "alt": fields[4], "qual": fields[5], "filter": fields[6]}
-        elif len(fields) >= 3:
+        elif suffix in {".gff", ".gff3", ".gtf"} and len(fields) >= 5:
+            record = {"line": line_number, "chrom": fields[0], "start": fields[3], "end": fields[4], "fields": fields[5:10]}
+        elif suffix not in {".gff", ".gff3", ".gtf"} and len(fields) >= 3:
             record = {"line": line_number, "chrom": fields[0], "start": fields[1], "end": fields[2], "fields": fields[3:10]}
         else:
             record = {"line": line_number, "raw": line[:500]}
@@ -297,6 +315,28 @@ def _genome_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[
             break
     warnings = ["The genome-track preview is byte bounded."] if truncated_bytes else []
     return {"format": suffix.lstrip("."), "encoding": encoding, "headers_preview": headers, "records_preview": records}, warnings
+
+
+def _csv_sample_shape(
+    sample: str, delimiter: str, *, quotechar: str, skipinitialspace: bool, truncated: bool
+) -> bool | None:
+    """Use completed records to distinguish a contradiction from missing sample bytes."""
+    stream = io.StringIO(sample, newline="")
+    width = None
+    count = 0
+    try:
+        for row in csv.reader(stream, delimiter=delimiter, quotechar=quotechar, skipinitialspace=skipinitialspace,
+                              doublequote=True, escapechar=None, strict=True):
+            if truncated and stream.tell() == len(sample) and not sample.endswith(("\r", "\n")):
+                break
+            if width is None:
+                width = len(row)
+            elif len(row) != width:
+                return False
+            count += 1
+    except csv.Error:
+        return None if truncated else False
+    return None if truncated and count < 2 else True
 
 
 def _table_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[str, Any], list[str]]:
@@ -311,20 +351,49 @@ def _table_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[s
                 magic["suffix_available"] = True
         return ({"format": suffix.lstrip("."), "binary_metadata": magic}, ["Column statistics and rows require a dedicated Arrow/Parquet reader; no schema is inferred from filename alone."] + (["Header preview truncated."] if truncated else []))
     data, truncated_bytes = _read_head(path, max_bytes)
-    text, encoding = _decode_text(data)
+    text, encoding = _decode_text(data, truncated=truncated_bytes)
     delimiter = "\t" if suffix == ".tsv" else ","
+    options = {"quotechar": '"', "skipinitialspace": False, "doublequote": True, "escapechar": None}
     try:
         dialect = csv.Sniffer().sniff(text[:8192], delimiters=",\t;|")
         delimiter = dialect.delimiter
     except csv.Error:
-        pass
-    reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-    rows, more = _bounded(reader, max_records + 1)
+        dialect = None
+    if dialect is not None and (dialect.quotechar != '"' or dialect.skipinitialspace):
+        sample = text[:8192]
+        sample_truncated = truncated_bytes or len(text) > len(sample)
+        if _csv_sample_shape(sample, delimiter, quotechar='"', skipinitialspace=False, truncated=sample_truncated) is False:
+            candidates = [('"', True)]
+            if dialect.quotechar != '"':
+                candidates.append((dialect.quotechar, dialect.skipinitialspace))
+            for quotechar, skipinitialspace in candidates:
+                if _csv_sample_shape(sample, delimiter, quotechar=quotechar, skipinitialspace=skipinitialspace,
+                                     truncated=sample_truncated) is True:
+                    options.update(quotechar=quotechar, skipinitialspace=skipinitialspace)
+                    break
+    stream = io.StringIO(text, newline="")
+    reader = csv.reader(stream, delimiter=delimiter, **options)
+    try:
+        rows, more = _bounded(reader, max_records + 1)
+    except csv.Error as exc:
+        raise ValueError(f"CSV records could not be parsed within runtime bounds: {exc}") from exc
+    warnings = []
     header = rows[0] if rows else []
     body = rows[1:max_records + 1] if rows else []
-    warnings = []
     if truncated_bytes or more:
         warnings.append("The table preview is bounded and is not a complete row count.")
+    if truncated_bytes:
+        header_stream = io.StringIO(text, newline="")
+        header_complete = False
+        try:
+            next(csv.reader(header_stream, delimiter=delimiter, strict=True, **options), [])
+        except csv.Error:
+            pass
+        else:
+            header_end = header_stream.tell()
+            header_complete = header_end > 0 and text[header_end - 1] in "\r\n"
+        warnings.append(_COMPLETE_TABLE_HEADER_WARNING if header_complete else
+                        "The table header preview is byte bounded; columns may be incomplete.")
     return {"format": "delimited-text", "encoding": encoding, "delimiter": delimiter, "columns": header, "rows_preview": body}, warnings
 
 
@@ -365,7 +434,7 @@ def _figure_preview(path: Path, max_bytes: int) -> tuple[dict[str, Any], list[st
     preview: dict[str, Any] = {"format": path.suffix.lower().lstrip("."), "dimensions": None if dimensions is None else {"width": dimensions[0], "height": dimensions[1]}}
     warnings: list[str] = []
     if path.suffix.lower() == ".svg":
-        text, encoding = _decode_text(data)
+        text, encoding = _decode_text(data, truncated=truncated)
         preview["encoding"] = encoding
         preview["markup_preview"] = text[:5000]
         warnings.append("SVG markup is escaped in the runtime and is never executed as active content.")
@@ -380,11 +449,31 @@ def _graph_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[s
     data, truncated = _read_head(path, max_bytes)
     warnings: list[str] = []
     try:
-        payload = json.loads(data.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return {"format": "json", "parsed": False, "text_preview": _decode_text(data)[0][:5000]}, ["The bounded prefix did not contain a complete JSON graph."]
+        text = _decode_text(data, truncated=truncated)[0]
+    except ValueError:
+        return {"format": "json", "parsed": False, "text_preview": data.decode("utf-8", errors="replace")[:5000]}, ["The bounded prefix contains malformed or incomplete Unicode graph text."]
+    try:
+        payload = json.loads(text.removeprefix("\ufeff"))
+    except json.JSONDecodeError:
+        return {"format": "json", "parsed": False, "text_preview": text[:5000]}, ["The bounded prefix did not contain a complete JSON graph."]
     nodes = payload.get("nodes", []) if isinstance(payload, dict) else []
     edges = payload.get("edges", []) if isinstance(payload, dict) else []
+    if isinstance(payload, dict) and "elements" in payload:
+        elements = payload["elements"]
+        if isinstance(elements, dict):
+            nodes, edges = elements.get("nodes", []), elements.get("edges", [])
+            if not {"nodes", "edges"}.intersection(elements):
+                warnings.append("Unsupported Cytoscape elements layout; counts are unavailable.")
+        elif isinstance(elements, list):
+            nodes = [item for item in elements if isinstance(item, dict) and item.get("group") == "nodes"]
+            edges = [item for item in elements if isinstance(item, dict) and item.get("group") == "edges"]
+            if len(nodes) + len(edges) != len(elements):
+                warnings.append("Cytoscape elements without a supported nodes/edges group were not counted.")
+        else:
+            warnings.append("Unsupported Cytoscape elements layout; counts are unavailable.")
+            nodes, edges = [], []
+    elif not isinstance(payload, dict) or not {"nodes", "edges"}.intersection(payload):
+        warnings.append("JSON does not expose a supported graph layout; counts are unavailable.")
     if not isinstance(nodes, list) or not isinstance(edges, list):
         warnings.append("JSON does not expose list-valued nodes and edges.")
         nodes, edges = [], []
@@ -406,7 +495,7 @@ def _trajectory_preview(path: Path, max_bytes: int, max_records: int) -> tuple[d
         data, truncated = _read_head(path, min(max_bytes, 4096))
         return ({"format": path.suffix.lower().lstrip("."), "header_hex": data[:128].hex()}, ["Binary trajectory frames require a format-specific reader; only bounded metadata is exposed."] + (["Header preview truncated."] if truncated else []))
     data, truncated = _read_head(path, max_bytes)
-    text, encoding = _decode_text(data)
+    text, encoding = _decode_text(data, truncated=truncated)
     lines = text.splitlines()
     offset = 0
     frames: list[dict[str, Any]] = []
@@ -436,14 +525,20 @@ def _directory_preview(path: Path, max_records: int, media_type: str | None) -> 
     return ({"format": "directory-tree", "root_sha256": descriptor.root_sha256, "total_bytes": descriptor.total_bytes, "entry_count": descriptor.entry_count, "entries_preview": list(descriptor.entries[:max_records])}, ["Directory view is entry bounded."] if descriptor.entry_count > max_records else [])
 
 
-def _text_preview(path: Path, max_bytes: int, max_records: int) -> tuple[dict[str, Any], list[str]]:
+def _text_preview(
+    path: Path, max_bytes: int, max_records: int, *, media_type: str | None = None
+) -> tuple[dict[str, Any], list[str]]:
     data, truncated = _read_head(path, max_bytes)
-    text, encoding = _decode_text(data)
-    lines = text.splitlines()
+    text, encoding = _decode_text(data, truncated=truncated)
+    if _is_json(path, media_type):
+        # JSON strings may contain Unicode separators that are not physical line ends.
+        lines = [line.removesuffix("\n") for line in io.StringIO(text, newline=None)]
+    else:
+        lines = text.splitlines()
     preview: dict[str, Any] = {"encoding": encoding, "line_count_in_prefix": len(lines), "lines_preview": [{"line": index + 1, "text": line} for index, line in enumerate(lines[:max_records])]}
-    if path.suffix.lower() == ".json" and not truncated:
+    if _is_json(path, media_type) and not truncated:
         try:
-            payload = json.loads(text)
+            payload = json.loads(text.removeprefix("\ufeff"))
             preview["json_type"] = type(payload).__name__
             if isinstance(payload, dict):
                 preview["top_level_keys"] = sorted(map(str, payload.keys()))[:max_records]
@@ -521,10 +616,15 @@ def describe_runtime(
         "evidence-graph": lambda: _graph_preview(path, max_bytes, max_records),
         "trajectory": lambda: _trajectory_preview(path, max_bytes, max_records),
         "directory": lambda: _directory_preview(path, max_records, media_type),
-        "text": lambda: _text_preview(path, max_bytes, max_records),
+        "text": lambda: _text_preview(path, max_bytes, max_records, media_type=media_type),
         "binary": lambda: _binary_preview(path, max_bytes),
     }
     preview, warnings = parsers[viewer]()
+    if path.is_dir():
+        if preview["root_sha256"] != digest:
+            raise ValueError("artifact directory changed while building the preview")
+    elif stream_sha256(path) != (digest, size):
+        raise ValueError("artifact bytes changed while building the preview")
     material = {
         "schema_version": 1,
         "artifact_path": relative,
@@ -570,6 +670,138 @@ def validate_runtime_descriptor(payload: Mapping[str, Any]) -> None:
         raise ValueError("artifact runtime descriptor fingerprint mismatch")
 
 
+def _validate_selector_coordinates(selector_type: str, selector: Mapping[str, Any]) -> None:
+    """Reject contradictions in understood coordinates; retain opaque legacy shapes."""
+    scalar_fields = {
+        "row": ("row",), "column": ("column",), "cell": ("row", "column"),
+        "line": ("line",), "frame": ("frame",),
+    }
+    endpoint_pairs = {
+        "range": (("start", "end"), ("row_start", "row_end"), ("column_start", "column_end"),
+                  ("start_row", "end_row"), ("start_column", "end_column")),
+        "line-range": (("start", "end"), ("line_start", "line_end")),
+        "byte-range": (("start", "end"),), "frame-range": (("start", "end"),),
+        "interval": (("start", "end"),), "locus": (("start", "end"),),
+    }
+    pairs = endpoint_pairs.get(selector_type, ())
+    endpoints = tuple(field for pair in pairs for field in pair)
+    minimum = 1 if selector_type in {"line", "line-range"} else 0
+    for field in (*scalar_fields.get(selector_type, ()), *endpoints):
+        value = selector.get(field)
+        if type(value) is int and value < minimum:
+            qualifier = "positive" if minimum else "non-negative"
+            raise ValueError(f"selector {field} must be a {qualifier} integer")
+    for start, end in pairs:
+        if type(selector.get(start)) is int and type(selector.get(end)) is int and selector[start] > selector[end]:
+            raise ValueError("selector range is reversed")
+
+
+def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[str, Any]) -> bool:
+    """Resolve available coordinates without inventing undocumented index origins."""
+    viewer, kind, selector = payload["viewer"], payload["selector_type"], payload["selector"]
+    _validate_selector_coordinates(kind, selector)
+    preview = descriptor["preview"]
+    bytes_complete = descriptor["size_bytes"] <= descriptor["bounds"]["max_bytes"]
+
+    def index(value: Any, count: int, label: str, *, one_based: bool = False, complete: bool = True) -> bool:
+        # Table indices have no documented origin; only reject impossible values.
+        if type(value) is not int:
+            return False
+        if value < int(one_based) or (complete and (count == 0 or value > count)):
+            raise ValueError(f"selector {label} does not resolve in the inspected artifact region")
+        return count > 0 and value <= count
+
+    if viewer == "table" and preview.get("format") == "delimited-text":
+        rows, columns = preview["rows_preview"], preview["columns"]
+        rows_complete = bytes_complete and not descriptor["warnings"]
+        columns_complete = bytes_complete or bool(rows) or _COMPLETE_TABLE_HEADER_WARNING in descriptor["warnings"]
+        row_fields = (("row",) if kind in {"row", "cell"} else
+                      ("row_start", "row_end", "start_row", "end_row", "start", "end") if kind == "range" else ())
+        column_fields = (("column",) if kind in {"column", "cell"} else
+                         ("column_start", "column_end", "start_column", "end_column") if kind == "range" else ())
+        resolved = {}
+        for field in row_fields:
+            if field in selector:
+                resolved[field] = index(selector[field], len(rows), field, complete=rows_complete)
+        for field in column_fields:
+            if field not in selector:
+                continue
+            value = selector[field]
+            if isinstance(value, str):
+                if columns_complete and value not in columns:
+                    raise ValueError("selector column does not resolve in the artifact")
+                resolved[field] = columns_complete and value in columns
+            else:
+                resolved[field] = index(value, len(columns), field, complete=columns_complete)
+        if (kind == "cell" and rows_complete and type(selector.get("row")) is int
+                and (isinstance(selector.get("column"), str) or type(selector.get("column")) is int)):
+            row, column = selector["row"], selector["column"]
+            row_indices = [item for item in (row - 1, row) if 0 <= item < len(rows)]
+            column_indices = ([columns.index(column)] if isinstance(column, str) else
+                              [item for item in (column - 1, column) if 0 <= item < len(columns)])
+            if not any(col < len(rows[item]) for item in row_indices for col in column_indices):
+                raise ValueError("selector cell does not resolve in the artifact")
+        if kind in {"row", "column"}:
+            return resolved.get(kind, False)
+        if kind == "cell":
+            return rows_complete and resolved.get("row", False) and resolved.get("column", False)
+        pairs = (("start", "end"), ("row_start", "row_end"), ("start_row", "end_row"),
+                 ("column_start", "column_end"), ("start_column", "end_column"))
+        present = [pair for pair in pairs if any(field in selector for field in pair)]
+        return bool(present) and all(all(resolved.get(field, False) for field in pair) for pair in present)
+    elif viewer == "text":
+        if kind in {"line", "line-range"}:
+            fields = ("line",) if kind == "line" else ("start", "end", "line_start", "line_end")
+            resolved = {field: index(selector[field], preview["line_count_in_prefix"], field,
+                                     one_based=True, complete=bytes_complete)
+                        for field in fields if field in selector}
+            if kind == "line":
+                return resolved.get("line", False)
+            pairs = (("start", "end"), ("line_start", "line_end"))
+            present = [pair for pair in pairs if any(field in selector for field in pair)]
+            return bool(present) and all(all(resolved.get(field, False) for field in pair) for pair in present)
+        elif kind == "json-pointer":
+            if not _is_json(Path(descriptor["artifact_path"]), descriptor.get("media_type")):
+                return False
+            pointer = selector.get("pointer", selector.get("json_pointer"))
+            if not isinstance(pointer, str):
+                return False
+            if pointer and not pointer.startswith("/"):
+                raise ValueError("selector JSON pointer must be empty or start with /")
+            segments = pointer.split("/")[1:] if pointer else []
+            for segment in segments:
+                for position, character in enumerate(segment):
+                    if character == "~" and (position + 1 == len(segment) or segment[position + 1] not in "01"):
+                        raise ValueError("invalid JSON pointer escape")
+            lines = preview.get("lines_preview", [])
+            starts_with_bom = bool(lines) and lines[0]["text"].startswith("\ufeff")
+            if bytes_complete and preview.get("json_type") == "invalid" and not starts_with_bom:
+                raise ValueError("selector JSON pointer does not resolve in the artifact")
+            # Missing preview content establishes uncertainty, not non-existence.
+            if not bytes_complete or len(lines) != preview["line_count_in_prefix"]:
+                return False
+            try:
+                text = "\n".join(item["text"] for item in lines)
+                value = json.loads(text.removeprefix("\ufeff"))
+                for segment in segments:
+                    segment = segment.replace("~1", "/").replace("~0", "~")
+                    if isinstance(value, list):
+                        if not segment.isascii() or not segment.isdecimal() or (len(segment) > 1 and segment[0] == "0"):
+                            raise ValueError("invalid JSON pointer array index")
+                        value = value[int(segment)]
+                    elif isinstance(value, dict):
+                        value = value[segment]
+                    else:
+                        raise ValueError("JSON pointer traverses a scalar")
+            except (ValueError, KeyError, IndexError) as exc:
+                raise ValueError("selector JSON pointer does not resolve in the artifact") from exc
+            return True
+    elif viewer == "binary" and kind == "byte-range":
+        resolved = [index(selector.get(field), descriptor["size_bytes"], field) for field in ("start", "end")]
+        return all(resolved)
+    return False
+
+
 def build_selection(
     descriptor: Mapping[str, Any],
     *,
@@ -580,8 +812,31 @@ def build_selection(
     label: str = "",
     created_at: str | None = None,
 ) -> dict[str, Any]:
+    if type(descriptor.get("size_bytes")) is not int or descriptor["size_bytes"] < 0:
+        raise ValueError("selection descriptor size_bytes must be a non-negative integer")
     validate_runtime_descriptor(descriptor)
+    max_bytes = descriptor["bounds"].get("max_bytes")
+    if type(max_bytes) is not int or max_bytes < 1:
+        raise ValueError("selection descriptor bounds.max_bytes must be a positive integer")
     viewer = str(descriptor["viewer"])
+    preview = descriptor["preview"]
+    if viewer == "table" and preview.get("format") == "delimited-text":
+        columns, rows = preview.get("columns"), preview.get("rows_preview")
+        if not isinstance(columns, list) or not all(isinstance(value, str) for value in columns):
+            raise ValueError("selection descriptor preview.columns must be a string list")
+        if not isinstance(rows, list) or not all(
+            isinstance(row, list) and all(isinstance(value, str) for value in row) for row in rows
+        ):
+            raise ValueError("selection descriptor preview.rows_preview must be a list of string lists")
+    elif viewer == "text":
+        count = preview.get("line_count_in_prefix")
+        if type(count) is not int or count < 0:
+            raise ValueError("selection descriptor preview.line_count_in_prefix must be a non-negative integer")
+        lines = preview.get("lines_preview")
+        if not isinstance(lines, list) or not all(
+            isinstance(line, Mapping) and isinstance(line.get("text"), str) for line in lines
+        ):
+            raise ValueError("selection descriptor preview.lines_preview must contain text records")
     if selector_type not in VIEWER_SELECTIONS[viewer]:
         raise ValueError(f"selector {selector_type} is not valid for viewer {viewer}")
     if not isinstance(selector, Mapping) or not selector:
@@ -594,6 +849,7 @@ def build_selection(
     for value, field in ((selected_by, "selected_by"), (reason, "reason")):
         if not value.strip():
             raise ValueError(f"{field} is required")
+    _validate_selection_region({"viewer": viewer, "selector_type": selector_type, "selector": selector}, descriptor)
     material = {
         "schema_version": 1,
         "artifact_path": descriptor["artifact_path"],
@@ -720,6 +976,8 @@ def validate_transform_proposal(payload: Mapping[str, Any], selection: Mapping[s
         validate_selection(selection)
         if payload["selection_id"] != selection["selection_id"] or payload["selection_fingerprint"] != selection["fingerprint"]:
             raise ValueError("transform proposal references a different selection")
+        if payload["artifact_path"] != selection["artifact_path"] or payload["artifact_sha256"] != selection["artifact_sha256"]:
+            raise ValueError("transform proposal artifact differs from its selection")
 
 
 def render_runtime_html(descriptor: Mapping[str, Any], *, title: str | None = None) -> str:

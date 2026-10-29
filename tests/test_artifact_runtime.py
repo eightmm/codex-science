@@ -21,6 +21,215 @@ from codex_science.artifact_runtime import (
 )
 
 
+# Frozen descriptors from the actual 00f4dc8 producer, including decoding defects.
+BASE_DECODING_SNAPSHOTS = json.loads(r'''
+[
+  {
+    "name": "plain.csv",
+    "bytes_hex": "6e616d652c76616c75650a782c310a",
+    "descriptor": {
+      "schema_version": 1,
+      "artifact_path": "plain.csv",
+      "artifact_sha256": "8dec639901b900ac1e11a5bf0556feb1f97cc4924ddceb7489bc102a3daf19b1",
+      "artifact_kind": "artifact",
+      "artifact_type": "file",
+      "media_type": null,
+      "size_bytes": 15,
+      "viewer": "table",
+      "generated_at": "2026-07-21T00:00:00Z",
+      "bounds": {
+        "max_bytes": 1048576,
+        "max_records": 100
+      },
+      "preview": {
+        "format": "delimited-text",
+        "encoding": "utf-8",
+        "delimiter": ",",
+        "columns": [
+          "name",
+          "value"
+        ],
+        "rows_preview": [
+          [
+            "x",
+            "1"
+          ]
+        ]
+      },
+      "warnings": [],
+      "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
+      "fingerprint": "71731b9bc26249aef887965237b9aac031ab420e192501804f790923e3748b30"
+    }
+  },
+  {
+    "name": "plain.txt",
+    "bytes_hex": "68656c6c6f0a",
+    "descriptor": {
+      "schema_version": 1,
+      "artifact_path": "plain.txt",
+      "artifact_sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+      "artifact_kind": "artifact",
+      "artifact_type": "file",
+      "media_type": null,
+      "size_bytes": 6,
+      "viewer": "text",
+      "generated_at": "2026-07-21T00:00:00Z",
+      "bounds": {
+        "max_bytes": 1048576,
+        "max_records": 100
+      },
+      "preview": {
+        "encoding": "utf-8",
+        "line_count_in_prefix": 1,
+        "lines_preview": [
+          {
+            "line": 1,
+            "text": "hello"
+          }
+        ]
+      },
+      "warnings": [],
+      "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
+      "fingerprint": "eaaefaf3f0d1dccdda432e452ec2c4172e0b1e30971b2805074815c0c14aaea9"
+    }
+  },
+  {
+    "name": "bom.csv",
+    "bytes_hex": "efbbbf6e616d652c76616c75650a782c310a",
+    "descriptor": {
+      "schema_version": 1,
+      "artifact_path": "bom.csv",
+      "artifact_sha256": "6c12936eb7e33097a76400f31713a75f2e953c907454ca89dd9d4d65f37c80ed",
+      "artifact_kind": "artifact",
+      "artifact_type": "file",
+      "media_type": null,
+      "size_bytes": 18,
+      "viewer": "table",
+      "generated_at": "2026-07-21T00:00:00Z",
+      "bounds": {
+        "max_bytes": 1048576,
+        "max_records": 100
+      },
+      "preview": {
+        "format": "delimited-text",
+        "encoding": "utf-8",
+        "delimiter": ",",
+        "columns": [
+          "\ufeffname",
+          "value"
+        ],
+        "rows_preview": [
+          [
+            "x",
+            "1"
+          ]
+        ]
+      },
+      "warnings": [],
+      "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
+      "fingerprint": "752be43e36c95b58a064975ade59acfb65a3553d555eb0fefff2cd263200f1e6"
+    }
+  },
+  {
+    "name": "utf16.txt",
+    "bytes_hex": "fffe680065006c006c006f000a00",
+    "descriptor": {
+      "schema_version": 1,
+      "artifact_path": "utf16.txt",
+      "artifact_sha256": "fe22fdd28ac74f1585e541ab18bc36fd09bcf3e0b92b3a9bc9cfea65ebaa35e6",
+      "artifact_kind": "artifact",
+      "artifact_type": "file",
+      "media_type": null,
+      "size_bytes": 14,
+      "viewer": "text",
+      "generated_at": "2026-07-21T00:00:00Z",
+      "bounds": {
+        "max_bytes": 1048576,
+        "max_records": 100
+      },
+      "preview": {
+        "encoding": "latin-1",
+        "line_count_in_prefix": 2,
+        "lines_preview": [
+          {
+            "line": 1,
+            "text": "\u00ff\u00feh\u0000e\u0000l\u0000l\u0000o\u0000"
+          },
+          {
+            "line": 2,
+            "text": "\u0000"
+          }
+        ]
+      },
+      "warnings": [],
+      "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
+      "fingerprint": "f41550c69f353c4c48e4d48224cfa799f12edbc998354dcca4c4292c88579014"
+    },
+    "corrected_descriptor": {
+      "schema_version": 1,
+      "artifact_path": "utf16.txt",
+      "artifact_sha256": "fe22fdd28ac74f1585e541ab18bc36fd09bcf3e0b92b3a9bc9cfea65ebaa35e6",
+      "artifact_kind": "artifact",
+      "artifact_type": "file",
+      "media_type": null,
+      "size_bytes": 14,
+      "viewer": "text",
+      "generated_at": "2026-07-21T00:00:00Z",
+      "bounds": {
+        "max_bytes": 1048576,
+        "max_records": 100
+      },
+      "preview": {
+        "encoding": "utf-16",
+        "line_count_in_prefix": 1,
+        "lines_preview": [
+          {
+            "line": 1,
+            "text": "hello"
+          }
+        ]
+      },
+      "warnings": [],
+      "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
+      "fingerprint": "2f5d27753a0c210482ad79f9a49be433d22e4c5df62363b3346a1eae60e9f9f1"
+    }
+  },
+  {
+    "name": "latin.txt",
+    "bytes_hex": "636166e90a",
+    "descriptor": {
+      "schema_version": 1,
+      "artifact_path": "latin.txt",
+      "artifact_sha256": "9e4efed0ff1dbcf37240f82e1aad6c763eb9331434d2b394a6441abbbe3634eb",
+      "artifact_kind": "artifact",
+      "artifact_type": "file",
+      "media_type": null,
+      "size_bytes": 5,
+      "viewer": "text",
+      "generated_at": "2026-07-21T00:00:00Z",
+      "bounds": {
+        "max_bytes": 1048576,
+        "max_records": 100
+      },
+      "preview": {
+        "encoding": "latin-1",
+        "line_count_in_prefix": 1,
+        "lines_preview": [
+          {
+            "line": 1,
+            "text": "caf\u00e9"
+          }
+        ]
+      },
+      "warnings": [],
+      "evidence_boundary": "This is a bounded derived view of hash-validated bytes. It does not prove a scientific claim, execute an edit, or replace format-specific validation.",
+      "fingerprint": "f781dcf49e5ba3221414fbecb8eff1b1485a127cf13769f76fd3930ce9ad4895"
+    }
+  }
+]
+''')
+
+
 class ArtifactRuntimeTests(unittest.TestCase):
     def test_structure_descriptor_selection_and_proposal_are_hash_bound(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -375,6 +584,30 @@ class ArtifactRuntimeFormatPreviewTests(unittest.TestCase):
         self.assertTrue(lines["warnings"])
         latin = self.describe("l.txt", b"caf\xe9\n")
         self.assertEqual("latin-1", latin["preview"]["encoding"])
+        for name, text in (("plain.txt", "caf\u00e9\n"), ("plain.csv", "name,value\nx,\u00e9\n")):
+            for encoding in ("utf-8", "utf-8-sig"):
+                data = text.encode(encoding)
+                for bound in (1, len(data) - 2, len(data), len(data) + 1):
+                    with self.subTest(name=name, encoding=encoding, bound=bound):
+                        descriptor = self.describe(name, data, max_bytes=bound)
+                        expected = "utf-8"
+                        self.assertEqual(expected, descriptor["preview"]["encoding"])
+        for data, encoding in ((b"", "utf-8"), (b"\xef\xbb\xbf", "utf-8")):
+            with self.subTest(data=data):
+                self.assertEqual(encoding, self.describe("empty.txt", data)["preview"]["encoding"])
+
+    def test_plain_utf8_descriptors_match_base_snapshots(self) -> None:
+        for fixture in BASE_DECODING_SNAPSHOTS:
+            with self.subTest(name=fixture["name"]):
+                descriptor = self.describe(fixture["name"], bytes.fromhex(fixture["bytes_hex"]))
+                expected = fixture.get("corrected_descriptor", fixture["descriptor"])
+                self.assertEqual(json.dumps(expected, sort_keys=True).encode(),
+                                 json.dumps(descriptor, sort_keys=True).encode())
+                if "corrected_descriptor" in fixture:
+                    # Base UTF-16 falls back to Latin-1 and exposes NUL-filled garbage.
+                    self.assertEqual("latin-1", fixture["descriptor"]["preview"]["encoding"])
+                    self.assertEqual("utf-16", descriptor["preview"]["encoding"])
+                    self.assertEqual("hello", descriptor["preview"]["lines_preview"][0]["text"])
 
 
 class ArtifactRuntimeDescribeRefusalTests(unittest.TestCase):
@@ -615,9 +848,14 @@ class ArtifactRuntimeValidatorTests(unittest.TestCase):
         for payload, message in cases:
             with self.subTest(message=message):
                 self.assertRefused(validate_transform_proposal, payload, message)
+        with self.assertRaisesRegex(ValueError, "does not resolve"):
+            build_selection(
+                self.descriptor, selector_type="line", selector={"line": 2},
+                selected_by="reviewer", reason="check",
+            )
         other = build_selection(
-            self.descriptor, selector_type="line", selector={"line": 2},
-            selected_by="reviewer", reason="check", created_at="2026-07-21T00:01:00Z",
+            self.descriptor, selector_type="line", selector={"line": 1},
+            selected_by="reviewer", reason="different check", created_at="2026-07-21T00:01:00Z",
         )
         self.assertRefused(
             validate_transform_proposal, dict(self.proposal), "references a different selection", other

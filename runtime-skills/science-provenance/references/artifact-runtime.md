@@ -137,6 +137,12 @@ Selection output:
 
 A selection becomes stale when the current manifest digest for `artifact_path` differs. Never silently transfer a selector to changed bytes, even when the filename is unchanged.
 
+Selection creation checks understood table coordinates, text lines, byte ranges and JSON pointers against the descriptor's inspected region. It refuses provably impossible coordinates when the needed facts are complete, while leaving incomplete previews and opaque selector shapes unverified. JSON pointers resolve only on targets routed as JSON by `.json`, `application/json` or `+json` MIME; YAML, TOML and JSONL pointers remain typed anchors. Table indexing conventions remain caller-defined; text line numbers are one-based.
+
+Bundle validation preserves selections emitted by older producers. It checks structure and fingerprints, then classifies staleness using the target digest already verified by bundle validation. It performs no additional target parsing or per-selection hashing and does not resolve stored coordinates, even when a matching descriptor is present. Historical line zero, negative/reversed ranges, out-of-file byte ranges and opaque selector shapes remain valid with unverified coordinates. An `active` selection is not a claim that its coordinates were verified. Stored payloads are never rewritten. New creation-time restrictions do not apply retroactively to stored selections. Missing sidecar paths produce artifact-labelled errors. The process-wide CSV field limit is never changed.
+
+Decoding retains the base UTF-8-first order, including `utf-8` labels and a leading U+FEFF in BOM CSV column names, followed by the base non-UTF-8 fallback. Deliberate corrections remain for BOM-marked UTF-16/32 (the base exposed Latin-1 garbage) and valid Unicode prefixes cut inside a trailing character or surrogate pair. Malformed BOM-marked UTF-16/32 text is refused at describe time instead of described as Latin-1. Older stored selections remain valid with unverified coordinates when preview facts differ. JSON type detection, JSON-pointer resolution and graph readers strip an optional leading U+FEFF locally, without changing the decoder's `utf-8` label, preview text or BOM CSV column names. New selection creation can reject line zero and negative/reversed coordinates; stored-selection validation does not apply those new restrictions retroactively.
+
 ### Propose a transform
 
 ```bash
@@ -166,6 +172,8 @@ The proposal must retain:
 ```
 
 A proposal is an input to impact analysis and selective rerun planning. It is not a shell command, patch, or approval receipt.
+
+When its selection is available, validation requires the proposal's artifact path and digest to equal that selection's path and digest.
 
 ## Manifest sidecar kinds
 
