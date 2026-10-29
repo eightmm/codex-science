@@ -54,7 +54,10 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
         claim_id: item for claim_id, item in manifest_claims.items()
     }
     studies = sidecars.get("study_by_id", {})
-    edges = sidecars.get("edges", [])
+    edges = [
+        {**edge, **{key: str(edge[key]).strip() for key in ("source", "target", "relation")}}
+        for edge in sidecars.get("edges", [])
+    ]
     edge_groups = {
         (str(edge.get("source", "")), str(edge.get("target", "")), str(edge.get("relation", ""))): edge
         for edge in edges
@@ -126,7 +129,7 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for claim_id in sorted(claims):
         claim = claims[claim_id]
-        status = str(claim.get("status", ""))
+        status = str(claim.get("status", "")).strip()
         if status not in {"supported", "replicated"}:
             continue
         manifest_claim = manifest_claims.get(claim_id, {})

@@ -1,6 +1,7 @@
 """Compare cited report statements with verified run-local support excerpts."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -64,7 +65,9 @@ def check_statement_support(run_dir: str | Path, report_paths: list[str | Path] 
     for requested in reports:
         relative = str(requested)
         path = _safe_file(root, relative)
-        for line_number, statement in _units(path.read_text(encoding="utf-8")):
+        report_bytes = path.read_bytes()
+        report_sha256 = hashlib.sha256(report_bytes).hexdigest()
+        for line_number, statement in _units(report_bytes.decode("utf-8")):
             identifiers = [item["identifier"] for item in extract_identifiers(statement)]
             if not identifiers:
                 continue
@@ -72,7 +75,9 @@ def check_statement_support(run_dir: str | Path, report_paths: list[str | Path] 
             overlaps: list[float] = []
             for identifier in identifiers:
                 studies = by_identifier.get(identifier, [])
-                excerpts = [excerpt["text"] for study in studies for excerpt in study.get("support_excerpts", [])]
+                excerpts = [excerpt["text"] for study in studies for excerpt in study.get("support_excerpts", [])
+                            if not (root / str(excerpt["source_artifact"]).strip()).samefile(path)
+                            and str(excerpt["source_sha256"]).strip().lower() != report_sha256]
                 status = "excerpt_available" if excerpts else "no_excerpt" if studies else "untraced"
                 pair: dict[str, Any] = {"identifier": identifier, "status": status}
                 if excerpts:

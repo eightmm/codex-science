@@ -80,6 +80,25 @@ class StatementRetrievalTests(unittest.TestCase):
             self.assertTrue(any(item["source"].startswith("studies.json#") for item in statement["candidates"]))
             self.assertIsNone(statement["cited_source_rank"])
 
+    def test_nested_references_are_not_study_identities(self):
+        cited_id = "pmid:87654321"
+        for references in ([{"pmid": "87654321"}], {"url": "https://pubmed.ncbi.nlm.nih.gov/87654321/"}, [], None, 0):
+            with self.subTest(references=references), tempfile.TemporaryDirectory() as temp:
+                run = self.make_run(Path(temp), f"Intervention prespecified outcome improved {cited_id}.")
+                studies_path = run / "studies.json"
+                studies = json.loads(studies_path.read_text())
+                study = studies["studies"][0]
+                study["references"] = references
+                study["identifiers"] = ["pmid:12345678"]
+                study["source_url"] = "https://pubmed.ncbi.nlm.nih.gov/23456789/"
+                studies_path.write_text(json.dumps(studies))
+                self.update_artifact_digests(run)
+                statement = retrieve_statement_sources(run, top_k=20)["statements"][0]
+                self.assertIsNone(statement["cited_source_rank"])
+                ids = {item["identifier"] for item in statement["candidates"]
+                       if item["source"].startswith("studies.json#")}
+                self.assertEqual({"doi:10.0000/example.primary.1", "pmid:12345678", "pmid:23456789"}, ids)
+
     def test_pmcid_study_candidate_has_pubmed_central_url(self):
         with tempfile.TemporaryDirectory() as temp:
             run = self.make_run(Path(temp), "A PMC study record.")

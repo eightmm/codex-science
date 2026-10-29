@@ -58,6 +58,29 @@ class MethodLandscapeTests(unittest.TestCase):
                 allocate_methods(payload(papers=[{**paper("x", ["a"]), "excerpt": excerpt}]))
             self.assertIn(f"excerpt length must be 20..2000 characters (got {got}); quote only the verbatim claim-bearing sentences", str(caught.exception))
 
+    def test_excerpt_length_uses_stripped_text_and_preserves_verbatim_output(self):
+        for excerpt in ("", " " * 20, "\t\n" * 10, " " + "x" * 19, "x" * 2001,
+                        " " * 1981 + "x" * 20, "x" * 2000 + " ", None, 0):
+            with self.subTest(excerpt=excerpt), tempfile.TemporaryDirectory() as temp:
+                value = payload(papers=[{**paper("x", ["a"]), "excerpt": excerpt}])
+                with self.assertRaisesRegex(ValueError, "paper x excerpt length must be 20..2000") as caught:
+                    allocate_methods(value)
+                if isinstance(excerpt, str) and len(excerpt) > 2000:
+                    self.assertIn(f"got {len(excerpt)} characters", str(caught.exception))
+                source, output = Path(temp) / "in.json", Path(temp) / "out.json"
+                source.write_text(json.dumps(value))
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/allocate_method_candidates.py"),
+                                         "--input", str(source), "--output", str(output)],
+                                        capture_output=True, text=True)
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertIn("paper x excerpt length", result.stderr)
+                self.assertFalse(output.exists())
+        for excerpt in ("x" * 20, " \t" + "x" * 20 + "\n ", "x" * 2000,
+                        " \t" + "x" * 1996 + "\n ", " " * 1980 + "x" * 20):
+            with self.subTest(raw_length=len(excerpt), stripped_length=len(excerpt.strip())):
+                result = allocate_methods(payload(papers=[{**paper("x", ["a"]), "excerpt": excerpt}]))
+                self.assertEqual(excerpt, result["selected"][0]["excerpt"])
+
     def test_selected_entries_carry_excerpt_provenance(self):
         digest = "ab" * 32
         result = allocate_methods(payload(papers=[{**paper("a1", ["a"]), "source_sha256": digest}, paper("b1", ["b"])]))

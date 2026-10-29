@@ -55,8 +55,9 @@ def allocate_methods(payload: Mapping[str, Any]) -> dict[str, Any]:
             if ref not in topic_order:
                 raise ValueError(f"paper {paper_id} references unknown topic: {ref}")
         excerpt = paper.get("excerpt")
-        if not isinstance(excerpt, str) or not 20 <= len(excerpt) <= 2000:
-            got = f"{len(excerpt)} characters" if isinstance(excerpt, str) else f"type {type(excerpt).__name__}"
+        if not isinstance(excerpt, str) or len(excerpt.strip()) < 20 or len(excerpt) > 2000:
+            got = (f"{len(excerpt) if len(excerpt) > 2000 else len(excerpt.strip())} characters"
+                   if isinstance(excerpt, str) else f"type {type(excerpt).__name__}")
             raise ValueError(
                 f"paper {paper_id} excerpt length must be 20..2000 characters (got {got}); "
                 "quote only the verbatim claim-bearing sentences, not the whole abstract"

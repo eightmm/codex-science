@@ -30,18 +30,17 @@ def _source_url(identifier: str) -> str | None:
     return None
 
 
-def _records_from_value(value: Any) -> list[str]:
-    found = _walk_ids(value)
-    if isinstance(value, dict):
-        for key, child in value.items():
-            if key.lower() in {"url", "source_url"}:
-                for raw in child if isinstance(child, list) else [child]:
-                    if isinstance(raw, str):
-                        found.update(item["identifier"] for item in extract_identifiers(raw))
-            found.update(_records_from_value(child))
-    elif isinstance(value, list):
-        for child in value:
-            found.update(_records_from_value(child))
+def _study_identifiers(study: dict[str, Any]) -> list[str]:
+    """Read only the study's own identities, excluding cited or related records."""
+    found: set[str] = set()
+    for key, value in study.items():
+        values = value if isinstance(value, list) else [value]
+        if key.lower() in {"persistent_id", "persistent_ids", "identifiers", "doi", "pmid", "pmcid", "arxiv"}:
+            found.update(_walk_ids({key: [item for item in values if isinstance(item, (str, int))]}))
+        elif key.lower() in {"url", "source_url"}:
+            for raw in values:
+                if isinstance(raw, str):
+                    found.update(item["identifier"] for item in extract_identifiers(raw))
     return sorted(found)
 
 
@@ -68,7 +67,7 @@ def _load_candidates(sidecars: dict[str, Any]) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     study_path = next(iter(sidecars.get("paths", {}).get("study-table", ["studies.json"])))
     for study_id, study in sorted(sidecars.get("study_by_id", {}).items()):
-        ids = _records_from_value(study)
+        ids = _study_identifiers(study)
         primary_ids = sorted(_walk_ids({"persistent_id": study.get("persistent_id")}))
         primary_id = next(iter(primary_ids), None)
         label = str(study.get("title", study_id))

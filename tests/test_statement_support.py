@@ -64,6 +64,65 @@ class StatementSupportTests(unittest.TestCase):
             self.assertEqual(3, rows[0]["line"])
             self.assertEqual("no_excerpt", rows[0]["pair_statuses"][0]["status"])
 
+    def test_report_cannot_supply_its_own_support_excerpt(self):
+        sentence = f"The intervention improved the measured cohort outcome {IDENTIFIER}."
+        for source in ("report.md", "./report.md", " report.md ", "linked-report.md", 5):
+            for external in (False, True):
+                with self.subTest(source=source, external=external), tempfile.TemporaryDirectory() as temp:
+                    run = self.make_run(Path(temp), sentence, sentence)
+                    if source == "linked-report.md":
+                        (run / source).hardlink_to(run / "report.md")
+                    elif source == 5:
+                        (run / str(source)).write_bytes((run / "report.md").read_bytes())
+                    study_path = run / "studies.json"
+                    studies = json.loads(study_path.read_text())
+                    excerpts = studies["studies"][0]["support_excerpts"]
+                    excerpts[0]["source_artifact"] = 0 if source == 5 else "source.txt"
+                    source_path = run / str(excerpts[0]["source_artifact"])
+                    padding = " " * (8 * 1024 * 1024) if external and source == "report.md" else ""
+                    source_path.write_text(padding + "External study source.\n" + sentence)
+                    excerpts[0]["source_sha256"] = hashlib.sha256(source_path.read_bytes()).hexdigest()
+                    own = {**excerpts[0], "source_artifact": source,
+                           "source_sha256": hashlib.sha256((run / "report.md").read_bytes()).hexdigest()}
+                    studies["studies"][0]["support_excerpts"] = [own, *excerpts] if external else [own]
+                    study_path.write_text(json.dumps(studies))
+                    manifest_path = run / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text())
+                    for artifact in manifest["artifacts"]:
+                        artifact["sha256"] = hashlib.sha256((run / artifact["path"]).read_bytes()).hexdigest()
+                    manifest_path.write_text(json.dumps(manifest))
+                    result = subprocess.run([sys.executable, str(CLI), "--run-dir", str(run), "--require-excerpts"],
+                                            text=True, capture_output=True)
+                    self.assertNotIn("Traceback", result.stderr, result.stdout + result.stderr)
+                    self.assertEqual(0 if external else 1, result.returncode, result.stdout + result.stderr)
+                    counts = json.loads(result.stdout)["counts"]
+                    self.assertEqual(int(external), counts["excerpt_available"])
+                    self.assertEqual(int(not external), counts["no_excerpt"])
+
+    def test_report_copy_cannot_supply_support_excerpt(self):
+        for suffix, padded_hash in (("", False), ("\r\n", False), ("", True)):
+            with self.subTest(suffix=suffix, padded_hash=padded_hash), tempfile.TemporaryDirectory() as temp:
+                report = f"The intervention improved the measured cohort outcome {IDENTIFIER}." + suffix
+                run = self.make_run(Path(temp), report, report)
+                self.assertFalse((run / "source.txt").samefile(run / "report.md"))
+                self.assertEqual((run / "source.txt").read_bytes(), (run / "report.md").read_bytes())
+                if padded_hash:
+                    study_path = run / "studies.json"
+                    studies = json.loads(study_path.read_text())
+                    excerpt = studies["studies"][0]["support_excerpts"][0]
+                    excerpt["source_sha256"] = " " + excerpt["source_sha256"].upper() + " "
+                    study_path.write_text(json.dumps(studies))
+                    manifest_path = run / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text())
+                    for artifact in manifest["artifacts"]:
+                        artifact["sha256"] = hashlib.sha256((run / artifact["path"]).read_bytes()).hexdigest()
+                    manifest_path.write_text(json.dumps(manifest))
+                result = subprocess.run([sys.executable, str(CLI), "--run-dir", str(run), "--require-excerpts"],
+                                        text=True, capture_output=True)
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                counts = json.loads(result.stdout)["counts"]
+                self.assertEqual((0, 1), (counts["excerpt_available"], counts["no_excerpt"]))
+
     def test_direct_sidecar_refuses_raw_excerpt_length_and_outside_locator(self):
         sentence = "The source reports improved cohort survival in treated participants."
         cases = [(" " * 2001 + sentence, None, "20..2000"),

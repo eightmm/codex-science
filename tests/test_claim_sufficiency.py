@@ -35,6 +35,52 @@ class ClaimSufficiencyTests(unittest.TestCase):
         self.assertEqual(result["evidence_boundary"], EVIDENCE_BOUNDARY)
         self.assertEqual(result, check_sufficiency(EXAMPLE, tier="standard"))
 
+    def test_padded_claim_status_is_counted_and_enforced(self):
+        base = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        for index, status in enumerate((" supported ", "\treplicated\n", "", " ", None, "invalid")):
+            with self.subTest(status=status):
+                run = self._bundle(self._temp / str(index), claims=[{**base, "status": status}])
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
+                                         "--run-dir", str(run), "--tier", "standard", "--require-sufficient"],
+                                        text=True, capture_output=True)
+                if status in (" supported ", "\treplicated\n"):
+                    self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                    row = json.loads(result.stdout)["claims"][0]
+                    self.assertEqual((status.strip(), 1, "insufficient"),
+                                     (row["status"], row["supporting_groups"], row["verdict"]))
+                else:
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("status", json.loads(result.stdout)["error"]["message"])
+
+    def test_padded_relations_preserve_dependency_and_group_labels(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        studies = [{"study_id": sid, "persistent_id": f"doi:10.1234/{sid}", "title": sid,
+                    "evidence_type": "primary", "included": True, "supports_claim_ids": [claim["id"]]}
+                   for sid in ("A", "B")]
+        nodes = [{"id": claim["id"], "type": "claim"}] + [
+            {"id": study["study_id"], "type": "study"} for study in studies]
+        cases = [("duplicates", "supports", False), (" duplicates ", "supports", False),
+                 ("depends_on", " supports ", True), ("depends_on", "supports", False),
+                 ("", "supports", False), (None, "supports", False)]
+        for index, (dependency, support, shared) in enumerate(cases):
+            with self.subTest(dependency=dependency, support=support):
+                edges = [{"source": study["study_id"], "target": claim["id"], "relation": support,
+                          "independence_group": "shared" if shared else study["study_id"]}
+                         for study in studies]
+                edges.append({"source": " A ", "target": " B ", "relation": dependency})
+                run = self._bundle(self._temp / str(index), studies=studies, nodes=nodes, edges=edges)
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
+                                         "--run-dir", str(run), "--tier", "standard", "--require-sufficient"],
+                                        text=True, capture_output=True)
+                if dependency in ("", None):
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("relation", json.loads(result.stdout)["error"]["message"])
+                else:
+                    merged = dependency.strip() == "duplicates" or shared
+                    self.assertEqual(int(merged), result.returncode, result.stdout + result.stderr)
+                    row = json.loads(result.stdout)["claims"][0]
+                    self.assertEqual(1 if merged else 2, row["supporting_groups"])
+
     def _bundle(self, root: Path, *, claims=None, studies=None, edges=None,
                 manifest_claims=None, nodes=None):
         source = root / "source"
