@@ -9,6 +9,7 @@ from codex_science.safe_expression import (
     MAX_DOMAIN_VALUES,
     ExpressionError,
     ParsedExpression,
+    canonical_sha256,
     evaluate_expression,
     parse_expression,
     search_counterexample,
@@ -256,6 +257,71 @@ class CounterexampleNumericValidityTests(unittest.TestCase):
         result = search_counterexample(payload)
         validate_counterexample_receipt(result)
         return result
+
+    def test_receipt_replays_search_and_refuses_forged_results(self):
+        honest = self.search({"integer_range": {"start": 0, "stop": 1}}, "x*x >= 0")
+        mutations = (
+            {"status": "disproved", "counterexample": {"x": 0}, "exhaustive": False},
+            {"status": "bounded-no-counterexample", "exhaustive": False},
+            {"evaluations": 0},
+            {"satisfying_assignments": 0},
+            {"skipped_assumptions": 1},
+            {"total_combinations": 0},
+            {"exact_domains": False},
+            {"general_proof": True},
+            {"statement_sha256": "a" * 64},
+            {"variables": []},
+            {"variables": [None]},
+            {"conclusion": ""},
+            {"conclusion": "x <"},
+            {"conclusion": "x < 0"},
+            {"assumptions": ["x < 0"]},
+        )
+        for changes in mutations:
+            with self.subTest(changes=changes):
+                forged = {**honest, **changes}
+                forged.pop("fingerprint")
+                forged["fingerprint"] = canonical_sha256(forged)
+                with self.assertRaises(ValueError):
+                    validate_counterexample_receipt(forged)
+
+    def test_receipt_witness_obeys_domain_assumptions_and_exact_semantics(self):
+        honest = self.search({"values": [0, 1]}, "x < 0", assumptions=["x > 0"])
+        for assignment in ({}, {"x": 0}, {"x": -1}, {"x": 2}, {"x": True}, {"x": "1"}, {"x": math.nan}, {"x": math.inf}):
+            with self.subTest(assignment=assignment):
+                forged = {**honest, "counterexample": assignment}
+                forged.pop("fingerprint")
+                forged["fingerprint"] = canonical_sha256(forged)
+                with self.assertRaises(ValueError):
+                    validate_counterexample_receipt(forged)
+        for domain, expression in (({"values": [1]}, "x/49*49 != x"), ({"values": [False]}, "x")):
+            self.search(domain, expression)
+
+    def test_receipt_counters_require_producer_types_and_limits(self):
+        honest = self.search({"values": [0]}, "True", max_evaluations=1)
+        fields = ("evaluations", "satisfying_assignments", "skipped_assumptions", "total_combinations", "max_evaluations")
+        for field in fields:
+            for value in (True, False, "1", 1.0, -1, None, math.nan, math.inf):
+                with self.subTest(field=field, value=value):
+                    forged = {**honest, field: value}
+                    forged.pop("fingerprint")
+                    forged["fingerprint"] = canonical_sha256(forged)
+                    with self.assertRaises(ValueError):
+                        validate_counterexample_receipt(forged)
+        for field in ("exhaustive", "exact_domains", "general_proof"):
+            forged = dict(honest)
+            forged[field] = int(honest[field])
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                validate_counterexample_receipt(forged)
+        for value in (0, 1_000_001):
+            forged = {**honest, "max_evaluations": value}
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                validate_counterexample_receipt(forged)
+        self.search({"values": [0]}, "True", max_evaluations=1_000_000)
 
     def test_exact_arithmetic_and_inexact_search_statuses(self):
         cases = (

@@ -1,12 +1,15 @@
 """Machine-readable mathematical claims, proof obligations, and review rules."""
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 
-from codex_science.safe_expression import canonical_sha256, validate_counterexample_receipt
+from codex_science.artifact_store import stream_sha256
+from codex_science.safe_expression import _evaluate_exact_expression, _parse_statement_expression, canonical_sha256, parse_expression, validate_counterexample_receipt
 
 CLAIM_STATUSES = {
     "conjecture",
@@ -24,7 +27,7 @@ OBLIGATION_STATUSES = {"open", "passed", "failed", "blocked"}
 
 
 def statement_sha256(statement: str) -> str:
-    return hashlib.sha256(statement.encode("utf-8")).hexdigest()
+    return hashlib.sha256(statement.strip().encode("utf-8")).hexdigest()
 
 
 def _required_text(payload: Mapping[str, Any], field: str) -> str:
@@ -143,7 +146,7 @@ def build_proof_receipt(
     return payload
 
 
-def validate_proof_receipt(payload: Mapping[str, Any]) -> None:
+def validate_proof_receipt(payload: Mapping[str, Any], *, bundle_root: Path | None = None) -> None:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported proof receipt schema")
     _required_text(payload, "receipt_id")
@@ -168,6 +171,30 @@ def validate_proof_receipt(payload: Mapping[str, Any]) -> None:
         raise ValueError("checker must be an object")
     if not isinstance(evidence, list) or not all(isinstance(item, Mapping) for item in evidence):
         raise ValueError("evidence must be a list of objects")
+    for item in evidence:
+        path = item.get("path")
+        if (
+            not isinstance(path, str) or not path.strip()
+            or PurePosixPath(path).is_absolute() or PureWindowsPath(path).drive
+            or ".." in PurePosixPath(path).parts or "\\" in path or "\0" in path
+        ):
+            raise ValueError("proof evidence path must stay inside the run bundle")
+        digest = item.get("sha256")
+        if not isinstance(digest, str) or len(digest) != 64 or any(character not in "0123456789abcdefABCDEF" for character in digest):
+            raise ValueError("proof evidence sha256 must be a SHA-256 digest")
+        # Kernel producers record workspace-relative sources without a path-basis
+        # marker, so resolving them against a bundle would reinterpret the receipt.
+        if status == "passed" and bundle_root is not None and kind != "formal-kernel":
+            try:
+                root = bundle_root.resolve(strict=True)
+                evidence_path = (root / path).resolve(strict=True)
+                if not evidence_path.is_relative_to(root) or not evidence_path.is_file():
+                    raise ValueError("proof evidence must resolve to a regular file inside the run bundle")
+                actual_digest, _ = stream_sha256(evidence_path)
+            except (OSError, RuntimeError) as error:
+                raise ValueError("proof evidence file is missing or unreadable inside the run bundle") from error
+            if actual_digest != digest.lower():
+                raise ValueError(f"proof evidence digest mismatch: {path}")
     if status == "passed" and admitted:
         raise ValueError("a passed proof receipt cannot contain admitted constructs")
     if kind == "formal-kernel" and status == "passed":
@@ -257,27 +284,45 @@ def math_review_findings(
 ) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     claim_by_id: dict[str, Mapping[str, Any]] = {}
+    claim_id_counts = Counter(
+        claim["claim_id"] for claim in claims
+        if isinstance(claim.get("claim_id"), str) and claim["claim_id"].strip()
+    )
+    for claim_id, count in claim_id_counts.items():
+        if count > 1:
+            findings.append({"code": "duplicate-mathematical-claim-id", "severity": "major", "message": f"Mathematical claim ID {claim_id} is repeated; duplicate claims cannot participate in receipt linkage."})
     for claim in claims:
         try:
+            claim_id = claim.get("claim_id")
+            if not isinstance(claim_id, str) or not claim_id.strip():
+                raise ValueError("claim_id must be a non-empty string")
             validate_mathematical_claim(claim)
-            claim_by_id[str(claim["claim_id"])] = claim
+            if claim_id_counts[claim_id] == 1:
+                claim_by_id[claim_id] = claim
         except ValueError as error:
             findings.append({"code": "invalid-mathematical-claim", "severity": "major", "message": str(error)})
     proofs: dict[str, Mapping[str, Any]] = {}
-    for receipt in proof_receipts:
-        try:
-            validate_proof_receipt(receipt)
-            proofs[str(receipt["receipt_id"])] = receipt
-        except ValueError as error:
-            findings.append({"code": "invalid-proof-receipt", "severity": "major", "message": str(error)})
     counters: dict[str, Mapping[str, Any]] = {}
-    for receipt in counterexample_receipts:
-        try:
-            validate_counterexample_receipt(receipt)
-            identifier = str(receipt.get("receipt_id") or receipt.get("fingerprint"))
-            counters[identifier] = receipt
-        except ValueError as error:
-            findings.append({"code": "invalid-counterexample-receipt", "severity": "major", "message": str(error)})
+    for receipts, validate, index, kind in (
+        (proof_receipts, validate_proof_receipt, proofs, "proof"),
+        (counterexample_receipts, validate_counterexample_receipt, counters, "counterexample"),
+    ):
+        conflicts: set[str] = set()
+        for receipt in receipts:
+            try:
+                validate(receipt)
+                identifier = str(receipt["receipt_id"]) if kind == "proof" else str(receipt.get("receipt_id") or receipt.get("fingerprint"))
+                if identifier in conflicts:
+                    continue
+                if identifier in index:
+                    if canonical_sha256(index[identifier]) != canonical_sha256(receipt):
+                        conflicts.add(identifier)
+                        del index[identifier]
+                        findings.append({"code": f"duplicate-{kind}-receipt-id", "severity": "major", "message": f"Conflicting {kind} receipts share receipt ID {identifier}."})
+                    continue
+                index[identifier] = receipt
+            except ValueError as error:
+                findings.append({"code": f"invalid-{kind}-receipt", "severity": "major", "message": str(error)})
     obligation_by_claim: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for graph in obligation_graphs:
         try:
@@ -285,6 +330,17 @@ def math_review_findings(
             obligation_by_claim[str(graph.get("claim_id"))].append(graph)
         except ValueError as error:
             findings.append({"code": "invalid-proof-obligation-graph", "severity": "major", "message": str(error)})
+
+    for receipt in proofs.values():
+        obligations: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+        for graph in obligation_by_claim.get(str(receipt["claim_id"]), []):
+            for obligation in graph.get("obligations", []):
+                obligations[_required_text(obligation, "id")].append(obligation)
+        for identifier in _string_list(receipt, "obligation_ids"):
+            if identifier not in obligations:
+                findings.append({"code": "missing-proof-obligation", "severity": "major", "message": f"Proof receipt {receipt['receipt_id']} references missing obligation {identifier} for claim {receipt['claim_id']}."})
+            elif receipt.get("status") == "passed" and any(item.get("status") != "passed" for item in obligations[identifier]):
+                findings.append({"code": "unresolved-proof-dependency", "severity": "major", "message": f"Passed proof receipt {receipt['receipt_id']} references unresolved obligation {identifier}."})
 
     for claim_id, claim in claim_by_id.items():
         status = str(claim["status"])
@@ -297,11 +353,38 @@ def math_review_findings(
         for identifier in missing_counters:
             findings.append({"code": "missing-counterexample-receipt", "severity": "major", "message": f"Claim {claim_id} references missing counterexample receipt {identifier}."})
         for receipt in linked_proofs:
+            if receipt.get("claim_id") != claim_id:
+                findings.append({"code": "proof-claim-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} covers a different claim than {claim_id}."})
             if receipt.get("statement_sha256") != claim.get("statement_sha256"):
                 findings.append({"code": "proof-statement-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} covers a different statement than claim {claim_id}."})
+            # Finite receipts retain their producer's free-text domain description;
+            # deductive and formal proofs must not add hypotheses to the claim.
+            if receipt.get("kind") in {"informal-deductive", "formal-kernel"} and not set(_string_list(receipt, "assumptions")).issubset(_string_list(claim, "assumptions")):
+                findings.append({"code": "proof-assumptions-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} requires assumptions absent from claim {claim_id}."})
         for receipt in linked_counters:
+            if receipt.get("claim_id") != claim_id:
+                findings.append({"code": "counterexample-claim-mismatch", "severity": "critical", "message": f"Counterexample receipt for claim {claim_id} covers a different claim."})
             if receipt.get("statement_sha256") != claim.get("statement_sha256"):
                 findings.append({"code": "counterexample-statement-mismatch", "severity": "critical", "message": f"Counterexample receipt for claim {claim_id} covers a different statement."})
+            names = [str(variable["name"]).strip() for variable in receipt["variables"]]
+            try:
+                statement_expression = _parse_statement_expression(_required_text(claim, "statement"))
+            except ValueError:
+                findings.append({"code": "counterexample-conclusion-mismatch", "severity": "critical", "message": f"Counterexample receipt for claim {claim_id} cannot bind the statement within expression limits."})
+                continue
+            if statement_expression is not None:
+                conclusion_expression = parse_expression(_required_text(receipt, "conclusion"), allowed_names=names)
+                if not set(statement_expression.names).issubset(names) or ast.dump(statement_expression.tree) != ast.dump(conclusion_expression.tree):
+                    findings.append({"code": "counterexample-conclusion-mismatch", "severity": "critical", "message": f"Counterexample receipt for claim {claim_id} evaluates a different conclusion than the claim statement."})
+            if status == "disproved" and receipt.get("status") == "disproved":
+                for assumption in _string_list(claim, "assumptions"):
+                    try:
+                        holds = bool(_evaluate_exact_expression(assumption, receipt["counterexample"]))
+                    except (ValueError, OverflowError, ZeroDivisionError) as error:
+                        findings.append({"code": "counterexample-assumption-unverifiable", "severity": "critical", "message": f"Counterexample for claim {claim_id} cannot evaluate assumption {assumption!r}: {error}."})
+                        continue
+                    if not holds:
+                        findings.append({"code": "counterexample-assumption-violated", "severity": "critical", "message": f"Counterexample for claim {claim_id} violates assumption {assumption!r}."})
         if status == "proved-formal" and not any(item.get("kind") == "formal-kernel" and item.get("status") == "passed" for item in linked_proofs):
             findings.append({"code": "formal-proof-missing", "severity": "critical", "message": f"Claim {claim_id} is proved-formal without a passed kernel receipt."})
         if status == "proved-deductive":

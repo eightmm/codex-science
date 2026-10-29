@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Mapping
 
 from codex_science.decision_analysis import review_decision_analysis, validate_decision_analysis
@@ -60,9 +61,11 @@ RECEIPT_SCRIPTS = {
 }
 
 
-def validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result: dict[str, Any]) -> None:
+def validate_quantitative_sidecar(
+    kind: str, payload: Mapping[str, Any], result: dict[str, Any], *, bundle_root: Path | None = None,
+) -> None:
     try:
-        _validate_quantitative_sidecar(kind, payload, result)
+        _validate_quantitative_sidecar(kind, payload, result, bundle_root=bundle_root)
     except ValueError as exc:
         script = RECEIPT_SCRIPTS.get(kind)
         if script is None or payload.get("schema_version") == 1:
@@ -74,7 +77,9 @@ def validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result:
         ) from exc
 
 
-def _validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result: dict[str, Any]) -> None:
+def _validate_quantitative_sidecar(
+    kind: str, payload: Mapping[str, Any], result: dict[str, Any], *, bundle_root: Path | None = None,
+) -> None:
     if kind == "research-design":
         validate_research_design(payload)
         result["research_designs"].append(dict(payload))
@@ -85,7 +90,7 @@ def _validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result
         validate_proof_obligation_graph(payload)
         result["proof_obligation_graphs"].append(dict(payload))
     elif kind == "proof-receipt":
-        validate_proof_receipt(payload)
+        validate_proof_receipt(payload, bundle_root=bundle_root)
         result["proof_receipts"].append(dict(payload))
     elif kind == "counterexample-search":
         validate_counterexample_receipt(payload)
@@ -94,7 +99,7 @@ def _validate_quantitative_sidecar(kind: str, payload: Mapping[str, Any], result
         receipt = payload.get("proof_receipt")
         if not isinstance(receipt, Mapping):
             raise ValueError("formal-proof-check requires proof_receipt")
-        validate_proof_receipt(receipt)
+        validate_proof_receipt(receipt, bundle_root=bundle_root)
         result["formal_proof_checks"].append(dict(payload))
         result["proof_receipts"].append(dict(receipt))
     elif kind == "statistical-analysis":

@@ -27,6 +27,10 @@ class ExpressionError(ValueError):
     """Raised when an expression exceeds the safe mathematical language."""
 
 
+class _UnsupportedExpressionError(ExpressionError):
+    """Raised for syntax or constructs outside the supported grammar."""
+
+
 def canonical_sha256(value: Any) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -112,6 +116,18 @@ class _SearchArithmetic:
 
 
 def parse_expression(source: str, *, allowed_names: Iterable[str] = ()) -> ParsedExpression:
+    return _parse_expression(source, allowed_names=allowed_names)
+
+
+def _parse_statement_expression(source: str) -> ParsedExpression | None:
+    """Classify grammar without receipt names; limits remain errors."""
+    try:
+        return _parse_expression(source, allowed_names=(), allow_unknown_names=True)
+    except _UnsupportedExpressionError:
+        return None
+
+
+def _parse_expression(source: str, *, allowed_names: Iterable[str], allow_unknown_names: bool = False) -> ParsedExpression:
     if not isinstance(source, str) or not source.strip():
         raise ExpressionError("expression is required")
     if len(source) > MAX_EXPRESSION_CHARS:
@@ -119,7 +135,7 @@ def parse_expression(source: str, *, allowed_names: Iterable[str] = ()) -> Parse
     try:
         tree = ast.parse(source, mode="eval")
     except SyntaxError as error:
-        raise ExpressionError(f"invalid expression syntax: {error.msg}") from error
+        raise _UnsupportedExpressionError(f"invalid expression syntax: {error.msg}") from error
     nodes = list(ast.walk(tree))
     if len(nodes) > MAX_AST_NODES:
         raise ExpressionError("expression exceeds the AST node limit")
@@ -132,6 +148,8 @@ def parse_expression(source: str, *, allowed_names: Iterable[str] = ()) -> Parse
         elif isinstance(node, ast.Constant):
             if isinstance(node.value, bool):
                 continue
+            if not isinstance(node.value, (int, float)):
+                raise _UnsupportedExpressionError("numeric literal must be a real number")
             _finite_number(node.value, "numeric literal")
         elif isinstance(
             node,
@@ -166,16 +184,16 @@ def parse_expression(source: str, *, allowed_names: Iterable[str] = ()) -> Parse
         ):
             continue
         else:
-            raise ExpressionError(f"unsupported expression element: {type(node).__name__}")
+            raise _UnsupportedExpressionError(f"unsupported expression element: {type(node).__name__}")
     unknown = sorted(referenced - allowed - set(_ALLOWED_FUNCTIONS))
-    if unknown:
+    if unknown and not allow_unknown_names:
         raise ExpressionError(f"unknown expression names: {', '.join(unknown)}")
     for node in nodes:
         if isinstance(node, ast.Call):
             if not isinstance(node.func, ast.Name) or node.func.id not in _ALLOWED_FUNCTIONS:
-                raise ExpressionError("only approved mathematical functions may be called")
+                raise _UnsupportedExpressionError("only approved mathematical functions may be called")
             if node.keywords:
-                raise ExpressionError("keyword arguments are not supported")
+                raise _UnsupportedExpressionError("keyword arguments are not supported")
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and isinstance(node.right, ast.Constant):
             exponent = _finite_number(node.right.value, "power exponent")
             if abs(float(exponent)) > MAX_POWER_ABS:
@@ -313,6 +331,16 @@ def evaluate_expression(source: str | ParsedExpression, variables: Mapping[str, 
     return _eval(parsed.tree, values)
 
 
+def _evaluate_exact_expression(source: str | ParsedExpression, variables: Mapping[str, Any]) -> Any:
+    """Use witness-confirmation arithmetic, refusing any inexact operation."""
+    parsed = source if isinstance(source, ParsedExpression) else parse_expression(source, allowed_names=variables)
+    arithmetic = _SearchArithmetic(rationalize_floats=True)
+    result = _eval(parsed.tree, variables, arithmetic)
+    if arithmetic.inexact:
+        raise ExpressionError("expression cannot be confirmed with exact rational arithmetic")
+    return result
+
+
 def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tuple[Any, ...], bool]:
     name = str(payload.get("name", "")).strip()
     if not name.isidentifier() or name in _ALLOWED_FUNCTIONS or name in _ALLOWED_CONSTANTS:
@@ -433,12 +461,10 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
             if not confirmed:
                 # Floats are confirmed as their exact encoded binary values;
                 # transcendental functions and approximate predicates stay inexact.
-                confirmation = _SearchArithmetic(rationalize_floats=True)
                 try:
                     confirmed = (
-                        all(bool(_eval(item.tree, assignment, confirmation)) for item in parsed_assumptions)
-                        and not bool(_eval(parsed_conclusion.tree, assignment, confirmation))
-                        and not confirmation.inexact
+                        all(bool(_evaluate_exact_expression(item, assignment)) for item in parsed_assumptions)
+                        and not bool(_evaluate_exact_expression(parsed_conclusion, assignment))
                     )
                 except (ValueError, OverflowError, ZeroDivisionError):
                     confirmed = False
@@ -504,3 +530,13 @@ def validate_counterexample_receipt(payload: Mapping[str, Any]) -> None:
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:
         raise ValueError("counterexample receipt fingerprint mismatch")
+    for field in ("evaluations", "satisfying_assignments", "skipped_assumptions", "total_combinations", "max_evaluations"):
+        value = payload.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"counterexample receipt {field} must be a non-negative integer")
+    expected = search_counterexample(payload)
+    # The unchanged producer is deterministic. Canonical comparison also keeps
+    # JSON booleans distinct from numbers when checking counts and assignments.
+    for field, value in expected.items():
+        if field != "fingerprint" and (field not in payload or canonical_sha256(payload[field]) != canonical_sha256(value)):
+            raise ValueError(f"counterexample receipt {field} disagrees with replayed search")

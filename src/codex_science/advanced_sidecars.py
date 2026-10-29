@@ -125,7 +125,7 @@ def validate_advanced_sidecars(
             elif kind == "transform-proposal":
                 pending_proposals.append(payload)
             elif kind in QUANTITATIVE_KINDS:
-                validate_quantitative_sidecar(kind, payload, result)
+                validate_quantitative_sidecar(kind, payload, result, bundle_root=run_dir)
         except ValueError as exc:
             raise ValueError(f"{relative} ({kind}): {exc}") from exc
     for proposal in pending_proposals:
