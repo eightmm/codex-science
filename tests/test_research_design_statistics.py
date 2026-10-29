@@ -33,6 +33,15 @@ from codex_science.statistics_runtime import (
 
 
 class ResearchDesignStatisticsTests(unittest.TestCase):
+    def test_documented_statistical_analysis_input_runs(self) -> None:
+        reference = Path(__file__).resolve().parents[1] / "authored-skills/quantitative-research/references/research-design-and-statistics.md"
+        section = reference.read_text(encoding="utf-8").split("## Statistical-analysis input", 1)[1]
+        payload = json.loads(section.split("```json\n", 1)[1].split("\n```", 1)[0])
+        result = run_statistical_analysis(payload)
+        validate_statistical_analysis(result)
+        self.assertEqual("completed", result["status"])
+        self.assertTrue(all(count >= 2 for count in result["sample"]["experimental_units"].values()))
+
     def valid_design(self) -> dict:
         return {
             "schema_version": 1,

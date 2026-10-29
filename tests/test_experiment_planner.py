@@ -34,6 +34,17 @@ INPUT = {
 
 
 class ExperimentPlannerTests(unittest.TestCase):
+    def test_documented_next_experiment_input_runs(self) -> None:
+        reference = Path(__file__).resolve().parents[1] / "runtime-skills/codex-science/references/next-experiment-planning.md"
+        section = reference.read_text(encoding="utf-8").split("## Input contract", 1)[1]
+        payload = json.loads(section.split("```json\n", 1)[1].split("\n```", 1)[0])
+        proposal = plan_next_experiment(payload)
+        validate_experiment_proposal(proposal)
+        self.assertEqual("proposed", proposal["status"])
+        self.assertTrue(proposal["required_controls_satisfied"])
+        self.assertGreaterEqual(sum(item["control"] for item in proposal["selected"]), payload["constraints"]["minimum_controls"])
+        self.assertFalse(proposal["executed"])
+
     def simple_input(self, candidates=None, **limits):
         return {
             "decision": "Choose next measurements",

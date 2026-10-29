@@ -424,7 +424,7 @@ Collection assumes a shared filesystem. Remote object storage or SSH transfer re
 
 ## Checkpoint and resume
 
-`checkpoint_paths` identify files expected to make a later attempt resumable. The runtime records and collects them but does not infer a program-specific resume command.
+`checkpoint_paths` identify files expected to make a later attempt resumable. The runtime records these paths in the job spec and receipt but does not infer a program-specific resume command. Also list in `outputs` any checkpoint whose bytes must be collected and hashed.
 
 Required procedure:
 

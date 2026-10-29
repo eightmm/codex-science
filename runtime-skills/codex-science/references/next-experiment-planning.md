@@ -45,6 +45,40 @@ Read this reference before ranking candidates for a new assay, synthesis batch, 
         "source_artifact": "candidate-table.parquet",
         "source_record": "compound-001"
       }
+    },
+    {
+      "id": "control-negative",
+      "properties": {
+        "potency": 1.0,
+        "solubility": 0.9,
+        "off_target_risk": 0.1
+      },
+      "cost": 250,
+      "uncertainty": 0.1,
+      "diversity_group": "controls",
+      "control": true,
+      "eligible": true,
+      "metadata": {
+        "source_artifact": "candidate-table.parquet",
+        "source_record": "control-negative"
+      }
+    },
+    {
+      "id": "control-positive",
+      "properties": {
+        "potency": 7.5,
+        "solubility": 0.7,
+        "off_target_risk": 0.15
+      },
+      "cost": 250,
+      "uncertainty": 0.1,
+      "diversity_group": "controls",
+      "control": true,
+      "eligible": true,
+      "metadata": {
+        "source_artifact": "candidate-table.parquet",
+        "source_record": "control-positive"
+      }
     }
   ],
   "constraints": {
@@ -96,6 +130,8 @@ Optional:
 - `minimum_controls`: required eligible controls.
 
 Count constraints must be JSON integers, excluding booleans: batch size and group cap are positive, and minimum controls is non-negative. Integral floating-point values such as `2.0` are refused.
+
+The input example is a three-record illustration within a maximum batch of 24; both controls fit its budget and diversity cap.
 
 Required controls are selected before optimization in ascending cost, then ID order, skipping groups already at their cap. If no required control set fits the batch, budget, and diversity cap, the proposal fails rather than silently removing controls. Budget comparisons sum the decimal spellings of validated costs exactly, including the boundary; they use no tolerance.
 

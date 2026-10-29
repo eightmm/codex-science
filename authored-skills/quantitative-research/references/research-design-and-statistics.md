@@ -99,13 +99,15 @@ The built-in dependency-free runtime is deliberately bounded to independent or p
   "within_unit_aggregation": "mean",
   "data": [
     {"unit_id": "A1", "group": "control", "value": 1.2},
-    {"unit_id": "B1", "group": "treatment", "value": 2.1}
+    {"unit_id": "A2", "group": "control", "value": 1.4},
+    {"unit_id": "B1", "group": "treatment", "value": 2.1},
+    {"unit_id": "B2", "group": "treatment", "value": 2.3}
   ],
   "hypotheses": []
 }
 ```
 
-For paired analysis, each row also carries `pair_id`. Repeated readings with the same `(group, unit_id)` are reduced by the declared mean or median before inference. This prevents technical readings from silently increasing the experimental-unit count.
+Each group needs at least two distinct experimental units; paired analysis needs at least two complete pairs, and each row also carries `pair_id`. Repeated readings with the same `(group, unit_id)` are reduced by the declared mean or median before inference. This prevents technical readings from silently increasing the experimental-unit count.
 
 Supported estimands:
 
@@ -153,7 +155,7 @@ The output preserves IDs and adds BH q-values. This does not retroactively defin
 
 Stop and revise the design or use a domain-specific method when:
 
-- a group has no independent units;
+- a group has fewer than two independent units, or a paired analysis has fewer than two complete pairs;
 - a paired record lacks `pair_id`;
 - sample size is confused with row count;
 - the requested family or model is outside the two-group runtime;
