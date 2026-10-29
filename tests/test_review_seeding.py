@@ -335,6 +335,64 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertEqual([False, True, False], [r["caught"] for r in results])
         self.assertTrue(results[0]["caught_any_severity"])
 
+    def test_score_normalizes_seed_and_evidence_path_aliases(self) -> None:
+        for canonical in ("claims.json", "dir/claims.json"):
+            aliases = (canonical, "./" + canonical, "././" + canonical.replace("/", "//"))
+            for spec_path in aliases:
+                for evidence_path in aliases:
+                    for legacy in (False, True):
+                        for claim_id in ("c1", "other"):
+                            for digest in ("a" * 64, "b" * 64):
+                                with self.subTest(spec=spec_path, evidence=evidence_path, legacy=legacy,
+                                                  claim_id=claim_id, digest=digest):
+                                    key = {"spec": {"defect_id": "d1", "defect_class": "overreach",
+                                        "file": spec_path, "claim_id": "c1", "expected_min_severity": "major"}}
+                                    if not legacy:
+                                        key["file_sha256_after"] = "a" * 64
+                                    finding = {"id": "F1", "severity": "major", "affected_claim_id": claim_id,
+                                        "evidence": [{"artifact_path": evidence_path, "artifact_sha256": digest}]}
+                                    result = review_seeding.score_response(key, {"findings": [finding]})
+                                    caught = legacy or digest == "a" * 64
+                                    self.assertEqual(caught, result["caught"])
+                                    self.assertEqual(caught, result["caught_any_severity"])
+                                    self.assertEqual(["F1"] if caught else [], result["matched_finding_ids"])
+        for path in ("", 0, None, [], {}, "report.md"):
+            with self.subTest(path=path):
+                finding = {"severity": "major", "evidence": [{"artifact_path": path}]}
+                self.assertFalse(review_seeding.score_response(key, {"findings": [finding]})["caught"])
+
+    def test_score_validates_malformed_keys_before_cli_scoring(self) -> None:
+        spec = {"defect_id": "d1", "defect_class": "overreach", "file": "claims.json",
+                "expected_min_severity": "major"}
+        cases = [([], "key"), ({}, "key"), ({"spec": []}, "key"),
+                 ({"spec": {"file": "claims.json"}}, "defect_class")]
+        for field in ("defect_class", "defect_id", "file", "expected_min_severity", "claim_id"):
+            if field != "claim_id":
+                cases.append(({"spec": {k: v for k, v in spec.items() if k != field}}, field))
+            values = ("", 0, [], {}) if field == "claim_id" else ("", 0, None, [], {})
+            for value in values:
+                cases.append(({"spec": {**spec, field: value}}, field))
+        cases.append(({"spec": {**spec, "expected_min_severity": "minor"}}, "expected_min_severity"))
+        cases.append(({"spec": spec, "file_sha256_after": []}, "file_sha256_after"))
+        response = self.response("empty.json", [])
+        script = ROOT / "scripts" / "seed_review_defects.py"
+        for key, message in cases:
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError, message):
+                    review_seeding.score_response(key, {"findings": []})
+                self.key.write_text(json.dumps(key), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, message):
+                    score(self.key, [])
+                result = subprocess.run([sys.executable, str(script), "score", "--key", str(self.key),
+                                         "--response", str(response)], capture_output=True, text=True)
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("seed_review_defects failed:", result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual("", result.stdout)
+        control = {"spec": {"defect_id": "d1", "defect_class": "control"}}
+        self.assertFalse(review_seeding.score_response(control, {"findings": []})["false_positive"])
+
     def test_score_control_false_positive(self) -> None:
         self.run_seed(defect_class="control", file=None, find=None, replace=None, claim_id=None)
         clean = self.response("clean.json", [{"id": "a", "severity": "minor"}, {"id": "b", "severity": "suggestion"}])

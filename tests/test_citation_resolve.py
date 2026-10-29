@@ -17,6 +17,55 @@ from codex_science.citation_resolve import _CitationRedirectHandler
 
 
 class CitationResolveTests(unittest.TestCase):
+    def test_cli_offline_arxiv_fixture_preserves_xml_body(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = Path(tmp)
+            fixture = fixtures / "arxiv_2401.00001.json"
+            feed = ('<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                    '<id>https://arxiv.org/abs/2401.00001</id><title>Paper</title></entry></feed>')
+            for body, status in ((feed, "resolved"), ("", "unavailable"), ("<bad", "unavailable")):
+                with self.subTest(body=body):
+                    fixture.write_text(json.dumps({"http_status": 200, "body": body}), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(script), "--ids", "arxiv:2401.00001",
+                                             "--offline-fixture", str(fixtures)], capture_output=True, text=True)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    record = json.loads(result.stdout)["results"][0]
+                    self.assertEqual(status, record["status"])
+                    if status == "resolved":
+                        self.assertEqual("Paper", record["title"])
+
+    def test_arxiv_requires_atom_feed_before_establishing_absence(self):
+        for body, status in (
+            (b"<error>Service down</error>", "unavailable"),
+            (b"<html><body>Service down</body></html>", "unavailable"),
+            (b"<feed/>", "unavailable"),
+            (b'<feed xmlns="urn:other"/>', "unavailable"),
+            (b"", "unavailable"), (b"<bad", "unavailable"),
+            (b'<feed xmlns="http://www.w3.org/2005/Atom"/>', "not_found"),
+        ):
+            with self.subTest(body=body):
+                record = resolve_identifiers(["arxiv:2401.00001"],
+                    fetch=lambda *a, **k: (200, body), delay=lambda _: None)["results"][0]
+                self.assertEqual(status, record["status"])
+
+    def test_pubmed_rejects_contradictory_record_uid(self):
+        for uid in ("54321", "", None, 0, [], {}):
+            with self.subTest(uid=uid):
+                payload = {"result": {"uids": ["12345"], "12345": {
+                    "uid": uid, "title": "Other paper", "pubdate": "2020 Jan"}}}
+                record = resolve_identifiers(["pmid:12345"], fetch=lambda *a, **k: (
+                    200, json.dumps(payload).encode()), delay=lambda _: None)["results"][0]
+                self.assertEqual("unavailable", record["status"])
+                self.assertNotIn("title", record)
+        for identity in ({}, {"uid": "12345"}, {"uid": 12345}):
+            with self.subTest(identity=identity):
+                payload = {"result": {"uids": ["12345"], "12345": {
+                    **identity, "title": "Paper", "pubdate": "2020 Jan"}}}
+                record = resolve_identifiers(["pmid:12345"], fetch=lambda *a, **k: (
+                    200, json.dumps(payload).encode()), delay=lambda _: None)["results"][0]
+                self.assertEqual("resolved", record["status"])
+
     def test_response_identity_must_match_requested_identifier(self):
         for returned, status in (("10.1234/other", "unavailable"), ("10.1234/EXPECTED", "resolved"),
                                  ("", "unavailable"), (None, "unavailable"), (0, "unavailable")):
@@ -52,6 +101,30 @@ class CitationResolveTests(unittest.TestCase):
                                      "--offline-fixture", str(fixtures)], capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual("unavailable", json.loads(result.stdout)["results"][0]["status"])
+
+            for body, status in (
+                (json.dumps({"message": {"DOI": "10.1234/a_b", "title": ["Paper"]}}), "resolved"),
+                (json.dumps({"message": {"DOI": "10.1234/a/b", "title": ["Other paper"]}}), "unavailable"),
+                (json.dumps({"message": {"title": ["Unidentified paper"]}}), "unavailable"),
+                (json.dumps({"message": {}}), "unavailable"),
+                (json.dumps({"message": 0}), "unavailable"),
+                (json.dumps({"message": []}), "unavailable"),
+                ("{}", "unavailable"), ("0", "unavailable"), ("[]", "unavailable"),
+                ("null", "unavailable"), ("", "unavailable"), ("{bad", "unavailable"),
+                ("<error>Service down</error>", "unavailable"),
+            ):
+                with self.subTest(body=body):
+                    (fixtures / "doi_10.1234_a_b.json").write_text(
+                        json.dumps({"http_status": 200, "body": body}), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(script), "--ids", "doi:10.1234/a_b",
+                                             "--offline-fixture", str(fixtures)], capture_output=True, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    record = json.loads(result.stdout)["results"][0]
+                    self.assertEqual(status, record["status"])
+                    if status == "resolved":
+                        self.assertEqual("Paper", record["title"])
+                    else:
+                        self.assertNotIn("title", record)
 
     def test_duplicate_expected_metadata_is_order_independent(self):
         script = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"

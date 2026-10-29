@@ -24,6 +24,9 @@ manifest paths, the seeded file and paths with symlink components are refused.
 cannot read prior receipts.
 Keep --key outside --out.
 Responses are reviewer-response JSON or review receipts with findings[].
+Scoring requires defect_id/defect_class and, for non-control keys, file and
+expected_min_severity. Malformed keys exit 2. Artifact paths ignore ./ and
+redundant separators; contradictory seeded-artifact hashes exclude a finding.
 One response per variant is a detection record, not a sensitivity estimate."""
 
 

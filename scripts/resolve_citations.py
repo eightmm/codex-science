@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--network", action="store_true",
                         help="query public metadata services (default: print the plan only)")
     parser.add_argument("--offline-fixture", type=Path,
-                        help="directory of recorded <kind>_<id>.json responses to use instead of the network")
+                        help="directory of recorded <kind>_<id>.json responses; body is raw XML/JSON text or a JSON object")
     parser.add_argument("--run-dir", type=Path, help="load expected citation metadata from a run's study table")
     args = parser.parse_args(argv)
     try:
@@ -119,9 +119,13 @@ def main(argv: list[str] | None = None) -> int:
                     name = "arxiv_" + query["id_list"][0].replace("/", "_")
                 fixture = args.offline_fixture / (name + ".json")
                 payload = json.loads(fixture.read_text(encoding="utf-8"))
-                if ambiguous_doi and "DOI" not in payload.get("body", {}).get("message", {}):
-                    raise ValueError("ambiguous DOI fixture requires response identity")
-                return payload["http_status"], json.dumps(payload.get("body", {})).encode()
+                body = payload.get("body", {})
+                if ambiguous_doi:
+                    identity_body = json.loads(body) if isinstance(body, str) else body
+                    message = identity_body.get("message") if isinstance(identity_body, dict) else None
+                    if not isinstance(message, dict) or "DOI" not in message:
+                        raise ValueError("ambiguous DOI fixture requires response identity")
+                return payload["http_status"], (body if isinstance(body, str) else json.dumps(body)).encode("utf-8")
             output = resolve_identifiers(ids, fetch=fetch, expected_metadata=expected)
         elif not args.network:
             output = {"schema": "citation-resolution-v1", "evidence_boundary": EVIDENCE_BOUNDARY,

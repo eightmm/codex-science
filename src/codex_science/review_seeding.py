@@ -260,18 +260,44 @@ def _rank(finding: dict[str, Any]) -> int:
     return SEVERITY_RANK.get(str(finding.get("severity", "")).lower(), -1)
 
 
+def _scoring_spec(key: Any) -> dict[str, Any]:
+    if not isinstance(key, dict) or not isinstance(key.get("spec"), dict):
+        raise ValueError("key must be a seed key JSON object")
+    spec = key["spec"]
+    for field in ("defect_class", "defect_id"):
+        if not isinstance(spec.get(field), str) or not spec[field]:
+            raise ValueError(f"key spec {field} must be a non-empty string")
+    claim_id = spec.get("claim_id")
+    if claim_id is not None and (not isinstance(claim_id, str) or not claim_id):
+        raise ValueError("key spec claim_id must be a non-empty string when present")
+    if spec["defect_class"] != "control":
+        if not isinstance(spec.get("file"), str) or not spec["file"]:
+            raise ValueError("key spec file must be a non-empty string")
+        if spec.get("expected_min_severity") not in MIN_SEVERITIES:
+            raise ValueError("key spec expected_min_severity must be 'major' or 'critical'")
+        after = key.get("file_sha256_after")
+        if after is not None and not isinstance(after, str):
+            raise ValueError("key file_sha256_after must be a string or null")
+    return spec
+
+
+def _same_artifact_path(path: Any, expected: str) -> bool:
+    return isinstance(path, str) and PurePosixPath(path) == PurePosixPath(expected)
+
+
 def _matches(finding: dict[str, Any], spec: dict[str, Any]) -> bool:
     claim_id = spec.get("claim_id")
     if claim_id is not None and finding.get("affected_claim_id") == claim_id:
         return True
     evidence = finding.get("evidence")
     if isinstance(evidence, list):
-        return any(isinstance(item, dict) and item.get("artifact_path") == spec["file"] for item in evidence)
+        return any(isinstance(item, dict) and _same_artifact_path(item.get("artifact_path"), spec["file"])
+                   for item in evidence)
     return False
 
 
 def score_response(key: dict[str, Any], response: Any) -> dict[str, Any]:
-    spec = key["spec"]
+    spec = _scoring_spec(key)
     findings = _findings(response)
     ids = lambda items: [str(item.get("id", item.get("code", index))) for index, item in items]
     indexed = list(enumerate(findings))
@@ -284,7 +310,7 @@ def score_response(key: dict[str, Any], response: Any) -> dict[str, Any]:
     for index, finding in indexed:
         evidence = finding.get("evidence", [])
         if after is not None and isinstance(evidence, list) and any(
-            isinstance(entry, dict) and entry.get("artifact_path") == spec["file"]
+            isinstance(entry, dict) and _same_artifact_path(entry.get("artifact_path"), spec["file"])
             and "artifact_sha256" in entry
             and str(entry["artifact_sha256"]).lower() != str(after).lower()
             for entry in evidence
@@ -301,10 +327,7 @@ def score_response(key: dict[str, Any], response: Any) -> dict[str, Any]:
 
 def score(key_path: Path, responses: Iterable[Path]) -> dict[str, Any]:
     key = json.loads(key_path.read_text(encoding="utf-8"))
-    if not isinstance(key, dict) or not isinstance(key.get("spec"), dict):
-        raise ValueError("key must be a seed key JSON object")
-    if key["spec"].get("defect_class") != "control" and not isinstance(key["spec"].get("file"), str):
-        raise ValueError("key spec is missing file")
+    _scoring_spec(key)
     results = []
     for path in responses:
         result = score_response(key, json.loads(path.read_text(encoding="utf-8")))

@@ -100,6 +100,8 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
                 return result
             root = ET.fromstring(text)
             ns = {"a": "http://www.w3.org/2005/Atom"}
+            if root.tag != "{http://www.w3.org/2005/Atom}feed":
+                return result
             entries = root.findall("a:entry", ns)
             if not entries:
                 result["status"] = "not_found"
@@ -136,6 +138,8 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
                 uids = summary.get("uids", [])
                 if not isinstance(item, dict) or "error" in item or value not in {str(uid) for uid in uids}:
                     result["status"] = "not_found"
+                    return result
+                if "uid" in item and str(item["uid"]) != value:
                     return result
                 title = item.get("title", "")
                 year = int(item["pubdate"][:4]) if str(item.get("pubdate", ""))[:4].isdigit() else None
