@@ -60,8 +60,10 @@ def validate_ledger(
     claim_ids: set[str],
     verified: dict[str, Path],
     report_path: Path | None,
+    study_table_artifact: str | None = "studies.json",
+    screening_artifact: str | None = "screening.json",
 ) -> dict[str, Any]:
-    """Check closure against validated source payloads; return informational context."""
+    """Check closure using validated payloads bound to their verified artifact paths."""
     context_procedures: list[dict[str, Any]] = []
 
     if ledger.get("schema_version") != 1:
@@ -122,8 +124,12 @@ def validate_ledger(
             raise ValueError(f"{label}: target_ids must be unique; actual: {_bounded_repr(target_ids_raw)}")
 
         source_payload = screening_payload if unit == "record" else study_table_payload
-        if source_payload is None:
-            raise ValueError(f"{label}: missing source_artifact {source}; expected: registered, hash-verified source artifact")
+        payload_artifact = screening_artifact if unit == "record" else study_table_artifact
+        if source_payload is None or source not in artifact_paths or source != payload_artifact:
+            raise ValueError(
+                f"{label}: missing source_artifact {source}; expected: registered, hash-verified source artifact; "
+                f"actual payload artifact: {_bounded_repr(payload_artifact)}"
+            )
         resolved_ids = resolve_target_ids(target_set, study_table_payload or {}, screening_payload, procedure_id=proc_id)
         if unit == "study" and screening_payload is not None:
             included_screen_ids = set(resolve_target_ids({"unit": "record", "selection": "included"}, {}, screening_payload, procedure_id=proc_id))
@@ -211,11 +217,11 @@ def validate_ledger(
             )
 
         deviation = procedure.get("deviation")
-        if completed_count < denominator:
-            if deviation is None:
-                raise ValueError(
-                    f"{label}: deviation is required when completed_count < denominator; missing target ids: {sorted(set(target_ids) - completed_target_ids)}; expected: non-empty deviation object; actual: missing; field: deviation"
-                )
+        if completed_count < denominator and deviation is None:
+            raise ValueError(
+                f"{label}: deviation is required when completed_count < denominator; missing target ids: {sorted(set(target_ids) - completed_target_ids)}; expected: non-empty deviation object; actual: missing; field: deviation"
+            )
+        if deviation is not None:
             if not isinstance(deviation, dict):
                 raise ValueError(
                     f"{label}: deviation must be an object; expected: object; actual: {type(deviation).__name__}; field: deviation"

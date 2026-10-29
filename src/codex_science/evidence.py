@@ -615,13 +615,14 @@ def validate_sidecars(
                 _validate_screening_table(screening)
         needs_report = isinstance(procedures, list) and any(
             isinstance(procedure, dict)
-            and isinstance(procedure.get("completed_count"), int)
-            and isinstance(procedure.get("denominator"), int)
-            and procedure["completed_count"] < procedure["denominator"]
             and isinstance(procedure.get("deviation"), dict)
             and procedure["deviation"].get("affected_claims")
             for procedure in procedures
         )
+        source_paths = {
+            record["kind"]: record["path"] for record in manifest.get("artifacts", [])
+            if record.get("kind") in {"study-table", "screening-table"} and record.get("path") in verified
+        }
         context = commitment_ledger.validate_ledger(
             ledger,
             study_table_payload=loaded["study_table"],
@@ -629,6 +630,8 @@ def validate_sidecars(
             claim_ids=set(claim_by_id) or manifest_claim_ids,
             verified=verified,
             report_path=_verified_artifact_path(manifest, verified, "report") if needs_report else None,
+            study_table_artifact=source_paths.get("study-table"),
+            screening_artifact=source_paths.get("screening-table"),
         )
         if context["procedures"]:
             loaded["protocol_commitment_context"] = context

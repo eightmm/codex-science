@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+import sys
 from typing import Any
 
 
@@ -198,6 +199,8 @@ def _validate(payload: Any) -> dict[str, Any]:
         analysis["tests_performed"] = _integer(analysis["tests_performed"], f"{label} tests_performed")
         if analysis["tests_performed"] < 1:
             raise ValueError(f"{label} tests_performed must be at least 1")
+        if analysis["tests_performed"] > sys.float_info.max:
+            raise ValueError(f"{label} tests_performed exceeds the largest finite float")
         analysis["alpha"] = _number(analysis["alpha"], f"{label} alpha")
         if not 0 < analysis["alpha"] < 1:
             raise ValueError(f"{label} alpha must be between 0 and 1")
@@ -221,6 +224,8 @@ def _validate(payload: Any) -> dict[str, Any]:
             normalized_groups: dict[str, list[str]] = {}
             for group, ids in groups.items():
                 name = _text(group, f"{label} {field} group name")
+                if name in normalized_groups:
+                    raise ValueError(f"{label} {field} has duplicate normalized group name: {name}")
                 normalized_groups[name] = _string_list(ids, f"{label} {field}.{name}")
             evaluation[field] = normalized_groups
         if set(evaluation["train_groups"]) != set(evaluation["test_groups"]):
@@ -291,6 +296,7 @@ def structured_review_findings(payload: Any) -> list[dict[str, str]]:
             ]
             covered = any(
                 target == population
+                or target in {item.strip() for item in re.split(r"[,;/]|\band\b", population)}
                 or (
                     target.startswith(population)
                     and len(target) > len(population)

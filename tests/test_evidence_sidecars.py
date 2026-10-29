@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from codex_science.artifact_index import render_markdown
 from codex_science.artifacts import validate_bundle
-from codex_science.commitment_ledger import resolve_target_ids
+from codex_science.commitment_ledger import resolve_target_ids, validate_ledger
 from codex_science.evidence import _validate_study_table, review_sidecars, validate_sidecars
 from codex_science.literature import (
     diff_review_snapshots,
@@ -653,6 +653,97 @@ class EvidenceSidecarTests(unittest.TestCase):
                 self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
                 with self.assertRaisesRegex(ValueError, "test-procedure.*missing source_artifact.*" + source):
                     validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_binds_declared_source_to_verified_artifact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir, manifest = self._copy_example(Path(temporary))
+            procedure = self._ledger_procedure()
+            procedure["completed"][0]["evidence_artifact"] = "renamed-studies.json"
+            studies = json.loads((run_dir / "studies.json").read_text(encoding="utf-8"))
+            with self.assertRaisesRegex(ValueError, "test-procedure.*source_artifact.*studies.json"):
+                validate_ledger({"schema_version": 1, "procedures": [procedure]},
+                                study_table_payload=studies, screening_payload=None, claim_ids=set(),
+                                verified={"renamed-studies.json": run_dir / "studies.json"}, report_path=None)
+            for record in manifest["artifacts"]:
+                if record["path"] == "studies.json":
+                    record["path"] = "renamed-studies.json"
+            (run_dir / "studies.json").rename(run_dir / "renamed-studies.json")
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaisesRegex(ValueError, "test-procedure.*source_artifact.*studies.json"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+        for unit, source, renamed, kind in (
+            ("study", "studies.json", "renamed-studies.json", "study-table"),
+            ("record", "screening.json", "renamed-screening.json", "screening-table"),
+        ):
+            with self.subTest(unit=unit), tempfile.TemporaryDirectory() as temporary:
+                run_dir, manifest = self._copy_example(Path(temporary))
+                procedure = self._ledger_procedure()
+                if unit == "record":
+                    self._write_screening(manifest, run_dir, [{"record_id": "R1", "decision": "include"}])
+                    procedure["target_set"] = {"unit": unit, "source_artifact": source, "selection": "included"}
+                    procedure["target_ids"] = ["R1"]
+                (run_dir / renamed).write_bytes((run_dir / source).read_bytes())
+                for record in manifest["artifacts"]:
+                    if record["path"] == source:
+                        record["path"] = renamed
+                (run_dir / source).write_text(json.dumps({"studies": [], "records": []}), encoding="utf-8")
+                manifest["artifacts"].append({"kind": "data", "path": source})
+                self._rehash(manifest, run_dir, source)
+                procedure["completed"] = [{"target_id": procedure["target_ids"][0], "evidence_artifact": renamed}]
+                self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                with self.assertRaisesRegex(ValueError, "missing source_artifact.*registered, hash-verified") as raised:
+                    validate_bundle(manifest, run_dir)
+                self.assertIn(source, str(raised.exception))
+                self.assertIn(renamed, str(raised.exception))
+                for record in manifest["artifacts"]:
+                    if record["path"] == source:
+                        record["kind"] = kind
+                    elif record["path"] == renamed:
+                        record["kind"] = "data"
+                (run_dir / source).write_bytes((run_dir / renamed).read_bytes())
+                self._rehash(manifest, run_dir, source)
+                context = validate_bundle(manifest, run_dir)["protocol_commitment_context"]
+                self.assertEqual(1, context["procedures"][0]["completed_count"])
+
+    def test_commitment_ledger_validates_deviation_at_every_coverage_level(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir, manifest = self._copy_example(Path(temporary))
+            limitation = "A completed pass still had limited source access."
+            (run_dir / "report.md").write_text(limitation, encoding="utf-8")
+            self._rehash(manifest, run_dir, "report.md")
+            valid = {"reason": "Source access was limited.", "affected_claims": [
+                {"claim_id": "claim-method-effect", "limitation": limitation}]}
+            invalid = [
+                ({"reason": None, "affected_claims": [{"claim_id": "does-not-exist", "limitation": "NOT IN REPORT"}]}, "reason"),
+                ({**valid, "affected_claims": [{"claim_id": "does-not-exist", "limitation": limitation}]}, "does-not-exist"),
+                ({**valid, "affected_claims": [{"claim_id": "claim-method-effect", "limitation": "NOT IN REPORT"}]}, "report.md"),
+                ({}, "reason"), (0, "object"), ([], "object"),
+                ({"reason": "Limited access.", "affected_claims": []}, "affected_claims"),
+            ]
+            for count in (0, 1):
+                for deviation, message in invalid:
+                    with self.subTest(count=count, deviation=deviation):
+                        procedure = self._ledger_procedure()
+                        procedure.update(completed=procedure["completed"][:count], completed_count=count, deviation=deviation)
+                        self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                        with self.assertRaisesRegex(ValueError, message):
+                            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                for deviation in (valid, {"reason": "Limited access.", "no_claim_impact_reason": "No claim impact."}):
+                    with self.subTest(count=count, deviation=deviation):
+                        procedure = self._ledger_procedure()
+                        procedure.update(completed=procedure["completed"][:count], completed_count=count, deviation=deviation)
+                        self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                        context = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                        self.assertEqual(deviation["reason"], context["protocol_commitment_context"]["procedures"][0]["deviation"]["reason"])
+            procedure = self._ledger_procedure()
+            procedure.update(target_ids=[], denominator=0, completed=[], completed_count=0, deviation=valid)
+            studies = {"studies": []}
+            context = validate_ledger({"schema_version": 1, "procedures": [procedure]},
+                                      study_table_payload=studies, screening_payload=None,
+                                      claim_ids={"claim-method-effect"}, verified={"studies.json": run_dir / "studies.json"},
+                                      report_path=run_dir / "report.md")
+            self.assertEqual(0, context["procedures"][0]["denominator"])
 
     def test_commitment_ledger_rejects_malformed_json(self):
         for relative, contents in (("protocol.json", '{"commitment_ledger":'),

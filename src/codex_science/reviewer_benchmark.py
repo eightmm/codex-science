@@ -64,8 +64,9 @@ def score_cases(cases: Iterable[dict[str, Any]]) -> dict[str, Any]:
             valid_cases += 1
             if actual: false_positive_cases += 1
         details.append({"case_id": case.get("case_id"), "expected": sorted(expected), "actual": sorted(actual), "missing": sorted(expected - actual), "unexpected": sorted(actual - expected), "passed": expected == actual})
-    precision = matched_weight / predicted_weight if predicted_weight else 1.0
-    recall = matched_weight / true_weight if true_weight else 1.0
+    empty_denominator_score = 1.0 if details else 0.0
+    precision = matched_weight / predicted_weight if predicted_weight else empty_denominator_score
+    recall = matched_weight / true_weight if true_weight else empty_denominator_score
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     return {
         "schema_version": 1,
@@ -73,18 +74,72 @@ def score_cases(cases: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "severity_weighted_precision": precision,
         "severity_weighted_recall": recall,
         "severity_weighted_f1": f1,
-        "critical_recall": severity_totals["critical"][1] / severity_totals["critical"][0] if severity_totals["critical"][0] else 1.0,
-        "major_recall": severity_totals["major"][1] / severity_totals["major"][0] if severity_totals["major"][0] else 1.0,
+        "critical_recall": severity_totals["critical"][1] / severity_totals["critical"][0] if severity_totals["critical"][0] else empty_denominator_score,
+        "major_recall": severity_totals["major"][1] / severity_totals["major"][0] if severity_totals["major"][0] else empty_denominator_score,
         "unsafe_pass_rate": blocking_missed / blocking_expected if blocking_expected else 0.0,
         "false_positive_case_rate": false_positive_cases / valid_cases if valid_cases else 0.0,
         "details": details,
     }
 
 
+def _case_object(value: Any, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{field} must be an object")
+    return value
+
+
+def _case_array(value: Any, field: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be an array")
+    return value
+
+
+def _case_text(value: Any, field: str, *, choices: Iterable[str] | None = None, empty: bool = False) -> str:
+    if not isinstance(value, str) or (not empty and not value.strip()):
+        raise ValueError(f"{field} must be {'a' if empty else 'a non-empty'} string")
+    if choices is not None and value not in choices:
+        raise ValueError(f"{field} has unsupported value: {value!r}")
+    return value
+
+
+def _validate_case(payload: Any) -> None:
+    case = _case_object(payload, "case")
+    for field in ("case_id", "replicated_claim_id"):
+        if field in case:
+            _case_text(case[field], field)
+    for field in ("expected_findings", "additional_findings"):
+        for index, raw in enumerate(_case_array(case.get(field, []), field)):
+            label = f"{field}[{index}]"
+            item = _case_object(raw, label)
+            _case_text(item.get("code"), f"{label}.code")
+            if "severity" in item:
+                _case_text(item["severity"], f"{label}.severity", choices=WEIGHTS)
+            if field == "additional_findings" and "message" in item:
+                _case_text(item["message"], f"{label}.message", empty=True)
+    if "artifact_hashes" in case:
+        _case_object(case["artifact_hashes"], "artifact_hashes")
+    if "structured_review_input" in case:
+        try:
+            structured_review_findings(case["structured_review_input"])
+        except ValueError as error:
+            raise ValueError(f"structured_review_input: {error}") from error
+    graph = case.get("evidence_graph_v2")
+    if isinstance(graph, dict):
+        try:
+            validate_graph_payload(graph)
+        except ValueError as error:
+            raise ValueError(f"evidence_graph_v2: {error}") from error
+
+
 def load_cases(path: Path) -> list[dict[str, Any]]:
+    if not path.is_dir():
+        raise ValueError(f"reviewer benchmark cases path must be an existing directory: {path}")
     cases = []
     for file in sorted(path.glob("*.json")):
-        payload = json.loads(file.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict): raise ValueError(f"reviewer benchmark case must be an object: {file}")
+        try:
+            payload = json.loads(file.read_text(encoding="utf-8"))
+            _validate_case(payload)
+        except ValueError as error:
+            raise ValueError(f"reviewer benchmark case {file}: {error}") from error
         cases.append(payload)
     return cases

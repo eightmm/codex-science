@@ -1,5 +1,8 @@
 import copy
 import json
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -246,6 +249,227 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         self.assertEqual(1.0, report["severity_weighted_recall"])
         self.assertEqual(0.0, report["false_positive_case_rate"])
         self.assertTrue(all(item["passed"] for item in report["details"]), json.dumps(report, indent=2))
+
+    def test_reviewer_benchmark_requires_directory_and_nonempty_safety_gate(self) -> None:
+        script = self.root / "scripts" / "run_reviewer_benchmark.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            regular = directory / "regular.txt"
+            regular.write_text("not a directory", encoding="utf-8")
+            for path in (directory / "missing", regular):
+                with self.subTest(path=path):
+                    with self.assertRaisesRegex(ValueError, "cases.*directory"):
+                        load_cases(path)
+                    result = subprocess.run([sys.executable, str(script), "--cases", str(path), "--require-safe"],
+                                            capture_output=True, text=True)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn("error:", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual([], load_cases(directory))
+            empty = score_cases([])
+            for metric in ("severity_weighted_precision", "severity_weighted_recall", "severity_weighted_f1",
+                           "critical_recall", "major_recall"):
+                self.assertEqual(0.0, empty[metric], metric)
+            result = subprocess.run([sys.executable, str(script), "--cases", str(directory), "--require-safe"],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual(0, json.loads(result.stdout)["case_count"])
+            case = directory / "case.json"
+            case.write_text("{}", encoding="utf-8")
+            result = subprocess.run([sys.executable, str(script), "--cases", str(directory), "--require-safe"],
+                                    capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(1, json.loads(result.stdout)["case_count"])
+
+    def test_reviewer_benchmark_cli_reports_invalid_cases_without_traceback(self) -> None:
+        script = self.root / "scripts" / "run_reviewer_benchmark.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            case = directory / "case.json"
+            invalid = [
+                ('{"structured_review_input":{"schema":"wrong"}}', "structured_review_input"),
+                ('{', None), ('[]', None),
+                ('{"expected_findings": [{}]}', "expected_findings[0].code"),
+                ('{"expected_findings": null}', "expected_findings"),
+                ('{"expected_findings": [{"code": 1}]}', "expected_findings[0].code"),
+                ('{"expected_findings": [null]}', "expected_findings[0]"),
+                ('{"expected_findings": {}}', "expected_findings"),
+                ('{"expected_findings": [{"code": ""}]}', "expected_findings[0].code"),
+                ('{"additional_findings": null}', "additional_findings"),
+                ('{"additional_findings": 42}', "additional_findings"),
+            ]
+            receipt = build_review_receipt(
+                review_id="shape-check", reviewer="fixture-reviewer", independent=True,
+                review_modes=["record"], status="passed",
+                covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+                covered_claim_ids=["C"], covered_registry_sha256="b" * 64,
+                findings=[{"id": "F", "code": "fixture", "message": "fixture finding",
+                           "severity": "minor", "resolution_status": "open", "evidence": [
+                               {"artifact_path": "metrics.json", "artifact_sha256": "a" * 64}]}],
+                limitations=["fixture limitation"],
+            )
+            receipt_case = {"review_receipt": receipt, "artifact_hashes": {"metrics.json": "a" * 64},
+                            "registry_sha256": "b" * 64}
+            graph_case = {"evidence_graph_v2": {"schema_version": 2,
+                "nodes": [{"id": "S", "type": "study"}, {"id": "C", "type": "claim"}],
+                "edges": [{"source": "S", "target": "C", "relation": "supports"}]},
+                "replicated_claim_id": "C"}
+            structured_case = json.loads((self.root / "benchmarks" / "reviewer" / "67-clean-control.json").read_text())
+            finding_case = {"case_id": "shape-check", "expected_findings": [{"code": "fixture", "severity": "minor"}],
+                            "additional_findings": [{"code": "fixture", "severity": "minor", "message": "fixture"}]}
+            mutations = [
+                (finding_case, [
+                    (("case_id",), 0),
+                    (("expected_findings", 0, "severity"), []),
+                    (("expected_findings", 0, "severity"), "urgent"),
+                    (("additional_findings",), {}),
+                    (("additional_findings", 0), None),
+                    (("additional_findings", 0, "code"), 0),
+                    (("additional_findings", 0, "severity"), None),
+                    (("additional_findings", 0, "message"), []),
+                ]),
+                (graph_case, [
+                    (("replicated_claim_id",), 0),
+                    (("evidence_graph_v2", "nodes"), None),
+                    (("evidence_graph_v2", "nodes", 0), []),
+                    (("evidence_graph_v2", "nodes", 0, "id"), []),
+                    (("evidence_graph_v2", "nodes", 0, "id"), True),
+                    (("evidence_graph_v2", "edges"), None),
+                    (("evidence_graph_v2", "edges", 0), []),
+                    (("evidence_graph_v2", "edges", 0, "source"), []),
+                    (("evidence_graph_v2", "edges", 0, "target"), []),
+                    (("evidence_graph_v2", "edges", 0, "relation"), []),
+                ]),
+                (receipt_case, [(("artifact_hashes",), None), (("artifact_hashes",), 42)]),
+                (structured_case, [
+                    (("structured_review_input",), None),
+                    (("structured_review_input", "claims"), None),
+                    (("structured_review_input", "claims", 0), []),
+                    (("structured_review_input", "claims", 0, "id"), []),
+                    (("structured_review_input", "claims", 0, "kind"), []),
+                    (("structured_review_input", "claims", 0, "population"), []),
+                    (("structured_review_input", "claims", 0, "supported_by"), None),
+                    (("structured_review_input", "claims", 0, "supported_by", 0), []),
+                    (("structured_review_input", "claims", 0, "significant"), 1),
+                    (("structured_review_input", "studies"), None),
+                    (("structured_review_input", "studies", 0), []),
+                    (("structured_review_input", "studies", 0, "id"), []),
+                    (("structured_review_input", "studies", 0, "design"), []),
+                    (("structured_review_input", "studies", 0, "population"), []),
+                    (("structured_review_input", "analyses"), None),
+                    (("structured_review_input", "analyses", 0), []),
+                    (("structured_review_input", "analyses", 0, "claim_id"), []),
+                    (("structured_review_input", "analyses", 0, "tests_performed"), 0),
+                    (("structured_review_input", "analyses", 0, "tests_performed"), int(sys.float_info.max) + 1),
+                    (("structured_review_input", "analyses", 0, "alpha"), True),
+                    (("structured_review_input", "analyses", 0, "correction"), []),
+                    (("structured_review_input", "model_evaluations"), None),
+                    (("structured_review_input", "model_evaluations", 0), []),
+                    (("structured_review_input", "model_evaluations", 0, "train_ids"), None),
+                    (("structured_review_input", "model_evaluations", 0, "test_ids"), None),
+                    (("structured_review_input", "model_evaluations", 0, "train_ids", 0), None),
+                    (("structured_review_input", "model_evaluations", 0, "test_ids", 0), None),
+                    (("structured_review_input", "model_evaluations", 0, "train_groups"), None),
+                    (("structured_review_input", "model_evaluations", 0, "test_groups"), None),
+                    (("structured_review_input", "model_evaluations", 0, "train_groups", "patient"), None),
+                    (("structured_review_input", "model_evaluations", 0, "test_groups", "patient"), None),
+                    (("structured_review_input", "model_evaluations", 0, "train_groups", "patient", 0), None),
+                    (("structured_review_input", "model_evaluations", 0, "test_groups", "patient", 0), None),
+                    (("structured_review_input", "model_evaluations", 0, "train_groups"), {" ": []}),
+                    (("structured_review_input", "source_records"), None),
+                    (("structured_review_input", "source_records", 0), []),
+                    (("structured_review_input", "source_records", 0, "id"), []),
+                    (("structured_review_input", "source_records", 0, "value"), True),
+                    (("structured_review_input", "source_records", 0, "value"), float("inf")),
+                    (("structured_review_input", "source_records", 0, "unit"), []),
+                    (("structured_review_input", "reported_quantities"), None),
+                    (("structured_review_input", "reported_quantities", 0), []),
+                    (("structured_review_input", "reported_quantities", 0, "source_id"), []),
+                    (("structured_review_input", "reported_quantities", 0, "value"), True),
+                    (("structured_review_input", "reported_quantities", 0, "unit"), []),
+                ]),
+            ]
+            for base, changes in mutations:
+                for path, value in changes:
+                    payload = copy.deepcopy(base)
+                    parent = payload
+                    for part in path[:-1]:
+                        parent = parent[part]
+                    parent[path[-1]] = value
+                    field = "".join(f"[{part}]" if isinstance(part, int) else ("." if index else "") + part
+                                    for index, part in enumerate(path))
+                    invalid.append((json.dumps(payload), field))
+            for contents, field in invalid:
+                with self.subTest(contents=contents):
+                    case.write_text(contents, encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(script), "--cases", str(directory)],
+                                            capture_output=True, text=True)
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertIn("error:", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    if field is not None:
+                        self.assertIn(case.name, result.stderr)
+                        if field.startswith("evidence_graph_v2."):
+                            self.assertIn("evidence_graph_v2", result.stderr)
+                        elif field.startswith("structured_review_input."):
+                            self.assertIn("structured_review_input", result.stderr)
+                            self.assertIn(field.rsplit(".", 1)[-1], result.stderr)
+                        else:
+                            self.assertIn(field, result.stderr)
+                        with self.assertRaises(ValueError) as raised:
+                            load_cases(directory)
+                        self.assertIn(case.name, str(raised.exception))
+            numeric_graph = copy.deepcopy(graph_case)
+            numeric_graph["evidence_graph_v2"]["nodes"][0]["id"] = 0
+            numeric_graph["evidence_graph_v2"]["edges"][0]["source"] = 0
+            empty_message = copy.deepcopy(finding_case)
+            empty_message["additional_findings"][0]["message"] = ""
+            extreme_count = copy.deepcopy(structured_case)
+            extreme_count["structured_review_input"]["analyses"][0]["tests_performed"] = int(sys.float_info.max)
+            compatible = []
+            for evidence in (None, 0, "", {}):
+                valid = copy.deepcopy(receipt_case)
+                valid["review_receipt"]["findings"][0]["evidence"] = evidence
+                valid["review_receipt"].pop("fingerprint")
+                valid["review_receipt"]["fingerprint"] = canonical_sha256(valid["review_receipt"])
+                compatible.append(valid)
+            for field, value in (("id", 3), ("covered_claim_ids", [" "])):
+                valid = copy.deepcopy(receipt_case)
+                if field == "id":
+                    valid["review_receipt"]["findings"][0][field] = value
+                else:
+                    valid["review_receipt"][field] = value
+                valid["review_receipt"].pop("fingerprint")
+                valid["review_receipt"]["fingerprint"] = canonical_sha256(valid["review_receipt"])
+                compatible.append(valid)
+            for graph_value in (None, 0, []):
+                compatible.append({"evidence_graph_v2": graph_value})
+            float_graph = copy.deepcopy(graph_case)
+            float_graph["evidence_graph_v2"]["nodes"][0]["id"] = 0.5
+            float_graph["evidence_graph_v2"]["edges"][0]["source"] = 0.5
+            compatible.append(float_graph)
+            coerced_type = copy.deepcopy(graph_case)
+            coerced_type["evidence_graph_v2"]["nodes"][0]["type"] = 3
+            compatible.append(coerced_type)
+            float_version = copy.deepcopy(graph_case)
+            float_version["evidence_graph_v2"]["schema_version"] = 2.0
+            compatible.append(float_version)
+            for receipt_value in ({"schema_version": 2}, {**receipt, "status": "unknown"}):
+                compatible.append({"review_receipt": receipt_value, "expected_findings": [
+                    {"code": "invalid-review-receipt", "severity": "critical"}]})
+            for valid in ({"expected_findings": [], "additional_findings": []}, finding_case, graph_case,
+                          receipt_case, structured_case, numeric_graph, empty_message, extreme_count,
+                          {"review_packet": {"unused_metadata": 42}, "registry_sha256": None}, *compatible):
+                with self.subTest(valid=valid):
+                    original = copy.deepcopy(valid)
+                    case.write_text(json.dumps(valid), encoding="utf-8")
+                    self.assertEqual([original], load_cases(directory))
+                    report = score_cases(load_cases(directory))
+                    self.assertEqual(score_cases([original]), report)
+                    self.assertEqual(1, report["case_count"])
+                    if original.get("expected_findings") == [{"code": "invalid-review-receipt", "severity": "critical"}]:
+                        self.assertTrue(report["details"][0]["passed"])
 
     def test_train_test_case_id_matches_sample_overlap(self) -> None:
         case_ids = {item["case_id"] for item in load_cases(self.root / "benchmarks" / "reviewer")}

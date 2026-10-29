@@ -204,14 +204,18 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
             evidence_path.write_text("Reference pass for S1.\n", encoding="utf-8")
             report_path = run_dir / "report.md"
             report_path.write_text(limitation + "\n", encoding="utf-8")
+            studies_path = run_dir / "studies.json"
+            studies = {"schema_version": 1, "studies": [
+                {"study_id": identifier, "persistent_id": f"study:{identifier}",
+                 "title": f"Study {identifier}", "evidence_type": "primary", "included": True}
+                for identifier in ("S1", "S2")
+            ]}
+            studies_path.write_text(json.dumps(studies), encoding="utf-8")
             inputs = {
-                "study_table_payload": {"studies": [
-                    {"study_id": "S1", "included": True},
-                    {"study_id": "S2", "included": True},
-                ]},
+                "study_table_payload": studies,
                 "screening_payload": None,
                 "claim_ids": {"C1"},
-                "verified": {artifact: evidence_path},
+                "verified": {artifact: evidence_path, "studies.json": studies_path},
                 "report_path": report_path,
             }
             context = commitment_ledger.validate_ledger(ledger, **inputs)
@@ -226,6 +230,22 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
                     report_path.write_text(report_text, encoding="utf-8")
                     with self.assertRaisesRegex(ValueError, "limitation text does not appear verbatim in report.md"):
                         commitment_ledger.validate_ledger(ledger, **inputs)
+
+            report_path.write_text(limitation + "\n", encoding="utf-8")
+            procedure["completed"].append({"target_id": "S2", "evidence_artifact": artifact})
+            procedure["completed_count"] = 2
+            protocol_path = run_dir / "protocol.json"
+            protocol_path.write_text(json.dumps({"commitment_ledger": ledger}), encoding="utf-8")
+            manifest = {"claims": [{"id": "C1"}], "artifacts": [
+                {"kind": "study-table", "path": "studies.json"},
+                {"kind": "protocol", "path": "protocol.json"},
+                {"kind": "report", "path": "report.md"},
+            ]}
+            verified = {**inputs["verified"], "protocol.json": protocol_path, "report.md": report_path}
+            sidecars = evidence.validate_sidecars(manifest, run_dir, verified)
+            recorded = sidecars["protocol_commitment_context"]["procedures"][0]
+            self.assertEqual(2, recorded["completed_count"])
+            self.assertEqual(deviation["reason"], recorded["deviation"]["reason"])
 
     def test_screening_guidance_covers_records_without_abstracts(self):
         text = (ROOT / "authored-skills/literature-review/SKILL.md").read_text(encoding="utf-8")

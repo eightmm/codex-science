@@ -1,4 +1,5 @@
 import copy
+import sys
 import unittest
 
 from codex_science.structured_defects import structured_review_findings
@@ -118,6 +119,76 @@ class StructuredDefectTests(unittest.TestCase):
         group_finding = structured_review_findings(group_only)[0]
         self.assertEqual("train-test-leakage", group_finding["code"])
         self.assertIn("overlap count 1", group_finding["message"])
+
+    def test_group_names_must_be_unique_after_normalization(self) -> None:
+        pairs = [("patient", ["p1"]), (" patient ", ["p2"])]
+        for field in ("train_groups", "test_groups"):
+            for entries in (pairs, list(reversed(pairs))):
+                with self.subTest(field=field, entries=entries):
+                    evaluation = {"train_groups": {"patient": ["p1"]},
+                                  "test_groups": {"patient": ["p1"]}}
+                    evaluation[field] = dict(entries)
+                    with self.assertRaisesRegex(ValueError, field + r".*duplicate.*patient"):
+                        structured_review_findings(review_input(model_evaluations=[evaluation]))
+        self.assertEqual(set(), finding_codes(review_input(model_evaluations=[{
+            "train_ids": [], "test_ids": [], "train_groups": {}, "test_groups": {},
+        }])))
+        for name in ("", "  ", 0):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "group name"):
+                structured_review_findings(review_input(model_evaluations=[{
+                    "train_groups": {name: []}, "test_groups": {name: []},
+                }]))
+        self.assertIn("train-test-leakage", finding_codes(review_input(model_evaluations=[{
+            "train_groups": {" patient ": ["p1"]}, "test_groups": {"patient": ["p1"]},
+        }])))
+
+    def test_population_overreach_accepts_explicit_whole_subgroup(self) -> None:
+        payload = review_input(
+            claims=[{"id": "C", "kind": "associational", "population": "children", "supported_by": ["S"]}],
+            studies=[{"id": "S", "design": "cohort", "population": "adults and children"}],
+        )
+        for target, population, overreach in (
+            ("children", "adults and children", False),
+            ("children", "adults, children", False),
+            ("children", "adults; children", False),
+            ("children", "adults / children", False),
+            ("CHILDREN", " Adults AND Children ", False),
+            (" children ", "adults ; CHILDREN", False),
+            ("young children", "adults and young children", False),
+            ("adults", "older adults", True),
+            ("patients", "diabetic patients", True),
+            ("children", "adults, excluding children", True),
+            ("children", "adults and older children", True),
+            ("children", "adults and children.", True),
+            ("children", "adults andchildren", True),
+            ("children", "adultsand children", True),
+            ("children", ", ; / and ", True),
+            ("children", "schoolchildren", True),
+            ("children", "childrenhood", True),
+            ("young children", "young childrens", True),
+            ("children", "adults", True),
+        ):
+            with self.subTest(target=target, population=population):
+                payload["claims"][0]["population"] = target
+                payload["studies"][0]["population"] = population
+                self.assertEqual(overreach, "population-overreach" in finding_codes(payload))
+        payload["studies"].append({"id": "unrelated", "design": "cohort", "population": "children"})
+        self.assertIn("population-overreach", finding_codes(payload))
+
+    def test_multiplicity_count_refuses_float_overflow(self) -> None:
+        payload = review_input(
+            claims=[{"id": "C", "kind": "associational", "significant": True, "supported_by": []}],
+            analyses=[{"claim_id": "C", "tests_performed": 10**309, "alpha": 0.05, "correction": None}],
+        )
+        limit = int(sys.float_info.max)
+        for count in (10**309, limit + 1, 0, -1, "2", None, True):
+            with self.subTest(count=count), self.assertRaisesRegex(ValueError, "analyses.*tests_performed"):
+                payload["analyses"][0]["tests_performed"] = count
+                structured_review_findings(payload)
+        for count, expected in ((1, False), (2, True), (limit, True)):
+            with self.subTest(count=count):
+                payload["analyses"][0]["tests_performed"] = count
+                self.assertEqual(expected, "multiplicity-uncorrected" in finding_codes(payload))
 
     def test_unit_scale_mismatch_flags_unconverted_value_only(self) -> None:
         payload = review_input(
