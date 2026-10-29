@@ -240,7 +240,11 @@ def main() -> int:
     parser.add_argument("--base-ref")
     args = parser.parse_args()
     root = args.root.resolve()
-    errors = validate_release(root)
+    try:
+        errors = validate_release(root)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     errors.extend(_tracked_path_errors(root))
     if args.base_ref:
         dirty = subprocess.run(

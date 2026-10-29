@@ -1,6 +1,8 @@
 import importlib.util
 import json
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +16,39 @@ BASE_PLUGIN = "1.0.0+codex.20260101000000"
 BASE_RUNTIME = "1.0.0+codex.20260101000000"
 NEXT_PLUGIN = "1.0.0+codex.20260102000000"
 NEXT_RUNTIME = "1.0.0+codex.20260102000000"
+
+
+class ReleasePathRefusalTests(unittest.TestCase):
+    def test_candidate_root_must_be_a_directory(self) -> None:
+        self.check_invalid_roots("candidate_contract_check.py", include_empty=False)
+
+    def test_release_root_must_contain_release_files(self) -> None:
+        self.check_invalid_roots("validate_release.py", include_empty=True)
+
+    def check_invalid_roots(self, script: str, *, include_empty: bool) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            regular = root / "file"
+            regular.write_bytes(b"preserve")
+            empty = root / "empty"
+            empty.mkdir()
+            paths = [root / "missing", regular]
+            if include_empty:
+                paths.append(empty)
+            for path in paths:
+                with self.subTest(script=script, path=path.name):
+                    result = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts" / script), "--root", str(path)],
+                        cwd=root, capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertIn("error: ", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(b"preserve", regular.read_bytes())
+                    self.assertEqual([], list(empty.iterdir()))
+                    self.assertEqual({"file", "empty"}, {item.name for item in root.iterdir()})
 
 
 class ReleaseLockTests(unittest.TestCase):

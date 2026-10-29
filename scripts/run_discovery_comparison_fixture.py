@@ -58,7 +58,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         report = run_fixture(args.output)
-    except ValueError as error:
+    except (OSError, ValueError) as error:
         parser.error(str(error))
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

@@ -444,7 +444,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output_dir", type=Path)
     args = parser.parse_args()
-    print(json.dumps(run_acceptance(args.output_dir), indent=2, sort_keys=True))
+    try:
+        result = run_acceptance(args.output_dir)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 

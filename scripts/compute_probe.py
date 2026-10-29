@@ -100,7 +100,11 @@ def main() -> int:
     args = parser.parse_args()
     content = json.dumps(build_report(Path.cwd()), indent=2, sort_keys=True) + "\n"
     if args.output is not None:
-        _write_private(args.output, content)
+        try:
+            _write_private(args.output, content)
+        except OSError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
     sys.stdout.write(content)
     return 0
 

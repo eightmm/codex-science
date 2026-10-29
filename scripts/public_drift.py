@@ -25,7 +25,18 @@ def _load_state(path: Path | None) -> dict[str, Any]:
     if path is None or not path.is_file():
         return {"schema_version": 1, "sources": {}}
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return payload if isinstance(payload, dict) else {"schema_version": 1, "sources": {}}
+    if not isinstance(payload, dict):
+        raise ValueError("state must be an object")
+    sources = payload.get("sources", {})
+    if not isinstance(sources, dict):
+        raise ValueError("state sources must be an object")
+    for name, source in sources.items():
+        if not isinstance(source, dict):
+            raise ValueError(f"state source {name!r} must be an object")
+        failures = source.get("consecutive_failures", 0)
+        if isinstance(failures, bool) or not isinstance(failures, int) or failures < 0:
+            raise ValueError(f"state source {name!r} consecutive_failures must be a non-negative integer")
+    return payload
 
 
 def _operational_status(base: str, previous_failures: int) -> tuple[str, int]:
@@ -115,9 +126,13 @@ def main() -> int:
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--output-md", type=Path, required=True)
     args = parser.parse_args()
-    previous = _load_state(args.state_in).get("sources", {})
+    try:
+        previous = _load_state(args.state_in).get("sources", {})
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     records = [
-        probe(name, connector, query, previous_failures=int(previous.get(name, {}).get("consecutive_failures", 0)))
+        probe(name, connector, query, previous_failures=previous.get(name, {}).get("consecutive_failures", 0))
         for name, connector, query in CHECKS
     ]
     blocking = [item for item in records if item["status"] in {"semantic-drift", "degraded", "unavailable"}]

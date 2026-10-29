@@ -1,4 +1,5 @@
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -66,6 +67,29 @@ class ComputeProbeTests(unittest.TestCase):
             self.assertTrue(output.is_file())
             self.assertEqual(0o600, stat.S_IMODE(output.stat().st_mode))
             self.assertEqual(json.loads(result.stdout), json.loads(output.read_text()))
+
+    def test_output_directory_is_refused_without_temporary_residue(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for populated in (False, True):
+                with self.subTest(populated=populated):
+                    output = root / "output"
+                    output.mkdir(exist_ok=True)
+                    if populated:
+                        (output / "existing").write_bytes(b"preserve")
+                    result = subprocess.run(
+                        [sys.executable, str(self.script), "--output", str(output)],
+                        cwd=root, capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertIn("error: ", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual([output], list(root.iterdir()))
+                    self.assertEqual(["existing"] if populated else [], [p.name for p in output.iterdir()])
+                    if populated:
+                        self.assertEqual(b"preserve", (output / "existing").read_bytes())
 
 
 if __name__ == "__main__":

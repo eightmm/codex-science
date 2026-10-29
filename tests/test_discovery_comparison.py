@@ -1,4 +1,4 @@
-import hashlib, json, math, shutil, subprocess, sys, tempfile, unittest
+import hashlib, json, math, os, shutil, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from codex_science.discovery_comparison import evaluate_comparison, _digest, _frozen_contract
 
@@ -21,6 +21,26 @@ def _fixture():
     return root,contract,records
 
 class DiscoveryComparisonTests(unittest.TestCase):
+    def test_fixture_file_destination_is_refused_without_changes(self):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "run_discovery_comparison_fixture.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "output"
+            for content in (b"", b"preserve"):
+                with self.subTest(content=content):
+                    output.write_bytes(content)
+                    result = subprocess.run(
+                        [sys.executable, str(script), str(output)],
+                        cwd=root, capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertIn("error: ", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(content, output.read_bytes())
+                    self.assertEqual([output], list(root.iterdir()))
+
     def test_numeric_types_cannot_alias_artifacts_or_frozen_cells(self):
         for artifact in ("result_ref", "execution_receipt_ref"):
             for field, values in (("score", (True, 1.0, False, 0.0)),

@@ -1,6 +1,9 @@
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +21,28 @@ spec.loader.exec_module(runner)
 
 
 class ResearchDiscoveryAcceptanceTests(unittest.TestCase):
+    def test_existing_output_is_refused_without_traceback_or_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "directory"
+            directory.mkdir()
+            regular = root / "file"
+            regular.write_bytes(b"preserve")
+            for output in (directory, regular):
+                with self.subTest(output=output.name):
+                    result = subprocess.run(
+                        [sys.executable, str(RUNNER_PATH), str(output)],
+                        cwd=root, capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertIn("error: output directory already exists:", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(b"preserve", regular.read_bytes())
+                    self.assertEqual([], list(directory.iterdir()))
+                    self.assertEqual({"directory", "file"}, {p.name for p in root.iterdir()})
+
     def test_acceptance_runs_actual_candidates_and_leaves_review_pending(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             output = Path(temporary_directory) / "acceptance"
