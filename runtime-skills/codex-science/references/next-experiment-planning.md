@@ -66,6 +66,7 @@ Read this reference before ranking candidates for a new assay, synthesis batch, 
 - `required`: every eligible candidate must contain that property.
 
 The planner performs within-contract min-max normalization. Therefore scores from different input batches are not directly comparable unless their candidate population and scaling contract are identical.
+Finite extreme property ranges remain supported; a non-finite computed utility or proposal number is refused.
 
 ### Candidates
 
@@ -83,6 +84,8 @@ Optional:
 - eligibility and exclusion reason;
 - source metadata.
 
+`control` and `eligible`, when supplied, must be booleans. An explicitly ineligible candidate may omit required objective measurements; its record and exclusion reason remain in the rejected list.
+
 `diversity_group` is an explicit category supplied by the workflow. It may represent scaffold, target family, donor, site, assay plate, or another prespecified grouping. The planner does not derive chemical or biological similarity.
 
 ### Constraints
@@ -92,7 +95,9 @@ Optional:
 - `diversity_group_cap`: maximum selected records per group;
 - `minimum_controls`: required eligible controls.
 
-Required controls are selected before optimization. If they cannot fit the batch, budget, or diversity cap, the proposal fails rather than silently removing them.
+Count constraints must be JSON integers, excluding booleans: batch size and group cap are positive, and minimum controls is non-negative. Integral floating-point values such as `2.0` are refused.
+
+Required controls are selected before optimization in ascending cost, then ID order, skipping groups already at their cap. If no required control set fits the batch, budget, and diversity cap, the proposal fails rather than silently removing controls. Budget comparisons sum the decimal spellings of validated costs exactly, including the boundary; they use no tolerance.
 
 ## CLI
 
@@ -213,7 +218,7 @@ Candidates may be receptor states, ligand microstates, initial conditions, or pa
 
 | Failure | Required response |
 | --- | --- |
-| required property missing | stop; repair the candidate table or mark the objective non-required with rationale |
+| required property missing on an eligible candidate | stop; repair the candidate table, explicitly exclude the candidate with a reason, or mark the objective non-required with rationale |
 | controls unavailable | redesign the batch; do not proceed without the declared controls |
 | controls exceed budget/batch | revise the approved experiment contract |
 | uncertainty not calibrated | set uncertainty weight to zero or treat it as exploratory only |

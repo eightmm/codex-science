@@ -22,13 +22,15 @@ input JSON keys (schema_version optional; must be 1 if given):
                            required (bool, default true)}; at least one weight must be positive
   candidates               required non-empty list of {id (unique non-empty string),
                            properties (object: objective name -> finite number; must
-                           include every required objective), cost (>= 0, default 0),
+                           include every required objective for eligible candidates),
+                           cost (>= 0, default 0),
                            uncertainty (>= 0, default 0), diversity_group (or scaffold_id;
                            default: the candidate id), control (bool, default false),
                            eligible (bool, default true), exclusion_reason (default "")}
   constraints              required object: batch_size (required, integer >= 1),
                            budget (>= 0, default 0), diversity_group_cap (or scaffold_cap;
-                           default batch_size), minimum_controls (integer >= 0, default 0)
+                           integer >= 1, default batch_size), minimum_controls
+                           (integer >= 0, default 0)
   uncertainty_weight       optional number >= 0; default 0.25
   diversity_bonus          optional number >= 0; default 0.1
   claim_ids                optional list of non-empty strings; default: empty list

@@ -59,6 +59,10 @@ declared measurement resolution under the same evaluator and budget. A proposed
 experiment that cannot distinguish the linked explanations receives the rejection
 reason `no-distinguishable-pair-at-declared-resolution`, and is not selected
 merely because it is cheap or likely to score.
+The selector compares interval gaps, resolution, and total candidate plus control
+costs using exact decimal spellings of validated numbers. Equality meets the
+resolution threshold and budget cap; no numerical tolerance admits excess cost
+or an unresolved gap.
 
 The `discriminate_first_v1` selector may be used only with explicit prediction
 intervals, resolution, controls, cost, and remaining budget. The legacy planner

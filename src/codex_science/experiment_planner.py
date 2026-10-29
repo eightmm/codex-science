@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from fractions import Fraction
 from typing import Any, Iterable, Mapping
 
 
@@ -22,7 +24,10 @@ def _now() -> str:
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except ValueError as error:
+        raise ValueError("planner values must be finite JSON numbers") from error
 
 
 def _fingerprint(value: Mapping[str, Any]) -> str:
@@ -41,11 +46,22 @@ def _number(value: Any, label: str) -> float:
         raise ValueError(f"{label} must be numeric")
     try:
         result = float(value)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise ValueError(f"{label} must be numeric") from error
     if result != result or result in {float("inf"), float("-inf")}:
         raise ValueError(f"{label} must be finite")
     return result
+
+
+def _boolean(value: Any, label: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be boolean")
+    return value
+
+
+def _decimal(value: float) -> Fraction:
+    """Preserve declared decimal boundaries without a floating-point tolerance."""
+    return Fraction(str(value))
 
 
 def _validate_objectives(raw: Any) -> list[dict[str, Any]]:
@@ -85,11 +101,13 @@ def _validate_candidates(raw: Any, objectives: list[dict[str, Any]]) -> list[dic
         if candidate_id in ids:
             raise ValueError(f"duplicate candidate ID: {candidate_id}")
         ids.add(candidate_id)
+        eligible = _boolean(item.get("eligible", True), f"candidate {candidate_id} eligible")
+        control = _boolean(item.get("control", False), f"candidate {candidate_id} control")
         properties_raw = item.get("properties")
         if not isinstance(properties_raw, Mapping):
             raise ValueError(f"candidate {candidate_id} properties must be an object")
         missing = sorted(required - set(properties_raw))
-        if missing:
+        if eligible and missing:
             raise ValueError(f"candidate {candidate_id} lacks required objectives: {', '.join(missing)}")
         properties = {str(key): _number(value, f"candidate {candidate_id} property {key}") for key, value in properties_raw.items()}
         cost = _number(item.get("cost", 0), f"candidate {candidate_id} cost")
@@ -102,8 +120,8 @@ def _validate_candidates(raw: Any, objectives: list[dict[str, Any]]) -> list[dic
             "cost": cost,
             "uncertainty": uncertainty,
             "diversity_group": str(item.get("diversity_group", item.get("scaffold_id", candidate_id))),
-            "control": bool(item.get("control", False)),
-            "eligible": bool(item.get("eligible", True)),
+            "control": control,
+            "eligible": eligible,
             "exclusion_reason": str(item.get("exclusion_reason", "")),
             "metadata": dict(item.get("metadata", {})) if isinstance(item.get("metadata", {}), Mapping) else {},
         })
@@ -123,7 +141,12 @@ def _normalize(candidates: list[dict[str, Any]], objectives: list[dict[str, Any]
                 normalized[candidate["id"]][name] = 0.0
                 continue
             value = candidate["properties"][name]
-            score = 1.0 if maximum == minimum else (value - minimum) / (maximum - minimum)
+            if maximum == minimum:
+                score = 1.0
+            elif math.isfinite(maximum - minimum):
+                score = (value - minimum) / (maximum - minimum)
+            else:
+                score = float((_decimal(value) - _decimal(minimum)) / (_decimal(maximum) - _decimal(minimum)))
             if objective["direction"] == "minimize":
                 score = 1.0 - score
             normalized[candidate["id"]][name] = score
@@ -172,12 +195,13 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
     batch_raw = constraints.get("batch_size", 0)
     group_raw = constraints.get("diversity_group_cap", constraints.get("scaffold_cap", batch_raw))
     controls_raw = constraints.get("minimum_controls", 0)
-    if any(isinstance(item, bool) for item in (batch_raw, group_raw, controls_raw)):
+    if any(not isinstance(item, int) or isinstance(item, bool) for item in (batch_raw, group_raw, controls_raw)):
         raise ValueError("batch size, diversity cap, and minimum controls must be integers")
-    batch_size = int(batch_raw)
+    batch_size = batch_raw
     budget = _number(constraints.get("budget", 0), "budget")
-    group_cap = int(group_raw)
-    minimum_controls = int(controls_raw)
+    budget_exact = _decimal(budget)
+    group_cap = group_raw
+    minimum_controls = controls_raw
     if batch_size < 1 or budget < 0 or group_cap < 1 or minimum_controls < 0:
         raise ValueError("batch size, budget, diversity cap, and minimum controls are invalid")
     uncertainty_weight = _number(payload.get("uncertainty_weight", 0.25), "uncertainty_weight")
@@ -193,7 +217,7 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
     normalized, uncertainty_scores = _normalize(eligible, objectives)
     fronts = pareto_fronts(eligible, normalized, objectives)
     front_rank = {candidate_id: rank for rank, front in enumerate(fronts) for candidate_id in front}
-    weight_total = sum(item["weight"] for item in objectives)
+    weight_total = _number(sum(item["weight"] for item in objectives), "objective weight total")
     by_id = {item["id"]: item for item in candidates}
 
     def base_utility(candidate: Mapping[str, Any]) -> float:
@@ -201,40 +225,48 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
             objective["weight"] * normalized[candidate["id"]].get(objective["name"], 0.0)
             for objective in objectives
         ) / weight_total
-        return objective_score + uncertainty_weight * uncertainty_scores[candidate["id"]]
+        return _number(objective_score + uncertainty_weight * uncertainty_scores[candidate["id"]], "candidate base utility")
 
     selected: list[dict[str, Any]] = []
     selected_ids: set[str] = set()
     group_counts: Counter[str] = Counter()
-    total_cost = 0.0
+    total_cost = Fraction(0)
+    costs = {item["id"]: _decimal(item["cost"]) for item in eligible}
     rejection_reasons: dict[str, list[str]] = defaultdict(list)
 
     controls = sorted((item for item in eligible if item["control"]), key=lambda item: (item["cost"], item["id"]))
     if len(controls) < minimum_controls:
         raise ValueError(f"minimum_controls={minimum_controls} but only {len(controls)} eligible controls exist")
-    for candidate in controls[:minimum_controls]:
-        if total_cost + candidate["cost"] > budget or len(selected) >= batch_size:
-            raise ValueError("required controls do not fit the batch or budget")
+    if minimum_controls > batch_size:
+        raise ValueError("required controls do not fit the batch or budget")
+    # Cheapest-first under per-group caps minimizes the cost of the required set.
+    for candidate in controls:
+        if len(selected) == minimum_controls:
+            break
         if group_counts[candidate["diversity_group"]] >= group_cap:
-            raise ValueError("required controls violate diversity_group_cap")
+            continue
+        if total_cost + costs[candidate["id"]] > budget_exact:
+            raise ValueError("required controls do not fit the batch or budget")
         selected.append(candidate)
         selected_ids.add(candidate["id"])
         group_counts[candidate["diversity_group"]] += 1
-        total_cost += candidate["cost"]
+        total_cost += costs[candidate["id"]]
+    if len(selected) < minimum_controls:
+        raise ValueError("required controls violate diversity_group_cap")
 
     while len(selected) < batch_size:
         scored: list[tuple[float, int, str, dict[str, Any]]] = []
         for candidate in eligible:
             if candidate["id"] in selected_ids:
                 continue
-            if total_cost + candidate["cost"] > budget:
+            if total_cost + costs[candidate["id"]] > budget_exact:
                 rejection_reasons[candidate["id"]].append("budget")
                 continue
             if group_counts[candidate["diversity_group"]] >= group_cap:
                 rejection_reasons[candidate["id"]].append("diversity-group-cap")
                 continue
             novelty = 1.0 if group_counts[candidate["diversity_group"]] == 0 else 0.0
-            score = base_utility(candidate) + diversity_bonus * novelty - 0.01 * front_rank[candidate["id"]]
+            score = _number(base_utility(candidate) + diversity_bonus * novelty - 0.01 * front_rank[candidate["id"]], "candidate selection score")
             scored.append((score, -front_rank[candidate["id"]], candidate["id"], candidate))
         if not scored:
             break
@@ -243,7 +275,7 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
         selected.append(candidate)
         selected_ids.add(candidate["id"])
         group_counts[candidate["diversity_group"]] += 1
-        total_cost += candidate["cost"]
+        total_cost += costs[candidate["id"]]
 
     selected_records = []
     for candidate in selected:
@@ -278,8 +310,8 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
         "diversity_bonus": diversity_bonus,
         "selected": selected_records,
         "selected_count": len(selected_records),
-        "total_cost": total_cost,
-        "remaining_budget": budget - total_cost,
+        "total_cost": float(total_cost),
+        "remaining_budget": float(budget_exact - total_cost),
         "diversity_groups": dict(sorted(group_counts.items())),
         "pareto_fronts": fronts,
         "expected_information_gain_proxy": expected_information_gain,
@@ -359,11 +391,12 @@ def plan_discriminating_experiment(payload: Mapping[str, Any]) -> dict[str, Any]
                 b_low, b_high = _number(b[0], "prediction"), _number(b[1], "prediction")
                 if b_low > b_high:
                     raise ValueError("prediction interval is invalid")
-                gap = max(a_low - b_high, b_low - a_high, 0.0)
-                if gap >= resolution: pairs.append([left, right])
+                gap = max(_decimal(a_low) - _decimal(b_high), _decimal(b_low) - _decimal(a_high), Fraction(0))
+                if gap >= _decimal(resolution): pairs.append([left, right])
         reasons = []
-        total_cost = cost + control_cost
-        if total_cost > budget: reasons.append("budget")
+        total_cost_exact = _decimal(cost) + _decimal(control_cost)
+        total_cost = _number(total_cost_exact, "candidate total cost")
+        if total_cost_exact > _decimal(budget): reasons.append("budget")
         if not pairs: reasons.append("no-distinguishable-pair-at-declared-resolution")
         scored.append({"id": ident, "cost": cost, "control_cost": control_cost, "total_cost": total_cost, "resolution": resolution, "controls": list(controls), "predictions": dict(predictions), "distinguishable_pairs": pairs, "reasons": reasons})
     ranked = sorted(scored, key=lambda x: (bool(x["reasons"]), -len(x["distinguishable_pairs"]), x["total_cost"], x["id"]))
