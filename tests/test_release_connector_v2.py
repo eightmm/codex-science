@@ -2,13 +2,14 @@ import copy
 import json
 import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
 import codex_science.release as release_contract
 from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, replay_snapshot, sha256_json
 from codex_science.connector_sources import SOURCE_BY_KEY
-from codex_science.connectors import PubMedConnector
+from codex_science.connectors import ArxivConnector, PubMedConnector
 from codex_science.mcp_server import CodexScienceMCP
 from codex_science.release import (
     RELEASE_VERSION_RE,
@@ -348,6 +349,210 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         self.assertEqual("42", clinvar.search("BRCA1", limit=1)[0]["id"])
         gnomad = GnomADConnector(post_json=lambda _url, _body: {"data": {"variant": {"variant_id": "1-100-A-G", "exome": {"af": 0.1}, "genome": {"af": 0.2}}}})
         self.assertEqual("GRCh38", gnomad.search("1-100-A-G", limit=1)[0]["assembly"])
+
+    def test_gnomad_preserves_zero_and_missing_frequencies(self) -> None:
+        for frequency in (0.0, 0, 0.1, None, ""):
+            with self.subTest(frequency=frequency):
+                variant = {"exome": {"af": frequency}, "genome": {"af": frequency}}
+                connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+                record = connector.search("1-100-A-G")[0]
+                expected = "" if frequency is None else str(frequency)
+                self.assertEqual(expected, record["exome_af"])
+                self.assertEqual(expected, record["genome_af"])
+        for variant in ({}, {"exome": None, "genome": None}):
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+            record = connector.search("1-100-A-G")[0]
+            self.assertEqual("", record["exome_af"])
+            self.assertEqual("", record["genome_af"])
+
+    def test_gnomad_graphql_errors_are_never_negative_evidence(self) -> None:
+        request = QueryRequest("gnomad", "search", {"query": "1-100-A-G"})
+        for variant in (None, {}, {"variant_id": "1-100-A-G"}):
+            payload = {"data": {"variant": variant}, "errors": [{"message": "Too many requests"}]}
+            connector = GnomADConnector(post_json=lambda *_: payload)
+            for search in (lambda: connector.search("1-100-A-G"), lambda: execute_connector(connector, request)):
+                with self.subTest(variant=variant), self.assertRaisesRegex(ValueError, "GraphQL"):
+                    search()
+        for extra in ({}, {"errors": []}):
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": None}, **extra})
+            result = execute_connector(connector, request)
+            self.assertEqual("negative", result.receipt.missingness)
+            self.assertEqual("complete", result.receipt.completeness)
+
+    def test_legacy_parameters_are_rejected_before_transport(self) -> None:
+        post = mock.Mock(return_value={"data": {"variant": None}})
+        connector = GnomADConnector(post_json=post)
+        for extra in ({"dataset": "gnomad_r3"}, {"assembly": "GRCh37"}, {"dataset": None, "assembly": ""}, {"unknown": 0}, {"limit": 2, "assembly": "GRCh37"}):
+            with self.subTest(extra=extra):
+                request = QueryRequest("gnomad", "search", {"query": "1-100-A-G", **extra})
+                with self.assertRaises(ValueError) as raised:
+                    execute_connector(connector, request)
+                for name in set(extra) - {"limit"}:
+                    self.assertIn(name, str(raised.exception))
+                post.assert_not_called()
+        for limit in (0, -1, 11, True, False, 1.0, "2", "", None, [], {}):
+            with self.subTest(limit=limit):
+                request = QueryRequest("gnomad", "search", {"query": "1-100-A-G", "limit": limit})
+                with self.assertRaisesRegex(ValueError, r"parameters.limit must be an integer between 1 and 10"):
+                    execute_connector(connector, request)
+                post.assert_not_called()
+        self.assertEqual((), execute_connector(connector, QueryRequest("gnomad", "search", {"query": "1-100-A-G"})).records)
+        post.assert_called_once()
+
+    def test_receipt_marks_remaining_pages_and_declared_totals(self) -> None:
+        request = QueryRequest("jaspar", "search", {"query": "gene"}, page_size=1)
+        for metadata, completeness, cursor in (
+            ({"next": "https://example.test/page/2"}, "partial-next-cursor", "https://example.test/page/2"),
+            ({"count": 2}, "bounded", None),
+            ({"total": 2}, "bounded", None),
+            ({"total_count": "2"}, "bounded", None),
+            ({"meta": {"results": {"total": 2}}}, "bounded", None),
+        ):
+            with self.subTest(metadata=metadata):
+                connector = JASPARConnector(fetch_json=lambda _: {"results": [{"matrix_id": "MA1"}], **metadata})
+                result = execute_connector(connector, request)
+                self.assertEqual(completeness, result.receipt.completeness)
+                self.assertEqual(cursor, result.receipt.pages[0].next_cursor)
+                self.assertTrue(result.receipt.warnings)
+        source_totals = (
+            ("ols", ("response", "numFound"), ("response", "docs"),
+             {"response": {"docs": [{"obo_id": "GO:0008150", "label": "biological_process"}]}}),
+            ("clinical_trials", ("totalCount",), ("studies",),
+             {"studies": [{"protocolSection": {"identificationModule": {"nctId": "NCT1"}}}]}),
+            ("reactome", ("entriesCount",), ("results", 0, "entries"),
+             {"results": [{"entries": [{"stId": "R-HSA-1", "name": "Pathway"}]}]}),
+            ("biostudies", ("totalHits",), ("hits",),
+             {"hits": [{"accession": "S-EPMC1"}]}),
+            ("arrayexpress", ("totalHits",), ("hits",),
+             {"hits": [{"accession": "E-MTAB-1"}]}),
+            ("gtex", ("paging_info", "totalNumberOfItems"), ("data",),
+             {"data": [{"gencodeId": "ENSG1.1"}]}),
+            ("complex_portal", ("totalNumberOfElements",), ("elements",),
+             {"elements": [{"complexAc": "CPX-1", "complexName": "Complex"}]}),
+        )
+        for source, total_path, records_path, template in source_totals:
+            for total in (100, 1, "100", 0, "", None, "bad", True, -1, [], {}):
+                with self.subTest(source=source, total=total):
+                    payload = copy.deepcopy(template)
+                    target = payload
+                    for component in total_path[:-1]:
+                        target = target.setdefault(component, {})
+                    target[total_path[-1]] = total
+                    if type(total) is int and total == 0:
+                        target = payload
+                        for component in records_path[:-1]:
+                            target = target[component]
+                        target[records_path[-1]] = []
+                    connector = SOURCE_BY_KEY[source].factory()
+                    connector._fetch_json = mock.Mock(return_value=payload)
+                    result = execute_connector(connector, QueryRequest(source, "search", {"query": "biological process"}, page_size=1))
+                    bounded = total in (100, "100")
+                    self.assertEqual("bounded" if bounded else "complete", result.receipt.completeness)
+                    self.assertEqual(bounded, bool(result.receipt.warnings))
+                    self.assertEqual(0 if type(total) is int and total == 0 else 1, len(result.records))
+        for count, ids, expected in ((0, [], "complete"), (1, ["1"], "complete"), (2, ["1"], "bounded"), ("2", ["1"], "bounded")):
+            with self.subTest(count=count):
+                connector = PubMedConnector(fetch_json=lambda _: {"esearchresult": {"count": count, "idlist": ids}})
+                result = execute_connector(connector, QueryRequest("pubmed", "search", {"query": "gene"}, page_size=1))
+                self.assertEqual(expected, result.receipt.completeness)
+        for metadata in ({}, {"next": None}, {"next": ""}, {"next": 0}, {"next": []}, {"count": None}, {"count": "bad"}, {"count": True}, {"count": -1}):
+            with self.subTest(metadata=metadata):
+                result = execute_connector(JASPARConnector(fetch_json=lambda _: {"results": [], **metadata}), request)
+                self.assertEqual("complete", result.receipt.completeness)
+
+    def test_receipt_marks_legacy_request_caps(self) -> None:
+        for limit, page_size, max_pages, expected in (
+            (1, 1, 1, 1), (3, 5, 1, 3), (10, 2, 1, 2),
+            (3, 2, 2, 3), (10, 2, 3, 6), (10, 20, 1, 10),
+        ):
+            with self.subTest(limit=limit, page_size=page_size, max_pages=max_pages):
+                fetch = mock.Mock(return_value={"esearchresult": {"idlist": [str(i) for i in range(10)]}})
+                request = QueryRequest("pubmed", "search", {"query": "gene", "limit": limit}, page_size=page_size, max_pages=max_pages)
+                result = execute_connector(PubMedConnector(fetch_json=fetch), request, include_snapshot=True)
+                sent = urllib.parse.parse_qs(urllib.parse.urlsplit(fetch.call_args.args[0]).query)
+                self.assertEqual([str(expected)], sent["retmax"])
+                self.assertEqual(expected, len(result.records))
+                self.assertEqual({"query": "gene", "limit": limit}, result.snapshot()["request"]["parameters"])
+                self.assertEqual(request.request_sha256, result.receipt.canonical_request_sha256)
+                self.assertEqual(result.records, replay_snapshot(result.snapshot()).records)
+        for page_size in (1, 10, 11, 20, 100):
+            with self.subTest(page_size=page_size):
+                fetch = mock.Mock(return_value={"esearchresult": {"idlist": []}})
+                result = execute_connector(PubMedConnector(fetch_json=fetch), QueryRequest("pubmed", "search", {"query": "gene"}, page_size=page_size))
+                sent = urllib.parse.parse_qs(urllib.parse.urlsplit(fetch.call_args.args[0]).query)
+                self.assertEqual([str(min(page_size, 10))], sent["retmax"])
+                self.assertEqual("bounded" if page_size > 10 else "complete", result.receipt.completeness)
+                self.assertEqual(page_size > 10, bool(result.receipt.warnings))
+        for page_size in (0, "bad", None):
+            with self.subTest(page_size=page_size):
+                fetch = mock.Mock()
+                with self.assertRaises((ValueError, TypeError)):
+                    execute_connector(PubMedConnector(fetch_json=fetch), QueryRequest("pubmed", "search", {"query": "gene"}, page_size=page_size))
+                fetch.assert_not_called()
+
+    def test_receipt_marks_atom_totals_without_rejecting_empty_feeds(self) -> None:
+        for total, entry, expected in (
+            ("0", "", "complete"), ("", "", "complete"), ("bad", "", "complete"),
+            ("1", "<entry><id>http://arxiv.org/abs/1234.5678</id></entry>", "complete"),
+            ("2", "<entry><id>http://arxiv.org/abs/1234.5678</id></entry>", "bounded"),
+        ):
+            with self.subTest(total=total):
+                atom = ('<feed xmlns="http://www.w3.org/2005/Atom" '
+                        'xmlns:os="http://a9.com/-/spec/opensearch/1.1/">'
+                        f'<os:totalResults>{total}</os:totalResults>{entry}</feed>')
+                result = execute_connector(ArxivConnector(fetch_text=lambda _: atom), QueryRequest("arxiv", "search", {"query": "geometry"}, page_size=1))
+                self.assertEqual(expected, result.receipt.completeness)
+
+    def test_v2_arxiv_errors_do_not_create_negative_receipts(self) -> None:
+        for response in (
+            "<html><body>Too many requests</body></html>",
+            '<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+            '<id>http://arxiv.org/api/errors#unavailable</id><title>Error</title></entry></feed>',
+        ):
+            with self.subTest(response=response):
+                fetch = mock.Mock(return_value=response)
+                connector = ArxivConnector(fetch_text=fetch)
+                with self.assertRaisesRegex(ValueError, "arXiv"):
+                    execute_connector(connector, QueryRequest("arxiv", "search", {"query": "geometry"}))
+                self.assertIs(fetch, connector._fetch_text)
+
+    def test_replay_rejects_stored_response_digest_mismatches(self) -> None:
+        for connector in (
+            PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": []}}),
+            GnomADConnector(post_json=lambda *_: {"data": {"variant": None}}),
+            ArxivConnector(fetch_text=lambda _: '<feed xmlns="http://www.w3.org/2005/Atom"/>'),
+        ):
+            snapshot = execute_connector(connector, QueryRequest("fixture", "search", {"query": "1-100-A-G"}), include_snapshot=True).snapshot()
+            self.assertEqual((), replay_snapshot(snapshot).records)
+            for response in ({}, None, [], 0, "malformed"):
+                with self.subTest(connector=type(connector).__name__, response=response):
+                    changed = copy.deepcopy(snapshot)
+                    changed["pages"][0]["response"] = response
+                    with self.assertRaisesRegex(ValueError, "response hash mismatch"):
+                        replay_snapshot(changed)
+            changed = copy.deepcopy(snapshot)
+            del changed["pages"][0]["response"]
+            with self.assertRaisesRegex(ValueError, "response hash mismatch"):
+                replay_snapshot(changed)
+
+    def test_replay_verifies_every_response_and_accepts_canonical_json(self) -> None:
+        class FixtureConnector:
+            def __init__(self):
+                self._fetch_json = lambda _: {"results": [], "total": 0}
+
+            def query_v2(self, _request):
+                self._fetch_json("https://example.test/page/1")
+                return self._fetch_json("https://example.test/page/2")["results"]
+
+        snapshot = execute_connector(FixtureConnector(), QueryRequest("fixture", "search", {}), include_snapshot=True).snapshot()
+        for stored in snapshot["pages"]:
+            stored["response"] = {"total": 0, "results": []}
+        self.assertEqual((), replay_snapshot(snapshot).records)
+        for index in (0, 1):
+            changed = copy.deepcopy(snapshot)
+            changed["pages"][index]["response"]["total"] = 1
+            with self.subTest(index=index), self.assertRaisesRegex(ValueError, "response hash mismatch"):
+                replay_snapshot(changed)
 
     def test_typed_connectors_validate_inputs_without_transport_or_state_changes(self) -> None:
         fetch = mock.Mock(return_value={})

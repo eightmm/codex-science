@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import urllib.parse
+import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterator, Mapping
@@ -171,6 +172,9 @@ class _Call:
 def _cursor(payload: Any) -> str | None:
     if not isinstance(payload, dict):
         return None
+    value = payload.get("next")
+    if isinstance(value, str) and value:
+        return value
     for key in ("nextCursor", "nextPageToken", "next_page_token", "cursor"):
         value = payload.get(key)
         if isinstance(value, str) and value:
@@ -183,6 +187,32 @@ def _cursor(payload: Any) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _total(payload: Any) -> int:
+    if isinstance(payload, str):
+        try:
+            root = ET.fromstring(payload)
+        except ET.ParseError:
+            return 0
+        value = root.findtext("{http://a9.com/-/spec/opensearch/1.1/}totalResults")
+        return int(value) if value and re.fullmatch(r"[0-9]+", value) else 0
+    if not isinstance(payload, dict):
+        return 0
+    totals = [0]
+    for key in (
+        "count", "total", "total_count", "totalResults", "hitCount", "numberOfHits", "totalElements",
+        "numFound", "totalCount", "entriesCount", "totalHits", "totalNumberOfItems", "totalNumberOfElements",
+    ):
+        value = payload.get(key)
+        if type(value) is int and value >= 0:
+            totals.append(value)
+        elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+            totals.append(int(value))
+    for key in ("esearchresult", "meta", "results", "page_meta", "page", "pageInfo", "pagination", "response", "paging_info"):
+        if isinstance(payload.get(key), dict):
+            totals.append(_total(payload[key]))
+    return max(totals)
 
 
 def _release(payload: Any) -> str | None:
@@ -237,6 +267,13 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
         raise ValueError(f"connector does not implement operation: {request.operation}")
     if request.evidence_cutoff is not None and not typed_query:
         raise ValueError(f"evidence_cutoff is not supported by source: {request.source}")
+    if not typed_query:
+        unsupported = set(request.parameters) - {"query", "limit"}
+        if unsupported:
+            raise ValueError(f"unsupported parameters for source {request.source}: {', '.join(sorted(unsupported))}")
+        limit = request.parameters.get("limit", 10)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 10:
+            raise ValueError("parameters.limit must be an integer between 1 and 10")
     warnings: list[str] = []
     timestamp = retrieved_at or _now()
     with _instrument(connector) as calls:
@@ -248,7 +285,9 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
                 raise ValueError("search requires parameters.query")
             if request.max_pages > 1:
                 warnings.append("legacy connector exposes no cursor pagination; result is bounded")
-            records = connector.search(query, limit=min(request.page_size * request.max_pages, 10))
+            if request.page_size * request.max_pages > 10:
+                warnings.append("legacy connector request is capped at 10 records; result is bounded")
+            records = connector.search(query, limit=min(limit, request.page_size * request.max_pages, 10))
     if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
         raise ValueError("connector must return record objects")
     normalized = [dict(item) for item in records]
@@ -260,6 +299,8 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
         cursor = _cursor(call.response_payload)
         if cursor:
             cursors.append(cursor)
+        if _total(call.response_payload) > len(normalized):
+            warnings.append("source declares more records than returned; result is bounded")
         source_release = source_release or _release(call.response_payload)
         body_digest = None if call.request_payload is None else hashlib.sha256(canonical_json_bytes(call.request_payload)).hexdigest()
         pages.append(PageReceipt(
@@ -269,7 +310,9 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
             retrieved_at=timestamp, next_cursor=cursor, record_count=len(normalized),
         ))
         snapshots.append({"method": call.method, "url": call.url, "request": copy.deepcopy(call.request_payload), "response": copy.deepcopy(call.response_payload)})
-    completeness = "partial-next-cursor" if cursors else ("bounded" if request.max_pages > 1 else ("complete" if calls else "normalized-only"))
+    if cursors:
+        warnings.append("source returned a next cursor; result is partial")
+    completeness = "partial-next-cursor" if cursors else ("bounded" if warnings or request.max_pages > 1 else ("complete" if calls else "normalized-only"))
     missingness = "negative" if not normalized else "observed"
     ids = tuple(str(item.get("id") or f"record-{index}") for index, item in enumerate(normalized))
     receipt = QueryReceipt(
@@ -283,6 +326,10 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
 
 
 def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
+    return _replay_snapshot(payload, verify_responses=True)
+
+
+def _replay_snapshot(payload: Mapping[str, Any], *, verify_responses: bool) -> QueryResult:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported connector snapshot schema")
     request = QueryRequest.from_payload(payload.get("request") or {})
@@ -316,6 +363,11 @@ def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
             body_digest = None if stored.get("request") is None else sha256_json(stored["request"])
             if body_digest != page.request_body_sha256:
                 raise ValueError("snapshot page request body hash mismatch")
+            if verify_responses:
+                response = stored.get("response")
+                raw = canonical_json_bytes(response) if page.response_media_type == "application/json" else str(response).encode("utf-8")
+                if "response" not in stored or hashlib.sha256(raw).hexdigest() != page.response_sha256:
+                    raise ValueError("snapshot page response hash mismatch")
     receipt_payload["pages"] = pages
     for field in ("returned_record_ids", "excluded_records", "warnings"):
         receipt_payload[field] = tuple(receipt_payload.get(field) or [])
@@ -324,8 +376,9 @@ def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
 
 
 def classify_drift(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[str, Any]:
-    old = replay_snapshot(previous)
-    new = replay_snapshot(current)
+    # Drift diagnostics compare changed response bytes even when their stored digest is stale.
+    old = _replay_snapshot(previous, verify_responses=False)
+    new = _replay_snapshot(current, verify_responses=False)
     changes: list[str] = []
     if old.request.canonical() != new.request.canonical():
         changes.append("schema-drift")

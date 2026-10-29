@@ -132,12 +132,23 @@ class ArxivConnector:
         else:
             selector = {"search_query": f"all:{query}"}
         params = urllib.parse.urlencode({**selector, "start": 0, "max_results": limit})
-        root = ET.fromstring(self._fetch_text(f"https://export.arxiv.org/api/query?{params}"))
+        try:
+            root = ET.fromstring(self._fetch_text(f"https://export.arxiv.org/api/query?{params}"))
+        except ET.ParseError as exc:
+            raise ValueError("arXiv response must be an Atom feed") from exc
+        if root.tag != "{http://www.w3.org/2005/Atom}feed":
+            raise ValueError("arXiv response must be an Atom feed")
         namespace = {"atom": "http://www.w3.org/2005/Atom"}
+        entries = root.findall("atom:entry", namespace)
+        for entry in entries:
+            entry_url = (entry.findtext("atom:id", default="", namespaces=namespace) or "").strip()
+            parsed = urllib.parse.urlsplit(entry_url)
+            if parsed.hostname in {"arxiv.org", "www.arxiv.org", "export.arxiv.org"} and parsed.path == "/api/errors":
+                raise ValueError("arXiv API returned an error entry")
         results: list[dict[str, str]] = []
-        for entry in root.findall("atom:entry", namespace)[:limit]:
+        for entry in entries[:limit]:
             url = (entry.findtext("atom:id", default="", namespaces=namespace) or "").strip()
-            identifier = url.rsplit("/", 1)[-1]
+            identifier = url.split("/abs/", 1)[1] if "/abs/" in url else url.rsplit("/", 1)[-1]
             results.append(
                 {
                     "id": identifier,

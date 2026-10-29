@@ -50,7 +50,9 @@ individual's genotype.
    `source="gnomad"` and only top-level arguments `source`, `parameters`,
    optional `operation`, `page_size`, `max_pages`, `evidence_cutoff`, and
    `include_snapshot`; first consult `science_list_source_contracts` for
-   source-specific parameters. This connector is fixture-tested experimental,
+   source-specific parameters. The v2 connector accepts only `parameters.query`
+   for a GRCh38 variant in `gnomad_r4`; dataset and assembly overrides are refused.
+   This connector is fixture-tested experimental,
    not live-validated. Record exact query, endpoint/tool, access time, and
    returned version.
 5. Verify response dataset, assembly, identity, population fields, flags, and

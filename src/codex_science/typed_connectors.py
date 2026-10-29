@@ -59,11 +59,13 @@ class GnomADConnector:
         variant_id = f"{chromosome.upper()}-{position}-{reference.upper()}-{alternate.upper()}"
         graphql = "query Variant($variantId: String!, $datasetId: DatasetId!) { variant(variantId: $variantId, dataset: $datasetId) { variant_id chrom pos ref alt exome { ac an af } genome { ac an af } } }"
         payload = self._post_json("https://gnomad.broadinstitute.org/api", {"query": graphql, "variables": {"variantId": variant_id, "datasetId": "gnomad_r4"}})
+        if payload.get("errors"):
+            raise ValueError("gnomAD GraphQL response contains errors")
         item = payload.get("data", {}).get("variant")
         if not isinstance(item, dict):
             return []
         exome, genome = item.get("exome") or {}, item.get("genome") or {}
-        return [{"id": str(item.get("variant_id") or variant_id), "title": variant_id, "assembly": "GRCh38", "exome_af": str(exome.get("af") or ""), "genome_af": str(genome.get("af") or ""), "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
+        return [{"id": str(item.get("variant_id") or variant_id), "title": variant_id, "assembly": "GRCh38", "exome_af": str(exome["af"]) if exome.get("af") is not None else "", "genome_af": str(genome["af"]) if genome.get("af") is not None else "", "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
 
 
 class ENCODEConnector:

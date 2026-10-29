@@ -145,6 +145,30 @@ class ConnectorTests(unittest.TestCase):
                 self.assertEqual(["3"], params["max_results"])
                 self.assertEqual({key, "start", "max_results"}, set(params))
 
+    def test_arxiv_rejects_non_atom_feeds_and_api_errors(self) -> None:
+        for response in (
+            "", "<html><body>Too many requests</body></html>",
+            "<feed/>", '<feed xmlns="https://example.test/Atom"/>',
+            '<entry xmlns="http://www.w3.org/2005/Atom"/>',
+            '<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+            '<id>http://arxiv.org/api/errors#incorrect_id_format</id>'
+            '<title>Error</title></entry></feed>',
+            '<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+            '<id>http://arxiv.org/abs/1234.5678</id><title>Paper</title>'
+            '</entry><entry><id>https://arxiv.org/api/errors#unavailable</id>'
+            '<title>Error</title></entry></feed>',
+        ):
+            with self.subTest(response=response), self.assertRaises(ValueError):
+                ArxivConnector(fetch_text=lambda _: response).search("geometry", limit=1)
+
+    def test_arxiv_preserves_empty_feeds_and_archive_identifiers(self) -> None:
+        feed = '<feed xmlns="http://www.w3.org/2005/Atom">{}</feed>'
+        self.assertEqual([], ArxivConnector(fetch_text=lambda _: feed.format("")).search("geometry"))
+        for identifier in ("hep-th/9901001v3", "math.GT/0309136", "1234.5678v2"):
+            with self.subTest(identifier=identifier):
+                atom = feed.format(f"<entry><id>http://arxiv.org/abs/{identifier}</id><title>Paper</title></entry>")
+                self.assertEqual(identifier, ArxivConnector(fetch_text=lambda _: atom).search("geometry")[0]["id"])
+
     def test_uniprot_parses_json_results(self) -> None:
         payload = {
             "results": [
