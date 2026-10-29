@@ -13,7 +13,9 @@ from codex_science.uncertainty_runtime import (
     _variance,
     review_uncertainty_propagation,
     run_uncertainty_propagation,
+    validate_uncertainty_propagation,
 )
+from codex_science.safe_expression import canonical_sha256
 
 
 class UncertaintyValidityTests(unittest.TestCase):
@@ -37,6 +39,39 @@ class UncertaintyValidityTests(unittest.TestCase):
             return run_uncertainty_propagation(payload)
         finally:
             self.assertEqual(before, payload)
+
+    def test_overflowing_sample_statistics_are_recovered_or_refused(self):
+        for value in (0.0, 1e308, -1e308, sys.float_info.max):
+            with self.subTest(value=value):
+                result = self.propagate(str(value), [("x", 0, 0)], method="monte-carlo", samples=1000)
+                self.assertEqual(value, result["monte_carlo"]["mean"])
+                self.assertEqual(0.0, result["monte_carlo"]["standard_uncertainty"])
+                self.assertEqual("passed", result["status"])
+                validate_uncertainty_propagation(result)
+        # A representable standard deviation can have an overflowing variance.
+        draws = [-1.0, 1.0] * 500
+        with patch("codex_science.uncertainty_runtime.random.Random.gauss", side_effect=draws):
+            result = self.propagate("1e200 if x > 0.5 else -1e200", [("x", 0, 1)], method="monte-carlo", samples=1000)
+        self.assertEqual(0.0, result["monte_carlo"]["mean"])
+        self.assertAlmostEqual(math.sqrt(1000 / 999), result["monte_carlo"]["standard_uncertainty"] / 1e200)
+        with patch("codex_science.uncertainty_runtime.random.Random.gauss", side_effect=draws):
+            with self.assertRaisesRegex(ValueError, "finite"):
+                self.propagate(
+                    f"{sys.float_info.max} if x > 0.5 else -{sys.float_info.max}",
+                    [("x", 0, 1)], method="monte-carlo", samples=1000,
+                )
+        with patch("codex_science.uncertainty_runtime._quantile", return_value=math.inf):
+            with self.assertRaisesRegex(ValueError, "finite"):
+                self.propagate("1", [("x", 0, 0)], method="monte-carlo", samples=1000)
+        result = self.propagate("1", [("x", 0, 0)], method="monte-carlo", samples=1000)
+        for value in (math.inf, -math.inf, math.nan):
+            for section, field in (("monte_carlo", "mean"), ("linear", "variance"), ("nonlinearity", "mean_shift_in_uncertainty_units")):
+                forged = copy.deepcopy(result)
+                forged[section][field] = value
+                forged.pop("fingerprint")
+                forged["fingerprint"] = canonical_sha256(forged)
+                with self.subTest(section=section, field=field, value=value), self.assertRaisesRegex(ValueError, "finite"):
+                    validate_uncertainty_propagation(forged)
 
     def test_diagonal_conflicts_are_relative_and_derived_value_is_retained(self):
         for uncertainty in (0.0, 1e-8, 1.0):

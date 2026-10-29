@@ -12,6 +12,7 @@ import itertools
 import json
 import math
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any, Iterable, Mapping
 
 MAX_EXPRESSION_CHARS = 4096
@@ -43,6 +44,10 @@ def _finite_number(value: Any, label: str) -> int | float:
 
 def _checked(value: Any) -> Any:
     if isinstance(value, bool):
+        return value
+    if isinstance(value, Fraction):
+        if max(value.numerator.bit_length(), value.denominator.bit_length()) > MAX_INTEGER_BITS:
+            raise ExpressionError("rational result exceeds the size limit")
         return value
     if isinstance(value, int):
         if value.bit_length() > MAX_INTEGER_BITS:
@@ -83,6 +88,27 @@ class ParsedExpression:
     tree: ast.Expression
     names: tuple[str, ...]
     sha256: str
+
+
+@dataclass
+class _SearchArithmetic:
+    rationalize_floats: bool = False
+    inexact: bool = False
+
+    def number(self, value: Any, label: str) -> Any:
+        value = _finite_number(value, label)
+        if isinstance(value, float) and not self.rationalize_floats:
+            self.inexact = True
+            return value
+        return _checked(Fraction(value))
+
+    def checked(self, value: Any) -> Any:
+        value = _checked(value)
+        if isinstance(value, float):
+            self.inexact = True
+        elif isinstance(value, int) and not isinstance(value, bool):
+            value = Fraction(value)
+        return value
 
 
 def parse_expression(source: str, *, allowed_names: Iterable[str] = ()) -> ParsedExpression:
@@ -162,77 +188,87 @@ def parse_expression(source: str, *, allowed_names: Iterable[str] = ()) -> Parse
     )
 
 
-def _eval(node: ast.AST, variables: Mapping[str, Any]) -> Any:
+def _eval(node: ast.AST, variables: Mapping[str, Any], arithmetic: _SearchArithmetic | None = None) -> Any:
+    def evaluate(child: ast.AST) -> Any:
+        return _eval(child, variables, arithmetic)
+
+    number = _finite_number if arithmetic is None else arithmetic.number
+    checked = _checked if arithmetic is None else arithmetic.checked
     if isinstance(node, ast.Expression):
-        return _eval(node.body, variables)
+        return evaluate(node.body)
     if isinstance(node, ast.Constant):
         if isinstance(node.value, bool):
             return node.value
-        return _finite_number(node.value, "numeric literal")
+        return number(node.value, "numeric literal")
     if isinstance(node, ast.Name):
         if node.id in variables:
             value = variables[node.id]
             if isinstance(value, bool):
                 return value
-            return _finite_number(value, f"variable {node.id}")
+            return number(value, f"variable {node.id}")
         if node.id in _ALLOWED_CONSTANTS:
-            return _ALLOWED_CONSTANTS[node.id]
+            value = _ALLOWED_CONSTANTS[node.id]
+            if isinstance(value, bool):
+                return value
+            if arithmetic is not None:
+                arithmetic.inexact = True
+            return number(value, "mathematical constant")
         raise ExpressionError(f"missing variable: {node.id}")
     if isinstance(node, ast.UnaryOp):
-        value = _eval(node.operand, variables)
+        value = evaluate(node.operand)
         if isinstance(node.op, ast.Not):
             return not bool(value)
         if isinstance(value, bool):
             raise ExpressionError("boolean values cannot be used as signed numbers")
         if isinstance(node.op, ast.UAdd):
-            return _checked(+value)
+            return checked(+value)
         if isinstance(node.op, ast.USub):
-            return _checked(-value)
+            return checked(-value)
     if isinstance(node, ast.BinOp):
-        left = _eval(node.left, variables)
-        right = _eval(node.right, variables)
+        left = evaluate(node.left)
+        right = evaluate(node.right)
         if isinstance(left, bool) or isinstance(right, bool):
             raise ExpressionError("boolean values cannot be used in arithmetic")
         if isinstance(node.op, ast.Add):
-            return _checked(left + right)
+            return checked(left + right)
         if isinstance(node.op, ast.Sub):
-            return _checked(left - right)
+            return checked(left - right)
         if isinstance(node.op, ast.Mult):
-            return _checked(left * right)
+            return checked(left * right)
         if isinstance(node.op, ast.Div):
             if right == 0:
                 raise ExpressionError("division by zero")
-            return _checked(left / right)
+            return checked(left / right)
         if isinstance(node.op, ast.FloorDiv):
             if right == 0:
                 raise ExpressionError("division by zero")
-            return _checked(left // right)
+            return checked(left // right)
         if isinstance(node.op, ast.Mod):
             if right == 0:
                 raise ExpressionError("modulo by zero")
-            return _checked(left % right)
+            return checked(left % right)
         if isinstance(node.op, ast.Pow):
-            if abs(float(right)) > MAX_POWER_ABS:
+            if abs(right) > MAX_POWER_ABS:
                 raise ExpressionError("power exponent exceeds the configured bound")
             try:
-                return _checked(left ** right)
+                return checked(left ** right)
             except (OverflowError, ValueError, ZeroDivisionError) as error:
                 raise ExpressionError(f"invalid power operation: {error}") from error
     if isinstance(node, ast.BoolOp):
         if isinstance(node.op, ast.And):
             for item in node.values:
-                if not bool(_eval(item, variables)):
+                if not bool(evaluate(item)):
                     return False
             return True
         if isinstance(node.op, ast.Or):
             for item in node.values:
-                if bool(_eval(item, variables)):
+                if bool(evaluate(item)):
                     return True
             return False
     if isinstance(node, ast.Compare):
-        left = _eval(node.left, variables)
+        left = evaluate(node.left)
         for operator, comparator in zip(node.ops, node.comparators):
-            right = _eval(comparator, variables)
+            right = evaluate(comparator)
             if isinstance(operator, ast.Eq):
                 passed = left == right
             elif isinstance(operator, ast.NotEq):
@@ -254,13 +290,17 @@ def _eval(node: ast.AST, variables: Mapping[str, Any]) -> Any:
     if isinstance(node, ast.Call):
         if not isinstance(node.func, ast.Name) or node.func.id not in _ALLOWED_FUNCTIONS:
             raise ExpressionError("unsupported function call")
-        arguments = [_eval(argument, variables) for argument in node.args]
+        arguments = [evaluate(argument) for argument in node.args]
+        if any(isinstance(argument, bool) for argument in arguments):
+            raise ExpressionError("boolean values cannot be used in numeric functions")
+        if arithmetic is not None and node.func.id == "isclose":
+            arithmetic.inexact = True
         try:
-            return _checked(_ALLOWED_FUNCTIONS[node.func.id](*arguments))
+            return checked(_ALLOWED_FUNCTIONS[node.func.id](*arguments))
         except (TypeError, ValueError, OverflowError, ZeroDivisionError) as error:
             raise ExpressionError(f"function {node.func.id} failed: {error}") from error
     if isinstance(node, ast.IfExp):
-        return _eval(node.body if bool(_eval(node.test, variables)) else node.orelse, variables)
+        return evaluate(node.body if bool(evaluate(node.test)) else node.orelse)
     raise ExpressionError(f"unsupported expression element: {type(node).__name__}")
 
 
@@ -285,6 +325,8 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
         raw = payload["values"]
         if not isinstance(raw, list) or not raw:
             raise ValueError(f"variable {name} values must be a non-empty list")
+        if len(raw) > MAX_DOMAIN_VALUES:
+            raise ValueError(f"variable {name} domain exceeds {MAX_DOMAIN_VALUES} values")
         values: list[Any] = []
         for value in raw:
             if isinstance(value, bool):
@@ -295,11 +337,15 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
         spec = payload["integer_range"]
         if not isinstance(spec, Mapping):
             raise ValueError(f"variable {name} integer_range must be an object")
-        start = int(spec.get("start"))
-        stop = int(spec.get("stop"))
-        step = int(spec.get("step", 1))
+        start, stop, step = spec.get("start"), spec.get("stop"), spec.get("step", 1)
+        for value in (start, stop, step):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"variable {name} integer_range bounds and step must be integers")
+            _finite_number(value, f"variable {name} integer_range parameter")
         if step == 0 or (stop - start) * step < 0:
             raise ValueError(f"variable {name} integer range is empty or misdirected")
+        if abs(stop - start) // abs(step) + 1 > MAX_DOMAIN_VALUES:
+            raise ValueError(f"variable {name} domain exceeds {MAX_DOMAIN_VALUES} values")
         terminal = stop + (1 if step > 0 else -1)
         values = list(range(start, terminal, step))
     else:
@@ -308,10 +354,18 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
             raise ValueError(f"variable {name} float_grid must be an object")
         start = float(_finite_number(spec.get("start"), f"variable {name} grid start"))
         stop = float(_finite_number(spec.get("stop"), f"variable {name} grid stop"))
-        count = int(spec.get("count"))
-        if count < 2:
-            raise ValueError(f"variable {name} float_grid count must be at least 2")
-        values = [start + (stop - start) * offset / (count - 1) for offset in range(count)]
+        count = spec.get("count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 2:
+            raise ValueError(f"variable {name} float_grid count must be an integer at least 2")
+        if count > MAX_DOMAIN_VALUES:
+            raise ValueError(f"variable {name} domain exceeds {MAX_DOMAIN_VALUES} values")
+        values = [start]
+        for offset in range(1, count - 1):
+            fraction = offset / (count - 1)
+            values.append(start * (1.0 - fraction) + stop * fraction)
+        values.append(stop)
+        if not all(math.isfinite(value) and min(start, stop) <= value <= max(start, stop) for value in values):
+            raise ValueError(f"variable {name} float_grid coordinates must be finite and within its bounds")
         exact = False
     if len(values) > MAX_DOMAIN_VALUES:
         raise ValueError(f"variable {name} domain exceeds {MAX_DOMAIN_VALUES} values")
@@ -357,25 +411,47 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
     skipped_assumptions = 0
     counterexample: dict[str, Any] | None = None
     exhausted = True
+    used_inexact = False
+    unconfirmed_failure = False
     for values in itertools.product(*(item[1] for item in domains)):
         if evaluations >= max_evaluations:
             exhausted = False
             break
         assignment = dict(zip(names, values))
         evaluations += 1
-        if not all(bool(evaluate_expression(item, assignment)) for item in parsed_assumptions):
+        arithmetic = _SearchArithmetic(inexact=any(isinstance(value, float) for value in values))
+        assumptions_hold = all(bool(_eval(item.tree, assignment, arithmetic)) for item in parsed_assumptions)
+        used_inexact = used_inexact or arithmetic.inexact
+        if not assumptions_hold:
             skipped_assumptions += 1
             continue
         satisfying_assignments += 1
-        if not bool(evaluate_expression(parsed_conclusion, assignment)):
-            counterexample = assignment
-            exhausted = False
-            break
+        conclusion_holds = bool(_eval(parsed_conclusion.tree, assignment, arithmetic))
+        used_inexact = used_inexact or arithmetic.inexact
+        if not conclusion_holds:
+            confirmed = not arithmetic.inexact
+            if not confirmed:
+                # Floats are confirmed as their exact encoded binary values;
+                # transcendental functions and approximate predicates stay inexact.
+                confirmation = _SearchArithmetic(rationalize_floats=True)
+                try:
+                    confirmed = (
+                        all(bool(_eval(item.tree, assignment, confirmation)) for item in parsed_assumptions)
+                        and not bool(_eval(parsed_conclusion.tree, assignment, confirmation))
+                        and not confirmation.inexact
+                    )
+                except (ValueError, OverflowError, ZeroDivisionError):
+                    confirmed = False
+            if confirmed:
+                counterexample = assignment
+                exhausted = False
+                break
+            unconfirmed_failure = True
 
     exact_domains = all(item[2] for item in domains)
     if counterexample is not None:
         status = "disproved"
-    elif exhausted and scope == "finite" and exact_domains and evaluations == total_combinations:
+    elif exhausted and scope == "finite" and exact_domains and not used_inexact and evaluations == total_combinations:
         status = "proved-by-exhaustion"
     elif exhausted and evaluations == total_combinations:
         status = "tested-no-counterexample"
@@ -405,6 +481,10 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
             "Floating-point grids test only the sampled values.",
         ],
     }
+    if unconfirmed_failure:
+        result["limitations"].append(
+            "Floating-point failures without exact confirmation are not certified counterexamples; the search status records only its tested or bounded coverage."
+        )
     result["fingerprint"] = canonical_sha256(result)
     return result
 

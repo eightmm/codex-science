@@ -1,14 +1,19 @@
 import ast
 import math
 import unittest
+from unittest.mock import patch
 
 from codex_science.safe_expression import (
     MAX_AST_NODES,
     MAX_EXPRESSION_CHARS,
+    MAX_DOMAIN_VALUES,
     ExpressionError,
     ParsedExpression,
     evaluate_expression,
     parse_expression,
+    search_counterexample,
+    validate_counterexample_receipt,
+    _domain_values,
 )
 
 
@@ -120,6 +125,16 @@ class EvaluateTests(unittest.TestCase):
         self.assertEvalRejected("-True", "boolean values cannot be used as signed numbers")
         self.assertEvalRejected("+x", "boolean values cannot be used as signed numbers", {"x": False})
 
+    def test_numeric_functions_refuse_boolean_arguments(self):
+        functions = ("abs", "min", "max", "sqrt", "exp", "log", "log10", "sin", "cos",
+                     "tan", "asin", "acos", "atan", "floor", "ceil", "isclose")
+        for function in functions:
+            for argument in ("True", "False", "x > 0"):
+                arguments = f"1, {argument}" if function in {"min", "max", "isclose"} else argument
+                with self.subTest(function=function, argument=argument):
+                    self.assertEvalRejected(f"{function}({arguments})", "boolean", {"x": 1})
+        self.assertEqual(2, evaluate_expression("abs(-1)+1"))
+
     def test_not_and_boolean_logic(self):
         self.assertIs(evaluate_expression("not 0"), True)
         self.assertIs(evaluate_expression("not 1"), False)
@@ -229,6 +244,119 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(parsed.names, ("x",))
         self.assertEqual(len(parsed.sha256), 64)
         self.assertEqual(parsed.source, "max(x, pi) + 1")
+
+
+class CounterexampleNumericValidityTests(unittest.TestCase):
+    def search(self, domain, expression, **overrides):
+        payload = {
+            "schema_version": 1, "claim_id": "c", "statement": expression, "scope": "finite",
+            "variables": [{"name": "x", **domain}], "conclusion": expression,
+        }
+        payload.update(overrides)
+        result = search_counterexample(payload)
+        validate_counterexample_receipt(result)
+        return result
+
+    def test_exact_arithmetic_and_inexact_search_statuses(self):
+        cases = (
+            ({"values": [1]}, "x / 49 * 49 != x", "disproved"),
+            ({"values": [1]}, "x / 49 * 49 == x", "proved-by-exhaustion"),
+            ({"values": [1]}, "-x/49 + +x/49 == 0 and (x/49)**-2 == 2401", "proved-by-exhaustion"),
+            ({"values": [1]}, "abs(-x/49)*49 == x and min(x/49, x) < max(x/49, x)", "proved-by-exhaustion"),
+            ({"values": [1]}, "floor(x/49) == 0 and ceil(x/49) == 1", "proved-by-exhaustion"),
+            ({"values": [1]}, "(x/49)//(1/49) == 1 and (x/49)%(1/49) == 0", "proved-by-exhaustion"),
+            ({"values": [1.0]}, "x > 0", "tested-no-counterexample"),
+            ({"values": [1]}, "x + 0.0 > 0", "tested-no-counterexample"),
+            ({"values": [1]}, "sqrt(x) > 0", "tested-no-counterexample"),
+            ({"values": [1]}, "x**(1/2) > 0", "tested-no-counterexample"),
+            ({"values": [1]}, "isclose(x, x)", "tested-no-counterexample"),
+            ({"values": [1]}, "pi > x", "tested-no-counterexample"),
+            ({"values": [1]}, "sqrt(x) < 0", "tested-no-counterexample"),
+            ({"values": [1]}, "pi < 0", "tested-no-counterexample"),
+            ({"values": [1.0]}, "x/49*49 == x", "tested-no-counterexample"),
+            ({"values": [1.0]}, "1/(x/49*49-x) > 0", "tested-no-counterexample"),
+            ({"values": [1.0]}, "x < 0", "disproved"),
+            ({"values": [1, 2]}, "sqrt(x) < 0 if x == 1 else x < 0", "disproved"),
+            ({"values": [True, False]}, "x or not x", "proved-by-exhaustion"),
+            ({"values": [0]}, "x == 0 or sqrt(x) > 0", "proved-by-exhaustion"),
+            ({"values": [2**4095]}, "1/x > 0", "proved-by-exhaustion"),
+        )
+        for domain, expression, expected in cases:
+            with self.subTest(domain=domain, expression=expression):
+                result = self.search(domain, expression)
+                self.assertEqual(expected, result["status"])
+                self.assertEqual(expected == "disproved", result["counterexample"] is not None)
+                if expression in {"sqrt(x) < 0", "x/49*49 == x", "1/(x/49*49-x) > 0"} and expected == "tested-no-counterexample":
+                    self.assertIn("without exact confirmation", result["limitations"][-1])
+        result = self.search({"values": [1]}, "x > 0", assumptions=["sqrt(x) > 0"])
+        self.assertEqual("tested-no-counterexample", result["status"])
+        result = self.search({"values": [1]}, "x < 0", assumptions=["sqrt(x) < 0"])
+        self.assertEqual("tested-no-counterexample", result["status"])
+        result = self.search({"values": [1.0]}, "x < 0", assumptions=["x/49*49 != x"])
+        self.assertEqual("tested-no-counterexample", result["status"])
+        result = self.search({"values": [1, 2]}, "sqrt(x) < 0", max_evaluations=1)
+        self.assertEqual("bounded-no-counterexample", result["status"])
+        with self.assertRaisesRegex(ExpressionError, "size limit"):
+            self.search({"values": [2**3000]}, "x*x > 0")
+        with self.assertRaisesRegex(ExpressionError, "size limit"):
+            self.search({"values": [2**3000]}, "(1/x)*(1/x) > 0")
+
+    def test_float_grid_preserves_endpoints_and_stays_in_bounds(self):
+        result = self.search({"float_grid": {"start": 1.0, "stop": 1e-17, "count": 2}}, "x > 0")
+        self.assertEqual("tested-no-counterexample", result["status"])
+        for start, stop in ((1.0, 1e-17), (1e-17, 1.0), (-1e308, 1e308), (1e308, -1e308)):
+            for count in (2, 3, 7):
+                with self.subTest(start=start, stop=stop, count=count):
+                    _, values, exact = _domain_values(
+                        {"name": "x", "float_grid": {"start": start, "stop": stop, "count": count}}, index=0,
+                    )
+                    self.assertEqual((start, stop), (values[0], values[-1]))
+                    self.assertTrue(all(min(start, stop) <= value <= max(start, stop) for value in values))
+                    self.assertFalse(exact)
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            self.search({"float_grid": {"start": 0, "stop": 0, "count": 2}}, "True")
+        with self.assertRaisesRegex(ValueError, "within its bounds"):
+            self.search({"float_grid": {"start": 1e-17, "stop": 1e-17, "count": 7}}, "True")
+
+    def test_integer_range_requires_non_boolean_integers(self):
+        for field in ("start", "stop", "step"):
+            for value in (0.5, True, False, "1", None):
+                spec = {"start": 0, "stop": 0, "step": 1, field: value}
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "integer"):
+                    self.search({"integer_range": spec}, "True")
+        for start, stop, step, count in ((0, 0, 1, 1), (2, -2, -2, 3), (-2, 2, 2, 3)):
+            result = self.search({"integer_range": {"start": start, "stop": stop, "step": step}}, "True")
+            self.assertEqual(count, result["evaluations"])
+        for spec in ({}, {"start": 0, "stop": 1, "step": 0}, {"start": 1, "stop": 0}):
+            with self.subTest(spec=spec), self.assertRaises(ValueError):
+                self.search({"integer_range": spec}, "True")
+
+    def test_domain_limits_are_checked_before_materialization(self):
+        for domain in (
+            {"integer_range": {"start": 0, "stop": MAX_DOMAIN_VALUES}},
+            {"integer_range": {"start": MAX_DOMAIN_VALUES, "stop": 0, "step": -1}},
+            {"integer_range": {"start": 0, "stop": 2**100}},
+            {"float_grid": {"start": 0, "stop": 1, "count": MAX_DOMAIN_VALUES + 1}},
+        ):
+            with self.subTest(domain=domain), patch(
+                "codex_science.safe_expression.range", side_effect=AssertionError("materialized"), create=True,
+            ), self.assertRaisesRegex(ValueError, "domain exceeds"):
+                self.search(domain, "True")
+        for domain in (
+            {"integer_range": {"start": 0, "stop": MAX_DOMAIN_VALUES - 1}},
+            {"float_grid": {"start": 0, "stop": 1, "count": MAX_DOMAIN_VALUES}},
+            {"values": list(range(MAX_DOMAIN_VALUES))},
+        ):
+            result = self.search(domain, "True")
+            self.assertEqual(MAX_DOMAIN_VALUES, result["evaluations"])
+        with self.assertRaisesRegex(ValueError, "domain exceeds"):
+            self.search({"values": list(range(MAX_DOMAIN_VALUES + 1))}, "True")
+        for domain in ({"values": []}, {"float_grid": {}}, {"integer_range": {}}):
+            with self.subTest(domain=domain), self.assertRaises(ValueError):
+                self.search(domain, "True")
+        for count in (0, 1, -1, True, 2.5, "2", None):
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                self.search({"float_grid": {"start": 0, "stop": 1, "count": count}}, "True")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import random
+import statistics
 from typing import Any, Mapping
 
 from codex_science.safe_expression import canonical_sha256, evaluate_expression, parse_expression
@@ -33,6 +34,17 @@ def _quantile(values: list[float], probability: float) -> float:
         return ordered[lower]
     fraction = position - lower
     return ordered[lower] * (1.0 - fraction) + ordered[upper] * fraction
+
+
+def _require_finite_statistics(value: Any) -> None:
+    if isinstance(value, Mapping):
+        for item in value.values():
+            _require_finite_statistics(item)
+    elif isinstance(value, list):
+        for item in value:
+            _require_finite_statistics(item)
+    elif isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("uncertainty propagation statistics must be finite")
 
 
 def _cholesky(matrix: list[list[float]], *, tolerance: float = 1e-12) -> list[list[float]]:
@@ -206,8 +218,20 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
                 failures += 1
         if len(outputs) < max(10, int(0.9 * samples)):
             raise ValueError("too many Monte Carlo samples failed expression evaluation")
-        monte_carlo_mean = sum(outputs) / len(outputs)
-        monte_carlo_uncertainty = math.sqrt(sum((value - monte_carlo_mean) ** 2 for value in outputs) / max(1, len(outputs) - 1))
+        try:
+            monte_carlo_mean = sum(outputs) / len(outputs)
+            monte_carlo_uncertainty = math.sqrt(sum((value - monte_carlo_mean) ** 2 for value in outputs) / max(1, len(outputs) - 1))
+        except OverflowError:
+            monte_carlo_uncertainty = math.inf
+        if not math.isfinite(monte_carlo_mean) or not math.isfinite(monte_carlo_uncertainty):
+            # Retain ordinary receipt rounding; use exact accumulation only when
+            # the original mean or variance formula overflows.
+            try:
+                monte_carlo_mean = statistics.mean(outputs)
+                monte_carlo_uncertainty = statistics.stdev(outputs)
+            except OverflowError as error:
+                raise ValueError("Monte Carlo statistics must be finite") from error
+            _require_finite_statistics([monte_carlo_mean, monte_carlo_uncertainty])
         alpha = 1.0 - confidence_level
         interval = [_quantile(outputs, alpha / 2.0), _quantile(outputs, 1.0 - alpha / 2.0)]
     else:
@@ -305,6 +329,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
             "First-order propagation may fail for discontinuities, boundaries, ratios near zero, and strongly nonlinear models.",
         ],
     }
+    _require_finite_statistics(result)
     result["fingerprint"] = canonical_sha256(result)
     return result
 
@@ -319,6 +344,7 @@ def validate_uncertainty_propagation(payload: Mapping[str, Any]) -> None:
         raise ValueError("invalid uncertainty propagation status")
     if not isinstance(payload.get("linear"), Mapping) or not isinstance(payload.get("findings"), list):
         raise ValueError("linear result and findings are required")
+    _require_finite_statistics(payload)
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:
