@@ -15,8 +15,8 @@
   statement-support matching agree.
 - Runner and resume-driver outputs and receipts use mode 0600. They refuse
   symlinked and pre-existing turn paths before side effects, atomically replace
-  dry-run plans, pass each child an absolute `CODEX_HOME`, cap per-line and
-  total output, and clean up process groups on exceptions. A cap is recorded as
+  dry-run plans, pass each child an absolute `CODEX_HOME`, truncate overlong
+  lines, cap total output, and clean up process groups on exceptions. The total cap is recorded as
   `output_cap`; the resume driver stops with code `turn_failed` and reason
   `output_cap`, while runner receipts use `last_message_present` for empty or
   capped last-message output.

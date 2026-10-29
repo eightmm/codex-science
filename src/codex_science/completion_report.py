@@ -97,6 +97,9 @@ def report_completion(artifacts_root: Path, *, now: datetime, stale_after: timed
 
 def _summarize_run(run_dir: Path, checkpoint: dict[str, Any], tier: str, root: Path, now: datetime, stale_after: timedelta) -> dict[str, Any]:
         state = checkpoint["state"]
+        if state == "complete":
+            from codex_science.checkpoints import _check_completion_evidence
+            _check_completion_evidence(run_dir, checkpoint)
         termination = checkpoint.get("termination")
         partial = termination is not None
         if partial:

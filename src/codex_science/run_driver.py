@@ -33,7 +33,7 @@ def _report(project: Path) -> dict[str, Any]:
 
 
 def _snapshot_runs(artifacts: Path) -> dict[str, dict[str, Any]]:
-    """Capture direct run checkpoint identity without trusting report ordering."""
+    """Capture checkpoint identity, retaining unreadable records for ambiguity checks."""
     snapshot: dict[str, dict[str, Any]] = {}
     if not artifacts.is_dir() or artifacts.is_symlink():
         return snapshot
@@ -46,29 +46,24 @@ def _snapshot_runs(artifacts: Path) -> dict[str, dict[str, Any]]:
         try:
             record = json.loads(checkpoint_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, ValueError):
-            continue
-        if isinstance(record, dict):
-            relative_path = run_dir.relative_to(artifacts).as_posix()
-            snapshot[relative_path] = {key: record.get(key) for key in ("revision", "updated_at", "state")}
+            record = {}
+        if not isinstance(record, dict):
+            record = {}
+        relative_path = run_dir.relative_to(artifacts).as_posix()
+        snapshot[relative_path] = {key: record.get(key) for key in ("revision", "updated_at", "state")}
     return snapshot
 
 
-def _timestamp_key(value: Any) -> tuple[float, str]:
-    if isinstance(value, str):
-        try:
-            stamp = datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-            return stamp, value
-        except (ValueError, OverflowError, OSError):
-            return float("-inf"), value
-    return float("-inf"), ""
-
-
-def _selected_run(report: dict[str, Any], baseline: dict[str, dict[str, Any]], current: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    changed = [path for path, identity in current.items() if baseline.get(path) != identity]
-    if not changed:
+def _selected_run(report: dict[str, Any], baseline: dict[str, dict[str, Any]], current: dict[str, dict[str, Any]],
+                  target_run: str | None = None) -> dict[str, Any] | None:
+    changed = [path for path in baseline.keys() | current.keys() if baseline.get(path) != current.get(path)]
+    if target_run is None:
+        if len(changed) != 1:
+            return None
+        target_run = changed[0]
+    if target_run not in changed or target_run not in current:
         return None
-    run_path = max(changed, key=lambda path: (_timestamp_key(current[path].get("updated_at")), path))
-    run_id = Path(run_path).name
+    run_id = Path(target_run).name
     return next((row for row in report.get("runs", []) if row.get("run_id") == run_id),
                 {"run_id": run_id, "outcome": "invalid", "stop_reason": {"code": "invalid_record"}})
 
@@ -411,13 +406,22 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
         effective_home = runner._codex_home(codex_home)
         preflight = runner._preflight(codex_bin, effective_home)
         baseline_runs = _snapshot_runs(artifacts)
+        previous_runs = baseline_runs
         initial_hashes = runner._artifact_hashes(artifacts)
         prior_hashes = initial_hashes
         report = _report(project)
         baseline_has_active_run = any(row.get("outcome") == "active" for row in report.get("runs", []))
+        active_runs = [row["run_id"] for row in report.get("runs", [])
+                       if row.get("state") == "active" and row.get("outcome") != "invalid"]
+        target_run = active_runs[0] if len(active_runs) == 1 else None
         started = time.monotonic()
 
         for number in range(1, max_turns + 1):
+            if max_total_tokens is not None and not tokens_counted < max_total_tokens:
+                stop = {
+                    "code": "token_cap",
+                }
+                break
             remaining = wall_seconds - (time.monotonic() - started)
             if remaining <= 0:
                 stop = {"code": "wall_cap"}
@@ -449,9 +453,15 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
 
             report = _report(project)
             current_runs = _snapshot_runs(artifacts)
-            selected = _selected_run(report, baseline_runs, current_runs)
+            # Retain disappearances of checkpoints first observed after launch.
+            for path in previous_runs.keys() - current_runs.keys():
+                baseline_runs.setdefault(path, previous_runs[path])
+            previous_runs = current_runs
             changed_checkpoint_paths = {path for path in baseline_runs.keys() | current_runs.keys()
                                         if baseline_runs.get(path) != current_runs.get(path)}
+            selected = _selected_run(report, baseline_runs, current_runs, target_run)
+            if target_run is None and selected is not None:
+                target_run = selected["run_id"]
             outcome = selected.get("outcome") if selected else None
             after_hashes = runner._artifact_hashes(artifacts)
             signature = _signature(selected, artifacts)
@@ -480,6 +490,14 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
                 break
             if metrics["terminal_stop_reason"] == "interrupted":
                 stop = {"code": "interrupted"}
+                break
+            if target_run is None and len(changed_checkpoint_paths) > 1:
+                # A known human gate can safely stop an ambiguous turn, but no terminal run can claim it.
+                gates = [row for row in report.get("runs", [])
+                         if row.get("run_id") in changed_checkpoint_paths and row.get("outcome") in _HUMAN]
+                gate = next((row for row in gates if row.get("outcome") == "invalid"), gates[0] if gates else None)
+                stop = ({"code": "needs_human", "reason": gate["stop_reason"]["code"]}
+                        if gate is not None else {"code": "stalled"})
                 break
             if outcome in _TERMINAL:
                 stop = {"code": "terminal", "reason": outcome}

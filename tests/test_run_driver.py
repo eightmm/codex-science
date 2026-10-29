@@ -116,7 +116,11 @@ if step.get("action"):
 for artifact in step.get("artifacts", []):
     path = pathlib.Path(os.environ["FAKE_PROJECT"]) / "artifacts" / artifact
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("fixture artifact\n")
+    path.write_text(step.get("artifact_text", "fixture artifact\n"))
+for artifact in step.get("remove_artifacts", []):
+    (pathlib.Path(os.environ["FAKE_PROJECT"]) / "artifacts" / artifact).unlink()
+for size in step.get("stdout_line_sizes", []):
+    print("x" * size)
 if "last" in step:
     last.write_text(step["last"])
 if not step.get("omit_thread"):
@@ -139,9 +143,12 @@ class RunDriverTests(unittest.TestCase):
         binary.chmod(0o755)
         plan = root / "plan.json"
         plan.write_text(json.dumps(steps), encoding="utf-8")
+        home = root / "codex-home"
+        home.mkdir(exist_ok=True)
         env = dict(os.environ)
         env.update({"PYTHONPATH": os.pathsep.join((str(ROOT / "src"), str(ROOT / "tests"))), "FAKE_PLAN": str(plan),
-                    "FAKE_COUNTER": str(root / "counter"), "FAKE_PROJECT": str(root / "project")})
+                    "FAKE_COUNTER": str(root / "counter"), "FAKE_PROJECT": str(root / "project"),
+                    "CODEX_HOME": str(home)})
         return binary, env
 
     def _project(self, root: Path) -> Path:
@@ -192,6 +199,20 @@ class RunDriverTests(unittest.TestCase):
             self.assertEqual("needs_human", receipt["stop"]["code"])
             self.assertEqual("external_wait", receipt["stop"]["reason"])
             self.assertEqual(1, len(receipt["turns"]))
+
+    def test_completed_checkpoint_requires_current_completion_evidence(self):
+        for name in ("evidence.json", "review.json"):
+            for change in ("remove_artifacts", "artifacts"):
+                with self.subTest(name=name, change=change), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    receipt = self._drive(root, [{"action":"complete", change:[f"drive-run/{name}"]}], max_turns=2)
+                    self.assertEqual({"code":"needs_human", "reason":"invalid_record"}, receipt["stop"])
+                    self.assertEqual(1, len(receipt["turns"]))
+                    row = receipt["completion_report"]["runs"][0]
+                    self.assertEqual("invalid", row["outcome"])
+                    self.assertEqual(0, receipt["completion_report"]["aggregate"]["completion_numerator"])
+                    self.assertEqual("complete", json.loads(
+                        (root / "project" / "artifacts" / "drive-run" / "checkpoint.json").read_text())["state"])
 
     def test_invalid_checkpoint_stops_needs_human_with_invalid_record_reason(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -329,6 +350,30 @@ class RunDriverTests(unittest.TestCase):
             self.assertEqual("stalled", receipt["stop"]["code"])
             self.assertEqual(3, len(receipt["turns"]))
 
+    def test_token_budget_is_checked_before_launch_including_zero(self):
+        for cap, count, code in ((0, 0, "token_cap"), (12, 1, "token_cap"),
+                                 (13, 2, "token_cap"), (None, 2, "turn_cap")):
+            with self.subTest(cap=cap), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                receipt = self._drive(root, [{"action":"active"}], max_turns=2,
+                                      **{"max_total_tokens":cap})
+                self.assertEqual({"code":code}, receipt["stop"])
+                self.assertEqual(count, len(receipt["turns"]))
+                self.assertEqual(12 * count, receipt["tokens_counted"])
+                self.assertEqual(bool(count), (root / "counter").exists())
+                self.assertEqual(bool(count), (root / "out" / "turn-1").exists())
+        for cap in (-1, True, 0.5, "0"):
+            with self.subTest(cap=cap), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                with self.assertRaisesRegex(ValueError, "token cap must be non-negative"):
+                    self._drive(root, [{}], **{"max_total_tokens":cap})
+                self.assertFalse((root / "counter").exists())
+                self.assertFalse((root / "out").exists())
+        help_result = subprocess.run([sys.executable, str(CLI), "--help"], capture_output=True, text=True)
+        self.assertEqual(0, help_result.returncode)
+        self.assertTrue("Before each launch an exhausted token budget stops execution."
+                        in " ".join(help_result.stdout.split()))
+
     def test_prior_completed_and_blocked_runs_do_not_drive_stop_decision(self):
         for prior_state in ("complete", "blocked"):
             with self.subTest(prior_state=prior_state), tempfile.TemporaryDirectory() as tmp:
@@ -362,6 +407,67 @@ class RunDriverTests(unittest.TestCase):
                                                     {"kind":"blocked", "name":"a-blocked", "updated_at":"2026-10-22T00:00:00Z"}]}, {}], max_turns=4)
             self.assertEqual("needs_human", receipt["stop"]["code"])
             self.assertEqual("blocker", receipt["stop"]["reason"])
+
+    def test_driver_keeps_identified_run_and_refuses_ambiguous_completion(self):
+        cases = [
+            (["a-target"], [{"action":"complete", "run_name":"z-other"},
+                            {"action":"complete", "run_name":"a-target"}], 2, "terminal", "completed"),
+            (["a-target"], [{"action":"complete", "run_name":"z-other"}, {}], 2, "turn_cap", None),
+            ([], [{"action":"active", "run_name":"a-target"},
+                  {"action":"complete", "run_name":"z-other"},
+                  {"action":"complete", "run_name":"a-target"}], 3, "terminal", "completed"),
+            (["a-target"], [{"actions":[{"kind":"complete", "name":"a-target"},
+                                          {"kind":"blocked", "name":"z-other"}]}], 1, "terminal", "completed"),
+            ([], [{"actions":[{"kind":"complete", "name":"a-target"},
+                              {"kind":"complete", "name":"z-other"}]}], 1, "stalled", None),
+            (["a-target", "z-other"], [{"actions":[{"kind":"complete", "name":"a-target"},
+                                                      {"kind":"complete", "name":"z-other"}]}], 1, "stalled", None),
+            ([], [{"actions":[{"kind":"active", "name":"a-target"},
+                              {"kind":"complete", "name":"z-other"}],
+                   "artifacts":["a-target/checkpoint.json"]}], 1, "needs_human", "invalid_record"),
+            ([], [{"actions":[{"kind":"active", "name":"a-target"},
+                              {"kind":"complete", "name":"z-other"}],
+                   "artifacts":["a-target/checkpoint.json"], "artifact_text":""}], 1, "needs_human", "invalid_record"),
+            ([], [{"actions":[{"kind":"active", "name":"a-target"},
+                              {"kind":"complete", "name":"z-other"}],
+                   "artifacts":["a-target/checkpoint.json"], "artifact_text":"[]"}], 1, "needs_human", "invalid_record"),
+            ([], [{"actions":[{"kind":"blocked", "name":"a-target"},
+                              {"kind":"active", "name":"z-other"}],
+                   "artifacts":["z-other/checkpoint.json"]}], 1, "needs_human", "invalid_record"),
+            (["a-target"], [{"action":"complete", "run_name":"z-other",
+                            "artifacts":["a-target/checkpoint.json"]}], 1, "needs_human", "invalid_record"),
+            (["a-target", "z-other"], [{"action":"complete", "run_name":"z-other",
+                                       "remove_artifacts":["a-target/checkpoint.json"]}], 1, "stalled", None),
+            ([], [{"action":"active", "run_name":"a-target"},
+                  {"action":"complete", "run_name":"z-other",
+                   "remove_artifacts":["a-target/checkpoint.json"]}], 2, "turn_cap", None),
+            ([], [{"actions":[{"kind":"complete", "name":"a-target"},
+                              {"kind":"invalid", "name":"z-other"}]}], 1, "needs_human", "invalid_record"),
+            ([], [{"actions":[{"kind":"blocked", "name":"a-target"},
+                              {"kind":"gate", "name":"z-other"}]}], 1, "needs_human", "blocker"),
+            (["a-target"], [{"actions":[{"kind":"invalid", "name":"a-target"},
+                                          {"kind":"complete", "name":"z-other"}]}], 1, "needs_human", "invalid_record"),
+            (["a-target"], [{"action":"complete", "run_name":"z-other",
+                            "remove_artifacts":["a-target/checkpoint.json"]}, {}], 2, "turn_cap", None),
+        ]
+        for prior, steps, count, code, reason in cases:
+            with self.subTest(prior=prior, steps=steps), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                project = self._project(root)
+                for name in prior:
+                    self._make_prior(project, name, "active")
+                binary, env = self._fake(root, steps)
+                with patch.dict(os.environ, env):
+                    receipt = drive(project, "Continue the active a-target checkpoint", run_dir=root / "out",
+                                    codex_bin=str(binary), max_turns=count)
+                expected = {"code":code}
+                if reason is not None:
+                    expected["reason"] = reason
+                self.assertEqual(expected, receipt["stop"])
+                self.assertEqual(count, len(receipt["turns"]))
+                if code == "terminal":
+                    self.assertEqual("complete", json.loads(
+                        (project / "artifacts" / "a-target" / "checkpoint.json").read_text())["state"])
 
     def test_resume_argv_uses_overrides_without_unsupported_or_forbidden_flags(self):
         argv = _argv("codex", Path("/tmp/project"), "continue", Path("/tmp/last"), "thread-1")
@@ -512,6 +618,17 @@ class RunDriverTests(unittest.TestCase):
                 receipt = drive(project, "task", run_dir=root / "out", codex_bin=str(binary))
             self.assertEqual({"code": "turn_failed", "reason": "output_cap"}, receipt["stop"])
             self.assertEqual("output_cap", receipt["turns"][0]["launch_error"])
+
+    def test_documented_line_truncation_preserves_successful_turn(self):
+        documentation = (ROOT / "docs" / "EVALUATION.md").read_text(encoding="utf-8")
+        self.assertTrue("Lines longer than 1 MiB are truncated" in documentation)
+        self.assertTrue("Only the total output cap stops a turn" in documentation)
+        for size in (0, 1 << 20, (1 << 20) + 1):
+            with self.subTest(size=size), tempfile.TemporaryDirectory() as tmp:
+                receipt = self._drive(Path(tmp), [{"last":"answer", "stdout_line_sizes":[size]}])
+                self.assertEqual({"code":"quick_answer"}, receipt["stop"])
+                self.assertIsNone(receipt["turns"][0]["launch_error"])
+                self.assertEqual(int(size > 1 << 20), receipt["turns"][0]["truncated_lines"])
 
     def test_run_turn_output_cap_skips_empty_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -880,6 +997,28 @@ class RunDriverTests(unittest.TestCase):
             result = subprocess.run(dash, env=env, capture_output=True, text=True)
             self.assertEqual(2, result.returncode)
             self.assertFalse((root / "dash").exists())
+
+    def test_cli_prompt_file_decode_error_is_usage_error(self):
+        for content, code in ((b"\xff", 2), (None, 2), (b"", 0), (b"task", 0)):
+            for execute in (False, True):
+                with self.subTest(content=content, execute=execute), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    project = self._project(root)
+                    binary, env = self._fake(root, [{"last":"answer"}])
+                    prompt = root / "prompt.txt"
+                    if content is not None:
+                        prompt.write_bytes(content)
+                    command = [sys.executable, str(CLI), "--project", str(project), "--prompt-file", str(prompt),
+                               "--out", str(root / "out"), "--codex-bin", str(binary)]
+                    if execute:
+                        command.append("--execute")
+                    result = subprocess.run(command, env=env, capture_output=True, text=True)
+                    self.assertEqual(code, result.returncode, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    if code:
+                        self.assertIn("cannot read prompt file", result.stderr)
+                        self.assertFalse((root / "out").exists())
+                    self.assertEqual(execute and not code, (root / "counter").exists())
 
     def test_drive_refuses_dash_prompt_and_existing_receipt_before_turn_setup(self):
         with tempfile.TemporaryDirectory() as tmp:

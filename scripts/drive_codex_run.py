@@ -18,6 +18,7 @@ EXIT_CODES = ("Exit codes: 0 terminal or quick_answer; 3 needs_human; 4 caps or 
               "5 turn_failed or interrupted; 2 usage errors and driver_error (including output directory errors). "
               "Token caps sum raw input + output totals for every invocation; "
               "this may overcount cumulative resume usage, whose semantics are unverified. "
+              "Before each launch an exhausted token budget stops execution. "
               "Stop checks run in this order: launch failure, timeout, turn failure/interruption, outcome, "
               "quick answer, stalled/caps. The completion report is always recorded, including on errors.")
 
@@ -41,7 +42,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         prompt = args.prompt if args.prompt is not None else args.prompt_file.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         parser.error(f"cannot read prompt file: {error}")
     try:
         project, out = _resolve_paths(args.project, args.out)
