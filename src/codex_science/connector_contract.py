@@ -10,7 +10,10 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from contextvars import ContextVar
 from typing import Any, Iterator, Mapping
+
+_record_counts: ContextVar[list[int] | None] = ContextVar("connector_record_counts", default=None)
 
 SECRET_RE = re.compile(r"(?:key|token|secret|password|credential)", re.I)
 QUERY_STATUSES = {"complete", "partial", "failed", "unavailable", "environment-blocked"}
@@ -238,8 +241,9 @@ def _release(payload: Any) -> str | None:
 
 
 @contextlib.contextmanager
-def _instrument(connector: Any) -> Iterator[list[_Call]]:
+def _instrument(connector: Any) -> Iterator[tuple[list[_Call], list[int]]]:
     calls: list[_Call] = []
+    received_counts: list[int] = []
     originals: dict[str, Any] = {}
     for name, method, media in (("_fetch_json", "GET", "application/json"), ("_fetch_text", "GET", "text/plain")):
         if not hasattr(connector, name):
@@ -263,9 +267,11 @@ def _instrument(connector: Any) -> Iterator[list[_Call]]:
             calls.append(_Call("POST", _redact_url(url), copy.deepcopy(request_payload), copy.deepcopy(payload), canonical_json_bytes(payload), "application/json"))
             return payload
         connector._post_json = post
+    tracking = _record_counts.set(received_counts)
     try:
-        yield calls
+        yield calls, received_counts
     finally:
+        _record_counts.reset(tracking)
         for name, original in originals.items():
             setattr(connector, name, original)
 
@@ -286,7 +292,7 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
             raise ValueError("parameters.limit must be an integer between 1 and 10")
     warnings: list[str] = []
     timestamp = retrieved_at or _now()
-    with _instrument(connector) as calls:
+    with _instrument(connector) as (calls, received_counts):
         if typed_query:
             records = connector.query_v2(request)
         else:
@@ -301,6 +307,10 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
     if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
         raise ValueError("connector must return record objects")
     normalized = [dict(item) for item in records]
+    if max(received_counts, default=0) > len(normalized):
+        if not normalized:
+            raise ValueError("upstream error: response records were discarded; no negative evidence is available")
+        warnings.append("local truncation discarded received records; result is bounded")
     pages: list[PageReceipt] = []
     snapshots: list[dict[str, Any]] = []
     source_release: str | None = None
@@ -347,6 +357,8 @@ def _replay_snapshot(payload: Mapping[str, Any], *, verify_responses: bool) -> Q
     receipt_payload = dict(payload.get("receipt") or {})
     if receipt_payload.get("canonical_request_sha256") != request.request_sha256:
         raise ValueError("snapshot request hash mismatch")
+    if receipt_payload.get("query_id") != request.query_id:
+        raise ValueError("snapshot receipt query_id mismatch")
     if receipt_payload.get("normalized_records_sha256") != sha256_json(records):
         raise ValueError("snapshot record hash mismatch")
     for field in ("source", "operation", "source_contract_version"):

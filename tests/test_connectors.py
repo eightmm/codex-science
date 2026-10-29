@@ -1,5 +1,6 @@
 import json
 import math
+import tempfile
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -44,12 +45,13 @@ from codex_science.connectors import (
     parse_esearch_ids,
 )
 
-from codex_science.connector_contract import QueryRequest, execute_connector
+from codex_science.connector_contract import QueryRequest, execute_connector, replay_snapshot
 from codex_science.mcp_server import CodexScienceMCP
 from codex_science.typed_connectors import (
     ArrayExpressConnector, BindingDBConnector, ClinVarConnector, ComplexPortalConnector,
     DBSNPConnector, EMDBConnector, ENCODEConnector, GEOConnector, GnomADConnector,
     IntActConnector, JASPARConnector, MetaboLightsConnector, OpenFDAConnector, UniBindConnector,
+    VersionedSnapshotConnector,
 )
 
 
@@ -66,6 +68,164 @@ class TypedPayloadTests(unittest.TestCase):
         (ComplexPortalConnector, "complex_portal", "elements", "complexAc"),
         (IntActConnector, "intact", "content", "interactionAc"),
     )
+
+    def test_graphql_envelopes_are_validated_before_negative_evidence(self):
+        for cls, source, query, empty in (
+            (OpenTargetsConnector, "opentargets", "TP53", {"search": {"hits": []}}),
+            (GnomADConnector, "gnomad", "1-100-A-G", {"variant": None}),
+        ):
+            request = QueryRequest(source, "search", {"query": query})
+            malformed = [None, [], {}, {"data": None}, {"data": []}, {"data": {}},
+                         {"errors": [{"message": "backend unavailable"}]},
+                         {"data": empty, "errors": [{"message": "backend unavailable"}]}]
+            if source == "opentargets":
+                malformed += [{"data": {"search": value}} for value in (None, [], {}, {"hits": None}, {"hits": {}})]
+            for payload in malformed:
+                connector = cls(post_json=lambda *_: payload)
+                for call in (lambda: connector.search(query), lambda: execute_connector(connector, request)):
+                    with self.subTest(source=source, payload=payload), self.assertRaisesRegex(ValueError, "upstream error"):
+                        call()
+            for extra in ({}, {"errors": []}):
+                result = execute_connector(cls(post_json=lambda *_: {"data": empty, **extra}), request)
+                self.assertEqual(((), "complete", "negative", ()),
+                                 (result.records, result.receipt.completeness, result.receipt.missingness, result.receipt.warnings))
+
+    def test_gnomad_refuses_mismatched_or_malformed_variant_identity(self):
+        request = QueryRequest("gnomad", "search", {"query": "chr1:100:a:g"})
+        for returned in ("2-200-C-T", "1-101-A-G", "1-100-A-T", "invalid"):
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": returned, "exome": {"af": 0.1}}}})
+            for call in (lambda: connector.search("chr1:100:a:g"), lambda: execute_connector(connector, request)):
+                with self.subTest(returned=returned), self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    call()
+        for returned in ("1-100-A-G", "chr1:0100:a:g", None):
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": returned, "exome": {"af": 0}}}})
+            result = execute_connector(connector, request)
+            self.assertEqual(returned or "1-100-A-G", result.records[0]["id"])
+            self.assertEqual("1-100-A-G", result.records[0]["title"])
+            self.assertEqual("0", result.records[0]["exome_af"])
+
+    def test_received_records_cannot_be_silently_discarded(self):
+        for cls, source, container, field in self.cases:
+            query = "A12345" if cls is BindingDBConnector else "x"
+            request = QueryRequest(source, "search", {"query": query}, page_size=1)
+            connector = cls(fetch_json=lambda _: payload)
+            for size in (2, 0, 1):
+                payload = {container: [{field: str(index)} for index in range(size)]}
+                result = execute_connector(connector, request, include_snapshot=True)
+                with self.subTest(source=source, size=size):
+                    self.assertEqual(min(size, 1), len(result.records))
+                    self.assertEqual("bounded" if size > 1 else "complete", result.receipt.completeness)
+                    self.assertEqual(size > 1, any("local truncation" in warning for warning in result.receipt.warnings))
+                    self.assertEqual(result.to_dict(), replay_snapshot(result.snapshot()).to_dict())
+            with self.assertRaisesRegex(ValueError, "upstream error"):
+                execute_connector(cls(fetch_json=lambda _: {container: [{field: None}]}), request)
+            for size in (0, "1", None, True):
+                with self.subTest(page_size=size), self.assertRaises(ValueError):
+                    execute_connector(cls(fetch_json=lambda _: self.fail("invalid request reached transport")),
+                                      QueryRequest(source, "search", {"query": query}, page_size=size))
+
+    def test_legacy_received_record_limits_are_reported(self):
+        cases = (
+            (PubMedConnector, ("esearchresult", "idlist"), "one"),
+            (NCBIGeneConnector, ("esearchresult", "idlist"), "one"),
+            (ClinVarConnector, ("esearchresult", "idlist"), "one"),
+            (DBSNPConnector, ("esearchresult", "idlist"), "one"),
+            (GEOConnector, ("esearchresult", "idlist"), "one"),
+            (UniProtConnector, ("results",), {"primaryAccession": "one"}),
+            (PDBConnector, ("result_set",), {"identifier": "one"}),
+            (ChEMBLConnector, ("molecules",), {"molecule_chembl_id": "one"}),
+            (PubChemConnector, ("PropertyTable", "Properties"), {"CID": 1}),
+            (EuropePMCConnector, ("resultList", "result"), {"id": "one"}),
+            (OpenAlexConnector, ("results",), {"id": "one"}),
+            (ClinicalTrialsConnector, ("studies",), {"protocolSection": {"identificationModule": {"nctId": "one"}}}),
+            (InterProConnector, ("results",), {"metadata": {"accession": "one"}}),
+            (QuickGOConnector, ("results",), {"id": "one"}),
+            (OLSConnector, ("response", "docs"), {"obo_id": "one"}),
+            (ReactomeConnector, ("results",), {"entries": [{"stId": "one"}]}),
+            (STRINGConnector, (), {"stringId": "one"}),
+            (AlphaFoldConnector, (), {"modelEntityId": "one"}),
+            (MyGeneConnector, ("hits",), {"_id": "one"}),
+            (EnsemblConnector, (), {"id": "one"}),
+            (GWASCatalogConnector, ("_embedded", "efo_traits"), {"efo_id": "one"}),
+            (OpenTargetsConnector, ("data", "search", "hits"), {"id": "one"}),
+            (GTExConnector, ("data",), {"gencodeId": "one"}),
+            (HumanProteinAtlasConnector, (), {"Ensembl": "one"}),
+            (BgeeConnector, ("data", "result", "geneMatches"), {"gene": {"geneId": "one"}}),
+            (BioStudiesConnector, ("hits",), {"accession": "one"}),
+            (CBioPortalConnector, (), {"entrezGeneId": 1}),
+            (ChEBIConnector, ("results",), {"chebi_accession": "one"}),
+            (RheaConnector, ("results",), {"id": "one"}),
+            (PRIDEConnector, (), {"accession": "one"}),
+            (MGnifyConnector, ("data",), {"id": "one"}),
+            (RNACentralConnector, ("results",), {"rnacentral_id": "one"}),
+        )
+        for cls, path, item in cases:
+            for size in (0, 1, 2):
+                payload = [item] * size
+                for field in reversed(path):
+                    payload = {field: payload}
+                transport = "post_json" if cls in (PDBConnector, OpenTargetsConnector) else "fetch_json"
+                connector = cls(**{transport: lambda *_: payload})
+                request = QueryRequest(cls.__name__, "search", {"query": "x"}, page_size=1)
+                result = execute_connector(connector, request)
+                with self.subTest(source=cls.__name__, size=size):
+                    self.assertEqual(min(size, 1), len(result.records))
+                    self.assertEqual("bounded" if size > 1 else "complete", result.receipt.completeness)
+                    self.assertEqual(size > 1, bool(result.receipt.warnings))
+
+    def test_xml_ranked_and_local_snapshot_limits_are_reported(self):
+        request = QueryRequest("arxiv", "search", {"query": "x"}, page_size=1)
+        for size in (0, 1, 2):
+            xml = '<feed xmlns="http://www.w3.org/2005/Atom">' + '<entry><id>https://arxiv.org/abs/1234.5678</id></entry>' * size + '</feed>'
+            connectors = [ArxivConnector(fetch_text=lambda _: xml)]
+            for cls in (FinnGenConnector, BioBankJapanConnector, UKBTopMedConnector):
+                variant = {"chrom": "1", "pos": 100, "ref": "A", "alt": "G"}
+                if cls is FinnGenConnector:
+                    variant = {"variant": {"chr": "1", "pos": 100, "ref": "A", "alt": "G"}}
+                payload = dict(variant)
+                payload.update({cls.result_key: [{"phenocode": "one", "pval": 0.1}] * size})
+                connectors.append(cls(fetch_json=lambda _, payload=payload: payload))
+            for connector in connectors:
+                query = "x" if isinstance(connector, ArxivConnector) else "1:100-A-G"
+                result = execute_connector(connector, QueryRequest(type(connector).__name__, "search", {"query": query}, page_size=1))
+                with self.subTest(source=type(connector).__name__, size=size):
+                    self.assertEqual("bounded" if size > 1 else "complete", result.receipt.completeness)
+            invalid = {"chrom": "1", "pos": 100, "ref": "A", "alt": "G",
+                       "phenos": [{"phenocode": "invalid", "pval": "malformed"}]}
+            with self.assertRaisesRegex(ValueError, "upstream error"):
+                execute_connector(BioBankJapanConnector(fetch_json=lambda _: invalid),
+                                  QueryRequest("biobank_japan", "search", {"query": "1:100-A-G"}))
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "releases.json").write_text(json.dumps({"releases": [{"id": "x"}] * size}), encoding="utf-8")
+                result = execute_connector(VersionedSnapshotConnector("releases.json", root=root), request)
+                self.assertEqual("bounded" if size > 1 else "normalized-only", result.receipt.completeness)
+
+    def test_received_record_tracking_is_nested_and_restored_after_errors(self):
+        request = QueryRequest("bindingdb", "search", {"query": "A12345"}, page_size=1)
+        inner = BindingDBConnector(fetch_json=lambda _: {"affinities": [{"monomerid": "one"}, {"monomerid": "two"}]})
+
+        def fetch(_):
+            self.assertEqual("bounded", execute_connector(inner, request).receipt.completeness)
+            return {"affinities": [{"monomerid": "outer"}]}
+
+        outer = BindingDBConnector(fetch_json=fetch)
+        result = execute_connector(outer, request)
+        self.assertEqual(("complete", ()), (result.receipt.completeness, result.receipt.warnings))
+        with self.assertRaisesRegex(ValueError, "upstream error"):
+            execute_connector(BindingDBConnector(fetch_json=lambda _: {"affinities": [{"monomerid": None}]}), request)
+        self.assertEqual(result.to_dict(), execute_connector(outer, request, retrieved_at=result.receipt.pages[0].retrieved_at).to_dict())
+
+    def test_snapshot_query_id_must_match_reconstructed_request(self):
+        request = QueryRequest("bindingdb", "search", {"query": "A12345"})
+        for items in ([], [{"monomerid": "one"}]):
+            snapshot = execute_connector(BindingDBConnector(fetch_json=lambda _: {"affinities": items}), request,
+                                         include_snapshot=True).snapshot()
+            self.assertEqual(request.query_id, replay_snapshot(snapshot).receipt.query_id)
+            for value in ("q-other", "", None, 0, []):
+                changed = {**snapshot, "receipt": {**snapshot["receipt"], "query_id": value}}
+                with self.subTest(value=value), self.assertRaisesRegex(ValueError, "snapshot receipt query_id mismatch"):
+                    replay_snapshot(changed)
 
     def test_malformed_shapes_cannot_create_negative_receipts(self):
         for cls, source, container, _ in self.cases:

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from codex_science.mcp_server import CONNECTOR_SPECS, TOOLS, CodexScienceMCP, run_stdio
 from codex_science.version import MCP_VERSION
+from codex_science.connectors import OpenTargetsConnector
 
 
 LEGACY_TOOLS = {
@@ -135,6 +136,17 @@ class MCPServerTests(unittest.TestCase):
         self.assertIn("gnomad", keys)
         self.assertIn("eqtl_catalogue", keys)
         self.assertTrue(all(item["source_contract_version"] == "2" for item in payload))
+
+    def test_v2_opentargets_rejects_graphql_errors_and_invalid_envelopes(self) -> None:
+        for payload in ({"errors": [{"message": "backend unavailable"}]}, {}, {"data": None},
+                        {"data": {"search": {"hits": []}}, "errors": [{"message": "backend unavailable"}]}):
+            self.server.sources["opentargets"] = OpenTargetsConnector(post_json=lambda *_: payload)
+            response = self.server.handle({"jsonrpc": "2.0", "id": 31, "method": "tools/call", "params": {
+                "name": "science_query_source_v2", "arguments": {
+                    "source": "opentargets", "operation": "search", "parameters": {"query": "TP53"}}}})
+            with self.subTest(payload=payload):
+                self.assertIn("error", response)
+                self.assertIn("upstream error", response["error"]["message"])
 
     def test_unknown_tool_returns_jsonrpc_error(self) -> None:
         response = self.server.handle(

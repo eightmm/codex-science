@@ -13,10 +13,30 @@ from collections.abc import Callable
 from typing import Any
 
 from codex_science.transport_v3 import SafeRedirectHandler
+from codex_science.connector_contract import _record_counts
 
 
 USER_AGENT = "codex-science/0.1 (+https://github.com/)"
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+
+
+def _received_records(items: Any) -> Any:
+    # Call-local tracking preserves direct-search output and isolates nested receipts.
+    counts = _record_counts.get()
+    if counts is not None:
+        counts.append(len(items))
+    return items
+
+
+def _graphql_data(payload: Any, source: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError(f"{source} upstream error: GraphQL response must be an object")
+    if payload.get("error") or payload.get("errors"):
+        raise ValueError(f"{source} upstream error: GraphQL response contains errors")
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise ValueError(f"{source} upstream error: GraphQL response must contain a data object")
+    return data
 
 
 def _open(request: urllib.request.Request):
@@ -108,7 +128,7 @@ class PubMedConnector:
         ids = parse_esearch_ids(payload)
         return [
             {"id": str(identifier), "title": "", "url": f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"}
-            for identifier in ids[:limit]
+            for identifier in _received_records(ids)[:limit]
         ]
 
 
@@ -147,7 +167,7 @@ class ArxivConnector:
             if parsed.hostname in {"arxiv.org", "www.arxiv.org", "export.arxiv.org"} and parsed.path == "/api/errors":
                 raise ValueError("arXiv API returned an error entry")
         results: list[dict[str, str]] = []
-        for entry in entries[:limit]:
+        for entry in _received_records(entries)[:limit]:
             url = (entry.findtext("atom:id", default="", namespaces=namespace) or "").strip()
             identifier = url.split("/abs/", 1)[1] if "/abs/" in url else url.rsplit("/", 1)[-1]
             results.append(
@@ -170,7 +190,7 @@ class UniProtConnector:
         params = urllib.parse.urlencode({"query": query, "format": "json", "size": limit})
         payload = self._fetch_json(f"https://rest.uniprot.org/uniprotkb/search?{params}")
         results: list[dict[str, str]] = []
-        for item in payload.get("results", [])[:limit]:
+        for item in _received_records(payload.get("results", []))[:limit]:
             accession = str(item.get("primaryAccession", ""))
             description = item.get("proteinDescription", {})
             title = (
@@ -207,7 +227,7 @@ class PDBConnector:
                 "score": str(item.get("score", "")),
                 "url": f"https://www.rcsb.org/structure/{item.get('identifier', '')}",
             }
-            for item in response.get("result_set", [])[:limit]
+            for item in _received_records(response.get("result_set", []))[:limit]
             if item.get("identifier")
         ]
 
@@ -221,7 +241,7 @@ class ChEMBLConnector:
         params = urllib.parse.urlencode({"q": query, "limit": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/chembl/api/data/molecule/search.json?{params}")
         results = []
-        for item in payload.get("molecules", [])[:limit]:
+        for item in _received_records(payload.get("molecules", []))[:limit]:
             identifier = str(item.get("molecule_chembl_id", ""))
             if not identifier:
                 continue
@@ -249,7 +269,7 @@ class PubChemConnector:
             f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{encoded}/property/{properties}/JSON"
         )
         results = []
-        for item in payload.get("PropertyTable", {}).get("Properties", [])[:limit]:
+        for item in _received_records(payload.get("PropertyTable", {}).get("Properties", []))[:limit]:
             identifier = str(item.get("CID", ""))
             if identifier:
                 results.append(
@@ -280,7 +300,7 @@ class EuropePMCConnector:
         params = urllib.parse.urlencode({"query": query, "pageSize": limit, "format": "json"})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?{params}")
         results = []
-        for item in payload.get("resultList", {}).get("result", [])[:limit]:
+        for item in _received_records(payload.get("resultList", {}).get("result", []))[:limit]:
             identifier = str(item.get("id", ""))
             source = str(item.get("source", ""))
             if identifier:
@@ -305,7 +325,7 @@ class OpenAlexConnector:
         params = urllib.parse.urlencode({"search": query, "per-page": limit})
         payload = self._fetch_json(f"https://api.openalex.org/works?{params}")
         results = []
-        for item in payload.get("results", [])[:limit]:
+        for item in _received_records(payload.get("results", []))[:limit]:
             url = str(item.get("id", ""))
             identifier = url.rsplit("/", 1)[-1]
             if identifier:
@@ -330,7 +350,7 @@ class ClinicalTrialsConnector:
         params = urllib.parse.urlencode({"query.term": query, "pageSize": limit, "format": "json"})
         payload = self._fetch_json(f"https://clinicaltrials.gov/api/v2/studies?{params}")
         results = []
-        for item in payload.get("studies", [])[:limit]:
+        for item in _received_records(payload.get("studies", []))[:limit]:
             protocol = item.get("protocolSection", {})
             identification = protocol.get("identificationModule", {})
             status = protocol.get("statusModule", {})
@@ -356,7 +376,7 @@ class InterProConnector:
         params = urllib.parse.urlencode({"search": query, "page_size": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/interpro/api/entry/interpro/?{params}")
         results = []
-        for item in payload.get("results", [])[:limit]:
+        for item in _received_records(payload.get("results", []))[:limit]:
             metadata = item.get("metadata", {})
             identifier = str(metadata.get("accession", ""))
             if identifier:
@@ -386,7 +406,7 @@ class QuickGOConnector:
                 "aspect": str(item.get("aspect") or ""),
                 "url": f"https://www.ebi.ac.uk/QuickGO/term/{item.get('id', '')}",
             }
-            for item in payload.get("results", [])[:limit]
+            for item in _received_records(payload.get("results", []))[:limit]
             if item.get("id")
         ]
 
@@ -400,7 +420,7 @@ class OLSConnector:
         params = urllib.parse.urlencode({"q": query, "rows": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/ols4/api/search?{params}")
         results = []
-        for item in payload.get("response", {}).get("docs", [])[:limit]:
+        for item in _received_records(payload.get("response", {}).get("docs", []))[:limit]:
             identifier = str(item.get("obo_id") or item.get("short_form") or "")
             if identifier:
                 results.append(
@@ -438,7 +458,7 @@ class ReactomeConnector:
                 "type": str(item.get("type") or ""),
                 "url": f"https://reactome.org/content/detail/{item.get('stId') or item.get('id') or ''}",
             }
-            for item in entries[:limit]
+            for item in _received_records(entries)[:limit]
             if item.get("stId") or item.get("id")
         ]
 
@@ -459,7 +479,7 @@ class STRINGConnector:
                 "annotation": str(item.get("annotation") or ""),
                 "url": f"https://string-db.org/network/{item.get('stringId', '')}",
             }
-            for item in payload[:limit]
+            for item in _received_records(payload)[:limit]
             if item.get("stringId")
         ]
 
@@ -482,7 +502,7 @@ class AlphaFoldConnector:
                 "cif_url": str(item.get("cifUrl") or ""),
                 "url": f"https://alphafold.ebi.ac.uk/entry/{item.get('uniprotAccession', '')}",
             }
-            for item in payload[:limit]
+            for item in _received_records(payload)[:limit]
             if item.get("modelEntityId")
         ]
 
@@ -503,7 +523,7 @@ class MyGeneConnector:
                 "species_taxid": str(item.get("taxid") or ""),
                 "url": f"https://www.ncbi.nlm.nih.gov/gene/{item.get('_id', '')}",
             }
-            for item in payload.get("hits", [])[:limit]
+            for item in _received_records(payload.get("hits", []))[:limit]
             if item.get("_id") or item.get("entrezgene")
         ]
 
@@ -526,7 +546,7 @@ class EnsemblConnector:
                 "species": "homo_sapiens",
                 "url": f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={item.get('id', '')}",
             }
-            for item in payload[:limit]
+            for item in _received_records(payload)[:limit]
             if item.get("id")
         ]
 
@@ -550,7 +570,7 @@ class NCBIGeneConnector:
                 "title": query,
                 "url": f"https://www.ncbi.nlm.nih.gov/gene/{identifier}",
             }
-            for identifier in ids[:limit]
+            for identifier in _received_records(ids)[:limit]
         ]
 
 
@@ -572,7 +592,7 @@ class GWASCatalogConnector:
                 "ontology_uri": str(item.get("uri") or ""),
                 "url": f"https://www.ebi.ac.uk/gwas/efotraits/{item.get('efo_id', '')}",
             }
-            for item in traits[:limit]
+            for item in _received_records(traits)[:limit]
             if item.get("efo_id")
         ]
 
@@ -594,7 +614,10 @@ class OpenTargetsConnector:
             "https://api.platform.opentargets.org/api/v4/graphql",
             {"query": graphql, "variables": {"queryString": query, "page": {"index": 0, "size": limit}}},
         )
-        hits = payload.get("data", {}).get("search", {}).get("hits", [])
+        search = _graphql_data(payload, "Open Targets").get("search")
+        if not isinstance(search, dict) or not isinstance(search.get("hits"), list):
+            raise ValueError("Open Targets upstream error: GraphQL response must contain data.search.hits list")
+        hits = search["hits"]
         return [
             {
                 "id": str(item.get("id") or ""),
@@ -603,7 +626,7 @@ class OpenTargetsConnector:
                 "description": str(item.get("description") or ""),
                 "url": f"https://platform.opentargets.org/{item.get('entity', 'target')}/{item.get('id', '')}",
             }
-            for item in hits[:limit]
+            for item in _received_records(hits)[:limit]
             if item.get("id")
         ]
 
@@ -624,7 +647,7 @@ class GTExConnector:
                 "genome_build": str(item.get("genomeBuild") or ""),
                 "url": f"https://gtexportal.org/home/gene/{item.get('gencodeId', '')}",
             }
-            for item in payload.get("data", [])[:limit]
+            for item in _received_records(payload.get("data", []))[:limit]
             if item.get("gencodeId")
         ]
 
@@ -644,7 +667,7 @@ class HumanProteinAtlasConnector:
                 "description": str(item.get("Gene description") or ""),
                 "url": f"https://www.proteinatlas.org/{item.get('Ensembl', '')}",
             }
-            for item in payload[:limit]
+            for item in _received_records(payload)[:limit]
             if item.get("Ensembl") or item.get("Gene")
         ]
 
@@ -661,7 +684,7 @@ class BgeeConnector:
         payload = self._fetch_json(f"https://www.bgee.org/api/?{params}")
         matches = payload.get("data", {}).get("result", {}).get("geneMatches", [])
         results: list[dict[str, str]] = []
-        for match in matches[:limit]:
+        for match in _received_records(matches)[:limit]:
             item = match.get("gene", {})
             identifier = str(item.get("geneId") or "")
             if identifier:
@@ -692,7 +715,7 @@ class BioStudiesConnector:
                 "release_date": str(item.get("release_date") or ""),
                 "url": f"https://www.ebi.ac.uk/biostudies/studies/{item.get('accession', '')}",
             }
-            for item in payload.get("hits", [])[:limit]
+            for item in _received_records(payload.get("hits", []))[:limit]
             if item.get("accession")
         ]
 
@@ -712,7 +735,7 @@ class CBioPortalConnector:
                 "type": str(item.get("type") or ""),
                 "url": f"https://www.cbioportal.org/results/oncoprint?gene_list={item.get('hugoGeneSymbol', '')}",
             }
-            for item in payload[:limit]
+            for item in _received_records(payload)[:limit]
             if item.get("entrezGeneId")
         ]
 
@@ -728,7 +751,7 @@ class ChEBIConnector:
             f"https://www.ebi.ac.uk/chebi/backend/api/public/es_search/?{params}"
         )
         results: list[dict[str, str]] = []
-        for hit in payload.get("results", [])[:limit]:
+        for hit in _received_records(payload.get("results", []))[:limit]:
             item = hit.get("_source", hit)
             identifier = str(item.get("chebi_accession") or "")
             if identifier:
@@ -759,7 +782,7 @@ class RheaConnector:
                 "status": str(item.get("status") or ""),
                 "url": f"https://www.rhea-db.org/rhea/{item.get('id', '')}",
             }
-            for item in payload.get("results", [])[:limit]
+            for item in _received_records(payload.get("results", []))[:limit]
             if item.get("id")
         ]
 
@@ -782,7 +805,7 @@ class PRIDEConnector:
                 "publication_date": str(item.get("publicationDate") or ""),
                 "url": f"https://www.ebi.ac.uk/pride/archive/projects/{item.get('accession', '')}",
             }
-            for item in items[:limit]
+            for item in _received_records(items)[:limit]
             if item.get("accession")
         ]
 
@@ -838,7 +861,7 @@ class MGnifyConnector:
         params = urllib.parse.urlencode({"search": query, "page_size": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/metagenomics/api/v1/studies?{params}")
         results: list[dict[str, str]] = []
-        for item in payload.get("data", [])[:limit]:
+        for item in _received_records(payload.get("data", []))[:limit]:
             attributes = item.get("attributes", {})
             identifier = str(item.get("id") or attributes.get("accession") or "")
             if identifier:
@@ -869,7 +892,7 @@ class RNACentralConnector:
                 "length": str(item.get("length") or ""),
                 "url": f"https://rnacentral.org/rna/{item.get('rnacentral_id', '')}",
             }
-            for item in payload.get("results", [])[:limit]
+            for item in _received_records(payload.get("results", []))[:limit]
             if item.get("rnacentral_id")
         ]
 
@@ -923,6 +946,7 @@ class _PheWASConnector:
         if self._response_variant(payload) != expected:
             raise ValueError("PheWAS response variant did not match normalized query")
         associations = payload.get(self.result_key, [])
+        _received_records(associations)
 
         def p_value(item: dict[str, Any]) -> float | None:
             try:
