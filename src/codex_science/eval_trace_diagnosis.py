@@ -300,6 +300,8 @@ def collect_items(lines: Iterable[bytes | str | None]) -> dict[str, Any]:
             row["last_t"] = t if row["last_t"] is None else max(row["last_t"], t)
         if isinstance(item.get("command"), str):
             row["command"] = item["command"]
+        if isinstance(item.get("status"), str):
+            row["status"] = item["status"]
         exit_code = item.get("exit_code")
         if isinstance(exit_code, int) and not isinstance(exit_code, bool):
             row["exit_code"] = exit_code
@@ -418,7 +420,7 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
         norm = _normalize(raw)
         command_counts.setdefault(norm, []).append(item)
         exit_code = item["exit_code"]
-        if exit_code not in (None, 0):
+        if exit_code not in (None, 0) or item.get("status") == "failed":
             segments = _segments(command)
             last = os.path.basename(segments[-1][0]) if segments else ""
             if exit_code == 1 and last in {"rg", "grep"}:

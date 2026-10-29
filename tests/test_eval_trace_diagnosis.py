@@ -15,9 +15,11 @@ CLI = ROOT / "scripts" / "diagnose_eval_trace.py"
 CACHE = "$HOME/.codex/plugins/cache/codex-science/codex-science/1.2.3"
 
 
-def cmd(item_id, command, exit_code=0, output="", t=None, wrapped=True, event="item.completed"):
+def cmd(item_id, command, exit_code=0, output="", t=None, wrapped=True, event="item.completed", status=None):
     item = {"id": item_id, "type": "command_execution", "command": command, "exit_code": exit_code,
             "aggregated_output": output}
+    if status is not None:
+        item["status"] = status
     body = {"type": event, "item": item}
     return json.dumps({"t": t, "event": body} if wrapped else body)
 
@@ -60,6 +62,35 @@ class DiagnoseTest(unittest.TestCase):
         result = self.run_events([cmd("a", "false", None, event="item.started"), cmd("a", "false", 1)])
         self.assertEqual(result["command_count"], 1)
         self.assertEqual(result["failed_tool_use"]["count"], 1)
+
+    def test_explicit_failed_status_is_counted_without_an_exit_code(self):
+        for command, category, output in (("sleep 60", "other", "Command timed out"),
+                                          ("false", "other", ""), ("rg needle .", "other", "Command timed out"),
+                                          (f"python {CACHE}/scripts/build.py", "plugin_script", "Command timed out")):
+            for exit_code in (None, 0, "missing"):
+                for wrapped in (False, True):
+                    with self.subTest(command=command, exit_code=exit_code, wrapped=wrapped):
+                        completed = json.loads(cmd("a", command, None if exit_code == "missing" else exit_code,
+                                                   output, wrapped=wrapped, status="failed"))
+                        item = completed["event"]["item"] if wrapped else completed["item"]
+                        if exit_code == "missing":
+                            del item["exit_code"]
+                        result = self.run_events([
+                            cmd("a", command, None, event="item.started", status="in_progress"),
+                            json.dumps(completed)])
+                        failed = result["failed_tool_use"]
+                        self.assertEqual(result["command_count"], 1)
+                        self.assertEqual(failed["count"], 1)
+                        self.assertEqual(failed[category]["count"], 1)
+                        self.assertEqual(failed[category]["examples"][0]["exit_code"], item.get("exit_code"))
+                        self.assertEqual(set(failed), {"count", "plugin_script", "benign_search_miss", "other"})
+        for status in (None, "", "completed", "in_progress", [], False, 0):
+            with self.subTest(status=status):
+                result = self.run_events([cmd("a", "rg needle .", None, status=status)])
+                self.assertEqual(result["failed_tool_use"]["count"], 0)
+                self.assertEqual(result["malformed_lines"], int(isinstance(status, (list, bool, int))))
+        result = self.run_events([cmd("a", "", None, status="failed")])
+        self.assertEqual(result["command_count"], 0)
 
     def test_truncation_of_examples_and_commands(self):
         lines = [cmd(f"i{n}", "x" * 500 + str(n), 1) for n in range(8)]

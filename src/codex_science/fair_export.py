@@ -243,8 +243,8 @@ def export_run(
     and descriptor files, including symlink and hard-link aliases. The extra
     receipt must be outside the output directory and have no ancestor/descendant
     overlap with any export output. All destinations must be
-    absent; unrelated output-directory files are preserved. Preflight rejection
-    creates no files.
+    absent with no non-directory ancestors; unrelated output-directory files
+    are preserved. Preflight rejection creates no files.
     """
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -270,6 +270,9 @@ def export_run(
             protected_paths.add((manifest_path.parent / str(item["descriptor_path"])).resolve())
     existing_destination = None
     for destination in [*files.values(), *receipt_paths]:
+        for ancestor in destination.parents:
+            if (ancestor.exists() or ancestor.is_symlink()) and not ancestor.is_dir():
+                raise ValueError(f"export destination has non-directory ancestor: {str(ancestor)!r}")
         resolved = destination.resolve()
         if any(path in resolved.parents or _same_file(path, resolved) for path in protected_paths):
             raise ValueError(f"export destination overlaps protected bundle path: {str(destination)!r}")

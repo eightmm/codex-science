@@ -93,6 +93,28 @@ class FairExportTests(unittest.TestCase):
                               f"export destination already exists: {str(receipt)!r}; "
                               "choose a new versioned output directory or archive the old export explicitly")
 
+    def test_non_directory_ancestors_are_refused_before_any_writes(self) -> None:
+        for destination in ("output", "receipt"):
+            for alias in (("file", "symlink") if destination == "output" else ("file", "symlink", "dangling")):
+                for depth in (0, 1):
+                    for content in (b"", b"0", b"{"):
+                        with self.subTest(destination=destination, alias=alias, depth=depth, content=content), tempfile.TemporaryDirectory() as tempdir:
+                            root = Path(tempdir)
+                            manifest = self._bundle(root)
+                            blocker = root / "blocker"
+                            if alias == "file":
+                                blocker.write_bytes(content)
+                            else:
+                                target = root / "target"
+                                if alias == "symlink":
+                                    target.write_bytes(content)
+                                blocker.symlink_to(target)
+                            parent = blocker / "missing" if depth else blocker
+                            output = parent if destination == "output" else root / "absent" / "export"
+                            receipt = parent / "receipt.json" if destination == "receipt" else root / "extra.json"
+                            self._refused(manifest, output, receipt, root,
+                                          "export destination has non-directory ancestor:")
+
     def test_existing_destination_symlinks_are_refused_before_any_writes(self) -> None:
         for name in (*EXPORT_FILES, "receipt.json"):
             for dangling in (False, True):
