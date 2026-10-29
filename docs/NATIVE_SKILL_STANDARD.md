@@ -278,6 +278,10 @@ Reject or revise skills that:
 
 The repository test suite protects tier-1 skills from losing the mandatory sections, provenance and review handoffs, and key evidence semantics. Inventory regeneration remains the authoritative check for frontmatter, line counts, licensing, executable content, and activation status.
 
+The maturity audit binds each `quality.json` `skill` to its `SKILL.md` frontmatter name and refuses duplicate names across `runtime-skills/` and `authored-skills/`. Each declared `acceptance_fixtures` and `test_files` path must resolve to a regular file inside the repository; directories and symlink escapes are refused. Test files must be Python (`.py`) files under `tests/`, including after symlink resolution.
+
+Policy requirements use a non-empty string `skill`, an L0–L4 string `minimum_maturity`, an optional `required_roles` list of known role strings (empty by default), and an optional boolean `require_reference_contract` (false by default). Malformed requirement fields are refused before skill lookup.
+
 When editing an authored skill:
 
 1. preserve or intentionally regenerate `catalog/inventory.json`;

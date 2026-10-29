@@ -2,6 +2,8 @@ import json
 import copy
 import tempfile
 import unittest
+import subprocess
+import sys
 from pathlib import Path
 
 from codex_science.skill_maturity import (
@@ -313,6 +315,116 @@ class SkillMaturityTests(unittest.TestCase):
                 with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
                     audit_native_skills(root, policy_path=policy)
                 self.assertEqual(before, policy.read_bytes())
+
+    def test_quality_evidence_requires_regular_files_and_python_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir, tempfile.TemporaryDirectory() as outside:
+            root = Path(tempdir)
+            skill = self.make_skill(root)
+            (root / "fixtures" / "demo.py").write_text("# example\n", encoding="utf-8")
+            (root / "tests" / "case.json").write_text("{}", encoding="utf-8")
+            external = Path(outside) / "test_external.py"
+            external.write_text("# external\n", encoding="utf-8")
+            (root / "tests" / "escape.py").symlink_to(external)
+            (root / "tests" / "alias.py").symlink_to(root / "fixtures" / "demo.py")
+            (root / "tests" / "alias.txt").symlink_to(root / "tests" / "test_demo.py")
+            cases = (
+                ("acceptance_fixtures", ".", "regular file"),
+                ("acceptance_fixtures", "fixtures/missing.json", "regular file"),
+                ("test_files", ".", "regular file"),
+                ("test_files", "tests", "regular file"),
+                ("test_files", "tests/case.json", "Python files under tests/"),
+                ("test_files", "fixtures/demo.py", "Python files under tests/"),
+                ("test_files", "tests/alias.py", "Python files under tests/"),
+                ("test_files", "tests/alias.txt", "Python files under tests/"),
+                ("test_files", "tests/escape.py", "escapes repository root"),
+                ("test_files", "", "string list"),
+                ("test_files", 0, "string list"),
+            )
+            for field, value, message in cases:
+                with self.subTest(field=field, value=value):
+                    payload = {**self.valid_quality(), field: [value]}
+                    with self.assertRaisesRegex(ValueError, message):
+                        validate_quality_declaration(root, skill, payload)
+            for field in ("acceptance_fixtures", "test_files"):
+                with self.subTest(empty=field), self.assertRaisesRegex(ValueError, "L4 skills require"):
+                    validate_quality_declaration(root, skill, {**self.valid_quality(), field: []})
+            self.assertEqual("L4", validate_quality_declaration(root, skill, self.valid_quality())["declared_maturity"])
+            payload = {**self.valid_quality(), "acceptance_fixtures": ["."], "test_files": ["."]}
+            (skill / "quality.json").write_text(json.dumps(payload), encoding="utf-8")
+            record = evaluate_skill(root, skill)
+            self.assertNotEqual("L4", record["computed_maturity"])
+            policy = root / "policy.json"
+            policy.write_text(json.dumps({"schema_version": 1, "requirements": [
+                {"skill": "demo-skill", "minimum_maturity": "L4"}
+            ]}), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "audit_native_skill_maturity.py"),
+                 "--root", str(root), "--policy", str(policy), "--require-clean"],
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(1, result.returncode)
+            self.assertEqual("findings", json.loads(result.stdout)["status"])
+
+    def test_quality_skill_must_match_frontmatter_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self.make_skill(root, quality={**self.valid_quality(), "skill": "other-skill"})
+            record = evaluate_skill(root, skill)
+            self.assertNotEqual("L4", record["computed_maturity"])
+            self.assertRegex(" ".join(record["reasons"]), "other-skill.*demo-skill")
+
+    def test_duplicate_frontmatter_names_are_refused_across_scanned_roots(self) -> None:
+        for parent in ("runtime-skills", "authored-skills"):
+            with self.subTest(parent=parent), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                self.make_skill(root, quality=self.valid_quality())
+                duplicate = root / parent / "other"
+                duplicate.mkdir(parents=True)
+                (duplicate / "SKILL.md").write_text(SKILL_TEXT, encoding="utf-8")
+                policy = root / "policy.json"
+                policy.write_text(json.dumps({"schema_version": 1, "requirements": []}), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "duplicate.*demo-skill") as caught:
+                    audit_native_skills(root, policy_path=policy)
+                self.assertIn("runtime-skills/demo", str(caught.exception))
+                self.assertIn(f"{parent}/other", str(caught.exception))
+
+    def test_policy_requirement_types_are_validated_before_lookup_and_cli_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            self.make_skill(root, quality=self.valid_quality())
+            policy = root / "policy.json"
+            base = {"skill": "demo-skill", "minimum_maturity": "L4"}
+            cases = [
+                ("required_roles", value) for value in (None, 0, "executor", {}, [None], [[]], [""], ["pilot"])
+            ] + [
+                ("skill", value) for value in (None, 0, "", " ", [])
+            ] + [
+                ("minimum_maturity", value) for value in (None, 0, "", [])
+            ] + [
+                ("require_reference_contract", value) for value in (None, 0, "false", [])
+            ]
+            for field, value in cases:
+                with self.subTest(field=field, value=value):
+                    requirement = {**base, field: value}
+                    policy.write_text(json.dumps({"schema_version": 1, "requirements": [requirement]}), encoding="utf-8")
+                    before = policy.read_bytes()
+                    with self.assertRaisesRegex(ValueError, field):
+                        audit_native_skills(root, policy_path=policy)
+                    self.assertEqual(before, policy.read_bytes())
+            for requirement in (base, {**base, "required_roles": [], "require_reference_contract": False},
+                                {**base, "required_roles": ["executor"], "require_reference_contract": True}):
+                policy.write_text(json.dumps({"schema_version": 1, "requirements": [requirement]}), encoding="utf-8")
+                self.assertEqual("passed", audit_native_skills(root, policy_path=policy)["status"])
+            policy.write_text(json.dumps({"schema_version": 1, "requirements": [
+                {**base, "skill": "absent", "required_roles": None}
+            ]}), encoding="utf-8")
+            command = [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "audit_native_skill_maturity.py"),
+                       "--root", str(root), "--policy", str(policy), "--require-clean"]
+            result = subprocess.run(command, text=True, capture_output=True, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("error:", result.stderr)
+            self.assertIn("required_roles", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":

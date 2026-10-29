@@ -115,6 +115,9 @@ def validate_quality_declaration(root: Path, skill_dir: Path, payload: Mapping[s
     skill = str(payload.get("skill", "")).strip()
     if not skill:
         raise ValueError("quality skill is required")
+    name = _frontmatter((skill_dir / "SKILL.md").read_text(encoding="utf-8")).get("name", "").strip()
+    if skill != name:
+        raise ValueError(f"quality skill {skill!r} does not match SKILL.md name {name!r}")
     roles = _path_list(payload, "roles")
     unknown_roles = sorted(set(roles) - ROLES)
     if unknown_roles:
@@ -127,9 +130,18 @@ def validate_quality_declaration(root: Path, skill_dir: Path, payload: Mapping[s
     seeded_failures = _path_list(payload, "seeded_failures")
     tests = _path_list(payload, "test_files")
     limitations = _path_list(payload, "limitations")
-    for path in fixtures + tests:
-        if not _safe_repo_path(root, path, "quality dependency").exists():
-            raise ValueError(f"quality dependency does not exist: {path}")
+    for field, paths in (("acceptance_fixtures", fixtures), ("test_files", tests)):
+        for path in paths:
+            target = _safe_repo_path(root, path, f"quality {field}")
+            if not target.is_file():
+                raise ValueError(f"quality {field} must reference a regular file: {path}")
+            if field == "test_files" and (
+                PurePosixPath(path).parts[0] != "tests"
+                or PurePosixPath(path).suffix != ".py"
+                or target.suffix != ".py"
+                or not target.is_relative_to(root.resolve() / "tests")
+            ):
+                raise ValueError(f"quality test_files must be Python files under tests/: {path}")
     if LEVELS[declared] >= 3 and not output_schemas:
         raise ValueError("L3+ skills require output_schemas")
     if LEVELS[declared] >= 4 and (not fixtures or not seeded_failures or not tests):
@@ -228,27 +240,44 @@ def load_policy(root: Path, path: Path | None = None) -> dict[str, Any]:
     payload = _load_json(policy_path, "native skill policy")
     if payload.get("schema_version") != 1 or not isinstance(payload.get("requirements"), list):
         raise ValueError("unsupported native skill policy")
+    for requirement in payload["requirements"]:
+        if not isinstance(requirement, Mapping):
+            raise ValueError("native skill policy requirements must be objects")
+        name = requirement.get("skill")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("policy skill must be a non-empty string")
+        minimum = requirement.get("minimum_maturity")
+        if not isinstance(minimum, str) or minimum not in LEVELS:
+            raise ValueError("invalid policy maturity: minimum_maturity must be L0-L4")
+        roles = requirement.get("required_roles", [])
+        if not isinstance(roles, list) or not all(isinstance(role, str) and role in ROLES for role in roles):
+            raise ValueError("policy required_roles must be a list of known role strings")
+        if not isinstance(requirement.get("require_reference_contract", False), bool):
+            raise ValueError("policy require_reference_contract must be a boolean")
     return payload
 
 
 def audit_native_skills(root: Path, *, policy_path: Path | None = None) -> dict[str, Any]:
     root = root.resolve()
     records = []
+    names: dict[str, str] = {}
     for parent in (root / "runtime-skills", root / "authored-skills"):
         if not parent.is_dir():
             continue
         for skill_dir in sorted(path for path in parent.iterdir() if path.is_dir() and (path / "SKILL.md").is_file()):
+            name = _frontmatter((skill_dir / "SKILL.md").read_text(encoding="utf-8")).get("name", "").strip()
+            relative = str(skill_dir.relative_to(root))
+            if name:
+                if name in names:
+                    raise ValueError(f"duplicate skill name {name!r}: {names[name]} and {relative}")
+                names[name] = relative
             records.append(evaluate_skill(root, skill_dir))
     by_name = {record["name"]: record for record in records}
     policy = load_policy(root, policy_path)
     findings: list[dict[str, str]] = []
     for requirement in policy["requirements"]:
-        if not isinstance(requirement, Mapping):
-            raise ValueError("native skill policy requirements must be objects")
-        name = str(requirement.get("skill", ""))
-        minimum = str(requirement.get("minimum_maturity", ""))
-        if minimum not in LEVELS:
-            raise ValueError(f"invalid policy maturity: {minimum}")
+        name = requirement["skill"]
+        minimum = requirement["minimum_maturity"]
         record = by_name.get(name)
         if record is None:
             findings.append({"code": "missing-policy-skill", "severity": "major", "skill": name, "message": f"Policy skill is missing: {name}"})
@@ -259,7 +288,7 @@ def audit_native_skills(root: Path, *, policy_path: Path | None = None) -> dict[
         missing_roles = sorted(required_roles - set(record["roles"]))
         if missing_roles:
             findings.append({"code": "missing-skill-role", "severity": "major", "skill": name, "message": f"{name} is missing roles: {', '.join(missing_roles)}"})
-        if bool(requirement.get("require_reference_contract", False)) and not record["reference_contract"]:
+        if requirement.get("require_reference_contract", False) and not record["reference_contract"]:
             findings.append({"code": "missing-reference-contract", "severity": "major", "skill": name, "message": f"{name} has no valid progressive reference contract."})
     summary = {level: sum(record["computed_maturity"] == level for record in records) for level in LEVELS}
     return {

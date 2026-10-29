@@ -132,6 +132,17 @@ class ReadActivationTests(SessionsTestBase):
         self.marker.write_bytes(b"\xff\xfe\x00")
         self.assertIsNone(read_activation_state(self.marker))
 
+    def test_schema_type_is_validated_without_refresh_or_marker_mutation(self) -> None:
+        for schema in ([], {}, None, "1", True, False, 1.0, 2.0, 0):
+            with self.subTest(schema=schema):
+                self.write_raw({"schema_version": schema, "generation": GEN, "runtime_pin": PIN.as_dict()})
+                before = self.marker.read_bytes()
+                os.utime(self.marker, (1000, 1000))
+                self.assertIsNone(read_activation_state(self.marker, refresh=True))
+                self.assertIsNone(read_activation_generation(self.marker))
+                self.assertEqual(before, self.marker.read_bytes())
+                self.assertEqual(1000, int(self.marker.stat().st_mtime))
+
     def test_size_limit_boundary(self) -> None:
         base = json.dumps({"generation": GEN, "pad": ""})
         limit = sessions.MAX_MARKER_BYTES

@@ -105,8 +105,10 @@ def read_activation_state(path: Path, *, refresh: bool = False) -> ActivationSta
         if not isinstance(generation, str) or not GENERATION_PATTERN.fullmatch(generation):
             return None
         schema = payload.get("schema_version", 1)
+        if type(schema) is not int or schema not in {1, 2}:
+            return None
         runtime_pin = _runtime_pin(payload.get("runtime_pin")) if schema == 2 else None
-        if schema not in {1, 2} or (schema == 2 and runtime_pin is None):
+        if schema == 2 and runtime_pin is None:
             return None
         if refresh:
             os.utime(path, None, follow_symlinks=False)
