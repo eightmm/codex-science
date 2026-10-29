@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.cli_io import (  # noqa: E402
     load_json_object,
+    preflight_output_paths,
     write_json_atomic,
     write_text_atomic,
 )
@@ -55,6 +56,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = run_decision_analysis(load_json_object(args.input))
+        preflight_output_paths(args.output, args.report)
         write_json_atomic(args.output, result)
         if args.report is not None:
             write_text_atomic(args.report, render_decision_analysis(result))

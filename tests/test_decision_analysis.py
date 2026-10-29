@@ -624,6 +624,135 @@ class DecisionAnalysisTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "deterministic recomputation"):
             validate_decision_analysis(receipt)
 
+    def test_output_preflight(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            output = root / "output"
+            preflight_output_paths(None, root / "new" / "output", root / "other")
+            preflight_output_paths()
+            preflight_output_paths(root / "..named")
+            for path in (root / "..", root / "missing" / ".." / "output"):
+                with self.subTest(path=path), self.assertRaisesRegex(ValueError, "invalid output path"):
+                    preflight_output_paths(path)
+                with self.subTest(report=path), self.assertRaisesRegex(ValueError, "invalid output path"):
+                    preflight_output_paths(root / "valid", path)
+            with self.assertRaisesRegex(ValueError, "same"):
+                preflight_output_paths(output, root / "." / "output")
+            output.write_text("old", encoding="utf-8")
+            hardlink = root / "hardlink"
+            hardlink.hardlink_to(output)
+            symlink = root / "symlink"
+            symlink.symlink_to(output)
+            for alias in (hardlink, symlink):
+                with self.subTest(alias=alias), self.assertRaisesRegex(ValueError, "same"):
+                    preflight_output_paths(output, alias)
+            with self.assertRaisesRegex(ValueError, "directory"):
+                preflight_output_paths(root)
+            with self.assertRaisesRegex(ValueError, "ancestor"):
+                preflight_output_paths(output / "child")
+            loop = root / "loop"
+            loop.symlink_to(loop)
+            with self.assertRaisesRegex(ValueError, "invalid output path"):
+                preflight_output_paths(loop)
+            with self.assertRaisesRegex(ValueError, "invalid output path"):
+                preflight_output_paths(loop / "child")
+            dangling = root / "dangling"
+            dangling.symlink_to(root / "missing")
+            for path in (dangling, dangling / "child"):
+                with self.subTest(path=path), self.assertRaisesRegex(ValueError, "invalid output path"):
+                    preflight_output_paths(path)
+            directory_link = root / "directory-link"
+            directory_link.symlink_to(root, target_is_directory=True)
+            preflight_output_paths(directory_link / "new-output")
+            parent = root / "new" / "result"
+            child = parent / "report"
+            for first, second in ((parent, child), (child, parent)):
+                with self.subTest(first=first), self.assertRaisesRegex(ValueError, "overlap"):
+                    preflight_output_paths(first, second)
+            with self.assertRaisesRegex(ValueError, "overlap"):
+                preflight_output_paths(directory_link / "new" / "result", child)
+
+    def test_cli_refuses_nested_outputs_before_writing(self) -> None:
+        for output_is_parent in (True, False):
+            with self.subTest(output_is_parent=output_is_parent), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                parent = root / "new" / "result"
+                child = parent / "report"
+                output, report = (parent, child) if output_is_parent else (child, parent)
+                result = subprocess.run(
+                    [str(ROOT / "scripts" / "python_runtime.sh"),
+                     str(ROOT / "scripts" / "run_decision_analysis.py"), str(FIXTURE),
+                     "--output", str(output), "--report", str(report)],
+                    cwd=ROOT, capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("overlap", result.stderr)
+                self.assertFalse((root / "new").exists())
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            saved = root / "saved.json"
+            saved.write_text("previous", encoding="utf-8")
+            output = root / "missing" / ".." / "saved.json"
+            report = output / "child" / ".." / ".." / "report.md"
+            result = subprocess.run(
+                [str(ROOT / "scripts" / "python_runtime.sh"),
+                 str(ROOT / "scripts" / "run_decision_analysis.py"), str(FIXTURE),
+                 "--output", str(output), "--report", str(report)],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("invalid output path", result.stderr)
+            self.assertEqual("previous", saved.read_text(encoding="utf-8"))
+            self.assertFalse((root / "missing").exists())
+            self.assertFalse((root / "report.md").exists())
+
+    def test_cli_refuses_same_output_and_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            output = Path(tempdir) / "result"
+            result = subprocess.run(
+                [str(ROOT / "scripts" / "python_runtime.sh"),
+                 str(ROOT / "scripts" / "run_decision_analysis.py"), str(FIXTURE),
+                 "--output", str(output), "--report", str(output)],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("same", result.stderr)
+            self.assertFalse(output.exists())
+
+    def test_cli_refuses_report_directory_before_output_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            output = root / "result"
+            output.write_text("previous", encoding="utf-8")
+            result = subprocess.run(
+                [str(ROOT / "scripts" / "python_runtime.sh"),
+                 str(ROOT / "scripts" / "run_decision_analysis.py"), str(FIXTURE),
+                 "--output", str(output), "--report", str(root)],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("directory", result.stderr)
+            self.assertEqual("previous", output.read_text(encoding="utf-8"))
+
+    def test_cli_refuses_dangling_report_ancestor_before_output_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            output = root / "result"
+            output.write_text("previous", encoding="utf-8")
+            dangling = root / "dangling"
+            dangling.symlink_to(root / "missing")
+            result = subprocess.run(
+                [str(ROOT / "scripts" / "python_runtime.sh"),
+                 str(ROOT / "scripts" / "run_decision_analysis.py"), str(FIXTURE),
+                 "--output", str(output), "--report", str(dangling / "report")],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("invalid output path", result.stderr)
+            self.assertEqual("previous", output.read_text(encoding="utf-8"))
+
     def test_cli_writes_json_and_human_report(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             output = Path(tempdir) / "decision-analysis.json"
