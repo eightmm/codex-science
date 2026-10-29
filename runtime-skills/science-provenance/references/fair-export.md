@@ -34,7 +34,7 @@ Preconditions:
 5. external inputs use canonical identifier, source, release, and checksum when available;
 6. the destination must not already contain this export's files (`ro-crate-metadata.json`, `prov.json`, `scientific-bom.json`, `export-receipt.json`) or the `--receipt` path, and must not overlap the manifest, listed artifacts, or descriptor files, including symlink and hard-link aliases.
 
-The exporter refuses changed artifact bytes because it calls complete bundle validation first. It refuses existing export destinations before writing anything.
+The exporter refuses changed artifact bytes because it calls complete bundle validation first. It refuses existing export destinations before writing anything. Writes exclusively create new files, so a concurrent file, symlink or hard-link insertion cannot overwrite source bytes or another export. A write-time collision or interruption can leave partial exports; retain them for inspection and choose a fresh destination. The local receipt is written after the three metadata files, followed by the optional separate receipt; interruption can leave only the local receipt.
 
 ## Outputs
 
@@ -70,7 +70,7 @@ The graph includes:
 - review status;
 - explicit Codex Science evidence boundary.
 
-The exporter does not copy artifact bytes into the export directory. `hasPart` points to run-relative artifacts. Preserve the source bundle or copy it through a separate verified packaging step.
+The exporter does not copy artifact bytes into the export directory. Manifest and artifact `@id` values resolve relative to the written metadata file, using the real manifest filename and percent-encoded URI paths. For example, metadata in `run/exports/ro-crate-metadata.json` references `../manifest.json` and `../result%231.json` for `run/result#1.json`; `hasPart` and claim evidence links use the same artifact identifiers. These identifiers contain no absolute machine paths. Preserve the source bundle or copy it through a separate verified packaging step.
 
 ## W3C PROV-oriented lineage
 
@@ -80,9 +80,11 @@ The exporter does not copy artifact bytes into the export directory. `hasPart` p
 - artifact entities;
 - execution activities;
 - run activity;
-- `used` links from recorded inputs to executions;
+- `used` links from the manifest's recorded inputs to the run activity; execution records have no established per-command input binding, so the exporter does not infer execution-level usage;
 - `wasGeneratedBy` links from artifacts to the run;
 - exit codes and artifact digests where recorded.
+
+Explicit input and execution IDs are preserved, including integer zero; duplicate explicit IDs within either collection are refused before writing. Explicit IDs must be nonblank strings or integers (not booleans). Inputs without explicit IDs use their path, then their identifier, then an index-based identifier; executions without explicit IDs use their index. Fallback collisions with any explicit ID or an earlier fallback receive deterministic disambiguated identifiers, preserving failed attempts as separate activities. The run activity omits `prov:endedAtTime` because the manifest records no run end time; export time does not establish it.
 
 The export cannot reconstruct events omitted from the source manifest. A sparse provenance record remains sparse and should not be described as complete.
 

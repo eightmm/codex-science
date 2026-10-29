@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import quote
 
 from codex_science.artifact_store import describe_directory, stream_sha256
 from codex_science.artifacts import validate_bundle
@@ -37,7 +38,9 @@ def _sha(value: Any) -> str:
 
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    # Exclusive creation also refuses symlinks or aliases introduced after preflight.
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
 
 
 def _media_type(path: str, record: Mapping[str, Any]) -> str:
@@ -47,10 +50,10 @@ def _media_type(path: str, record: Mapping[str, Any]) -> str:
     return guessed or "application/octet-stream"
 
 
-def _artifact_entity(record: Mapping[str, Any]) -> dict[str, Any]:
+def _artifact_entity(record: Mapping[str, Any], reference: str) -> dict[str, Any]:
     path = str(record["path"])
     entity = {
-        "@id": path,
+        "@id": reference,
         "@type": "Dataset" if record.get("artifact_type") == "directory-tree" else "File",
         "name": path,
         "encodingFormat": _media_type(path, record),
@@ -63,9 +66,18 @@ def _artifact_entity(record: Mapping[str, Any]) -> dict[str, Any]:
     return entity
 
 
-def build_ro_crate(manifest: Mapping[str, Any], *, exported_at: str) -> dict[str, Any]:
+def build_ro_crate(
+    manifest: Mapping[str, Any], *, exported_at: str,
+    manifest_reference: str = "manifest.json",
+    artifact_references: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     run_id = str(manifest["run_id"])
-    artifacts = [_artifact_entity(item) for item in manifest.get("artifacts", []) if isinstance(item, Mapping)]
+    references = artifact_references if artifact_references is not None else {
+        str(item["path"]): quote(str(item["path"]), safe="/")
+        for item in manifest.get("artifacts", []) if isinstance(item, Mapping)
+    }
+    artifacts = [_artifact_entity(item, references[str(item["path"])])
+                 for item in manifest.get("artifacts", []) if isinstance(item, Mapping)]
     root = {
         "@id": "./",
         "@type": "Dataset",
@@ -73,7 +85,7 @@ def build_ro_crate(manifest: Mapping[str, Any], *, exported_at: str) -> dict[str
         "description": str(manifest.get("question", "")),
         "dateModified": exported_at,
         "hasPart": [{"@id": item["@id"]} for item in artifacts],
-        "mainEntity": {"@id": "manifest.json"},
+        "mainEntity": {"@id": manifest_reference},
         "conformsTo": [
             {"@id": "https://w3id.org/ro/crate/1.1"},
             {"@id": "https://github.com/eightmm/codex-science"}
@@ -81,7 +93,7 @@ def build_ro_crate(manifest: Mapping[str, Any], *, exported_at: str) -> dict[str
         "reviewStatus": str(manifest.get("review", {}).get("status", "unknown")),
     }
     manifest_entity = {
-        "@id": "manifest.json",
+        "@id": manifest_reference,
         "@type": "File",
         "name": "Codex Science artifact manifest",
         "encodingFormat": "application/json",
@@ -97,7 +109,7 @@ def build_ro_crate(manifest: Mapping[str, Any], *, exported_at: str) -> dict[str
             "@type": "CreativeWork",
             "identifier": str(claim["id"]),
             "text": str(claim.get("text", "")),
-            "citation": [{"@id": str(item)} for item in claim.get("evidence", [])],
+            "citation": [{"@id": references.get(str(item), str(item))} for item in claim.get("evidence", [])],
         })
     root["about"] = [{"@id": item["@id"]} for item in claims]
     return {
@@ -113,31 +125,58 @@ def build_ro_crate(manifest: Mapping[str, Any], *, exported_at: str) -> dict[str
     }
 
 
+def _identified_records(records: list[Any], kind: str) -> list[tuple[str, Mapping[str, Any]]]:
+    explicit: set[str] = set()
+    for record in records:
+        if not isinstance(record, Mapping) or "id" not in record:
+            continue
+        value = record["id"]
+        if (isinstance(value, bool) or not isinstance(value, (str, int))
+                or not str(value).strip()):
+            raise ValueError(f"invalid explicit {kind} id: {value!r}")
+        identifier = str(value)
+        if identifier in explicit:
+            raise ValueError(f"duplicate explicit {kind} id: {identifier!r}")
+        explicit.add(identifier)
+    identified = []
+    reserved = set(explicit)
+    for index, record in enumerate(records):
+        if not isinstance(record, Mapping):
+            continue
+        if "id" in record:
+            identifier = str(record["id"])
+        else:
+            fallback = (record.get("path") or record.get("identifier")) if kind == "input" else None
+            identifier = str(fallback or (f"input-{index}" if kind == "input" else index))
+            if identifier in reserved:
+                identifier = f"@{kind}-{index}"
+                while identifier in reserved:
+                    identifier += ":"
+        reserved.add(identifier)
+        identified.append((identifier, record))
+    return identified
+
+
 def build_prov(manifest: Mapping[str, Any], *, exported_at: str) -> dict[str, Any]:
     run_id = str(manifest["run_id"])
     entities: dict[str, Any] = {}
     activities: dict[str, Any] = {}
     used: dict[str, Any] = {}
     generated: dict[str, Any] = {}
-    for index, item in enumerate(manifest.get("inputs", [])):
-        if not isinstance(item, Mapping):
-            continue
-        identifier = str(item.get("id") or item.get("path") or item.get("identifier") or f"input-{index}")
+    for identifier, item in _identified_records(manifest.get("inputs", []), "input"):
         entities[f"input:{identifier}"] = {"prov:type": "Input", "codex:record": dict(item)}
     for item in manifest.get("artifacts", []):
         if isinstance(item, Mapping):
             entities[f"artifact:{item['path']}"] = {"prov:type": "Artifact", "prov:label": str(item["path"]), "codex:sha256": str(item["sha256"]), "codex:kind": str(item.get("kind", "artifact"))}
-    for index, execution in enumerate(manifest.get("executions", [])):
-        if not isinstance(execution, Mapping):
-            continue
-        activity_id = f"execution:{execution.get('id', index)}"
+    for identifier, execution in _identified_records(manifest.get("executions", []), "execution"):
+        activity_id = f"execution:{identifier}"
         activities[activity_id] = {"prov:type": "Execution", "prov:label": str(execution.get("command", activity_id)), "codex:exitCode": execution.get("exit_code")}
-        for entity_id in entities:
-            if entity_id.startswith("input:"):
-                used[f"used:{activity_id}:{entity_id}"] = {"prov:activity": activity_id, "prov:entity": entity_id}
     run_activity = f"run:{run_id}"
-    activities[run_activity] = {"prov:type": "ScientificRun", "prov:label": str(manifest.get("question", run_id)), "prov:endedAtTime": exported_at, "codex:reviewStatus": str(manifest.get("review", {}).get("status", "unknown"))}
+    activities[run_activity] = {"prov:type": "ScientificRun", "prov:label": str(manifest.get("question", run_id)), "codex:reviewStatus": str(manifest.get("review", {}).get("status", "unknown"))}
     for entity_id in entities:
+        # Manifest inputs establish run-level usage, not bindings to each command.
+        if entity_id.startswith("input:"):
+            used[f"used:{run_activity}:{entity_id}"] = {"prov:activity": run_activity, "prov:entity": entity_id}
         if entity_id.startswith("artifact:"):
             generated[f"generated:{entity_id}"] = {"prov:entity": entity_id, "prov:activity": run_activity}
     return {
@@ -249,7 +288,13 @@ def export_run(
         raise ValueError(f"export destination already exists: {str(existing_destination)!r}; "
                          "choose a new versioned output directory or archive the old export explicitly")
     timestamp = exported_at or _now()
-    ro_crate = build_ro_crate(manifest, exported_at=timestamp)
+    artifact_references = {
+        str(item["path"]): quote(os.path.relpath(manifest_path.parent / item["path"], output_dir).replace(os.sep, "/"), safe="/")
+        for item in manifest["artifacts"]
+    }
+    manifest_reference = quote(os.path.relpath(manifest_path, output_dir).replace(os.sep, "/"), safe="/")
+    ro_crate = build_ro_crate(manifest, exported_at=timestamp,
+                              manifest_reference=manifest_reference, artifact_references=artifact_references)
     prov = build_prov(manifest, exported_at=timestamp)
     bom = build_scientific_bom(manifest, sidecars, exported_at=timestamp)
     _write_json(files["ro_crate"], ro_crate)

@@ -6,10 +6,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import unquote, urljoin, urlsplit
 
 from codex_science.artifact_store import describe_directory
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
-from codex_science.fair_export import export_run
+from codex_science.fair_export import _write_json, export_run
 
 
 CLI = Path(__file__).resolve().parents[1] / "scripts" / "export_scientific_run.py"
@@ -373,7 +375,7 @@ class FairExportTests(unittest.TestCase):
             crate = json.loads((output / "ro-crate-metadata.json").read_text(encoding="utf-8"))
             self.assertEqual("https://w3id.org/ro/crate/1.1/context", crate["@context"])
             ids = {item["@id"] for item in crate["@graph"]}
-            self.assertIn("result.csv", ids)
+            self.assertIn("../run/result.csv", ids)
             self.assertIn("#claim-C1", ids)
 
             prov = json.loads((output / "prov.json").read_text(encoding="utf-8"))
@@ -386,6 +388,170 @@ class FairExportTests(unittest.TestCase):
             self.assertIn("dataset", component_types)
             self.assertIn("package", component_types)
             self.assertIn("container_digest", component_types)
+
+    def test_write_time_collisions_preserve_sources_and_competing_files(self) -> None:
+        for name in (*EXPORT_FILES, "extra.json"):
+            for alias in ("symlink", "hardlink", "file"):
+                with self.subTest(name=name, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle(root, "prov.json")
+                    source = manifest.parent / "prov.json"
+                    before = source.read_bytes()
+                    output = manifest.parent / "exports"
+                    extra = root / "extra.json"
+                    destination = extra if name == "extra.json" else output / name
+
+                    def competing_write(path: Path, payload: object) -> None:
+                        if path == destination:
+                            path.parent.mkdir(parents=True, exist_ok=True)
+                            if alias == "symlink":
+                                path.symlink_to(source)
+                            elif alias == "hardlink":
+                                os.link(source, path)
+                            else:
+                                path.write_bytes(b"competing export")
+                        _write_json(path, payload)
+
+                    with patch("codex_science.fair_export._write_json", side_effect=competing_write):
+                        with self.assertRaises(FileExistsError):
+                            export_run(manifest, output, receipt_path=extra)
+                    self.assertEqual(before, source.read_bytes())
+                    self.assertEqual(before if alias != "file" else b"competing export",
+                                     destination.read_bytes())
+                    if name != "extra.json":
+                        self.assertFalse(extra.exists())
+
+    def test_prov_records_run_inputs_without_inventing_execution_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            path = self._bundle(root)
+            manifest = json.loads(path.read_text())
+            manifest["inputs"] = [{"id": "dataset", "path": "sample.csv"}]
+            executions = [
+                {"id": "version", "command": "python --version", "exit_code": 0},
+                {"id": "analysis", "command": "python analysis.py", "exit_code": 1},
+            ]
+            for records in ([], executions):
+                with self.subTest(executions=records):
+                    manifest["executions"] = records
+                    write_manifest(manifest, path)
+                    output = root / f"export-{len(records)}"
+                    export_run(path, output)
+                    prov = json.loads((output / "prov.json").read_text())
+                    self.assertEqual([{"prov:activity": "run:run-fair", "prov:entity": "input:dataset"}],
+                                     list(prov["used"].values()))
+
+    def test_prov_omits_run_end_time(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            path = self._bundle(root)
+            for index, timestamp in enumerate(("2026-07-21T00:00:00Z", "2026-07-22T00:00:00Z")):
+                output = root / f"export-{index}"
+                export_run(path, output, exported_at=timestamp)
+                activity = json.loads((output / "prov.json").read_text())["activity"]["run:run-fair"]
+                self.assertNotIn("prov:endedAtTime", activity)
+
+    def test_prov_preserves_colliding_fallback_records_and_zero_ids(self) -> None:
+        cases = [
+            (
+                [{"path": "sample.csv"}, {"identifier": "fixture:dataset"},
+                 {"path": "preferred.csv", "identifier": "fixture:other"},
+                 {"path": "", "identifier": "fixture:blank"},
+                 {"path": 0, "identifier": "fixture:zero"}, {}],
+                [{"command": "python --version", "exit_code": 0}],
+                ["sample.csv", "fixture:dataset", "preferred.csv", "fixture:blank", "fixture:zero", "input-5"],
+                ["0"],
+            ),
+            (
+                [{"path": "sample.csv"}, {"id": "sample.csv"},
+                 {"id": "@input-0"}, {"id": "@input-0:"}, {"id": 0}, {},
+                 {"path": "repeat.csv"}, {"path": "repeat.csv"},
+                 {"identifier": "fixture:repeat"}, {"identifier": "fixture:repeat"},
+                 {"identifier": "fixture:reserved"}, {"id": "fixture:reserved"}],
+                [{"id": "1", "command": "python --version", "exit_code": 0},
+                 {"command": "python analysis.py", "exit_code": 1},
+                 {"id": "@execution-1", "exit_code": 0}, {"id": 0, "exit_code": 0}],
+                ["sample.csv", "@input-0", "@input-0:", "0", "repeat.csv", "fixture:repeat", "fixture:reserved"],
+                ["1", "@execution-1", "0"],
+            ),
+        ]
+        for input_records, execution_records, input_ids, execution_ids in cases:
+            with self.subTest(inputs=input_records), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                path = self._bundle(root)
+                manifest = json.loads(path.read_text())
+                manifest["inputs"] = input_records
+                manifest["executions"] = execution_records
+                write_manifest(manifest, path)
+                outputs = []
+                for name in ("first", "second"):
+                    output = root / name
+                    export_run(path, output, exported_at="2026-07-21T00:00:00Z")
+                    outputs.append(json.loads((output / "prov.json").read_text()))
+                self.assertEqual(outputs[0], outputs[1])
+                prov = outputs[0]
+                inputs = {key: item for key, item in prov["entity"].items() if key.startswith("input:")}
+                self.assertEqual(len(input_records), len(inputs))
+                self.assertCountEqual(input_records, [item["codex:record"] for item in inputs.values()])
+                for identifier in input_ids:
+                    self.assertIn("input:" + identifier, inputs)
+                executions = {key: item for key, item in prov["activity"].items() if key.startswith("execution:")}
+                self.assertEqual(len(execution_records), len(executions))
+                self.assertEqual(sum(item["exit_code"] == 1 for item in execution_records),
+                                 sum(item["codex:exitCode"] == 1 for item in executions.values()))
+                for identifier in execution_ids:
+                    self.assertIn("execution:" + identifier, executions)
+
+    def test_duplicate_or_malformed_explicit_ids_refuse_before_writes(self) -> None:
+        for field, kind in (("inputs", "input"), ("executions", "execution")):
+            for records, reason in (
+                ([{"id": "same"}, {"id": "same"}], "duplicate explicit"),
+                ([{"id": 0}, {"id": "0"}], "duplicate explicit"),
+                ([{"id": ""}], "invalid explicit"),
+                ([{"id": "   "}], "invalid explicit"),
+                ([{"id": None}], "invalid explicit"),
+                ([{"id": []}], "invalid explicit"),
+                ([{"id": {}}], "invalid explicit"),
+                ([{"id": False}], "invalid explicit"),
+            ):
+                with self.subTest(field=field, records=records), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    path = self._bundle(root)
+                    manifest = json.loads(path.read_text())
+                    manifest[field] = records
+                    write_manifest(manifest, path)
+                    self._refused(path, root / "export", root / "receipt.json", root,
+                                  f"{reason} {kind} id")
+
+    def test_ro_crate_references_resolve_from_written_metadata(self) -> None:
+        for artifact_name in ("result#1.json", "result space%.json", "résultat?.json", "result:1.json"):
+            for location in ("exports", "exports/nested", "elsewhere"):
+                with self.subTest(artifact=artifact_name, location=location), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    original = self._bundle(root, artifact_name)
+                    path = original.with_name("record #1.json")
+                    original.rename(path)
+                    manifest = json.loads(path.read_text())
+                    manifest["claims"] = [{"id": "C1", "text": "Recorded result", "evidence": [artifact_name]}]
+                    write_manifest(manifest, path)
+                    output = root / "elsewhere" if location == "elsewhere" else path.parent / location
+                    export_run(path, output)
+                    metadata = output / "ro-crate-metadata.json"
+                    graph = json.loads(metadata.read_text())["@graph"]
+                    dataset = next(item for item in graph if item["@id"] == "./")
+                    artifact = next(item for item in graph if item.get("name") == artifact_name)
+                    self.assertEqual([{"@id": artifact["@id"]}], dataset["hasPart"])
+                    claim = next(item for item in graph if item["@id"] == "#claim-C1")
+                    self.assertEqual([{"@id": artifact["@id"]}], claim["citation"])
+                    for reference, target in ((artifact["@id"], path.parent / artifact_name),
+                                              (dataset["mainEntity"]["@id"], path)):
+                        parts = urlsplit(reference)
+                        self.assertEqual(("", "", "", ""), (parts.scheme, parts.netloc, parts.query, parts.fragment))
+                        self.assertFalse(Path(unquote(parts.path)).is_absolute())
+                        resolved = Path(unquote(urlsplit(urljoin(metadata.as_uri(), reference)).path))
+                        self.assertEqual(target, resolved)
+                        self.assertTrue(resolved.is_file())
+                        self.assertIn(reference, {item["@id"] for item in graph})
 
     def test_changed_artifact_bytes_prevent_export(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
