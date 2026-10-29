@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from codex_science.artifact_store import stream_sha256
+from codex_science.artifact_store import _validate_relative, stream_sha256
 
 
 def _execution_succeeded(execution: dict[str, Any]) -> bool:
@@ -71,57 +71,121 @@ def evidence_node_has_successful_execution(
     return any(_execution_succeeded(item) for item in manifest.get("executions", []) if isinstance(item, dict))
 
 
+def _normalise_artifact_reference(value: Any) -> str | dict[str, Any] | None:
+    if isinstance(value, str):
+        path = value
+    elif isinstance(value, dict):
+        path = str(value.get("path", ""))
+    else:
+        return None
+    try:
+        path = _validate_relative(path)
+    except ValueError:
+        return None
+    return {**value, "path": path} if isinstance(value, dict) else path
+
+
 def computed_claim_execution_findings(
     manifest: dict[str, Any], sidecars: dict[str, Any] | None
 ) -> list[dict[str, str]]:
     if not isinstance(sidecars, dict):
-        return []
+        sidecars = {}
     graph = sidecars.get("graph_v2") or sidecars.get("evidence_graph")
-    if not isinstance(graph, dict):
-        return []
+    has_graph = isinstance(graph, dict)
+    if not has_graph:
+        graph = {}
     nodes = {
-        str(node.get("id")): node for node in graph.get("nodes", [])
-        if isinstance(node, dict) and node.get("id") is not None
+        str(node.get("id", "")).strip(): node for node in graph.get("nodes", [])
+        if isinstance(node, dict) and str(node.get("id", "")).strip()
     }
     supported: dict[str, set[str]] = {}
     for edge in graph.get("edges", []):
         if isinstance(edge, dict) and edge.get("relation") == "supports":
-            supported.setdefault(str(edge.get("target", "")), set()).add(str(edge.get("source", "")))
+            supported.setdefault(str(edge.get("target", "")).strip(), set()).add(str(edge.get("source", "")).strip())
     claims = {
-        str(claim.get("id")): claim for claim in manifest.get("claims", [])
-        if isinstance(claim, dict) and claim.get("id")
+        str(claim.get("id", "")).strip(): claim for claim in manifest.get("claims", [])
+        if isinstance(claim, dict) and str(claim.get("id", "")).strip()
     }
-    claim_records = sidecars.get("claim_by_id", {})
+    raw_claim_records = sidecars.get("claim_by_id", {})
+    claim_records = {
+        str(claim_id).strip(): claim for claim_id, claim in raw_claim_records.items()
+    } if isinstance(raw_claim_records, dict) else {}
     executions = [item for item in manifest.get("executions", []) if isinstance(item, dict)]
-    has_linkage_metadata = any("id" in item or "outputs" in item for item in executions)
+    has_linkage_metadata = any(
+        "outputs" in item or (has_graph and "id" in item) for item in executions
+    )
+    execution_manifest = manifest
+    if has_graph:
+        # Graph IDs are canonical; preserve producer linkage on copied records.
+        execution_manifest = {**manifest, "executions": [
+            {**item, "id": str(item["id"]).strip()} if "id" in item else item
+            for item in executions
+        ]}
+    else:
+        # Normalise lexical aliases on copies; graph linkage retains exact paths.
+        normalised_executions = []
+        for execution in executions:
+            outputs = execution.get("outputs")
+            if isinstance(outputs, list):
+                execution = {**execution, "outputs": [
+                    _normalise_artifact_reference(output) for output in outputs
+                ]}
+            normalised_executions.append(execution)
+        execution_manifest = {**manifest, "executions": normalised_executions, "artifacts": [
+            normalised for artifact in manifest.get("artifacts", [])
+            if isinstance(artifact, dict)
+            and (normalised := _normalise_artifact_reference(artifact)) is not None
+        ]}
     findings = []
     for claim_id, claim in claims.items():
         refs = supported.get(claim_id, set())
         support_nodes = [
             (ref, nodes[ref]) for ref in refs if isinstance(nodes.get(ref), dict)
         ]
-        if not support_nodes:
+        if has_graph and not support_nodes:
             continue
         data_nodes = [
             (ref, node) for ref, node in support_nodes
             if node.get("type") in {"execution", "artifact"}
         ]
-        registered_claim = claim_records.get(claim_id, {}) if isinstance(claim_records, dict) else {}
+        registered_claim = claim_records.get(claim_id, {})
         required_evidence = (
             registered_claim.get("required_evidence", claim.get("required_evidence", []))
             if isinstance(registered_claim, dict) else claim.get("required_evidence", [])
         )
         is_computed = isinstance(required_evidence, list) and "computed" in required_evidence
+        if not has_graph:
+            manifest_required = claim.get("required_evidence", [])
+            is_computed = is_computed or (
+                isinstance(manifest_required, list) and "computed" in manifest_required
+            )
         if not is_computed:
             continue
+        if not has_graph:
+            evidence = claim.get("evidence", [])
+            if not isinstance(evidence, list):
+                evidence = []
+            data_nodes = [
+                (normalised, {"type": "artifact", "path": normalised})
+                for path in evidence if isinstance(path, str)
+                and (normalised := _normalise_artifact_reference(path)) is not None
+            ]
         if data_nodes:
+            # A graph artifact ID may also supply its literal path; only the
+            # identifier used for lookup is canonical, not that fallback path.
             linked = any(
-                evidence_node_has_successful_execution(manifest, ref, node)
+                evidence_node_has_successful_execution(
+                    execution_manifest,
+                    str(node.get("id", ref)) if node.get("type") == "artifact" else ref,
+                    node,
+                )
                 for ref, node in data_nodes
             )
         elif has_linkage_metadata:
             linked = False
         else:
+            # Legacy manifests without output metadata cannot link an artifact
+            # to its producer; require at least one recorded successful execution.
             linked = any(_execution_succeeded(item) for item in executions)
         if not linked:
             findings.append({
@@ -236,17 +300,17 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
             findings.append({"code": "incomplete-plan", "severity": "major", "message": f"Plan step is not complete: {step.get('id', '<unknown>')}"})
     for claim in manifest.get("claims", []):
         evidence = claim.get("evidence", [])
-        if not evidence:
+        if not isinstance(evidence, list) or not evidence:
             findings.append({"code": "unsupported-claim", "severity": "major", "message": f"Claim has no evidence: {claim.get('id', '<unknown>')}"})
             continue
         for path in evidence:
-            if path not in artifacts:
+            if not isinstance(path, str) or path not in artifacts:
                 findings.append({"code": "missing-evidence", "severity": "major", "message": f"Claim evidence is not a saved artifact: {path} (claim {claim.get('id', '<unknown>')}; evidence entries must be manifest artifact paths, not identifiers)"})
     if sidecars is None and run_dir is not None:
         from codex_science.artifacts import validate_bundle
         sidecars = validate_bundle(manifest, run_dir)
+    findings.extend(computed_claim_execution_findings(manifest, sidecars))
     if sidecars is not None:
-        findings.extend(computed_claim_execution_findings(manifest, sidecars))
         from codex_science.evidence import review_sidecars
         findings.extend(review_sidecars(sidecars))
         findings.extend(sidecars.get("advanced_findings", []))

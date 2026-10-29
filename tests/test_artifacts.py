@@ -1060,6 +1060,196 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertNotEqual(0, escaped.returncode)
             self.assertIn("resolves outside the run bundle", escaped.stderr)
 
+    def test_validate_artifact_and_completion_canonicalize_registered_computed_claim_ids(self) -> None:
+        from codex_science.checkpoints import _check_completion_bundle
+
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest_path = self._make_run(Path(temporary))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            claim = manifest["claims"][0]
+            base_artifacts = manifest["artifacts"][:]
+            output = manifest_path.parent / "computed-review.json"
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            for claim_id, canonical in (("C1", "C1"), (" C1 ", "C1"),
+                                        ("\tC1\n", "C1"), (0, "0"), (" 0 ", "0")):
+                for graph_kind in (None, "evidence-graph", "evidence-graph-v2"):
+                    claim["id"] = claim_id
+                    registered = {**claim, "id": f" {canonical} ", "status": "supported",
+                        "required_evidence": ["computed"], "required_support": 0,
+                        "falsifier": "Recomputation disagrees with the saved result."}
+                    register = manifest_path.parent / "claims.json"
+                    register.write_text(json.dumps({"schema_version": 1, "claims": [registered]}), encoding="utf-8")
+                    manifest["artifacts"] = base_artifacts[:]
+                    add_artifact(manifest, "claims.json", kind="claim-register",
+                                 sha256=hashlib.sha256(register.read_bytes()).hexdigest())
+                    if graph_kind:
+                        graph_path = manifest_path.parent / "evidence_graph.json"
+                        graph_path.write_text(json.dumps({
+                            "schema_version": 2 if graph_kind == "evidence-graph-v2" else 1,
+                            "nodes": [{"id": f" {canonical} ", "type": "claim"},
+                                      {"id": " saved-result ", "type": "artifact", "path": claim["evidence"][0]}],
+                            "edges": [{"source": "saved-result", "target": f"\t{canonical}\n", "relation": "supports"}],
+                        }), encoding="utf-8")
+                        add_artifact(manifest, "evidence_graph.json", kind=graph_kind,
+                                     sha256=hashlib.sha256(graph_path.read_bytes()).hexdigest())
+                    for executions, passed in (
+                        ([], False),
+                        ([{"exit_code": 0, "outputs": [claim["evidence"][0]]}], True),
+                    ):
+                        with self.subTest(claim_id=claim_id, graph=graph_kind, executions=executions):
+                            manifest["executions"] = executions
+                            write_manifest(manifest, manifest_path)
+                            result = subprocess.run(
+                                [sys.executable, "-I", "-S", str(validator), str(manifest_path),
+                                 "--review-output", str(output), "--require-passed-review"],
+                                cwd=self.repository_root, capture_output=True, text=True, check=False,
+                            )
+                            self.assertEqual(0 if passed else 1, result.returncode, result.stderr)
+                            self.assertIn("artifact bundle: valid", result.stdout)
+                            self.assertNotIn("Traceback", result.stderr)
+                            review = json.loads(output.read_text(encoding="utf-8"))
+                            findings = [item for item in review["findings"]
+                                        if item["code"] == "computed-claim-without-execution"]
+                            self.assertEqual([] if passed else [canonical], [item["claim_id"] for item in findings])
+                            if passed:
+                                _check_completion_bundle(manifest_path.parent)
+                            else:
+                                with self.assertRaisesRegex(ValueError, "computed-claim-without-execution"):
+                                    _check_completion_bundle(manifest_path.parent)
+
+    def test_validate_artifact_checks_falsy_computed_claim_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest_path = self._make_run(Path(temporary))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            claim = manifest["claims"][0]
+            claim["required_evidence"] = ["computed"]
+            output = manifest_path.parent / "computed-review.json"
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            for claim_id in (0, 0.0, False, None, [], {}, "C1"):
+                for executions, passed in (
+                    ([], False),
+                    ([{"exit_code": 0, "outputs": [claim["evidence"][0]]}], True),
+                ):
+                    with self.subTest(claim_id=claim_id, executions=executions):
+                        claim["id"] = claim_id
+                        manifest["executions"] = executions
+                        write_manifest(manifest, manifest_path)
+                        result = subprocess.run(
+                            [sys.executable, "-I", "-S", str(validator), str(manifest_path),
+                             "--review-output", str(output), "--require-passed-review"],
+                            cwd=self.repository_root, capture_output=True, text=True, check=False,
+                        )
+                        self.assertEqual(0 if passed else 1, result.returncode, result.stderr)
+                        self.assertIn("artifact bundle: valid", result.stdout)
+                        self.assertNotIn("Traceback", result.stderr)
+                        review = json.loads(output.read_text(encoding="utf-8"))
+                        self.assertEqual("passed" if passed else "findings", review["status"])
+                        findings = [item for item in review["findings"]
+                                    if item["code"] == "computed-claim-without-execution"]
+                        self.assertEqual([] if passed else [str(claim_id)],
+                                         [item["claim_id"] for item in findings])
+            for invalid in ("", " \t\n"):
+                with self.subTest(invalid_id=invalid):
+                    claim["id"] = invalid
+                    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    output.unlink(missing_ok=True)
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-S", str(validator), str(manifest_path),
+                         "--review-output", str(output), "--require-passed-review"],
+                        cwd=self.repository_root, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("Claim id is required", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertFalse(output.exists())
+
+    def test_validate_artifact_accepts_safe_computed_output_path_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest_path = self._make_run(Path(temporary))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            claim = manifest["claims"][0]
+            claim["required_evidence"] = ["computed"]
+            output = manifest_path.parent / "computed-review.json"
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            for artifact_path, output_path, directory, passed in (
+                ("./report.md", "report.md", False, True),
+                ("report.md", "./report.md", False, True),
+                ("tables/", "tables", True, True),
+                ("tables", "./tables/", True, True),
+                ("./tables//./", "tables", True, True),
+                ("report.md", "../report.md", False, False),
+            ):
+                with self.subTest(artifact=artifact_path, output=output_path):
+                    artifact = manifest_path.parent / artifact_path
+                    digest = (describe_directory(artifact).root_sha256 if directory
+                              else hashlib.sha256(artifact.read_bytes()).hexdigest())
+                    manifest["artifacts"] = [{"path": artifact_path, "kind": "table",
+                        "sha256": digest, "artifact_type": "directory-tree" if directory else "file"}]
+                    claim["evidence"] = [artifact_path]
+                    manifest["executions"] = [{"exit_code": 0,
+                        "outputs": [{"path": output_path, "sha256": digest}]}]
+                    write_manifest(manifest, manifest_path)
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-S", str(validator), str(manifest_path),
+                         "--review-output", str(output), "--require-passed-review"],
+                        cwd=self.repository_root, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(0 if passed else 1, result.returncode, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    review = json.loads(output.read_text(encoding="utf-8"))
+                    self.assertEqual("passed" if passed else "findings", review["status"])
+
+    def test_validate_artifact_writes_structured_review_for_null_computed_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest_path = self._make_run(Path(temporary))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["claims"][0].update(required_evidence=["computed"], evidence=None)
+            manifest["executions"] = [{"exit_code": 0, "outputs": ["report.md"]}]
+            write_manifest(manifest, manifest_path)
+            output = manifest_path.parent / "computed-review.json"
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            result = subprocess.run(
+                [sys.executable, "-I", "-S", str(validator), str(manifest_path),
+                 "--review-output", str(output), "--require-passed-review"],
+                cwd=self.repository_root, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertIn("artifact bundle: valid", result.stdout)
+            self.assertTrue(output.is_file())
+            review = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual("findings", review["status"])
+            self.assertIn("unsupported-claim", {item["code"] for item in review["findings"]})
+
+    def test_validate_artifact_requires_computed_execution_without_graph(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest_path = self._make_run(Path(temporary))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            claim = manifest["claims"][0]
+            claim["required_evidence"] = ["computed"]
+            output = manifest_path.parent / "computed-review.json"
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            for executions, passed in (
+                ([], False),
+                ([{"exit_code": 0, "outputs": [claim["evidence"][0]]}], True),
+                ([{"exit_code": 1, "outputs": [claim["evidence"][0]]}], False),
+                ([{"exit_code": 0, "outputs": []}], False),
+            ):
+                with self.subTest(executions=executions):
+                    manifest["executions"] = executions
+                    write_manifest(manifest, manifest_path)
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-S", str(validator), str(manifest_path),
+                         "--review-output", str(output), "--require-passed-review"],
+                        cwd=self.repository_root, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(0 if passed else 1, result.returncode, result.stderr)
+                    review = json.loads(output.read_text(encoding="utf-8"))
+                    self.assertEqual("passed" if passed else "findings", review["status"])
+                    self.assertIn("artifact bundle: valid", result.stdout)
+                    codes = {item["code"] for item in review["findings"]}
+                    self.assertEqual(not passed, "computed-claim-without-execution" in codes)
+
     def test_validate_artifact_reports_digest_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)

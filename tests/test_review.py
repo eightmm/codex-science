@@ -1,10 +1,11 @@
 import unittest
+import copy
 import json
 import hashlib
 import tempfile
 from pathlib import Path
 
-from codex_science.artifacts import add_artifact, new_manifest, validate_bundle
+from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, validate_manifest
 from codex_science.review import review_manifest
 
 
@@ -23,6 +24,148 @@ def computed_review(manifest: dict, supporting_nodes: list[dict], supporting_edg
 
 
 class ReviewerTests(unittest.TestCase):
+    def test_computed_claim_lookup_canonicalizes_manifest_register_and_graph_ids(self) -> None:
+        for claim_id, canonical in (("C1", "C1"), (" C1 ", "C1"),
+                                    ("\tC1\n", "C1"), (0, "0"), (" 0 ", "0")):
+            manifest = new_manifest("run", "Question", [])
+            add_artifact(manifest, "result.json", kind="table", sha256="a" * 64)
+            manifest["claims"] = [{"id": claim_id, "text": "Computed result",
+                                    "evidence": ["result.json"]}]
+            for register_id in (canonical, f" {canonical} "):
+                for graph_key in (None, "evidence_graph", "graph_v2"):
+                    for executions, linked in (
+                        ([], False),
+                        ([{"id": " E1 ", "exit_code": 0, "outputs": ["result.json"]}], True),
+                        ([{"id": " E1 ", "exit_code": 1, "outputs": ["result.json"]}], False),
+                    ):
+                        with self.subTest(claim_id=claim_id, register_id=register_id,
+                                          graph=graph_key, executions=executions):
+                            manifest["executions"] = executions
+                            sidecars = {"claim_by_id": {register_id: {
+                                "id": register_id, "required_evidence": ["computed"],
+                            }}}
+                            if graph_key:
+                                sidecars[graph_key] = {"nodes": [
+                                    {"id": f" {canonical} ", "type": "claim"},
+                                    {"id": " saved-result ", "type": "artifact", "path": "result.json"},
+                                ], "edges": [{"source": "saved-result", "target": f"\t{canonical}\n",
+                                              "relation": "supports"}]}
+                            original = copy.deepcopy((manifest, sidecars))
+                            findings = [item for item in review_manifest(manifest, sidecars=sidecars)["findings"]
+                                        if item["code"] == "computed-claim-without-execution"]
+                            self.assertEqual([] if linked else [canonical],
+                                             [item["claim_id"] for item in findings])
+                            self.assertEqual(original, (manifest, sidecars))
+                            if graph_key:
+                                sidecars[graph_key]["nodes"][1] = {"id": " E1 ", "type": "execution"}
+                                sidecars[graph_key]["edges"][0]["source"] = "E1"
+                                findings = [item for item in review_manifest(manifest, sidecars=sidecars)["findings"]
+                                            if item["code"] == "computed-claim-without-execution"]
+                                self.assertEqual([] if linked else [canonical],
+                                                 [item["claim_id"] for item in findings])
+        for output_path in (" result.json ", "result.json"):
+            with self.subTest(implicit_artifact_path=output_path):
+                manifest = new_manifest("run", "Question", [])
+                add_artifact(manifest, " result.json ", kind="table", sha256="a" * 64)
+                manifest["claims"] = [{"id": " C1 ", "text": "Computed result",
+                    "required_evidence": ["computed"], "evidence": [" result.json "]}]
+                manifest["executions"] = [{"exit_code": 0, "outputs": [output_path]}]
+                sidecars = {"graph_v2": {"nodes": [{"id": "C1", "type": "claim"},
+                    {"id": " result.json ", "type": "artifact"}],
+                    "edges": [{"source": " result.json ", "target": "C1", "relation": "supports"}]}}
+                findings = [item for item in review_manifest(manifest, sidecars=sidecars)["findings"]
+                            if item["code"] == "computed-claim-without-execution"]
+                self.assertEqual([] if output_path == " result.json " else ["C1"],
+                                 [item["claim_id"] for item in findings])
+
+    def test_computed_claims_use_manifest_id_acceptance_with_and_without_graph(self) -> None:
+        for claim_id in (0, 0.0, False, None, [], {}, 1, 1.5, True,
+                         [0], {"label": "C1"}, "0", "C1", " C1 "):
+            manifest = new_manifest("run", "Question", [])
+            add_artifact(manifest, "result.json", kind="table", sha256="a" * 64)
+            manifest["claims"] = [{"id": claim_id, "text": "Computed result",
+                "required_evidence": ["computed"], "evidence": ["result.json"]}]
+            validate_manifest(manifest)
+            graph = {"nodes": [{"id": claim_id, "type": "claim"},
+                {"id": "result.json", "type": "artifact", "path": "result.json"}],
+                "edges": [{"source": "result.json", "target": claim_id, "relation": "supports"}]}
+            for sidecars in ({}, {"graph_v2": graph}, {"evidence_graph": graph}):
+                for executions, linked in (
+                    ([], False),
+                    ([{"exit_code": 0, "outputs": ["result.json"]}], True),
+                    ([{"exit_code": 1, "outputs": ["result.json"]}], False),
+                ):
+                    with self.subTest(claim_id=claim_id, sidecars=sidecars, executions=executions):
+                        manifest["executions"] = executions
+                        review = review_manifest(manifest, sidecars=sidecars)
+                        findings = [item for item in review["findings"]
+                                    if item["code"] == "computed-claim-without-execution"]
+                        self.assertEqual([] if linked else [str(claim_id).strip()],
+                                         [item["claim_id"] for item in findings])
+        for claim in ({"id": ""}, {"id": " \t\n"}, {}):
+            with self.subTest(invalid_claim=claim):
+                manifest["claims"] = [claim]
+                with self.assertRaisesRegex(ValueError, "Claim id is required"):
+                    validate_manifest(manifest)
+
+    def test_graph_free_computed_artifacts_match_safe_relative_path_spellings(self) -> None:
+        for artifact_path, output_path, linked in (
+            ("./result.json", "result.json", True),
+            ("result.json", "./result.json", True),
+            ("data/", "data", True),
+            ("data", "data/", True),
+            ("./data//./result.json", "data/result.json", True),
+            ("data/result.json", "./data//./result.json", True),
+            ("result.json", "../result.json", False),
+            ("result.json", "data/../result.json", False),
+            ("result.json", "/result.json", False),
+            ("result.json", "", False),
+            ("result.json", "other.json", False),
+        ):
+            for output in (output_path, {"path": output_path, "sha256": "A" * 64}):
+                with self.subTest(artifact=artifact_path, output=output):
+                    manifest = new_manifest("run", "Question", [])
+                    add_artifact(manifest, artifact_path, kind="table", sha256="a" * 64)
+                    manifest["claims"] = [{"id": "C1", "text": "Computed result",
+                        "required_evidence": ["computed"], "evidence": [artifact_path]}]
+                    manifest["executions"] = [{"exit_code": 0, "outputs": [output]}]
+                    original = copy.deepcopy(manifest)
+                    codes = {item["code"] for item in review_manifest(manifest)["findings"]}
+                    self.assertEqual(not linked, "computed-claim-without-execution" in codes)
+                    self.assertEqual(original, manifest)
+                    graph_review = computed_review(manifest, [{
+                        "id": artifact_path, "type": "artifact", "path": artifact_path,
+                        "sha256": "a" * 64,
+                    }])
+                    graph_codes = {item["code"] for item in graph_review["findings"]}
+                    self.assertEqual(artifact_path != output_path,
+                                     "computed-claim-without-execution" in graph_codes)
+        manifest["executions"] = [{"exit_code": 0, "outputs": ["result.json"]}]
+        for path in ("../result.json", "/result.json", "data/../result.json"):
+            with self.subTest(evidence=path):
+                manifest["claims"][0]["evidence"] = [path]
+                codes = {item["code"] for item in review_manifest(manifest)["findings"]}
+                self.assertIn("computed-claim-without-execution", codes)
+
+    def test_graph_free_computed_claim_handles_nonlist_and_nonstring_evidence(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        add_artifact(manifest, "result.json", kind="table", sha256="a" * 64)
+        manifest["executions"] = [{"exit_code": 0, "outputs": ["result.json"]}]
+        manifest["claims"] = [{"id": "C1", "text": "Computed result",
+                               "required_evidence": ["computed"]}]
+        for evidence in (None, "result.json", 0, 1, {}, {"path": "result.json"}, [],
+                         [None], [0], [False], [{}], [[]], [{"path": "result.json"}],
+                         [None, {}, [], "result.json"]):
+            with self.subTest(evidence=evidence):
+                manifest["claims"][0]["evidence"] = evidence
+                review = review_manifest(manifest)
+                codes = {item["code"] for item in review["findings"]}
+                self.assertEqual("findings", review["status"])
+                self.assertIn("unsupported-claim" if not isinstance(evidence, list) or not evidence
+                              else "missing-evidence", codes)
+                self.assertEqual(evidence != [None, {}, [], "result.json"],
+                                 "computed-claim-without-execution" in codes)
+
     def test_passed_review_keeps_only_unresolved_blocking_declared_findings(self) -> None:
         for severity in ("major", "critical", "minor", "suggestion"):
             for resolution in (None, "open", "", "accepted-risk", "resolved", "not-applicable", "unknown"):
@@ -129,6 +272,70 @@ class ReviewerTests(unittest.TestCase):
 
         self.assertEqual("passed", review["status"])
         self.assertEqual([], review["findings"])
+
+    def test_computed_claim_without_graph_requires_successful_artifact_output(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        add_artifact(manifest, "result.json", kind="table", sha256="a" * 64)
+        manifest["claims"] = [{
+            "id": "C1", "text": "The calculation yielded 4.",
+            "evidence": ["result.json"], "required_evidence": ["computed"],
+        }]
+        cases = [
+            ([], False),
+            ([{"exit_code": 0}], True),
+            ([{"id": "E1", "exit_code": 0}], True),
+            ([{"exit_code": 0, "outputs": []}], False),
+            ([{"exit_code": 0, "outputs": None}], False),
+            ([{"exit_code": 0, "outputs": "result.json"}], False),
+            ([{"exit_code": 0, "outputs": [None, {}, 0]}], False),
+            ([{"exit_code": 0, "outputs": ["other.json"]}], False),
+            ([{"exit_code": 0, "outputs": ["result.json"]}], True),
+            ([{"exit_code": 0, "outputs": [{"path": "result.json"}]}], True),
+            ([{"exit_code": 0, "outputs": [{"path": "result.json", "sha256": "A" * 64}]}], True),
+            ([{"exit_code": 0, "outputs": [{"path": "result.json", "sha256": "b" * 64}]}], False),
+        ]
+        cases.extend(
+            ([{"exit_code": code, "outputs": ["result.json"]}], False)
+            for code in (1, False, "0", None)
+        )
+        cases.append(([
+            {"exit_code": 1, "outputs": ["result.json"]},
+            {"exit_code": 0, "outputs": ["other.json"]},
+        ], False))
+        for executions, linked in cases:
+            for sidecars in (None, {}, {"graph_v2": None}, {"evidence_graph": []}, {
+                "claim_by_id": {"C1": {"required_evidence": ["computed"]}},
+            }, {
+                "claim_by_id": {"C1": {"required_evidence": []}},
+            }):
+                with self.subTest(executions=executions, sidecars=sidecars):
+                    manifest["executions"] = executions
+                    review = review_manifest(manifest, sidecars=sidecars)
+                    findings = [item for item in review["findings"]
+                                if item["code"] == "computed-claim-without-execution"]
+                    self.assertEqual(0 if linked else 1, len(findings))
+                    if not linked:
+                        self.assertEqual("C1", findings[0]["claim_id"])
+                        self.assertEqual("major", findings[0]["severity"])
+        manifest["executions"] = []
+        manifest["claims"][0].pop("required_evidence")
+        for required in ([], ["primary"], "computed", ["computed"]):
+            with self.subTest(registered_requirement=required):
+                review = review_manifest(manifest, sidecars={
+                    "claim_by_id": {"C1": {"required_evidence": required}},
+                })
+                codes = {item["code"] for item in review["findings"]}
+                self.assertEqual(required == ["computed"], "computed-claim-without-execution" in codes)
+        manifest["claims"][0]["required_evidence"] = ["computed"]
+        manifest["claims"][0]["evidence"] = []
+        for executions, linked in (
+            ([], False), ([{"exit_code": 0}], True),
+            ([{"exit_code": 0, "outputs": ["result.json"]}], False),
+        ):
+            with self.subTest(empty_evidence=True, executions=executions):
+                manifest["executions"] = executions
+                codes = {item["code"] for item in review_manifest(manifest)["findings"]}
+                self.assertEqual(not linked, "computed-claim-without-execution" in codes)
 
     def test_legacy_computed_claim_without_execution_ids_has_no_new_finding(self) -> None:
         manifest = new_manifest("run-001", "Question", [])
