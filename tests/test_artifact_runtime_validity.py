@@ -1084,22 +1084,41 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
 
     def test_cli_select_refuses_unresolved_region_without_output(self):
         descriptor = self.describe("data.csv", "a,b\nx,1\n")
-        missing_bounds = {**descriptor, "bounds": {}}
-        missing_bounds.pop("fingerprint")
-        missing_bounds["fingerprint"] = runtime._fingerprint(missing_bounds)
+        json_descriptor = self.describe("data.json", '{"a":1}')
+        contexts = [("unresolved row", descriptor, "row", {"row": 999})]
+        mutations = [(descriptor, "bounds", {}, "row", {"row": 1})]
+        mutations.extend((json_descriptor, field, 42, "json-pointer", {"pointer": "/a"}) for field in (
+            "media_type", "artifact_path", "artifact_sha256", "artifact_kind", "artifact_type", "viewer",
+            "generated_at", "evidence_boundary",
+        ))
+        mutations.append((json_descriptor, "schema_version", True, "json-pointer", {"pointer": "/a"}))
+        for original, field, value, kind, selector in mutations:
+            malformed = {**original, field: value}
+            malformed.pop("fingerprint")
+            malformed["fingerprint"] = runtime._fingerprint(malformed)
+            if field in {"media_type", "artifact_path"}:
+                runtime.validate_runtime_descriptor(malformed)
+            contexts.append((field, malformed, kind, selector))
         descriptor_path = self.root / "view.json"
         output = self.root / "selection.json"
-        for context in (descriptor, missing_bounds):
-            with self.subTest(missing_bounds=context is missing_bounds):
-                descriptor_path.write_text(json.dumps(context))
+        source_bytes = {name: (self.root / name).read_bytes() for name in ("data.csv", "data.json")}
+        for label, context, kind, selector in contexts:
+            with self.subTest(field=label):
+                stored = json.dumps(context).encode()
+                descriptor_path.write_bytes(stored)
                 result = subprocess.run([
                     sys.executable, "scripts/render_artifact_runtime.py", "select", str(descriptor_path),
-                    "--selector-type", "row", "--selector", '{"row":999}',
+                    "--selector-type", kind, "--selector", json.dumps(selector),
                     "--selected-by", "reviewer", "--reason", "Inspect.", "--output", str(output),
                 ], capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")))
                 self.assertEqual(1, result.returncode, result.stderr)
                 self.assertNotIn("Traceback", result.stderr)
+                if label != "unresolved row":
+                    self.assertIn("selection descriptor", result.stderr)
                 self.assertFalse(output.exists())
+                self.assertEqual(stored, descriptor_path.read_bytes())
+                for name, content in source_bytes.items():
+                    self.assertEqual(content, (self.root / name).read_bytes())
 
     def test_creation_refuses_missing_or_wrongly_typed_descriptor_region_facts(self):
         cases = (
@@ -1110,6 +1129,7 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
             ("data.json", '{"a":1}', "json-pointer", {"pointer": "/a"}, ("preview", "lines_preview"),
              (None, "text", {}, [None], [{}], [{"text": 1}])),
             ("data.bin", b"abc", "byte-range", {"start": 0, "end": 3}, ("size_bytes",), (None, "3", False, -1, [])),
+            ("data.csv", "a,b\nx,1\n", "row", {"row": 1}, ("preview", "format"), (None, 42, [], {})),
         )
         for name, content, kind, selector, fields, values in cases:
             descriptor = self.describe(name, content)
@@ -1127,6 +1147,75 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
                     malformed["fingerprint"] = runtime._fingerprint(malformed)
                     with self.assertRaises(ValueError):
                         self.select(malformed, kind, selector)
+        for viewer, kinds in runtime.VIEWER_SELECTIONS.items():
+            descriptor = self.describe("metadata.json", '{"a":1}')
+            descriptor["viewer"] = viewer
+            for field in ("artifact_path", "artifact_sha256", "artifact_kind", "artifact_type", "viewer",
+                          "generated_at", "evidence_boundary", "media_type", "schema_version", "fingerprint"):
+                for kind in kinds:
+                    with self.subTest(viewer=viewer, kind=kind, field=field):
+                        malformed = {**descriptor, field: 42}
+                        if field != "fingerprint":
+                            malformed.pop("fingerprint")
+                            malformed["fingerprint"] = runtime._fingerprint(malformed)
+                        with self.assertRaisesRegex(ValueError, "selection descriptor"):
+                            self.select(malformed, kind, {"legacy": True})
+        descriptor = self.describe("metadata.json", '{"a":1}')
+        for field in ("artifact_path", "artifact_sha256", "artifact_kind", "artifact_type", "viewer",
+                      "generated_at", "evidence_boundary", "schema_version", "fingerprint"):
+            missing = dict(descriptor)
+            missing.pop(field)
+            if field != "fingerprint":
+                missing.pop("fingerprint")
+                missing["fingerprint"] = runtime._fingerprint(missing)
+            with self.subTest(missing=field), self.assertRaises(ValueError):
+                self.select(missing, "json-pointer", {"pointer": "/a"})
+            for value in (None, False, [], {}, 1.0, "", 0):
+                with self.subTest(field=field, value=value):
+                    malformed = {**descriptor, field: value}
+                    if field != "fingerprint":
+                        malformed.pop("fingerprint")
+                        malformed["fingerprint"] = runtime._fingerprint(malformed)
+                    with self.assertRaises(ValueError):
+                        self.select(malformed, "json-pointer", {"pointer": "/a"})
+        for value in (42, False, [], {}):
+            malformed = {**descriptor, "media_type": value}
+            malformed.pop("fingerprint")
+            malformed["fingerprint"] = runtime._fingerprint(malformed)
+            with self.subTest(media_type=value), self.assertRaises(ValueError):
+                self.select(malformed, "json-pointer", {"pointer": "/a"})
+        for value in (42, None, [], {}):
+            malformed = json.loads(json.dumps(descriptor))
+            malformed["preview"]["json_type"] = value
+            malformed.pop("fingerprint")
+            malformed["fingerprint"] = runtime._fingerprint(malformed)
+            with self.subTest(json_type=value), self.assertRaises(ValueError):
+                self.select(malformed, "json-pointer", {"pointer": "/a"})
+        for value in (None, "", "application/json"):
+            valid = {**descriptor, "media_type": value}
+            valid.pop("fingerprint")
+            valid["fingerprint"] = runtime._fingerprint(valid)
+            self.select(valid, "json-pointer", {"pointer": "/a"})
+        for field, value in (("format", ""), ("format", "unknown")):
+            table = self.describe("metadata.csv", "a,b\nx,1\n")
+            table["preview"][field] = value
+            table.pop("fingerprint")
+            table["fingerprint"] = runtime._fingerprint(table)
+            self.select(table, "row", {"legacy": True})
+        for value in ("", "dict"):
+            valid = json.loads(json.dumps(descriptor))
+            valid["preview"]["json_type"] = value
+            valid.pop("fingerprint")
+            valid["fingerprint"] = runtime._fingerprint(valid)
+            self.select(valid, "json-pointer", {"pointer": "/a"})
+        missing_media_type = dict(descriptor)
+        missing_media_type.pop("media_type")
+        missing_media_type.pop("fingerprint")
+        missing_media_type["fingerprint"] = runtime._fingerprint(missing_media_type)
+        self.select(missing_media_type, "json-pointer", {"pointer": "/a"})
+        for malformed in (None, [], 42, {**descriptor, "extra": object()}):
+            with self.subTest(non_json_descriptor=type(malformed).__name__), self.assertRaisesRegex(ValueError, "selection descriptor"):
+                self.select(malformed, "json-pointer", {"pointer": "/a"})
         for name, content in (("empty.csv", ""), ("empty.txt", ""), ("empty.bin", b"")):
             descriptor = self.describe(name, content, max_bytes=1)
             kind = next(iter(runtime.VIEWER_SELECTIONS[descriptor["viewer"]]))

@@ -812,6 +812,17 @@ def build_selection(
     label: str = "",
     created_at: str | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(descriptor, Mapping):
+        raise ValueError("selection descriptor must be an object")
+    for field in ("artifact_path", "artifact_sha256", "artifact_kind", "artifact_type", "viewer",
+                  "generated_at", "evidence_boundary", "fingerprint"):
+        if not isinstance(descriptor.get(field), str):
+            raise ValueError(f"selection descriptor {field} must be a string")
+    if type(descriptor.get("schema_version")) is not int or descriptor["schema_version"] != 1:
+        raise ValueError("selection descriptor schema_version: unsupported artifact runtime descriptor schema")
+    if descriptor.get("media_type") is not None and not isinstance(descriptor["media_type"], str):
+        raise ValueError("selection descriptor media_type must be a string or null")
+    _json_value(dict(descriptor), "selection descriptor")
     if type(descriptor.get("size_bytes")) is not int or descriptor["size_bytes"] < 0:
         raise ValueError("selection descriptor size_bytes must be a non-negative integer")
     validate_runtime_descriptor(descriptor)
@@ -820,6 +831,10 @@ def build_selection(
         raise ValueError("selection descriptor bounds.max_bytes must be a positive integer")
     viewer = str(descriptor["viewer"])
     preview = descriptor["preview"]
+    if viewer == "table" and not isinstance(preview.get("format"), str):
+        raise ValueError("selection descriptor preview.format must be a string")
+    if viewer == "text" and "json_type" in preview and not isinstance(preview["json_type"], str):
+        raise ValueError("selection descriptor preview.json_type must be a string")
     if viewer == "table" and preview.get("format") == "delimited-text":
         columns, rows = preview.get("columns"), preview.get("rows_preview")
         if not isinstance(columns, list) or not all(isinstance(value, str) for value in columns):
