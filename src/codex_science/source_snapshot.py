@@ -52,7 +52,7 @@ def _sha256(value: Any, label: str) -> str:
 def _safe_relative(value: Any, label: str, *, allow_dot: bool = False) -> str:
     text = str(value)
     pure = PurePosixPath(text)
-    if not text.strip() or pure.is_absolute() or ".." in pure.parts:
+    if not text.strip() or "\0" in text or pure.is_absolute() or ".." in pure.parts:
         raise SourceSnapshotError(f"{label} must be a safe relative path")
     normalized = pure.as_posix()
     if normalized == "." and not allow_dot:
@@ -90,7 +90,9 @@ def _git_identity(
     allowed_untracked_path: Path | None = None,
 ) -> dict[str, Any]:
     working = working_directory.resolve(strict=True)
-    root = Path(str(_run_git(working, "rev-parse", "--show-toplevel")).strip()).resolve(strict=True)
+    root_output = _run_git(working, "rev-parse", "--show-toplevel", binary=True)
+    assert isinstance(root_output, bytes)
+    root = Path(os.fsdecode(root_output.removesuffix(b"\n"))).resolve(strict=True)
     if not working.is_relative_to(root):
         raise SourceSnapshotError("working_directory is outside its Git worktree")
     head = _object_id(str(_run_git(working, "rev-parse", "--verify", "HEAD")).strip(), "Git HEAD")
@@ -684,6 +686,7 @@ def create_git_source_bundle(
     job_dir.chmod(0o700)
     stage = Path(tempfile.mkdtemp(prefix=".source-stage-", dir=job_dir))
     stage.chmod(0o700)
+    archive_path = stage.with_name(stage.name + ".tar")
     try:
         _materialize_git_tree(identity, stage)
         cwd_root = stage.joinpath(*PurePosixPath(identity["worktree_relative_cwd"]).parts)
@@ -710,10 +713,19 @@ def create_git_source_bundle(
             allowed_untracked_path=allowed_untracked_path,
         )
         _verify_inputs(repeated["working"], inputs)
-        archive_path = job_dir / SOURCE_ARCHIVE_NAME
         archive_sha256, archive_size = _write_deterministic_tar(stage, archive_path)
+        # Prove the archive round trip preserves the declared input Merkle roots.
+        shutil.rmtree(stage)
+        stage.mkdir(mode=0o700)
+        stage.chmod(0o700)
+        with archive_path.open("rb") as archive:
+            _safe_extract(archive, stage)
+        restored_cwd = stage.joinpath(*PurePosixPath(identity["worktree_relative_cwd"]).parts)
+        _verify_inputs(restored_cwd, inputs)
+        os.replace(archive_path, job_dir / SOURCE_ARCHIVE_NAME)
     finally:
         shutil.rmtree(stage, ignore_errors=True)
+        archive_path.unlink(missing_ok=True)
     material = {
         "schema_version": 1,
         "mode": "git-archive",

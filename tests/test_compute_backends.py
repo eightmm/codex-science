@@ -606,9 +606,26 @@ class ComputeBackendTests(unittest.TestCase):
                     job_spec_sha256=spec.fingerprint,
                     job_dir=root / "second",
                 )
+                os.umask(0o177)
+                third = create_git_source_bundle(
+                    working_directory=working,
+                    commit=commit,
+                    inputs=spec.inputs,
+                    job_spec_sha256=spec.fingerprint,
+                    job_dir=root / "third",
+                )
+                without_inputs = create_git_source_bundle(
+                    working_directory=working,
+                    commit=commit,
+                    inputs=[],
+                    job_spec_sha256=spec.fingerprint,
+                    job_dir=root / "without-inputs",
+                )
             finally:
                 os.umask(original_umask)
             self.assertEqual(first["archive"]["sha256"], second["archive"]["sha256"])
+            self.assertEqual(first["archive"]["sha256"], third["archive"]["sha256"])
+            self.assertEqual([], without_inputs["input_ids"])
             with tarfile.open(root / "first" / SOURCE_ARCHIVE_NAME, mode="r") as bundle:
                 members = {item.name: item for item in bundle.getmembers()}
             for directory in ("scratch", "scratch/a", "scratch/a/b"):

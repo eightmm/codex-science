@@ -5,6 +5,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from typing import BinaryIO
 from unittest import mock
 
 import codex_science.source_snapshot as source_snapshot
@@ -121,6 +122,94 @@ class SourceSnapshotUnitTests(unittest.TestCase):
             }])
             self.assertEqual(" leading.txt", verified[0]["path"])
             self.assertEqual(working / " leading.txt", verified[0]["target"])
+
+    def test_safe_relative_rejects_nul(self) -> None:
+        for name in ("\0", "nested/va\0lue.txt"):
+            with self.subTest(name=name), self.assertRaisesRegex(
+                source_snapshot.SourceSnapshotError, "safe relative path"
+            ):
+                source_snapshot._safe_relative(name, "input path")
+
+    def test_git_bundle_preserves_repository_root_whitespace(self) -> None:
+        for suffix in (" ", "\t", "\n", "\r"):
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                working, commit = initialize_repo(root)
+                renamed = root / ("repo" + suffix)
+                working.rename(renamed)
+                expected_spec = hashlib.sha256(b"job spec").hexdigest()
+                job_dir = root / "bundle"
+                receipt = source_snapshot.create_git_source_bundle(
+                    working_directory=renamed, commit=commit, inputs=[],
+                    job_spec_sha256=expected_spec, job_dir=job_dir,
+                )
+                cwd = source_snapshot.materialize_source_bundle(
+                    job_dir, receipt, expected_job_spec_sha256=expected_spec,
+                )
+                self.assertEqual(commit, receipt["commit"])
+                self.assertEqual("committed\n", (cwd / "source.txt").read_text(encoding="utf-8"))
+
+    def test_directory_input_archive_round_trip_preserves_names_and_checks_merkle_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working, _ = initialize_repo(root)
+            (working / ".gitignore").write_text("inputs/\n", encoding="utf-8")
+            git(working, "add", ".gitignore")
+            git(working, "commit", "-qm", "ignored directory input")
+            commit = git(working, "rev-parse", "HEAD")
+            directory = working / "inputs" / " dir "
+            directory.mkdir(parents=True)
+            entries = [(" leading.txt", b"a"), ("trailing.txt ", b"b"), (" nested / file ", b"")]
+            for name, content in entries:
+                path = directory / name
+                path.parent.mkdir(exist_ok=True)
+                path.write_bytes(content)
+            empty = working / "inputs" / "empty"
+            empty.mkdir()
+            inputs = [
+                {"id": "spaced", "path": "inputs/ dir ", "root_sha256": describe_directory(directory).root_sha256},
+                {"id": "empty", "path": "inputs/empty", "root_sha256": describe_directory(empty).root_sha256},
+            ]
+            expected_spec = hashlib.sha256(b"job spec").hexdigest()
+            job_dir = root / "bundle"
+            receipt = source_snapshot.create_git_source_bundle(
+                working_directory=working, commit=commit, inputs=inputs,
+                job_spec_sha256=expected_spec, job_dir=job_dir,
+            )
+            cwd = source_snapshot.materialize_source_bundle(
+                job_dir, receipt, expected_job_spec_sha256=expected_spec,
+            )
+            for item in inputs:
+                restored = cwd / item["path"]
+                self.assertEqual(item["root_sha256"], describe_directory(restored).root_sha256)
+            for name, content in entries:
+                self.assertEqual(content, (cwd / "inputs" / " dir " / name).read_bytes())
+
+            extract = source_snapshot._safe_extract
+
+            def extract_with_changed_name(archive: BinaryIO, destination: Path) -> None:
+                extract(archive, destination)
+                original = destination / "inputs" / " dir " / "trailing.txt "
+                original.rename(original.with_name("trailing.txt"))
+
+            failed_job = root / "failed"
+            with mock.patch.object(source_snapshot, "_safe_extract", side_effect=extract_with_changed_name):
+                with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "digest mismatch"):
+                    source_snapshot.create_git_source_bundle(
+                        working_directory=working, commit=commit, inputs=inputs,
+                        job_spec_sha256=expected_spec, job_dir=failed_job,
+                    )
+            self.assertEqual([], list(failed_job.iterdir()))
+            archive_path = job_dir / source_snapshot.SOURCE_ARCHIVE_NAME
+            before = archive_path.read_bytes()
+            with mock.patch.object(source_snapshot, "_safe_extract", side_effect=extract_with_changed_name):
+                with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "digest mismatch"):
+                    source_snapshot.create_git_source_bundle(
+                        working_directory=working, commit=commit, inputs=inputs,
+                        job_spec_sha256=expected_spec, job_dir=job_dir,
+                    )
+            self.assertEqual(before, archive_path.read_bytes())
+            self.assertEqual(["source", "source.tar"], sorted(path.name for path in job_dir.iterdir()))
 
     def test_materialize_outputs_cwd_and_cleans_up_after_extraction_refusal(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
