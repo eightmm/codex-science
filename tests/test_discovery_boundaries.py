@@ -178,6 +178,36 @@ class DiscoveryBoundaryTests(unittest.TestCase):
         self.assertEqual("e2", plan["selected"]["id"])
         self.assertEqual(["e2"], [item["id"] for item in plan["ranked"]])
 
+        # affordable decimal-cost case: budget 0.4, reserved 0.1, candidate 0.1+0.2 fits remaining 0.3
+        root_affordable = Path(self.temp.name) / "affordable-decimal"
+        payload_affordable = prepare(root_affordable)
+        payload_affordable["evaluation"]["budget"] = 0.4
+        payload_affordable["experiments"][0].update(cost=0.1, control_cost=0)
+        other_affordable = copy.deepcopy(payload_affordable["experiments"][0])
+        other_affordable.update(id="e2", cost=0.1, control_cost=0.2)
+        # predictions must differ so fingerprint is unique
+        predictions = dict(other_affordable.get("predictions", {}))
+        predictions = {k: [v[0] + 0.01, v[1] + 0.01] for k, v in predictions.items()}
+        other_affordable["predictions"] = predictions
+        payload_affordable["experiments"].append(other_affordable)
+        save_cycle(new_cycle(payload_affordable), root_affordable)
+        # reserve e1 (cost 0.1) so remaining budget = 0.3
+        reserved_cycle = apply_cycle_event(load_cycle(root_affordable), {
+            "kind": "reserve", "experiment_id": "e1", "request_id": "affordable-decimal",
+        }, root_affordable)
+        save_cycle(reserved_cycle, root_affordable)
+        plan_before = plan_cycle(load_cycle(root_affordable), root_affordable)
+        # selected must be the affordable candidate (not reserved e1), and no budget rejection
+        self.assertIsNotNone(plan_before["selected"])
+        selected_id = plan_before["selected"]["id"]
+        selected_ranked = next((item for item in plan_before["ranked"] if item["id"] == selected_id), None)
+        self.assertIsNotNone(selected_ranked)
+        self.assertNotIn("budget", selected_ranked["reasons"])
+        # reserving selected validates
+        apply_cycle_event(load_cycle(root_affordable), {
+            "kind": "reserve", "experiment_id": plan_before["selected"]["id"], "request_id": "affordable-reserve",
+        }, root_affordable)
+
     def test_code_free_idea_cannot_be_reserved(self):
         payload = copy.deepcopy(self.input)
         payload["methods"][0]["code_refs"] = []
