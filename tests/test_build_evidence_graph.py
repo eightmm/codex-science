@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from codex_science.artifacts import validate_bundle
 from codex_science.evidence import _validate_evidence_graph, review_sidecars
 from codex_science.evidence_graph_build import build_evidence_graph
 
@@ -100,6 +101,43 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         build_evidence_graph(self.root, extra=extra)
         graph = json.loads((self.root / "evidence_graph.json").read_text(encoding="utf-8"))
         self.assertIn({"id": "cohort-example-a", "label": "Named cohort", "type": "cohort"}, graph["nodes"])
+        self.assertIn({"source": "study-example-1", "target": "cohort-example-a", "relation": "depends_on"}, graph["edges"])
+        self.assertIn({"source": "dataset-1", "target": "study-example-1", "relation": "derived_from"}, graph["edges"])
+
+    def test_builder_round_trip_detects_stale_relationships_and_clears_after_rebuild(self):
+        extra = self.root / "extra.json"
+        extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [
+            {"id": "dataset-1", "type": "dataset", "label": "Dataset"}], "edges": [
+            {"source": "dataset-1", "target": "study-example-1", "relation": "derived_from"}]}))
+        command = [sys.executable, str(CLI), "--run-dir", str(self.root), "--extra", str(extra)]
+        proc = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self._rehash_graph()
+        manifest = json.loads((self.root / "manifest.json").read_text())
+        self.assertEqual([], review_sidecars(validate_bundle(manifest, self.root)))
+
+        studies_path = self.root / "studies.json"
+        table = json.loads(studies_path.read_text())
+        study = table["studies"][0]
+        study["contradicts_claim_ids"] = ["claim-method-effect"]
+        studies_path.write_text(json.dumps(table))
+        artifact = next(row for row in manifest["artifacts"] if row["kind"] == "study-table")
+        artifact["sha256"] = hashlib.sha256(studies_path.read_bytes()).hexdigest()
+        (self.root / "manifest.json").write_text(json.dumps(manifest))
+        findings = review_sidecars(validate_bundle(manifest, self.root))
+        mismatches = [finding for finding in findings if finding["code"] == "citation-mismatch"]
+        self.assertEqual(1, len(mismatches), findings)
+        self.assertEqual("major", mismatches[0]["severity"])
+        self.assertIn("study-example-1 contradicts claim-method-effect", mismatches[0]["message"])
+        self.assertIn("rebuild", mismatches[0]["message"])
+
+        proc = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self._rehash_graph()
+        manifest = json.loads((self.root / "manifest.json").read_text())
+        findings = review_sidecars(validate_bundle(manifest, self.root))
+        self.assertNotIn("citation-mismatch", {finding["code"] for finding in findings})
+        graph = json.loads((self.root / "evidence_graph.json").read_text())
         self.assertIn({"source": "study-example-1", "target": "cohort-example-a", "relation": "depends_on"}, graph["edges"])
         self.assertIn({"source": "dataset-1", "target": "study-example-1", "relation": "derived_from"}, graph["edges"])
 

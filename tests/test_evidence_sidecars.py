@@ -314,6 +314,51 @@ class EvidenceSidecarTests(unittest.TestCase):
             }
             self.assertIn("unsupported-conclusion", codes)
 
+    def test_missing_declared_relationships_are_citation_mismatches(self) -> None:
+        support = {"source": "S1", "target": "C1", "relation": "supports"}
+        cases = [
+            (["C1"], ["C1"], [support], "contradicts", "C1"),
+            (["C1"], [], [], "supports", "C1"),
+            (["C1"], ["C2"], [support], "contradicts", "C2"),
+            (["C1"], [], [{**support, "relation": "contradicts"}], "supports", "C1"),
+            (["C1"], [], [{**support, "source": "S2"}], "supports", "C1"),
+            (["C1"], [], [{**support, "target": "C2"}], "supports", "C1"),
+        ]
+        for supports, contradicts, edges, relation, claim_id in cases:
+            with self.subTest(supports=supports, contradicts=contradicts, edges=edges):
+                findings = review_sidecars({
+                    "claim_by_id": {"C1": {}, "C2": {}},
+                    "study_by_id": {"S1": {
+                        "included": True, "supports_claim_ids": supports,
+                        "contradicts_claim_ids": contradicts,
+                    }},
+                    "edges": edges,
+                    **({"evidence_graph": {"edges": []}} if not edges else {}),
+                })
+                expected = (
+                    f"Study table says S1 {relation} {claim_id}, but the evidence graph "
+                    "is missing that relationship; rebuild the evidence graph."
+                )
+                self.assertIn({"code": "citation-mismatch", "severity": "major",
+                               "message": expected, "claim_id": claim_id}, findings)
+
+        study = {"included": True, "supports_claim_ids": ["C1"], "contradicts_claim_ids": ["C2"]}
+        edges = [{"source": "S1", "target": target, "relation": relation}
+                 for target, relation in (("C1", "supports"), ("C2", "contradicts"))]
+        cases = [
+            ({}, study),
+            ({"edges": [], "evidence_graph": None}, study),
+            ({"edges": [], "evidence_graph": {"edges": []}}, {**study, "included": False}),
+            ({"edges": [], "evidence_graph": {"edges": []}}, {"included": True}),
+            ({"edges": edges}, study),
+        ]
+        for graph, record in cases:
+            with self.subTest(graph=graph, record=record):
+                self.assertEqual([], review_sidecars({
+                    "claim_by_id": {"C1": {}, "C2": {}},
+                    "study_by_id": {"S1": record}, **graph,
+                }))
+
     def test_living_review_update_is_a_structured_diff(self) -> None:
         previous = json.loads((self.example / "snapshot.previous.json").read_text())
         current = json.loads((self.example / "snapshot.current.json").read_text())

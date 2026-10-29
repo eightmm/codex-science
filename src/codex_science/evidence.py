@@ -743,6 +743,22 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
                     target,
                 )
 
+    if sidecars.get("evidence_graph") is not None or edges:
+        relationships = {(str(edge["source"]), str(edge["target"]), edge["relation"]) for edge in edges}
+        for study_id, study in studies.items():
+            if study.get("included") is False:
+                continue
+            for field, relation in (("supports_claim_ids", "supports"), ("contradicts_claim_ids", "contradicts")):
+                for claim_id in study.get(field, []):
+                    if (study_id, claim_id, relation) not in relationships:
+                        add(
+                            "citation-mismatch",
+                            "major",
+                            f"Study table says {study_id} {relation} {claim_id}, but the evidence graph "
+                            "is missing that relationship; rebuild the evidence graph.",
+                            claim_id,
+                        )
+
     for claim_id, claim in claims.items():
         status = str(claim.get("status"))
         supports = support_edges.get(claim_id, [])
