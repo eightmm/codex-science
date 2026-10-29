@@ -1,4 +1,6 @@
 import hashlib
+import http.client
+import io
 import json
 import tempfile
 import unittest
@@ -57,6 +59,201 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_short_http_bodies_are_transport_failures(self):
+        payload = b'{"esearchresult":{"count":"1","idlist":["1"]}}'
+
+        class Socket:
+            def makefile(self, *_args):
+                return io.BytesIO(wire)
+
+        request = QueryRequest("pubmed", "search", {"query": "x"}, source_contract_version="3")
+        for declared in (len(payload) + 1, 1000):
+            wire = b"HTTP/1.1 200 OK\r\nContent-Length: " + str(declared).encode() + b"\r\n\r\n" + payload
+            response = http.client.HTTPResponse(Socket(), url="https://example.org")
+            response.begin()
+            response.url = "https://example.org"
+            opener = MagicMock()
+            opener.open.return_value = response
+            with self.subTest(declared=declared), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener
+            ):
+                result = execute_paginated(PubMedSearchV3(), request,
+                    transport=UrllibTransport(TransportPolicy(max_attempts=1)))
+            self.assertEqual("source-unavailable", result.receipt.status)
+            self.assertEqual(0, result.receipt.fetched_pages)
+            self.assertIn("incomplete", result.receipt.warnings[0])
+        for body, declared in ((b"", "0"), (payload, str(len(payload))),
+                               (payload, " " + str(len(payload)) + " ")):
+            opener, _ = self._retry_opener(None)
+            opener.open.side_effect = None
+            response = opener.open.return_value
+            response.read.return_value = body
+            response.headers["Content-Length"] = declared
+            with self.subTest(body=body, declared=declared), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener
+            ):
+                result = UrllibTransport(TransportPolicy(max_response_bytes=max(1, len(body)))).send(
+                    PageRequest("GET", "https://example.org", {}))
+                self.assertEqual(body, result.body)
+        for declared in ("", "invalid", "-1", "1.5", "9" * 5000):
+            opener, _ = self._retry_opener(None)
+            opener.open.side_effect = None
+            opener.open.return_value.headers["Content-Length"] = declared
+            with self.subTest(declared=declared), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener
+            ), self.assertRaisesRegex(TransportError, "invalid Content-Length"):
+                UrllibTransport().send(PageRequest("GET", "https://example.org", {}))
+        for method, status, extra in (("HEAD", 200, {}), ("GET", 204, {}), ("GET", 304, {}),
+                                      ("GET", 200, {"Transfer-Encoding": "chunked"})):
+            opener, _ = self._retry_opener(None)
+            opener.open.side_effect = None
+            response = opener.open.return_value
+            response.status = status
+            response.read.return_value = b""
+            response.headers.update({"Content-Length": "1000", **extra})
+            with self.subTest(method=method, status=status, extra=extra), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener
+            ):
+                self.assertEqual(b"", UrllibTransport().send(PageRequest(method, "https://example.org", {})).body)
+
+    def test_chunked_transfer_codings_ignore_content_length(self):
+        for value in ("chunked", "gzip, chunked", "gzip, CHUNKED", " chunked , gzip "):
+            opener, _ = self._retry_opener(None)
+            opener.open.side_effect = None
+            opener.open.return_value.headers.update({"Content-Length": "1000", "Transfer-Encoding": value})
+            with self.subTest(value=value), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener
+            ):
+                result = UrllibTransport(TransportPolicy(max_attempts=1)).send(
+                    PageRequest("GET", "https://example.org", {}))
+                self.assertEqual(b"{}", result.body)
+        for value in ("", "identity", "gzip", "gzip; chunked"):
+            opener, _ = self._retry_opener(None)
+            opener.open.side_effect = None
+            opener.open.return_value.headers.update({"Content-Length": "1000", "Transfer-Encoding": value})
+            with self.subTest(value=value), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener
+            ), self.assertRaises(TransportError):
+                UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", "https://example.org", {}))
+
+    def test_incomplete_read_uses_transport_failure_path(self):
+        opener, _ = self._retry_opener(None)
+        opener.open.side_effect = None
+        opener.open.return_value.read.side_effect = http.client.IncompleteRead(b"{", 10)
+        with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener):
+            with self.assertRaises(TransportError):
+                UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", "https://example.org", {}))
+        opener.open.return_value.read.side_effect = [http.client.IncompleteRead(b"{", 10), b"{}"]
+        with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener):
+            result = UrllibTransport(TransportPolicy(max_attempts=2, backoff_seconds=(0, 0))).send(
+                PageRequest("GET", "https://example.org", {}))
+        self.assertEqual(2, result.attempts)
+        self.assertEqual(b"{}", result.body)
+
+    def test_snapshot_reuse_is_refused_before_transport_or_writes(self):
+        request = QueryRequest("pubmed", "search", {"query": "x"}, page_size=1,
+                               max_pages=3, source_contract_version="3")
+        pages = [({"esearchresult": {"count": "2", "retstart": str(i), "idlist": [str(i)]}}, {})
+                 for i in range(2)]
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            execute_paginated(PubMedSearchV3(), request, transport=FakeTransport(pages), snapshot_dir=root)
+            before = {p.name: p.read_bytes() for p in (root / request.query_id).iterdir()}
+            transport = FakeTransport([({"esearchresult": {"count": "1", "idlist": ["new"]}}, {})])
+            with self.assertRaisesRegex(ValueError, "snapshot already exists"):
+                execute_paginated(PubMedSearchV3(), request, transport=transport, snapshot_dir=root)
+            self.assertEqual([], transport.requests)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in (root / request.query_id).iterdir()})
+            self.assertEqual(2, len(replay_snapshot_directory(root, request.query_id)))
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            failed = execute_paginated(PubMedSearchV3(), request,
+                transport=FakeTransport([TransportError("temporary outage")]), snapshot_dir=root)
+            self.assertEqual("source-unavailable", failed.receipt.status)
+            self.assertEqual(0, failed.receipt.fetched_pages)
+            self.assertFalse((root / request.query_id).exists())
+            retried = execute_paginated(PubMedSearchV3(), request, transport=FakeTransport(pages), snapshot_dir=root)
+            self.assertEqual("complete", retried.receipt.status)
+            with self.assertRaisesRegex(ValueError, "remove.*directory.*new snapshot"):
+                execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([]), snapshot_dir=root)
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            failed = execute_paginated(PubMedSearchV3(), request,
+                transport=FakeTransport([pages[0], TransportError("later outage")]), snapshot_dir=root)
+            self.assertEqual(1, failed.receipt.fetched_pages)
+            with self.assertRaisesRegex(ValueError, "snapshot already exists"):
+                execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([]), snapshot_dir=root)
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+
+            class ResidueTransport:
+                def send(self, page_request):
+                    (root / request.query_id / "page-0000.body").write_bytes(b"unpublished")
+                    raise TransportError("outage after another writer left a file")
+
+            failed = execute_paginated(PubMedSearchV3(), request, transport=ResidueTransport(), snapshot_dir=root)
+            self.assertEqual("source-unavailable", failed.receipt.status)
+            self.assertEqual(b"unpublished", (root / request.query_id / "page-0000.body").read_bytes())
+            with self.assertRaisesRegex(ValueError, "snapshot already exists"):
+                execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([]), snapshot_dir=root)
+        for residue in (None, b"unpublished"):
+            with self.subTest(residue=residue), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                reserved = root / request.query_id
+                reserved.mkdir()
+                if residue is not None:
+                    (reserved / "page-0000.body").write_bytes(residue)
+                with self.assertRaisesRegex(ValueError, "snapshot already exists"):
+                    execute_paginated(PubMedSearchV3(), request, transport=FakeTransport(pages), snapshot_dir=root)
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            outer = self
+
+            class CompetingTransport(FakeTransport):
+                def send(self, page_request):
+                    with outer.assertRaisesRegex(ValueError, "snapshot already exists"):
+                        execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([]), snapshot_dir=root)
+                    return super().send(page_request)
+
+            execute_paginated(PubMedSearchV3(), request, transport=CompetingTransport(pages), snapshot_dir=root)
+            self.assertEqual(2, len(replay_snapshot_directory(root, request.query_id)))
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            with patch.object(Path, "write_text", side_effect=OSError("interrupted metadata write")):
+                with self.assertRaisesRegex(OSError, "interrupted"):
+                    execute_paginated(PubMedSearchV3(), request, transport=FakeTransport(pages), snapshot_dir=root)
+            self.assertTrue((root / request.query_id / "page-0000.body").is_file())
+            self.assertFalse((root / request.query_id / "page-0000.json").exists())
+            with self.assertRaisesRegex(ValueError, "snapshot already exists"):
+                execute_paginated(PubMedSearchV3(), request, transport=FakeTransport(pages), snapshot_dir=root)
+            with self.assertRaisesRegex(ValueError, "no snapshot pages"):
+                replay_snapshot_directory(root, request.query_id)
+
+    def test_pubmed_duplicate_ids_within_page_are_schema_drift(self):
+        request = QueryRequest("pubmed", "search", {"query": "x"}, page_size=10,
+                               max_pages=1, source_contract_version="3")
+        for ids in (["1", "1"], ["1", "1", "2"], ["1", "2", "1"]):
+            payload = {"esearchresult": {"count": str(len(ids)), "idlist": ids}}
+            with self.subTest(ids=ids), self.assertRaisesRegex(ValueError, "schema-drift:.*duplicate PMIDs"):
+                execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([(payload, {})]))
+        for ids in ([], ["1"], [str(i) for i in range(10)]):
+            payload = {"esearchresult": {"count": str(len(ids)), "idlist": ids}}
+            result = execute_paginated(PubMedSearchV3(), request, transport=FakeTransport([(payload, {})]))
+            self.assertEqual("complete" if ids else "negative", result.receipt.status)
+            self.assertEqual(tuple(ids), result.receipt.returned_record_ids)
+
+    def test_overlapping_page_identities_are_schema_drift(self):
+        for operation, pages in (
+            (PubMedSearchV3(), [
+                {"esearchresult": {"count": "2", "retstart": "0", "idlist": ["1"]}},
+                {"esearchresult": {"count": "2", "retstart": "1", "idlist": ["1"]}},
+            ]),
+        ):
+            request = QueryRequest(operation.source, "search", {"query": "x"}, page_size=1,
+                                   max_pages=3, source_contract_version="3")
+            with self.subTest(source=operation.source), self.assertRaisesRegex(ValueError, "schema-drift:.*overlapping record"):
+                execute_paginated(operation, request, transport=FakeTransport([(p, {}) for p in pages]))
+
     def test_inconsistent_counts_and_stalled_cursors_are_not_complete(self):
         cases = [
             (PubMedSearchV3(), [{"esearchresult": {"count": "1", "idlist": []}}]),

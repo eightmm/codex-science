@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import math
 import time
@@ -189,6 +190,20 @@ class UrllibTransport:
                     if len(body) > self.policy.max_response_bytes:
                         raise TransportError("response exceeded max_response_bytes")
                     response_headers = {str(key).lower(): str(value) for key, value in response.headers.items()}
+                    declared_length = response_headers.get("content-length")
+                    transfer_codings = response_headers.get("transfer-encoding", "").lower().split(",")
+                    if (declared_length is not None and request.method.upper() != "HEAD"
+                            and response.status not in (204, 304)
+                            and not any(coding.strip() == "chunked" for coding in transfer_codings)):
+                        declared_length = declared_length.strip()
+                        if not declared_length.isascii() or not declared_length.isdecimal():
+                            raise TransportError("invalid Content-Length in response")
+                        try:
+                            expected_bytes = int(declared_length)
+                        except ValueError as error:
+                            raise TransportError("invalid Content-Length in response") from error
+                        if len(body) < expected_bytes:
+                            raise http.client.IncompleteRead(body, expected_bytes - len(body))
                     media_type = response_headers.get("content-type", "application/octet-stream").split(";", 1)[0]
                     return TransportResponse(
                         status_code=int(response.status),
@@ -210,12 +225,13 @@ class UrllibTransport:
                     status_code=error.code,
                     retryable=retryable,
                 ) from error
-            except (urllib.error.URLError, TimeoutError, OSError) as error:
+            except (urllib.error.URLError, TimeoutError, OSError, http.client.IncompleteRead) as error:
                 last_error = error
                 if attempt < self.policy.max_attempts:
                     continue
                 raise TransportError(
-                    f"transport failed for {_redact_url(request.url)}: {error}",
+                    f"transport failed for {_redact_url(request.url)}: "
+                    + ("incomplete response body" if isinstance(error, http.client.IncompleteRead) else str(error)),
                     retryable=True,
                 ) from error
         raise TransportError(f"transport failed: {last_error}", retryable=True)
@@ -362,7 +378,18 @@ def execute_paginated(
         )
     transport = transport or UrllibTransport()
     page_request = operation.first_request(request)
+    if snapshot_dir is not None:
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            # Exclusive creation also reserves interrupted and concurrent runs.
+            (snapshot_dir / request.query_id).mkdir()
+        except FileExistsError as error:
+            raise ValueError(
+                f"snapshot already exists for query: {request.query_id}; "
+                "remove the query directory or use a new snapshot directory to retry"
+            ) from error
     records: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
     receipts: list[PageReceiptV3] = []
     warnings: list[str] = []
     source_release: str | None = None
@@ -375,6 +402,12 @@ def execute_paginated(
         except TransportError as error:
             terminal_status = _status_from_error(error)
             warnings.append(str(error))
+            if snapshot_dir is not None and not receipts:
+                try:
+                    (snapshot_dir / request.query_id).rmdir()
+                except OSError:
+                    # Preserve any files left by another writer and the failure receipt.
+                    pass
             break
         is_declared_empty = (
             page_index == 0
@@ -396,6 +429,13 @@ def execute_paginated(
                 raise ValueError(f"normalization-failed on page {page_index}: {error}") from error
             if not isinstance(page_records, list) or not all(isinstance(item, dict) for item in page_records):
                 raise ValueError("normalization-failed: operation must return record objects")
+            if operation.source == "pubmed":
+                page_ids = [str(item["id"]) for item in page_records if item.get("id") not in (None, "")]
+                if len(page_ids) != len(set(page_ids)) or seen_ids.intersection(page_ids):
+                    raise ValueError(
+                        f"schema-drift: pagination has overlapping record identities (duplicate PMIDs) on page {page_index}"
+                    )
+                seen_ids.update(page_ids)
             next_request = operation.next_request(request, page_request, payload, page_index)
         next_exists = next_request is not None
         source_release = source_release or operation.source_release(payload, response.headers)

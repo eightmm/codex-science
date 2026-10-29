@@ -248,6 +248,9 @@ def _instrument(connector: Any) -> Iterator[list[_Call]]:
         originals[name] = original
         def wrapper(url: str, _original=original, _method=method, _media=media):
             payload = _original(url)
+            validate_response = getattr(connector, "_validate_response", None)
+            if validate_response is not None:
+                validate_response(payload)
             raw = canonical_json_bytes(payload) if _media == "application/json" else str(payload).encode("utf-8")
             calls.append(_Call(_method, _redact_url(url), None, copy.deepcopy(payload), raw, _media))
             return payload

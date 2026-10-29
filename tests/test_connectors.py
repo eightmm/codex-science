@@ -44,6 +44,126 @@ from codex_science.connectors import (
     parse_esearch_ids,
 )
 
+from codex_science.connector_contract import QueryRequest, execute_connector
+from codex_science.mcp_server import CodexScienceMCP
+from codex_science.typed_connectors import (
+    ArrayExpressConnector, BindingDBConnector, ClinVarConnector, ComplexPortalConnector,
+    DBSNPConnector, EMDBConnector, ENCODEConnector, GEOConnector, GnomADConnector,
+    IntActConnector, JASPARConnector, MetaboLightsConnector, OpenFDAConnector, UniBindConnector,
+)
+
+
+class TypedPayloadTests(unittest.TestCase):
+    cases = (
+        (ENCODEConnector, "encode", "@graph", "accession"),
+        (JASPARConnector, "jaspar", "results", "matrix_id"),
+        (UniBindConnector, "unibind", "results", "id"),
+        (ArrayExpressConnector, "arrayexpress", "hits", "accession"),
+        (MetaboLightsConnector, "metabolights", "content", "studyIdentifier"),
+        (OpenFDAConnector, "openfda", "results", "id"),
+        (BindingDBConnector, "bindingdb", "affinities", "monomerid"),
+        (EMDBConnector, "emdb", "results", "emdb_id"),
+        (ComplexPortalConnector, "complex_portal", "elements", "complexAc"),
+        (IntActConnector, "intact", "content", "interactionAc"),
+    )
+
+    def test_malformed_shapes_cannot_create_negative_receipts(self):
+        for cls, source, container, _ in self.cases:
+            query = "A12345" if cls is BindingDBConnector else "x"
+            request = QueryRequest(source, "search", {"query": query})
+            for payload in ({}, {"error": "backend unavailable"}, {container: None},
+                            {container: {}}, {container: ""}, {container: 0},
+                            {container: [], "error": "backend unavailable"}):
+                with self.subTest(source=source, payload=payload), self.assertRaisesRegex(ValueError, "response"):
+                    execute_connector(cls(fetch_json=lambda _: payload), request)
+            result = execute_connector(cls(fetch_json=lambda _: {container: []}), request)
+            self.assertEqual("negative", result.receipt.missingness)
+            self.assertEqual("complete", result.receipt.completeness)
+
+    def test_invalid_identifier_types_are_never_observations(self):
+        for cls, source, container, field in self.cases:
+            query = "A12345" if cls is BindingDBConnector else "x"
+            for value in (True, False, 0, 1, 1.5, "", "  ", [], {}):
+                payload = {container: [{field: value}]}
+                with self.subTest(source=source, value=value), self.assertRaisesRegex(ValueError, "identifier"):
+                    cls(fetch_json=lambda _: payload).search(query, limit=1)
+            payload = {container: [{field: "one"}, {field: "two"}]}
+            self.assertEqual("one", cls(fetch_json=lambda _: payload).search(query, limit=1)[0]["id"])
+            self.assertEqual([], cls(fetch_json=lambda _: {container: [{field: None}]}).search(query))
+
+    def test_nested_identifiers_and_ncbi_ids_are_checked_before_coercion(self):
+        for value in (True, False, 0, 1, "", " ", None, [], {}):
+            for cls in (ClinVarConnector, DBSNPConnector, GEOConnector):
+                with self.subTest(source=cls.__name__, value=value), self.assertRaisesRegex(ValueError, "identifier"):
+                    cls(fetch_json=lambda _: {"esearchresult": {"idlist": [value]}}).search("x")
+            if value is not None:
+                with self.subTest(source="gnomad", value=value), self.assertRaisesRegex(ValueError, "identifier"):
+                    GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": value}}}).search("1-100-A-G")
+            with self.subTest(source="openfda", value=value), self.assertRaisesRegex(ValueError, "identifier"):
+                OpenFDAConnector(fetch_json=lambda _: {"results": [{"openfda": {"spl_id": [value]}}]}).search("x")
+        for value in (None, True, 0, "invalid", {}):
+            with self.subTest(nested_container=value), self.assertRaisesRegex(ValueError, "response"):
+                OpenFDAConnector(fetch_json=lambda _: {"results": [{"openfda": {"spl_id": value}}]}).search("x")
+        for fields, expected in (({"spl_id": [], "application_number": ["app"]}, "app"),
+                                 ({"spl_id": ["spl"]}, "spl"), ({"application_number": ["app"]}, "app")):
+            records = OpenFDAConnector(fetch_json=lambda _: {"results": [{"openfda": fields}]}).search("x")
+            self.assertEqual(expected, records[0]["id"])
+        for payload in ({}, {"error": "backend unavailable"}, {"data": {}}, {"data": {"variant": []}}):
+            with self.subTest(payload=payload), self.assertRaisesRegex(ValueError, "response"):
+                GnomADConnector(post_json=lambda *_: payload).search("1-100-A-G")
+
+        connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": None}}})
+        self.assertEqual("1-100-A-G", connector.search("1-100-A-G")[0]["id"])
+
+    def test_null_identifiers_fall_back_without_accepting_invalid_values(self):
+        for cls, source, payload, expected in (
+            (ENCODEConnector, "encode", {"@graph": [{"accession": None, "@id": "/x/"}]}, "/x/"),
+            (IntActConnector, "intact", {"content": [{"interactionAc": None, "ac": "EBI-1"}]}, "EBI-1"),
+        ):
+            connector = cls(fetch_json=lambda _: payload)
+            result = execute_connector(connector, QueryRequest(source, "search", {"query": "x"}))
+            self.assertEqual((expected,), result.receipt.returned_record_ids)
+        for item in ({"variant_id": None}, {}):
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": item}})
+            self.assertEqual("1-100-A-G", connector.search("1-100-A-G")[0]["id"])
+        for cls, _, container, field in self.cases:
+            query = "A12345" if cls is BindingDBConnector else "x"
+            self.assertEqual([], cls(fetch_json=lambda _: {container: [{field: None}]}).search(query))
+
+    def test_empty_error_fields_are_not_failures(self):
+        for cls, source, container, field in self.cases:
+            query = "A12345" if cls is BindingDBConnector else "x"
+            request = QueryRequest(source, "search", {"query": query})
+            for value in (None, "", False, 0, [], {}):
+                payload = {container: [{field: "one"}], "error": value}
+                with self.subTest(source=source, value=value):
+                    self.assertEqual("one", cls(fetch_json=lambda _: payload).search(query)[0]["id"])
+                    self.assertEqual("one", execute_connector(cls(fetch_json=lambda _: payload), request).records[0]["id"])
+                payload = {container: [], "error": value}
+                result = execute_connector(cls(fetch_json=lambda _: payload), request)
+                self.assertEqual("negative", result.receipt.missingness)
+            for value in ("backend unavailable", True, 1, ["failure"], {"message": "failure"}):
+                payload = {container: [{field: "one"}], "error": value}
+                with self.subTest(source=source, error=value), self.assertRaisesRegex(ValueError, "response"):
+                    cls(fetch_json=lambda _: payload).search(query)
+        for value in (None, "", False, 0, [], {}):
+            payload = {"data": {"variant": {"variant_id": None}}, "error": value}
+            with self.subTest(source="gnomad", value=value):
+                self.assertEqual("1-100-A-G", GnomADConnector(post_json=lambda *_: payload).search("1-100-A-G")[0]["id"])
+
+        for value in ("backend unavailable", True, 1, ["failure"], {"message": "failure"}):
+            payload = {"data": {"variant": {}}, "error": value}
+            with self.subTest(source="gnomad", error=value), self.assertRaisesRegex(ValueError, "response"):
+                GnomADConnector(post_json=lambda *_: payload).search("1-100-A-G")
+
+    def test_mcp_malformed_payload_never_returns_success(self):
+        server = CodexScienceMCP(Path("unused-inventory.json"))
+        server.sources["encode"] = ENCODEConnector(fetch_json=lambda _: {"error": "backend unavailable"})
+        response = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "science_query_source_v2", "arguments": {
+                "source": "encode", "operation": "search", "parameters": {"query": "x"}}}})
+        self.assertTrue("error" in response or response.get("result", {}).get("isError"))
+
 
 class ConnectorTests(unittest.TestCase):
     def test_fetch_json_rejects_response_over_16_mib(self) -> None:
@@ -538,10 +658,58 @@ class ConnectorTests(unittest.TestCase):
             parse_esearch_ids({"esearchresult": {"count": "0"}})
 
     def test_typed_ncbi_connector_raises_on_ncbi_error(self) -> None:
-        from codex_science.typed_connectors import ClinVarConnector
-        connector = ClinVarConnector(fetch_json=lambda _url: {"esearchresult": {"ERROR": "Empty term"}})
-        with self.assertRaisesRegex(ValueError, "NCBI ESearch error: Empty term"):
-            connector.search("x")
+        from codex_science.source_operations_v3 import PubMedSearchV3
+
+        server = CodexScienceMCP(Path("unused-inventory.json"))
+        classes = (("clinvar", ClinVarConnector), ("dbsnp", DBSNPConnector), ("geo", GEOConnector))
+        for location in ("ERROR", "error", "nested"):
+            for value in ({"message": "backend unavailable"}, ["backend unavailable"], True,
+                          1, -1, 1.5, "Empty term"):
+                payload = {"esearchresult": {"count": "0", "idlist": []}}
+                if location == "nested":
+                    payload["esearchresult"]["ERROR"] = value
+                else:
+                    payload[location] = value
+                for source, cls in classes:
+                    with self.subTest(source=source, location=location, value=value):
+                        connector = cls(fetch_json=lambda _: payload)
+                        request = QueryRequest(source, "search", {"query": "x"})
+                        for run in (lambda: connector.search("x"), lambda: execute_connector(connector, request)):
+                            with self.assertRaisesRegex(ValueError, "NCBI ESearch error"):
+                                run()
+                        server.sources[source] = connector
+                        response = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+                            "name": "science_query_source_v2", "arguments": {
+                                "source": source, "operation": "search", "parameters": {"query": "x"}}}})
+                        self.assertTrue("error" in response or response.get("result", {}).get("isError"))
+                for cls in (PubMedConnector, NCBIGeneConnector):
+                    with self.subTest(source=cls.__name__, location=location, value=value):
+                        with self.assertRaisesRegex(ValueError, "NCBI ESearch error"):
+                            cls(fetch_json=lambda _: payload).search("x")
+                with self.subTest(source="pubmed-v3", location=location, value=value):
+                    with self.assertRaisesRegex(ValueError, "NCBI ESearch error"):
+                        PubMedSearchV3().normalize(payload)
+            for value in (None, "", {}, [], False, 0):
+                payload = {"esearchresult": {"count": "0", "idlist": []}}
+                if location == "nested":
+                    payload["esearchresult"]["ERROR"] = value
+                else:
+                    payload[location] = value
+                for source, cls in classes:
+                    with self.subTest(source=source, location=location, value=value):
+                        result = execute_connector(cls(fetch_json=lambda _: payload),
+                                                   QueryRequest(source, "search", {"query": "x"}))
+                        self.assertEqual("complete", result.receipt.status)
+                        self.assertEqual("negative", result.receipt.missingness)
+                self.assertEqual([], PubMedSearchV3().normalize(payload))
+        for size in (499, 500, 501, 1000):
+            value = ["x" * (size - 4)]
+            payload = {"error": value, "esearchresult": {"idlist": []}}
+            with self.subTest(error_size=size):
+                with self.assertRaises(ValueError) as caught:
+                    parse_esearch_ids(payload)
+                rendered = json.dumps(value, separators=(",", ":"))
+                self.assertEqual("NCBI ESearch error: " + rendered[:500], str(caught.exception))
 
 
 if __name__ == "__main__":

@@ -66,15 +66,16 @@ def fetch_text(url: str) -> str:
 
 
 def raise_esearch_error(payload: Any) -> None:
-    """Reject explicit NCBI errors without imposing a response schema."""
+    """Reject truthy NCBI errors without imposing a response schema."""
     if not isinstance(payload, dict):
         return
-    top_error = payload.get("ERROR") or payload.get("error")
-    if isinstance(top_error, str) and top_error:
-        raise ValueError(f"NCBI ESearch error: {top_error}")
     result = payload.get("esearchresult")
-    if isinstance(result, dict) and isinstance(result.get("ERROR"), str) and result.get("ERROR"):
-        raise ValueError(f"NCBI ESearch error: {result['ERROR']}")
+    errors = (payload.get("ERROR"), payload.get("error"),
+              result.get("ERROR") if isinstance(result, dict) else None)
+    for error in errors:
+        if error:
+            message = error if isinstance(error, str) else json.dumps(error, ensure_ascii=False, separators=(",", ":"))[:500]
+            raise ValueError(f"NCBI ESearch error: {message}")
 
 
 def parse_esearch_ids(payload: Any) -> list[str]:
