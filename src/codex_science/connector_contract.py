@@ -65,21 +65,28 @@ class QueryRequest:
         if not isinstance(self.parameters, dict):
             raise ValueError("parameters must be an object")
         _json_value(self.parameters, "parameters")
-        if isinstance(self.page_size, bool) or not 1 <= self.page_size <= 100:
+        if isinstance(self.page_size, bool) or not isinstance(self.page_size, int):
+            raise ValueError("page_size must be an integer")
+        if not 1 <= self.page_size <= 100:
             raise ValueError("page_size must be between 1 and 100")
-        if isinstance(self.max_pages, bool) or not 1 <= self.max_pages <= 100:
+        if isinstance(self.max_pages, bool) or not isinstance(self.max_pages, int):
+            raise ValueError("max_pages must be an integer")
+        if not 1 <= self.max_pages <= 100:
             raise ValueError("max_pages must be between 1 and 100")
         if len(canonical_json_bytes(self.parameters)) > 32768:
             raise ValueError("parameters are too large")
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "QueryRequest":
+        parameters = payload.get("parameters", {})
+        if not isinstance(parameters, dict):
+            raise ValueError("parameters must be an object")
         request = cls(
             source=str(payload.get("source", "")),
             operation=str(payload.get("operation", "search")),
-            parameters=dict(payload.get("parameters") or {}),
-            page_size=int(payload.get("page_size", 5)),
-            max_pages=int(payload.get("max_pages", 1)),
+            parameters=dict(parameters),
+            page_size=payload.get("page_size", 5),
+            max_pages=payload.get("max_pages", 1),
             evidence_cutoff=None if payload.get("evidence_cutoff") is None else str(payload["evidence_cutoff"]),
             source_contract_version=str(payload.get("source_contract_version", "2")),
         )

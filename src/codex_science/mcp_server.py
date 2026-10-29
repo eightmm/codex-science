@@ -178,7 +178,7 @@ class CodexScienceMCP:
         if not isinstance(params, dict):
             return self._error(request_id, -32602, "Invalid tool parameters")
         name, arguments = params.get("name"), params.get("arguments", {})
-        if name not in TOOL_NAMES or not isinstance(arguments, dict):
+        if not isinstance(name, str) or name not in TOOL_NAMES or not isinstance(arguments, dict):
             return self._error(request_id, -32602, f"Unknown or invalid tool: {name}")
         try:
             if name == "science_list_source_contracts":
@@ -254,7 +254,7 @@ def run_stdio(inventory_path: Path) -> None:
         try:
             request = json.loads(line)
             response = server.handle(request)
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        except (json.JSONDecodeError, TypeError, ValueError, RecursionError) as exc:
             response = CodexScienceMCP._error(None, -32700, str(exc))
         if response is not None:
             sys.stdout.write(json.dumps(response, separators=(",", ":")) + "\n")

@@ -1,5 +1,8 @@
 import io
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -143,6 +146,95 @@ class MCPServerTests(unittest.TestCase):
             }
         )
         self.assertEqual(-32602, response["error"]["code"])
+
+    def test_non_string_tool_names_return_jsonrpc_errors(self) -> None:
+        for name in (["x"], {}, [], None, 0, True):
+            with self.subTest(name=name):
+                response = self.server.handle({
+                    "jsonrpc": "2.0", "id": 40, "method": "tools/call",
+                    "params": {"name": name, "arguments": {}},
+                })
+                self.assertEqual(40, response["id"])
+                self.assertEqual(-32602, response["error"]["code"])
+
+    def test_source_argument_types_match_schema_before_dispatch(self) -> None:
+        for version, source, executor in (
+            ("v2", "eqtl_catalogue", "execute_connector"),
+            ("v3", "europepmc", "execute_paginated"),
+        ):
+            arguments = {"source": source, "parameters": {"query": "release"}}
+            if version == "v2":
+                arguments["include_snapshot"] = True
+            cases = [("parameters", value) for value in (
+                [["query", "release"]], [], "", "query", None, False, 0,
+            )]
+            cases.extend((field, value) for field in ("page_size", "max_pages")
+                         for value in (True, False, 1.9, 1.0, "1", "", None, [], {}, 0, -1, 101))
+            with patch(f"codex_science.mcp_server.{executor}") as execute:
+                execute.return_value.to_dict.return_value = {"records": []}
+                for field, value in cases:
+                    with self.subTest(version=version, field=field, value=value):
+                        execute.reset_mock()
+                        response = self.server.handle({
+                            "jsonrpc": "2.0", "id": 41, "method": "tools/call",
+                            "params": {"name": f"science_query_source_{version}",
+                                       "arguments": {**arguments, field: value}},
+                        })
+                        self.assertEqual(-32602, response.get("error", {}).get("code"))
+                        execute.assert_not_called()
+                for optional in ({}, {"parameters": {}}, {"page_size": 1, "max_pages": 1},
+                                 {"page_size": 100, "max_pages": 100}):
+                    with self.subTest(version=version, valid=optional):
+                        execute.reset_mock()
+                        response = self.server.handle({
+                            "jsonrpc": "2.0", "id": 42, "method": "tools/call",
+                            "params": {"name": f"science_query_source_{version}",
+                                       "arguments": {**arguments, **optional}},
+                        })
+                        self.assertNotIn("error", response)
+                        self.assertNotIn("isError", response["result"])
+                        execute.assert_called_once()
+                        request = execute.call_args.args[1]
+                        self.assertEqual(optional.get("parameters", arguments["parameters"]), request.parameters)
+                        self.assertEqual(optional.get("page_size", 5), request.page_size)
+                        self.assertEqual(optional.get("max_pages", 1), request.max_pages)
+                        if version == "v2":
+                            self.assertTrue(execute.call_args.kwargs["include_snapshot"])
+
+    def test_stdio_survives_deep_json_in_real_process(self) -> None:
+        nested = "[" * 10000 + "0" + "]" * 10000
+        request = ('{"jsonrpc":"2.0","id":43,"method":"tools/call",'
+                   '"params":{"name":"science_query_source_v2",'
+                   '"arguments":{"source":"eqtl_catalogue","parameters":{"query":'
+                   + nested + '}}}}\n')
+        completed = subprocess.run(
+            [sys.executable, "scripts/science_mcp.py", "--inventory", str(self.inventory)],
+            cwd=Path(__file__).resolve().parents[1],
+            input=request + '{"jsonrpc":"2.0","id":44,"method":"ping"}\n',
+            text=True, capture_output=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")),
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        responses = [json.loads(line) for line in completed.stdout.splitlines()]
+        self.assertEqual(2, len(responses))
+        self.assertEqual(-32700, responses[0]["error"]["code"])
+        self.assertEqual({"jsonrpc": "2.0", "id": 44, "result": {}}, responses[1])
+
+    def test_stdio_survives_handler_recursion(self) -> None:
+        stdin = io.StringIO(
+            '{"jsonrpc":"2.0","id":45,"method":"tools/call",'
+            '"params":{"name":"science_search_skills","arguments":{"query":"math"}}}\n'
+            '{"jsonrpc":"2.0","id":46,"method":"ping"}\n'
+        )
+        stdout = io.StringIO()
+        with patch("sys.stdin", stdin), patch("sys.stdout", stdout), patch.object(
+            CodexScienceMCP, "_text_payload", side_effect=RecursionError("nested result")
+        ):
+            run_stdio(self.inventory)
+        responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        self.assertEqual(2, len(responses))
+        self.assertEqual(-32700, responses[0]["error"]["code"])
+        self.assertEqual({"jsonrpc": "2.0", "id": 46, "result": {}}, responses[1])
 
     def test_malformed_request_shapes_do_not_terminate_server(self) -> None:
         invalid_request = self.server.handle([])  # type: ignore[arg-type]
