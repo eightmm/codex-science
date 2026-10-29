@@ -5,7 +5,9 @@ import hashlib
 import json
 import math
 import random
+from itertools import groupby
 from pathlib import Path
+from statistics import mean
 from typing import Any, Iterable
 
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
@@ -22,6 +24,18 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _finite_real(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a finite real number")
+    try:
+        result = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{label} must be a finite real number") from exc
+    if not math.isfinite(result):
+        raise ValueError(f"{label} must be a finite real number")
+    return result
+
+
 def _coords(value: Any, label: str) -> list[list[float]]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"{label} must be a non-empty coordinate list")
@@ -29,27 +43,55 @@ def _coords(value: Any, label: str) -> list[list[float]]:
     for index, row in enumerate(value):
         if not isinstance(row, list) or len(row) != 3:
             raise ValueError(f"{label}[{index}] must contain x,y,z")
-        result.append([float(item) for item in row])
+        result.append([_finite_real(item, f"{label}[{index}][{axis}]") for axis, item in enumerate(row)])
     return result
 
 
 def generate_pose(starting: list[list[float]], delta: list[float]) -> list[list[float]]:
-    if len(delta) != 3:
+    if not isinstance(delta, list) or len(delta) != 3:
         raise ValueError("pose_delta must contain x,y,z")
-    return [[point[axis] + float(delta[axis]) for axis in range(3)] for point in starting]
+    translation = [_finite_real(item, f"pose_delta[{axis}]") for axis, item in enumerate(delta)]
+    predicted = [[point[axis] + translation[axis] for axis in range(3)] for point in starting]
+    return _coords(predicted, "predicted_coords")
 
 
 def rmsd(reference: list[list[float]], predicted: list[list[float]], permutation: list[int] | None = None) -> float:
     if len(reference) != len(predicted):
         raise ValueError("reference and predicted atom counts differ")
+    if not reference:
+        raise ValueError("rmsd needs a non-empty coordinate list")
     order = permutation or list(range(len(predicted)))
     if sorted(order) != list(range(len(predicted))):
         raise ValueError("symmetry permutation must contain every atom index exactly once")
-    squared = 0.0
-    for ref, index in zip(reference, order):
-        pred = predicted[index]
-        squared += sum((ref[axis] - pred[axis]) ** 2 for axis in range(3))
-    return math.sqrt(squared / len(reference))
+    try:
+        squared = 0.0
+        for ref, index in zip(reference, order):
+            pred = predicted[index]
+            squared += sum((ref[axis] - pred[axis]) ** 2 for axis in range(3))
+        value = math.sqrt(squared / len(reference))
+    except OverflowError:
+        value = math.inf
+    if not math.isfinite(value):
+        # Subtract first to retain nearby-coordinate precision; scale overflowing differences separately.
+        try:
+            differences = [
+                ref[axis] - predicted[index][axis]
+                for ref, index in zip(reference, order) for axis in range(3)
+            ]
+            scale = max(abs(item) for item in differences)
+            if math.isfinite(scale):
+                normalized = [item / scale for item in differences]
+            else:
+                scale = max(abs(item) for points in (reference, predicted) for point in points for item in point)
+                normalized = []
+                for ref, index in zip(reference, order):
+                    for axis in range(3):
+                        difference = ref[axis] - predicted[index][axis]
+                        normalized.append(difference / scale if math.isfinite(difference) else ref[axis] / scale - predicted[index][axis] / scale)
+            value = scale * math.sqrt(math.fsum(item * item for item in normalized) / len(reference))
+        except OverflowError as exc:
+            raise ValueError("rmsd must be a finite real number") from exc
+    return _finite_real(value, "rmsd")
 
 
 def symmetry_rmsd(reference: list[list[float]], predicted: list[list[float]], permutations: Iterable[list[int]]) -> float:
@@ -59,33 +101,53 @@ def symmetry_rmsd(reference: list[list[float]], predicted: list[list[float]], pe
 
 def interaction_recovery(reference: Iterable[str], predicted: Iterable[str]) -> float:
     reference_set, predicted_set = set(map(str, reference)), set(map(str, predicted))
-    return 1.0 if not reference_set else len(reference_set & predicted_set) / len(reference_set)
+    value = 1.0 if not reference_set else len(reference_set & predicted_set) / len(reference_set)
+    return _finite_real(value, "interaction_recovery")
 
 
 def average_precision(labels: list[bool], scores: list[float]) -> float:
     if len(labels) != len(scores) or not labels:
         raise ValueError("labels and scores must be non-empty and aligned")
+    for index, score in enumerate(scores):
+        _finite_real(score, f"average_precision scores[{index}]")
     positives = sum(labels)
     if positives == 0:
         return 0.0
-    ranked = sorted(zip(scores, labels), key=lambda item: (-item[0], not item[1]))
+    ranked = sorted(zip(scores, labels), key=lambda item: -item[0])
     true_positives = 0
     precision_sum = 0.0
-    for rank, (_score, label) in enumerate(ranked, 1):
-        if label:
-            true_positives += 1
-            precision_sum += true_positives / rank
-    return precision_sum / positives
+    rank = 0
+    for _score, items in groupby(ranked, key=lambda item: item[0]):
+        group = list(items)
+        group_positives = sum(label for _score, label in group)
+        rank += len(group)
+        true_positives += group_positives
+        if group_positives:
+            # All tied predictions enter at one threshold, regardless of label order.
+            precision_sum += group_positives * (true_positives / rank)
+    return _finite_real(precision_sum / positives, "average_precision")
+
+
+def _mean(values: list[float], label: str) -> float:
+    try:
+        value = sum(values) / len(values)
+    except OverflowError:
+        value = math.inf
+    if not math.isfinite(value):
+        value = mean(values)
+    return _finite_real(value, label)
 
 
 def bootstrap_mean(values: list[float], *, seed: int = 0, replicates: int = 1000) -> tuple[float, float]:
     if not values:
         raise ValueError("cannot bootstrap an empty metric")
+    for value in values:
+        _finite_real(value, "bootstrap metric")
     randomizer = random.Random(seed)
     means = []
     for _ in range(replicates):
         sample = [values[randomizer.randrange(len(values))] for _ in values]
-        means.append(sum(sample) / len(sample))
+        means.append(_mean(sample, "bootstrap mean"))
     means.sort()
     lower = means[int(0.025 * (replicates - 1))]
     upper = means[int(0.975 * (replicates - 1))]
@@ -93,6 +155,9 @@ def bootstrap_mean(values: list[float], *, seed: int = 0, replicates: int = 1000
 
 
 def _metric(name: str, value: float, unit: str, operator: str, threshold: float, n: int, interval: tuple[float, float] | None = None) -> dict[str, Any]:
+    value = _finite_real(value, name)
+    if interval is not None:
+        interval = tuple(_finite_real(bound, f"{name} confidence_interval") for bound in interval)
     if operator == "<=":
         passed = value <= threshold
     elif operator == ">=":
@@ -115,6 +180,10 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
     blocking = [item for item in leakage_findings if item["severity"] in {"critical", "major"}]
     if blocking:
         raise ValueError("SBDD contract has blocking leakage findings: " + ", ".join(item["code"] for item in blocking))
+    thresholds = payload.get("numeric_thresholds", {})
+    if not isinstance(thresholds, dict):
+        raise ValueError("numeric_thresholds must be an object")
+    thresholds = {name: _finite_real(value, f"numeric_thresholds.{name}") for name, value in thresholds.items()}
     poses: list[dict[str, Any]] = []
     control_rmsds: list[float] = []
     interaction_values: list[float] = []
@@ -123,11 +192,16 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
     for record in payload["records"]:
         reference = _coords(record["reference_coords"], f"{record['complex_id']} reference_coords")
         starting = _coords(record["starting_coords"], f"{record['complex_id']} starting_coords")
-        predicted = generate_pose(starting, [float(item) for item in record.get("pose_delta", [0, 0, 0])])
-        pose_rmsd = symmetry_rmsd(reference, predicted, record.get("symmetry_permutations", []))
-        recovery = interaction_recovery(record.get("reference_interactions", []), record.get("predicted_interactions", []))
-        score = float(record.get("score", 0.0))
-        active = bool(record.get("active", False))
+        try:
+            predicted = generate_pose(starting, record.get("pose_delta", [0, 0, 0]))
+            pose_rmsd = _finite_real(symmetry_rmsd(reference, predicted, record.get("symmetry_permutations", [])), "symmetry_rmsd_angstrom")
+            recovery = _finite_real(interaction_recovery(record.get("reference_interactions", []), record.get("predicted_interactions", [])), "interaction_recovery")
+        except ValueError as exc:
+            raise ValueError(f"{record['complex_id']} {exc}") from exc
+        score = _finite_real(record.get("score", 0.0), f"{record['complex_id']} score")
+        active = record.get("active", False)
+        if not isinstance(active, bool):
+            raise ValueError(f"{record['complex_id']} active must be a JSON boolean")
         poses.append({
             "complex_id": record["complex_id"],
             "predicted_coords": predicted,
@@ -146,14 +220,13 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
             scores.append(score)
     if not control_rmsds or not labels:
         raise ValueError("acceptance input needs redocking controls and screening records")
-    thresholds = payload.get("numeric_thresholds", {})
-    rmsd_mean = sum(control_rmsds) / len(control_rmsds)
-    recovery_mean = sum(interaction_values) / len(interaction_values)
+    rmsd_mean = _mean(control_rmsds, "top1_symmetry_rmsd mean")
+    recovery_mean = _mean(interaction_values, "interaction_recovery mean")
     pr_auc = average_precision(labels, scores)
     metrics = [
-        _metric("top1_symmetry_rmsd", rmsd_mean, "angstrom", "<=", float(thresholds.get("top1_symmetry_rmsd", 2.0)), len(control_rmsds), bootstrap_mean(control_rmsds)),
-        _metric("interaction_recovery", recovery_mean, "fraction", ">=", float(thresholds.get("interaction_recovery", 0.5)), len(interaction_values), bootstrap_mean(interaction_values)),
-        _metric("pr_auc", pr_auc, "fraction", ">=", float(thresholds.get("pr_auc", 0.75)), len(labels), None),
+        _metric("top1_symmetry_rmsd", rmsd_mean, "angstrom", "<=", thresholds.get("top1_symmetry_rmsd", 2.0), len(control_rmsds), bootstrap_mean(control_rmsds)),
+        _metric("interaction_recovery", recovery_mean, "fraction", ">=", thresholds.get("interaction_recovery", 0.5), len(interaction_values), bootstrap_mean(interaction_values)),
+        _metric("pr_auc", pr_auc, "fraction", ">=", thresholds.get("pr_auc", 0.75), len(labels), None),
     ]
     return poses, metrics, leakage_findings
 
