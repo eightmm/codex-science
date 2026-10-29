@@ -196,6 +196,9 @@ class CodexScienceMCP:
                 source = arguments.get("source")
                 if source not in SOURCE_OPERATIONS_V3:
                     raise ValueError(f"Source has no v3 operation: {source}")
+                evidence_cutoff = arguments.get("evidence_cutoff")
+                if evidence_cutoff is not None and not isinstance(evidence_cutoff, str):
+                    raise ValueError("invalid evidence_cutoff: must be a string or null")
                 request = QueryRequest.from_payload({**arguments, "source_contract_version": "3"})
                 payload = execute_paginated(SOURCE_OPERATIONS_V3[str(source)], request).to_dict()
             elif name == "science_query_source_v2":

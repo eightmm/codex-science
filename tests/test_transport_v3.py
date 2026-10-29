@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import urllib.error
 import urllib.request
+from urllib.parse import parse_qs, urlsplit
 from datetime import datetime, timezone
 from email.message import Message
 from pathlib import Path
@@ -248,11 +249,250 @@ class TransportV3Tests(unittest.TestCase):
                 {"esearchresult": {"count": "2", "retstart": "0", "idlist": ["1"]}},
                 {"esearchresult": {"count": "2", "retstart": "1", "idlist": ["1"]}},
             ]),
+            (PDBSearchV3(), [
+                {"total_count": 2, "result_set": [{"identifier": "1ABC"}]},
+                {"total_count": 2, "result_set": [{"identifier": "1ABC"}]},
+            ]),
+            (ChEMBLMoleculeSearchV3(), [
+                {"molecules": [{"molecule_chembl_id": "CHEMBL1"}], "page_meta": {"next": "?offset=1"}},
+                {"molecules": [{"molecule_chembl_id": "CHEMBL1"}], "page_meta": {"next": None}},
+            ]),
         ):
             request = QueryRequest(operation.source, "search", {"query": "x"}, page_size=1,
                                    max_pages=3, source_contract_version="3")
             with self.subTest(source=operation.source), self.assertRaisesRegex(ValueError, "schema-drift:.*overlapping record"):
                 execute_paginated(operation, request, transport=FakeTransport([(p, {}) for p in pages]))
+
+    def test_stable_page_identities_allow_empty_and_distinct_records(self):
+        cases = (
+            (PDBSearchV3(), lambda ids: {"total_count": len(ids), "result_set": [{"identifier": i} for i in ids]}),
+            (ChEMBLMoleculeSearchV3(), lambda ids: {
+                "molecules": [{"molecule_chembl_id": i} for i in ids], "page_meta": {"next": None}}),
+        )
+        for operation, payload in cases:
+            request = QueryRequest(operation.source, "search", {"query": "x"}, page_size=2,
+                                   source_contract_version="3")
+            for ids in ([], ["0"], ["0", "1"]):
+                with self.subTest(source=operation.source, ids=ids):
+                    result = execute_paginated(operation, request, transport=FakeTransport([(payload(ids), {})]))
+                    self.assertEqual("complete" if ids else "negative", result.receipt.status)
+                    self.assertEqual(tuple(ids), result.receipt.returned_record_ids)
+            with self.subTest(source=operation.source), self.assertRaisesRegex(ValueError, "schema-drift:.*overlapping record"):
+                execute_paginated(operation, request, transport=FakeTransport([(payload(["0", "0"]), {})]))
+
+        pages = [
+            {"hitCount": 2, "nextCursorMark": "next", "resultList": {"result": [{"id": "1", "source": "MED"}]}},
+            {"hitCount": 2, "nextCursorMark": "next", "resultList": {"result": [{"id": "1", "source": "PMC"}]}},
+        ]
+        request = QueryRequest("europepmc", "search", {"query": "x"}, page_size=1,
+                               max_pages=2, source_contract_version="3")
+        result = execute_paginated(EuropePMCSearchV3(), request, transport=FakeTransport([(p, {}) for p in pages]))
+        self.assertEqual("complete", result.receipt.status)
+        self.assertEqual(["MED", "PMC"], [r["source"] for r in result.records])
+
+    def test_europepmc_duplicate_pages_remain_available_to_callers(self):
+        for source in ("", "MED"):
+            for titles in (("one", "one"), ("one", "two")):
+                records = [{"id": "0", "source": source, "title": title} for title in titles]
+                for pages in (
+                    [{"hitCount": 2, "resultList": {"result": records}}],
+                    [{"hitCount": 2, "nextCursorMark": "next", "resultList": {"result": [r]}} for r in records],
+                ):
+                    request = QueryRequest("europepmc", "search", {"query": "x"}, page_size=2,
+                                           max_pages=2, source_contract_version="3")
+                    with self.subTest(source=source, titles=titles, pages=len(pages)):
+                        result = execute_paginated(EuropePMCSearchV3(), request,
+                            transport=FakeTransport([(p, {}) for p in pages]))
+                        self.assertEqual("complete", result.receipt.status)
+                        self.assertEqual(("0", "0"), result.receipt.returned_record_ids)
+                        self.assertEqual(list(titles), [r["title"] for r in result.records])
+
+    def test_unenforced_cutoffs_warn_and_never_claim_completion(self):
+        cases = (
+            (PDBSearchV3(), {"total_count": 1, "result_set": [{"identifier": "1ABC"}]}),
+            (ChEMBLMoleculeSearchV3(), {"molecules": [{"molecule_chembl_id": "CHEMBL1"}], "page_meta": {"next": None}}),
+            (PDBSearchV3(), {"total_count": 0, "result_set": []}),
+            (ChEMBLMoleculeSearchV3(), {"molecules": [], "page_meta": {"next": None}}),
+        )
+        for operation, payload in cases:
+            for cutoff in (None, "2026-01-01"):
+                with self.subTest(source=operation.source, payload=payload, cutoff=cutoff):
+                    request = QueryRequest(operation.source, "search", {"query": "x"},
+                        evidence_cutoff=cutoff, source_contract_version="3")
+                    fake = FakeTransport([(payload, {})])
+                    result = execute_paginated(operation, request, transport=fake)
+                    self.assertEqual(1, len(fake.requests))
+                    if cutoff:
+                        self.assertEqual("bounded-by-user", result.receipt.status)
+                        self.assertEqual("bounded-by-user", result.receipt.completeness)
+                        self.assertEqual("partial", result.receipt.missingness)
+                        self.assertEqual((f"evidence cutoff was not enforced by source: {operation.source}",), result.receipt.warnings)
+                    else:
+                        self.assertIn(result.receipt.status, ("complete", "negative"))
+                        self.assertEqual((), result.receipt.warnings)
+
+    def test_unenforced_cutoffs_preserve_page_bounds_and_transport_failures(self):
+        request = QueryRequest("pdb", "search", {"query": "x"}, evidence_cutoff="2026-01-01",
+                               page_size=1, source_contract_version="3")
+        for response, expected in (
+            (({"total_count": 2, "result_set": [{"identifier": "1ABC"}]}, {}), "bounded-by-user"),
+            ((204, b"", {}), "bounded-by-user"),
+            (TransportError("offline"), "source-unavailable"),
+            (TransportError("HTTP 429", status_code=429), "partial-rate-limit"),
+        ):
+            with self.subTest(expected=expected):
+                result = execute_paginated(PDBSearchV3(), request, transport=FakeTransport([response]))
+                self.assertEqual(expected, result.receipt.status)
+                self.assertIn("evidence cutoff was not enforced", result.receipt.warnings[0])
+
+        for operation, payload in (
+            (PubMedSearchV3(), {"esearchresult": {"count": "1", "idlist": ["1"]}}),
+            (EuropePMCSearchV3(), {"hitCount": 1, "resultList": {"result": [{"id": "1", "source": "MED"}]}}),
+        ):
+            request = QueryRequest(operation.source, "search", {"query": "x"},
+                evidence_cutoff="2026-01-01", source_contract_version="3")
+            fake = FakeTransport([(payload, {})])
+            result = execute_paginated(operation, request, transport=fake)
+            self.assertEqual("complete", result.receipt.status)
+            self.assertEqual((), result.receipt.warnings)
+            params = parse_qs(urlsplit(fake.requests[0].url).query)
+            if operation.source == "pubmed":
+                self.assertEqual(["2026/01/01"], params["maxdate"])
+                self.assertEqual(["1000/01/01"], params["mindate"])
+                self.assertEqual(["pdat"], params["datetype"])
+            else:
+                self.assertEqual(["(x) AND FIRST_PDATE:[* TO 2026-01-01]"], params["query"])
+
+    def test_pubmed_cutoff_conflicts_are_refused_before_io(self):
+        for key, values in (
+            ("maxdate", ("2027/01/01", "invalid", "2026/02/30", "2025/01-01", "2025-01/01", "0000", 0)),
+            ("mindate", ("2026/01/02", "invalid", "2026/13", "2025/01-01", "2025-01/01", "0000", 0)),
+            ("datetype", ("edat", "invalid", 0)),
+        ):
+            for value in values:
+                request = QueryRequest("pubmed", "search", {"query": "x", key: value},
+                    evidence_cutoff="2026-01-01", source_contract_version="3")
+                fake = FakeTransport([({"esearchresult": {"count": "0", "idlist": []}}, {})])
+                with self.subTest(key=key, value=value):
+                    with self.assertRaisesRegex(ValueError, rf"evidence-cutoff-conflict:.*parameters\.{key}"):
+                        execute_paginated(PubMedSearchV3(), request, transport=fake)
+                    self.assertEqual([], fake.requests)
+
+        for extra, expected_mindate in (
+            ({}, None), ({"maxdate": "2026/01/01"}, None), ({"maxdate": "2026-01-01"}, None),
+            ({"maxdate": "2026/1/1"}, None), ({"mindate": "2025-1-1"}, "2025/01/01"),
+            ({"mindate": "2025/01/01"}, "2025/01/01"), ({"mindate": "2026/01/01"}, "2026/01/01"),
+            ({"datetype": "pdat"}, None), ({"mindate": "2025"}, "2025/01/01"),
+            ({"mindate": "2026/01"}, "2026/01/01"),
+            ({"mindate": None, "maxdate": "", "datetype": ""}, None),
+        ):
+            request = QueryRequest("pubmed", "search", {"query": "x", **extra},
+                evidence_cutoff="2026-01-01", source_contract_version="3")
+            with self.subTest(extra=extra):
+                params = parse_qs(urlsplit(PubMedSearchV3().first_request(request).url).query)
+                self.assertEqual(["2026/01/01"], params["maxdate"])
+                self.assertEqual(["pdat"], params["datetype"])
+                self.assertEqual([expected_mindate or "1000/01/01"], params["mindate"])
+        for cutoff, extra in (
+            ("2026", {"mindate": "2026/12/31", "maxdate": "2026/12/31"}),
+            ("2026/02", {"mindate": "2026/02/28", "maxdate": "2026/02/28"}),
+            (None, {"maxdate": "2027/01/01", "datetype": "edat"}),
+        ):
+            request = QueryRequest("pubmed", "search", {"query": "x", **extra},
+                evidence_cutoff=cutoff, source_contract_version="3")
+            with self.subTest(cutoff=cutoff, extra=extra):
+                params = parse_qs(urlsplit(PubMedSearchV3().first_request(request).url).query)
+                self.assertEqual([extra["maxdate"]], params["maxdate"])
+                self.assertEqual([extra.get("datetype", "pdat")], params["datetype"])
+
+    def test_pubmed_narrower_maxdates_remain_normalized_within_cutoff(self):
+        for value, expected in (
+            ("2025/1/1", "2025/01/01"), ("2025-01-01", "2025/01/01"),
+            ("2025", "2025/12/31"), ("0001/1/1", "0001/01/01"),
+            ("2026/1/1", "2026/01/01"),
+        ):
+            request = QueryRequest("pubmed", "search", {"query": "x", "maxdate": value},
+                evidence_cutoff="2026-01-01", source_contract_version="3")
+            fake = FakeTransport([({"esearchresult": {"count": "1", "idlist": ["1"]}}, {})])
+            with self.subTest(value=value):
+                result = execute_paginated(PubMedSearchV3(), request, transport=fake)
+                self.assertEqual("complete", result.receipt.status)
+                self.assertEqual((), result.receipt.warnings)
+                params = parse_qs(urlsplit(fake.requests[0].url).query)
+                self.assertEqual([expected], params["maxdate"])
+                self.assertEqual(["1000/01/01"], params["mindate"])
+                self.assertEqual(["pdat"], params["datetype"])
+
+    def test_pubmed_cutoff_date_pair_survives_pagination(self):
+        for cutoff, extra, expected_mindate in (
+            ("2026-01-01", {}, "1000/01/01"),
+            ("2026-01-01", {"mindate": None}, "1000/01/01"),
+            ("2026-01-01", {"mindate": ""}, "1000/01/01"),
+            ("2026-01-01", {"mindate": "2025/1/1"}, "2025/01/01"),
+            (None, {}, None),
+        ):
+            request = QueryRequest("pubmed", "search", {"query": "x", **extra},
+                evidence_cutoff=cutoff, page_size=1, max_pages=2, source_contract_version="3")
+            fake = FakeTransport([
+                ({"esearchresult": {"count": "2", "idlist": ["1"]}}, {}),
+                ({"esearchresult": {"count": "2", "retstart": "1", "idlist": ["2"]}}, {}),
+            ])
+            with self.subTest(cutoff=cutoff, extra=extra):
+                result = execute_paginated(PubMedSearchV3(), request, transport=fake)
+                self.assertEqual("complete", result.receipt.status)
+                self.assertEqual(2, len(fake.requests))
+                for page, sent in enumerate(fake.requests):
+                    params = parse_qs(urlsplit(sent.url).query)
+                    self.assertEqual([str(page)], params["retstart"])
+                    if expected_mindate is not None:
+                        self.assertEqual([expected_mindate], params["mindate"])
+                        self.assertEqual(["2026/01/01"], params["maxdate"])
+                        self.assertEqual(["pdat"], params["datetype"])
+                    else:
+                        self.assertNotIn("mindate", params)
+                        self.assertNotIn("maxdate", params)
+
+    def test_native_cutoff_dates_are_canonical_before_transport(self):
+        for cutoff, canonical, lower in (
+            ("2026-01-01", "2026/01/01", "2026/01/01"), ("2026/1/1", "2026/01/01", "2026/01/01"),
+            ("2026", "2026/12/31", "2026/01/01"), ("2026/02", "2026/02/28", "2026/02/01"),
+            ("2024-2-29", "2024/02/29", "2024/02/29"), ("0001-01-01", "0001/01/01", "0001/01/01"),
+            ("9999-12-31", "9999/12/31", "9999/12/31"),
+        ):
+            for extra in ({}, {"maxdate": cutoff}, {"mindate": cutoff}):
+                request = QueryRequest("pubmed", "search", {"query": "x", **extra},
+                    evidence_cutoff=cutoff, source_contract_version="3")
+                fake = FakeTransport([({"esearchresult": {"count": "0", "idlist": []}}, {})])
+                with self.subTest(cutoff=cutoff, extra=extra):
+                    result = execute_paginated(PubMedSearchV3(), request, transport=fake)
+                    self.assertEqual("negative", result.receipt.status)
+                    params = parse_qs(urlsplit(fake.requests[0].url).query)
+                    self.assertEqual([canonical], params["maxdate"])
+                    self.assertEqual([lower if "mindate" in extra else "1000/01/01"], params["mindate"])
+            request = QueryRequest("europepmc", "search", {"query": "x"}, evidence_cutoff=cutoff,
+                                   source_contract_version="3")
+            with self.subTest(source="europepmc", cutoff=cutoff):
+                params = parse_qs(urlsplit(EuropePMCSearchV3().first_request(request).url).query)
+                self.assertEqual([f"(x) AND FIRST_PDATE:[* TO {canonical.replace('/', '-')}]"], params["query"])
+
+    def test_invalid_cutoffs_are_labelled_before_io_or_snapshot_writes(self):
+        for operation in (PubMedSearchV3(), EuropePMCSearchV3(), ChEMBLMoleculeSearchV3(), PDBSearchV3()):
+            for cutoff in ("", 0, False, [], "invalid", "2026-02-30", "0000", "2026/13", "2026/0/1",
+                           "2026/1/0", "2026/1/32", "10000/01/01", "２０２６-01-01", "2026-01-01\n",
+                           "2026/01-01", "2026-01/01"):
+                for extra in ({}, {"mindate": "2025/01/01"}, {"maxdate": "2026/01/01"}, {"datetype": "edat"}):
+                    request = QueryRequest(operation.source, "search", {"query": "x", **extra},
+                        evidence_cutoff=cutoff, source_contract_version="3")
+                    fake = FakeTransport([])
+                    with self.subTest(source=operation.source, cutoff=cutoff, extra=extra), tempfile.TemporaryDirectory() as temp:
+                        snapshot = Path(temp) / "snapshots"
+                        with self.assertRaisesRegex(ValueError, "^invalid evidence_cutoff:"):
+                            execute_paginated(operation, request, transport=fake, snapshot_dir=snapshot)
+                        self.assertEqual([], fake.requests)
+                        self.assertFalse(snapshot.exists())
+                        if getattr(operation, "enforces_evidence_cutoff", False):
+                            with self.assertRaisesRegex(ValueError, "^invalid evidence_cutoff:"):
+                                operation.first_request(request)
 
     def test_inconsistent_counts_and_stalled_cursors_are_not_complete(self):
         cases = [

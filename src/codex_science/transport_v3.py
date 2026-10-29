@@ -5,12 +5,14 @@ import hashlib
 import http.client
 import json
 import math
+import re
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from calendar import monthrange
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Mapping, Protocol
@@ -23,6 +25,25 @@ SECRET_KEYS = {"authorization", "proxy-authorization", "x-api-key", "api-key", "
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _calendar_date_bound(value: Any, *, upper: bool) -> date:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}(?:([/-])[0-9]{1,2}(?:\1[0-9]{1,2})?)?", value):
+        raise ValueError("invalid calendar date")
+    parts = [int(part) for part in re.split(r"[/-]", value)]
+    year = parts[0]
+    month = parts[1] if len(parts) > 1 else (12 if upper else 1)
+    day = parts[2] if len(parts) > 2 else (monthrange(year, month)[1] if upper else 1)
+    return date(year, month, day)
+
+
+def _evidence_cutoff_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    try:
+        return _calendar_date_bound(value, upper=True)
+    except ValueError as error:
+        raise ValueError("invalid evidence_cutoff: expected an ASCII calendar date") from error
 
 
 def _redact_url(url: str) -> str:
@@ -371,6 +392,7 @@ def execute_paginated(
     snapshot_dir: Path | None = None,
 ) -> QueryResultV3:
     request.validate()
+    _evidence_cutoff_date(request.evidence_cutoff)
     if request.source != operation.source or request.operation != operation.operation:
         raise ValueError(
             f"operation mismatch: request={request.source}.{request.operation}, "
@@ -389,9 +411,12 @@ def execute_paginated(
                 "remove the query directory or use a new snapshot directory to retry"
             ) from error
     records: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
+    seen_ids: set[tuple[str, str]] = set()
     receipts: list[PageReceiptV3] = []
     warnings: list[str] = []
+    cutoff_unenforced = bool(request.evidence_cutoff) and not getattr(operation, "enforces_evidence_cutoff", False)
+    if cutoff_unenforced:
+        warnings.append(f"evidence cutoff was not enforced by source: {operation.source}")
     source_release: str | None = None
     next_exists = False
     terminal_status = "complete"
@@ -429,11 +454,16 @@ def execute_paginated(
                 raise ValueError(f"normalization-failed on page {page_index}: {error}") from error
             if not isinstance(page_records, list) or not all(isinstance(item, dict) for item in page_records):
                 raise ValueError("normalization-failed: operation must return record objects")
-            if operation.source == "pubmed":
-                page_ids = [str(item["id"]) for item in page_records if item.get("id") not in (None, "")]
+            # Europe PMC cursor pages retain duplicates for downstream abstract handling.
+            if operation.source in {"pubmed", "pdb", "chembl"}:
+                page_ids = [
+                    (str(item.get("source") or ""), str(item["id"]))
+                    for item in page_records if item.get("id") not in (None, "")
+                ]
                 if len(page_ids) != len(set(page_ids)) or seen_ids.intersection(page_ids):
+                    detail = " (duplicate PMIDs)" if operation.source == "pubmed" else ""
                     raise ValueError(
-                        f"schema-drift: pagination has overlapping record identities (duplicate PMIDs) on page {page_index}"
+                        f"schema-drift: pagination has overlapping record identities{detail} on page {page_index}"
                     )
                 seen_ids.update(page_ids)
             next_request = operation.next_request(request, page_request, payload, page_index)
@@ -478,7 +508,7 @@ def execute_paginated(
         page_request = next_request
 
     if terminal_status == "complete":
-        if next_exists and len(receipts) >= request.max_pages:
+        if cutoff_unenforced or (next_exists and len(receipts) >= request.max_pages):
             terminal_status = "bounded-by-user"
         elif not records:
             terminal_status = "negative"

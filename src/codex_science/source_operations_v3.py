@@ -5,11 +5,13 @@ import json
 import re
 import urllib.parse
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
 
 from codex_science.connectors import raise_esearch_error
 from codex_science.connector_contract import QueryRequest
-from codex_science.transport_v3 import PageRequest, SafeRedirectHandler
+from codex_science.transport_v3 import (
+    PageRequest, SafeRedirectHandler, _calendar_date_bound, _evidence_cutoff_date,
+)
 
 
 def _query(request: QueryRequest) -> str:
@@ -106,8 +108,10 @@ def _pdb_results(payload: Any) -> list[Any]:
 class PubMedSearchV3:
     source: str = "pubmed"
     operation: str = "search"
+    enforces_evidence_cutoff: ClassVar[bool] = True
 
     def first_request(self, request: QueryRequest) -> PageRequest:
+        cutoff = _evidence_cutoff_date(request.evidence_cutoff)
         params: dict[str, Any] = {
             "db": "pubmed",
             "term": _query(request),
@@ -116,11 +120,32 @@ class PubMedSearchV3:
             "retmax": request.page_size,
             "usehistory": "y",
         }
-        if request.evidence_cutoff:
-            params.update({"datetype": "pdat", "maxdate": request.evidence_cutoff.replace("-", "/")})
+        normalized_dates: dict[str, str] = {}
+        if cutoff is not None:
+            for key in ("mindate", "maxdate", "datetype"):
+                value = request.parameters.get(key)
+                if value in (None, ""):
+                    continue
+                try:
+                    if key == "datetype":
+                        compatible = value == "pdat"
+                    else:
+                        bound = _calendar_date_bound(value, upper=key == "maxdate")
+                        compatible = bound <= cutoff
+                        normalized_dates[key] = bound.isoformat().replace("-", "/")
+                except ValueError:
+                    compatible = False
+                if not compatible:
+                    raise ValueError(f"evidence-cutoff-conflict: parameters.{key} conflicts with evidence_cutoff")
+            # ESearch requires both date bounds to specify a date range.
+            params.update({
+                "datetype": "pdat",
+                "maxdate": cutoff.isoformat().replace("-", "/"),
+                "mindate": normalized_dates.get("mindate", "1000/01/01"),
+            })
         for key in ("mindate", "maxdate", "datetype", "sort"):
             if request.parameters.get(key) not in (None, ""):
-                params[key] = request.parameters[key]
+                params[key] = normalized_dates.get(key, request.parameters[key])
         url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?" + urllib.parse.urlencode(params)
         return PageRequest("GET", url, {}, cursor="0")
 
@@ -170,11 +195,13 @@ class PubMedSearchV3:
 class EuropePMCSearchV3:
     source: str = "europepmc"
     operation: str = "search"
+    enforces_evidence_cutoff: ClassVar[bool] = True
 
     def first_request(self, request: QueryRequest) -> PageRequest:
+        cutoff = _evidence_cutoff_date(request.evidence_cutoff)
         query = _query(request)
-        if request.evidence_cutoff:
-            query = f"({query}) AND FIRST_PDATE:[* TO {request.evidence_cutoff}]"
+        if cutoff is not None:
+            query = f"({query}) AND FIRST_PDATE:[* TO {cutoff.isoformat()}]"
         params = {
             "query": query,
             "pageSize": request.page_size,
