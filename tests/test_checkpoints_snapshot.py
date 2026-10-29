@@ -2,6 +2,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,163 @@ from codex_science.review_receipts import build_review_receipt
 
 CALL_TIMEOUT = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class CheckpointLockTests(unittest.TestCase):
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        self.run = self.root / "run"
+        self.run.mkdir()
+        self.enterContext(mock.patch.object(tempfile, "gettempdir", return_value=str(self.root)))
+        self.lock_dir = self.root / f"codex-science-checkpoint-locks-{os.getuid()}"
+        digest = hashlib.sha256(os.fsencode(self.run.resolve())).hexdigest()
+        self.lock_path = self.lock_dir / f"{digest}.lock"
+
+    def test_lock_uses_writable_regular_file_for_readonly_run(self):
+        self.run.chmod(0o500)
+        self.addCleanup(self.run.chmod, 0o700)
+        original_open = os.open
+        original_flock = checkpoints.fcntl.flock
+
+        def checked_open(path, flags, *args, **kwargs):
+            if Path(path) == self.run and flags & os.O_ACCMODE != os.O_RDONLY:
+                raise PermissionError("run directory cannot be opened for writing")
+            return original_open(path, flags, *args, **kwargs)
+
+        def nfs_flock(descriptor, operation):
+            self.assertTrue(stat.S_ISREG(os.fstat(descriptor).st_mode))
+            access = checkpoints.fcntl.fcntl(descriptor, checkpoints.fcntl.F_GETFL) & os.O_ACCMODE
+            self.assertEqual(os.O_RDWR, access)
+            return original_flock(descriptor, operation)
+
+        with mock.patch.object(os, "open", side_effect=checked_open), \
+                mock.patch.object(checkpoints.fcntl, "flock", side_effect=nfs_flock):
+            with checkpoints._checkpoint_lock(self.run):
+                self.assertEqual([], list(self.run.iterdir()))
+
+    def test_lock_file_is_private_external_and_shared_by_realpath_aliases(self):
+        previous_mask = os.umask(0)
+        try:
+            with checkpoints._checkpoint_lock(self.run):
+                self.assertEqual(0o700, stat.S_IMODE(self.lock_dir.stat().st_mode))
+                metadata = self.lock_path.stat()
+                self.assertEqual(0o600, stat.S_IMODE(metadata.st_mode))
+                self.assertEqual(os.getuid(), metadata.st_uid)
+                self.assertEqual(b"", self.lock_path.read_bytes())
+                self.assertEqual([], list(self.run.iterdir()))
+        finally:
+            os.umask(previous_mask)
+        alias = self.root / "alias"
+        alias.symlink_to(self.run, target_is_directory=True)
+        with checkpoints._checkpoint_lock(alias):
+            self.assertEqual(metadata.st_ino, self.lock_path.stat().st_ino)
+        self.assertEqual([self.lock_path], list(self.lock_dir.iterdir()))
+        other = self.root / "other"
+        other.mkdir()
+        with checkpoints._checkpoint_lock(other):
+            self.assertEqual(2, len(list(self.lock_dir.iterdir())))
+
+    def test_unsafe_lock_directories_are_refused(self):
+        for kind in ("file", "symlink", "dangling", "group-writable", "other-writable", "wrong-owner"):
+            with self.subTest(kind=kind):
+                parent = self.root / kind
+                parent.mkdir()
+                lock_dir = parent / self.lock_dir.name
+                if kind == "file":
+                    lock_dir.write_bytes(b"")
+                elif kind in {"symlink", "dangling"}:
+                    target = parent / "target"
+                    if kind == "symlink":
+                        target.mkdir(mode=0o700)
+                    lock_dir.symlink_to(target, target_is_directory=True)
+                else:
+                    lock_dir.mkdir(mode=0o700)
+                    lock_dir.chmod({"group-writable": 0o720, "other-writable": 0o702}.get(kind, 0o700))
+                original_fstat = os.fstat
+
+                def metadata(descriptor):
+                    result = original_fstat(descriptor)
+                    if kind == "wrong-owner" and result.st_ino == lock_dir.stat().st_ino:
+                        fields = list(result)
+                        fields[4] = os.getuid() + 1
+                        return os.stat_result(fields)
+                    return result
+
+                with mock.patch.object(tempfile, "gettempdir", return_value=str(parent)), \
+                        mock.patch.object(os, "fstat", side_effect=metadata), \
+                        mock.patch.object(checkpoints.fcntl, "flock") as flock:
+                    with self.assertRaises((OSError, ValueError)):
+                        with checkpoints._checkpoint_lock(self.run):
+                            self.fail("unsafe lock directory was accepted")
+                    flock.assert_not_called()
+                self.assertEqual([], list(self.run.iterdir()))
+
+    def test_safe_existing_directory_permissions_are_accepted(self):
+        self.lock_dir.mkdir(mode=0o700)
+        for mode in (0o700, 0o750, 0o755):
+            with self.subTest(mode=oct(mode)):
+                self.lock_dir.chmod(mode)
+                with checkpoints._checkpoint_lock(self.run):
+                    self.assertEqual(0o600, stat.S_IMODE(self.lock_path.stat().st_mode))
+
+    def test_unsafe_lock_files_are_refused_without_changing_targets(self):
+        self.lock_dir.mkdir(mode=0o700)
+        target = self.root / "target"
+        target.write_bytes(b"unchanged")
+        for kind in ("symlink", "dangling", "directory", "fifo", "readable", "writable", "wrong-owner"):
+            with self.subTest(kind=kind):
+                if kind in {"symlink", "dangling"}:
+                    self.lock_path.symlink_to(target if kind == "symlink" else self.root / "missing")
+                elif kind == "directory":
+                    self.lock_path.mkdir()
+                elif kind == "fifo":
+                    os.mkfifo(self.lock_path, 0o600)
+                else:
+                    self.lock_path.touch(mode=0o600)
+                    self.lock_path.chmod({"readable": 0o640, "writable": 0o602}.get(kind, 0o600))
+                original_fstat = os.fstat
+
+                def metadata(descriptor):
+                    result = original_fstat(descriptor)
+                    if kind == "wrong-owner" and result.st_ino == self.lock_path.stat().st_ino:
+                        fields = list(result)
+                        fields[4] = os.getuid() + 1
+                        return os.stat_result(fields)
+                    return result
+
+                try:
+                    with mock.patch.object(os, "fstat", side_effect=metadata), \
+                            mock.patch.object(checkpoints.fcntl, "flock") as flock:
+                        with self.assertRaises((OSError, ValueError)):
+                            with checkpoints._checkpoint_lock(self.run):
+                                self.fail("unsafe lock file was accepted")
+                        flock.assert_not_called()
+                    self.assertEqual(b"unchanged", target.read_bytes())
+                finally:
+                    if kind == "directory":
+                        self.lock_path.rmdir()
+                    else:
+                        self.lock_path.unlink()
+
+    def test_lock_failure_and_body_exception_close_descriptors_and_allow_retry(self):
+        original_close = os.close
+        with mock.patch.object(os, "close", wraps=original_close) as close, \
+                mock.patch.object(checkpoints.fcntl, "flock", side_effect=OSError("lock unavailable")):
+            with self.assertRaisesRegex(OSError, "lock unavailable"):
+                with checkpoints._checkpoint_lock(self.run):
+                    self.fail("failed lock was acquired")
+        self.assertTrue(self.lock_path.exists())
+        for call in close.call_args_list:
+            with self.assertRaises(OSError):
+                os.fstat(call.args[0])
+        inode = self.lock_path.stat().st_ino
+        with self.assertRaisesRegex(RuntimeError, "interrupted"):
+            with checkpoints._checkpoint_lock(self.run):
+                raise RuntimeError("interrupted")
+        with checkpoints._checkpoint_lock(self.run):
+            self.assertEqual(inode, self.lock_path.stat().st_ino)
 
 
 class CheckpointSnapshotTests(unittest.TestCase):
