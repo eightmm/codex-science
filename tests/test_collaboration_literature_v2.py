@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -22,6 +23,86 @@ from codex_science.literature_v2 import normalize_identifier, resolve_study_fami
 
 
 class CollaborationAndLiteratureV2Tests(unittest.TestCase):
+    def annotation_run(self, root: Path) -> Path:
+        from tests.test_discovery_workbench import add_fixture_annotation, annotation_fixture
+
+        manifest, _, cli = annotation_fixture(root / "run")
+        result = add_fixture_annotation(cli, annotation_id="A-1")
+        self.assertEqual(0, result.returncode, result.stderr)
+        return manifest.parent
+
+    def test_resolution_append_repairs_missing_final_newline(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.annotation_run(Path(temporary))
+            ledger = root / "annotations/resolutions.jsonl"
+            ledger.touch()
+            for status in ("resolved", "dismissed", "resolved"):
+                with self.subTest(status=status):
+                    if status == "dismissed":
+                        ledger.write_bytes(ledger.read_bytes().removesuffix(b"\n"))
+                    result = subprocess.run(
+                        [sys.executable, str(script), str(root), "resolve", "--id", "A-1",
+                         "--status", status, "--resolver", "reviewer"], capture_output=True, text=True,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    listed = subprocess.run([sys.executable, str(script), str(root), "list"],
+                                            capture_output=True, text=True)
+                    self.assertEqual(0, listed.returncode, listed.stderr)
+                    self.assertEqual(status, json.loads(listed.stdout)[0]["status"])
+            self.assertEqual(["resolved", "dismissed", "resolved"],
+                             [event["status"] for event in load_resolution_events(root)])
+            self.assertTrue(ledger.read_bytes().endswith(b"\n"))
+
+    def test_annotation_enum_types_have_labelled_validation_errors(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.annotation_run(Path(temporary))
+            annotation_path = root / "annotations/A-1.json"
+            original = json.loads(annotation_path.read_text())
+            manifest_path = root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            for field in ("type", "status"):
+                for value in ([], {}, None, 0, "", "unknown"):
+                    with self.subTest(field=field, value=value):
+                        invalid = {**original, field: value}
+                        with self.assertRaisesRegex(ValueError, f"invalid annotation {field}"):
+                            validate_annotation(invalid)
+                        annotation_path.write_text(json.dumps(invalid))
+                        for entry in manifest["artifacts"]:
+                            if entry["path"] == "annotations/A-1.json":
+                                entry["sha256"] = hashlib.sha256(annotation_path.read_bytes()).hexdigest()
+                        manifest_path.write_text(json.dumps(manifest))
+                        result = subprocess.run([sys.executable, str(script), str(root), "list"],
+                                                capture_output=True, text=True)
+                        self.assertEqual(2, result.returncode, result.stderr)
+                        self.assertIn(f"invalid annotation {field}", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+            for value in ([], {}, None, 0, "", "unknown"):
+                with self.subTest(resolution_status=value):
+                    with self.assertRaisesRegex(ValueError, "invalid resolution status"):
+                        append_resolution_event(root, {**self.resolution_payload(), "status": value})
+            self.assertFalse((root / "annotations/resolutions.jsonl").exists())
+
+    def test_input_hash_and_explicit_identity_collisions_remain_distinct(self) -> None:
+        unidentified = {"release": "v1", "source": "catalog"}
+        digest = hashlib.sha256(json.dumps(unidentified, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        explicit = {"identifier": digest, "release": "v2"}
+        empty = {"added": [], "removed": [], "changed": []}
+        for inputs in ([unidentified, explicit], [explicit, unidentified]):
+            with self.subTest(inputs=inputs):
+                report = diff_runs({"inputs": inputs}, {"inputs": [explicit]})
+                self.assertEqual({**empty, "removed": [digest]}, report["inputs"])
+                self.assertTrue(report["review_invalidated"])
+                report = diff_runs({"inputs": [explicit]}, {"inputs": inputs})
+                self.assertEqual({**empty, "added": [digest]}, report["inputs"])
+                self.assertTrue(report["review_invalidated"])
+                report = diff_runs({"inputs": inputs}, {"inputs": list(reversed(inputs))})
+                self.assertEqual(empty, report["inputs"])
+                self.assertFalse(report["review_invalidated"])
+        report = diff_runs({}, {"inputs": [unidentified, explicit]})
+        self.assertEqual([digest, digest], report["inputs"]["added"])
+
     @staticmethod
     def annotation_payload() -> dict:
         return {

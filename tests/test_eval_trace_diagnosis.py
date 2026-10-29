@@ -160,6 +160,82 @@ class DiagnoseTest(unittest.TestCase):
         self.assertEqual(diagnose_task_dir(task)["lost_artifacts"]["count"], 0)
         self.assertFalse(self.run_events([TURN_DONE])["lost_artifacts"]["checked"])
 
+    def test_lost_artifacts_follow_symlink_targets_within_project(self):
+        names = ["report.md", "escaped.md", "present.md", "loop.md", "via-dir/report.md"]
+        task = self.task_dir({}, {"status": "completed", "deliverables": names}, artifacts=["actual.md"],
+                             manifest={"artifacts": [{"path": "broken.md"}]})
+        project = task / "project"
+        (project / "report.md").symlink_to("deleted.md")
+        (task / "outside.md").write_text("outside")
+        (project / "escaped.md").symlink_to("../outside.md")
+        (project / "present.md").symlink_to("actual.md")
+        (project / "loop.md").symlink_to("loop.md")
+        (project / "via-dir").symlink_to("..", target_is_directory=True)
+        (project / "artifacts/broken.md").symlink_to("deleted.md")
+        lost = diagnose_task_dir(task)["lost_artifacts"]
+        self.assertTrue(lost["checked"])
+        self.assertEqual(5, lost["count"])
+        self.assertEqual({("report.md", "missing"), ("escaped.md", "outside_project"),
+                          ("loop.md", "missing"), ("via-dir/report.md", "outside_project"),
+                          ("broken.md", "missing")},
+                         {(row["path"], row["reason"]) for row in lost["examples"]})
+        empty = self.task_dir({}, {"deliverables": ["", 0, None]})
+        self.assertEqual([{"path": "", "source": "completion_record", "reason": "outside_project"}],
+                         diagnose_task_dir(empty)["lost_artifacts"]["examples"])
+        for length in (255, 256):
+            name = "x" * length
+            task = self.task_dir({}, {"deliverables": [name]}, artifacts=[name] if length == 255 else [])
+            with self.subTest(component_bytes=length):
+                lost = diagnose_task_dir(task)["lost_artifacts"]
+                self.assertEqual(int(length > 255), lost["count"])
+                if length > 255:
+                    self.assertEqual("missing", lost["examples"][0]["reason"])
+                result = subprocess.run([sys.executable, str(CLI), str(task)], capture_output=True, text=True)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(lost, json.loads(result.stdout)["lost_artifacts"])
+        for escaped, present in ((True, False), (True, True), (False, True)):
+            with self.subTest(symlink_escape=escaped, target_present=present):
+                task = self.task_dir({}, {"deliverables": ["link/../report.md"]}, artifacts=["report.md"])
+                project = task / "project"
+                destination = task / "outside" if escaped else project / "inside"
+                (destination / "nested").mkdir(parents=True)
+                (project / "link").symlink_to("../outside/nested" if escaped else "inside/nested",
+                                             target_is_directory=True)
+                if present:
+                    (destination / "report.md").write_text("actual target")
+                    self.assertEqual("actual target", (project / "link/../report.md").read_text())
+                else:
+                    self.assertFalse((project / "link/../report.md").exists())
+                lost = diagnose_task_dir(task)["lost_artifacts"]
+                expected = [{"path": "link/../report.md", "source": "completion_record",
+                             "reason": "outside_project"}] if escaped else []
+                self.assertEqual({"checked": True, "count": int(escaped), "examples": expected}, lost)
+        task = self.task_dir({}, {"deliverables": ["absent/../report.md"]}, artifacts=["report.md"])
+        self.assertEqual([{"path": "absent/../report.md", "source": "completion_record", "reason": "missing"}],
+                         diagnose_task_dir(task)["lost_artifacts"]["examples"])
+        task = self.task_dir({}, {"status": "completed", "deliverables": ["\ud800"]})
+        lost = diagnose_task_dir(task)["lost_artifacts"]
+        self.assertEqual({"checked": True, "count": 1, "examples": [
+            {"path": "\ud800", "source": "completion_record", "reason": "missing"}]}, lost)
+        result = subprocess.run([sys.executable, str(CLI), str(task)], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(lost, json.loads(result.stdout)["lost_artifacts"])
+
+    def test_premature_closure_requires_named_run_in_completion_report(self):
+        complete = {"completion_report": {"runs": [{"run_id": "actual", "outcome": "completed"}]}}
+        for run_id, flagged in (("missing", True), ("actual", False), (None, False), ("", True), (0, True), ([], True)):
+            with self.subTest(run_id=run_id):
+                record = {"status": "completed", "run_id": run_id, "deliverables": []}
+                closure = diagnose_task_dir(self.task_dir(complete, record))["premature_closure"]
+                self.assertEqual(flagged, closure["value"])
+                self.assertEqual(int(flagged), closure["reason_count"])
+                if flagged:
+                    self.assertIn("absent from completion_report", closure["reasons"][0])
+        for report in ({"status": "no_artifacts"}, {"runs": []}):
+            closure = diagnose_task_dir(self.task_dir({"completion_report": report},
+                                       {"status": "completed", "run_id": "missing"}))["premature_closure"]
+            self.assertEqual((False, True, []), (closure["value"], closure["no_artifacts"], closure["reasons"]))
+
     def test_premature_closure_reasons(self):
         complete = {"completion_report": {"runs": [{"run_id": "r1", "outcome": "completed"}]}}
         ok = diagnose_task_dir(self.task_dir(complete, {"status": "completed", "deliverables": []}))

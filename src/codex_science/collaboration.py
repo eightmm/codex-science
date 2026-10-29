@@ -50,9 +50,9 @@ def validate_annotation(payload: dict[str, Any]) -> None:
     for field in ("annotation_id", "author", "text", "created_at"):
         if not str(payload.get(field, "")).strip():
             raise ValueError(f"annotation {field} is required")
-    if payload.get("type") not in ANNOTATION_TYPES:
+    if not isinstance(payload.get("type"), str) or payload["type"] not in ANNOTATION_TYPES:
         raise ValueError("invalid annotation type")
-    if payload.get("status") not in ANNOTATION_STATUSES:
+    if not isinstance(payload.get("status"), str) or payload["status"] not in ANNOTATION_STATUSES:
         raise ValueError("invalid annotation status")
     anchor = payload.get("anchor")
     if not isinstance(anchor, dict):
@@ -83,7 +83,7 @@ def validate_resolution_event(event: dict[str, Any]) -> None:
     for field in ("annotation_id", "resolver", "resolved_at"):
         if not isinstance(event.get(field), str) or not event[field].strip():
             raise ValueError(f"resolution {field} is required")
-    if event.get("status") not in {"resolved", "dismissed"}:
+    if not isinstance(event.get("status"), str) or event["status"] not in {"resolved", "dismissed"}:
         raise ValueError("invalid resolution status")
     _sha(event.get("artifact_sha256"), "resolution artifact_sha256")
     if "note" in event and not isinstance(event["note"], str):
@@ -178,13 +178,16 @@ def load_resolution_events(run_dir: Path, *, lock_held: bool = False) -> list[di
 
 def _append_resolution_event_locked(root: Path, event: dict[str, Any]) -> None:
     path = root / "annotations" / "resolutions.jsonl"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    flags = os.O_RDWR | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     descriptor = os.open(path, flags, 0o644)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise ValueError("resolution event sidecar must be a regular file")
         os.fchmod(descriptor, 0o644)
         payload = json.dumps(event, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+        size = os.fstat(descriptor).st_size
+        if size and os.pread(descriptor, 1, size - 1) != b"\n":
+            payload = b"\n" + payload
         remaining = memoryview(payload)
         while remaining:
             written = os.write(descriptor, remaining)
@@ -245,7 +248,7 @@ def fold_annotation_resolutions(
     return results
 
 
-def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any]:
+def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str | tuple[str], Any]:
     if not isinstance(manifest, Mapping):
         raise ValueError("manifest must be an object")
     records = manifest.get(section, [])
@@ -256,7 +259,7 @@ def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any
         "claims": (("id",), "claim id"),
         "inputs": (("identifier", "id", "query_id", "url", "path"), "input identity"),
     }[section]
-    result: dict[str, Any] = {}
+    result: dict[str | tuple[str], Any] = {}
     explicit_identities: set[str] = set()
     for record in records:
         if not isinstance(record, Mapping):
@@ -265,7 +268,8 @@ def _diff_record_map(manifest: Mapping[str, Any], section: str) -> dict[str, Any
                          if isinstance(record.get(field), str) and record[field].strip()), None)
         if identity is None and section == "inputs":
             canonical = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-            identity = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            # Tuple keys cannot collide with any explicit string identity.
+            identity = (hashlib.sha256(canonical.encode("utf-8")).hexdigest(),)
         else:
             if identity is None:
                 raise ValueError(f"{label} must be a non-empty string")
@@ -293,8 +297,12 @@ def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[s
                             if canonical_json_bytes(old_claims[key]) != canonical_json_bytes(new_claims[key]))
     old_inputs = _diff_record_map(previous, "inputs")
     new_inputs = _diff_record_map(current, "inputs")
-    changed_inputs = sorted(key for key in old_inputs.keys() & new_inputs.keys()
-                            if canonical_json_bytes(old_inputs[key]) != canonical_json_bytes(new_inputs[key]))
+
+    def input_ids(keys: Iterable[str | tuple[str]]) -> list[str]:
+        return sorted(key[0] if isinstance(key, tuple) else key for key in keys)
+
+    changed_inputs = input_ids(key for key in old_inputs.keys() & new_inputs.keys()
+                              if canonical_json_bytes(old_inputs[key]) != canonical_json_bytes(new_inputs[key]))
     environment_changed = canonical_json_bytes(previous.get("environment")) != canonical_json_bytes(current.get("environment"))
     code_changed = canonical_json_bytes(previous.get("code")) != canonical_json_bytes(current.get("code"))
     return {
@@ -312,8 +320,8 @@ def diff_runs(previous: Mapping[str, Any], current: Mapping[str, Any]) -> dict[s
             "changed": changed_claims,
         },
         "inputs": {
-            "added": sorted(new_inputs.keys() - old_inputs.keys()),
-            "removed": sorted(old_inputs.keys() - new_inputs.keys()),
+            "added": input_ids(new_inputs.keys() - old_inputs.keys()),
+            "removed": input_ids(old_inputs.keys() - new_inputs.keys()),
             "changed": changed_inputs,
         },
         "code_changed": code_changed,

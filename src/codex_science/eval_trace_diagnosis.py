@@ -324,12 +324,13 @@ def _json_object(text: str | None) -> dict[str, Any] | None:
 
 
 def _inside(root: Path, candidate: str, base: Path) -> Path | None:
-    """Lexically resolve `candidate` against `base`; None when it leaves `root`."""
+    """Refuse lexical escapes without collapsing symlink-sensitive parent steps."""
     if not candidate or "\x00" in candidate:
         return None
-    joined = os.path.normpath(os.path.join(base, candidate))
+    joined = os.path.join(base, candidate)
+    normalized = os.path.normpath(joined)
     root_text = os.path.normpath(root)
-    if joined != root_text and not joined.startswith(root_text + os.sep):
+    if normalized != root_text and not normalized.startswith(root_text + os.sep):
         return None
     return Path(joined)
 
@@ -352,12 +353,20 @@ def _lost_artifacts(project: Path | None, record: Mapping[str, Any] | None) -> d
             if isinstance(path, str):
                 named.append((str(manifest.relative_to(project)), path, manifest.parent))
     rows = []
+    root = project.resolve()
     for source, path, base in named:
         resolved = _inside(project, path, base)
         if resolved is None:
             rows.append({"path": _short(path), "source": source, "reason": "outside_project"})
-        elif not os.path.lexists(resolved):
-            rows.append({"path": _short(path), "source": source, "reason": "missing"})
+        else:
+            try:
+                target = resolved.resolve()
+                if not target.is_relative_to(root):
+                    rows.append({"path": _short(path), "source": source, "reason": "outside_project"})
+                elif not os.path.exists(resolved):
+                    rows.append({"path": _short(path), "source": source, "reason": "missing"})
+            except (OSError, RuntimeError, ValueError):
+                rows.append({"path": _short(path), "source": source, "reason": "missing"})
     return {"checked": True, "count": len(rows), "examples": rows[:MAX_EXAMPLES]}
 
 
@@ -377,6 +386,10 @@ def _premature_closure(terminal: str | None, receipt: Mapping[str, Any] | None,
                     if outcome != "completed":
                         name = run.get("run_id") if isinstance(run, Mapping) else None
                         reasons.append(_short(f"completion_report run {name}: outcome {outcome}"))
+                run_id = record.get("run_id") if record else None
+                if run_id is not None and not any(isinstance(run, Mapping) and run.get("run_id") == run_id
+                                                 for run in runs):
+                    reasons.append(_short(f"completion record run {run_id!r} is absent from completion_report"))
             else:
                 reasons.append(_short(f"completion_report status {report.get('status', 'unknown')}"))
         elif report is not None:
