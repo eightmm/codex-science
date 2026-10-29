@@ -139,7 +139,7 @@ def validate_quality_declaration(root: Path, skill_dir: Path, payload: Mapping[s
                 PurePosixPath(path).parts[0] != "tests"
                 or PurePosixPath(path).suffix != ".py"
                 or target.suffix != ".py"
-                or not target.is_relative_to(root.resolve() / "tests")
+                or not target.is_relative_to((root.resolve() / "tests").resolve())
             ):
                 raise ValueError(f"quality test_files must be Python files under tests/: {path}")
     if LEVELS[declared] >= 3 and not output_schemas:

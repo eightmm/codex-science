@@ -365,6 +365,21 @@ class SkillMaturityTests(unittest.TestCase):
             self.assertEqual(1, result.returncode)
             self.assertEqual("findings", json.loads(result.stdout)["status"])
 
+    def test_quality_test_files_accept_symlinked_tests_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self.make_skill(root)
+            (root / "tests").rename(root / "test_sources")
+            try:
+                (root / "tests").symlink_to("test_sources", target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unsupported")
+            payload = {**self.valid_quality(), "test_files": ["tests/test_demo.py"]}
+            self.assertEqual(["tests/test_demo.py"], validate_quality_declaration(root, skill, payload)["test_files"])
+            (root / "test_sources" / "case.json").write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Python files under tests/"):
+                validate_quality_declaration(root, skill, {**payload, "test_files": ["test_sources/test_demo.py"]})
+
     def test_quality_skill_must_match_frontmatter_name(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
