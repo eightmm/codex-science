@@ -223,8 +223,10 @@ class PackageRunTests(unittest.TestCase):
         manifest_path = self.run_dir / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["plan"][-1]["status"] = "pending"
+        manifest["question"] = "Assess evidence from https://example.org/search?q=cell%20migration"
         manifest_path.write_text(json.dumps(manifest))
         packet = build_review_packet(manifest_path, review_modes=["record"])
+        self.assertEqual(manifest["question"], packet["decision_contract"]["question"])
         # The reviewer retains the packet outside the run while refresh updates bookkeeping.
         retained_packet = Path(self.temp.name) / "review-task.json"
         retained_packet.write_text(json.dumps(packet))
@@ -280,6 +282,7 @@ class PackageRunTests(unittest.TestCase):
         registered = json.loads(manifest_path.read_text())
         self.assertEqual("passed", registered["review"]["status"])
         self.assertEqual("completed", registered["plan"][-1]["status"])
+        self.assertEqual(manifest["question"], registered["question"])
         self.assertIn("review-check", {item.get("id") for item in registered["executions"]})
         registered["inputs"] = []
         with self.assertRaisesRegex(ValueError, "review packet"):

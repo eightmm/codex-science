@@ -473,13 +473,13 @@ def _review_packet_content_matches(run_dir: Path, manifest: dict[str, Any], pack
             or " ".join(claim["text"].split()) != " ".join(reviewed["text"].split())
         ):
             return False
-    current_contract = _redact({
+    current_contract = {
         "question": str(manifest.get("question", "")),
-        "plan": manifest.get("plan", []),
-        "inputs": manifest.get("inputs", []),
-        "code": manifest.get("code", []),
-        "environment": manifest.get("environment", {}),
-    })
+        "plan": _redact(manifest.get("plan", [])),
+        "inputs": _redact(manifest.get("inputs", [])),
+        "code": _redact(manifest.get("code", [])),
+        "environment": _redact(manifest.get("environment", {})),
+    }
     reviewed_contract = copy.deepcopy(packet.get("decision_contract"))
     if not isinstance(reviewed_contract, dict):
         return False
