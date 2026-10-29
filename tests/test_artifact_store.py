@@ -1,8 +1,14 @@
 import copy
+import hashlib
+import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
 from codex_science.artifact_store import (
     ContentAddressedStore,
@@ -15,6 +21,75 @@ from codex_science.artifacts import add_artifact, new_manifest, verify_bundle_ar
 
 
 class ArtifactStoreTests(unittest.TestCase):
+    def test_chunked_hashes_use_one_stream_during_atomic_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "data.bin"
+            path.write_bytes(b"abc")
+            replacement = path.with_suffix(".next")
+            replacement.write_bytes(b"xyz")
+            original_open = Path.open
+            reads = []
+
+            @contextmanager
+            def replacing_open(target, *args, **kwargs):
+                with original_open(target, *args, **kwargs) as handle:
+                    yield handle
+                if target == path:
+                    reads.append(target)
+                    if replacement.exists():
+                        replacement.replace(path)
+
+            with mock.patch.object(Path, "open", replacing_open):
+                descriptor = describe_file(path, chunk_size=3)
+            self.assertEqual(hashlib.sha256(b"abc").hexdigest(), descriptor.root_sha256)
+            self.assertEqual(descriptor.root_sha256, descriptor.entries[0]["chunks"][0]["sha256"])
+            self.assertEqual(1, len(reads))
+            validate_descriptor(descriptor.to_dict())
+            for content in (b"", b"a", b"abc", b"abcd"):
+                path.write_bytes(content)
+                descriptor = describe_file(path, chunk_size=3)
+                self.assertEqual(hashlib.sha256(content).hexdigest(), descriptor.root_sha256)
+                self.assertEqual(len(content), descriptor.total_bytes)
+                validate_descriptor(descriptor.to_dict(), path)
+            for invalid in (0, -1):
+                with self.subTest(chunk_size=invalid), self.assertRaisesRegex(ValueError, "positive"):
+                    describe_file(path, chunk_size=invalid)
+
+    def test_store_verification_normalizes_digest_and_handles_missing_or_corrupt_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            source = root / "empty.bin"
+            source.write_bytes(b"")
+            store = ContentAddressedStore(root / "cache")
+            digest, path = store.add_file(source)
+            self.assertEqual(path, store.object_path(digest.upper()))
+            self.assertTrue(store.verify(digest.upper()))
+            self.assertFalse(store.verify("0" * 64))
+            for malformed in ("", "bad"):
+                with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                    store.verify(malformed)
+            path.chmod(0o600)
+            path.write_bytes(b"corrupt")
+            self.assertFalse(store.verify(digest.upper()))
+
+    def test_cli_verifies_external_reference_against_supplied_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            path = root / "data.bin"
+            path.write_bytes(b"abc")
+            descriptor_path = root / "external.json"
+            script = Path(__file__).resolve().parents[1] / "scripts" / "describe_artifact.py"
+            for digest, size, exists, expected in (
+                ("0" * 64, 999, True, False),
+                (hashlib.sha256(b"abc").hexdigest(), 3, True, True),
+                (hashlib.sha256(b"abc").hexdigest(), 3, False, False),
+            ):
+                with self.subTest(size=size, exists=exists):
+                    payload = describe_external_reference(uri="s3://bucket/data", version="v1", sha256=digest, size_bytes=size)
+                    descriptor_path.write_text(json.dumps(payload.to_dict()), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(script), str(path if exists else root / "missing"), "--verify", str(descriptor_path)], capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(expected, result.returncode == 0, result.stderr)
+
     def test_streaming_chunks_and_merkle_directory_are_stable(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir) / "dataset"
@@ -114,6 +189,68 @@ class ValidateDescriptorRejectionTests(unittest.TestCase):
         validate_descriptor(self.chunked(), self.file)
         validate_descriptor(self.external())
 
+    def test_external_local_verification_checks_digest_size_and_existence(self) -> None:
+        for content in (b"", b"abc"):
+            self.file.write_bytes(content)
+            payload = describe_external_reference(uri="s3://bucket/data", version="v1", sha256=hashlib.sha256(content).hexdigest(), size_bytes=len(content)).to_dict()
+            validate_descriptor(payload)
+            validate_descriptor(payload, self.file)
+            with self.assertRaises(ValueError):
+                validate_descriptor(payload, self.root / "missing")
+            for field, value in (("sha256", "0" * 64), ("size_bytes", len(content) + 1)):
+                bad = copy.deepcopy(payload)
+                bad["external"][field] = value
+                bad["root_sha256" if field == "sha256" else "total_bytes"] = value
+                with self.subTest(content=content, field=field):
+                    self.assertRejects(bad, "do not match descriptor", self.file)
+            for field in ("total_bytes", "entry_count", "size_bytes"):
+                expected = 0 if field == "entry_count" else len(content)
+                for value in (expected + 0.9, float(expected), bool(expected), str(expected), "", None, -1):
+                    if field == "size_bytes" and value is None:
+                        continue
+                    bad = copy.deepcopy(payload)
+                    target = bad["external"] if field == "size_bytes" else bad
+                    target[field] = value
+                    for path in (None, self.file):
+                        with self.subTest(content=content, field=field, value=value, local=path is not None):
+                            self.assertRejects(bad, "integer", path)
+            unknown = copy.deepcopy(payload)
+            unknown["external"]["size_bytes"] = None
+            validate_descriptor(unknown)
+
+    def test_unbound_roots_must_match_entries(self) -> None:
+        dataset = self.root / "dataset"
+        dataset.mkdir()
+        (dataset / "a.bin").write_bytes(b"abc")
+        for descriptor in (describe_file(self.file), describe_file(self.file, chunk_size=2), describe_directory(dataset)):
+            payload = descriptor.to_dict()
+            validate_descriptor(payload)
+            payload["root_sha256"] = "0" * 64
+            with self.subTest(kind=descriptor.artifact_type):
+                self.assertRejects(payload, "root.*match")
+        (dataset / "a.bin").unlink()
+        validate_descriptor(describe_directory(dataset).to_dict())
+        payload = describe_directory(dataset).to_dict()
+        payload["root_sha256"] = "0" * 64
+        self.assertRejects(payload, "root.*match")
+
+    def test_duplicate_entry_aliases_and_wrong_file_cardinality_are_rejected(self) -> None:
+        dataset = self.root / "dataset"
+        dataset.mkdir()
+        (dataset / "a.bin").write_bytes(b"abc")
+        for alias in ("a.bin", "./a.bin"):
+            payload = describe_directory(dataset).to_dict()
+            payload["entries"].append({**payload["entries"][0], "path": alias})
+            payload.update(entry_count=2, total_bytes=6)
+            with self.subTest(alias=alias):
+                self.assertRejects(payload, "[Dd]uplicate.*entry")
+        for count in (0, 2):
+            payload = describe_file(self.file).to_dict()
+            payload["entries"] *= count
+            payload.update(entry_count=count, total_bytes=6 * count)
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                validate_descriptor(payload)
+
     def test_schema_and_type_are_checked(self) -> None:
         payload = self.chunked()
         payload["schema_version"] = 2
@@ -172,6 +309,27 @@ class ValidateDescriptorRejectionTests(unittest.TestCase):
         payload = self.chunked()
         payload["total_bytes"] = 7
         self.assertRejects(payload, "total_bytes does not match entries")
+        for content in (b"", b"a", b"abcdef"):
+            self.file.write_bytes(content)
+            for descriptor in (describe_file(self.file), describe_file(self.file, chunk_size=2)):
+                valid = descriptor.to_dict()
+                validate_descriptor(valid, self.file)
+                fields = [(valid, "total_bytes"), (valid, "entry_count"), (valid["entries"][0], "size")]
+                if descriptor.artifact_type == "chunked-file":
+                    fields.append((valid["entries"][0], "chunk_size"))
+                    for chunk in valid["entries"][0]["chunks"]:
+                        fields.extend((chunk, name) for name in ("size", "index", "offset"))
+                for target, field in fields:
+                    expected = target[field]
+                    invalid = (expected + 0.9, float(expected), bool(expected), str(expected), "", None, -1)
+                    if field == "chunk_size" or (field == "size" and "index" in target):
+                        invalid += (0,)
+                    for value in invalid:
+                        target[field] = value
+                        for path in (None, self.file):
+                            with self.subTest(kind=descriptor.artifact_type, content=content, field=field, value=value, local=path is not None):
+                                self.assertRejects(valid, "integer", path)
+                    target[field] = expected
 
     def test_external_reference_integrity(self) -> None:
         cases = {

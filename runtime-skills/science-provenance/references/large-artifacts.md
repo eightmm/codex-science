@@ -10,7 +10,7 @@ A regular local file. Compute SHA-256 with streaming reads.
 
 ### `chunked-file`
 
-A regular file with a descriptor containing ordered chunk offsets, sizes, and SHA-256 values. The root SHA-256 remains the full-file digest. Chunk records support resumable verification and transfer.
+A regular file with a descriptor containing ordered chunk offsets, sizes, and SHA-256 values. The root SHA-256 remains the full-file digest. Root and chunk hashes are computed from one read of the byte stream. Chunk records support resumable verification and transfer.
 
 ### `directory-tree`
 
@@ -24,7 +24,7 @@ Symbolic links are rejected by default. A directory entry cannot escape the arti
 
 ### `external-reference`
 
-An immutable remote or database object described by URI or accession, version, SHA-256, size when known, media type, and license. It is not considered locally verified until bytes are materialized and checked.
+An immutable remote or database object described by URI or accession, version, SHA-256, size when known, media type, and license. It is not considered locally verified until bytes are materialized and checked. Validation without a local path checks only descriptor metadata. When a local path is supplied, including through `--verify` or a manifest's `descriptor_path`, that file must exist and match the descriptor's root digest and total bytes; unknown-size metadata cannot verify nonempty local bytes.
 
 ## Commands
 
@@ -51,11 +51,13 @@ A local cache stores immutable files at:
 <cache>/objects/sha256/<first-two-hex>/<remaining-hex>
 ```
 
-Insertion computes the digest before and after copy, writes through a temporary file, marks the object read-only, and reuses an existing verified object. Cache presence is not proof that a source license permits redistribution.
+Insertion computes the digest before and after copy, writes through a temporary file, marks the object read-only, and reuses an existing verified object. Lookup and verification normalize hexadecimal digest case consistently. Cache presence is not proof that a source license permits redistribution.
 
 ## Validation and failure semantics
 
 - Reject missing files, digest changes, path traversal, escaping links, non-contiguous chunks, and descriptor size mismatches.
+- Even without local bytes, reject duplicate descriptor entry paths, file roots that differ from their sole entry digest, and directory roots that differ from the Merkle digest of their entries.
+- Descriptor byte sizes, entry counts, chunk sizes, indexes and offsets must be integers; booleans, fractions and numeric strings are refused. Sizes and counts are non-negative, with positive chunk sizes. An external reference may omit its optional size.
 - Preserve incomplete downloads outside the immutable object path.
 - Distinguish `downloaded`, `partially-downloaded`, `locally-verified`, and `externally-referenced` states.
 - Do not hash a multi-gigabyte file with `read_bytes()`.

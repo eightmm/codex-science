@@ -160,7 +160,7 @@ class FairExportTests(unittest.TestCase):
                     output = manifest.parent if destination == "output" else root / "absent" / "export"
                     if destination == "receipt":
                         receipt = (manifest.parent / name).resolve()
-                    self._refused(manifest, output, receipt, root)
+                    self._refused(manifest, output, receipt, root, *(["Artifact descriptor resolves outside the run bundle:"] if external else []))
 
     def test_hard_links_refuse_all_protected_bundle_files(self) -> None:
         for target in ("manifest.json", "result.csv", "descriptor.json", "tree/frame.bin"):

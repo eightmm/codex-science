@@ -21,6 +21,14 @@ def _hex_sha256(value: Any, label: str) -> str:
     return text
 
 
+def _descriptor_integer(value: Any, label: str, *, positive: bool = False) -> int:
+    minimum = 1 if positive else 0
+    if type(value) is not int or value < minimum:
+        bound = "positive" if positive else "non-negative"
+        raise ValueError(f"{label} must be {bound} integer")
+    return value
+
+
 def stream_sha256(path: Path, *, block_size: int = 1024 * 1024) -> tuple[str, int]:
     if block_size <= 0:
         raise ValueError("block_size must be positive")
@@ -86,12 +94,27 @@ def describe_file(
 ) -> ArtifactDescriptor:
     if not path.is_file():
         raise ValueError(f"not a file: {path}")
-    digest, size = stream_sha256(path)
     if chunk_size is None:
+        digest, size = stream_sha256(path)
         entries = ({"path": path.name, "size": size, "sha256": digest},)
         artifact_type = "file"
     else:
-        chunks = tuple(iter_chunk_hashes(path, chunk_size=chunk_size))
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be positive")
+        whole = hashlib.sha256()
+        size = 0
+        chunks = []
+        with path.open("rb") as handle:
+            while chunk := handle.read(chunk_size):
+                whole.update(chunk)
+                chunks.append({
+                    "index": len(chunks),
+                    "offset": size,
+                    "size": len(chunk),
+                    "sha256": hashlib.sha256(chunk).hexdigest(),
+                })
+                size += len(chunk)
+        digest = whole.hexdigest()
         entries = (
             {
                 "path": path.name,
@@ -124,6 +147,11 @@ def _directory_entries(root: Path, *, follow_symlinks: bool) -> tuple[dict[str, 
     return tuple(entries)
 
 
+def _directory_root(entries: tuple[dict[str, Any], ...]) -> str:
+    material = {"algorithm": "sha256-merkle-v1", "entries": list(entries)}
+    return hashlib.sha256(_canonical_bytes(material)).hexdigest()
+
+
 def describe_directory(
     root: Path,
     *,
@@ -133,8 +161,7 @@ def describe_directory(
     if not root.is_dir():
         raise ValueError(f"not a directory: {root}")
     entries = _directory_entries(root, follow_symlinks=follow_symlinks)
-    material = {"algorithm": "sha256-merkle-v1", "entries": list(entries)}
-    root_digest = hashlib.sha256(_canonical_bytes(material)).hexdigest()
+    root_digest = _directory_root(entries)
     return ArtifactDescriptor(
         1,
         "directory-tree",
@@ -184,19 +211,24 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
     if artifact_type not in ARTIFACT_TYPES:
         raise ValueError(f"unsupported artifact type: {artifact_type}")
     root_sha256 = _hex_sha256(payload.get("root_sha256"), "root_sha256")
-    total_bytes = int(payload.get("total_bytes", 0))
-    entry_count = int(payload.get("entry_count", 0))
+    total_bytes = _descriptor_integer(payload.get("total_bytes", 0), "total_bytes")
+    entry_count = _descriptor_integer(payload.get("entry_count", 0), "entry_count")
     entries_raw = payload.get("entries", [])
     if not isinstance(entries_raw, (list, tuple)):
         raise ValueError("entries must be a list")
     entries = tuple(dict(item) for item in entries_raw if isinstance(item, Mapping))
     if len(entries) != len(entries_raw):
         raise ValueError("every descriptor entry must be an object")
+    entry_paths: set[str] = set()
     for item in entries:
-        _validate_relative(str(item.get("path", "")))
+        entry_path = _validate_relative(str(item.get("path", "")))
+        if entry_path in entry_paths:
+            raise ValueError(f"Duplicate descriptor entry path: {entry_path}")
+        entry_paths.add(entry_path)
         _hex_sha256(item.get("sha256"), "entry sha256")
-        if int(item.get("size", -1)) < 0:
-            raise ValueError("entry size must be non-negative")
+        entry_size = _descriptor_integer(item.get("size", -1), "entry size")
+        if artifact_type == "chunked-file" or "chunk_size" in item:
+            _descriptor_integer(item.get("chunk_size"), "chunk_size", positive=True)
         chunks = item.get("chunks")
         if chunks is not None:
             if not isinstance(chunks, list):
@@ -205,16 +237,14 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
             for index, chunk in enumerate(chunks):
                 if not isinstance(chunk, Mapping):
                     raise ValueError("chunk record must be an object")
-                if int(chunk.get("index", -1)) != index:
+                if _descriptor_integer(chunk.get("index", -1), "chunk index") != index:
                     raise ValueError("chunk indexes must be contiguous")
-                if int(chunk.get("offset", -1)) != expected_offset:
+                if _descriptor_integer(chunk.get("offset", -1), "chunk offset") != expected_offset:
                     raise ValueError("chunk offsets must be contiguous")
-                size = int(chunk.get("size", -1))
-                if size <= 0:
-                    raise ValueError("chunk size must be positive")
+                size = _descriptor_integer(chunk.get("size", -1), "chunk size", positive=True)
                 _hex_sha256(chunk.get("sha256"), "chunk sha256")
                 expected_offset += size
-            if expected_offset != int(item["size"]):
+            if expected_offset != entry_size:
                 raise ValueError("chunk sizes do not sum to entry size")
     descriptor = ArtifactDescriptor(
         1,
@@ -237,13 +267,21 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
         if entries or entry_count != 0:
             raise ValueError("external reference cannot contain local entries")
         external_size = external.get("size_bytes")
-        if external_size is not None and int(external_size) != total_bytes:
+        if external_size is not None and _descriptor_integer(external_size, "external size_bytes") != total_bytes:
             raise ValueError("external reference size does not match total_bytes")
     else:
         if len(entries) != entry_count:
             raise ValueError("entry_count does not match entries")
-        if sum(int(item.get("size", 0)) for item in entries) != total_bytes:
+        if sum(item["size"] for item in entries) != total_bytes:
             raise ValueError("total_bytes does not match entries")
+        if artifact_type == "directory-tree":
+            if _directory_root(entries) != root_sha256:
+                raise ValueError("directory root_sha256 does not match entries")
+        else:
+            if len(entries) != 1:
+                raise ValueError("file descriptor requires exactly one entry")
+            if _hex_sha256(entries[0]["sha256"], "entry sha256") != root_sha256:
+                raise ValueError("file root_sha256 does not match entry")
     if path is not None:
         if artifact_type == "directory-tree":
             actual = describe_directory(path, media_type=descriptor.media_type)
@@ -251,11 +289,13 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
             actual = describe_file(
                 path,
                 media_type=descriptor.media_type,
-                chunk_size=int(entries[0].get("chunk_size")) if artifact_type == "chunked-file" else None,
+                chunk_size=entries[0]["chunk_size"] if artifact_type == "chunked-file" else None,
             )
         else:
-            actual = descriptor
-        if actual.root_sha256 != descriptor.root_sha256 or actual.entries != descriptor.entries:
+            actual = describe_file(path, media_type=descriptor.media_type)
+        if (actual.root_sha256 != descriptor.root_sha256
+                or actual.total_bytes != descriptor.total_bytes
+                or (artifact_type != "external-reference" and actual.entries != descriptor.entries)):
             raise ValueError("artifact bytes do not match descriptor")
     return descriptor
 
@@ -298,6 +338,7 @@ class ContentAddressedStore:
         return digest, destination
 
     def verify(self, digest: str) -> bool:
+        digest = _hex_sha256(digest, "digest")
         path = self.object_path(digest)
         if not path.is_file():
             return False

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest
+from codex_science.artifact_store import describe_directory, describe_file
 from codex_science.reviewer_runtime import _fingerprint, _review_order_policy, _review_priority, build_review_packet, finalize_review_response, respond_to_review, validate_review_packet
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
@@ -901,10 +902,309 @@ class RespondToReviewRejectionTests(unittest.TestCase):
         self.assertEqual("passed", summary["effective_status"])
         self.assertTrue(self.response_path.exists())
 
+    def test_directory_response_accepts_unchanged_and_refuses_stale_tree(self) -> None:
+        tree = self.task.parent / "tree"
+        tree.mkdir()
+        member = tree / "a"
+        member.write_bytes(b"abc")
+        manifest_path = self.task.parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        add_artifact(manifest, "tree", kind="dataset", sha256=describe_directory(tree).root_sha256, artifact_type="directory-tree")
+        write_manifest(manifest, manifest_path)
+        self.packet = build_review_packet(manifest_path, review_modes=["record"])
+        self.task.write_text(json.dumps(self.packet), encoding="utf-8")
+        alias = self.task.parent / "tree-alias"
+        alias.symlink_to(tree, target_is_directory=True)
+        original = describe_directory(tree).to_dict()
+        for destination in (tree, member, tree / "new.json", tree / "nested" / "new.json", alias, alias / "a", alias / "new.json"):
+            with self.subTest(output=destination.relative_to(self.task.parent)):
+                self.assertRefused("output (would overwrite|is a symlink)", output=destination)
+                self.assertEqual(original, describe_directory(tree).to_dict())
+                self.assertEqual(b"abc", member.read_bytes())
+                self.assertFalse((tree / "nested").exists())
+        alias.unlink()
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.response_path.unlink()
+        member.write_bytes(b"xyz")
+        self.assertRefused("stale packet.*tree")
+        member.unlink()
+        self.assertRefused("stale packet.*tree")
+        manifest["artifacts"][-1]["sha256"] = describe_directory(tree).root_sha256
+        write_manifest(manifest, manifest_path)
+        self.task.write_text(json.dumps(build_review_packet(manifest_path, review_modes=["record"])), encoding="utf-8")
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.response_path.unlink()
+        tree.rmdir()
+        self.assertRefused("stale packet.*tree")
+        alias.symlink_to(tree, target_is_directory=True)
+        before = sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*"))
+        for destination in (tree, tree / "new.json", tree / "nested" / "new.json", alias / "new.json"):
+            with self.subTest(removed_output=destination.relative_to(self.task.parent)):
+                self.assertRefused("output would overwrite", reviewed_all=False, reviewed_paths=[self.artifact_path], output=destination)
+                self.assertEqual(before, sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*")))
+                self.assertFalse(tree.exists())
+        alias.unlink()
+        packet = json.loads(self.task.read_text(encoding="utf-8"))
+        without_tree = copy.deepcopy(manifest)
+        without_tree["artifacts"] = without_tree["artifacts"][:-1]
+        write_manifest(without_tree, manifest_path)
+        alias.symlink_to(tree, target_is_directory=True)
+        before = {path.relative_to(self.task.parent).as_posix(): path.read_bytes() if path.is_file() else None
+                  for path in self.task.parent.rglob("*")}
+        for destination in (tree, tree / "new.json", tree / "nested" / "new.json", alias / "new.json"):
+            with self.subTest(forgotten_output=destination.relative_to(self.task.parent)):
+                self.assertRefused("output would overwrite", reviewed_all=False, reviewed_paths=[self.artifact_path], output=destination)
+                self.assertEqual(before, {path.relative_to(self.task.parent).as_posix(): path.read_bytes() if path.is_file() else None
+                                          for path in self.task.parent.rglob("*")})
+                self.assertFalse(tree.exists())
+        alias.unlink()
+        write_manifest(manifest, manifest_path)
+        self.task.write_text(json.dumps(packet), encoding="utf-8")
+        merkle_material = b'{"algorithm":"sha256-merkle-v1","entries":[]}'
+        for recorded_type in ("file", "chunked-file", "directory-tree"):
+            with self.subTest(recorded_type=recorded_type):
+                if recorded_type == "directory-tree":
+                    tree.mkdir()
+                    digest = describe_directory(tree).root_sha256
+                else:
+                    tree.write_bytes(merkle_material)
+                    digest = hashlib.sha256(merkle_material).hexdigest()
+                manifest["artifacts"][-1].update(artifact_type=recorded_type, sha256=digest)
+                write_manifest(manifest, manifest_path)
+                self.task.write_text(json.dumps(build_review_packet(manifest_path, review_modes=["record"])), encoding="utf-8")
+                self.assertEqual("passed", self.respond()["effective_status"])
+                self.response_path.unlink()
+                if recorded_type == "directory-tree":
+                    tree.rmdir()
+                    tree.write_bytes(merkle_material)
+                else:
+                    tree.unlink()
+                    tree.mkdir()
+                self.assertEqual(digest, describe_directory(tree).root_sha256 if tree.is_dir() else hashlib.sha256(tree.read_bytes()).hexdigest())
+                try:
+                    self.assertRefused("stale packet.*tree")
+                finally:
+                    self.response_path.unlink(missing_ok=True)
+                    if tree.is_dir():
+                        tree.rmdir()
+                    else:
+                        tree.unlink()
+
+    def test_response_reserves_removed_file_artifact_paths(self) -> None:
+        manifest_path = Path(self.packet["source_manifest_path"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        reserved = self.task.parent / "reserved.bin"
+        reserved.write_bytes(b"")
+        add_artifact(manifest, reserved.name, kind="dataset", sha256=hashlib.sha256(b"").hexdigest())
+        write_manifest(manifest, manifest_path)
+        self.task.write_text(json.dumps(build_review_packet(manifest_path, review_modes=["record"])), encoding="utf-8")
+        reserved.unlink()
+        alias = self.task.parent / "reserved-alias"
+        alias.symlink_to(reserved)
+        for forgotten in (False, True):
+            if forgotten:
+                manifest["artifacts"].pop()
+                write_manifest(manifest, manifest_path)
+            before = {path.relative_to(self.task.parent).as_posix(): path.read_bytes() if path.is_file() else None
+                      for path in self.task.parent.rglob("*")}
+            for destination in (reserved, reserved / "new.json", reserved / "nested" / "new.json", alias / "new.json"):
+                with self.subTest(forgotten=forgotten, output=destination.relative_to(self.task.parent)):
+                    self.assertRefused("output would overwrite", reviewed_all=False, reviewed_paths=[self.artifact_path], output=destination)
+                    self.assertEqual(before, {path.relative_to(self.task.parent).as_posix(): path.read_bytes() if path.is_file() else None
+                                              for path in self.task.parent.rglob("*")})
+                    self.assertFalse(reserved.exists())
+        outside = self.task.parent / "reserved.bin-responses" / "safe.json"
+        self.assertEqual("passed", self.respond(reviewed_all=False, reviewed_paths=[self.artifact_path], output=outside)["effective_status"])
+        self.assertTrue(outside.is_file())
+
     def test_reviewed_all_and_reviewed_are_mutually_exclusive_and_required(self) -> None:
         self.assertRefused("pass exactly one of --reviewed-all or --reviewed PATH", reviewed_all=True, reviewed_paths=[self.artifact_path])
         self.assertRefused("pass exactly one of --reviewed-all or --reviewed PATH", reviewed_all=False, reviewed_paths=None)
         self.assertRefused("pass exactly one of --reviewed-all or --reviewed PATH", reviewed_all=False, reviewed_paths=[])
+
+    def test_response_requires_available_valid_source_manifest(self) -> None:
+        manifest_path = Path(self.packet["source_manifest_path"])
+        original = manifest_path.read_bytes()
+        for content in (b"", b"{", b"[]", b"{}"):
+            with self.subTest(content=content[:1], length=len(content)):
+                manifest_path.write_bytes(content)
+                packet = resign(self.packet, lambda p: p.update(source_manifest_sha256=hashlib.sha256(content).hexdigest()))
+                self.task.write_text(json.dumps(packet), encoding="utf-8")
+                try:
+                    self.assertRefused("source manifest")
+                finally:
+                    self.response_path.unlink(missing_ok=True)
+        self.task.write_text(json.dumps(self.packet), encoding="utf-8")
+        manifest_path.unlink()
+        try:
+            self.assertRefused("source manifest")
+        finally:
+            self.response_path.unlink(missing_ok=True)
+        manifest_path.write_bytes(original)
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.response_path.unlink()
+        manifest_path.write_bytes(original + b"\n")
+        self.assertEqual("passed", self.respond()["effective_status"])
+
+    def test_response_uses_matching_entries_after_manifest_growth(self) -> None:
+        manifest_path = Path(self.packet["source_manifest_path"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        tree = self.task.parent / "tree"
+        tree.mkdir()
+        add_artifact(manifest, tree.name, kind="dataset", sha256=describe_directory(tree).root_sha256, artifact_type="directory-tree")
+        write_manifest(manifest, manifest_path)
+        self.task.write_text(json.dumps(build_review_packet(manifest_path, review_modes=["record"])), encoding="utf-8")
+        extra = self.task.parent / "extra.json"
+        extra.write_bytes(b"{}")
+        add_artifact(manifest, extra.name, kind="report", sha256=hashlib.sha256(extra.read_bytes()).hexdigest())
+        appended = self.task.parent / "appended-tree"
+        appended.mkdir()
+        member = appended / "a.bin"
+        member.write_bytes(b"preserve")
+        add_artifact(manifest, appended.name, kind="dataset", sha256=describe_directory(appended).root_sha256, artifact_type="directory-tree")
+        write_manifest(manifest, manifest_path)
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.response_path.unlink()
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.response_path.unlink()
+        uppercase = copy.deepcopy(manifest)
+        uppercase["artifacts"][0]["sha256"] = uppercase["artifacts"][0]["sha256"].upper()
+        write_manifest(uppercase, manifest_path)
+        self.assertEqual("passed", self.respond()["effective_status"])
+        self.response_path.unlink()
+        alias = self.task.parent / "appended-alias"
+        alias.symlink_to(appended, target_is_directory=True)
+        before = sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*"))
+        original_extra = extra.read_bytes()
+        original_manifest = manifest_path.read_bytes()
+        for destination in (member, appended, appended / "new.json", appended / "nested" / "new.json", alias / "a.bin", alias / "new.json", extra, extra / "new.json", extra / "nested" / "new.json"):
+            with self.subTest(appended_output=destination.relative_to(self.task.parent)):
+                self.assertRefused("output would overwrite", output=destination)
+                self.assertEqual(b"preserve", member.read_bytes())
+                self.assertEqual(original_extra, extra.read_bytes())
+                self.assertEqual(original_manifest, manifest_path.read_bytes())
+                self.assertEqual(before, sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*")))
+        member.unlink()
+        appended.rmdir()
+        before = sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*"))
+        for destination in (appended, appended / "new.json", alias / "new.json"):
+            with self.subTest(missing_appended_output=destination.relative_to(self.task.parent)):
+                self.assertRefused("output would overwrite", output=destination)
+                self.assertEqual(before, sorted(path.relative_to(self.task.parent).as_posix() for path in self.task.parent.rglob("*")))
+                self.assertFalse(appended.exists())
+        alias.unlink()
+        outside = self.task.parent / "responses" / "safe.json"
+        self.assertEqual("passed", self.respond(output=outside)["effective_status"])
+        self.assertTrue(outside.is_file())
+        outside.unlink()
+        outside.parent.rmdir()
+        for change in ("digest", "missing", "empty", "unknown-type"):
+            with self.subTest(change=change):
+                changed = copy.deepcopy(manifest)
+                if change == "digest":
+                    changed["artifacts"][0]["sha256"] = "0" * 64
+                elif change == "missing":
+                    changed["artifacts"] = changed["artifacts"][1:]
+                elif change == "empty":
+                    changed["artifacts"] = []
+                else:
+                    changed["artifacts"][0]["artifact_type"] = "tarball"
+                manifest_path.write_text(json.dumps(changed), encoding="utf-8")
+                self.assertRefused("stale packet.*evidence.json")
+
+    def test_response_reserves_appended_descriptor_paths(self) -> None:
+        manifest_path = Path(self.packet["source_manifest_path"])
+        original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        data = self.task.parent / "chunked.bin"
+        descriptor = self.task.parent / "chunked.descriptor.json"
+        for content in (b"", b"abcd"):
+            data.write_bytes(content)
+            description = describe_file(data, chunk_size=2)
+            descriptor.write_text(json.dumps(description.to_dict()), encoding="utf-8")
+            manifest = copy.deepcopy(original_manifest)
+            add_artifact(manifest, data.name, kind="dataset", sha256=description.root_sha256,
+                         artifact_type="chunked-file", descriptor_path=descriptor.name)
+            write_manifest(manifest, manifest_path)
+            prepared = build_review_packet(manifest_path, review_modes=["record"])
+            for source in ("manifest", "packet"):
+                if source == "packet":
+                    packet = resign(prepared, lambda p: p["artifacts"][-1].update(descriptor_path=descriptor.name))
+                    self.task.write_text(json.dumps(packet), encoding="utf-8")
+                    write_manifest(original_manifest, manifest_path)
+                before = {path.relative_to(self.task.parent).as_posix(): path.read_bytes() if path.is_file() else None
+                          for path in self.task.parent.rglob("*")}
+                for destination in (descriptor, descriptor / "new.json", descriptor / "nested" / "new.json"):
+                    with self.subTest(size=len(content), source=source, output=destination.name):
+                        self.assertRefused("output would overwrite", reviewed_all=False, reviewed_paths=[self.artifact_path], output=destination)
+                        self.assertEqual(before, {path.relative_to(self.task.parent).as_posix(): path.read_bytes() if path.is_file() else None
+                                                  for path in self.task.parent.rglob("*")})
+                outside = self.task.parent / "chunked.descriptor.json-responses" / "safe.json"
+                self.assertEqual("passed", self.respond(reviewed_all=False, reviewed_paths=[self.artifact_path], output=outside)["effective_status"])
+                outside.unlink()
+                outside.parent.rmdir()
+                self.task.write_text(json.dumps(self.packet), encoding="utf-8")
+
+    def test_response_refuses_looping_paths_without_writing(self) -> None:
+        for source in ("manifest", "packet", "manifest-descriptor", "packet-descriptor", "output", "output-parent", "missing-prefix-output", "task", "prepare", "malformed-output"):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as tempdir:
+                manifest_path = make_reviewed_run(Path(tempdir))
+                run = manifest_path.parent
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                packet = build_review_packet(manifest_path, review_modes=["record"])
+                task = run / "review-task.json"
+                loop = run / "loop"
+                loop.symlink_to(loop.name)
+                destination = run / "reviewer-response.json"
+                if source == "manifest":
+                    add_artifact(manifest, loop.name, kind="report", sha256="0" * 64)
+                elif source == "packet":
+                    packet = resign(packet, lambda p: p["artifacts"][0].update(path=loop.name))
+                elif source == "manifest-descriptor":
+                    manifest["artifacts"][0]["descriptor_path"] = loop.name
+                elif source == "packet-descriptor":
+                    packet = resign(packet, lambda p: p["artifacts"][0].update(descriptor_path=loop.name))
+                elif source == "output":
+                    destination = loop
+                elif source == "output-parent":
+                    destination = loop / "new.json"
+                elif source == "missing-prefix-output":
+                    destination = run / "missing" / ".." / loop.name / "new.json"
+                elif source == "malformed-output":
+                    destination = Path("\0")
+                write_manifest(manifest, manifest_path)
+                task.write_text(json.dumps(packet), encoding="utf-8")
+                before = {path.relative_to(run).as_posix(): str(path.readlink()) if path.is_symlink() else path.read_bytes() if path.is_file() else None
+                          for path in run.rglob("*")}
+                with self.assertRaisesRegex(ValueError, "(path|manifest) unavailable or invalid"):
+                    if source == "prepare":
+                        build_review_packet(loop, review_modes=["record"])
+                    else:
+                        respond_to_review(loop if source == "task" else task, reviewer="r1", independent=True,
+                                          status="passed", limitations=["Not reproduced."], reviewed_all=True, output=destination)
+                self.assertEqual(before, {path.relative_to(run).as_posix(): str(path.readlink()) if path.is_symlink() else path.read_bytes() if path.is_file() else None
+                                          for path in run.rglob("*")})
+
+    def test_response_ignores_null_descriptor_paths(self) -> None:
+        for source in ("manifest", "packet", "both"):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as tempdir:
+                manifest_path = make_reviewed_run(Path(tempdir))
+                packet = build_review_packet(manifest_path, review_modes=["record"])
+                if source in {"manifest", "both"}:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    manifest["artifacts"][0]["descriptor_path"] = None
+                    write_manifest(manifest, manifest_path)
+                if source in {"packet", "both"}:
+                    packet = resign(packet, lambda p: p["artifacts"][0].update(descriptor_path=None))
+                task = manifest_path.parent / "review-task.json"
+                task.write_text(json.dumps(packet), encoding="utf-8")
+                before = {path: path.read_bytes() for path in (manifest_path, task, manifest_path.parent / "evidence.json")}
+                destination = task.parent / "None" / "response.json"
+                summary = respond_to_review(task, reviewer="r1", independent=True, status="passed",
+                                            limitations=["Not reproduced."], reviewed_all=True, output=destination)
+                self.assertEqual("passed", summary["effective_status"])
+                self.assertTrue(destination.is_file())
+                self.assertEqual(before, {path: path.read_bytes() for path in before})
 
     def test_unknown_modes_and_claims_are_refused(self) -> None:
         self.assertRefused("modes not in packet: source", modes=["record", "source"])

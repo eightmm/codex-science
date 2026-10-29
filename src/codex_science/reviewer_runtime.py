@@ -15,8 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from codex_science.artifact_store import stream_sha256
-from codex_science.artifacts import validate_bundle
+from codex_science.artifact_store import describe_directory, stream_sha256
+from codex_science.artifacts import validate_bundle, validate_manifest
 from codex_science.cli_io import write_json_atomic
 from codex_science.review_receipts import (
     SEVERITIES,
@@ -218,6 +218,21 @@ def _review_order_policy(priority: list[dict[str, str | int]], tier: str, tier_s
     }
 
 
+def _resolve_review_path(path: Path) -> Path:
+    try:
+        try:
+            return path.resolve(strict=True)
+        except (FileNotFoundError, NotADirectoryError):
+            resolved = path.resolve()
+        # Normalizing a missing prefix can expose a later symlink loop.
+        try:
+            return resolved.resolve(strict=True)
+        except (FileNotFoundError, NotADirectoryError):
+            return resolved
+    except (OSError, RuntimeError) as error:
+        raise ValueError(f"review path unavailable or invalid: {path}: {error}") from error
+
+
 def build_review_packet(
     manifest_path: Path,
     *,
@@ -232,7 +247,7 @@ def build_review_packet(
     if not isinstance(tier, str) or tier not in TIERS:
         raise ValueError(f"tier must be one of {TIERS!r}")
     tier = str(tier)
-    manifest_path = manifest_path.resolve()
+    manifest_path = _resolve_review_path(manifest_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("manifest must be an object")
@@ -568,16 +583,48 @@ def respond_to_review(
 ) -> dict[str, Any]:
     """Fill a reviewer response's identity and hashes from the packet; judgment fields stay caller-supplied.
 
+    Artifact types come from the source manifest; changed manifests require matching
+    packet artifact digests. Artifact and declared descriptor paths in the packet
+    or current manifest reserve their entire output subtrees, even without packet
+    type metadata or a current filesystem object.
     Raises one ValueError listing every input problem and writes nothing on failure.
     """
     task_path = Path(task_path)
-    run_dir = task_path.resolve().parent
+    run_dir = _resolve_review_path(task_path).parent
     packet = json.loads(task_path.read_text(encoding="utf-8"))
     if not isinstance(packet, dict):
         raise ValueError(f"JSON object required: {task_path}")
     validate_review_packet(packet)
     problems: list[str] = []
     packet_hashes = {str(item["path"]): str(item["sha256"]).lower() for item in packet["artifacts"]}
+    protected_artifact_paths: set[Path] = set()
+    try:
+        protected_artifact_paths.update(
+            _resolve_review_path(run_dir / str(item[field]))
+            for item in packet["artifacts"]
+            for field in ("path", "descriptor_path") if field == "path" or item.get(field) is not None
+        )
+    except (OSError, ValueError, RuntimeError) as error:
+        problems.append(f"packet artifact path unavailable or invalid: {error}")
+    source_manifest = Path(str(packet["source_manifest_path"]))
+    artifact_types: dict[str, str] = {}
+    try:
+        manifest_bytes = source_manifest.read_bytes()
+        manifest_matches_packet = hashlib.sha256(manifest_bytes).hexdigest() == str(packet["source_manifest_sha256"]).lower()
+        manifest = json.loads(manifest_bytes)
+        validate_manifest(manifest)
+        protected_artifact_paths.update(
+            _resolve_review_path(run_dir / str(item[field]))
+            for item in manifest["artifacts"]
+            for field in ("path", "descriptor_path") if field == "path" or item.get(field) is not None
+        )
+        artifact_types = {
+            str(item["path"]): str(item.get("artifact_type", "file"))
+            for item in manifest["artifacts"]
+            if manifest_matches_packet or str(item["sha256"]).lower() == packet_hashes.get(str(item["path"]))
+        }
+    except (OSError, ValueError, RuntimeError) as error:
+        problems.append(f"source manifest unavailable or invalid: {error}")
 
     if bool(reviewed_all) == bool(reviewed_paths):
         problems.append("pass exactly one of --reviewed-all or --reviewed PATH")
@@ -589,11 +636,17 @@ def respond_to_review(
     for path in covered:
         if path in unknown:
             continue
-        target = (run_dir / path).resolve()
         try:
+            target = _resolve_review_path(run_dir / path)
             target.relative_to(run_dir)
-            current = stream_sha256(target)[0] if target.is_file() else None
-        except (ValueError, OSError):
+            artifact_type = artifact_types.get(path)
+            if artifact_type == "directory-tree":
+                current = describe_directory(target).root_sha256 if target.is_dir() else None
+            elif artifact_type in {"file", "chunked-file"}:
+                current = stream_sha256(target)[0] if target.is_file() else None
+            else:
+                current = None
+        except (ValueError, OSError, RuntimeError):
             current = None
         if current != packet_hashes[path]:
             stale.append(path)
@@ -664,17 +717,20 @@ def respond_to_review(
         response["blocked_reason"] = blocked_reason.strip()
 
     destination = Path(output) if output is not None else task_path.parent / "reviewer-response.json"
-    if destination.is_symlink():
-        problems.append(f"output is a symlink: {destination}")
-    resolved = destination.resolve()
     try:
-        resolved.relative_to(run_dir)
-    except ValueError:
-        problems.append(f"output is outside the run directory: {destination}")
-    source_manifest = Path(str(packet["source_manifest_path"]))
-    protected = {task_path.resolve(), run_dir / "manifest.json", run_dir / source_manifest.name, source_manifest.resolve(), *((run_dir / path).resolve() for path in packet_hashes)}
-    if resolved in protected:
-        problems.append(f"output would overwrite a packet or manifest file: {destination}")
+        if destination.is_symlink():
+            problems.append(f"output is a symlink: {destination}")
+        resolved = _resolve_review_path(destination)
+        if not resolved.is_relative_to(run_dir):
+            problems.append(f"output is outside the run directory: {destination}")
+        protected = {_resolve_review_path(task_path), run_dir / "manifest.json", run_dir / source_manifest.name, _resolve_review_path(source_manifest), *(_resolve_review_path(run_dir / path) for path in packet_hashes)}
+        if resolved in protected:
+            problems.append(f"output would overwrite a packet or manifest file: {destination}")
+        elif (any(resolved.is_relative_to(path) for path in protected_artifact_paths)
+              or any(path.is_dir() and resolved.is_relative_to(path) for path in protected)):
+            problems.append(f"output would overwrite an artifact: {destination}")
+    except (OSError, ValueError, RuntimeError) as error:
+        problems.append(f"output path unavailable or invalid: {destination}: {error}")
 
     effective = None
     if not problems:

@@ -9,12 +9,13 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-from codex_science.artifact_store import describe_file
+from codex_science.artifact_store import describe_directory, describe_external_reference, describe_file
 from codex_science.artifacts import (
     _validate_descriptor_path,
     add_artifact,
     new_manifest,
     validate_manifest,
+    validate_bundle,
     verify_bundle_artifacts,
     write_manifest,
 )
@@ -402,6 +403,70 @@ class DescriptorPathRejectionTests(unittest.TestCase):
     def test_matching_descriptor_is_accepted(self) -> None:
         self.write_descriptor(describe_file(self.data).to_dict())
         verify_bundle_artifacts(self.manifest(), self.run_dir)
+
+    def test_bundle_refuses_external_descriptor_with_false_size(self) -> None:
+        payload = describe_external_reference(uri="s3://bucket/data", version="v1", sha256=self.digest, size_bytes=999).to_dict()
+        self.write_descriptor(payload)
+        with self.assertRaisesRegex(ValueError, "do not match descriptor"):
+            validate_bundle(self.manifest(), self.run_dir)
+
+    def test_descriptor_symlink_must_remain_inside_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as outside:
+            external = Path(outside) / "descriptor.json"
+            external.write_text(json.dumps(describe_file(self.data).to_dict()), encoding="utf-8")
+            link = self.run_dir / "data.descriptor.json"
+            link.symlink_to(external)
+            with self.assertRaisesRegex(ValueError, "descriptor resolves outside"):
+                validate_bundle(self.manifest(), self.run_dir)
+            link.unlink()
+            internal = self.run_dir / "internal.json"
+            internal.write_text(external.read_text(encoding="utf-8"), encoding="utf-8")
+            link.symlink_to(internal)
+            validate_bundle(self.manifest(), self.run_dir)
+
+    def test_bundle_and_index_refuse_contradictory_descriptor_sidecars(self) -> None:
+        dataset = self.run_dir / "tree"
+        dataset.mkdir()
+        (dataset / "a").write_bytes(b"abc")
+        for descriptor in (describe_file(self.data), describe_directory(dataset)):
+            payload = descriptor.to_dict()
+            payload["root_sha256"] = "0" * 64
+            self.write_descriptor(payload)
+            manifest = new_manifest("run-001", "Question", [])
+            digest = hashlib.sha256((self.run_dir / "data.descriptor.json").read_bytes()).hexdigest()
+            add_artifact(manifest, "data.descriptor.json", kind="artifact-descriptor", sha256=digest)
+            for action in (validate_bundle, render_markdown, render_html):
+                with self.subTest(kind=descriptor.artifact_type, action=action.__name__), self.assertRaises(ValueError):
+                    action(manifest, self.run_dir)
+
+    def test_bundle_refuses_noninteger_metadata_without_truncation(self) -> None:
+        self.write_descriptor(describe_file(self.data).to_dict())
+        for field, valid in (("size_bytes", len(b"payload")), ("entry_count", 1)):
+            for value in (valid + 0.9, float(valid), True, "3", "", None, -1):
+                manifest = self.manifest()
+                manifest["artifacts"][0][field] = value
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "non-negative integer"):
+                    validate_bundle(manifest, self.run_dir)
+                if value is not None:
+                    with self.subTest(field=field, value=value, caller="add_artifact"), self.assertRaisesRegex(ValueError, "non-negative integer"):
+                        add_artifact(new_manifest("run-002", "Question", []), "data.bin", kind="blob", sha256=self.digest, **{field: value})
+            manifest = self.manifest()
+            manifest["artifacts"][0][field] = valid
+            validate_bundle(manifest, self.run_dir)
+        self.data.write_bytes(b"")
+        self.digest = hashlib.sha256(b"").hexdigest()
+        self.write_descriptor(describe_file(self.data).to_dict())
+        manifest = self.manifest()
+        manifest["artifacts"][0].update(size_bytes=0, entry_count=1)
+        validate_bundle(manifest, self.run_dir)
+
+    def test_bundle_and_index_refuse_canonical_duplicate_paths(self) -> None:
+        manifest = new_manifest("run-001", "Question", [])
+        add_artifact(manifest, "data.bin", kind="metrics", sha256=self.digest)
+        add_artifact(manifest, "./data.bin", kind="report", sha256=self.digest)
+        for action in (validate_bundle, render_markdown, render_html):
+            with self.subTest(action=action.__name__), self.assertRaisesRegex(ValueError, "Duplicate artifact path"):
+                action(manifest, self.run_dir)
 
     def test_missing_descriptor_file_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "Artifact descriptor is missing: data.descriptor.json"):

@@ -52,6 +52,8 @@ Other artifacts may use descriptive kinds such as `protocol`, `decision-log`, `e
 
 Validation rejects duplicate or escaping paths, verifies every artifact byte against SHA-256, validates stable and advanced sidecars, checks claim/study/query/output cross-references, evaluates graph relation types and dependency cycles, verifies model and review receipts, and identifies stale annotation anchors.
 
+Duplicate detection includes normalized relative aliases such as `data.bin` and `./data.bin`. Artifact `size_bytes` and `entry_count` must be non-negative integers; booleans, fractions and numeric strings are refused. Descriptor paths must also resolve inside the run bundle, including when reached through a symbolic link.
+
 Add `--review-output <path> --require-passed-review` at a completion gate. The record/source review detects duplicate study identities, citation mismatch, unsupported conclusions, dependent evidence presented as replication, failed queries used as support, invalid or stale model receipts, stale review receipts, unresolved blocking findings behind a passed status, and other deterministic contract defects.
 
 ## Navigation, diff, and rerun

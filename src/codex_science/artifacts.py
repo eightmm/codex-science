@@ -72,12 +72,12 @@ def add_artifact(
     if artifact_type != "file":
         record["artifact_type"] = artifact_type
     if size_bytes is not None:
-        if size_bytes < 0:
-            raise ValueError("size_bytes must be non-negative")
+        if type(size_bytes) is not int or size_bytes < 0:
+            raise ValueError("size_bytes must be a non-negative integer")
         record["size_bytes"] = size_bytes
     if entry_count is not None:
-        if entry_count < 0:
-            raise ValueError("entry_count must be non-negative")
+        if type(entry_count) is not int or entry_count < 0:
+            raise ValueError("entry_count must be a non-negative integer")
         record["entry_count"] = entry_count
     if media_type is not None:
         record["media_type"] = media_type
@@ -111,9 +111,10 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
             raise ValueError("Artifact records must be objects")
         path = str(artifact.get("path", ""))
         _validate_relative_path(path)
-        if path in artifact_paths:
+        canonical_path = PurePosixPath(path).as_posix()
+        if canonical_path in artifact_paths:
             raise ValueError(f"Duplicate artifact path: {path}")
-        artifact_paths.add(path)
+        artifact_paths.add(canonical_path)
         if not str(artifact.get("kind", "")).strip():
             raise ValueError(f"Artifact kind is required: {path}")
         if not _valid_sha256(str(artifact.get("sha256", ""))):
@@ -122,7 +123,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         if artifact_type not in LOCAL_ARTIFACT_TYPES:
             raise ValueError(f"Unsupported local artifact_type: {artifact_type}")
         for field in ("size_bytes", "entry_count"):
-            if field in artifact and (isinstance(artifact[field], bool) or int(artifact[field]) < 0):
+            if field in artifact and (type(artifact[field]) is not int or artifact[field] < 0):
                 raise ValueError(f"Artifact {field} must be a non-negative integer: {path}")
         if "descriptor_path" in artifact:
             _validate_relative_path(str(artifact["descriptor_path"]))
@@ -143,6 +144,8 @@ def _validate_descriptor_path(record: dict[str, Any], run_dir: Path, target: Pat
     if descriptor_relative is None:
         return
     descriptor_path = run_dir / str(descriptor_relative)
+    if not descriptor_path.resolve().is_relative_to(run_dir.resolve()):
+        raise ValueError(f"Artifact descriptor resolves outside the run bundle: {descriptor_relative}")
     if not descriptor_path.is_file():
         raise ValueError(f"Artifact descriptor is missing: {descriptor_relative}")
     payload = json.loads(descriptor_path.read_text(encoding="utf-8"))
@@ -179,9 +182,9 @@ def verify_bundle_artifacts(manifest: dict[str, Any], run_dir: Path) -> dict[str
             entry_count = 1
         if digest != str(record["sha256"]).lower():
             raise ValueError(f"Artifact digest mismatch: {relative}")
-        if "size_bytes" in record and int(record["size_bytes"]) != size_bytes:
+        if "size_bytes" in record and record["size_bytes"] != size_bytes:
             raise ValueError(f"Artifact size mismatch: {relative}")
-        if "entry_count" in record and int(record["entry_count"]) != entry_count:
+        if "entry_count" in record and record["entry_count"] != entry_count:
             raise ValueError(f"Artifact entry count mismatch: {relative}")
         _validate_descriptor_path(record, run_dir, path)
         verified[relative] = path
