@@ -11,7 +11,11 @@ from typing import Any, Callable, Mapping
 from codex_science.math_contracts import build_proof_receipt, statement_sha256
 from codex_science.safe_expression import canonical_sha256
 
-ADMITTED_RE = re.compile(r"\b(sorry|admit|by_contra'\s*\?|exact\s*\?)\b")
+ADMITTED_RE = re.compile(r"\b(sorry|sorryAx|admit|by_contra'\s*\?|exact\s*\?)\b")
+THEOREM_RE = re.compile(
+    r"^\s*(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|nonrec)\s+)*(?:theorem|lemma|example)\b",
+    re.MULTILINE,
+)
 AXIOM_RE = re.compile(r"^\s*(axiom|opaque)\s+([A-Za-z0-9_'.]+)", re.MULTILINE)
 UNSAFE_RE = re.compile(r"^\s*unsafe\s+", re.MULTILINE)
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -87,9 +91,12 @@ def run_formal_proof_check(
         raise ValueError(f"timeout_seconds must be between 1 and {MAX_TIMEOUT_SECONDS}")
     workspace = workspace.resolve()
     theorem_path = _safe_path(workspace, theorem_file)
-    source = theorem_path.read_text(encoding="utf-8")
-    source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    source_bytes = theorem_path.read_bytes()
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    source = source_bytes.decode("utf-8")
     admitted = sorted(set(match.group(1) for match in ADMITTED_RE.finditer(source)))
+    has_theorem = THEOREM_RE.search(source) is not None
+    # Keep declaration trust-boundary checks conservative on the original source.
     axioms = sorted(set(match.group(2) for match in AXIOM_RE.finditer(source)))
     unsafe_declarations = len(UNSAFE_RE.findall(source))
     command, selected_mode = _command(workspace, theorem_path, str(payload.get("command_mode", "auto")))
@@ -153,7 +160,7 @@ def run_formal_proof_check(
     stderr = completed.stderr or ""
     current_sha256 = hashlib.sha256(theorem_path.read_bytes()).hexdigest()
     source_unchanged = current_sha256 == source_sha256
-    passed = completed.returncode == 0 and not admitted and source_unchanged and unsafe_declarations == 0
+    passed = completed.returncode == 0 and not admitted and source_unchanged and unsafe_declarations == 0 and has_theorem
     checker = {
         "tool": executable,
         "tool_version": tool_version,
@@ -168,6 +175,8 @@ def run_formal_proof_check(
         "stderr_excerpt": stderr[-MAX_CAPTURE_CHARS:],
     }
     limitations: list[str] = []
+    if not has_theorem:
+        limitations.append("No theorem declaration was found (theorem, lemma, or example required).")
     if admitted:
         limitations.append("The source contains admitted or placeholder proof constructs.")
     if axioms:

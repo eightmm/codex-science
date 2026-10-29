@@ -134,6 +134,113 @@ class FormalTheoremProvingAcceptanceTests(unittest.TestCase):
         self.assertEqual(["sorry"], result["admitted_constructs"])
         self.assertEqual(0, result["proof_receipt"]["checker"]["exit_code"])
 
+    def _check_source(self, source: str | bytes, *, execute: bool = True) -> dict:
+        self.theorem.write_bytes(source.encode("utf-8") if isinstance(source, str) else source)
+
+        def runner(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+            self.assertEqual(self.workspace, cwd)
+            output = "Lean acceptance stub\n" if command[-1] == "--version" else ""
+            return subprocess.CompletedProcess(command, 0, output, "")
+
+        with mock.patch("codex_science.formal_proof.shutil.which", return_value="lean"):
+            result = run_formal_proof_check(self.payload, workspace=self.workspace, execute=execute, runner=runner)
+        if execute:
+            validate_proof_receipt(result["proof_receipt"])
+            self.assertEqual(0, result["proof_receipt"]["checker"]["exit_code"])
+        return result
+
+    def test_admitted_code_is_refused_across_lexical_boundaries(self) -> None:
+        cases = (
+            ("theorem bad : False := sorryAx False true", "sorryAx"),
+            ("/- note -/ theorem t : True := sorry", "sorry"),
+            ("/- /- -/ -/ theorem t : True := sorry", "sorry"),
+            ("/- /- -/ sorry", "sorry"),
+            ('def s := "--" theorem t : True := sorry', "sorry"),
+            ("theorem t' : True := sorry", "sorry"),
+            ("theorem t : True := by\n  admit", "admit"),
+        )
+        for source, admitted in cases:
+            with self.subTest(source=source):
+                result = self._check_source(source)
+                self.assertEqual("failed", result["status"])
+                self.assertEqual([admitted], result["admitted_constructs"])
+                self.assertFalse(result["proof_receipt"]["checker"]["kernel_checked"])
+
+    def test_code_requires_at_least_one_theorem_lemma_or_example(self) -> None:
+        for source in ("", " \r\n\t", "-- comment\n-- another comment\n", "def x := 0",
+                       "def x := 0 theorem t : True := trivial", "theorems t : True := trivial",
+                       "@[simp theorem t : True := trivial",
+                       '/- /--/ -/ #eval " -/ theorem t : True := trivial " -- "\n',
+                       '/-/- -/ -- -/ theorem t : True := trivial\n'):
+            with self.subTest(source=source):
+                result = self._check_source(source)
+                self.assertEqual("failed", result["status"])
+                self.assertFalse(result["proof_receipt"]["checker"]["kernel_checked"])
+                self.assertIn("No theorem declaration was found", " ".join(result["proof_receipt"]["limitations"]))
+
+    def test_raw_line_declaration_heuristic_accepts_modifiers_and_comment_text(self) -> None:
+        fixture = self.theorem.read_text(encoding="utf-8")
+        for prefix in ("", "  ", "@[] ", "@[simp] ", "private ", "protected ", "noncomputable ", "nonrec ",
+                       "@[simp] private noncomputable "):
+            with self.subTest(prefix=prefix):
+                result = self._check_source(prefix + fixture)
+                self.assertEqual("passed", result["status"])
+                self.assertEqual([], result["proof_receipt"]["limitations"])
+        # This raw-line heuristic deliberately accepts a declaration that appears only in a comment.
+        result = self._check_source("/-\ntheorem only_in_comment : True := trivial\n-/\ndef x := 0")
+        self.assertEqual("passed", result["status"])
+        self.assertEqual([], result["proof_receipt"]["limitations"])
+
+    def test_raw_admission_scans_include_comments_and_strings(self) -> None:
+        fixture = self.theorem.read_text(encoding="utf-8")
+        for prefix, admitted in (
+            ("-- no sorry here\n/- uses admit-free tactics -/\n", ["admit", "sorry"]),
+            ("/-- sorry /- admit -/ sorryAx -/\n/-! admit -/\n", ["admit", "sorry", "sorryAx"]),
+            ('#eval "sorry admit sorryAx -- /-"\n', ["admit", "sorry", "sorryAx"]),
+            ('#eval "escaped \\\" sorry \\\\ admit"\n', ["admit", "sorry"]),
+            ("/- outer /- inner -/ sorry -/", ["sorry"]),
+        ):
+            with self.subTest(prefix=prefix):
+                result = self._check_source(prefix + fixture)
+                self.assertEqual("failed", result["status"])
+                self.assertEqual(admitted, result["admitted_constructs"])
+                self.assertFalse(result["proof_receipt"]["checker"]["kernel_checked"])
+        for prefix in ('/- -/\n#eval ""\n', '/-- -/\n/-! -/\n',
+                       '/- outer /-- inner -/ -/\n', '#eval "plain -- /-"\n'):
+            with self.subTest(prefix=prefix):
+                result = self._check_source(prefix + fixture)
+                self.assertEqual("passed", result["status"])
+                self.assertEqual([], result["admitted_constructs"])
+                self.assertEqual([], result["proof_receipt"]["limitations"])
+        for declaration in ("lemma", "example"):
+            with self.subTest(declaration=declaration):
+                result = self._check_source(fixture.replace("theorem nat_add_zero", declaration + (" t" if declaration == "lemma" else "")))
+                self.assertEqual("passed", result["status"])
+
+    def test_doc_comment_overlap_cannot_hide_admitted_code(self) -> None:
+        suffix = '/--/ " -/ theorem t : False := sorry -- "'
+        for source in (suffix, "theorem ok : True := trivial\n" + suffix):
+            with self.subTest(source=source):
+                result = self._check_source(source)
+                self.assertEqual("failed", result["status"])
+                self.assertEqual(["sorry"], result["admitted_constructs"])
+                self.assertFalse(result["proof_receipt"]["checker"]["kernel_checked"])
+
+    def test_source_hashes_use_raw_bytes_in_preview_and_receipt(self) -> None:
+        fixture = (ROOT / FIXTURE).parent.joinpath(self.payload["theorem_file"]).read_bytes()
+        lf_hash = hashlib.sha256(fixture).hexdigest()
+        for source in (fixture, fixture.replace(b"\n", b"\r\n")):
+            with self.subTest(source=source):
+                digest = hashlib.sha256(source).hexdigest()
+                preview = self._check_source(source, execute=False)
+                self.assertEqual(digest, preview["theorem_file_sha256"])
+                result = self._check_source(source)
+                self.assertEqual("passed", result["status"])
+                self.assertEqual(digest, result["theorem_file_sha256"])
+                self.assertEqual([{"path": self.payload["theorem_file"], "sha256": digest}], result["proof_receipt"]["evidence"])
+                self.assertTrue(result["proof_receipt"]["checker"]["source_unchanged"])
+        self.assertEqual(lf_hash, self._check_source(fixture)["theorem_file_sha256"])
+
     def test_admit_placeholder_is_refused(self) -> None:
         self.theorem.write_text(self.theorem.read_text(encoding="utf-8").replace("rfl", "admit"), encoding="utf-8")
         result = self._assert_failed_cli("admitted or placeholder proof constructs")

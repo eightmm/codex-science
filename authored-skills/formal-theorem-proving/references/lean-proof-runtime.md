@@ -59,17 +59,28 @@ The checker does not install a toolchain, fetch dependencies, or modify the work
 All of these must hold:
 
 1. exit code zero;
-2. no `sorry`, `admit`, placeholder proof terms, or unsafe declarations;
+2. no `sorry`, `sorryAx`, `admit`, placeholder proof terms, or unsafe declarations;
 3. theorem source unchanged during checking;
 4. checker tool and version recorded;
 5. exact statement and theorem-file hashes recorded;
-6. `kernel_checked: true`.
+6. `kernel_checked: true`;
+7. at least one raw-source line matching the declaration heuristic below; empty files, files containing only `-- comment` lines, and a lone `def x := 0` cannot pass.
+
+Admission scans are on raw source: comments mentioning placeholders fail the check. Placeholder mentions in strings can also cause refusal. Axiom, opaque-constant, and unsafe-declaration detection also scans raw source. These conservative false positives are a known limitation.
+
+The declaration rule is a line heuristic on raw source, using this multiline regular expression:
+
+```text
+^\s*(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|nonrec)\s+)*(?:theorem|lemma|example)\b
+```
+
+It accepts indentation, an optional attribute group, and the listed modifiers. It does not parse Lean: a declaration that appears only inside a comment can still satisfy it. A passed receipt therefore does not establish that an intended theorem was declared; the separate correspondence review remains required before assigning `proved-formal`. The theorem-file hash covers raw bytes, including CRLF line endings; LF source hashes are unchanged.
 
 Declared axioms are surfaced as trust-boundary limitations and must be independently authorized by the claim contract. Introducing an axiom only to finish a proof is a failure.
 
 ## Failure and invalidation
 
-Preserve failed receipts. Mark the result `unavailable` when Lean is absent. Timeout, source mutation, admitted constructs, unsafe declarations, nonzero exit, or statement mismatch prevent a passed receipt.
+Preserve failed receipts. Mark the result `unavailable` when Lean is absent. Timeout, source mutation, admitted constructs in raw source, unsafe declarations, nonzero exit, or absence of a detected theorem declaration prevent a passed receipt. The kernel receipt records the prose statement hash but cannot establish correspondence between that prose and the formal theorem; statement mismatch must be rejected by the separate correspondence review before assigning `proved-formal`.
 
 Changing any of the following invalidates the prior receipt or correspondence review:
 
