@@ -18,7 +18,7 @@ Claude Science의 공개 workflow에서 영감을 받은 독립 plugin이며, �
 
 - 감사된 스킬 카탈로그 284개: K-Dense-AI 149개, Codex-native 132개,
   DeepMind 인프라 포인터 3개.
-- 읽기 전용 공개 데이터 connector 34개와 카탈로그 검색·연구 계획.
+- 읽기 전용 공개 데이터 source contract 49개와 카탈로그 검색·연구 계획. 성숙도는 source별로 다르며, 모두 live-tested된 것은 아닙니다.
 - 독립 evidence review가 포함된 재현 가능한 실행 artifact.
 - 승인 gate를 거치는 로컬·원격 과학 컴퓨팅.
 
@@ -171,12 +171,12 @@ MCP는 `science_search_*`와 `science_plan_*`를 제공하며,
 
 ## 평가 현황
 
-고정된 6개 문헌 작업 benchmark의 최신 기록인 Run30은 6개 중 5개를 완료했고,
-standard-mrna는 provider policy 차단으로 중단됐습니다. Run6–30에서
-standard-mrna는 25회 중 8회 provider policy에 의해 차단됐습니다. Run28과
-Run29는 각각 6/6을 완료했습니다. 실행당 작업이 6개뿐이므로 이 결과로 추세를
-입증할 수 없습니다. 실행별 근거와 한계는 [평가 문서](docs/EVALUATION.md)에
-있습니다.
+고정된 6개 문헌 작업 benchmark의 최신 기록인 Run40은 6개 중 5개를 완료했습니다
+(95% Wilson 구간 43.6%-97.0%). full-protein-folding은 1800초에 timeout됐고,
+policy 차단·provider capacity 실패·재실행은 없었습니다. 과거 Run30은 6개 중
+5개를 완료했으며 standard-mrna는 provider policy 차단으로 중단됐습니다. 실행당
+작업이 6개뿐이므로 이 결과로 추세를 입증할 수 없습니다. 실행별 근거와 한계는
+[평가 문서](docs/EVALUATION.md)에 있습니다.
 
 ## 개발
 

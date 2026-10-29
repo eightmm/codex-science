@@ -18,7 +18,7 @@ parity claim about private implementations.
 
 - An audited catalog of 284 skills: 149 K-Dense-AI, 132 Codex-native, and 3
   DeepMind infrastructure pointers.
-- 34 read-only public data connectors, plus catalog search and research planning.
+- 49 read-only public data source contracts, plus catalog search and research planning; maturity is source-specific, and not all sources are live-tested.
 - Reproducible run artifacts with independent evidence review.
 - Local and remote scientific computing with approval gates.
 
@@ -174,10 +174,11 @@ execution permission.
 
 ## Evaluation status
 
-On the frozen six-task literature benchmark, the latest recorded run, Run30,
-completed 5/6: standard-mrna stopped on a provider policy block. Across runs
-6–30, standard-mrna was blocked by provider policy in 8 of 25 runs. Runs 28 and
-29 each completed 6/6. Each run has only six tasks, so these results cannot
+On the frozen six-task literature benchmark, the latest recorded run, Run40,
+completed 5/6 (95% Wilson interval 43.6%-97.0%); full-protein-folding timed out
+at 1800 seconds, and no policy blocks, provider-capacity failures, or re-runs
+occurred. Run30 historically completed 5/6, with standard-mrna stopped on a
+provider policy block. Each run has only six tasks, so these results cannot
 establish a trend. See [Evaluation](docs/EVALUATION.md) for run-level evidence
 and limits.
 

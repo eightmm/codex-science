@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update both READMEs to report the latest recorded benchmark run and 49 source contracts, with source-specific maturity caveats.
 - Regenerate the reviewed literature graph, current snapshot and diff, and life-science artifact index from shipped inputs; refresh affected hashes, test builder parity, and label the three bundles' legacy deterministic record-review fixtures separately from registered hash-bound receipts.
 - Match statement-support citations to primary persistent identifiers, using recorded aliases only when no study has the cited identifier as its primary ID, and document the fields visible in built literature snapshot diffs and the fields requiring direct sidecar comparison; payloads and statuses are unchanged.
 - Align coordinator checkpoint guidance with classifier tiers and clarify that completion reports do not verify review-mode coverage or full-tier artifacts.

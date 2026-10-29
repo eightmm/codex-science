@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS, classify_rigor
+from codex_science.mcp_server import CodexScienceMCP
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +83,33 @@ REQUIRED_SECTIONS = (
 
 
 class NativeSkillQualityTests(unittest.TestCase):
+    def test_readme_connector_count_and_latest_evaluation_run(self) -> None:
+        server = CodexScienceMCP(ROOT / "catalog" / "inventory.json")
+        contracts = server.handle({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "science_list_source_contracts", "arguments": {}},
+        })
+        contract_count = len(json.loads(contracts["result"]["content"][0]["text"]))
+        evaluation = (ROOT / "docs" / "EVALUATION.md").read_text(encoding="utf-8")
+        latest_match = list(re.finditer(r"^- (Run[0-9]+[a-z]?) \(", evaluation, re.MULTILINE))[-1]
+        latest_run = latest_match.group(1)
+
+        for readme_name in ("README.md", "README.ko.md"):
+            with self.subTest(readme=readme_name):
+                readme = (ROOT / readme_name).read_text(encoding="utf-8")
+                count_pattern = (
+                    rf"(?m)^- .*\b{contract_count} read-only public data source contracts\b"
+                    if readme_name == "README.md"
+                    else rf"(?m)^- .*읽기 전용 공개 데이터 source contract {contract_count}개"
+                )
+                self.assertRegex(readme, count_pattern)
+                latest_pattern = (
+                    rf"latest recorded run,\s*{re.escape(latest_run)}"
+                    if readme_name == "README.md"
+                    else rf"최신 기록인\s*{re.escape(latest_run)}"
+                )
+                self.assertRegex(readme, latest_pattern)
+
     def test_authored_connector_guidance_matches_v2_capabilities(self) -> None:
         cutoff_rule = (
             "Current v2 routes refuse `evidence_cutoff`; record the cutoff in your "
