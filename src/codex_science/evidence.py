@@ -13,7 +13,7 @@ import reprlib
 import stat
 import unicodedata
 from collections import defaultdict
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from codex_science.rigor import CLAIM_STRENGTHS
@@ -319,8 +319,121 @@ def _support_source_path(run_dir: Path, artifact: Any, study_id: str, claim_id: 
     return resolved
 
 
+def _identity_field_matches(field: str, value: Any, identifiers: list[str]) -> bool:
+    """Match a top-level field using _own_identity_ids scalar types and namespace wrapping."""
+    from codex_science.literature_v2 import normalize_identifier
+
+    if not isinstance(value, str) and not (field == "pmid" and isinstance(value, int) and not isinstance(value, bool)):
+        return False
+    return normalize_identifier(f"{field}:{value}") in {normalize_identifier(item) for item in identifiers}
+
+
+def _fetch_identity_errors(row: dict[str, Any], label: str) -> list[str]:
+    from codex_science.literature_v2 import normalize_identifier
+    from codex_science.open_fulltext import _row_fetch_ids
+
+    validated = {normalize_identifier(value) for value in row["identifiers"]}
+    derived = {normalize_identifier(value) for value in _row_fetch_ids(row)}
+    return [f"{label} fetch identity {value} does not match validated identifiers" for value in sorted(derived - validated)]
+
+
+def _candidate_metadata_errors(
+    row: dict[str, Any], candidate: dict[str, Any], label: str,
+    *, fields: tuple[str, ...] = ("title", "identifiers", "query_ids"),
+) -> list[str]:
+    return [f"{label} {field} does not match candidates.json" for field in fields
+            if row.get(field) != candidate.get(field)]
+
+
+def _study_metadata_records(payload: dict[str, Any], schema: str, label: str) -> dict[str, dict[str, Any]]:
+    if payload.get("schema") != schema:
+        raise ValueError(f"unsupported or malformed {label}")
+    records: dict[str, dict[str, Any]] = {}
+    for row in _list(payload.get("records"), f"{label} records"):
+        if not isinstance(row, dict) or not isinstance(row.get("record_id"), str) or row["record_id"] in records:
+            raise ValueError(f"{label} contains invalid or duplicate record_id")
+        records[row["record_id"]] = row
+    return records
+
+
+def _validate_bound_study_metadata(studies: list[dict[str, Any]], run_dir: Path) -> None:
+    from codex_science.literature_v2 import normalize_identifier
+    from codex_science.screening_pool import _load_snapshot, _safe_file
+
+    root = run_dir.resolve()
+    names = ("candidates.json", "screening.json")
+    if any(not (root / name).exists() and not (root / name).is_symlink() for name in names):
+        return
+    for name in names:
+        _safe_file(root, PurePosixPath(name))
+    candidates, candidates_sha256 = _load_snapshot(root / "candidates.json")
+    screening, _ = _load_snapshot(root / "screening.json")
+    if screening.get("candidates_sha256") != candidates_sha256:
+        raise ValueError("screening.json candidates_sha256 does not match candidates.json; rerun screening")
+    candidate_by_id = _study_metadata_records(candidates, "literature-candidates-v1", "candidates.json")
+    screen_by_id = _study_metadata_records(screening, "screening-table-v1", "screening.json")
+    for record_id, row in screen_by_id.items():
+        if record_id not in candidate_by_id:
+            raise ValueError(f"screening.json record_id not in candidates.json: {record_id}")
+        problems = _candidate_metadata_errors(row, candidate_by_id[record_id], f"{record_id}: screening")
+        if problems:
+            raise ValueError("; ".join(problems))
+    expected = []
+    record_owners: dict[str, str] = {}
+    for study in studies:
+        record_id = study.get("record_id")
+        if not isinstance(record_id, str) or record_id not in candidate_by_id or record_id not in screen_by_id:
+            raise ValueError(f"study {study['study_id']} record_id must belong to candidates.json and screening.json")
+        if record_id in record_owners:
+            raise ValueError(f"study {study['study_id']} and study {record_owners[record_id]} share candidate record {record_id}")
+        record_owners[record_id] = study["study_id"]
+        candidate = candidate_by_id[record_id]
+        row = {"title": candidate.get("title")}
+        for field in ("identifiers", "query_ids"):
+            values = _list(candidate.get(field, []), f"candidate {record_id} {field}")
+            if any(not isinstance(value, str) for value in values):
+                raise ValueError(f"candidate {record_id} {field} must contain strings")
+            row[field] = list(dict.fromkeys(values))
+        expected.append(row)
+    from codex_science.study_table import _alias_fulltext_pmcids
+
+    aliased = [{**candidate, "identifiers": list(candidate["identifiers"])} for candidate in expected]
+    _alias_fulltext_pmcids(root, aliased)
+    pmcid_owners: dict[str, str] = {}
+    for study, candidate, with_aliases in zip(studies, expected, aliased):
+        label = f"study {study['study_id']}"
+        problems = _candidate_metadata_errors(study, candidate, label, fields=("title", "query_ids"))
+        identifiers = _list(study.get("identifiers"), f"{label} identifiers")
+        if any(not isinstance(value, str) for value in identifiers):
+            raise ValueError(f"{label} identifiers must contain strings")
+        # Later acquisitions may extend aliases; preserve the candidate prefix and stored alias order.
+        plain = candidate["identifiers"]
+        aliases = iter(with_aliases["identifiers"][len(plain):])
+        if identifiers[:len(plain)] != plain or any(
+            not value.startswith("pmcid:") or value not in aliases for value in identifiers[len(plain):]
+        ):
+            problems.append(f"{label} identifiers does not match candidates.json or reproducible full-text aliases; "
+                            "rerun build_study_table.py")
+        if study.get("persistent_ids") != identifiers:
+            problems.append(f"{label} persistent_ids does not match validated identifiers; rerun build_study_table.py")
+        if study.get("persistent_id") not in identifiers:
+            problems.append(f"{label} persistent_id must be one of the validated identifiers")
+        for field in ("pmcid", "pmid", "doi"):
+            if field in study and not _identity_field_matches(field, study[field], identifiers):
+                problems.append(f"{label} {field} does not match validated identifiers")
+        problems.extend(_fetch_identity_errors(study, label))
+        if problems:
+            raise ValueError("; ".join(problems))
+        for identifier in sorted({normalize_identifier(value) for value in identifiers}):
+            if not identifier.startswith("pmcid:"):
+                continue
+            if identifier in pmcid_owners:
+                raise ValueError(f"{label} and study {pmcid_owners[identifier]} share identifier {identifier}")
+            pmcid_owners[identifier] = study["study_id"]
+
+
 def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) -> dict[str, dict[str, Any]]:
-    """Validate excerpt shape always; verify source content when run_dir is available."""
+    """Validate study/excerpt contracts and sources, plus fetch identities for candidate-bound rows."""
     _schema_one(payload, "study table")
     studies = _list(payload.get("studies"), "study table studies")
     by_id: dict[str, dict[str, Any]] = {}
@@ -400,6 +513,8 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                             and not 1 <= line <= len(source_text.splitlines())):
                         raise ValueError(f"{label} locator.line {line} is outside source line count")
         by_id[study_id] = study
+    if run_dir is not None:
+        _validate_bound_study_metadata(studies, run_dir)
     return by_id
 
 

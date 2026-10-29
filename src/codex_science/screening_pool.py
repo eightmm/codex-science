@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import json
+import os
 import re
+import stat
 from collections import defaultdict
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, load_json_object, write_json_atomic
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, write_json_atomic
 from codex_science.literature_v2 import normalize_identifier
 from codex_science.source_operations_v3 import EuropePMCSearchV3
 
@@ -79,6 +82,11 @@ def _identifiers(record: dict[str, Any]) -> set[str]:
     return values
 
 
+def _refuse_input_overwrite(output: Path, inputs: set[Path]) -> None:
+    if output.resolve() in {path.resolve() for path in inputs}:
+        raise ValueError("output file must not replace a consumed input or evidence file, or an excerpt source")
+
+
 def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
     root_arg = Path(run_dir).absolute()
     if root_arg.is_symlink() or not root_arg.is_dir():
@@ -86,6 +94,7 @@ def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
     root = root_arg.resolve()
     ledger_path = _safe_file(root, PurePosixPath("queries.jsonl"))
     assert ledger_path is not None
+    consumed = {ledger_path}
     rows: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
     for line_number, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), 1):
@@ -106,8 +115,17 @@ def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
         if result_path is None:
             skipped.append({"query_id": query_id, "result_path": relative.as_posix(), "reason": "missing or not a regular file"})
             continue
+        consumed.add(result_path)
         try:
-            result = load_json_object(result_path)
+            data = _read_snapshot(result_path)
+        except ValueError:
+            skipped.append({"query_id": query_id, "result_path": relative.as_posix(), "reason": "invalid, oversized, or non-object JSON"})
+            continue
+        digest = row.get("response_sha256")
+        if digest is not None and str(digest).lower() != hashlib.sha256(data).hexdigest():
+            raise ValueError(f"query {query_id} result {relative.as_posix()}: response_sha256 does not match result bytes")
+        try:
+            result = _parse_snapshot(result_path, data)
         except ValueError:
             skipped.append({"query_id": query_id, "result_path": relative.as_posix(), "reason": "invalid, oversized, or non-object JSON"})
             continue
@@ -177,6 +195,7 @@ def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
             relative = PurePosixPath("sources") / f"{raw_id}.abstract.txt"
             path = _safe_file(root, relative, required=False)
             if path is not None:
+                consumed.add(path)
                 abstracts.append((relative.as_posix(), hashlib.sha256(path.read_bytes()).hexdigest()))
         if abstracts:
             artifact, digest = sorted(abstracts)[0]
@@ -189,18 +208,23 @@ def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
         "schema": "literature-candidates-v1", "returned_records": len(rows), "unique_records": len(candidates),
         "records": candidates, "skipped_results": skipped,
     }
+    _refuse_input_overwrite(root / "candidates.json", consumed)
     write_json_atomic(root / "candidates.json", pool)
     return pool
 
 
-_ARTIFACT_RE = re.compile(r"(?:^|[\s`'\"])([A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)+)")
+_ARTIFACT_RE = re.compile(r"(?:^|[\s`'\"(])([A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)+)")
+
+
+def _rationale_paths(rationale: str) -> list[str]:
+    return list(dict.fromkeys(
+        value for match in _ARTIFACT_RE.finditer(rationale)
+        if (value := match.group(1).rstrip(".,;:)")).startswith("fulltext/")
+    ))
 
 
 def _rationale_artifact(root: Path, rationale: str) -> tuple[str, str] | None:
-    for match in _ARTIFACT_RE.finditer(rationale):
-        value = match.group(1).rstrip(".,;:)")
-        if not value.startswith("fulltext/"):
-            continue
+    for value in _rationale_paths(rationale):
         relative = _relative_path(value, "full-text evidence path")
         path = _safe_file(root, relative, required=False)
         if path is not None:
@@ -208,18 +232,29 @@ def _rationale_artifact(root: Path, rationale: str) -> tuple[str, str] | None:
     return None
 
 
-def _load_snapshot(path: Path) -> tuple[dict[str, Any], str]:
-    # Hash the exact bytes parsed so the output names the inputs actually applied.
+def _read_snapshot(path: Path) -> bytes:
+    if path.stat().st_size > DEFAULT_MAX_JSON_BYTES:
+        raise ValueError(f"input JSON exceeds {DEFAULT_MAX_JSON_BYTES} bytes: {path.name}")
     data = path.read_bytes()
     if len(data) > DEFAULT_MAX_JSON_BYTES:
         raise ValueError(f"input JSON exceeds {DEFAULT_MAX_JSON_BYTES} bytes: {path.name}")
+    return data
+
+
+def _parse_snapshot(path: Path, data: bytes) -> dict[str, Any]:
     try:
         payload = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid JSON in {path.name}: {error}") from error
     if not isinstance(payload, dict):
         raise ValueError(f"{path.name} must contain a JSON object")
-    return payload, hashlib.sha256(data).hexdigest()
+    return payload
+
+
+def _load_snapshot(path: Path) -> tuple[dict[str, Any], str]:
+    # Hash the exact bytes parsed so the output names the inputs actually applied.
+    data = _read_snapshot(path)
+    return _parse_snapshot(path, data), hashlib.sha256(data).hexdigest()
 
 
 def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -> dict[str, Any]:
@@ -227,6 +262,25 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
     if root_arg.is_symlink() or not root_arg.is_dir():
         raise ValueError("run directory must be an existing, non-symlink directory")
     root = root_arg.resolve()
+    lock_path = root.parent / f".{root.name}.screening.lock"
+    try:
+        _safe_file(root.parent, PurePosixPath(lock_path.name), required=lock_path.exists())
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    except OSError as error:
+        raise ValueError(f"cannot open screening output lock: {error}") from error
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("screening output lock must be a regular file")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        except OSError as error:
+            raise ValueError(f"cannot acquire screening output lock: {error}") from error
+        return _apply_screening_decisions_locked(root, decisions_file)
+    finally:
+        os.close(descriptor)
+
+
+def _apply_screening_decisions_locked(root: Path, decisions_file: str | Path) -> dict[str, Any]:
     decisions_arg = Path(decisions_file)
     if decisions_arg.is_absolute():
         try:
@@ -242,6 +296,9 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
     decisions_path = _safe_file(root, _relative_path(decisions_relative.as_posix(), "decisions file"))
     candidates_path = _safe_file(root, PurePosixPath("candidates.json"))
     assert decisions_path is not None and candidates_path is not None
+    consumed = {decisions_path, candidates_path}
+    output_path = root / "screening.json"
+    _refuse_input_overwrite(output_path, consumed)
     candidates, candidates_sha256 = _load_snapshot(candidates_path)
     if candidates.get("schema") != "literature-candidates-v1" or not isinstance(candidates.get("records"), list):
         raise ValueError("unsupported or malformed candidates.json")
@@ -261,6 +318,8 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
     for item in candidates["records"]:
         if not isinstance(item, dict) or not isinstance(item.get("record_id"), str) or item["record_id"] in candidate_by_id:
             raise ValueError("candidates.json contains invalid or duplicate record_id")
+        if not isinstance(item.get("title"), str):
+            raise ValueError(f"candidate {item['record_id']} title must be a string")
         artifact = item.get("abstract_artifact")
         digest = item.get("abstract_sha256")
         if artifact is None:
@@ -270,6 +329,7 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
             relative = _relative_path(artifact, "candidate abstract_artifact")
             abstract_path = _safe_file(root, relative)
             assert abstract_path is not None
+            consumed.add(abstract_path)
             actual_digest = hashlib.sha256(abstract_path.read_bytes()).hexdigest()
             if digest != actual_digest:
                 raise ValueError(f"candidate abstract hash does not match artifact: {item['record_id']}")
@@ -286,7 +346,14 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
         ids = group.get("record_ids")
         if not isinstance(ids, list) or any(not isinstance(value, str) for value in ids):
             raise ValueError(f"decision group {group_index} record_ids must be a list of strings")
+        if group["decision"] == "exclude" and len(ids) > 1 and sum(
+            _safe_file(root, _relative_path(value, "full-text evidence path"), required=False) is not None
+            for value in _rationale_paths(group["rationale"])
+        ) > 1:
+            raise ValueError(f"decision group {group_index} names multiple existing evidence files for multiple records; use separate groups")
         evidence = _rationale_artifact(root, group["rationale"])
+        if evidence is not None:
+            consumed.add(root / evidence[0])
         for record_id in ids:
             if record_id not in candidate_by_id:
                 raise ValueError(f"unknown candidate record_id: {record_id}")
@@ -328,5 +395,6 @@ def apply_screening_decisions(run_dir: str | Path, decisions_file: str | Path) -
         "counts": counts,
         "records": records,
     }
-    write_json_atomic(root / "screening.json", table)
+    _refuse_input_overwrite(output_path, consumed)
+    write_json_atomic(output_path, table)
     return table

@@ -20,6 +20,377 @@ CLI = ROOT / "scripts/build_study_table.py"
 
 
 class BuildStudyTableTests(unittest.TestCase):
+    @staticmethod
+    def _unbound_fetch_fields():
+        return (
+            ({"returned_record_ids": ["pmcid:PMC999999"]}, "pmcid:PMC999999"),
+            ({"included_records": ["doi:10.9999/unrelated"]}, "doi:10.9999/unrelated"),
+            ({"source": {"pmcid": "PMC999999"}}, "pmcid:PMC999999"),
+            ({"x": [{"arxiv": "2101.00001"}]}, "arxiv:2101.00001"),
+            ({"source": {"pmcid": True}}, "pmcid:True"),
+        )
+
+    def test_validator_binds_base_builder_metadata_and_preserves_legacy_tables(self):
+        build_study_table(self.root, self.extraction)
+        payload = json.loads((self.root / "studies.json").read_bytes())
+        unchanged = json.loads(json.dumps(payload))
+        _validate_study_table(payload, self.root)
+        self.assertEqual(unchanged, payload)
+        self.assertNotIn("pmcid:PMC111111", payload["studies"][0]["identifiers"])
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        _validate_study_table(payload, self.root)
+        self.assertEqual(unchanged, payload)
+        identifiers = self.candidate["identifiers"]
+        build_study_table(self.root, self.extraction)
+        aliased = json.loads((self.root / "studies.json").read_bytes())
+        self.assertEqual([*identifiers, "pmcid:PMC111111"], aliased["studies"][0]["identifiers"])
+        _validate_study_table(aliased, self.root)
+        self._write_fulltext("PMC222222.xml", self._jats("PMC222222", pmid="24390308"))
+        for aliases in ([], ["pmcid:PMC111111"], ["pmcid:PMC222222"],
+                        ["pmcid:PMC111111", "pmcid:PMC222222"]):
+            with self.subTest(retained_aliases=aliases):
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][0]["identifiers"] = [*identifiers, *aliases]
+                changed["studies"][0]["persistent_ids"] = [*identifiers, *aliases]
+                _validate_study_table(changed, self.root)
+        for aliases in (["pmcid:PMC999999"], ["pmcid:PMC222222", "pmcid:PMC111111"],
+                        ["pmcid:PMC111111", "pmcid:PMC111111"], ["doi:10.9999/unrelated"]):
+            with self.subTest(invalid_aliases=aliases):
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][0]["identifiers"] = [*identifiers, *aliases]
+                changed["studies"][0]["persistent_ids"] = [*identifiers, *aliases]
+                with self.assertRaisesRegex(ValueError, r"study-example-1.*identifiers.*rerun build_study_table\.py"):
+                    _validate_study_table(changed, self.root)
+        (self.root / "fulltext/PMC111111.xml").unlink()
+        _validate_study_table(payload, self.root)
+        with self.assertRaisesRegex(ValueError, r"study-example-1.*rerun build_study_table\.py"):
+            _validate_study_table(aliased, self.root)
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        for values in (None, {}, 0, [], [0], identifiers[1:], identifiers[:-1], [*identifiers, "doi:10.9999/unrelated"],
+                       [*identifiers, "pmid:999999"], [*identifiers, ""], [*identifiers, "pmcid:PMC999999"],
+                       list(reversed(identifiers)), identifiers * 2, ["pmcid:PMC111111", *identifiers],
+                       [*identifiers, "pmcid:PMC111111", "pmcid:PMC111111"]):
+            with self.subTest(identifiers=values):
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][0]["identifiers"] = values
+                with self.assertRaisesRegex(ValueError, "identifiers"):
+                    _validate_study_table(changed, self.root)
+        screening_path = self.root / "screening.json"
+        original_screening = screening_path.read_bytes()
+        for target in ("study", "screening"):
+            for field, value in (("title", "Unrelated title"), ("identifiers", ["doi:10.9999/unrelated"]),
+                                 ("query_ids", ["unrelated-query"])):
+                with self.subTest(target=target, field=field):
+                    changed = json.loads(json.dumps(payload))
+                    screening = json.loads(original_screening)
+                    row = changed["studies"][0] if target == "study" else screening["records"][0]
+                    row[field] = value
+                    screening_path.write_text(json.dumps(screening))
+                    with self.assertRaisesRegex(ValueError, field + ".*does not match candidates.json"):
+                        _validate_study_table(changed, self.root)
+        screening_path.write_bytes(original_screening)
+        _validate_study_table({"schema_version": 1, "studies": []}, self.root)
+        changed = json.loads(json.dumps(payload))
+        changed["studies"][0]["title"] = "Legacy title"
+        _validate_study_table(changed)
+        for name in ("candidates.json", "screening.json"):
+            path = self.root / name
+            saved = path.with_suffix(".saved")
+            path.rename(saved)
+            try:
+                _validate_study_table(changed, self.root)
+            finally:
+                saved.rename(path)
+
+    def test_validator_rejects_misplaced_and_shared_fulltext_aliases(self):
+        identifiers = ["pmid:24390309", "doi:10.1000/second"]
+        second_record = dict(self.record, record_id="med:24390309", identifiers=identifiers)
+        second_candidate = dict(self.candidate, record_id="med:24390309", identifiers=identifiers)
+        extraction = {"schema": "study-extraction-v1", "studies": [
+            {"record_id": "med:24390308", "study_id": "a", "evidence_type": "primary"},
+            {"record_id": "med:24390309", "study_id": "b", "evidence_type": "primary"}]}
+        self._write_inputs([self.record, second_record], [self.candidate, second_candidate], extraction)
+        self._write_fulltext("PMC222222.xml", self._jats("PMC222222", pmid="24390309"))
+        build_study_table(self.root, self.extraction)
+        payload = json.loads((self.root / "studies.json").read_bytes())
+        _validate_study_table(payload, self.root)
+        self.assertNotIn("pmcid:PMC222222", payload["studies"][0]["identifiers"])
+        self.assertIn("pmcid:PMC222222", payload["studies"][1]["identifiers"])
+        for index in (0, 1):
+            with self.subTest(copied_row=index):
+                changed = json.loads(json.dumps(payload))
+                duplicate = dict(changed["studies"][index], study_id="copy")
+                changed["studies"].append(duplicate)
+                with self.assertRaisesRegex(ValueError, f"study {duplicate['study_id']}.*study {payload['studies'][index]['study_id']}.*record"):
+                    _validate_study_table(changed, self.root)
+        for shared in (False, True):
+            with self.subTest(shared=shared):
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][0]["identifiers"].append("pmcid:PMC222222")
+                if not shared:
+                    changed["studies"][1]["identifiers"] = identifiers
+                with self.assertRaisesRegex(ValueError, r"study a.*rerun build_study_table\.py"):
+                    _validate_study_table(changed, self.root)
+        for field, values in (
+            ("persistent_ids", [None, {}, 0, [], payload["studies"][0]["identifiers"][1:],
+                                list(reversed(payload["studies"][0]["identifiers"])),
+                                payload["studies"][0]["identifiers"] * 2,
+                                [*payload["studies"][0]["identifiers"], "pmcid:PMC999999"]]),
+            ("persistent_id", [None, {}, 0, "", "pmcid:PMC999999"]),
+            ("pmcid", [None, {}, 0, "", "PMC999999"]),
+            ("pmid", [None, {}, 0, True, "99999999"]),
+            ("doi", [None, {}, 0, "", "10.9999/unrelated"]),
+        ):
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    changed = json.loads(json.dumps(payload))
+                    changed["studies"][0][field] = value
+                    hint = r".*rerun build_study_table\.py" if field == "persistent_ids" else ""
+                    with self.assertRaisesRegex(ValueError, "study a.*" + field + hint):
+                        _validate_study_table(changed, self.root)
+        changed = json.loads(json.dumps(payload))
+        changed["studies"][1]["persistent_ids"] = identifiers
+        with self.assertRaisesRegex(ValueError, "study b.*persistent_ids"):
+            _validate_study_table(changed, self.root)
+        for fields, identity in self._unbound_fetch_fields():
+            with self.subTest(fields=fields):
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][0].update(fields)
+                with self.assertRaises(ValueError) as caught:
+                    _validate_study_table(changed, self.root)
+                self.assertIn("study a", str(caught.exception))
+                self.assertIn(identity, str(caught.exception))
+        for fields in ({"source": {"doi": "10.1038/NM.3444"}}, {"returned_record_ids": []},
+                       {"returned_record_ids": None}, {"returned_record_ids": [0]}, {"x": []}):
+            changed = json.loads(json.dumps(payload))
+            changed["studies"][0].update(fields)
+            _validate_study_table(changed, self.root)
+        for index, fields in ((0, {"persistent_id": "pmid:24390308", "pmid": 24390308, "doi": "10.1038/NM.3444"}),
+                              (1, {"persistent_id": "pmcid:PMC222222", "pmcid": "pmc222222", "pmid": "24390309"})):
+            changed = json.loads(json.dumps(payload))
+            changed["studies"][index].update(fields)
+            _validate_study_table(changed, self.root)
+        for shared in ("doi:10.1038/NM.3444", "pmid:24390308", "arxiv:2101.00001", "pmcid:PMC222222"):
+            with self.subTest(shared_identifier=shared):
+                shared_ids = [*identifiers, shared]
+                self._write_inputs([self.record, dict(second_record, identifiers=shared_ids)],
+                                   [self.candidate, dict(second_candidate, identifiers=shared_ids)], extraction)
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][1]["identifiers"] = [*shared_ids]
+                changed["studies"][1]["persistent_ids"] = [*shared_ids]
+                if shared.startswith(("pmcid:", "arxiv:")):
+                    changed["studies"][0]["identifiers"].append(shared)
+                    changed["studies"][0]["persistent_ids"].append(shared)
+                    first_ids = changed["studies"][0]["identifiers"]
+                    self._write_inputs([dict(self.record, identifiers=first_ids), dict(second_record, identifiers=shared_ids)],
+                                       [dict(self.candidate, identifiers=first_ids), dict(second_candidate, identifiers=shared_ids)], extraction)
+                if shared.startswith("pmcid:"):
+                    with self.assertRaisesRegex(ValueError, "study b.*study a.*identifier"):
+                        _validate_study_table(changed, self.root)
+                else:
+                    _validate_study_table(changed, self.root)
+
+    def test_builder_binds_extraction_identity_fields_and_preserves_matching_values(self):
+        build_study_table(self.root, self.extraction)
+        output = self.root / "studies.json"
+        before = output.read_bytes()
+        extraction = json.loads(self.extraction.read_bytes())
+        for field, wrong in (("pmcid", "PMC999999"), ("pmid", "99999999"), ("doi", "10.9999/unrelated")):
+            for value in (wrong, None, {}, [], True, 0, ""):
+                with self.subTest(field=field, value=value):
+                    extraction["studies"][0]["fields"] = {field: value}
+                    self.extraction.write_text(json.dumps(extraction))
+                    with self.assertRaisesRegex(ValueError, "fields cannot override.*" + field):
+                        build_study_table(self.root, self.extraction)
+                    self.assertEqual(before, output.read_bytes())
+        for fields, identity in self._unbound_fetch_fields():
+            with self.subTest(fields=fields):
+                extraction["studies"][0]["fields"] = fields
+                self.extraction.write_text(json.dumps(extraction))
+                with self.assertRaises(ValueError) as caught:
+                    build_study_table(self.root, self.extraction)
+                self.assertIn("study study-example-1", str(caught.exception))
+                self.assertIn(identity, str(caught.exception))
+                self.assertEqual(before, output.read_bytes())
+        for fields in ({"doi": "10.1038/nm.3444"}, {"doi": "10.1038/NM.3444"},
+                       {"pmid": 24390308}, {"pmid": "24390308"}, {"source": {"doi": "10.1038/NM.3444"}},
+                       {"returned_record_ids": []}, {"returned_record_ids": None}, {"returned_record_ids": [0]}, {"x": []}):
+            extraction["studies"][0]["fields"] = fields
+            self.extraction.write_text(json.dumps(extraction))
+            build_study_table(self.root, self.extraction)
+            payload = json.loads(output.read_bytes())
+            _validate_study_table(payload, self.root)
+            for key, value in fields.items():
+                self.assertEqual(value, payload["studies"][0][key])
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        extraction["studies"][0]["fields"] = {"pmcid": "pmc111111", "source": {"doi": "10.1038/NM.3444"}}
+        self.extraction.write_text(json.dumps(extraction))
+        build_study_table(self.root, self.extraction)
+        payload = json.loads(output.read_bytes())
+        _validate_study_table(payload, self.root)
+        self.assertEqual("pmc111111", payload["studies"][0]["pmcid"])
+
+    def test_validator_requires_hash_bound_well_formed_candidate_records(self):
+        build_study_table(self.root, self.extraction)
+        payload = json.loads((self.root / "studies.json").read_bytes())
+        screening_path = self.root / "screening.json"
+        candidates_path = self.root / "candidates.json"
+        screening = screening_path.read_bytes()
+        candidates = candidates_path.read_bytes()
+        for digest in (None, "", 0, "invalid", "0" * 64):
+            with self.subTest(digest=digest):
+                changed = json.loads(screening)
+                changed["candidates_sha256"] = digest
+                screening_path.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, "candidates_sha256"):
+                    _validate_study_table(payload, self.root)
+        screening_path.write_bytes(screening)
+        for record_id in (None, "", "unknown"):
+            with self.subTest(record_id=record_id):
+                changed = json.loads(json.dumps(payload))
+                changed["studies"][0]["record_id"] = record_id
+                with self.assertRaisesRegex(ValueError, "record_id"):
+                    _validate_study_table(changed, self.root)
+        for name, original in (("candidates.json", candidates), ("screening.json", screening)):
+            path = self.root / name
+            for records in (None, {}, [0], [{"record_id": 0}], [], [self.candidate, self.candidate]):
+                with self.subTest(name=name, records=records):
+                    changed = json.loads(original)
+                    changed["records"] = records
+                    path.write_text(json.dumps(changed))
+                    if name == "candidates.json":
+                        current = json.loads(screening)
+                        current["candidates_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                        screening_path.write_text(json.dumps(current))
+                    with self.assertRaises(ValueError):
+                        _validate_study_table(payload, self.root)
+            path.write_bytes(original)
+            screening_path.write_bytes(screening)
+            changed = json.loads(original)
+            changed["schema"] = "unsupported"
+            path.write_text(json.dumps(changed))
+            if name == "candidates.json":
+                current = json.loads(screening)
+                current["candidates_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                screening_path.write_text(json.dumps(current))
+            with self.assertRaisesRegex(ValueError, "unsupported or malformed"):
+                _validate_study_table(payload, self.root)
+            path.write_bytes(original)
+            screening_path.write_bytes(screening)
+
+        for field in ("identifiers", "query_ids"):
+            for value in ([], None, {}, 0, [0]):
+                with self.subTest(field=field, value=value):
+                    changed_candidate = json.loads(candidates)
+                    changed_screening = json.loads(screening)
+                    changed_candidate["records"][0][field] = value
+                    changed_screening["records"][0][field] = value
+                    candidates_path.write_text(json.dumps(changed_candidate))
+                    changed_screening["candidates_sha256"] = hashlib.sha256(candidates_path.read_bytes()).hexdigest()
+                    screening_path.write_text(json.dumps(changed_screening))
+                    with self.assertRaises(ValueError):
+                        _validate_study_table(payload, self.root)
+        candidates_path.write_bytes(candidates)
+        screening_path.write_bytes(screening)
+
+    def test_screening_metadata_must_match_hash_bound_candidate(self):
+        path = self.root / "screening.json"
+        original = path.read_bytes()
+        for field, value in (("title", "Unrelated title"), ("identifiers", ["doi:10.9999/unrelated"]),
+                             ("query_ids", ["unrelated-query"])):
+            with self.subTest(field=field):
+                screening = json.loads(original)
+                screening["records"][0][field] = value
+                path.write_text(json.dumps(screening))
+                with self.assertRaisesRegex(ValueError, field + ".*does not match candidates.json"):
+                    build_study_table(self.root, self.extraction)
+                self.assertFalse((self.root / "studies.json").exists())
+        path.write_bytes(original)
+        build_study_table(self.root, self.extraction)
+
+    def test_not_extracted_requires_fresh_screening_evidence(self):
+        extraction = {"schema": "study-extraction-v1", "studies": [],
+                      "not_extracted": [{"record_id": self.record["record_id"], "reason": "awaiting extraction"}]}
+        self.extraction.write_text(json.dumps(extraction))
+        build_study_table(self.root, self.extraction)
+        before = (self.root / "studies.json").read_bytes()
+        path = self.root / "screening.json"
+        original = json.loads(path.read_bytes())
+        for digest in (None, "", 0, "invalid", "0" * 64):
+            with self.subTest(digest=digest):
+                screening = json.loads(json.dumps(original))
+                screening["records"][0]["evidence_sha256"] = digest
+                path.write_text(json.dumps(screening))
+                with self.assertRaisesRegex(ValueError, "evidence_sha256 does not match"):
+                    build_study_table(self.root, self.extraction)
+                self.assertEqual(before, (self.root / "studies.json").read_bytes())
+        path.write_text(json.dumps(original))
+        (self.root / self.record["evidence_artifact"]).write_text("changed evidence")
+        with self.assertRaisesRegex(ValueError, "evidence_sha256 does not match"):
+            build_study_table(self.root, self.extraction)
+
+    def test_output_cannot_replace_screening_evidence_without_excerpts(self):
+        extraction = json.loads(self.extraction.read_text())
+        extraction["studies"][0]["excerpts"] = []
+        self.extraction.write_text(json.dumps(extraction))
+        source = self.root / self.record["evidence_artifact"]
+        before = source.read_bytes()
+        with self.assertRaisesRegex(ValueError, "output.*evidence"):
+            build_study_table(self.root, self.extraction, source)
+        self.assertEqual(before, source.read_bytes())
+
+        other_path = self.root / "fulltext/excluded.txt"
+        other_path.parent.mkdir(exist_ok=True)
+        other_before = b"Screening evidence for a record outside the included set."
+        other_ids = ["pmid:24390309"]
+        for decision in ("exclude", "awaiting-full-text"):
+            with self.subTest(decision=decision):
+                other_path.write_bytes(other_before)
+                other_record = dict(self.record, record_id="med:24390309", identifiers=other_ids,
+                                    decision=decision, evidence_artifact="fulltext/excluded.txt")
+                other_candidate = dict(self.candidate, record_id="med:24390309", identifiers=other_ids)
+                self._write_inputs([self.record, other_record], [self.candidate, other_candidate], extraction)
+                with self.assertRaisesRegex(ValueError, "output.*evidence"):
+                    build_study_table(self.root, self.extraction, other_path)
+                self.assertEqual(other_before, other_path.read_bytes())
+        other_path.unlink()
+        with self.assertRaisesRegex(ValueError, "output.*evidence"):
+            build_study_table(self.root, self.extraction, other_path)
+        self.assertFalse(other_path.exists())
+        build_study_table(self.root, self.extraction)
+        self._write_fulltext("PMC111111.xml", self._jats("PMC111111", pmid="24390308"))
+        fulltext = self.root / "fulltext/PMC111111.xml"
+        fulltext_before = fulltext.read_bytes()
+        with self.assertRaisesRegex(ValueError, "output.*evidence"):
+            build_study_table(self.root, self.extraction, fulltext)
+        self.assertEqual(fulltext_before, fulltext.read_bytes())
+        extraction["not_extracted"] = [{"record_id": self.record["record_id"], "reason": "pending"}]
+        extraction["studies"] = []
+        self.extraction.write_text(json.dumps(extraction))
+        with self.assertRaisesRegex(ValueError, "output.*evidence"):
+            build_study_table(self.root, self.extraction, source)
+        self.assertEqual(before, source.read_bytes())
+
+    def test_cr_and_other_splitlines_boundaries_preserve_locator_and_hash(self):
+        source = self.root / self.record["evidence_artifact"]
+        extraction = json.loads(self.extraction.read_text())
+        for separator in ("\r", "\r\n", "\n", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"):
+            with self.subTest(separator=repr(separator)):
+                content = ("Before" + separator + self.source + separator + "After").encode("utf-8")
+                source.write_bytes(content)
+                extraction["studies"][0]["excerpts"][0]["locator"] = {"line": 2}
+                self._write_inputs(extraction=extraction)
+                build_study_table(self.root, self.extraction)
+                payload = json.loads((self.root / "studies.json").read_text())
+                _validate_study_table(payload, self.root)
+                self.assertEqual(hashlib.sha256(content).hexdigest(),
+                                 payload["studies"][0]["support_excerpts"][0]["source_sha256"])
+                for line in (0, 1, 3, 4):
+                    extraction["studies"][0]["excerpts"][0]["locator"] = {"line": line}
+                    self.extraction.write_text(json.dumps(extraction))
+                    with self.assertRaisesRegex(ValueError, "locator.line"):
+                        build_study_table(self.root, self.extraction)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name) / "run"
@@ -412,8 +783,11 @@ class BuildStudyTableTests(unittest.TestCase):
         self._write_inputs([self.record, second_record], [self.candidate, second_candidate], extraction)
         self._write_fulltext("PMC111111.xml", self._jats("PMC111111", doi="10.1038/nm.3444"))
         build_study_table(self.root, self.extraction)
-        for study in json.loads((self.root / "studies.json").read_text(encoding="utf-8"))["studies"]:
+        payload = json.loads((self.root / "studies.json").read_text(encoding="utf-8"))
+        for study in payload["studies"]:
             self.assertFalse(any(value.startswith("pmcid:") for value in study["identifiers"]))
+        payload["studies"].pop()
+        _validate_study_table(payload, self.root)
 
     def test_fulltext_pmcid_alias_requires_root_article_front_and_unique_ids(self):
         meta = '<article-meta><article-id pub-id-type="pmcid">PMC{n}</article-id><article-id pub-id-type="pmid">24390308</article-id></article-meta>'

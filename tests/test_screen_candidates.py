@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import re
+import runpy
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from codex_science.source_operations_v3 import PubMedSearchV3
 
@@ -16,9 +19,49 @@ SCRIPT = ROOT / "scripts/screen_candidates.py"
 
 
 class ScreenCandidatesTests(unittest.TestCase):
+    def test_apply_reports_labelled_lock_creation_error(self):
+        self.pool()
+        cli_main = runpy.run_path(str(SCRIPT))["main"]
+        error_output = io.StringIO()
+        with mock.patch("codex_science.screening_pool.os.open", side_effect=PermissionError("read-only parent")), \
+                mock.patch("sys.stderr", error_output):
+            code = cli_main(["apply", "--run-dir", str(self.root), "--decisions", "decisions.json"])
+        self.assertEqual(1, code)
+        self.assertIn("screening output lock", error_output.getvalue())
+        self.assertIn("read-only parent", error_output.getvalue())
+        self.assertNotIn("Traceback", error_output.getvalue())
+        self.assertFalse((self.root / "screening.json").exists())
+
+    def test_pool_refuses_replaced_digest_bound_result(self):
+        result_path = self.root / "raw/queries/q1/result.json"
+        row = {"query_id": "q1", "result_path": "raw/queries/q1/result.json",
+               "response_sha256": hashlib.sha256(result_path.read_bytes()).hexdigest()}
+        (self.root / "queries.jsonl").write_text(json.dumps(row) + "\n")
+        result_path.write_text('{"records":[{"source":"MED","id":"999"}]}')
+        result = self.run_cli("pool", "--run-dir", self.root)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("response_sha256", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse((self.root / "candidates.json").exists())
+
+    def test_apply_missing_title_is_contextual_cli_error(self):
+        pool = self.pool()
+        record = pool["records"][0]
+        record.pop("title")
+        (self.root / "candidates.json").write_text(json.dumps(pool))
+        decisions = {"schema": "screening-decisions-v1", "reviewer": "R", "stage": "abstract", "groups": [
+            {"decision": "include", "criterion": "eligible", "rationale": "checked", "record_ids": [record["record_id"]]}]}
+        (self.root / "decisions.json").write_text(json.dumps(decisions))
+        result = self.run_cli("apply", "--run-dir", self.root, "--decisions", "decisions.json")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("candidate " + record["record_id"] + " title must be a string", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse((self.root / "screening.json").exists())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
+        self.addCleanup((self.root.parent / f".{self.root.name}.screening.lock").unlink, missing_ok=True)
         self.records = [
             {"id": "10001", "source": "MED", "doi": "10.1000/ABC", "title": "Alpha", "publication_date": "2024-01-02"},
             {"id": "PMC9001", "source": "PMC", "pmid": "10001", "title": "Alpha copy", "publication_date": "2024"},

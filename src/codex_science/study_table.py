@@ -10,10 +10,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from codex_science.cli_io import write_json_atomic
-from codex_science.evidence import EVIDENCE_TYPES, _normalise_excerpt, _support_source_path, _validate_study_table
+from codex_science.evidence import (
+    EVIDENCE_TYPES, _candidate_metadata_errors, _fetch_identity_errors, _identity_field_matches, _normalise_excerpt,
+    _support_source_path, _validate_study_table,
+)
 from codex_science.literature_v2 import normalize_identifier
 from codex_science.open_fulltext import MAX_BODY_BYTES, _plain_text
-from codex_science.screening_pool import _load_snapshot, _relative_path, _safe_file
+from codex_science.screening_pool import _load_snapshot, _refuse_input_overwrite, _relative_path, _safe_file
 
 
 def _input_file(root: Path, value: str | Path, label: str) -> Path:
@@ -62,7 +65,7 @@ def _excerpt_line_spans(text: str, source: str, locator_line: int) -> tuple[list
     tokens = list(re.finditer(r"\S+", source))
     token_lines = []
     line = 1
-    newlines = iter(match.start() for match in re.finditer("\n", source))
+    newlines = iter(match.start() for match in re.finditer(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]", source))
     next_newline = next(newlines, None)
     for token in tokens:
         while next_newline is not None and next_newline < token.start():
@@ -215,6 +218,30 @@ def build_study_table(
     includes = {key for key, row in screen_by_id.items() if row.get("decision") == "include"}
 
     problems: list[str] = []
+    screening_sources: dict[str, tuple[Path | None, bytes]] = {}
+    consumed = {screening_path, candidates_path, extraction_path}
+    for record_id, screening_row in screen_by_id.items():
+        candidate = candidate_by_id[record_id]
+        problems.extend(_candidate_metadata_errors(screening_row, candidate, f"{record_id}: screening"))
+        if screening_row.get("evidence_artifact") is not None:
+            relative = _relative_path(screening_row["evidence_artifact"], f"{record_id} evidence_artifact")
+            consumed.add(root / Path(*relative.parts))
+        if record_id not in includes:
+            continue
+        evidence_path = None
+        content = b""
+        try:
+            if screening_row.get("evidence_artifact") is not None:
+                relative = _relative_path(screening_row["evidence_artifact"], f"{record_id} evidence_artifact")
+                evidence_path = _safe_file(root, relative)
+                assert evidence_path is not None
+                consumed.add(evidence_path)
+                content = evidence_path.read_bytes()
+                if hashlib.sha256(content).hexdigest() != screening_row.get("evidence_sha256"):
+                    raise ValueError(f"{record_id}: evidence_sha256 does not match screening evidence_artifact; rerun screening")
+        except (ValueError, OSError, TypeError) as error:
+            problems.append(str(error))
+        screening_sources[record_id] = evidence_path, content
     assigned: dict[str, dict[str, Any] | None] = {}
     for kind, items in (("study", rows), ("not_extracted", not_extracted)):
         for index, item in enumerate(items):
@@ -248,18 +275,7 @@ def build_study_table(
         if record_id not in screen_by_id:
             continue
         candidate = candidate_by_id.get(record_id, {})
-        evidence_path = None
-        screening_content = b""
-        try:
-            if screening_row.get("evidence_artifact") is not None:
-                evidence_relative = _relative_path(screening_row["evidence_artifact"], f"{record_id} evidence_artifact")
-                evidence_path = _safe_file(root, evidence_relative)
-                assert evidence_path is not None
-                screening_content = evidence_path.read_bytes()
-                if hashlib.sha256(screening_content).hexdigest() != screening_row.get("evidence_sha256"):
-                    raise ValueError(f"{record_id}: evidence_sha256 does not match screening evidence_artifact; rerun screening")
-        except (ValueError, OSError, TypeError) as error:
-            problems.append(str(error))
+        evidence_path, screening_content = screening_sources.get(record_id, (None, b""))
         ids_a = screening_row.get("identifiers", [])
         ids_b = candidate.get("identifiers", [])
         if (not isinstance(ids_a, list) or not isinstance(ids_b, list)
@@ -389,6 +405,14 @@ def build_study_table(
         studies.append(study)
 
     _alias_fulltext_pmcids(root, studies)
+    for study in studies:
+        for field in ("pmcid", "pmid", "doi"):
+            if field in study and not _identity_field_matches(field, study[field], study["identifiers"]):
+                problems.append(f"{study['record_id']}: fields cannot override study identity field {field}")
+        problems.extend(_fetch_identity_errors(study, f"study {study['study_id']}"))
+    fulltext = root / "fulltext"
+    if not fulltext.is_symlink() and fulltext.is_dir():
+        consumed.update(path for path in fulltext.glob("*.xml") if _PMCID_STEM.fullmatch(path.stem))
     if problems:
         raise ValueError("extraction coverage errors: " + "; ".join(problems + excerpt_problems))
     if excerpt_problems:
@@ -407,13 +431,11 @@ def build_study_table(
     output_path = root / Path(*output_relative.parts)
     # Reject symlinked ancestors and an existing symlink destination before atomic replacement.
     _safe_file(root, output_relative, required=False)
-    protected_paths = {screening_path.absolute(), candidates_path.absolute(), extraction_path.absolute()}
     excerpt_source_paths = {
         root / Path(*PurePosixPath(excerpt["source_artifact"]).parts)
         for study in studies for excerpt in study["support_excerpts"]
     }
-    if output_path.absolute() in protected_paths or output_path.absolute() in excerpt_source_paths:
-        raise ValueError("output file must not replace screening.json, candidates.json, the extraction input, or an excerpt source")
+    _refuse_input_overwrite(output_path, consumed | excerpt_source_paths)
     write_json_atomic(output_path, payload)
     return {"schema": "study-table-build-v1", "output": output_path.relative_to(root).as_posix(),
             "counts": {"studies": len(studies), "not_extracted": len(not_extracted), "excerpts": sum(len(s["support_excerpts"]) for s in studies)},

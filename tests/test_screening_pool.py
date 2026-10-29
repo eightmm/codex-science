@@ -1,14 +1,19 @@
 import hashlib
+import fcntl
 import json
 import os
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codex_science import screening_pool
+from codex_science.evidence import _validate_query_records
 from codex_science.screening_pool import apply_screening_decisions, build_candidate_pool
 
 
@@ -36,6 +41,63 @@ class RunDirCase(unittest.TestCase):
 
 
 class BuildCandidatePoolTests(RunDirCase):
+    def test_result_digest_binds_exact_parsed_bytes(self):
+        path = self.write("result.json", {"records": [{"source": "MED", "id": "1"}]})
+        original = path.read_bytes()
+        row = {"query_id": "q1", "result_path": "result.json", "response_sha256": sha(original).upper()}
+        self.ledger(row)
+        self.assertEqual(1, build_candidate_pool(self.root)["unique_records"])
+        before = (self.root / "candidates.json").read_bytes()
+        for content in (b"{broken", b"", b"\xff", b"[]"):
+            with self.subTest(content=content):
+                path.write_bytes(content)
+                with self.assertRaisesRegex(ValueError, "q1.*result.json.*response_sha256"):
+                    build_candidate_pool(self.root)
+                self.assertEqual(before, (self.root / "candidates.json").read_bytes())
+                for digest in (None, sha(content)):
+                    self.ledger(dict(row, response_sha256=digest))
+                    pool = build_candidate_pool(self.root)
+                    self.assertEqual([], pool["records"])
+                    self.assertEqual("q1", pool["skipped_results"][0]["query_id"])
+                (self.root / "candidates.json").write_bytes(before)
+                self.ledger(row)
+        for digest in ("", 0, "invalid", "0" * 64, sha(original)):
+            with self.subTest(digest=digest):
+                path.write_text('{"records":[{"source":"MED","id":"2"}]}')
+                self.ledger(dict(row, response_sha256=digest))
+                with self.assertRaisesRegex(ValueError, "q1.*result.json.*response_sha256"):
+                    build_candidate_pool(self.root)
+                self.assertEqual(before, (self.root / "candidates.json").read_bytes())
+        self.ledger({"query_id": "q1", "result_path": "result.json"})
+        self.assertEqual("med:2", build_candidate_pool(self.root)["records"][0]["record_id"])
+        path.write_text('{"records":[]}')
+        self.ledger(dict(row, response_sha256=sha(path.read_bytes())))
+        self.assertEqual([], build_candidate_pool(self.root)["records"])
+
+    def test_result_digest_accepts_ledger_null_and_hex_case(self):
+        path = self.write("result.json", {"records": [{"source": "MED", "id": "1"}]})
+        digest = sha(path.read_bytes())
+        for value in (None, digest.upper(), digest[:32].upper() + digest[32:], digest):
+            with self.subTest(value=value):
+                row = {"query_id": "q1", "result_path": "result.json", "response_sha256": value,
+                       "source": "PubMed", "query": "query", "accessed_at": "2026-10-29", "status": "complete"}
+                _validate_query_records([row])
+                self.ledger(row)
+                pool = build_candidate_pool(self.root)
+                self.assertEqual("med:1", pool["records"][0]["record_id"])
+                self.assertEqual([], pool["skipped_results"])
+        self.write("result.json", {"records": []})
+        self.ledger(dict(row, response_sha256=None))
+        self.assertEqual([], build_candidate_pool(self.root)["records"])
+
+    def test_pool_output_cannot_replace_consumed_result(self):
+        path = self.write("candidates.json", {"records": []})
+        before = path.read_bytes()
+        self.ledger({"query_id": "q1", "result_path": "candidates.json"})
+        with self.assertRaisesRegex(ValueError, "output.*input"):
+            build_candidate_pool(self.root)
+        self.assertEqual(before, path.read_bytes())
+
     def assertRefused(self, fragment):
         with self.assertRaises(ValueError) as ctx:
             build_candidate_pool(self.root)
@@ -83,6 +145,10 @@ class BuildCandidatePoolTests(RunDirCase):
         self.assertRefused("refusing symlinked run file: r.json")
 
     def test_unusable_results_are_skipped_and_reported(self):
+        limit = 128
+        oversized = self.write("oversized.json", b" " * (limit + 1), mode="wb")
+        self.write("empty.json", b"", mode="wb")
+        self.write("boundary.json", b'{"records":[]}'.ljust(limit), mode="wb")
         self.write("bad.json", "not json")
         self.write("list.json", [1])
         self.write("shape.json", {"resultList": {"result": [1]}})
@@ -96,8 +162,19 @@ class BuildCandidatePoolTests(RunDirCase):
             {"query_id": "qe", "result_path": "noshape.json"},
             {"query_id": "qf", "result_path": "gone.json"},
             {"query_id": "qg", "result_path": "dir.json"},
+            {"query_id": "qh", "result_path": "oversized.json"},
+            {"query_id": "qi", "result_path": "empty.json"},
+            {"query_id": "qj", "result_path": "boundary.json"},
         )
-        pool = build_candidate_pool(self.root)
+        read_bytes = Path.read_bytes
+
+        def guarded_read(path):
+            self.assertNotEqual(oversized, path, "oversized results must be refused before reading")
+            return read_bytes(path)
+
+        with mock.patch.object(screening_pool, "DEFAULT_MAX_JSON_BYTES", limit), \
+                mock.patch.object(Path, "read_bytes", guarded_read):
+            pool = build_candidate_pool(self.root)
         self.assertEqual(pool["returned_records"], 0)
         self.assertEqual(pool["records"], [])
         reasons = {s["query_id"]: s["reason"] for s in pool["skipped_results"]}
@@ -108,6 +185,8 @@ class BuildCandidatePoolTests(RunDirCase):
             "qe": "unrecognized result shape",
             "qf": "missing or not a regular file",
             "qg": "missing or not a regular file",
+            "qh": "invalid, oversized, or non-object JSON",
+            "qi": "invalid, oversized, or non-object JSON",
         })
         self.assertEqual([s["query_id"] for s in pool["skipped_results"]], sorted(reasons))
         self.assertEqual(json.loads((self.root / "candidates.json").read_text()), pool)
@@ -264,6 +343,134 @@ class BuildCandidatePoolTests(RunDirCase):
 
 
 class ApplyScreeningDecisionsTests(RunDirCase):
+    def test_group_ignores_missing_paths_when_sharing_existing_evidence(self):
+        self.write("fulltext/1.txt", "shared evidence")
+        for rationale in ("fulltext/1.txt and fulltext/missing.txt",
+                          "fulltext/missing.txt and [shared](fulltext/1.txt)"):
+            with self.subTest(rationale=rationale):
+                self.decisions([self.group(["med:1", "med:2"], "exclude", rationale=rationale)])
+                table = apply_screening_decisions(self.root, "decisions.json")
+                self.assertEqual(["fulltext/1.txt"] * 2, [row["evidence_artifact"] for row in table["records"]])
+                self.assertEqual([sha(b"shared evidence")] * 2, [row["evidence_sha256"] for row in table["records"]])
+        (self.root / "screening.json").unlink()
+        self.decisions([self.group(["med:1", "med:2"], "exclude",
+                                   rationale="fulltext/missing.txt and fulltext/absent.txt")])
+        self.assertRefused("cannot exclude without an abstract")
+
+    def test_lock_creation_and_acquisition_failures_are_labelled(self):
+        path = self.decisions([self.group(["med:1"])])
+        before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        for operation in ("os.open", "fcntl.flock"):
+            with self.subTest(operation=operation):
+                with mock.patch("codex_science.screening_pool." + operation, side_effect=PermissionError("read-only parent")):
+                    with self.assertRaisesRegex(ValueError, "screening output lock.*read-only parent"):
+                        apply_screening_decisions(self.root, path)
+                after = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+                self.assertEqual(before, after)
+
+    def test_group_with_multiple_records_and_evidence_requires_separate_groups(self):
+        self.write("fulltext/1.txt", "first")
+        self.write("fulltext/2.txt", "second")
+        self.decisions([self.group(["med:1", "med:2"], "exclude",
+                                   rationale="Checked fulltext/1.txt and fulltext/2.txt")])
+        self.assertRefused("separate groups")
+        for ids in ([], ["med:1"]):
+            self.decisions([self.group(ids, rationale="fulltext/1.txt and fulltext/2.txt")])
+            if ids:
+                apply_screening_decisions(self.root, "decisions.json")
+            else:
+                self.assertRefused("unlisted")
+        self.decisions([self.group(["med:1", "med:2"], "exclude",
+                                   rationale="Checked fulltext/1.txt and fulltext/1.txt")])
+        rows = apply_screening_decisions(self.root, "decisions.json")["records"]
+        self.assertEqual(["fulltext/1.txt"] * 2, [row["evidence_artifact"] for row in rows])
+        for decision in ("include", "awaiting-full-text"):
+            with self.subTest(decision=decision):
+                self.decisions([self.group(["med:1", "med:2"], decision,
+                                           rationale="fulltext/1.txt and fulltext/2.txt")])
+                rows = apply_screening_decisions(self.root, "decisions.json")["records"]
+                self.assertEqual([decision] * 2, [row["decision"] for row in rows])
+                self.assertEqual(["fulltext/1.txt"] * 2, [row["evidence_artifact"] for row in rows])
+
+    def test_markdown_fulltext_link_is_hashed(self):
+        self.write("fulltext/2.txt", "linked evidence")
+        self.decisions([self.group(["med:1"]), self.group(["med:2"], "exclude",
+            rationale="Checked [full text](fulltext/2.txt): ineligible population.")])
+        row = apply_screening_decisions(self.root, "decisions.json")["records"][1]
+        self.assertEqual("fulltext/2.txt", row["evidence_artifact"])
+        self.assertEqual(sha(b"linked evidence"), row["evidence_sha256"])
+
+    def test_candidate_title_requires_string_but_allows_empty_pool_titles(self):
+        self.decisions([self.group(["med:1"])])
+        for title in (None, 0, [], {}):
+            with self.subTest(title=title):
+                bad = dict(self.cand_a, title=title)
+                self.write_candidates([bad])
+                self.assertRefused("candidate med:1 title must be a string")
+        bad.pop("title")
+        self.write_candidates([bad])
+        self.assertRefused("candidate med:1 title must be a string")
+        self.write_candidates([dict(self.cand_a, title="")])
+        self.assertEqual("", apply_screening_decisions(self.root, "decisions.json")["records"][0]["title"])
+
+    def test_apply_output_cannot_replace_decisions(self):
+        path = self.decisions([self.group(["med:1"])])
+        output = self.root / "screening.json"
+        path.rename(output)
+        before = output.read_bytes()
+        with self.assertRaisesRegex(ValueError, "output.*input"):
+            apply_screening_decisions(self.root, output)
+        self.assertEqual(before, output.read_bytes())
+
+    def test_apply_locks_inputs_until_publication_and_releases_after_error(self):
+        path = self.decisions([self.group(["med:1"])])
+        entered, release = Event(), Event()
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+        original = screening_pool._load_snapshot
+
+        def snapshot(source):
+            result = original(source)
+            if source == path and not entered.is_set():
+                entered.set()
+                if not release.wait(timeout):
+                    raise RuntimeError("test timed out waiting for release")
+            return result
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            with mock.patch.object(screening_pool, "_load_snapshot", side_effect=snapshot):
+                first = executor.submit(apply_screening_decisions, self.root, path)
+                try:
+                    self.assertTrue(entered.wait(timeout))
+                    lock = self.root.parent / f".{self.root.name}.screening.lock"
+                    with lock.open("a") as handle:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    self.decisions([self.group(["med:1"], "exclude")])
+                    second = executor.submit(apply_screening_decisions, self.root, path)
+                finally:
+                    release.set()
+                first.result(timeout)
+                second.result(timeout)
+        table = json.loads((self.root / "screening.json").read_text())
+        self.assertEqual("exclude", table["records"][0]["decision"])
+        self.decisions([self.group(["unknown"])])
+        with self.assertRaises(ValueError):
+            apply_screening_decisions(self.root, path)
+        self.decisions([self.group(["med:1"])])
+        apply_screening_decisions(self.root, path)
+        lock = self.root.parent / f".{self.root.name}.screening.lock"
+        before = (self.root / "screening.json").read_bytes()
+        lock.unlink()
+        lock.symlink_to(path)
+        with self.assertRaisesRegex(ValueError, "symlinked run file"):
+            apply_screening_decisions(self.root, path)
+        self.assertEqual(before, (self.root / "screening.json").read_bytes())
+        lock.unlink()
+        lock.mkdir()
+        with self.assertRaisesRegex(ValueError, "not a regular file"):
+            apply_screening_decisions(self.root, path)
+        self.assertEqual(before, (self.root / "screening.json").read_bytes())
+
     def setUp(self):
         super().setUp()
         self.abstract = b"has abstract"

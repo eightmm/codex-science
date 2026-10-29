@@ -32,6 +32,11 @@ excerpts[]: claim_id (must be in this study's supports/contradicts list);
   The builder computes source_sha256.
 Title, identifiers, persistent IDs, query IDs and publication date come from
 screening.json and candidates.json; do not supply them.
+Screening title, identifiers and query_ids must match the candidate record.
+Every included record's supplied screening evidence must retain its hash,
+including not_extracted records. Integer locator lines follow splitlines()
+boundaries, including CR and CRLF. Output cannot replace consumed inputs or
+evidence files, even when there are no excerpts.
 On any problem nothing is written and all problems are listed in one error.
 """
 

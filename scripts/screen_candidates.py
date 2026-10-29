@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     pool_parser = subparsers.add_parser("pool", help="merge query results into candidates.json")
     pool_parser.add_argument("--run-dir", type=Path, required=True,
-                             help="run directory with queries.jsonl and its query results; writes candidates.json")
+                             help="run directory with queries.jsonl and its query results; verifies non-null response_sha256 case-insensitively and writes candidates.json")
     apply_parser = subparsers.add_parser(
         "apply", help="apply screening decisions to the candidate pool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -47,7 +47,13 @@ def main(argv: list[str] | None = None) -> int:
 
 For an exclusion without an abstract, include an existing run-relative
 `fulltext/...` artifact path in the rationale so its contents are hashed as
-the evidence. Replace the example record IDs with IDs from candidates.json.''',
+the evidence; Markdown links such as [full text](fulltext/article.txt) also work.
+Use separate groups when multiple records name two or more existing evidence
+files. Missing files do not count; one existing file may be shared by a group.
+Inputs and evidence cannot be output paths. Concurrent apply calls are
+serialized using a persistent .<run-name>.screening.lock beside the resolved
+run directory, outside the packaged contents. Lock acquisition failures are
+reported as errors. Replace the example record IDs with IDs from candidates.json.''',
     )
     apply_parser.add_argument("--run-dir", type=Path, required=True,
                               help="run directory with candidates.json; writes screening.json")

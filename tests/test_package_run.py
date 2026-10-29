@@ -379,6 +379,38 @@ class PackageRunTests(unittest.TestCase):
         extra = next(item for item in manifest["artifacts"] if item["path"] == "review-corrections.json")
         self.assertEqual(extra["kind"], "provenance")
 
+    def test_screening_apply_keeps_lock_out_of_packaged_run(self) -> None:
+        from codex_science.screening_pool import apply_screening_decisions
+
+        candidates = {"schema": "literature-candidates-v1", "records": [{
+            "record_id": "med:24390308", "title": "Study title", "identifiers": ["pmid:24390308"],
+            "query_ids": [], "abstract_artifact": None, "abstract_sha256": None}]}
+        decisions = {"schema": "screening-decisions-v1", "reviewer": "R", "stage": "title", "groups": []}
+        (self.run_dir / "candidates.json").write_text(json.dumps(candidates))
+        (self.run_dir / "decisions.json").write_text(json.dumps(decisions))
+        before = {p.relative_to(self.run_dir).as_posix(): p.read_bytes()
+                  for p in self.run_dir.rglob("*") if p.is_file()}
+        apply_screening_decisions(self.run_dir, "decisions.json")
+        after = {p.relative_to(self.run_dir).as_posix(): p.read_bytes()
+                 for p in self.run_dir.rglob("*") if p.is_file()}
+        screening = (self.run_dir / "screening.json").read_bytes()
+        apply_screening_decisions(self.run_dir, "decisions.json")
+        self.assertEqual(screening, (self.run_dir / "screening.json").read_bytes())
+        for default_kind in ([], ["--default-kind", "provenance"]):
+            with self.subTest(default_kind=default_kind):
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review",
+                                  "--kind", "candidates.json=provenance", "--kind", "decisions.json=provenance",
+                                  *default_kind)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                manifest = json.loads((self.run_dir / "manifest.json").read_text())
+                self.assertIn("screening.json", {item["path"] for item in manifest["artifacts"]})
+                self.assertFalse(any("screening.lock" in item["path"] or ".screening.json.lock" in item["path"]
+                                     for item in manifest["artifacts"]))
+        self.assertEqual(set(before) | {"screening.json"}, set(after))
+        self.assertTrue(all(after[name] == content for name, content in before.items()))
+        lock = self.run_dir.parent / f".{self.run_dir.name}.screening.lock"
+        self.assertTrue(lock.is_file())
+
     def test_prepare_review_initial_refresh_failure_marks_existing_packet_stale(self) -> None:
         self._make_unreviewed_run()
         first = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")
