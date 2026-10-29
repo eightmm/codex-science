@@ -12,10 +12,17 @@ import hashlib
 import json
 import sqlite3
 import uuid
+from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Iterator, Mapping, Protocol
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 
 MODES = {"read", "write"}
@@ -48,15 +55,19 @@ def _fingerprint(value: Mapping[str, Any]) -> str:
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a non-empty string")
+    text = value.strip()
     if not text:
         raise ValueError(f"{label} is required")
     return text
 
 
 def _sha(value: Any, label: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a lowercase hex SHA-256 digest")
     text = _text(value, label)
-    if not isinstance(value, str) or value != text or len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
+    if value != text or len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise ValueError(f"{label} must be a lowercase hex SHA-256 digest")
     return text
 
@@ -214,7 +225,7 @@ class _ExpectedBeforeStateMismatch(ValueError):
 def validate_preview(payload: Mapping[str, Any], spec: ActionSpec | None = None) -> None:
     if payload.get("schema_version") != 1 or payload.get("status") != "preview" or payload.get("executed") is not False:
         raise ValueError("invalid action preview state")
-    for field in ("preview_id", "connector", "operation", "target", "action_spec_sha256", "idempotency_key", "before_state_sha256", "created_at", "evidence_boundary"):
+    for field in ("preview_id", "connector", "operation", "target", "idempotency_key", "created_at", "evidence_boundary"):
         _text(payload.get(field), field)
     _sha(payload.get("action_spec_sha256"), "action_spec_sha256")
     _sha(payload.get("before_state_sha256"), "before_state_sha256")
@@ -335,6 +346,17 @@ def _requires_approval(spec: ActionSpec) -> bool:
     return any((spec.mode == "write", spec.approval_required, spec.destructive, spec.paid, spec.sensitive_data))
 
 
+@contextmanager
+def _execution_lock(ledger: ActionLedger) -> Iterator[None]:
+    if fcntl is None:
+        raise ValueError("action execution requires POSIX file locking")
+    # Keep the sibling file: unlinking it can give competing callers disjoint locks.
+    # Closing the handle also releases the lock on errors or process termination.
+    with ledger.path.with_name(ledger.path.name + ".lock").open("a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+
+
 def execute_action(
     adapter: ConnectorActionAdapter,
     spec: ActionSpec,
@@ -344,6 +366,8 @@ def execute_action(
     ledger: ActionLedger,
     executed_at: str | None = None,
 ) -> dict[str, Any]:
+    # Bind validation, adapter calls and the receipt to one caller-independent spec.
+    spec = deepcopy(spec)
     if spec.mode == "write" and not spec.approval_required:
         raise ValueError("write actions must require approval")
     if spec.destructive and spec.mode != "write":
@@ -359,54 +383,55 @@ def execute_action(
             raise ValueError("write action requires explicit approval" if spec.mode == "write" else "action requires explicit approval")
     else:
         validate_action_approval(approval, preview)
-    existing = ledger.get(spec.idempotency_key)
-    if existing is not None:
-        if existing.get("action_spec_sha256") != spec.fingerprint:
-            raise ValueError("idempotency key is already bound to a different spec")
-        if approval is not None and approval.get("fingerprint") != existing.get("approval_fingerprint"):
-            raise ValueError("replayed action was approved by a different approval")
-        return existing
-    current = dict(adapter.snapshot(spec))
-    _json_value(current, "provider current state")
-    current_sha = _fingerprint(current)
-    if spec.expected_before_sha256 is not None and current_sha != spec.expected_before_sha256:
-        raise ValueError("current remote state does not match expected_before_sha256")
-    if current_sha != preview["before_state_sha256"]:
-        raise ValueError("remote state changed after preview; create a new preview")
-    # Adapters must produce the same proposal for a given spec and state.
-    proposed = dict(adapter.preview(spec, current))
-    _json_value(proposed, "provider proposed changes")
-    if _canonical_bytes(proposed) != _canonical_bytes(preview.get("proposed_changes")):
-        raise ValueError("preview proposed_changes do not match the adapter proposal; create a new preview")
-    result = dict(adapter.execute(spec, preview))
-    _json_value(result, "provider execution result")
-    after = dict(result.get("after_state", result))
-    after_sha = _fingerprint(after)
-    material = {
-        "schema_version": 1,
-        "action_id": "action-" + uuid.uuid4().hex[:20],
-        "connector": spec.connector,
-        "operation": spec.operation,
-        "mode": spec.mode,
-        "target": spec.target,
-        "action_spec_sha256": spec.fingerprint,
-        "preview_id": preview["preview_id"],
-        "preview_fingerprint": preview["fingerprint"],
-        "approval_fingerprint": None if approval is None else approval.get("fingerprint"),
-        "idempotency_key": spec.idempotency_key,
-        "before_state_sha256": current_sha,
-        "after_state_sha256": after_sha,
-        "after_state": after,
-        "remote_object_ids": list(result.get("remote_object_ids", [])) if isinstance(result.get("remote_object_ids", []), list) else [],
-        "provider_receipt": result.get("provider_receipt"),
-        "compensation": spec.compensation,
-        "executed_at": executed_at or _now(),
-        "status": "executed",
-        "evidence_boundary": "This receipt records a provider adapter action and before/after state hashes. It does not validate the scientific content, provider completeness, legal authorization, or successful downstream interpretation."
-    }
-    receipt = {**material, "fingerprint": _fingerprint(material)}
-    ledger.record(key=spec.idempotency_key, spec_sha256=spec.fingerprint, receipt=receipt)
-    return receipt
+    with _execution_lock(ledger):
+        existing = ledger.get(spec.idempotency_key)
+        if existing is not None:
+            if existing.get("action_spec_sha256") != spec.fingerprint:
+                raise ValueError("idempotency key is already bound to a different spec")
+            if approval is not None and approval.get("fingerprint") != existing.get("approval_fingerprint"):
+                raise ValueError("replayed action was approved by a different approval")
+            return existing
+        current = dict(adapter.snapshot(spec))
+        _json_value(current, "provider current state")
+        current_sha = _fingerprint(current)
+        if spec.expected_before_sha256 is not None and current_sha != spec.expected_before_sha256:
+            raise ValueError("current remote state does not match expected_before_sha256")
+        if current_sha != preview["before_state_sha256"]:
+            raise ValueError("remote state changed after preview; create a new preview")
+        # Adapters must produce the same proposal for a given spec and state.
+        proposed = dict(adapter.preview(spec, current))
+        _json_value(proposed, "provider proposed changes")
+        if _canonical_bytes(proposed) != _canonical_bytes(preview.get("proposed_changes")):
+            raise ValueError("preview proposed_changes do not match the adapter proposal; create a new preview")
+        result = dict(adapter.execute(spec, preview))
+        _json_value(result, "provider execution result")
+        after = dict(result.get("after_state", result))
+        after_sha = _fingerprint(after)
+        material = {
+            "schema_version": 1,
+            "action_id": "action-" + uuid.uuid4().hex[:20],
+            "connector": spec.connector,
+            "operation": spec.operation,
+            "mode": spec.mode,
+            "target": spec.target,
+            "action_spec_sha256": spec.fingerprint,
+            "preview_id": preview["preview_id"],
+            "preview_fingerprint": preview["fingerprint"],
+            "approval_fingerprint": None if approval is None else approval.get("fingerprint"),
+            "idempotency_key": spec.idempotency_key,
+            "before_state_sha256": current_sha,
+            "after_state_sha256": after_sha,
+            "after_state": after,
+            "remote_object_ids": list(result.get("remote_object_ids", [])) if isinstance(result.get("remote_object_ids", []), list) else [],
+            "provider_receipt": result.get("provider_receipt"),
+            "compensation": spec.compensation,
+            "executed_at": executed_at or _now(),
+            "status": "executed",
+            "evidence_boundary": "This receipt records a provider adapter action and before/after state hashes. It does not validate the scientific content, provider completeness, legal authorization, or successful downstream interpretation."
+        }
+        receipt = {**material, "fingerprint": _fingerprint(material)}
+        ledger.record(key=spec.idempotency_key, spec_sha256=spec.fingerprint, receipt=receipt)
+        return receipt
 
 
 def validate_action_receipt(
@@ -420,14 +445,9 @@ def validate_action_receipt(
         "action_id",
         "connector",
         "operation",
-        "mode",
         "target",
-        "action_spec_sha256",
         "preview_id",
-        "preview_fingerprint",
         "idempotency_key",
-        "before_state_sha256",
-        "after_state_sha256",
         "executed_at",
         "evidence_boundary",
     ):
@@ -450,6 +470,8 @@ def validate_action_receipt(
     if spec is not None and payload.get("action_spec_sha256") != spec.fingerprint:
         raise ValueError("action receipt covers a different spec")
     mode = payload.get("mode")
+    if isinstance(mode, str):
+        _text(mode, "mode")
     if not isinstance(mode, str) or mode not in MODES:
         raise ValueError("invalid action receipt mode")
     if mode == "write" or (spec is not None and _requires_approval(spec)):

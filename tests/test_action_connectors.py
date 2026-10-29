@@ -1,8 +1,15 @@
 import copy
+import fcntl
 import hashlib
 import json
+import multiprocessing
+import os
+import subprocess
+import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -17,6 +24,9 @@ from codex_science.action_connectors import (
     validate_action_receipt,
     validate_preview,
 )
+
+
+CALL_TIMEOUT = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
 
 
 class FakeAdapter:
@@ -36,6 +46,34 @@ class FakeAdapter:
         self.execute_count += 1
         self.state = {**self.state, "status": spec.parameters["status"], "version": self.state["version"] + 1}
         return {"after_state": copy.deepcopy(self.state), "remote_object_ids": [self.state["object_id"]], "provider_receipt": {"request_id": "provider-1"}}
+
+
+class RacingAdapter(FakeAdapter):
+    def __init__(self, path, barrier, count=None, probe_lock=None):
+        super().__init__()
+        self.path = path
+        self.barrier = barrier
+        self.count = count
+        self.probe_lock = threading.Lock() if probe_lock is None else probe_lock
+
+    def execute(self, spec, preview):
+        # Force both unprotected executions to overlap on the old path.
+        # A protected execution holds this lock and needs no second executor.
+        unguarded = False
+        with self.probe_lock, self.path.with_name(self.path.name + ".lock").open("a") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                pass
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+                unguarded = True
+        if unguarded:
+            self.barrier.wait(timeout=CALL_TIMEOUT)
+        if self.count is not None:
+            with self.count.get_lock():
+                self.count.value += 1
+        return super().execute(spec, preview)
 
 
 def write_spec() -> ActionSpec:
@@ -72,6 +110,194 @@ def rehash_payload(payload: dict) -> dict:
 
 
 class ActionConnectorTests(unittest.TestCase):
+    def test_concurrent_calls_execute_once_and_replay_the_same_receipt(self) -> None:
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path = directory / "actions.sqlite"
+        ledgers = [ActionLedger(path), ActionLedger(path)]
+        start = threading.Barrier(2)
+        unguarded_execution = threading.Barrier(2)
+
+        adapter = RacingAdapter(path, unguarded_execution)
+        spec = write_spec()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+
+        def run(ledger):
+            start.wait(timeout=CALL_TIMEOUT)
+            return execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(run, ledger) for ledger in ledgers]
+            results = []
+            for future in futures:
+                try:
+                    results.append(future.result(timeout=CALL_TIMEOUT))
+                except Exception as error:
+                    results.append(str(error))
+        self.assertEqual(1, adapter.execute_count)
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[0], ledgers[0].get(spec.idempotency_key))
+
+    def test_processes_execute_once_and_replay_the_same_receipt(self) -> None:
+        context = multiprocessing.get_context("fork")
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path = directory / "actions.sqlite"
+        ledger = ActionLedger(path)
+        start = context.Barrier(2)
+        unguarded_execution = context.Barrier(2)
+        count = context.Value("i", 0)
+        probe_lock = context.Lock()
+
+        spec = write_spec()
+        preview = build_preview(FakeAdapter(), spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+
+        def run(connection):
+            try:
+                start.wait(timeout=CALL_TIMEOUT)
+                adapter = RacingAdapter(path, unguarded_execution, count, probe_lock)
+                connection.send(execute_action(adapter, spec, preview, approval=approval, ledger=ledger))
+            except Exception as error:
+                connection.send(str(error))
+            finally:
+                connection.close()
+
+        pipes = [context.Pipe(duplex=False) for _ in range(2)]
+        processes = [context.Process(target=run, args=(writer,)) for _, writer in pipes]
+        try:
+            for process in processes:
+                process.start()
+            for _, writer in pipes:
+                writer.close()
+            results = []
+            for reader, _ in pipes:
+                self.assertTrue(reader.poll(CALL_TIMEOUT), "execution process did not return")
+                results.append(reader.recv())
+            for process in processes:
+                process.join(timeout=CALL_TIMEOUT)
+                self.assertEqual(0, process.exitcode)
+            self.assertEqual(1, count.value)
+            self.assertEqual(results[0], results[1])
+            self.assertEqual(results[0], ledger.get(spec.idempotency_key))
+        finally:
+            for process in processes:
+                if process.is_alive():
+                    process.terminate()
+                    process.join(timeout=CALL_TIMEOUT)
+            for reader, writer in pipes:
+                reader.close()
+                writer.close()
+
+    def test_lock_failures_refuse_execution_without_recording(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        ledger = ActionLedger(directory / "actions.sqlite")
+        with patch("codex_science.action_connectors.fcntl", None, create=True):
+            with self.assertRaisesRegex(ValueError, "requires POSIX file locking"):
+                execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
+        with patch.object(fcntl, "flock", side_effect=OSError("locking unavailable")):
+            with self.assertRaisesRegex(OSError, "locking unavailable"):
+                execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
+        self.assertEqual(0, adapter.execute_count)
+        self.assertIsNone(ledger.get(spec.idempotency_key))
+        receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
+        self.assertEqual(receipt, ledger.get(spec.idempotency_key))
+
+    def test_adapter_failure_releases_lock_before_a_competing_retry(self) -> None:
+        spec = write_spec()
+        adapter = FakeAdapter()
+        preview = build_preview(adapter, spec)
+        approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path = directory / "actions.sqlite"
+        ledger = ActionLedger(path)
+
+        def fail(private_spec, private_preview):
+            with path.with_name(path.name + ".lock").open("a") as handle:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            raise RuntimeError("adapter failed before writing")
+
+        with patch.object(adapter, "execute", side_effect=fail):
+            with self.assertRaisesRegex(RuntimeError, "adapter failed before writing"):
+                execute_action(adapter, spec, preview, approval=approval, ledger=ledger)
+        self.assertIsNone(ledger.get(spec.idempotency_key))
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            receipt = pool.submit(execute_action, adapter, spec, preview, approval=approval, ledger=ledger).result(timeout=CALL_TIMEOUT)
+        self.assertEqual(receipt, ledger.get(spec.idempotency_key))
+
+    def test_caller_parameter_mutation_during_preview_cannot_change_execution(self) -> None:
+        for phase in ("snapshot", "preview"):
+            with self.subTest(phase=phase):
+                spec = replace(write_spec(), parameters={"status": "published", "nested": [{"value": 1}]})
+                approved_spec = copy.deepcopy(spec)
+                adapter = FakeAdapter()
+                preview = build_preview(adapter, spec)
+                approval = build_action_approval(preview, approved_by="reviewer", approved_scopes=list(spec.requested_scopes))
+                received = []
+                original = getattr(adapter, phase)
+
+                def mutate(private_spec, *args):
+                    result = original(private_spec, *args)
+                    spec.parameters["status"] = "archived"
+                    spec.parameters["nested"][0]["value"] = 2
+                    received.append(copy.deepcopy(private_spec.parameters))
+                    return result
+
+                directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+                with patch.object(adapter, phase, side_effect=mutate):
+                    receipt = execute_action(adapter, spec, preview, approval=approval, ledger=ActionLedger(directory / "actions.sqlite"))
+                self.assertEqual([approved_spec.parameters], received)
+                self.assertEqual("published", receipt["after_state"]["status"])
+                self.assertEqual(approved_spec.fingerprint, receipt["action_spec_sha256"])
+                validate_action_receipt(receipt, approved_spec, approval)
+
+    def test_required_identifiers_are_nonempty_strings(self) -> None:
+        base = write_spec().to_dict()
+        with self.assertRaisesRegex(ValueError, "connector"):
+            ActionSpec.from_payload({"mode": "read"})
+        for field in ("connector", "operation", "target", "idempotency_key", "mode"):
+            for value in (None, 0, 5, False, [], {}, "", " "):
+                with self.subTest(field=field, value=value):
+                    with self.assertRaises(ValueError):
+                        ActionSpec.from_payload({**base, field: value})
+        for value in (None, 0, 5, False, [], {}, "", " "):
+            with self.subTest(scope=value):
+                with self.assertRaises(ValueError):
+                    ActionSpec.from_payload({**base, "requested_scopes": [value]})
+        preview = build_preview(FakeAdapter(), write_spec())
+        for value in (None, 0, 5, False, [], {}, "", " "):
+            with self.subTest(approved_by=value):
+                with self.assertRaises(ValueError):
+                    build_action_approval(preview, approved_by=value, approved_scopes=base["requested_scopes"])
+            with self.subTest(approved_scope=value):
+                with self.assertRaises(ValueError):
+                    build_action_approval(preview, approved_by="reviewer", approved_scopes=[*base["requested_scopes"], value])
+        self.assertEqual("fake-lab", ActionSpec.from_payload({**base, "connector": " fake-lab "}).connector)
+        self.assertEqual((), ActionSpec.from_payload({**base, "requested_scopes": []}).requested_scopes)
+
+    def test_cli_refuses_missing_and_wrong_type_identifiers(self) -> None:
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        source = directory / "spec.json"
+        output = directory / "validated.json"
+        script = Path(__file__).resolve().parents[1] / "scripts" / "connector_action_contract.py"
+        base = write_spec().to_dict()
+        for payload in ({"mode": "read"}, {**base, "connector": None}, {**base, "target": 5}):
+            with self.subTest(payload=payload):
+                output.unlink(missing_ok=True)
+                source.write_text(json.dumps(payload), encoding="utf-8")
+                result = subprocess.run(
+                    [sys.executable, str(script), "validate-spec", str(source), "--output", str(output)],
+                    capture_output=True, text=True, timeout=CALL_TIMEOUT,
+                )
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                self.assertIn("error:", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertFalse(output.exists())
+
     def test_spec_expected_before_hash_binds_preview_and_receipt(self) -> None:
         spec = write_spec()
         adapter = FakeAdapter()
