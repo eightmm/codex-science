@@ -96,7 +96,15 @@ def rmsd(reference: list[list[float]], predicted: list[list[float]], permutation
 
 def symmetry_rmsd(reference: list[list[float]], predicted: list[list[float]], permutations: Iterable[list[int]]) -> float:
     options = [list(range(len(reference))), *[list(item) for item in permutations]]
-    return min(rmsd(reference, predicted, option) for option in options)
+    best = math.inf
+    for option in options:
+        try:
+            best = min(best, rmsd(reference, predicted, option))
+        except ValueError as exc:
+            # An overflowing correspondence must not hide finite alternatives or malformed permutations.
+            if str(exc) != "rmsd must be a finite real number":
+                raise
+    return _finite_real(best, "rmsd")
 
 
 def interaction_recovery(reference: Iterable[str], predicted: Iterable[str]) -> float:

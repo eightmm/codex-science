@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from codex_science.artifacts import validate_bundle
 from codex_science.review import review_manifest
-from codex_science.sbdd_execution import average_precision, bootstrap_mean, compute_acceptance, execute_acceptance, rmsd
+from codex_science.sbdd_execution import average_precision, bootstrap_mean, compute_acceptance, execute_acceptance, rmsd, symmetry_rmsd
 from codex_science.workbench import render_workbench
 
 
@@ -213,6 +213,46 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
                 self._assert_rejected_before_output(payload, record["complex_id"] + ".*" + field + ".*finite real number")
 
     def test_derived_metrics_recover_finite_results_and_keep_ordinary_rounding(self) -> None:
+        reference = [[-1e308, 0, 0], [1e308, 0, 0]]
+        predicted = reference[::-1]
+        with self.assertRaisesRegex(ValueError, "rmsd must be a finite real number"):
+            rmsd(reference, predicted)
+        for starting in (predicted, reference):
+            for direct in (True, False):
+                with self.subTest(starting=starting, direct=direct):
+                    if direct:
+                        self.assertEqual(0.0, symmetry_rmsd(reference, starting, [[1, 0]]))
+                    else:
+                        payload = copy.deepcopy(self.payload)
+                        record = payload["records"][0]
+                        record["reference_coords"] = reference
+                        record["starting_coords"] = starting
+                        record["pose_delta"] = [0, 0, 0]
+                        record["symmetry_permutations"] = [[1, 0]]
+                        poses, metrics, _leakage = compute_acceptance(payload)
+                        self.assertEqual(0.0, poses[0]["symmetry_rmsd_angstrom"])
+                        self.assertTrue(all(item["passed"] for item in metrics))
+        for permutations in ([], [[1, 0]]):
+            with self.subTest(permutations=permutations):
+                self.assertEqual(0.0, symmetry_rmsd(reference, reference, permutations))
+                with self.assertRaisesRegex(ValueError, "rmsd must be a finite real number"):
+                    symmetry_rmsd([reference[0]] * 2, [reference[1]] * 2, permutations)
+                payload = copy.deepcopy(self.payload)
+                record = payload["records"][0]
+                record["reference_coords"] = [reference[0]] * 2
+                record["starting_coords"] = [reference[1]] * 2
+                record["pose_delta"] = [0, 0, 0]
+                record["symmetry_permutations"] = permutations
+                self._assert_rejected_before_output(payload, record["complex_id"] + ".*rmsd.*finite real number")
+        for starting in (reference, predicted):
+            for permutation in ([0], [0, 0], [0, 2]):
+                with self.subTest(starting=starting, permutation=permutation):
+                    with self.assertRaisesRegex(ValueError, "symmetry permutation must contain every atom index exactly once"):
+                        symmetry_rmsd(reference, starting, [[1, 0], permutation])
+        with self.assertRaisesRegex(ValueError, "rmsd needs a non-empty coordinate list"):
+            symmetry_rmsd([], [], [])
+        with self.assertRaisesRegex(ValueError, "reference and predicted atom counts differ"):
+            symmetry_rmsd(reference, [], [])
         self.assertEqual(1e200, rmsd([[1e200, 0, 0]], [[0, 0, 0]]))
         maximum = float.fromhex("0x1.fffffffffffffp+1023")
         self.assertEqual(maximum, rmsd([[maximum, 0, 0]], [[0, 0, 0]]))
