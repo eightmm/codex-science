@@ -42,7 +42,7 @@ def _mean(values):
         return None
     total = sum(values)
     # Keep ordinary rounding unchanged; statistics.mean avoids intermediate overflow.
-    return total / len(values) if math.isfinite(total) else mean(values)
+    return total / len(values) if isinstance(total, int) or math.isfinite(total) else mean(values)
 
 def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, Any]], root: Path) -> dict[str, Any]:
     errors=[]; violations=[]; root=Path(root).resolve()

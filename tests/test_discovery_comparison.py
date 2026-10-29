@@ -59,7 +59,7 @@ class DiscoveryComparisonTests(unittest.TestCase):
                     self.assertEqual("rejected", evaluate_comparison(contract, records, root)["status"])
 
     def test_finite_scores_do_not_overflow_aggregate_means(self):
-        for score in (0, 0.1, 1e308, -1e308, float.fromhex("0x1.fffffffffffffp+1023")):
+        for score in (0, 0.1, 1e308, -1e308, float.fromhex("0x1.fffffffffffffp+1023"), 2**1023, -2**1023):
             with self.subTest(score=score):
                 root, contract, records = _fixture()
                 self.addCleanup(shutil.rmtree, root)
