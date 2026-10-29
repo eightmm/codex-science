@@ -158,8 +158,17 @@ def _executable_files(skill_dir: Path) -> list[Path]:
     return sorted(files, key=lambda item: item.as_posix())
 
 
+def _reject_symlinks(root: Path) -> None:
+    """Inspect descendants after the caller's root has been resolved."""
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"Symlink in catalog tree: {path}")
+
+
 def source_content_digest(source_root: Path) -> str:
-    """Hash a vendored source tree by relative path and file content."""
+    """Hash regular files below the resolved root; refuse linked descendants."""
+    source_root = source_root.resolve()
+    _reject_symlinks(source_root)
     digest = sha256()
     files = (
         path
@@ -182,6 +191,8 @@ def audit_skill(
     *,
     default_license: str | None = None,
 ) -> dict[str, Any]:
+    skill_dir = skill_dir.resolve()
+    _reject_symlinks(skill_dir)
     skill_file = skill_dir / "SKILL.md"
     metadata = parse_frontmatter(skill_file)
     name = metadata.get("name", "").strip() or skill_dir.name
@@ -233,6 +244,7 @@ def _audit_records(
     default_license: str | None = None,
     exclude: frozenset[str] = frozenset(),
 ) -> list[dict[str, Any]]:
+    _reject_symlinks(catalog_root)
     records: list[dict[str, Any]] = []
     for skill_file in sorted(catalog_root.glob("*/SKILL.md"), key=lambda item: item.parent.name):
         folder = skill_file.parent.name
@@ -258,6 +270,7 @@ def audit_catalog(
     source_key: str = "",
     default_license: str | None = None,
 ) -> dict[str, Any]:
+    catalog_root = catalog_root.resolve()
     records = _audit_records(
         catalog_root,
         policy,
@@ -275,12 +288,22 @@ def audit_catalog(
     }
 
 
+def _validate_source_keys(sources: list[dict[str, Any]]) -> None:
+    seen: set[str] = set()
+    for source in sources:
+        key = str(source["key"])
+        if key in seen:
+            raise ValueError(f"Duplicate source key: {key}")
+        seen.add(key)
+
+
 def audit_sources(
     sources: list[dict[str, Any]],
     root: Path,
     policy: CatalogPolicy,
 ) -> dict[str, Any]:
     """Audit multiple catalogs into one deterministic schema-2 inventory."""
+    _validate_source_keys(sources)
     all_records: list[dict[str, Any]] = []
     source_meta: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -337,6 +360,7 @@ def load_inventory(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") not in (1, 2) or not isinstance(payload.get("skills"), list):
         raise ValueError(f"Unsupported inventory: {path}")
+    _validate_source_keys(payload.get("sources", []))
     return payload
 
 

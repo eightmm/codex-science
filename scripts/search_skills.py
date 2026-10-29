@@ -4,6 +4,7 @@
 Pass the query as one or more words (quoting is optional) or with --query TEXT;
 all words are joined with single spaces into one search. Prints matches as JSON.
 With --name NAME, prints the exact inventory record and its source entry instead.
+Inventories with duplicate source keys are refused.
 """
 
 from __future__ import annotations

@@ -1,6 +1,9 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 
 from codex_science.catalog import (
@@ -259,6 +262,161 @@ class CatalogAuditTests(unittest.TestCase):
 
         (vendor / "PROVENANCE.md").write_text("changed\n", encoding="utf-8")
         self.assertNotEqual(first, source_content_digest(vendor))
+
+    def test_catalog_discovery_and_digest_refuse_all_symlinks(self) -> None:
+        for location, target_kind in (
+            ("linked-skill", "directory"),
+            ("sympy/SKILL.md", "file"),
+            ("sympy/references/linked", "directory"),
+            ("sympy/references/linked", "file"),
+            ("sympy/references/linked", "empty-file"),
+            ("sympy/references/linked", "missing"),
+            ("sympy/references/linked", "internal"),
+            ("sympy/references/linked", "internal-directory"),
+            (".git/linked", "file"),
+            (".omc/linked", "file"),
+            ("__pycache__/linked", "file"),
+        ):
+            with self.subTest(location=location, target=target_kind), tempfile.TemporaryDirectory(dir=self.root) as tmp:
+                base = Path(tmp)
+                catalog = base / "catalog"
+                catalog.mkdir()
+                self.assertEqual(sha256(b"").hexdigest(), source_content_digest(catalog))
+                self.assertEqual(0, audit_catalog(catalog, "abc123", self.policy)["summary"]["total"])
+                skill = make_skill(catalog, "sympy", license_name="MIT")
+                self.assertEqual(1, audit_catalog(catalog, "abc123", self.policy)["summary"]["total"])
+                framed = b"sympy/SKILL.md\0" + (skill / "SKILL.md").read_bytes() + b"\0"
+                self.assertEqual(sha256(framed).hexdigest(), source_content_digest(catalog))
+                outside = base / "outside"
+                outside.mkdir()
+                target = make_skill(outside, "linked-skill", license_name="MIT")
+                if target_kind in ("file", "empty-file"):
+                    target = target / "SKILL.md"
+                    if target_kind == "empty-file":
+                        target.write_bytes(b"")
+                elif target_kind == "missing":
+                    target = outside / "missing"
+                elif target_kind == "internal":
+                    target = skill / "SKILL.md"
+                elif target_kind == "internal-directory":
+                    target = skill
+                link = catalog / location
+                if link.is_file():
+                    link.unlink()
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(target, target_is_directory=target_kind == "directory")
+                operations = [
+                    ("digest", lambda: source_content_digest(catalog)),
+                    ("catalog", lambda: audit_catalog(catalog, "abc123", self.policy)),
+                    ("sources", lambda: audit_sources(
+                        [{"key": "one", "catalog_path": catalog.name, "exclude": ["linked-skill"]}],
+                        base, self.policy,
+                    )),
+                ]
+                if location.startswith("sympy/"):
+                    operations.append(("skill", lambda: audit_skill(skill, self.policy)))
+                for label, operation in operations:
+                    with self.subTest(operation=label):
+                        with self.assertRaises(ValueError) as caught:
+                            operation()
+                        self.assertIn("Symlink", str(caught.exception))
+                        self.assertIn(str(link), str(caught.exception))
+
+    def test_caller_named_root_aliases_preserve_audit_and_digest(self) -> None:
+        catalog = self.root / "catalog"
+        catalog.mkdir()
+        alias = self.root / "alias"
+        alias.symlink_to(catalog, target_is_directory=True)
+        checkout = self.root / "checkout"
+        checkout.symlink_to(self.root, target_is_directory=True)
+        roots = (catalog, alias, checkout / "catalog")
+        sources = [{"key": "one", "catalog_path": "catalog"}]
+        for populated in (False, True):
+            if populated:
+                skill = make_skill(catalog, "sympy", license_name="MIT")
+                skill_alias = self.root / "skill-alias"
+                skill_alias.symlink_to(skill, target_is_directory=True)
+                self.assertEqual(audit_skill(skill, self.policy), audit_skill(skill_alias, self.policy))
+            expected = audit_catalog(catalog, "abc123", self.policy)
+            digest = source_content_digest(catalog)
+            for named_root in roots:
+                with self.subTest(populated=populated, root=named_root):
+                    self.assertEqual(expected, audit_catalog(named_root, "abc123", self.policy))
+                    self.assertEqual(digest, source_content_digest(named_root))
+            self.assertEqual(
+                audit_sources(sources, self.root, self.policy),
+                audit_sources(sources, checkout, self.policy),
+            )
+            registered_alias = audit_sources(
+                [{"key": "one", "catalog_path": "alias"}], self.root, self.policy,
+            )
+            self.assertEqual("alias", registered_alias["sources"][0]["catalog_path"])
+            if populated:
+                self.assertEqual("alias/sympy", registered_alias["skills"][0]["path"])
+        link = catalog / "linked"
+        link.symlink_to(self.root / "missing")
+        for named_root in roots:
+            with self.subTest(root=named_root):
+                with self.assertRaisesRegex(ValueError, "Symlink in catalog tree:"):
+                    audit_catalog(named_root, "abc123", self.policy)
+                with self.assertRaisesRegex(ValueError, "Symlink in catalog tree:"):
+                    source_content_digest(named_root)
+        with self.assertRaisesRegex(ValueError, "Symlink in catalog tree:"):
+            audit_sources(sources, checkout, self.policy)
+
+    def test_audit_sources_refuses_duplicate_source_keys(self) -> None:
+        sources = []
+        self.assertEqual(0, audit_sources(sources, self.root, self.policy)["summary"]["total"])
+        for name in ("one", "two"):
+            catalog = self.root / name
+            catalog.mkdir()
+            make_skill(catalog, "s", license_name="MIT")
+            sources.append({"key": name, "name_prefix": name, "catalog_path": name})
+        self.assertEqual(1, audit_sources(sources[:1], self.root, self.policy)["summary"]["total"])
+        self.assertEqual(2, audit_sources(sources, self.root, self.policy)["summary"]["total"])
+        for value in ("shared", "", 0):
+            with self.subTest(value=value):
+                for source in sources:
+                    source["key"] = value
+                with self.assertRaisesRegex(ValueError, "Duplicate source key:") as caught:
+                    audit_sources(sources, self.root, self.policy)
+                self.assertIn(str(value), str(caught.exception))
+
+    def test_load_inventory_refuses_duplicate_source_keys(self) -> None:
+        path = self.root / "inventory.json"
+        for version in (1, 2):
+            for sources in (None, [], [{"key": "one"}], [{"key": "one"}, {"key": "two"}]):
+                payload = {"schema_version": version, "skills": []}
+                if sources is not None:
+                    payload["sources"] = sources
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                self.assertEqual(payload, load_inventory(path))
+        for value in ("shared", "", 0):
+            with self.subTest(value=value):
+                payload["sources"] = [{"key": value, "catalog_path": "one"}, {"key": value, "catalog_path": "two"}]
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Duplicate source key:") as caught:
+                    load_inventory(path)
+                self.assertIn(str(value), str(caught.exception))
+
+    def test_search_cli_refuses_ambiguous_source_keys(self) -> None:
+        inventory = {
+            "schema_version": 2,
+            "sources": [{"key": "shared", "catalog_path": name} for name in ("one", "two")],
+            "skills": [{"name": "two-s", "source": "shared", "path": "two/s", "status": "active"}],
+        }
+        path = self.root / "inventory.json"
+        path.write_text(json.dumps(inventory), encoding="utf-8")
+        script = Path(__file__).resolve().parents[1] / "scripts" / "search_skills.py"
+        for query in (("--name", "two-s"), ("s",)):
+            with self.subTest(query=query):
+                result = subprocess.run(
+                    [sys.executable, str(script), "--inventory", str(path), *query],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("Duplicate source key: shared", result.stderr)
+                self.assertEqual("", result.stdout)
 
     def test_repository_vendored_source_digest_matches_lock(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]

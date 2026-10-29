@@ -30,7 +30,7 @@ def current_commit(catalog: Path) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sources", type=Path, help="Multi-source config (default: catalog/sources.json)")
-    parser.add_argument("--catalog", type=Path, help="Single-catalog mode (schema 1)")
+    parser.add_argument("--catalog", type=Path, help="Single-catalog mode (schema 1); follows the named root, refuses symlinks inside it")
     parser.add_argument("--commit")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser.parse_args()
