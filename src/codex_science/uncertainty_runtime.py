@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import random
 import statistics
+import sys
 from typing import Any, Mapping
 
 from codex_science.safe_expression import canonical_sha256, evaluate_expression, parse_expression
@@ -15,7 +16,10 @@ MAX_SAMPLES = 1_000_000
 def _finite(value: Any, label: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{label} must be numeric")
-    result = float(value)
+    try:
+        result = float(value)
+    except OverflowError as error:
+        raise ValueError(f"{label} must be finite") from error
     if not math.isfinite(result):
         raise ValueError(f"{label} must be finite")
     return result
@@ -120,16 +124,36 @@ def _gradient(
     return gradient, changes, noise_floor
 
 
-def _variance(gradient: list[float], covariance: list[list[float]]) -> float:
-    terms = [
-        gradient[row] * covariance[row][column] * gradient[column]
-        for row in range(len(gradient))
-        for column in range(len(gradient))
-    ]
-    value = sum(terms)
+def _variance(
+    gradient: list[float], covariance: list[list[float]], *, uncertainties: list[float] | None = None,
+) -> float:
+    terms: list[float] = []
+    underflowed_term = False
+    for row in range(len(gradient)):
+        for column in range(len(gradient)):
+            term = gradient[row] * covariance[row][column] * gradient[column]
+            # Squaring a nonzero input uncertainty can erase its diagonal.
+            nonzero_covariance = covariance[row][column] != 0.0 or (
+                row == column and uncertainties is not None and uncertainties[row] != 0.0
+            )
+            if (
+                term == 0.0 and gradient[row] != 0.0
+                and nonzero_covariance and gradient[column] != 0.0
+            ):
+                underflowed_term = True
+            terms.append(term)
+    try:
+        value = math.fsum(terms)
+    except (OverflowError, ValueError) as error:
+        raise ValueError("linear propagation variance is outside floating-point range") from error
+    if not math.isfinite(value):
+        raise ValueError("linear propagation variance is outside floating-point range")
     if value < -1e-12 * sum(abs(term) for term in terms):
         raise ValueError("linear propagation produced negative variance")
-    return max(0.0, value)
+    variance = max(0.0, value)
+    if variance < sys.float_info.min and (variance > 0.0 or underflowed_term):
+        raise ValueError("linear propagation variance is outside floating-point range")
+    return variance
 
 
 def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -140,6 +164,18 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     expression = str(payload.get("expression", "")).strip()
     if not propagation_id or not claim_id or not expression:
         raise ValueError("propagation_id, claim_id, and expression are required")
+    method = str(payload.get("method", "both"))
+    if method == "both":
+        threshold = payload.get("nonlinearity_threshold", 0.25)
+        if isinstance(threshold, bool):
+            raise ValueError("nonlinearity_threshold must be numeric, not boolean")
+        try:
+            threshold = float(threshold)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError("nonlinearity_threshold must be a finite number") from error
+        nonlinearity_threshold = _finite(threshold, "nonlinearity_threshold")
+        if nonlinearity_threshold < 0.0:
+            raise ValueError("nonlinearity_threshold must be non-negative")
     raw_inputs = payload.get("inputs")
     if not isinstance(raw_inputs, list) or not 1 <= len(raw_inputs) <= MAX_INPUTS:
         raise ValueError(f"inputs must contain 1 to {MAX_INPUTS} records")
@@ -167,11 +203,18 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("nominal expression value is not finite")
     covariance = [[0.0] * len(names) for _ in names]
     for index, uncertainty in enumerate(uncertainties):
-        covariance[index][index] = uncertainty ** 2
+        try:
+            variance = uncertainty ** 2
+        except OverflowError as error:
+            raise ValueError(f"inputs[{index}].standard_uncertainty variance is outside floating-point range") from error
+        if not math.isfinite(variance):
+            raise ValueError(f"inputs[{index}].standard_uncertainty variance is outside floating-point range")
+        covariance[index][index] = variance
     raw_covariance = payload.get("covariance", [])
     if not isinstance(raw_covariance, list) or not all(isinstance(item, Mapping) for item in raw_covariance):
         raise ValueError("covariance must be a list of objects")
     index_by_name = {name: index for index, name in enumerate(names)}
+    declared_pairs: dict[tuple[int, int], float] = {}
     for index, item in enumerate(raw_covariance):
         left = str(item.get("left", ""))
         right = str(item.get("right", ""))
@@ -179,6 +222,10 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError(f"covariance[{index}] references an unknown input")
         value = _finite(item.get("value"), f"covariance[{index}].value")
         left_index, right_index = index_by_name[left], index_by_name[right]
+        pair = (min(left_index, right_index), max(left_index, right_index))
+        if pair in declared_pairs and declared_pairs[pair] != value:
+            raise ValueError(f"covariance[{index}] conflicts with an earlier declaration for {left}, {right}")
+        declared_pairs[pair] = value
         if left_index == right_index:
             if not math.isclose(value, covariance[left_index][left_index], rel_tol=1e-9, abs_tol=0.0):
                 raise ValueError("diagonal covariance conflicts with standard_uncertainty")
@@ -186,7 +233,6 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         covariance[left_index][right_index] = value
         covariance[right_index][left_index] = value
     lower = _cholesky(covariance)
-    method = str(payload.get("method", "both"))
     if method not in {"linear", "monte-carlo", "both"}:
         raise ValueError("method must be linear, monte-carlo, or both")
     confidence_level = float(payload.get("confidence_level", 0.95))
@@ -243,7 +289,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     gradient, derivative_changes, derivative_floor = _gradient(
         expression, names, means, uncertainties, refine=method in {"linear", "both"},
     )
-    linear_variance = _variance(gradient, covariance)
+    linear_variance = _variance(gradient, covariance, uncertainties=uncertainties)
     linear_uncertainty = math.sqrt(linear_variance)
     sensitivities = []
     for index, name in enumerate(names):
@@ -279,7 +325,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         scale = max(linear_uncertainty, monte_carlo_uncertainty, 1e-15)
         uncertainty_discrepancy = abs(linear_uncertainty - monte_carlo_uncertainty) / scale
         mean_discrepancy = abs(nominal - float(monte_carlo_mean)) / scale
-        if uncertainty_discrepancy > float(payload.get("nonlinearity_threshold", 0.25)) or mean_discrepancy > 0.25:
+        if uncertainty_discrepancy > nonlinearity_threshold or mean_discrepancy > 0.25:
             findings.append({
                 "code": "nonlinear-propagation-disagreement",
                 "severity": "major",

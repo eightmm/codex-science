@@ -202,8 +202,13 @@ def validate_proof_receipt(payload: Mapping[str, Any], *, bundle_root: Path | No
             raise ValueError("passed formal proof requires kernel_checked=true")
         if not str(checker.get("tool", "")).strip() or not str(checker.get("tool_version", "")).strip():
             raise ValueError("passed formal proof requires checker tool and version")
-    if kind == "finite-exhaustion" and status == "passed" and checker.get("exhaustive") is not True:
-        raise ValueError("passed finite-exhaustion proof requires exhaustive=true")
+    if kind == "finite-exhaustion" and status == "passed":
+        if checker.get("exhaustive") is not True:
+            raise ValueError("passed finite-exhaustion proof requires exhaustive=true")
+        evaluations = checker.get("evaluations")
+        # Legacy sidecars omit optional evaluation counts and domain digests.
+        if "evaluations" in checker and (isinstance(evaluations, bool) or not isinstance(evaluations, int) or evaluations <= 0):
+            raise ValueError("finite-exhaustion evaluations must be a positive integer")
     if kind == "computational-test" and checker.get("general_proof") is True:
         raise ValueError("computational tests cannot be labeled general proofs")
     _validate_fingerprint(payload)
@@ -352,11 +357,29 @@ def math_review_findings(
             findings.append({"code": "missing-proof-receipt", "severity": "major", "message": f"Claim {claim_id} references missing proof receipt {identifier}."})
         for identifier in missing_counters:
             findings.append({"code": "missing-counterexample-receipt", "severity": "major", "message": f"Claim {claim_id} references missing counterexample receipt {identifier}."})
+        invalid_finite_proofs: set[str] = set()
+        finite_domains = [
+            receipt for receipt in (linked_counters if claim.get("counterexample_receipt_ids") else counters.values())
+            if receipt.get("claim_id") == claim_id
+            and receipt.get("statement_sha256") == claim.get("statement_sha256")
+            and receipt.get("scope") == "finite"
+            and receipt.get("status") == "proved-by-exhaustion"
+        ]
         for receipt in linked_proofs:
             if receipt.get("claim_id") != claim_id:
                 findings.append({"code": "proof-claim-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} covers a different claim than {claim_id}."})
             if receipt.get("statement_sha256") != claim.get("statement_sha256"):
                 findings.append({"code": "proof-statement-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} covers a different statement than claim {claim_id}."})
+            if receipt.get("kind") == "finite-exhaustion" and receipt.get("status") == "passed":
+                checker = receipt["checker"]
+                if "domain_sha256" in checker and not any(
+                    isinstance(checker["domain_sha256"], str)
+                    and checker["domain_sha256"].lower() == canonical_sha256(domain["variables"]).lower()
+                    and ("evaluations" not in checker or checker["evaluations"] == domain["total_combinations"])
+                    for domain in finite_domains
+                ):
+                    invalid_finite_proofs.add(str(receipt["receipt_id"]))
+                    findings.append({"code": "invalid-proof-receipt", "severity": "major", "message": f"Finite proof receipt {receipt['receipt_id']} evaluations or domain_sha256 disagrees with the recorded finite domain for claim {claim_id}."})
             # Finite receipts retain their producer's free-text domain description;
             # deductive and formal proofs must not add hypotheses to the claim.
             if receipt.get("kind") in {"informal-deductive", "formal-kernel"} and not set(_string_list(receipt, "assumptions")).issubset(_string_list(claim, "assumptions")):
@@ -398,6 +421,7 @@ def math_review_findings(
                 findings.append({"code": "proof-obligations-open", "severity": "major", "message": f"Claim {claim_id} has unresolved proof obligations."})
         if status == "proved-finite" and not any(
             item.get("kind") == "finite-exhaustion" and item.get("status") == "passed" and item.get("checker", {}).get("exhaustive") is True
+            and str(item["receipt_id"]) not in invalid_finite_proofs
             for item in linked_proofs
         ):
             findings.append({"code": "finite-proof-missing", "severity": "major", "message": f"Claim {claim_id} is proved-finite without exhaustive finite evidence."})

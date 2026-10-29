@@ -1,6 +1,9 @@
+import copy
 import unittest
+from unittest.mock import patch
 
-from codex_science.units_runtime import convert_value, parse_unit, run_dimension_check
+from codex_science.safe_expression import canonical_sha256
+from codex_science.units_runtime import convert_value, parse_unit, review_dimension_check, run_dimension_check
 
 
 class UnitsScaleValidityTests(unittest.TestCase):
@@ -9,6 +12,61 @@ class UnitsScaleValidityTests(unittest.TestCase):
             "schema_version": 1, "check_id": "d", "claim_id": "c", "variables": {"x": "m"},
             "conversions": [{"value": value, "from": source, "to": target}],
         })
+
+    def test_dimension_review_checks_recorded_equations_only(self):
+        receipt = run_dimension_check({
+            "schema_version": 1, "check_id": "d", "claim_id": "c",
+            "variables": {"x": "m", "t": "s"}, "equations": [{"left": "x", "right": "t"}],
+        })
+        self.assertEqual(receipt["findings"], review_dimension_check(receipt))
+        for change in ("findings", "compatible", "dimensions", "error", "malformed"):
+            forged = copy.deepcopy(receipt)
+            forged.update(status="passed", findings=[])
+            forged.pop("variables")
+            equation = forged["equations"][0]
+            if change == "compatible":
+                equation["compatible"] = True
+            elif change == "dimensions":
+                equation["right_dimension"] = equation["left_dimension"]
+            elif change == "error":
+                equation.update(compatible=True, error="recorded evaluation failed")
+                equation["right_dimension"] = equation["left_dimension"]
+            elif change == "malformed":
+                forged["equations"] = [None]
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(change=change):
+                findings = review_dimension_check(forged)
+                codes = {item["code"] for item in findings}
+                if change == "malformed":
+                    self.assertIn("invalid-dimension-check", codes)
+                else:
+                    self.assertIn("dimension-mismatch", codes)
+                self.assertIn("unsafe-dimension-pass", codes)
+
+        historical = run_dimension_check({
+            "schema_version": 1, "check_id": "d", "claim_id": "c",
+            "variables": {"x": "m"}, "equations": [{"left": "x", "right": "x"}],
+            "conversions": [{"value": 1, "from": "m", "to": "cm"}],
+        })
+        for change in ("missing-variables", "scale", "symbol", "conversion", "empty-equations"):
+            recorded = copy.deepcopy(historical)
+            if change == "missing-variables":
+                recorded.pop("variables")
+            elif change == "scale":
+                recorded["variables"]["x"]["scale"] = 1.01
+            elif change == "symbol":
+                recorded["variables"]["x"]["unit"] = "historic-length-unit"
+            elif change == "conversion":
+                recorded["conversions"][0]["converted"] = 100.0000000001
+            else:
+                recorded["equations"] = []
+            recorded.pop("fingerprint")
+            recorded["fingerprint"] = canonical_sha256(recorded)
+            with self.subTest(historical=change), patch(
+                "codex_science.units_runtime.infer_dimension", side_effect=AssertionError("historical recomputation"),
+            ):
+                self.assertEqual([], review_dimension_check(recorded))
 
     def test_cancelled_scale_underflow_is_recovered(self) -> None:
         expression = "nm^20*nm^20/nm^20/nm^20"

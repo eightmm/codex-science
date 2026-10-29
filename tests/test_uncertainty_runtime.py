@@ -40,6 +40,111 @@ class UncertaintyValidityTests(unittest.TestCase):
         finally:
             self.assertEqual(before, payload)
 
+    def test_duplicate_covariance_cannot_change_with_order(self):
+        for values in ((1, -1), (-1, 1), (0, 1), (1, 0)):
+            for reverse in (False, True):
+                entries = [
+                    {"left": "x", "right": "y", "value": values[0]},
+                    {"left": "y" if reverse else "x", "right": "x" if reverse else "y", "value": values[1]},
+                ]
+                with self.subTest(values=values, reverse=reverse), self.assertRaisesRegex(ValueError, r"covariance\[1\].*conflict"):
+                    self.propagate("x+y", [("x", 0, 1), ("y", 0, 1)], method="linear", covariance=entries)
+        for value in (-1, 0, 1):
+            entry = {"left": "x", "right": "y", "value": value}
+            for entries in ([], [entry], [entry, {"left": "y", "right": "x", "value": value}]):
+                result = self.propagate("x+y", [("x", 0, 1), ("y", 0, 1)], method="linear", covariance=entries)
+                self.assertEqual(2 + (2 * value if entries else 0), result["linear"]["variance"])
+        with self.assertRaisesRegex(ValueError, "diagonal covariance conflicts"):
+            self.propagate("x", [("x", 0, 1)], method="linear", covariance=[{"left": "x", "right": "x", "value": 0}])
+
+        identical = {"left": "x", "right": "x", "value": 1 + 0.5e-9}
+        result = self.propagate("x", [("x", 0, 1)], method="linear", covariance=[identical, dict(identical)])
+        self.assertEqual(1, result["covariance"][0][0])
+        with self.assertRaisesRegex(ValueError, r"covariance\[1\].*conflict"):
+            self.propagate(
+                "x", [("x", 0, 1)], method="linear",
+                covariance=[identical, {**identical, "value": 1 + 0.25e-9}],
+            )
+
+    def test_uncertainty_variance_range_is_refused(self):
+        for uncertainty in (1e-200, 1e-162, 1e200, sys.float_info.max):
+            for method in ("linear", "monte-carlo", "both"):
+                with self.subTest(uncertainty=uncertainty, method=method), self.assertRaisesRegex(ValueError, "variance.*range"):
+                    self.propagate("x", [("x", 0, uncertainty)], method=method, samples=100)
+        for uncertainty in (0, math.sqrt(sys.float_info.min), 1):
+            result = self.propagate("x", [("x", 0, uncertainty)], method="linear")
+            self.assertEqual(uncertainty ** 2, result["linear"]["variance"])
+        for gradient, covariance in (
+            ([1e-200], [[1e-100]]), ([1e200], [[1e200]]),
+            ([1, 1], [[1e308, 0], [0, 1e308]]), ([math.nan], [[1]]),
+            ([1, 1], [[math.inf, 0], [0, -math.inf]]),
+            ([1], [[math.ulp(0.0)]]), ([1], [[math.nextafter(sys.float_info.min, 0)]]),
+            ([1, 1, 1e-200], [[1, -1, 0], [-1, 1, 0], [0, 0, 1]]),
+        ):
+            with self.subTest(gradient=gradient, covariance=covariance), self.assertRaisesRegex(ValueError, "variance.*range"):
+                _variance(gradient, covariance)
+        self.assertEqual(0, _variance([0], [[1]]))
+        for total in (sys.float_info.min, math.nextafter(sys.float_info.min, math.inf), 1):
+            self.assertEqual(total, _variance([1], [[total]]))
+            self.assertEqual(total, _variance([1, 1e-200], [[total, 0], [0, 1]]))
+        self.assertEqual(1, _variance([1, 1e-200], [[1, 1e-200], [1e-200, 1]]))
+        self.assertEqual(0, _variance([1, 1], [[1, -1], [-1, 1]]))
+        for method in ("linear", "monte-carlo", "both"):
+            with self.subTest(negligible_term=method):
+                result = self.propagate("x+1e-200*y", [("x", 0, 1), ("y", 0, 1)], method=method, samples=1000)
+                self.assertEqual("passed", result["status"])
+                self.assertEqual(1, result["linear"]["variance"])
+            for expression, inputs, expected in (
+                ("x+y", [("x", 0, 1), ("y", 0, 1e-200)], 1),
+                ("x", [("x", 0, 1), ("y", 0, 1e-200)], 1),
+                ("x", [("x", 0, 0), ("y", 0, 1e-200)], 0),
+                ("1", [("x", 0, 1e-200)], 0),
+            ):
+                with self.subTest(negligible_input=expression, variance=expected, method=method):
+                    result = self.propagate(expression, inputs, method=method, samples=1000)
+                    self.assertEqual("passed", result["status"])
+                    self.assertEqual(expected, result["linear"]["variance"])
+            for expression, inputs in (
+                ("x+y", [("x", 0, 0), ("y", 0, 1e-200)]),
+                ("y", [("x", 0, 1), ("y", 0, 1e-200)]),
+            ):
+                with self.subTest(lost_total=expression, method=method), self.assertRaisesRegex(ValueError, "variance.*range"):
+                    self.propagate(expression, inputs, method=method, samples=1000)
+            with self.subTest(subnormal_total=method), self.assertRaisesRegex(ValueError, "variance.*range"):
+                self.propagate("x", [("x", 0, math.sqrt(math.ulp(0.0)))], method=method, samples=1000)
+
+        self.assertEqual(1, _variance([1, 1], [[1, 0], [0, 0]], uncertainties=[1, 1e-200]))
+        self.assertEqual(0, _variance([0], [[0]], uncertainties=[1e-200]))
+        self.assertEqual(0, _variance([1], [[0]], uncertainties=[0]))
+        self.assertEqual(0, _variance([], [], uncertainties=[]))
+        with self.assertRaisesRegex(ValueError, "variance.*range"):
+            _variance([1], [[0]], uncertainties=[1e-200])
+
+        for names in (("z", "x", "y"), ("x", "y", "z")):
+            with self.subTest(cancellation_order=names), self.assertRaisesRegex(ValueError, "variance.*range"):
+                self.propagate(
+                    "1e-160*z+x+y", [(name, 0, 1) for name in names], method="linear",
+                    covariance=[{"left": "x", "right": "y", "value": -1}],
+                )
+
+    def test_nonlinearity_threshold_validates_only_combined_method(self):
+        invalid = ("nan", "inf", "-inf", "bad", "", None, True, False, math.nan,
+                   math.inf, -math.inf, 10**1000, -0.01, "-0.01", [], {})
+        for threshold in invalid:
+            with self.subTest(threshold=threshold), self.assertRaisesRegex(ValueError, "nonlinearity_threshold"):
+                self.propagate("x**3", [("x", 0, 1)], samples=1000, nonlinearity_threshold=threshold)
+            for method in ("linear", "monte-carlo"):
+                with self.subTest(ignored_threshold=threshold, method=method):
+                    result = self.propagate("x", [("x", 0, 1)], method=method, samples=1000, nonlinearity_threshold=threshold)
+                    self.assertEqual("passed", result["status"])
+        for threshold in (0, 0.25, 1, 1.01, 1e308, "0", "0.25", " 0.25 ", "1e-1", "1", "1.01", "1e308"):
+            with self.subTest(valid_threshold=threshold):
+                result = self.propagate("x", [("x", 0, 1)], samples=1000, nonlinearity_threshold=threshold)
+                self.assertEqual(float(threshold) == 0, "nonlinear-propagation-disagreement" in {item["code"] for item in result["findings"]})
+        with patch("codex_science.uncertainty_runtime.evaluate_expression", side_effect=AssertionError("propagated before validation")):
+            with self.assertRaisesRegex(ValueError, "nonlinearity_threshold"):
+                self.propagate("x", [("x", 0, 1)], nonlinearity_threshold="nan")
+
     def test_overflowing_sample_statistics_are_recovered_or_refused(self):
         for value in (0.0, 1e308, -1e308, sys.float_info.max):
             with self.subTest(value=value):
@@ -289,8 +394,14 @@ class UncertaintyValidityTests(unittest.TestCase):
             ("log(abs(x))", [("x", 0.0005, 1)], [], "linear", None),
             ("log(abs(x))", [("x", 0.0005, 1)], [], "both", None),
             ("log(x)", [("x", 2, 1)], [], "monte-carlo", None),
+            ("x+y", [("x", 0, 1), ("y", 0, 1)],
+             [{"left": "x", "right": "y", "value": 1}, {"left": "y", "right": "x", "value": -1}],
+             "linear", "covariance[1] conflicts"),
+            ("x", [("x", 0, 1e-200)], [], "both", "linear propagation variance is outside floating-point range"),
+            ("x**3", [("x", 0, 1)], [], "both", "nonlinearity_threshold must be finite", "nan"),
+            ("x**3", [("x", 0, 1)], [], "both", "nonlinearity_threshold must be finite", math.inf),
         )
-        for expression, inputs, covariance, method, error in cases:
+        for expression, inputs, covariance, method, error, *threshold in cases:
             with self.subTest(expression=expression), tempfile.TemporaryDirectory() as directory:
                 payload = {
                     "schema_version": 1, "propagation_id": "u", "claim_id": "c",
@@ -301,6 +412,8 @@ class UncertaintyValidityTests(unittest.TestCase):
                     ],
                     "seed": 1, "samples": 10000,
                 }
+                if threshold:
+                    payload["nonlinearity_threshold"] = threshold[0]
                 source = Path(directory) / "input.json"
                 output = Path(directory) / "output.json"
                 source.write_text(json.dumps(payload), encoding="utf-8")

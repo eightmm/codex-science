@@ -51,6 +51,127 @@ class MathResearchRuntimeTests(unittest.TestCase):
             sidecars = validate_bundle(manifest, root)
             return review_manifest(manifest, root, sidecars=sidecars)
 
+    def test_finite_exhaustion_validates_optional_evaluation_counts(self):
+        claim = build_mathematical_claim(
+            claim_id="C", statement="x*x < 0", domain="{0,1}", assumptions=[],
+            quantifiers=["forall x"], status="proved-finite", permitted_inference="finite",
+            proof_receipt_ids=["P"],
+        )
+        for count in (None, 0, -1, True, False, 1.0, "2", [], {}):
+            proof = {
+                "schema_version": 1, "receipt_id": "P", "claim_id": "C",
+                "statement_sha256": claim["statement_sha256"], "kind": "finite-exhaustion",
+                "status": "passed", "checker": {
+                    "exhaustive": True, "evaluations": count, "domain_sha256": canonical_sha256([]),
+                },
+            }
+            proof["fingerprint"] = canonical_sha256(proof)
+            with self.subTest(count=count):
+                with self.assertRaisesRegex(ValueError, "evaluations.*positive integer"):
+                    validate_proof_receipt(proof)
+                findings = math_review_findings([claim], [proof], [], [])
+                self.assertIn("invalid-proof-receipt", {item["code"] for item in findings})
+                self.assertIn("finite-proof-missing", {item["code"] for item in findings})
+
+        for checker in ({"exhaustive": True}, {"exhaustive": True, "evaluations": 1}):
+            proof["checker"] = checker
+            proof.pop("fingerprint")
+            proof["fingerprint"] = canonical_sha256(proof)
+            validate_proof_receipt(proof)
+            self.assertEqual([], math_review_findings([claim], [proof], [], []))
+
+    def test_finite_exhaustion_binds_recorded_domain_and_count(self):
+        search = search_counterexample({
+            "schema_version": 1, "claim_id": "C", "statement": "x*x >= 0", "scope": "finite",
+            "variables": [{"name": "x", "values": [0, 1]}], "assumptions": [],
+            "conclusion": "x*x >= 0",
+        })
+        claim = build_mathematical_claim(
+            claim_id="C", statement="x*x >= 0", domain="{0,1}", assumptions=[],
+            quantifiers=["forall x"], status="proved-finite", permitted_inference="finite",
+            proof_receipt_ids=["P"],
+        )
+        for count, digest in ((1, canonical_sha256(search["variables"])), (3, canonical_sha256(search["variables"])), (2, canonical_sha256([]))):
+            proof = build_proof_receipt(
+                receipt_id="P", claim_id="C", statement=claim["statement"], kind="finite-exhaustion",
+                status="passed", assumptions=[],
+                checker={"exhaustive": True, "evaluations": count, "domain_sha256": digest},
+            )
+            with self.subTest(count=count, digest=digest):
+                findings = math_review_findings([claim], [proof], [search], [])
+                self.assertIn("invalid-proof-receipt", {item["code"] for item in findings})
+                self.assertIn("finite-proof-missing", {item["code"] for item in findings})
+        proof["checker"].update(evaluations=2, domain_sha256=canonical_sha256(search["variables"]))
+        proof.pop("fingerprint")
+        proof["fingerprint"] = canonical_sha256(proof)
+        self.assertEqual([], math_review_findings([claim], [proof], [search], []))
+        singleton = dict(search, variables=[{"name": "x", "values": [0]}])
+        singleton.pop("fingerprint")
+        singleton = search_counterexample(singleton)
+        proof["checker"].update(evaluations=1, domain_sha256=canonical_sha256(singleton["variables"]))
+        proof.pop("fingerprint")
+        proof["fingerprint"] = canonical_sha256(proof)
+        singleton_claim = dict(claim, domain="{0}")
+        singleton_claim.pop("fingerprint")
+        self.assertEqual([], math_review_findings([singleton_claim], [proof], [singleton], []))
+
+        full = search_counterexample(dict(search, variables=[{"name": "x", "values": [0, 1, 2]}]))
+        for checker in (
+            {"exhaustive": True},
+            {"exhaustive": True, "evaluations": 3},
+            {"exhaustive": True, "domain_sha256": canonical_sha256(full["variables"])},
+            {"exhaustive": True, "evaluations": 3, "domain_sha256": canonical_sha256(full["variables"])},
+            {"exhaustive": True, "evaluations": 3, "domain_sha256": canonical_sha256(full["variables"]).upper()},
+            {"exhaustive": True, "evaluations": 3, "domain_sha256": "".join(
+                character.upper() if index % 2 else character
+                for index, character in enumerate(canonical_sha256(full["variables"]))
+            )},
+        ):
+            proof["checker"] = checker
+            proof.pop("fingerprint")
+            proof["fingerprint"] = canonical_sha256(proof)
+            for domains in ([search, full], [full, search]):
+                with self.subTest(checker=checker, domains=[item["total_combinations"] for item in domains]):
+                    self.assertEqual([], math_review_findings([claim], [proof], domains, []))
+        linked_claim = dict(claim, counterexample_receipt_ids=[full["fingerprint"]])
+        linked_claim.pop("fingerprint")
+        self.assertEqual([], math_review_findings([linked_claim], [proof], [search, full], []))
+        linked_claim["counterexample_receipt_ids"] = [search["fingerprint"]]
+        codes = {item["code"] for item in math_review_findings([linked_claim], [proof], [search, full], [])}
+        self.assertIn("invalid-proof-receipt", codes)
+        for digest in (None, 0, True, {}, [], "", "bad", canonical_sha256([])):
+            proof["checker"] = {"exhaustive": True, "domain_sha256": digest}
+            proof.pop("fingerprint")
+            proof["fingerprint"] = canonical_sha256(proof)
+            for domains in ([], [search, full]):
+                with self.subTest(digest=digest, domains=len(domains)):
+                    codes = {item["code"] for item in math_review_findings([claim], [proof], domains, [])}
+                    self.assertIn("invalid-proof-receipt", codes)
+
+        for conclusion, overrides, expected_status in (
+            ("x*x < 1", {}, "disproved"),
+            ("x*x >= 0", {"max_evaluations": 1}, "bounded-no-counterexample"),
+            ("x*x >= 0", {"variables": [{"name": "x", "float_grid": {"start": 0, "stop": 2, "count": 3}}]}, "tested-no-counterexample"),
+        ):
+            unproved = search_counterexample({**full, "statement": conclusion, "conclusion": conclusion, **overrides})
+            self.assertEqual(expected_status, unproved["status"])
+            unproved_claim = build_mathematical_claim(
+                claim_id="C", statement=conclusion, domain="{0,1,2}", assumptions=[],
+                quantifiers=["forall x"], status="proved-finite", permitted_inference="finite",
+                proof_receipt_ids=["P"],
+            )
+            proof = build_proof_receipt(
+                receipt_id="P", claim_id="C", statement=conclusion, kind="finite-exhaustion",
+                status="passed", assumptions=[], checker={
+                    "exhaustive": True, "evaluations": unproved["total_combinations"],
+                    "domain_sha256": canonical_sha256(unproved["variables"]),
+                },
+            )
+            with self.subTest(search_status=expected_status):
+                codes = {item["code"] for item in math_review_findings([unproved_claim], [proof], [unproved], [])}
+                self.assertIn("invalid-proof-receipt", codes)
+                self.assertIn("finite-proof-missing", codes)
+
     def test_statement_hash_normalization_preserves_trimmed_receipts(self):
         claim, proof = self._deductive_pair()
         for statement in ("x > 0", "x > 0\n", " \tx > 0\n"):

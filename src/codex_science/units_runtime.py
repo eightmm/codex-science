@@ -480,6 +480,27 @@ def review_dimension_check(payload: Mapping[str, Any]) -> list[dict[str, str]]:
     except ValueError as error:
         return [{"code": "invalid-dimension-check", "severity": "critical", "message": str(error)}]
     findings = [dict(item) for item in payload.get("findings", [])]
+    try:
+        equations = payload["equations"]
+        if not all(isinstance(item, Mapping) for item in equations):
+            raise ValueError("dimension-check equations must be objects")
+        derived: list[dict[str, str]] = []
+        for index, equation in enumerate(equations):
+            if (
+                equation.get("compatible") is not True or equation.get("error") is not None
+                or equation.get("left_dimension") != equation.get("right_dimension")
+            ):
+                identifier = equation.get("id", f"equation-{index}")
+                error = equation.get("error")
+                derived.append({
+                    "code": "dimension-mismatch", "severity": "critical",
+                    "message": f"Equation {identifier} is dimensionally inconsistent" + (f": {error}" if error else "."),
+                })
+        for finding in derived:
+            if finding not in findings:
+                findings.append(finding)
+    except (ValueError, TypeError, OverflowError) as error:
+        findings.append({"code": "invalid-dimension-check", "severity": "critical", "message": str(error)})
     if payload.get("status") == "passed" and findings:
         findings.append({"code": "unsafe-dimension-pass", "severity": "critical", "message": "Dimension check is passed despite recorded mismatches."})
     return findings
