@@ -10,7 +10,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Iterable
 
-from codex_science.artifacts import add_artifact, new_manifest, write_manifest
+from codex_science.artifacts import add_artifact, new_manifest, validate_manifest
 from codex_science.model_registry_v2 import build_model_receipt_v2, load_registry_v2, registry_sha256, validate_registry_v2
 from codex_science.review_receipts import build_review_receipt
 from codex_science.sbdd import audit_sbdd_benchmark
@@ -241,20 +241,37 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
     return poses, metrics, leakage_findings
 
 
-def _write_json(path: Path, payload: Any) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _json_bytes(payload: Any) -> bytes:
+    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _validate_destinations(input_path: Path, output_dir: Path, paths: Iterable[Path]) -> None:
+    root = output_dir.resolve()
+    source = input_path.resolve()
+    for path in paths:
+        if path.is_symlink():
+            raise ValueError(f"output destination must not be a symlink: {path}")
+        resolved = path.resolve()
+        if not resolved.is_relative_to(root):
+            raise ValueError(f"output destination must stay inside the output directory: {path}")
+        if resolved == source or (path.exists() and path.samefile(input_path)):
+            raise ValueError(f"output destination must not overwrite the input file: {path}")
+        if path.exists() and not path.is_file():
+            raise ValueError(f"output destination must be a regular file: {path}")
 
 
 def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Path) -> Path:
-    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    input_bytes = input_path.read_bytes()
+    input_digest = hashlib.sha256(input_bytes).hexdigest()
+    payload = json.loads(input_bytes.decode("utf-8"))
     poses, metrics, leakage_findings = compute_acceptance(payload)
     registry = load_registry_v2(registry_path)
     models = validate_registry_v2(registry)
     model = models["deterministic-translation-baseline"]
-    output_dir.mkdir(parents=True, exist_ok=True)
+    artifacts: dict[Path, bytes] = {}
     poses_path, metrics_path = output_dir / "poses.json", output_dir / "metrics.json"
-    _write_json(poses_path, {"schema_version": 1, "poses": poses})
-    _write_json(metrics_path, {"schema_version": 1, "metrics": metrics, "all_passed": all(item["passed"] for item in metrics), "leakage_findings": leakage_findings})
+    artifacts[poses_path] = _json_bytes({"schema_version": 1, "poses": poses})
+    artifacts[metrics_path] = _json_bytes({"schema_version": 1, "metrics": metrics, "all_passed": all(item["passed"] for item in metrics), "leakage_findings": leakage_findings})
     all_passed = all(item["passed"] for item in metrics)
     claim_status = "supported" if all_passed else "unsupported"
     claims = {
@@ -273,7 +290,7 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         }]
     }
     claims_path = output_dir / "claims.json"
-    _write_json(claims_path, claims)
+    artifacts[claims_path] = _json_bytes(claims)
     graph_v1 = {
         "schema_version": 1,
         "nodes": [{"id": "execution-sbdd-baseline", "type": "execution"}, {"id": "claim-sbdd-acceptance", "type": "claim"}],
@@ -281,8 +298,8 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     }
     graph_v2 = {"schema_version": 2, "nodes": graph_v1["nodes"], "edges": graph_v1["edges"]}
     graph_v1_path, graph_v2_path = output_dir / "evidence_graph.json", output_dir / "evidence_graph_v2.json"
-    _write_json(graph_v1_path, graph_v1)
-    _write_json(graph_v2_path, graph_v2)
+    artifacts[graph_v1_path] = _json_bytes(graph_v1)
+    artifacts[graph_v2_path] = _json_bytes(graph_v2)
     config_hash = canonical_sha256({"thresholds": payload.get("numeric_thresholds", {}), "algorithm": "deterministic-translation-baseline-v1"})
     model_receipt = build_model_receipt_v2(
         model,
@@ -291,18 +308,17 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         weight_revision="not-applicable",
         database_revisions={},
         configuration_sha256=config_hash,
-        input_sha256=file_sha256(input_path),
+        input_sha256=input_digest,
     )
     model_path = output_dir / "model_receipt.json"
-    _write_json(model_path, model_receipt)
+    artifacts[model_path] = _json_bytes(model_receipt)
     report_path = output_dir / "report.md"
-    report_path.write_text(
+    artifacts[report_path] = (
         "# Deterministic SBDD acceptance\n\n"
         + "\n".join(f"- {item['name']}: {item['value']:.6g} {item['unit']} — {'PASS' if item['passed'] else 'FAIL'} ({item['threshold']['operator']} {item['threshold']['value']})" for item in metrics)
-        + "\n\nThis is a reproducibility and contract fixture. It is not evidence of experimental binding affinity, efficacy, or mechanism.\n",
-        encoding="utf-8",
-    )
-    covered = [{"path": path.name, "sha256": file_sha256(path)} for path in (poses_path, metrics_path, claims_path, graph_v1_path, graph_v2_path, model_path, report_path)]
+        + "\n\nThis is a reproducibility and contract fixture. It is not evidence of experimental binding affinity, efficacy, or mechanism.\n"
+    ).encode("utf-8")
+    covered = [{"path": path.name, "sha256": hashlib.sha256(content).hexdigest()} for path, content in artifacts.items()]
     review_findings = [
         {
             "code": "acceptance-metric-failed",
@@ -321,14 +337,14 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         limitations=["This deterministic check is not an independent scientific review.", "The fixture does not validate experimental affinity."],
     )
     review_path = output_dir / "review_receipt.json"
-    _write_json(review_path, review_receipt)
+    artifacts[review_path] = _json_bytes(review_receipt)
     manifest = new_manifest(str(payload.get("run_id", "sbdd-executable-acceptance")), "Does the deterministic SBDD baseline satisfy prespecified pose and ranking acceptance thresholds?", [
         {"id": "validate-input", "description": "Validate input states and leakage contract", "status": "completed"},
         {"id": "generate-poses", "description": "Generate deterministic poses", "status": "completed"},
         {"id": "compute-metrics", "description": "Compute RMSD, interaction recovery, and PR-AUC", "status": "completed"},
         {"id": "review", "description": "Review hashes, thresholds, inference boundary, and reproducibility", "status": "completed"},
     ])
-    manifest["inputs"] = [{"path": str(input_path), "sha256": file_sha256(input_path)}]
+    manifest["inputs"] = [{"path": str(input_path), "sha256": input_digest}]
     manifest["code"] = [{"module": "codex_science.sbdd_execution", "revision": "deterministic-translation-baseline-v1"}]
     manifest["executions"] = [{
         "id": "execution-sbdd-baseline",
@@ -347,7 +363,12 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         (graph_v1_path, "evidence-graph"), (graph_v2_path, "evidence-graph-v2"),
         (model_path, "model-receipt-v2"), (report_path, "report"), (review_path, "review-receipt"),
     ):
-        add_artifact(manifest, path.name, kind=kind, sha256=file_sha256(path))
+        add_artifact(manifest, path.name, kind=kind, sha256=hashlib.sha256(artifacts[path]).hexdigest())
     manifest_path = output_dir / "manifest.json"
-    write_manifest(manifest, manifest_path)
+    validate_manifest(manifest)
+    artifacts[manifest_path] = _json_bytes(manifest)
+    _validate_destinations(input_path, output_dir, artifacts)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for path, content in artifacts.items():
+        path.write_bytes(content)
     return manifest_path

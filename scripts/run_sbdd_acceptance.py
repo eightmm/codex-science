@@ -12,6 +12,11 @@ def main() -> int:
     parser.add_argument("output", type=Path)
     parser.add_argument("--registry", type=Path, default=ROOT / "models" / "registry-v2.json")
     args = parser.parse_args()
-    print(execute_acceptance(args.input.resolve(), args.output.resolve(), registry_path=args.registry.resolve()))
+    try:
+        manifest_path = execute_acceptance(args.input.resolve(), args.output.resolve(), registry_path=args.registry.resolve())
+    except (ValueError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print(manifest_path)
     return 0
 if __name__ == "__main__": raise SystemExit(main())

@@ -3,7 +3,10 @@ import hashlib
 import itertools
 import json
 import math
+import os
 import random
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +21,12 @@ from codex_science.workbench import render_workbench
 
 
 class ExecutableSBDDAcceptanceTests(unittest.TestCase):
+    output_names = (
+        "poses.json", "metrics.json", "claims.json", "evidence_graph.json",
+        "evidence_graph_v2.json", "model_receipt.json", "report.md",
+        "review_receipt.json", "manifest.json",
+    )
+
     def setUp(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
         self.input_path = self.root / "examples" / "sbdd-executable" / "input.json"
@@ -39,6 +48,135 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
                     self.assertEqual(["poses.json"], [path.name for path in output.iterdir()])
                     self.assertEqual("previous run", (output / "poses.json").read_text(encoding="utf-8"))
                 else:
+                    self.assertFalse(output.exists())
+
+    def test_input_in_output_directory_is_preserved(self) -> None:
+        for name in self.output_names:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tempdir:
+                output = Path(tempdir)
+                input_path = output / name
+                original = json.dumps(self.payload).encode("utf-8")
+                input_path.write_bytes(original)
+                with self.assertRaisesRegex(ValueError, "input file"):
+                    execute_acceptance(input_path, output, registry_path=self.root / "models/registry-v2.json")
+                self.assertEqual(original, input_path.read_bytes())
+                self.assertEqual([name], [path.name for path in output.iterdir()])
+
+    def test_linked_destinations_are_refused_before_output(self) -> None:
+        for name, kind in itertools.product(self.output_names, ("input", "other", "internal", "dangling", "loop", "hardlink")):
+            with self.subTest(name=name, kind=kind), tempfile.TemporaryDirectory() as tempdir:
+                temporary = Path(tempdir)
+                input_path = temporary / "input.json"
+                original = json.dumps(self.payload).encode("utf-8")
+                input_path.write_bytes(original)
+                output = temporary / "run"
+                output.mkdir()
+                destination = output / name
+                target = input_path
+                if kind in {"other", "internal", "dangling"}:
+                    target = (output if kind == "internal" else temporary) / "target.json"
+                    if kind != "dangling":
+                        target.write_bytes(b"")
+                if kind == "hardlink":
+                    destination.hardlink_to(target)
+                else:
+                    destination.symlink_to(destination if kind == "loop" else target)
+                before = sorted(path.name for path in output.iterdir())
+                with self.assertRaises(ValueError):
+                    execute_acceptance(input_path, output, registry_path=self.root / "models/registry-v2.json")
+                self.assertEqual(before, sorted(path.name for path in output.iterdir()))
+                self.assertEqual(original, input_path.read_bytes())
+                if kind in {"other", "internal"}:
+                    self.assertEqual(b"", target.read_bytes())
+                elif kind == "dangling":
+                    self.assertFalse(target.exists())
+                if kind != "hardlink":
+                    self.assertTrue(destination.is_symlink())
+
+    def test_blank_run_id_is_refused_before_output(self) -> None:
+        for value in ("", " ", "\t\n"):
+            with self.subTest(run_id=value):
+                payload = copy.deepcopy(self.payload)
+                payload["run_id"] = value
+                self._assert_rejected_before_output(payload, "run_id and question are required")
+
+    def test_invalid_output_destinations_are_refused_before_writes(self) -> None:
+        for name in self.output_names:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tempdir:
+                output = Path(tempdir) / "run"
+                destination = output / name
+                destination.mkdir(parents=True)
+                with self.assertRaisesRegex(ValueError, "regular file"):
+                    execute_acceptance(self.input_path, output, registry_path=self.root / "models/registry-v2.json")
+                self.assertEqual([name], [path.name for path in output.iterdir()])
+                self.assertEqual([], list(destination.iterdir()))
+
+        from codex_science.sbdd_execution import _validate_destinations
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            temporary = Path(tempdir)
+            output = temporary / "run"
+            _validate_destinations(self.input_path, output, [])
+            _validate_destinations(self.input_path, output, [output / "empty.json"])
+            with self.assertRaisesRegex(ValueError, "inside the output directory"):
+                _validate_destinations(self.input_path, output, [output / ".." / "outside.json"])
+            self.assertFalse(output.exists())
+
+    def test_input_provenance_uses_one_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temporary = Path(tempdir)
+            input_path = temporary / "input.json"
+            original = (json.dumps(self.payload, indent=3) + "\r\n").encode("utf-8")
+            input_path.write_bytes(original)
+            output = temporary / "run"
+            read_bytes = Path.read_bytes
+            reads = []
+
+            def read(path):
+                if path == input_path:
+                    reads.append(path)
+                return read_bytes(path)
+
+            def compute(payload):
+                self.assertEqual(self.payload, payload)
+                input_path.write_bytes(b"{}")
+                return compute_acceptance(payload)
+
+            with patch.object(Path, "read_bytes", read), patch("codex_science.sbdd_execution.compute_acceptance", side_effect=compute):
+                manifest_path = execute_acceptance(input_path, output, registry_path=self.root / "models/registry-v2.json")
+            self.assertEqual([input_path], reads)
+            digest = hashlib.sha256(original).hexdigest()
+            manifest = json.loads(manifest_path.read_bytes())
+            receipt = json.loads((output / "model_receipt.json").read_bytes())
+            self.assertEqual(digest, manifest["inputs"][0]["sha256"])
+            self.assertEqual(digest, receipt["input_sha256"])
+
+            input_path.write_bytes(original)
+            before = {path.name: path.read_bytes() for path in output.iterdir()}
+            for path in output.iterdir():
+                path.write_bytes(b"")
+            execute_acceptance(input_path, output, registry_path=self.root / "models/registry-v2.json")
+            self.assertEqual(before, {path.name: path.read_bytes() for path in output.iterdir()})
+
+    def test_cli_reports_validation_and_io_errors_without_tracebacks(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temporary = Path(tempdir)
+            input_path = temporary / "input.json"
+            output = temporary / "run"
+            payload = copy.deepcopy(self.payload)
+            payload["run_id"] = " "
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            for source, message in ((input_path, "run_id"), (temporary / "missing.json", "missing.json")):
+                with self.subTest(source=source):
+                    result = subprocess.run(
+                        [sys.executable, str(self.root / "scripts/run_sbdd_acceptance.py"), str(source), str(output)],
+                        capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")),
+                    )
+                    self.assertEqual(1, result.returncode)
+                    self.assertEqual("", result.stdout)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertIn(message, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
                     self.assertFalse(output.exists())
 
     def test_average_precision_uses_tied_threshold_groups(self) -> None:
