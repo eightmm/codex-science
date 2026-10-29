@@ -174,10 +174,19 @@ class HooklessCheckpointTests(unittest.TestCase):
         self.assertEqual("a" * 64, checkpoint["session_key"])
 
     def test_hook_bound_init_preserves_symlinked_artifacts_root_without_lock_setup(self):
+        from codex_science import checkpoints
+
         target = self.root / "external-artifacts"
         target.mkdir()
         (self.root / "artifacts").symlink_to(target, target_is_directory=True)
-        with mock.patch("codex_science.checkpoints.fcntl.flock", side_effect=OSError("lock unavailable")):
+        original_open = checkpoints.os.open
+
+        def refuse_root_lock(path, *args, **kwargs):
+            if Path(path).name == ".checkpoint-init.lock":
+                raise OSError("lock unavailable")
+            return original_open(path, *args, **kwargs)
+
+        with mock.patch("codex_science.checkpoints.os.open", side_effect=refuse_root_lock):
             checkpoint = self.init("bound", hookless=False, key="a" * 64)
         self.assertEqual("a" * 64, checkpoint["session_key"])
         self.assertTrue((target / "bound" / "checkpoint.json").is_file())
@@ -278,7 +287,8 @@ class HooklessCheckpointTests(unittest.TestCase):
                         raise TimeoutError("second admission scan was not released")
 
         def observed_flock(handle, operation):
-            metadata = checkpoints_module.os.fstat(handle.fileno())
+            descriptor = handle if isinstance(handle, int) else handle.fileno()
+            metadata = checkpoints_module.os.fstat(descriptor)
             inode = (metadata.st_dev, metadata.st_ino)
             if threading.current_thread().name == "first-init" and operation & checkpoints_module.fcntl.LOCK_EX:
                 result = original_flock(handle, operation)

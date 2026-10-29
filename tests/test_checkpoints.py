@@ -30,6 +30,7 @@ from codex_science.checkpoints import (
     resume_checkpoint,
     verify_criterion,
 )
+from checkpoint_fixtures import write_completion_manifest
 from codex_science.artifacts import new_manifest, validate_bundle
 from codex_science.review_receipts import build_review_receipt
 from codex_science.review import review_manifest
@@ -69,6 +70,7 @@ class CheckpointTests(unittest.TestCase):
         checkpoint = load_checkpoint(self.run_dir)
         for criterion in checkpoint["done_criteria"]:
             verify_criterion(self.run_dir, criterion["id"], ["verification.json"])
+        write_completion_manifest(self.run_dir, "verification.json")
         record_review(self.run_dir, artifact_ref="review.json")
 
     @staticmethod

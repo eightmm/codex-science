@@ -72,7 +72,7 @@ class LiteratureEvaluationTests(unittest.TestCase):
         self.assertEqual(901.1, result["idle_gap_seconds_over_300"])
 
     def _run(self, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-        env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), PYTHONDONTWRITEBYTECODE="1")
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(ROOT / "src"), str(ROOT / "tests"))), PYTHONDONTWRITEBYTECODE="1")
         env.update(extra_env or {})
         return subprocess.run([sys.executable, str(ROOT / "scripts/run_literature_evaluation.py"), *args],
                               cwd=ROOT, env=env, text=True, capture_output=True, check=False)
@@ -121,6 +121,7 @@ prompt=argv[-1]
 if os.environ.get("FAKE_REALISTIC") == "1":
  from codex_science.checkpoints import advance_checkpoint, complete_checkpoint, create_checkpoint, record_review, verify_criterion
  from codex_science.artifacts import write_manifest
+ from checkpoint_fixtures import write_completion_manifest
  run_dir=project/"artifacts"/"fixture-run"
  tier="full" if "full tier" in prompt else "standard"
  create_checkpoint(run_dir, goal="Fixture research question", deliverable="Reviewed report",
@@ -130,6 +131,7 @@ if os.environ.get("FAKE_REALISTIC") == "1":
  (run_dir/"evidence.json").write_text('{{"status":"passed"}}\\n')
  verify_criterion(run_dir, "criterion-1", ["evidence.json"])
  (run_dir/"review.json").write_text('{{"status":"passed","reviewer":"fixture-reviewer","independent":true,"findings":[]}}\\n')
+ write_completion_manifest(run_dir, "evidence.json")
  record_review(run_dir, artifact_ref="review.json")
  complete_checkpoint(run_dir)
  manifest=json.loads(pathlib.Path({example}).read_text())

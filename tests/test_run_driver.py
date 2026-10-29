@@ -15,6 +15,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from checkpoint_fixtures import write_completion_manifest
 from codex_science.checkpoints import (
     advance_checkpoint,
     block_checkpoint,
@@ -96,6 +97,8 @@ def action(item):
         verify_criterion(run, "criterion-1", ["evidence.json"])
         advance_checkpoint(run, completed_step="s", next_step=None, next_action="finish")
         (run / "review.json").write_text('{"status":"passed","reviewer":"fixture","independent":true,"findings":[]}\n')
+        from checkpoint_fixtures import write_completion_manifest
+        write_completion_manifest(run, "evidence.json")
         record_review(run, artifact_ref="review.json")
         complete_checkpoint(run)
         if kind == "inconclusive":
@@ -137,7 +140,7 @@ class RunDriverTests(unittest.TestCase):
         plan = root / "plan.json"
         plan.write_text(json.dumps(steps), encoding="utf-8")
         env = dict(os.environ)
-        env.update({"PYTHONPATH": str(ROOT / "src"), "FAKE_PLAN": str(plan),
+        env.update({"PYTHONPATH": os.pathsep.join((str(ROOT / "src"), str(ROOT / "tests"))), "FAKE_PLAN": str(plan),
                     "FAKE_COUNTER": str(root / "counter"), "FAKE_PROJECT": str(root / "project")})
         return binary, env
 
@@ -165,6 +168,7 @@ class RunDriverTests(unittest.TestCase):
             verify_criterion(run, "criterion-1", ["evidence.json"])
             advance_checkpoint(run, completed_step="s", next_step=None, next_action="finish")
             (run / "review.json").write_text('{"status":"passed","reviewer":"fixture","independent":true,"findings":[]}\n')
+            write_completion_manifest(run, "evidence.json")
             record_review(run, artifact_ref="review.json")
             complete_checkpoint(run)
         return run

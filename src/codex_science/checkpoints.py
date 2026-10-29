@@ -12,8 +12,9 @@ import stat
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 from codex_science.cli_io import write_text_atomic
 from codex_science.runtime_identity import record_runtime_identity, validate_runtime_history
@@ -442,6 +443,33 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
         independence_field = "independence_attested" if schema_version >= 4 else "independent"
         if not review or review["verdict"] != "passed" or not review[independence_field]:
             raise ValueError("verified completion requires a passed independent review")
+
+
+@contextmanager
+def _checkpoint_lock(run_dir: Path) -> Iterator[None]:
+    # Lock the stable directory inode, since checkpoint.json is replaced on
+    # writes. A separate lock file would become an unclassified run artifact.
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(Path(run_dir), flags)
+    try:
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            raise ValueError("checkpoint run must be a directory")
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
+def _serialized_mutation(function: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+    @wraps(function)
+    def serialized(run_dir: Path, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        with _checkpoint_lock(run_dir):
+            return function(run_dir, *args, **kwargs)
+
+    return serialized
 
 
 def _write_checkpoint(run_dir: Path, checkpoint: dict[str, Any]) -> dict[str, Any]:
@@ -884,9 +912,15 @@ def create_checkpoint(
                 "mode": "hookless", "hook_bound": False,
                 "key_source": "random_run_local", "created_at": now,
             }
-        return _write_checkpoint(run_dir, checkpoint)
+        validate_checkpoint(checkpoint)
+        run_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with _checkpoint_lock(run_dir):
+            if checkpoint_path.exists() or checkpoint_path.is_symlink():
+                raise FileExistsError(f"checkpoint already exists: {checkpoint_path}")
+            return _write_checkpoint(run_dir, checkpoint)
 
 
+@_serialized_mutation
 def escalate_checkpoint(
     run_dir: Path,
     *,
@@ -965,6 +999,7 @@ def _upgrade_checkpoint(
     return checkpoint
 
 
+@_serialized_mutation
 def claim_checkpoint(
     run_dir: Path,
     *,
@@ -1045,6 +1080,7 @@ def _artifact_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+@_serialized_mutation
 def heartbeat_checkpoint(
     run_dir: Path,
     *,
@@ -1069,6 +1105,7 @@ def heartbeat_checkpoint(
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def request_continuation(
     run_dir: Path,
     *,
@@ -1135,6 +1172,7 @@ def find_active_checkpoint(workspace: Path, session_key: str) -> Path | None:
     return run_dir if load_checkpoint(run_dir)["state"] == "active" else None
 
 
+@_serialized_mutation
 def advance_checkpoint(
     run_dir: Path,
     *,
@@ -1178,6 +1216,7 @@ def advance_checkpoint(
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def record_attempt(
     run_dir: Path,
     *,
@@ -1212,6 +1251,7 @@ def record_attempt(
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def request_decision(
     run_dir: Path,
     *,
@@ -1238,6 +1278,7 @@ def request_decision(
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def wait_checkpoint(
     run_dir: Path,
     *,
@@ -1269,6 +1310,7 @@ def wait_checkpoint(
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def resume_checkpoint(run_dir: Path, *, next_action: str) -> dict[str, Any]:
     """Resume an approval-gated, externally waiting, or blocked checkpoint."""
     checkpoint = load_checkpoint(Path(run_dir))
@@ -1287,6 +1329,7 @@ def resume_checkpoint(run_dir: Path, *, next_action: str) -> dict[str, Any]:
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def block_checkpoint(run_dir: Path, *, reason: str, next_action: str) -> dict[str, Any]:
     """Record a genuine blocker and the condition needed to continue."""
     checkpoint = load_checkpoint(Path(run_dir))
@@ -1303,6 +1346,7 @@ def block_checkpoint(run_dir: Path, *, reason: str, next_action: str) -> dict[st
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def abandon_checkpoint(run_dir: Path, *, reason: str) -> dict[str, Any]:
     """Make a nonterminal checkpoint permanently non-resumable."""
     checkpoint = load_checkpoint(Path(run_dir))
@@ -1416,6 +1460,7 @@ def _read_validated_partial_artifact(
     return result, hashlib.sha256(artifact_bytes).hexdigest()
 
 
+@_serialized_mutation
 def finish_partial(run_dir: Path, *, artifact_ref: str) -> dict[str, Any]:
     """Validate partial evidence and atomically abandon an exhausted budgeted run."""
     run_dir = Path(run_dir)
@@ -1457,6 +1502,7 @@ def finish_partial(run_dir: Path, *, artifact_ref: str) -> dict[str, Any]:
     return _write_checkpoint(run_dir, checkpoint)
 
 
+@_serialized_mutation
 def verify_criterion(
     run_dir: Path,
     criterion_id: str,
@@ -1487,6 +1533,7 @@ def verify_criterion(
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def record_review(
     run_dir: Path,
     *,
@@ -1500,8 +1547,9 @@ def record_review(
     if "run_budget" in checkpoint and len(checkpoint["review_rounds"]) >= checkpoint["run_budget"]["max_review_rounds"]:
         raise RuntimeError("review round budget exhausted")
     path = _artifact_path(Path(run_dir), artifact_ref, "review artifact")
+    receipt_bytes = path.read_bytes()
     try:
-        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt = json.loads(receipt_bytes.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeError):
         raise ValueError("review artifact must be valid JSON") from None
     if not isinstance(receipt, dict) or receipt.get("status") not in {"passed", "failed"}:
@@ -1526,19 +1574,20 @@ def record_review(
     )
     if verdict == "passed" and unresolved_blocking:
         raise ValueError("passed review artifact cannot retain unresolved critical or major findings")
-    manifest, registration = _prepare_review_manifest(Path(run_dir), path, receipt)
+    receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
+    manifest, registration = _prepare_review_manifest(Path(run_dir), path, receipt, receipt_bytes)
     checkpoint["review_receipt"] = {
         "reviewer": _nonempty(reviewer, "reviewer"),
         "verdict": verdict,
         "artifact_ref": artifact_ref,
-        "artifact_sha256": _artifact_sha256(path),
+        "artifact_sha256": receipt_sha256,
         "independence_attested": independent,
         "recorded_at": _timestamp(),
     }
     if "run_budget" in checkpoint:
         rounds = checkpoint["review_rounds"]
         rounds.append({"id": f"review-{len(rounds) + 1}", "started_at": _timestamp(),
-                      "receipt_ref": artifact_ref, "receipt_sha256": _artifact_sha256(path)})
+                      "receipt_ref": artifact_ref, "receipt_sha256": receipt_sha256})
     _reset_idle_continuations(checkpoint)
     _touch(checkpoint)
     result = _write_checkpoint(Path(run_dir), checkpoint)
@@ -1559,7 +1608,7 @@ def record_review(
 
 
 def _prepare_review_manifest(
-    run_dir: Path, receipt_path: Path, receipt: dict[str, Any]
+    run_dir: Path, receipt_path: Path, receipt: dict[str, Any], receipt_bytes: bytes
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     from codex_science.artifacts import validate_manifest
     from codex_science.review_receipts import validate_review_receipt
@@ -1608,7 +1657,7 @@ def _prepare_review_manifest(
         else:
             status = "updated" if summary.get("updated") or summary.get("already_registered") else "registered"
             return planned, {"status": status, "path": relative, "kind": summary["kind"], "verdict_recorded": True}
-    digest = _artifact_sha256(receipt_path)
+    digest = hashlib.sha256(receipt_bytes).hexdigest()
     normalized_relative = _normalized_manifest_artifact_path(relative)
     previous_index = next((
         index
@@ -1623,7 +1672,7 @@ def _prepare_review_manifest(
     else:
         previous = artifacts[previous_index]
         if "size_bytes" in previous:
-            record["size_bytes"] = receipt_path.stat().st_size
+            record["size_bytes"] = len(receipt_bytes)
         artifacts[previous_index] = record
         status = "updated"
     try:
@@ -1674,6 +1723,26 @@ def _check_completion_evidence(run_dir: Path, checkpoint: dict[str, Any]) -> Non
         raise ValueError("review evidence changed after verification")
 
 
+def _check_completion_bundle(run_dir: Path) -> None:
+    from codex_science.artifacts import validate_bundle
+    from codex_science.review import review_manifest
+
+    manifest_path = Path(run_dir) / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        sidecars = validate_bundle(manifest, manifest_path.parent)
+        review = review_manifest(manifest, manifest_path.parent, sidecars=sidecars)
+        if review["status"] != "passed":
+            findings = "; ".join(f"{item['code']}: {item['message']}" for item in review["findings"])
+            raise ValueError(findings)
+    except (ValueError, OSError, UnicodeError, TypeError, KeyError, AttributeError) as error:
+        raise ValueError(
+            f"completion blocked by manifest.json validation: {error}; "
+            "run validate_artifact.py <manifest> --review-output <output> --require-passed-review"
+        ) from error
+
+
+@_serialized_mutation
 def complete_checkpoint(run_dir: Path) -> dict[str, Any]:
     """Finish local verification or enter native-Goal completion handoff."""
     checkpoint = load_checkpoint(Path(run_dir))
@@ -1683,6 +1752,7 @@ def complete_checkpoint(run_dir: Path) -> dict[str, Any]:
         raise ValueError("only an active checkpoint can complete")
     _check_local_completion(checkpoint)
     _check_completion_evidence(Path(run_dir), checkpoint)
+    _check_completion_bundle(Path(run_dir))
     checkpoint["current_step"] = None
     if checkpoint["schema_version"] >= 3 and checkpoint["outer_goal"]["mode"] == "native":
         if checkpoint["outer_goal"]["phase"] != "running":
@@ -1704,6 +1774,7 @@ def complete_checkpoint(run_dir: Path) -> dict[str, Any]:
     return _write_checkpoint(Path(run_dir), checkpoint)
 
 
+@_serialized_mutation
 def confirm_goal_complete(run_dir: Path, *, receipt_ref: str) -> dict[str, Any]:
     """Record an agent attestation derived from a successful native Goal tool result."""
     checkpoint = load_checkpoint(Path(run_dir))
@@ -1716,9 +1787,11 @@ def confirm_goal_complete(run_dir: Path, *, receipt_ref: str) -> dict[str, Any]:
         raise ValueError("native Goal confirmation requires completion_pending")
     _check_local_completion(checkpoint)
     _check_completion_evidence(Path(run_dir), checkpoint)
+    _check_completion_bundle(Path(run_dir))
     path = _artifact_path(Path(run_dir), receipt_ref, "Goal completion receipt")
+    receipt_bytes = path.read_bytes()
     try:
-        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt = json.loads(receipt_bytes.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeError):
         raise ValueError("Goal completion receipt must be valid JSON") from None
     if not isinstance(receipt, dict) or receipt.get("status") != "complete":
@@ -1729,7 +1802,7 @@ def confirm_goal_complete(run_dir: Path, *, receipt_ref: str) -> dict[str, Any]:
     checkpoint["outer_goal"]["phase"] = "host_completion_attested"
     checkpoint["outer_goal"]["receipt"] = {
         "artifact_ref": receipt_ref,
-        "artifact_sha256": _artifact_sha256(path),
+        "artifact_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
         "recorded_at": _timestamp(),
     }
     checkpoint["next_action"] = ""

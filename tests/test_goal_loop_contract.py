@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from checkpoint_fixtures import write_completion_manifest
 from codex_science.checkpoints import (
     abandon_checkpoint,
     complete_checkpoint,
@@ -66,6 +67,7 @@ class GoalLoopCheckpointContractTests(unittest.TestCase):
             next_action="Verify completion evidence",
         )
         verify_criterion(self.run_dir, "criterion-1", ["result.json#/result"])
+        write_completion_manifest(self.run_dir, "result.json")
         record_review(self.run_dir, artifact_ref="review.json")
 
     def test_schema_v4_has_structured_criteria_and_bound_outer_goal(self) -> None:
@@ -166,6 +168,7 @@ class GoalLoopCheckpointContractTests(unittest.TestCase):
             '"independent": true, "findings": []}\n',
             encoding="utf-8",
         )
+        write_completion_manifest(self.run_dir, "result.json")
         record_review(self.run_dir, artifact_ref="review.json")
         pending = complete_checkpoint(self.run_dir)
         self.assertEqual("active", pending["state"])

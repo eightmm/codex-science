@@ -6,6 +6,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from checkpoint_fixtures import write_completion_manifest
 from codex_science.checkpoints import (
     abandon_checkpoint, block_checkpoint, create_checkpoint, request_decision,
     wait_checkpoint, verify_criterion, advance_checkpoint, record_review, complete_checkpoint,
@@ -52,6 +53,7 @@ class CompletionReportTests(unittest.TestCase):
             verify_criterion(run, "criterion-1", ["evidence.txt"])
             advance_checkpoint(run, completed_step="s", next_step=None, next_action="finishing")
             (run / "review.json").write_text(json.dumps({"status": "passed", "reviewer": "reviewer", "independent": True, "findings": []}))
+            write_completion_manifest(run, "evidence.txt")
             record_review(run, artifact_ref="review.json")
             complete_checkpoint(run)
             manifest = run / "manifest.json"
@@ -116,6 +118,7 @@ class CompletionReportTests(unittest.TestCase):
             verify_criterion(completed, "criterion-1", ["evidence.txt"])
             advance_checkpoint(completed, completed_step="s", next_step=None, next_action="finishing")
             (completed / "review.json").write_text(json.dumps({"status": "passed", "reviewer": "reviewer", "independent": True, "findings": []}))
+            write_completion_manifest(completed, "evidence.txt")
             record_review(completed, artifact_ref="review.json")
             complete_checkpoint(completed)
             receipt_record = json.loads((completed / "checkpoint.json").read_text())
