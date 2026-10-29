@@ -41,7 +41,7 @@ Preserve inputs, code, environment, refinements, and receipts with `$science-pro
 
 - Residual, backward error, forward error, discretization error, and model discrepancy are different quantities.
 - Small residual does not imply small forward error for an ill-conditioned problem.
-- Agreement between two implementations is not independent evidence when they share code, discretization, data, or assumptions.
+- Cross-method agreement is independent evidence only when shared code, discretization, data, or assumptions do not induce correlated errors; the runtime comparison also requires justified zero covariance.
 - Observed order on a finite range does not prove asymptotic convergence.
 - Solver tolerance is not a discretization-error estimate.
 - Stop or downgrade when refinement is non-asymptotic, invariants fail, the reference disagrees, conditioning makes requested accuracy unattainable, or unknown model/data error dominates.

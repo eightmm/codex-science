@@ -69,6 +69,8 @@ The receipt detects:
 - unstated precision or solver tolerance;
 - cross-method disagreement relative to declared uncertainties.
 
+The cross-method discrepancy uses `sqrt(u_A^2 + u_B^2)` and is valid only when zero covariance between method errors is justified. When methods share calibration, data, code, or model assumptions, do not report agreement from this check alone: compute `u(A-B)^2 = u_A^2 + u_B^2 - 2 Cov(A,B)` externally, or treat the comparison as not independent replication, and record the dependence (JCGM 100:2008 (GUM), §5.2.2, eq. (13)).
+
 Observed convergence on a finite range does not prove asymptotic convergence or model validity.
 
 ## Dimensional analysis
@@ -153,7 +155,7 @@ Monte Carlo requires an explicit seed. Any failed sample adds `monte-carlo-domai
 ## Interpretation boundary
 
 - A low residual can coexist with a wrong equation or wrong boundary conditions.
-- Two implementations can agree because they share the same defect.
+- Two implementations can agree because they share the same defect; correlated errors also invalidate the runtime's zero-covariance discrepancy denominator.
 - A dimension check cannot validate an empirical coefficient.
 - A Monte Carlo interval is conditional on its input distributions and correlation model.
 - Solver tolerance is not discretization error.

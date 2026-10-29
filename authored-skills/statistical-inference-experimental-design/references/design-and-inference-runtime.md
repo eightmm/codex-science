@@ -45,6 +45,8 @@ Exact and Monte Carlo randomization tests use exact binary-value permutation sta
 
 The input requires an explicit seed even when an exact test is possible, so all stochastic interval work remains reproducible.
 
+The runtime's BH q-values control FDR under independence or positive regression dependence (PRDS) of the test statistics, not arbitrary dependence (independence: Benjamini & Hochberg, 1995, *JRSS B* 57(1):289–300; PRDS: Benjamini & Yekutieli, 2001, *Ann. Statist.* 29(4):1165–1188). If dependence is arbitrary or unknown, including overlapping samples with possible negative correlation, use a justified dependence-robust procedure such as Benjamini-Yekutieli (BY) computed externally, and record the choice (Benjamini & Yekutieli, 2001, *Ann. Statist.* 29(4):1165–1188).
+
 ## Unsupported cases
 
 Use an appropriate specialized model and preserve equivalent receipts instead of forcing the built-in runtime when any of these are material:

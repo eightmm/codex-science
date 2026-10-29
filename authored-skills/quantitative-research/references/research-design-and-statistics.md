@@ -140,7 +140,7 @@ The built-in primary contrast is one hypothesis. To adjust a larger externally c
 ]
 ```
 
-The output preserves IDs and adds BH q-values. This does not retroactively define the correct scientific family; the family must be declared in the design.
+The output preserves IDs and adds BH q-values. BH controls FDR under independence or positive regression dependence (PRDS) of the test statistics, not arbitrary dependence (independence: Benjamini & Hochberg, 1995, *JRSS B* 57(1):289–300; PRDS: Benjamini & Yekutieli, 2001, *Ann. Statist.* 29(4):1165–1188). If dependence is arbitrary or unknown, including overlapping samples with possible negative correlation, use a justified dependence-robust procedure such as Benjamini-Yekutieli (BY) computed externally, and record the choice (Benjamini & Yekutieli, 2001, *Ann. Statist.* 29(4):1165–1188). This does not retroactively define the correct scientific family; declare it in the design.
 
 ## Interpretation boundary
 

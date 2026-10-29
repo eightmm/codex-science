@@ -49,9 +49,9 @@ Residual is not forward error. Conservation and positivity checks may reveal def
 
 ## Cross-method agreement
 
-Each cross-method estimate includes a standard uncertainty. The first method is the comparison reference; subsequent methods are compared in combined standard-uncertainty units. A discrepancy above `max_cross_method_z` is a finding.
+Each cross-method estimate includes a standard uncertainty. The runtime compares subsequent methods with the first in combined standard-uncertainty units, using `sqrt(u_A^2 + u_B^2)`. This denominator is valid only when zero covariance between method errors is justified. If methods share calibration, data, code, or model assumptions, do not report agreement from this check alone: compute `u(A-B)^2 = u_A^2 + u_B^2 - 2 Cov(A,B)` externally, or treat the comparison as not independent replication, and record the dependence. This covariance propagation follows JCGM 100:2008 (GUM), §5.2.2, equation (13). A discrepancy above `max_cross_method_z` is a finding.
 
-Shared code, data, discretization, boundary conditions, or libraries reduce independence. Record those dependencies in the evidence graph rather than counting agreement as replication.
+Shared code, data, discretization, boundary conditions, or libraries may induce correlated errors. Record those dependencies in the evidence graph; recording them does not make the runtime's zero-covariance comparison valid.
 
 ## Stop and downgrade
 
