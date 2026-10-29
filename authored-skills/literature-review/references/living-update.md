@@ -8,15 +8,15 @@ Preserve the prior protocol, exact queries, source releases, included and exclud
 
 ## Update diff
 
-Compare:
+`build_literature_snapshot.py` records top-level `schema_version`, `protocol_id`, `question`, `question_framework`, `evidence_cutoff`, `studies`, `claims`, and `queries`. Its record fields are:
 
-- query additions, removals, and changes;
-- source availability or release changes;
-- added, removed, and modified studies;
-- publication-version, correction, and retraction changes;
-- eligibility decisions;
-- risk-of-bias changes;
-- claim status, confidence, and applicability changes.
+- Studies: `study_id`, `title`, `persistent_id`, `eligibility`, and `exclusion_reason` for excluded studies.
+- Claims: `id`, `status`.
+- Queries: `query_id`, `source`, `query`, and, when present in the query log, `status`, `accessed_at`.
+
+A diff of two built snapshots reports query additions, removals, and changes to those query fields; study additions, removals, and changes to title, persistent identifier, eligibility, or exclusion reason; and claim additions, removals, and status changes. Rows are matched by `query_id`, `study_id`, and claim `id`; changing one appears as removal and addition.
+
+Publication-state changes (including publication-version, correction, and retraction), risk-of-bias changes, effect-estimate changes, claim text/confidence/applicability changes, and query response-digest changes are not visible in a built-snapshot diff. Compare those fields directly in the study table, claim register, and query log. The receipt invalidation rule below still applies to changes omitted from the diff.
 
 Use:
 

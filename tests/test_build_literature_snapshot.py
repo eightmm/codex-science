@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -42,6 +43,26 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256((self.root / "protocol.json").read_bytes()).hexdigest(), result["inputs_sha256"]["protocol"])
         self.assertEqual(hashlib.sha256((self.root / "queries.jsonl").read_bytes()).hexdigest(), result["inputs_sha256"]["queries"])
         self.assertEqual({"queries": 1, "studies": 1, "claims": 1}, result["counts"])
+
+    def test_living_update_documented_fields_are_written_by_builder(self):
+        text = (ROOT / "authored-skills/literature-review/references/living-update.md").read_text(encoding="utf-8")
+        documented = {
+            label.lower(): set(re.findall(r"`([^`]+)`", fields))
+            for label, fields in re.findall(r"^- (Studies|Claims|Queries): (.+)$", text, re.MULTILINE)
+        }
+        self.assertEqual({"studies", "claims", "queries"}, set(documented))
+        (self.root / "screening.json").write_text(json.dumps({
+            "schema": "screening-table-v1", "records": [{
+                "record_id": "record-excluded", "title": "Excluded title", "identifiers": ["pmid:12345678"],
+                "decision": "exclude", "criterion": "wrong outcome", "rationale": "not reported",
+            }],
+        }), encoding="utf-8")
+        build_literature_snapshot(self.root)
+        snapshot = json.loads((self.root / "snapshot.current.json").read_text(encoding="utf-8"))
+        for label, fields in documented.items():
+            with self.subTest(records=label):
+                written = set().union(*(row.keys() for row in snapshot[label]))
+                self.assertEqual(written, fields)
 
     def test_excluded_study_requires_and_preserves_its_reason(self):
         studies_path = self.root / "studies.json"

@@ -8,8 +8,9 @@
 - Reviewer packets provide deterministic `review_priority` and an advisory
   `review_order_policy`; callers may supply an optional tier, including through
   reviewer CLI `--tier`. An offline statement-support check matches cited
-  statements to saved excerpts by study `persistent_id` and reports lexical
-  overlap only, not semantic entailment.
+  statements to saved excerpts by primary persistent identifier, falling back
+  to recorded aliases only when no study has that primary ID, and reports
+  lexical overlap only, not semantic entailment.
 - Identifier normalization maps old-style arXiv IDs with subject classes, such
   as `math.GT/0309136`, to `arxiv:math/0309136`, so extraction, resolution, and
   statement-support matching agree.

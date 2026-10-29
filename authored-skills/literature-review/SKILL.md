@@ -99,7 +99,7 @@ Keep prior snapshots immutable. Save a new snapshot with the revised cutoff and 
 
 `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/diff_literature_review.py" <previous.json> <current.json> --output <diff.json>`
 
-Report added, removed, and changed queries, studies, eligibility decisions, and claims. Never replace a previous reviewed narrative without a diff and review invalidation.
+Report added, removed, and changed queries, studies, eligibility decisions, and claim statuses within the [built snapshot field scope](references/living-update.md); compare omitted fields directly in the study table, claim register, and query log. Never replace a previous reviewed narrative without a diff and review invalidation.
 
 ## Outputs
 

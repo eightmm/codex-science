@@ -56,10 +56,23 @@ def check_statement_support(run_dir: str | Path, report_paths: list[str | Path] 
     if reports is None:
         reports = [item["path"] for item in declarations if item.get("kind") == "report"]
 
-    by_identifier: dict[str, list[dict[str, Any]]] = {}
+    by_primary_identifier: dict[str, list[dict[str, Any]]] = {}
+    by_alias_identifier: dict[str, list[dict[str, Any]]] = {}
     for study in sidecars.get("study_by_id", {}).values():
-        identifier = normalize_identifier(str(study["persistent_id"]))
-        by_identifier.setdefault(identifier, []).append(study)
+        primary = normalize_identifier(str(study["persistent_id"]))
+        by_primary_identifier.setdefault(primary, []).append(study)
+        identifiers: set[str] = set()
+        for field in ("persistent_ids", "identifiers"):
+            aliases = study.get(field)
+            if isinstance(aliases, list):
+                for alias in aliases:
+                    if isinstance(alias, str) and alias.strip():
+                        try:
+                            identifiers.add(normalize_identifier(alias))
+                        except UnicodeEncodeError:
+                            continue
+        for identifier in identifiers:
+            by_alias_identifier.setdefault(identifier, []).append(study)
 
     rows: list[dict[str, Any]] = []
     for requested in reports:
@@ -74,7 +87,7 @@ def check_statement_support(run_dir: str | Path, report_paths: list[str | Path] 
             pairs = []
             overlaps: list[float] = []
             for identifier in identifiers:
-                studies = by_identifier.get(identifier, [])
+                studies = by_primary_identifier.get(identifier, by_alias_identifier.get(identifier, []))
                 excerpts = [excerpt["text"] for study in studies for excerpt in study.get("support_excerpts", [])
                             if not (root / str(excerpt["source_artifact"]).strip()).samefile(path)
                             and str(excerpt["source_sha256"]).strip().lower() != report_sha256]

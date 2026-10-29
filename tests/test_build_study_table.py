@@ -877,6 +877,31 @@ class BuildStudyTableTests(unittest.TestCase):
         for expected in ("study-extraction-v1", "not_extracted", "excerpts", *EVIDENCE_TYPES):
             self.assertIn(expected, helped.stdout)
 
+    def test_cli_built_alias_has_statement_support(self):
+        built = subprocess.run([sys.executable, str(CLI), "--run-dir", str(self.root),
+                                "--extraction", str(self.extraction)], capture_output=True, text=True)
+        self.assertEqual(0, built.returncode, built.stderr)
+        study = json.loads((self.root / "studies.json").read_text())["studies"][0]
+        self.assertEqual("doi:10.1038/nm.3444", study["persistent_id"])
+        self.assertIn("pmid:24390308", study["persistent_ids"])
+        self.assertIn("pmid:24390308", study["identifiers"])
+        for identifier, expected_exit, status in (("PMID:24390308", 0, "excerpt_available"),
+                                                   ("PMID:99999999", 1, "untraced")):
+            with self.subTest(identifier=identifier):
+                (self.root / "report.md").write_text(f"{self.source} {identifier}.\n", encoding="utf-8")
+                manifest_path = self.root / "manifest.json"
+                manifest = json.loads(manifest_path.read_text())
+                for artifact in manifest["artifacts"]:
+                    artifact["sha256"] = hashlib.sha256((self.root / artifact["path"]).read_bytes()).hexdigest()
+                manifest_path.write_text(json.dumps(manifest))
+                checked = subprocess.run([sys.executable, str(ROOT / "scripts/check_statement_support.py"),
+                                          "--run-dir", str(self.root), "--require-excerpts"],
+                                         capture_output=True, text=True)
+                self.assertEqual(expected_exit, checked.returncode, checked.stdout + checked.stderr)
+                result = json.loads(checked.stdout)
+                self.assertEqual(1, result["counts"][status])
+                self.assertEqual(status, result["statements"][0]["pair_statuses"][0]["status"])
+
     def test_cli_success_and_failure_exit_codes(self):
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
