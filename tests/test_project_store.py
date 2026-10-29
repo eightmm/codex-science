@@ -269,13 +269,34 @@ class ProjectStoreTests(unittest.TestCase):
                 arguments["locator"] = {"artifact_path": name, "artifact_sha256": digest, "json_pointer": "/missing"}
                 with self.assertRaisesRegex(ValueError, "json_pointer does not resolve"):
                     store.add_assertion(**arguments)
-                arguments["locator"]["json_pointer"] = "/value"
-                self.assertEqual("/value", store.add_assertion(**arguments)["locator"]["json_pointer"])
+                for pointer in ("/value", ""):
+                    arguments["locator"]["json_pointer"] = pointer
+                    self.assertEqual(pointer, store.add_assertion(**arguments)["locator"]["json_pointer"])
             arguments["locator"]["artifact_path"] = "notes.txt"
+            arguments["locator"]["json_pointer"] = "/value"
+            arguments["locator"]["line_range"] = "1"
             self.assertEqual("/value", store.add_assertion(**arguments)["locator"]["json_pointer"])
             for key in ("line_range", "page", "table", "figure", "cell", "record_id"):
                 arguments["locator"] = {"artifact_path": "metrics.json", "artifact_sha256": digest, key: "1"}
                 self.assertEqual("1", store.add_assertion(**arguments)["locator"][key])
+            for bad in (None, "", "/value", "value", 0, False, [], {}):
+                with self.subTest(non_json_pointer=bad):
+                    with store.connect() as connection:
+                        before_counts = tuple(connection.execute(
+                            "SELECT (SELECT COUNT(*) FROM assertions), (SELECT COUNT(*) FROM events)"
+                        ).fetchone())
+                    arguments["locator"] = {"artifact_path": "notes.txt", "artifact_sha256": digest, "json_pointer": bad}
+                    with self.assertRaisesRegex(ValueError, "assertion locator needs a page, table, figure, cell, JSON pointer, line range, or record ID"):
+                        store.add_assertion(**arguments)
+                    with store.connect() as connection:
+                        self.assertEqual(before_counts, tuple(connection.execute(
+                            "SELECT (SELECT COUNT(*) FROM assertions), (SELECT COUNT(*) FROM events)"
+                        ).fetchone()))
+            for pointer in (None, "", "/value"):
+                arguments["locator"] = {"artifact_path": "notes.txt", "artifact_sha256": digest, "json_pointer": pointer, "page": 0}
+                self.assertEqual(0, store.add_assertion(**arguments)["locator"]["page"])
+            arguments["locator"] = {"artifact_path": "metrics.json", "artifact_sha256": digest, "json_pointer": ""}
+            self.assertEqual("", store.add_assertion(**arguments)["locator"]["json_pointer"])
             before = store.summary(project_id="p")
             original_metric = metric.read_bytes()
 

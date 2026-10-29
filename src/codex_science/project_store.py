@@ -411,7 +411,8 @@ class ProjectStore:
         locator_payload = _json_object(locator, "locator")
         artifact_path = _relative(locator_payload.get("artifact_path"), "locator artifact_path")
         artifact_sha = _sha(locator_payload.get("artifact_sha256"), "locator artifact_sha256")
-        if "json_pointer" not in locator_payload and not any(locator_payload.get(field) not in (None, "") for field in ("page", "table", "figure", "cell", "line_range", "record_id")):
+        has_other_locator = any(locator_payload.get(field) not in (None, "") for field in ("page", "table", "figure", "cell", "line_range", "record_id"))
+        if not isinstance(locator_payload.get("json_pointer"), str) and not has_other_locator:
             raise ValueError("assertion locator needs a page, table, figure, cell, JSON pointer, line range, or record ID")
         locator_payload["artifact_path"] = artifact_path
         locator_payload["artifact_sha256"] = artifact_sha
@@ -462,6 +463,8 @@ class ProjectStore:
                     if hashlib.sha256(artifact_bytes).hexdigest() != artifact_sha:
                         raise ValueError("assertion artifact changed during locator validation")
                     _resolve_json_pointer(json.loads(artifact_bytes), locator_payload["json_pointer"])
+                elif isinstance(locator_payload["json_pointer"], str) and not has_other_locator:
+                    raise ValueError("assertion locator needs a page, table, figure, cell, JSON pointer, line range, or record ID")
             existing = connection.execute("SELECT fingerprint FROM assertions WHERE project_id=? AND assertion_id=?", (project_id, assertion_id)).fetchone()
             if existing is not None:
                 return {**material, "assertion_id": assertion_id, "fingerprint": fingerprint}
