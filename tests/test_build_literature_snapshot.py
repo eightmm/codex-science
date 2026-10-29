@@ -57,6 +57,15 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
                          "criterion": "wrong outcome", "rationale": "not reported"}],
         }), encoding="utf-8")
 
+        before = (self.root / "snapshot.current.json").read_bytes()
+        with self.assertRaisesRegex(ValueError, "claim-method-effect.*supported.*0.*1 required"):
+            build_literature_snapshot(self.root)
+        self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        claims_path = self.root / "claims.json"
+        claims = json.loads(claims_path.read_text(encoding="utf-8"))
+        claims["claims"][0]["status"] = "unsupported"
+        claims_path.write_text(json.dumps(claims), encoding="utf-8")
+
         build_literature_snapshot(self.root)
         snapshot_path = self.root / "snapshot.current.json"
         snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
@@ -87,6 +96,104 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
         build_literature_snapshot(self.root)
         snapshot = json.loads((self.root / "snapshot.current.json").read_text(encoding="utf-8"))
         self.assertEqual("include", snapshot["studies"][0]["eligibility"])
+
+    def test_claim_status_requires_declared_included_study_support(self):
+        studies_path = self.root / "studies.json"
+        claims_path = self.root / "claims.json"
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        claims = json.loads(claims_path.read_text(encoding="utf-8"))
+        claim = claims["claims"][0]
+        claim.pop("required_support")
+        study = studies["studies"][0]
+        output = self.root / "new-snapshot.json"
+        before = (self.root / "snapshot.current.json").read_bytes()
+        statuses = ("supported", "replicated", "suggestive", " supported ", "\treplicated\n", "\u2003suggestive\u2003")
+        for status in statuses:
+            claim["status"] = status
+            claims_path.write_text(json.dumps(claims), encoding="utf-8")
+            for rows in (
+                [],
+                [{**study, "supports_claim_ids": [], "contradicts_claim_ids": [claim["id"]]}],
+                [{**study, "included": False, "exclusion_reason": "outside scope"}],
+            ):
+                with self.subTest(status=status, studies=rows):
+                    studies_path.write_text(json.dumps({**studies, "studies": rows}), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, f"{claim['id']}.*{status.strip()}.*0.*1 required"):
+                        build_literature_snapshot(self.root, output.name)
+                    self.assertFalse(output.exists())
+                    self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        for status in statuses:
+            with self.subTest(status=status, count=1):
+                claim["status"] = status
+                claims_path.write_text(json.dumps(claims), encoding="utf-8")
+                self.assertEqual(1, build_literature_snapshot(self.root, output.name)["counts"]["studies"])
+                self.assertEqual(status, json.loads(output.read_text())["claims"][0]["status"])
+        claim["status"] = "supported"
+        collision = {**claim, "id": study["study_id"], "status": "planned"}
+        claims_path.write_text(json.dumps({**claims, "claims": [claim, collision]}), encoding="utf-8")
+        self.assertEqual({"queries": 1, "studies": 1, "claims": 2}, build_literature_snapshot(self.root, output.name)["counts"])
+        padded_claim = {**claim, "id": f"\t{claim['id']} "}
+        padded_study = {**study, "study_id": f" {study['study_id']} ",
+                        "supports_claim_ids": [f" {claim['id']}\t", claim["id"]]}
+        claims_path.write_text(json.dumps({**claims, "claims": [padded_claim]}), encoding="utf-8")
+        studies_path.write_text(json.dumps({**studies, "studies": [padded_study]}), encoding="utf-8")
+        self.assertEqual(1, build_literature_snapshot(self.root, output.name)["counts"]["studies"])
+        self.assertEqual([{"id": claim["id"], "status": "supported"}], json.loads(output.read_text())["claims"])
+        output_before = output.read_bytes()
+        for invalid in ("", " ", "SUPPORTED", "Replicated", None, 0, []):
+            with self.subTest(status=invalid):
+                padded_claim["status"] = invalid
+                claims_path.write_text(json.dumps({**claims, "claims": [padded_claim]}), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "claims:"):
+                    build_literature_snapshot(self.root, output.name)
+                self.assertEqual(output_before, output.read_bytes())
+        studies_path.write_text(json.dumps({**studies, "studies": []}), encoding="utf-8")
+        for status in ("conflicting", "unsupported", "planned", "withdrawn", "unavailable"):
+            with self.subTest(status=status):
+                claim["status"] = status
+                claims_path.write_text(json.dumps(claims), encoding="utf-8")
+                result = build_literature_snapshot(self.root, output.name)
+                self.assertEqual(0, result["counts"]["studies"])
+                self.assertEqual([{"id": claim["id"], "status": status}], json.loads(output.read_text())["claims"])
+        claims_path.write_text(json.dumps({**claims, "claims": []}), encoding="utf-8")
+        self.assertEqual(0, build_literature_snapshot(self.root, output.name)["counts"]["claims"])
+
+    def test_required_support_threshold_and_validation(self):
+        studies_path = self.root / "studies.json"
+        claims_path = self.root / "claims.json"
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        claims = json.loads(claims_path.read_text(encoding="utf-8"))
+        claim = claims["claims"][0]
+        study = studies["studies"][0]
+        study["supports_claim_ids"] *= 2
+        claim["required_support"] = 2
+        claims_path.write_text(json.dumps(claims), encoding="utf-8")
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        output = self.root / "snapshot.current.json"
+        before = output.read_bytes()
+        with self.assertRaisesRegex(ValueError, "claim-method-effect.*supported.*1.*2 required"):
+            build_literature_snapshot(self.root)
+        self.assertEqual(before, output.read_bytes())
+        failed = subprocess.run([sys.executable, str(CLI), "--run-dir", str(self.root)], capture_output=True, text=True)
+        self.assertEqual(1, failed.returncode)
+        self.assertIn("1 supporting edge(s); 2 required", failed.stderr)
+        self.assertEqual(before, output.read_bytes())
+        for required, rows in ((0, []), (1, [study]), (2, [study, {**study, "study_id": "study-example-2"}])):
+            with self.subTest(required_support=required, count=len(rows)):
+                claim["required_support"] = required
+                claims_path.write_text(json.dumps(claims), encoding="utf-8")
+                studies_path.write_text(json.dumps({**studies, "studies": rows}), encoding="utf-8")
+                result = build_literature_snapshot(self.root)
+                self.assertEqual(len(rows), result["counts"]["studies"])
+        before = output.read_bytes()
+        for invalid in (None, "", "2", True, -1, 1.5, [], {}):
+            with self.subTest(required_support=invalid):
+                claim["required_support"] = invalid
+                claims_path.write_text(json.dumps(claims), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "required_support must be a non-negative integer"):
+                    build_literature_snapshot(self.root)
+                self.assertEqual(before, output.read_bytes())
 
     def test_excluded_and_awaiting_screening_records_are_included(self):
         screening = {
@@ -218,6 +325,41 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
         result = build_literature_snapshot(self.root, output.name)
         self.assertEqual(1, result["counts"]["queries"])
         self.assertEqual(record["status"], json.loads(output.read_text())["queries"][0]["status"])
+
+    def test_duplicate_query_response_identity_must_match(self):
+        queries = self.root / "queries.jsonl"
+        record = json.loads(queries.read_text(encoding="utf-8").splitlines()[0])
+        record.pop("response_sha256")
+        output = self.root / "new-snapshot.json"
+        before = (self.root / "snapshot.current.json").read_bytes()
+        for first, second in (("1" * 64, "f" * 64), ("a" * 64, "B" * 64),
+                              (None, "a" * 64), ("", None), ([], {}), (0, False)):
+            for reverse in (False, True):
+                with self.subTest(first=first, second=second, reverse=reverse):
+                    rows = [{**record, "response_sha256": first}, {**record, "response_sha256": second}]
+                    if reverse:
+                        rows.reverse()
+                    queries.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "conflicting duplicate query_id: q-pubmed-1"):
+                        build_literature_snapshot(self.root, output.name)
+                    self.assertFalse(output.exists())
+                    self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        failed = subprocess.run([sys.executable, str(CLI), "--run-dir", str(self.root)], capture_output=True, text=True)
+        self.assertEqual(1, failed.returncode)
+        self.assertIn("conflicting duplicate query_id: q-pubmed-1", failed.stderr)
+        self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        expected = {key: value for key, value in record.items() if key in {"query_id", "source", "query", "status", "accessed_at"}}
+        for rows in ([record, record], [record, {**record, "response_sha256": None}],
+                     [{**record, "response_sha256": None}, record],
+                     [{**record, "response_sha256": None}] * 2,
+                     [{**record, "response_sha256": "a" * 64}] * 2,
+                     [{**record, "response_sha256": "a" * 64}, {**record, "response_sha256": "A" * 64}],
+                     [{**record, "response_sha256": ""}] * 2):
+            with self.subTest(rows=rows):
+                queries.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                result = build_literature_snapshot(self.root, output.name)
+                self.assertEqual(1, result["counts"]["queries"])
+                self.assertEqual([expected], json.loads(output.read_text())["queries"])
 
     def test_missing_protocol_field_and_other_problems_are_aggregated(self):
         protocol_path = self.root / "protocol.json"

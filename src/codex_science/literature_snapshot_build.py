@@ -98,6 +98,7 @@ def build_literature_snapshot(
         query_bytes = queries_path.read_bytes()
         hashes["queries"] = hashlib.sha256(query_bytes).hexdigest()
         by_query_id: dict[str, dict[str, Any]] = {}
+        response_by_query_id: dict[str, bytes] = {}
         for line_number, raw in enumerate(query_bytes.decode("utf-8").splitlines(), 1):
             if not raw.strip():
                 continue
@@ -120,12 +121,18 @@ def build_literature_snapshot(
             for field in ("status", "accessed_at"):
                 if field in record:
                     entry[field] = record[field]
+            response = record.get("response_sha256")
+            response_identity = canonical_json_bytes(response.lower() if isinstance(response, str) else response)
             previous = by_query_id.get(query_id)
             if previous is not None:
-                if canonical_json_bytes(previous) != canonical_json_bytes(entry):
+                if (
+                    canonical_json_bytes(previous) != canonical_json_bytes(entry)
+                    or response_by_query_id[query_id] != response_identity
+                ):
                     problems.append(f"conflicting duplicate query_id: {query_id}")
                 continue
             by_query_id[query_id] = entry
+            response_by_query_id[query_id] = response_identity
         query_rows = list(by_query_id.values())
     except (OSError, UnicodeError) as error:
         problems.append(f"queries: {error}")
@@ -174,6 +181,20 @@ def build_literature_snapshot(
     except (ValueError, TypeError) as error:
         problems.append(f"claims: {error}")
         claim_by_id = {}
+
+    for claim_id, claim in sorted(claim_by_id.items()):
+        status = str(claim["status"]).strip()
+        if status not in {"supported", "replicated", "suggestive"}:
+            continue
+        supports = sum(
+            study.get("included") is not False and claim_id in study.get("supports_claim_ids", [])
+            for study in study_by_id.values()
+        )
+        required_support = claim.get("required_support", 1)
+        if supports < required_support:
+            problems.append(
+                f"Claim {claim_id} is {status} but has {supports} supporting edge(s); {required_support} required."
+            )
 
     study_rows: list[dict[str, Any]] = []
     studies_by_record_id: dict[str, list[tuple[str, bool]]] = {}
