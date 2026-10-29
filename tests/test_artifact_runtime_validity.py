@@ -660,6 +660,9 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
                     selection = self.select(opaque, "json-pointer", {"pointer": pointer})
                     self.sidecars(("selection.json", "artifact-selection", selection))
         invalid = self.describe("invalid.json", '{\n"broken":\n', max_records=1)
+        selection = self.select(invalid, "json-pointer", {"pointer": "/broken"})
+        self.assertFalse(runtime._validate_selection_region(selection, invalid))
+        invalid = self.describe("invalid.json", '{\n"broken":\n', max_records=2)
         with self.assertRaisesRegex(ValueError, "JSON pointer does not resolve"):
             self.select(invalid, "json-pointer", {"pointer": "/broken"})
         for separator in ("\u2028", "\u0085"):
@@ -694,6 +697,27 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
                 self.assert_stored_active(forged)
 
     def test_table_selections_beyond_record_bound_are_accepted_without_resolution(self):
+        semicolon = "a;b;c\n1;2;3\n4;5;6\n"
+        for bound in (8, len(semicolon)):
+            with self.subTest(semicolon_bound=bound):
+                view = self.describe("small.csv", semicolon, max_bytes=bound)
+                for kind, selector in (
+                    ("column", {"column": "b"}), ("cell", {"row": 1, "column": "b"}),
+                    ("range", {"column_start": "b", "column_end": "c"}),
+                ):
+                    selection = self.select(view, kind, selector)
+                    self.sidecars(("selection.json", "artifact-selection", selection))
+                    if bound < len(semicolon):
+                        self.assertFalse(runtime._validate_selection_region(selection, view))
+                if bound == len(semicolon):
+                    self.assertEqual(["a", "b", "c"], view["preview"]["columns"])
+                    with self.assertRaises(ValueError):
+                        self.select(view, "column", {"column": "missing"})
+                else:
+                    self.assertEqual(["a;b;c"], view["preview"]["columns"])
+                    for kind, selector in (("column", {"column": "missing"}), ("column", {"column": 999}),
+                                           ("row", {"row": 999}), ("cell", {"row": 999, "column": 999})):
+                        self.select(view, kind, selector)
         content = "name,value\n" + "alpha,7\n" * (runtime.MAX_RUNTIME_RECORDS + 1)
         descriptor = self.describe("data.csv", content, max_records=100)
         for kind, selector in (
@@ -707,11 +731,15 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
         self.sidecars(("selection.json", "artifact-selection", selection))
         for kind, selector in (
             ("row", {"row": -1}),
-            ("cell", {"row": 500, "column": "missing"}),
             ("range", {"row_start": 501, "row_end": 500}),
         ):
             with self.subTest(selector=selector), self.assertRaises(ValueError):
                 self.select(descriptor, kind, selector)
+        for kind, selector in (("cell", {"row": 500, "column": "missing"}),
+                               ("column", {"column": "missing"}), ("column", {"column": 999})):
+            selection = self.select(descriptor, kind, selector)
+            self.assertFalse(runtime._validate_selection_region(selection, descriptor))
+            self.sidecars(("selection.json", "artifact-selection", selection))
         for row in (True, "500"):
             selection = self.select(descriptor, "row", {"row": row})
             self.sidecars(("selection.json", "artifact-selection", selection))
@@ -735,16 +763,18 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
                     self.sidecars(("selection.json", "artifact-selection", selection))
         for bound in (len(header), len(content)):
             with self.subTest(bound=bound):
-                complete = self.describe("data.csv", content, max_bytes=bound)
-                self.select(complete, "column", {"column": "third"})
-                with self.assertRaises(ValueError):
-                    self.select(complete, "column", {"column": "missing"})
+                view = self.describe("data.csv", content, max_bytes=bound)
+                self.select(view, "column", {"column": "third"})
+                if bound == len(content):
+                    with self.assertRaises(ValueError):
+                        self.select(view, "column", {"column": "missing"})
+                else:
+                    self.select(view, "column", {"column": "missing"})
         quoted = self.describe("quoted.csv", '"multi\nline",third\nx,1\n', max_bytes=7)
         self.select(quoted, "column", {"column": "third"})
         quoted_header = '"multi\nline",third\n'
         quoted = self.describe("quoted.csv", quoted_header + "x,1\n", max_bytes=len(quoted_header))
-        with self.assertRaises(ValueError):
-            self.select(quoted, "column", {"column": "missing"})
+        self.select(quoted, "column", {"column": "missing"})
         empty = self.describe("empty.csv", "")
         for column in (0, "third"):
             with self.subTest(column=column), self.assertRaises(ValueError):
@@ -764,8 +794,15 @@ class ArtifactRuntimeValidityTests(unittest.TestCase):
                 self.select(descriptor, "line", selector)
         small = self.describe("small.txt", "a\nb\n", max_bytes=4, max_records=1)
         self.select(small, "line", {"line": 2})
+        for kind, selector in (("line", {"line": 3}), ("line-range", {"start": 2, "end": 999})):
+            selection = self.select(small, kind, selector)
+            self.assertFalse(runtime._validate_selection_region(selection, small))
+        full = self.describe("small.txt", "a\nb\n", max_bytes=4, max_records=2)
+        self.select(full, "line", {"line": 2})
         with self.assertRaises(ValueError):
-            self.select(small, "line", {"line": 3})
+            self.select(full, "line", {"line": 3})
+        with self.assertRaises(ValueError):
+            self.select(full, "line-range", {"start": 2, "end": 3})
         for media in ("application/geo+json", "APPLICATION/GEO+JSON", "application/json"):
             with self.subTest(media=media):
                 content = json.dumps({"a": "x\u2028y\u0085z"}, ensure_ascii=False)

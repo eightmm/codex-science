@@ -701,7 +701,8 @@ def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[s
     viewer, kind, selector = payload["viewer"], payload["selector_type"], payload["selector"]
     _validate_selector_coordinates(kind, selector)
     preview = descriptor["preview"]
-    bytes_complete = descriptor["size_bytes"] <= descriptor["bounds"]["max_bytes"]
+    # A bounded parse cannot establish that a coordinate is absent from the artifact.
+    preview_complete = descriptor["size_bytes"] <= descriptor["bounds"]["max_bytes"] and not descriptor["warnings"]
 
     def index(value: Any, count: int, label: str, *, one_based: bool = False, complete: bool = True) -> bool:
         # Table indices have no documented origin; only reject impossible values.
@@ -709,12 +710,10 @@ def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[s
             return False
         if value < int(one_based) or (complete and (count == 0 or value > count)):
             raise ValueError(f"selector {label} does not resolve in the inspected artifact region")
-        return count > 0 and value <= count
+        return complete and count > 0 and value <= count
 
     if viewer == "table" and preview.get("format") == "delimited-text":
         rows, columns = preview["rows_preview"], preview["columns"]
-        rows_complete = bytes_complete and not descriptor["warnings"]
-        columns_complete = bytes_complete or bool(rows) or _COMPLETE_TABLE_HEADER_WARNING in descriptor["warnings"]
         row_fields = (("row",) if kind in {"row", "cell"} else
                       ("row_start", "row_end", "start_row", "end_row", "start", "end") if kind == "range" else ())
         column_fields = (("column",) if kind in {"column", "cell"} else
@@ -722,18 +721,18 @@ def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[s
         resolved = {}
         for field in row_fields:
             if field in selector:
-                resolved[field] = index(selector[field], len(rows), field, complete=rows_complete)
+                resolved[field] = index(selector[field], len(rows), field, complete=preview_complete)
         for field in column_fields:
             if field not in selector:
                 continue
             value = selector[field]
             if isinstance(value, str):
-                if columns_complete and value not in columns:
+                if preview_complete and value not in columns:
                     raise ValueError("selector column does not resolve in the artifact")
-                resolved[field] = columns_complete and value in columns
+                resolved[field] = preview_complete and value in columns
             else:
-                resolved[field] = index(value, len(columns), field, complete=columns_complete)
-        if (kind == "cell" and rows_complete and type(selector.get("row")) is int
+                resolved[field] = index(value, len(columns), field, complete=preview_complete)
+        if (kind == "cell" and preview_complete and type(selector.get("row")) is int
                 and (isinstance(selector.get("column"), str) or type(selector.get("column")) is int)):
             row, column = selector["row"], selector["column"]
             row_indices = [item for item in (row - 1, row) if 0 <= item < len(rows)]
@@ -744,7 +743,7 @@ def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[s
         if kind in {"row", "column"}:
             return resolved.get(kind, False)
         if kind == "cell":
-            return rows_complete and resolved.get("row", False) and resolved.get("column", False)
+            return preview_complete and resolved.get("row", False) and resolved.get("column", False)
         pairs = (("start", "end"), ("row_start", "row_end"), ("start_row", "end_row"),
                  ("column_start", "column_end"), ("start_column", "end_column"))
         present = [pair for pair in pairs if any(field in selector for field in pair)]
@@ -753,7 +752,7 @@ def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[s
         if kind in {"line", "line-range"}:
             fields = ("line",) if kind == "line" else ("start", "end", "line_start", "line_end")
             resolved = {field: index(selector[field], preview["line_count_in_prefix"], field,
-                                     one_based=True, complete=bytes_complete)
+                                     one_based=True, complete=preview_complete)
                         for field in fields if field in selector}
             if kind == "line":
                 return resolved.get("line", False)
@@ -775,10 +774,10 @@ def _validate_selection_region(payload: Mapping[str, Any], descriptor: Mapping[s
                         raise ValueError("invalid JSON pointer escape")
             lines = preview.get("lines_preview", [])
             starts_with_bom = bool(lines) and lines[0]["text"].startswith("\ufeff")
-            if bytes_complete and preview.get("json_type") == "invalid" and not starts_with_bom:
+            if preview_complete and preview.get("json_type") == "invalid" and not starts_with_bom:
                 raise ValueError("selector JSON pointer does not resolve in the artifact")
             # Missing preview content establishes uncertainty, not non-existence.
-            if not bytes_complete or len(lines) != preview["line_count_in_prefix"]:
+            if not preview_complete or len(lines) != preview["line_count_in_prefix"]:
                 return False
             try:
                 text = "\n".join(item["text"] for item in lines)
