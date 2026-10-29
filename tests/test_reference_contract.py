@@ -129,6 +129,133 @@ class ReferenceContractTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual([], json.loads(result.stdout)["receipt_paths"])
 
+    def test_lookup_preserves_prior_receipts_across_claims_hashes_and_writers(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/reference_lookup.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = self._skill(root)
+            reference = skill / "references/study-identity.md"
+            receipt_dir = root / "receipts"
+
+            def lookup(claim: str):
+                result = subprocess.run(
+                    [sys.executable, str(script), str(skill), "--receipt-dir", str(receipt_dir),
+                     "--claim", claim], capture_output=True, text=True)
+                self.assertEqual(0, result.returncode, result.stderr)
+                return Path(json.loads(result.stdout)["receipt_paths"][0])
+
+            first = lookup("A")
+            self.assertEqual("literature-review--study-identity.json", first.name)
+            original = first.read_bytes()
+            second = lookup("B")
+            self.assertEqual("literature-review--study-identity--2.json", second.name)
+            self.assertEqual(original, first.read_bytes())
+            self.assertEqual(["B"], json.loads(second.read_text())["used_for"])
+            self.assertEqual(json.loads(original)["sha256"], json.loads(second.read_text())["sha256"])
+            reference.write_bytes(b"")
+            third = lookup("B")
+            self.assertEqual("literature-review--study-identity--3.json", third.name)
+            self.assertEqual(hashlib.sha256(b"").hexdigest(), json.loads(third.read_text())["sha256"])
+            (receipt_dir / "literature-review--study-identity--4.json").write_text("not json")
+            link = receipt_dir / "literature-review--study-identity--5.json"
+            link.symlink_to("missing.json")
+            before = {path: path.read_bytes() for path in receipt_dir.iterdir() if not path.is_symlink()}
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                paths = list(executor.map(lookup, ("C", "D")))
+            self.assertEqual(2, len(set(paths)))
+            self.assertTrue(set(paths).isdisjoint(before))
+            self.assertEqual(7, len(list(receipt_dir.iterdir())))
+            self.assertTrue(link.is_symlink())
+            for path, content in before.items():
+                self.assertEqual(content, path.read_bytes())
+
+    def test_lookup_missing_selected_file_fails_without_partial_receipts(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/reference_lookup.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = self._skill(root)
+            index_path = skill / "references/index.json"
+            payload = json.loads(index_path.read_text())
+            payload["references"].append({**payload["references"][0], "id": "z-missing",
+                                          "path": "references/missing.md"})
+            index_path.write_text(json.dumps(payload))
+            receipt_dir = root / "receipts"
+            for existing in (False, True):
+                with self.subTest(existing=existing):
+                    if existing:
+                        receipt_dir.mkdir(exist_ok=True)
+                        (receipt_dir / "prior.json").write_text("unchanged")
+                    before = {p.name: p.read_bytes() for p in receipt_dir.iterdir()} if existing else {}
+                    result = subprocess.run(
+                        [sys.executable, str(script), str(skill), "--receipt-dir", str(receipt_dir)],
+                        capture_output=True, text=True)
+                    self.assertEqual(1, result.returncode)
+                    self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                    self.assertIn("reference file is missing: references/missing.md", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    if existing:
+                        self.assertEqual(before, {p.name: p.read_bytes() for p in receipt_dir.iterdir()})
+                    else:
+                        self.assertFalse(receipt_dir.exists())
+
+    def test_record_reference_uses_keeps_renamed_path_separate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = self._skill(root)
+            reference = skill / "references/study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            record_reference_uses(run_dir, [reference], read_reason="first", used_for=["A"])
+            renamed = reference.with_name("renamed.md")
+            reference.rename(renamed)
+            index_path = skill / "references/index.json"
+            payload = json.loads(index_path.read_text())
+            payload["references"][0]["path"] = "references/renamed.md"
+            index_path.write_text(json.dumps(payload))
+            result = record_reference_uses(run_dir, [renamed], read_reason="second", used_for=["B"])
+            self.assertEqual({"output": "reference-use-ledger.json", "uses_added": 1,
+                              "uses_merged": 0, "total_uses": 2}, result)
+            ledger = json.loads((run_dir / "reference-use-ledger.json").read_text())
+            validate_reference_use_ledger(ledger)
+            self.assertEqual(["references/study-identity.md", "references/renamed.md"],
+                             [item["path"] for item in ledger["uses"]])
+            self.assertEqual([["A"], ["B"]], [item["used_for"] for item in ledger["uses"]])
+            self.assertEqual(ledger["uses"][0]["sha256"], ledger["uses"][1]["sha256"])
+            repeated = record_reference_uses(run_dir, [renamed], read_reason="again", used_for=["C"])
+            self.assertEqual(1, repeated["uses_merged"])
+            self.assertEqual(2, repeated["total_uses"])
+
+    def test_record_reference_uses_accepts_ledger_without_parent_skill(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skill = self._skill(root)
+            reference = skill / "references/study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            with self.assertRaises(ValueError):
+                record_reference_uses(run_dir, [], read_reason="empty")
+            self.assertFalse((run_dir / "reference-use-ledger.json").exists())
+            record_reference_uses(run_dir, [reference], read_reason="first", used_for=["A"])
+            ledger_path = run_dir / "reference-use-ledger.json"
+            for changed in (False, True):
+                with self.subTest(changed=changed):
+                    ledger = json.loads(ledger_path.read_text())
+                    ledger.pop("skill", None)
+                    validate_reference_use_ledger(ledger)
+                    ledger_path.write_text(json.dumps(ledger))
+                    empty = record_reference_uses(run_dir, [], read_reason="empty")
+                    self.assertEqual(0, empty["uses_added"])
+                    self.assertEqual(0, empty["uses_merged"])
+                    if changed:
+                        reference.write_text("changed")
+                    result = record_reference_uses(run_dir, [reference], read_reason="next", used_for=["B"])
+                    self.assertEqual(1, result["uses_added"] if changed else result["uses_merged"])
+                    ledger = json.loads(ledger_path.read_text())
+                    validate_reference_use_ledger(ledger)
+                    self.assertEqual(skill.name, ledger["skill"])
+                    self.assertEqual(["A", "B"], ledger["uses"][0]["used_for"])
+
     def _skill(self, root: Path) -> Path:
         skill = root / "literature-review"
         references = skill / "references"

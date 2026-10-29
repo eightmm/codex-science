@@ -458,14 +458,14 @@ def validate_reference_use_ledger(payload: Mapping[str, Any]) -> None:
             f"reference use ledger requires a non-empty uses list: {_bounded_repr(uses)}; "
             "expected: non-empty list"
         )
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     for item in uses:
         if not isinstance(item, Mapping):
             raise ValueError(
                 f"reference use ledger entries must be objects: {_bounded_repr(item)}; expected: object"
             )
         validate_reference_use_receipt({**item, "skill": item.get("skill", skill)})
-        key = (str(item["reference_id"]), str(item["sha256"]))
+        key = (str(item["reference_id"]), str(item["sha256"]), str(item["path"]))
         if key in seen:
             raise ValueError(
                 f"duplicate reference use receipt: {_bounded_item_repr(item, 'reference_id')}"
@@ -593,7 +593,7 @@ def _record_reference_uses_locked(
                 item for item in uses
                 if item["reference_id"] == key[1]
                 and item["sha256"] == key[2]
-                and item.get("skill", ledger["skill"]) != key[0]
+                and item.get("skill", ledger.get("skill")) != key[0]
             ), None)
             if collision is not None:
                 raise ValueError(
@@ -601,7 +601,8 @@ def _record_reference_uses_locked(
                 )
             existing = next((
                 item for item in uses
-                if (item.get("skill", ledger["skill"]), item["reference_id"], item["sha256"]) == key
+                if (item.get("skill", ledger.get("skill")), item["reference_id"], item["sha256"]) == key
+                and item["path"] == receipt["path"]
             ), None)
             if existing is None:
                 uses.append(receipt)
@@ -612,7 +613,7 @@ def _record_reference_uses_locked(
                 if not existing.get("read_reason"):
                     existing["read_reason"] = receipt["read_reason"]
                 merged += 1
-        if not ledger["skill"]:
+        if not ledger.get("skill") and receipts:
             ledger["skill"] = receipts[0]["skill"]
         ledger["uses"] = uses
         validate_reference_use_ledger(ledger)

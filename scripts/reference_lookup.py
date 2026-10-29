@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -55,7 +57,7 @@ def main() -> int:
         "id, purpose, read_when, required_before or search_patterns adds 3 (default: none)",
     )
     parser.add_argument("--limit", type=int, help="maximum number of references to return (default: all matches)")
-    parser.add_argument("--receipt-dir", type=Path, help="directory to write one <skill>--<id>.json use receipt per selected reference")
+    parser.add_argument("--receipt-dir", type=Path, help="directory for <skill>--<id>.json use receipts; later writes use --2, --3, etc. before .json, preserving earlier receipts")
     parser.add_argument(
         "--claim",
         action="append",
@@ -84,18 +86,31 @@ def main() -> int:
                     or path.resolve().parent != args.receipt_dir.resolve()):
                 parser.error("receipt destination must stay inside --receipt-dir")
             destinations.append(path)
-        args.receipt_dir.mkdir(parents=True, exist_ok=True)
-        receipts = []
-        for entry, path in zip(selected, destinations):
-            receipt = build_reference_use_receipt(
-                skill_dir,
-                entry,
+        try:
+            prepared = [build_reference_use_receipt(
+                skill_dir, entry,
                 read_reason=args.route or args.query or "selected by reference lookup",
                 used_for=args.claim or ["workflow-route"],
                 search_terms=[args.query] if args.query else [],
-            )
-            write_text_atomic(path, json.dumps(receipt.to_dict(), indent=2, sort_keys=True) + "\n")
-            receipts.append(path.as_posix())
+            ) for entry in selected]
+            args.receipt_dir.mkdir(parents=True, exist_ok=True)
+            descriptor = os.open(args.receipt_dir, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            receipts = []
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX)
+                for receipt, destination in zip(prepared, destinations):
+                    path = destination
+                    number = 2
+                    while path.exists() or path.is_symlink():
+                        path = destination.with_name(f"{destination.stem}--{number}.json")
+                        number += 1
+                    write_text_atomic(path, json.dumps(receipt.to_dict(), indent=2, sort_keys=True) + "\n")
+                    receipts.append(path.as_posix())
+            finally:
+                os.close(descriptor)
+        except (OSError, ValueError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
         payload["receipt_paths"] = receipts
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0

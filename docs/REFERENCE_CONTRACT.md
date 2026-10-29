@@ -107,6 +107,8 @@ python scripts/reference_lookup.py authored-skills/literature-review \
   --claim C1
 ```
 
+A repeated lookup never replaces an earlier receipt: the first receipt keeps its `<skill>--<reference>.json` name and later ones are written as `--2.json`, `--3.json`, and so on.
+
 ## Reference use ledger
 
 ```json
