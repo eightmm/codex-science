@@ -28,10 +28,7 @@ class CheckpointLockTests(unittest.TestCase):
         self.root = Path(scratch.name)
         self.run = self.root / "run"
         self.run.mkdir()
-        self.enterContext(mock.patch.object(tempfile, "gettempdir", return_value=str(self.root)))
-        self.lock_dir = self.root / f"codex-science-checkpoint-locks-{os.getuid()}"
-        digest = hashlib.sha256(os.fsencode(self.run.resolve())).hexdigest()
-        self.lock_path = self.lock_dir / f"{digest}.lock"
+        self.lock_path = self.root / ".run.checkpoint.lock"
 
     def test_lock_uses_writable_regular_file_for_readonly_run(self):
         self.run.chmod(0o500)
@@ -59,7 +56,7 @@ class CheckpointLockTests(unittest.TestCase):
         previous_mask = os.umask(0)
         try:
             with checkpoints._checkpoint_lock(self.run):
-                self.assertEqual(0o700, stat.S_IMODE(self.lock_dir.stat().st_mode))
+                self.assertTrue(stat.S_ISREG(self.lock_path.stat().st_mode))
                 metadata = self.lock_path.stat()
                 self.assertEqual(0o600, stat.S_IMODE(metadata.st_mode))
                 self.assertEqual(os.getuid(), metadata.st_uid)
@@ -71,57 +68,21 @@ class CheckpointLockTests(unittest.TestCase):
         alias.symlink_to(self.run, target_is_directory=True)
         with checkpoints._checkpoint_lock(alias):
             self.assertEqual(metadata.st_ino, self.lock_path.stat().st_ino)
-        self.assertEqual([self.lock_path], list(self.lock_dir.iterdir()))
+        self.assertEqual([self.lock_path], list(self.root.glob(".*.checkpoint.lock")))
         other = self.root / "other"
         other.mkdir()
         with checkpoints._checkpoint_lock(other):
-            self.assertEqual(2, len(list(self.lock_dir.iterdir())))
+            self.assertEqual({self.lock_path, self.root / ".other.checkpoint.lock"},
+                             set(self.root.glob(".*.checkpoint.lock")))
 
-    def test_unsafe_lock_directories_are_refused(self):
-        for kind in ("file", "symlink", "dangling", "group-writable", "other-writable", "wrong-owner"):
-            with self.subTest(kind=kind):
-                parent = self.root / kind
-                parent.mkdir()
-                lock_dir = parent / self.lock_dir.name
-                if kind == "file":
-                    lock_dir.write_bytes(b"")
-                elif kind in {"symlink", "dangling"}:
-                    target = parent / "target"
-                    if kind == "symlink":
-                        target.mkdir(mode=0o700)
-                    lock_dir.symlink_to(target, target_is_directory=True)
-                else:
-                    lock_dir.mkdir(mode=0o700)
-                    lock_dir.chmod({"group-writable": 0o720, "other-writable": 0o702}.get(kind, 0o700))
-                original_fstat = os.fstat
-
-                def metadata(descriptor):
-                    result = original_fstat(descriptor)
-                    if kind == "wrong-owner" and result.st_ino == lock_dir.stat().st_ino:
-                        fields = list(result)
-                        fields[4] = os.getuid() + 1
-                        return os.stat_result(fields)
-                    return result
-
-                with mock.patch.object(tempfile, "gettempdir", return_value=str(parent)), \
-                        mock.patch.object(os, "fstat", side_effect=metadata), \
-                        mock.patch.object(checkpoints.fcntl, "flock") as flock:
-                    with self.assertRaises((OSError, ValueError)):
-                        with checkpoints._checkpoint_lock(self.run):
-                            self.fail("unsafe lock directory was accepted")
-                    flock.assert_not_called()
-                self.assertEqual([], list(self.run.iterdir()))
-
-    def test_safe_existing_directory_permissions_are_accepted(self):
-        self.lock_dir.mkdir(mode=0o700)
+    def test_safe_existing_parent_permissions_are_accepted(self):
         for mode in (0o700, 0o750, 0o755):
             with self.subTest(mode=oct(mode)):
-                self.lock_dir.chmod(mode)
+                self.root.chmod(mode)
                 with checkpoints._checkpoint_lock(self.run):
                     self.assertEqual(0o600, stat.S_IMODE(self.lock_path.stat().st_mode))
 
     def test_unsafe_lock_files_are_refused_without_changing_targets(self):
-        self.lock_dir.mkdir(mode=0o700)
         target = self.root / "target"
         target.write_bytes(b"unchanged")
         for kind in ("symlink", "dangling", "directory", "fifo", "readable", "writable", "wrong-owner"):
@@ -326,6 +287,26 @@ class CheckpointSnapshotTests(unittest.TestCase):
         self.assertEqual("passed", review_manifest(manifest, self.run, sidecars=sidecars)["status"])
         self.assertEqual("complete", checkpoints.complete_checkpoint(self.run)["state"])
 
+    def test_sibling_lock_is_excluded_from_run_discovery_and_recorded_by_inventory(self):
+        from datetime import datetime, timezone
+
+        from codex_science import literature_evaluation_runner, run_driver
+
+        self.ready()
+        before = self.snapshot()
+        lock_path = self.run.parent / ".run.checkpoint.lock"
+        self.assertTrue(lock_path.is_file())
+        self.assertEqual([self.run], [run for run, _ in
+                                    checkpoints._iter_checkpoints(self.run.parent, strict=True)])
+        self.assertEqual({"run"}, set(run_driver._snapshot_runs(self.run.parent)))
+        report = literature_evaluation_runner._completion_report(
+            self.run.parent, now=datetime.now(timezone.utc),
+        )
+        self.assertEqual(["run"], [run["run_id"] for run in report["runs"]])
+        inventory = literature_evaluation_runner._artifact_hashes(self.run.parent)
+        self.assertIn({"path": lock_path.name, "sha256": hashlib.sha256(b"").hexdigest()}, inventory)
+        self.assertEqual(before, self.snapshot())
+
     def test_run_lock_survives_failed_calls_without_adding_artifacts(self):
         self.ready()
         before = self.snapshot()
@@ -420,12 +401,21 @@ class CheckpointSnapshotTests(unittest.TestCase):
         ctx = multiprocessing.get_context("fork")
         gate_loaded, completion_observed, gate_written = (ctx.Event() for _ in range(3))
         receive, send = ctx.Pipe(duplex=False)
+        temp_roots = [Path(self.scratch.name) / name for name in ("gate-tmp", "completion-tmp")]
+        for root in temp_roots:
+            root.mkdir()
+
+        def separate_temp_root(index):
+            os.environ["TMPDIR"] = str(temp_roots[index])
+            tempfile.tempdir = None
+            self.assertEqual(str(temp_roots[index]), tempfile.gettempdir())
 
         def wait(event):
             if not event.wait(CALL_TIMEOUT):
                 raise TimeoutError("concurrent checkpoint operation did not reach its barrier")
 
         def gate():
+            separate_temp_root(0)
             original = checkpoints._write_checkpoint
 
             def paused_write(*args):
@@ -439,6 +429,7 @@ class CheckpointSnapshotTests(unittest.TestCase):
                 checkpoints.request_decision(self.run, questions=["Approve?"], reason="Owner decision")
 
         def completion():
+            separate_temp_root(1)
             original_load, original_flock = checkpoints.load_checkpoint, checkpoints.fcntl.flock
 
             def observed_load(*args):

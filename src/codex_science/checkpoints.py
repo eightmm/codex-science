@@ -9,7 +9,6 @@ import os
 import re
 import secrets
 import stat
-import tempfile
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -456,34 +455,24 @@ def _checkpoint_lock(run_dir: Path) -> Iterator[None]:
     finally:
         os.close(descriptor)
 
-    # Local hooks and agents share a stable inode outside the run artifacts.
+    # Resolve aliases and ignore caller-specific temp roots so all mutations
+    # share one persistent inode outside the run's artifact bundle.
     # Exclusive flock on NFS requires a writable regular-file descriptor.
-    uid = os.getuid()
-    lock_dir = Path(tempfile.gettempdir()) / f"codex-science-checkpoint-locks-{uid}"
-    lock_dir.mkdir(mode=0o700, exist_ok=True)
-    directory = os.open(lock_dir, flags | os.O_NOFOLLOW)
+    run_dir = Path(run_dir).resolve()
+    lock_path = run_dir.parent / f".{run_dir.name}.checkpoint.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
-        metadata = os.fstat(directory)
-        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid or metadata.st_mode & 0o022:
-            raise ValueError("checkpoint lock directory is unsafe")
-        digest = hashlib.sha256(os.fsencode(Path(run_dir).resolve())).hexdigest()
-        descriptor = os.open(
-            lock_dir / f"{digest}.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600,
-        )
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid() or metadata.st_mode & 0o077:
+            raise ValueError("checkpoint lock file is unsafe")
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
         try:
-            metadata = os.fstat(descriptor)
-            if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != uid or metadata.st_mode & 0o077:
-                raise ValueError("checkpoint lock file is unsafe")
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            yield
         finally:
-            # Unlinking would let a concurrent caller lock a different inode.
-            os.close(descriptor)
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
     finally:
-        os.close(directory)
+        # Unlinking would let a concurrent caller lock a different inode.
+        os.close(descriptor)
 
 
 def _serialized_mutation(function: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
