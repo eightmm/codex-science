@@ -4,8 +4,9 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_cycle
+from codex_science.research_cycle import _experiment_fingerprint, _pointer, _stored_hash, apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_cycle
 
 
 def digest(path: Path) -> str:
@@ -37,6 +38,123 @@ class ResearchCycleTests(unittest.TestCase):
             first.write_text("{}")
             with self.assertRaisesRegex(ValueError, "lineage|hash"):
                 load_cycle(root)
+
+    def test_save_cleans_unpublished_file_after_fsync_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            save_cycle(self.make_cycle(root), root)
+            first = root / "discovery/revisions/000001.json"
+            before = first.read_bytes()
+            reserved = apply_cycle_event(load_cycle(root), {"kind": "reserve", "experiment_id": "e", "request_id": "r"})
+            with patch("codex_science.research_cycle.os.fsync", side_effect=OSError("injected fsync failure")):
+                with self.assertRaisesRegex(OSError, "injected fsync failure"):
+                    save_cycle(reserved, root)
+            self.assertEqual([], list(first.parent.glob(".*.tmp")))
+            self.assertEqual(before, first.read_bytes())
+            self.assertFalse((first.parent / "000002.json").exists())
+            with patch("codex_science.research_cycle.os.link", side_effect=OSError("injected publication failure")):
+                with self.assertRaisesRegex(OSError, "injected publication failure"):
+                    save_cycle(reserved, root)
+            self.assertEqual([], list(first.parent.glob(".*.tmp")))
+            self.assertEqual(before, first.read_bytes())
+            with patch("codex_science.research_cycle.os.link", side_effect=FileExistsError):
+                with self.assertRaisesRegex(ValueError, "stale concurrent cycle save"):
+                    save_cycle(reserved, root)
+            self.assertEqual([], list(first.parent.glob(".*.tmp")))
+            second = save_cycle(reserved, root)
+            self.assertEqual(second, save_cycle(reserved, root))
+            self.assertEqual(2, load_cycle(root)["revision"])
+
+    def test_reserved_budget_uses_exact_decimal_costs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for budget, cost, control_cost in ((0.3, 0.1, 0.2), (0, 0, 0), (1e30, 1e30, 1)):
+                with self.subTest(budget=budget, cost=cost, control_cost=control_cost):
+                    cycle = self.make_cycle(root)
+                    cycle["evaluation"]["budget"] = budget
+                    experiment = cycle["experiments"][0]
+                    experiment.update({"cost": cost, "control_cost": 0})
+                    experiment["fingerprint"] = _experiment_fingerprint(experiment)
+                    other = {**experiment, "id": "e2", "cost": control_cost, "controls": ["distinct control"]}
+                    other["fingerprint"] = _experiment_fingerprint(other)
+                    cycle["experiments"].append(other)
+                    first = apply_cycle_event(cycle, {"kind": "reserve", "experiment_id": "e", "request_id": "r"})
+                    event = {"kind": "reserve", "experiment_id": "e2", "request_id": "r2"}
+                    if budget == 1e30:
+                        with self.assertRaisesRegex(ValueError, "exceeds frozen budget"):
+                            apply_cycle_event(first, event)
+                    else:
+                        reserved = apply_cycle_event(first, event)
+                        self.assertEqual(cost, reserved["experiments"][0]["cost"])
+                        extra = first["experiments"][1]
+                        extra["control_cost"] = 0.01
+                        extra["fingerprint"] = _experiment_fingerprint(extra)
+                        with self.assertRaisesRegex(ValueError, "exceeds frozen budget"):
+                            apply_cycle_event(first, event)
+            cycle = self.make_cycle(root)
+            cycle["evaluation"]["budget"] = 0.3
+            cycle["experiments"][0].update({"cost": 0.1, "control_cost": 0.2})
+            cycle["experiments"][0].pop("fingerprint")
+            apply_cycle_event(cycle, {"kind": "reserve", "experiment_id": "e", "request_id": "r"})
+            for field in ("budget", "cost", "control_cost"):
+                for invalid in ("", "bad", -1):
+                    invalid_cycle = self.make_cycle(root)
+                    target = invalid_cycle["evaluation"] if field == "budget" else invalid_cycle["experiments"][0]
+                    target[field] = invalid
+                    with self.subTest(field=field, invalid=invalid), self.assertRaises(ValueError):
+                        validate_cycle(invalid_cycle)
+
+    def test_numeric_spellings_do_not_bypass_duplicate_experiments(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cycle = self.make_cycle(Path(temp))
+            first = cycle["experiments"][0]
+            self.assertEqual("baeef2f445e981d4d2c40eea257933b2a29226dd181e96702b05dcb79e196689", first["fingerprint"])
+            for field, value in (("cost", 1.0), ("resolution", .05), ("control_cost", 0.0), ("predictions", {"h1": [.2, .5], "h2": [-.1, 0]})):
+                with self.subTest(field=field):
+                    original = copy.deepcopy(cycle)
+                    original["experiments"][0]["control_cost"] = 0
+                    original["experiments"][0]["fingerprint"] = _experiment_fingerprint(original["experiments"][0])
+                    duplicate = {**original["experiments"][0], "id": "other", field: value}
+                    duplicate.pop("fingerprint")
+                    with self.assertRaisesRegex(ValueError, "duplicate experiment fingerprint"):
+                        apply_cycle_event(original, {"kind": "propose", "rationale": "same definition", "experiments": [duplicate]})
+            reserved = apply_cycle_event(cycle, {"kind": "reserve", "experiment_id": "e", "request_id": "r"})
+            failed = apply_cycle_event(reserved, {"kind": "failure", "experiment_id": "e", "request_id": "r", "failure_kind": "execution", "outcome": "failed"})
+            retry = {**first, "id": "retry", "cost": 1.0, "retry_of": "e"}
+            retry.pop("fingerprint")
+            revised = apply_cycle_event(failed, {"kind": "revise", "source_experiment_id": "e", "rationale": "retry failure", "experiments": [retry]})
+            self.assertEqual(_experiment_fingerprint(first), cycle["experiments"][0]["fingerprint"])
+            self.assertEqual("retry", revised["experiments"][-1]["id"])
+
+    def test_hash_admission_requires_lowercase_hex(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for section, key in (("evaluation", "artifact_refs"), ("methods", "code_refs")):
+                for invalid in ("A" * 64, "", "g" * 64, "a" * 63, None, 0):
+                    cycle = self.make_cycle(root)
+                    target = cycle[section] if section == "evaluation" else cycle[section][0]
+                    target[key][0]["sha256"] = invalid
+                    with self.subTest(section=section, invalid=invalid):
+                        with self.assertRaisesRegex(ValueError, "sha256.*lowercase"):
+                            new_cycle(cycle)
+                        with self.assertRaisesRegex(ValueError, "sha256.*lowercase"):
+                            save_cycle(cycle, root)
+            saved = save_cycle(self.make_cycle(root), root)
+            cycle = json.loads(saved.read_text())
+            cycle["methods"][0]["code_refs"][0]["sha256"] = cycle["methods"][0]["code_refs"][0]["sha256"].upper()
+            cycle["cycle_hash"] = _stored_hash(cycle)
+            saved.write_text(json.dumps(cycle))
+            with self.assertRaisesRegex(ValueError, "sha256.*lowercase"):
+                load_cycle(root)
+
+    def test_json_pointer_rejects_noncanonical_array_indices_and_escapes(self):
+        value = {"values": [10, 20], "metric~2": 30, "metric~": 40, "a/b": {"~key": 50}, "01": 60, "": 70}
+        for pointer, expected in (("/values/0", 10), ("/values/1", 20), ("/a~1b/~0key", 50), ("/metric~02", 30), ("/01", 60), ("/", 70)):
+            with self.subTest(pointer=pointer):
+                self.assertEqual(expected, _pointer(value, pointer))
+        for pointer in ("/values/01", "/values/00", "/values/2", "/values/-1", "/values/+1", "/values/١", "/values/", "/metric~2", "/metric~", ""):
+            with self.subTest(pointer=pointer), self.assertRaisesRegex(ValueError, "json_pointer"):
+                _pointer(value, pointer)
 
     def test_missing_cycle_error_names_discovery_init(self):
         with tempfile.TemporaryDirectory() as temporary:

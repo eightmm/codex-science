@@ -6,6 +6,8 @@ import hashlib
 import json
 import math
 import os
+import re
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -49,9 +51,9 @@ def _refs(value: Any, field: str, run_dir: Path | None = None) -> list[dict[str,
         path = _text(item.get("path"), f"{field} path")
         if Path(path).is_absolute() or ".." in Path(path).parts:
             raise ValueError(f"{field} path escapes run directory")
-        digest = _text(item.get("sha256"), f"{field} sha256").lower()
-        if len(digest) != 64 or set(digest) - SHA256:
-            raise ValueError(f"{field} sha256 is invalid")
+        digest = item.get("sha256")
+        if not isinstance(digest, str) or len(digest) != 64 or set(digest) - SHA256:
+            raise ValueError(f"{field} sha256 must be a lowercase hex SHA-256 digest")
         if path in seen:
             raise ValueError(f"duplicate {field} path: {path}")
         seen.add(path)
@@ -91,10 +93,12 @@ def _pointer(value: Any, pointer: str) -> Any:
     if not isinstance(pointer, str) or not pointer.startswith("/"):
         raise ValueError("observation json_pointer is invalid")
     for part in pointer[1:].split("/"):
+        if re.search(r"~(?![01])", part):
+            raise ValueError("observation json_pointer contains an invalid escape")
         part = part.replace("~1", "/").replace("~0", "~")
         if isinstance(value, Mapping) and part in value:
             value = value[part]
-        elif isinstance(value, list) and part.isdigit() and int(part) < len(value):
+        elif isinstance(value, list) and re.fullmatch(r"0|[1-9][0-9]*", part) and int(part) < len(value):
             value = value[int(part)]
         else:
             raise ValueError("observation json_pointer does not resolve")
@@ -193,9 +197,13 @@ def _ids(items: Any, field: str) -> set[str]:
     return result
 
 
-def _experiment_fingerprint(item: Mapping[str, Any]) -> str:
+def _experiment_definition(item: Mapping[str, Any]) -> dict[str, Any]:
     ignored = {"id", "state", "request_id", "outcome", "evidence_refs", "execution_refs", "observations", "failure_kind", "method_effect", "explanation_support", "verification", "novelty", "fingerprint", "retry_of"}
-    return _hash({key: value for key, value in item.items() if key not in ignored})
+    return {key: value for key, value in item.items() if key not in ignored}
+
+
+def _experiment_fingerprint(item: Mapping[str, Any]) -> str:
+    return _hash(_experiment_definition(item))
 
 
 def _classify(experiment: Mapping[str, Any], evaluation: Mapping[str, Any], observations: list[dict[str, Any]]) -> tuple[str, dict[str, str]]:
@@ -289,8 +297,8 @@ def validate_cycle(cycle: Mapping[str, Any], run_dir: Path | str | None = None) 
         if not isinstance(checks, list) or not checks or not all(isinstance(x, str) and x.strip() for x in checks):
             raise ValueError("method correctness_checks are required")
     experiment_ids = _ids(cycle.get("experiments"), "experiments")
-    reserved = 0.0
-    fingerprints: dict[str, Mapping[str, Any]] = {}
+    reserved = Fraction(0)
+    definitions: list[tuple[dict[str, Any], Mapping[str, Any]]] = []
     requests: dict[str, str] = {}
     for item in cycle["experiments"]:
         if item.get("method_id") not in methods: raise ValueError("experiment references unknown method")
@@ -306,13 +314,15 @@ def validate_cycle(cycle: Mapping[str, Any], run_dir: Path | str | None = None) 
         if control_cost < 0: raise ValueError("experiment control_cost must be non-negative")
         fingerprint = _text(item.get("fingerprint", _experiment_fingerprint(item)), "experiment fingerprint")
         if fingerprint != _experiment_fingerprint(item): raise ValueError("experiment fingerprint mismatch")
-        if fingerprint in fingerprints:
-            prior = fingerprints[fingerprint]
+        definition = _experiment_definition(item)
+        prior = next((prior for seen, prior in reversed(definitions) if seen == definition), None)
+        if prior is not None:
             if item.get("retry_of") != prior.get("id") or prior.get("state") != "failed":
                 raise ValueError("duplicate experiment fingerprint requires retry_of resolved failure")
-        fingerprints[fingerprint] = item
+        definitions.append((definition, item))
         if item.get("state", "planned") not in {"planned", "reserved", "running", "completed", "failed", "ambiguous"}: raise ValueError("experiment state is invalid")
-        if item.get("state") in {"reserved", "running", "ambiguous", "completed", "failed"}: reserved += cost + control_cost
+        if item.get("state") in {"reserved", "running", "ambiguous", "completed", "failed"}:
+            reserved += Fraction(str(item["cost"])) + Fraction(str(item.get("control_cost", 0)))
         if item.get("request_id"):
             request = _text(item["request_id"], "experiment request_id")
             if request in requests and requests[request] != item["id"]: raise ValueError("request_id is already reserved")
@@ -335,7 +345,7 @@ def validate_cycle(cycle: Mapping[str, Any], run_dir: Path | str | None = None) 
                 root,
             )
         if item.get("state") == "failed" and item.get("failure_kind") not in {"execution", "implementation", "measurement"}: raise ValueError("failure kind is invalid")
-    if reserved > budget: raise ValueError("reserved experiment cost exceeds frozen budget")
+    if reserved > Fraction(str(evaluation["budget"])): raise ValueError("reserved experiment cost exceeds frozen budget")
     if cycle.get("status", "active") not in {"active", *TERMINAL}: raise ValueError("cycle status is invalid")
     if cycle.get("status") in TERMINAL:
         _text(cycle.get("rationale"), "terminal rationale")
@@ -552,6 +562,29 @@ def _intent_hash(cycle: Mapping[str, Any]) -> str:
     return _hash(value)
 
 
+def _validate_registered_cycles(root: Path) -> None:
+    from codex_science.artifact_store import stream_sha256
+    from codex_science.artifacts import validate_manifest
+    from codex_science.cli_io import load_json_object
+    from codex_science.discovery import cycle_artifacts
+
+    manifest = root / "manifest.json"
+    if manifest.is_symlink():
+        raise ValueError("discovery manifest must not be a symlink")
+    if manifest.exists():
+        value = load_json_object(manifest)
+        validate_manifest(value)
+        for record in value["artifacts"]:
+            if record["kind"] == "research-cycle":
+                snapshot = root / record["path"]
+                if not snapshot.is_file():
+                    raise ValueError("registered research cycle revision is missing")
+                digest, _ = stream_sha256(snapshot)
+                if digest != record["sha256"].lower():
+                    raise ValueError("registered research cycle artifact digest mismatch")
+        cycle_artifacts(value, root)
+
+
 def save_cycle(cycle: Mapping[str, Any], run_dir: Path | str) -> Path:
     root = Path(run_dir).resolve(); validate_cycle(cycle, root); directory = _revision_dir(root); directory.mkdir(parents=True, exist_ok=True)
     if directory.is_symlink(): raise ValueError("revision directory may not be symlink")
@@ -563,17 +596,19 @@ def save_cycle(cycle: Mapping[str, Any], run_dir: Path | str) -> Path:
         if cycle.get("parent_hash") != latest["cycle_hash"]: raise ValueError("stale cycle parent hash")
         validate_transition(latest, candidate, root)
     else:
+        _validate_registered_cycles(root)
         _validate_genesis(cycle)
         candidate = copy.deepcopy(dict(cycle)); candidate["revision"] = 1; candidate["parent_hash"] = None; candidate["cycle_hash"] = _stored_hash(candidate)
     target = directory / f"{candidate['revision']:06d}.json"
     temporary = directory / f".{target.name}.{os.getpid()}.tmp"
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "wb") as handle:
-        handle.write(_canon(candidate)); handle.flush(); os.fsync(handle.fileno())
     try:
-        os.link(temporary, target)  # publish only if no racing writer created the immutable name
-    except FileExistsError as error:
-        raise ValueError("stale concurrent cycle save; reload before retry") from error
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(_canon(candidate)); handle.flush(); os.fsync(handle.fileno())
+        try:
+            os.link(temporary, target)  # publish only if no racing writer created the immutable name
+        except FileExistsError as error:
+            raise ValueError("stale concurrent cycle save; reload before retry") from error
     finally:
         temporary.unlink(missing_ok=True)
     return target
@@ -583,6 +618,8 @@ def load_cycle(run_dir: Path | str) -> dict[str, Any]:
     root = Path(run_dir).resolve(); directory = _revision_dir(root)
     if directory.is_symlink():
         raise ValueError("revision directory may not be symlink")
+    # Registration may lag publication, but may never outlive its committed prefix.
+    _validate_registered_cycles(root)
     files = sorted(directory.glob("*.json"))
     if not files:
         raise ValueError("research cycle is missing; create it with `science_project.py discovery init --run-dir RUN --input GENESIS`")

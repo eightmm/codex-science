@@ -15,6 +15,9 @@ parent snapshot hash and content hash. Snapshots are
 append-only: correcting a statement creates a new revision with a reason and
 does not rewrite the observation that caused it.
 
+Artifact `sha256` references must be lowercase hexadecimal SHA-256 digests;
+admission refuses uppercase spellings rather than rewriting stored values.
+
 The frozen `evaluation` object identifies evaluator, split, baseline, metric,
 threshold, budget rule, and budget. If protection is procedural rather than
 externally isolated, record that limitation in the evaluation evidence; code
@@ -102,10 +105,17 @@ that was not recorded.
 
 ## Recovery
 
+Registered revisions in the run manifest form a minimum committed prefix:
+loading or saving refuses missing registered snapshots or snapshot bytes that
+do not match their registered SHA-256 digest. Newer saved snapshots
+remain recoverable when manifest attachment lags. A failed write, flush, or
+fsync removes its unpublished temporary file so an unchanged save can retry.
+
 The primary metric may declare a `json_pointer`; completed observations must use
 that same pointer, and their declared value must equal the hashed JSON artifact
-value. Failed events may carry hashed `evidence_refs` when the failure itself
-has a diagnostic artifact.
+value. Pointer tokens escape `~` as `~0` and `/` as `~1`; array indices use `0`
+or ASCII decimal digits without leading zeros. Failed events may carry hashed
+`evidence_refs` when the failure itself has a diagnostic artifact.
 
 ## Successful execution receipt
 
@@ -140,6 +150,10 @@ checkpoint before acting. If submission state is ambiguous, inspect the
 existing execution receipt and do not resubmit by default. A repeated
 fingerprint is idempotent only when the prior identity and inputs match;
 otherwise create a new declared experiment.
+Experiment definitions compare numeric values when checking duplicates, so
+integer and float spellings alone do not create a new experiment. A duplicate
+requires `retry_of` naming the latest matching failed experiment; its stored
+fingerprint still hashes the original spelling.
 
 Do not rewrite an observed prediction, evaluator, split, baseline, metric, or
 budget after seeing an outcome. If the protected evaluation contract must
@@ -149,6 +163,8 @@ experiments only while retaining the frozen problem and evaluation.
 Budget exhaustion, a failed implementation, or an unresolved measurement is a
 terminal recorded outcome for that attempt, not a promoted success. Continue
 only with a declared repair, revised prediction, or new experiment.
+Reserved cost and control cost totals use exact decimal spellings for budget
+comparison, preserving stored numbers and admitting totals equal to the budget.
 
 `discovery assess` projects each `revise` event into `revision_outcomes`
 (`insufficient_evidence`, `repetition`, `necessary_repair_candidate`,

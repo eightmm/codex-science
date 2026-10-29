@@ -10,7 +10,7 @@ from pathlib import Path
 from codex_science.artifacts import validate_bundle
 from codex_science.discovery import attach_cycle, finite_decision
 from codex_science.project_store import ProjectStore
-from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle
+from codex_science.research_cycle import _stored_hash, apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_history
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,6 +53,70 @@ def execution_ref(root, cycle, experiment_id, observations):
 
 
 class DiscoveryIntegrationTests(unittest.TestCase):
+    def test_registered_revision_cannot_disappear_or_be_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "run"
+            genesis = new_cycle(prepare(root))
+            first = save_cycle(genesis, root)
+            manifest = attach_cycle(root)
+            original = first.read_bytes()
+            for budget in (999, 0):
+                rewritten = json.loads(original)
+                rewritten["evaluation"]["budget"] = budget
+                rewritten["cycle_hash"] = _stored_hash(rewritten)
+                validate_history([rewritten], root)
+                first.write_text(json.dumps(rewritten))
+                with self.assertRaisesRegex(ValueError, "Artifact digest mismatch"):
+                    validate_bundle(manifest, root)
+                persisted = {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+                for operation, action in (("load", lambda: load_cycle(root)), ("save", lambda: save_cycle(rewritten, root))):
+                    with self.subTest(budget=budget, operation=operation), self.assertRaisesRegex(ValueError, "registered.*digest mismatch"):
+                        action()
+                    self.assertEqual(persisted, {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()})
+            for content in (b"", b"{", original + b"\n"):
+                first.write_bytes(content)
+                persisted = {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+                for operation, action in (("load", lambda: load_cycle(root)), ("save", lambda: save_cycle(genesis, root))):
+                    with self.subTest(content=content, operation=operation), self.assertRaisesRegex(ValueError, "registered.*digest mismatch"):
+                        action()
+                    self.assertEqual(persisted, {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()})
+            first.write_bytes(original)
+            previous = load_cycle(root)
+            reserved = apply_cycle_event(previous, {"kind": "reserve", "experiment_id": "e1", "request_id": "r1"}, root)
+            second = save_cycle(reserved, root)
+            self.assertEqual(2, load_cycle(root)["revision"])
+            manifest = attach_cycle(root)
+            self.assertEqual(2, load_cycle(root)["revision"])
+            second.unlink()
+            with self.assertRaises((ValueError, FileNotFoundError)):
+                validate_bundle(manifest, root)
+            replacement = apply_cycle_event(previous, {"kind": "reserve", "experiment_id": "e1", "request_id": "other"}, root)
+            for action in (lambda: load_cycle(root), lambda: save_cycle(replacement, root)):
+                with self.assertRaisesRegex(ValueError, "registered.*missing"):
+                    action()
+            self.assertFalse(second.exists())
+            first.unlink()
+            for action in (lambda: load_cycle(root), lambda: save_cycle(genesis, root)):
+                with self.assertRaisesRegex(ValueError, "registered.*missing"):
+                    action()
+            self.assertFalse(first.exists())
+            manifest_path = root / "manifest.json"
+            for malformed in ("", "{}", json.dumps({**manifest, "artifacts": 0})):
+                manifest_path.write_text(malformed)
+                with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                    load_cycle(root)
+            manifest_path.unlink()
+            projection = root / "projection.json"
+            projection.write_text(json.dumps(manifest))
+            manifest_path.symlink_to(projection)
+            with self.assertRaisesRegex(ValueError, "manifest.*symlink"):
+                load_cycle(root)
+            manifest_path.unlink()
+            manifest["artifacts"] = []
+            manifest_path.write_text(json.dumps(manifest))
+            self.assertEqual(first, save_cycle(genesis, root))
+            self.assertEqual(1, load_cycle(root)["revision"])
+
     def test_attach_recovers_snapshot_without_mutating_checkpoint_or_attesting_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "run"
