@@ -479,7 +479,7 @@ class ManuscriptPackageTests(unittest.TestCase):
         submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
         submission["review"]["receipt"]["sha256"] = hashlib.sha256((self.package / name).read_bytes()).hexdigest()
         self.rewrite_json("submission-package.json", submission)
-        self.assertIn("unsafe-review-pass", self.findings())
+        self.assertIn("invalid-review-receipt", self.findings())
 
     def test_json_pointer_decodes_escapes_and_reports_invalid_traversals(self) -> None:
         payload = {"a/b": {"tilde~key": ["value"]}}
@@ -932,7 +932,7 @@ class ManuscriptPackageTests(unittest.TestCase):
         self.refresh_submission_hash("source/manifest.json")
         self.refresh_submission_hash(contract_path.name)
 
-        self.assertIn("source-review-receipt-finding-invalid", self.findings())
+        self.assertIn("source-manifest-invalid", self.findings())
 
     def test_source_review_cannot_pass_with_an_open_blocking_finding(self) -> None:
         manifest_path = self.package / "source" / "manifest.json"

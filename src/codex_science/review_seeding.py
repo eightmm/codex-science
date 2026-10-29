@@ -279,7 +279,19 @@ def score_response(key: dict[str, Any], response: Any) -> dict[str, Any]:
         serious = [(i, f) for i, f in indexed if _rank(f) >= SEVERITY_RANK["major"]]
         return {"defect_id": spec["defect_id"], "defect_class": "control",
                 "false_positive": bool(serious), "serious_finding_ids": ids(serious)}
-    matched = [(i, f) for i, f in indexed if _matches(f, spec)]
+    after = key.get("file_sha256_after")
+    matched = []
+    for index, finding in indexed:
+        evidence = finding.get("evidence", [])
+        if after is not None and isinstance(evidence, list) and any(
+            isinstance(entry, dict) and entry.get("artifact_path") == spec["file"]
+            and "artifact_sha256" in entry
+            and str(entry["artifact_sha256"]).lower() != str(after).lower()
+            for entry in evidence
+        ):
+            continue
+        if _matches(finding, spec):
+            matched.append((index, finding))
     threshold = SEVERITY_RANK[spec["expected_min_severity"]]
     caught = [(i, f) for i, f in matched if _rank(f) >= threshold]
     return {"defect_id": spec["defect_id"], "defect_class": spec["defect_class"],

@@ -18,13 +18,18 @@ from typing import Any, Mapping
 from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
 from codex_science.cli_io import write_json_atomic
-from codex_science.review_receipts import build_review_receipt, canonical_sha256, validate_review_receipt
+from codex_science.review_receipts import (
+    SEVERITIES,
+    RESOLUTION_STATUSES,
+    build_review_receipt,
+    canonical_sha256,
+    validate_review_receipt,
+)
 from codex_science.review import evidence_node_has_successful_execution
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS
 
 
 REVIEW_MODES = {"record", "source", "method", "reproduction"}
-SEVERITIES = {"critical", "major", "minor", "suggestion"}
 SENSITIVE_FRAGMENTS = {"token", "password", "secret", "credential", "private_key", "api_key", "apikey", "chain_of_thought", "hidden_rationale"}
 EXCLUDED_PRODUCER_FIELDS = {"intended_conclusion", "producer_rationale", "chain_of_thought", "private_scratchpad", "hidden_answer", "suspected_bug"}
 
@@ -142,6 +147,14 @@ def _claim_kinds_with_manifest_fallback(claims: list[Any], manifest: Mapping[str
             continue
         item = dict(claim)
         manifest_claim = manifest_claims.get(str(claim.get("id", "")).strip())
+        if manifest_claim is not None:
+            registered_text = item.get("text")
+            manifest_text = manifest_claim.get("text")
+            if isinstance(registered_text, str) and isinstance(manifest_text, str):
+                registered_text = " ".join(registered_text.split())
+                manifest_text = " ".join(manifest_text.split())
+                if registered_text and manifest_text and registered_text != manifest_text:
+                    raise ValueError(f"Cannot build review packet: conflicting claim text for {item['id']} in claim register and manifest")
         if "kind" not in item and manifest_claim is not None and "kind" in manifest_claim:
             item["kind"] = manifest_claim["kind"]
         resolved.append(item)
@@ -392,7 +405,7 @@ def _validate_finding(item: Mapping[str, Any], index: int) -> dict[str, Any]:
     code = _text(item.get("code"), f"finding {finding_id} code")
     message = _text(item.get("message", item.get("rationale")), f"finding {finding_id} message")
     resolution = str(item.get("resolution_status", "open"))
-    if resolution not in {"open", "resolved", "accepted-risk", "not-applicable"}:
+    if resolution not in RESOLUTION_STATUSES:
         raise ValueError(f"invalid finding resolution status: {resolution}")
     evidence = item.get("evidence", [])
     if not isinstance(evidence, list):
@@ -453,7 +466,7 @@ def finalize_review_response(packet: Mapping[str, Any], response: Mapping[str, A
         covered_artifacts.append({"path": path, "sha256": digest})
     if not covered_artifacts:
         raise ValueError("review response must cover at least one artifact")
-    findings_raw = response.get("findings", [])
+    findings_raw = response.get("findings")
     if not isinstance(findings_raw, list):
         raise ValueError("findings must be a list")
     findings = [_validate_finding(item, index) for index, item in enumerate(findings_raw) if isinstance(item, Mapping)]
@@ -461,6 +474,10 @@ def finalize_review_response(packet: Mapping[str, Any], response: Mapping[str, A
         raise ValueError("all findings must be objects")
     problems: list[str] = []
     for finding in findings:
+        if "affected_claim_id" in finding:
+            claim_id = _text(finding["affected_claim_id"], f"finding {finding['id']} affected_claim_id")
+            if claim_id not in material_claims:
+                problems.append(f"finding {finding['id']} affected_claim_id not in packet: {claim_id}")
         evidence = []
         for number, entry in enumerate(finding["evidence"]):
             label = f"finding {finding['id']} evidence {number}"

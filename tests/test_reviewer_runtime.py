@@ -36,6 +36,29 @@ def make_reviewed_run(root: Path) -> Path:
 
 
 class ReviewerRuntimeTests(unittest.TestCase):
+    def test_packet_refuses_conflicting_shared_claim_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = make_reviewed_run(Path(tempdir))
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            text = manifest["claims"][0]["text"]
+            register = {"schema_version": 1, "claims": [{
+                "id": "C1", "text": text, "permitted_inference": "Association only.",
+                "status": "supported", "falsifier": "An incompatible observation.",
+                "uncertainty": "Not reproduced.", "next_action": "Reproduce it.",
+            }]}
+            register_path = path.parent / "claims.json"
+            register_path.write_text(json.dumps(register), encoding="utf-8")
+            add_artifact(manifest, "claims.json", kind="claim-register",
+                         sha256=hashlib.sha256(register_path.read_bytes()).hexdigest())
+            for manifest_text in (text, "  " + text.replace(" ", " \n\t") + "  ", "", "   ", None):
+                manifest["claims"][0]["text"] = manifest_text
+                write_manifest(manifest, path)
+                self.assertEqual(text, build_review_packet(path, review_modes=["record"])["claims"][0]["text"])
+            manifest["claims"][0]["text"] = "The study establishes a different conclusion."
+            write_manifest(manifest, path)
+            with self.assertRaisesRegex(ValueError, "conflicting claim text.*C1"):
+                build_review_packet(path, review_modes=["record"])
+
     def test_reviewer_cli_prepare_tier_and_default(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             manifest = make_reviewed_run(Path(tempdir))
@@ -721,6 +744,25 @@ class ReviewerRuntimeRejectionTests(unittest.TestCase):
 
     def test_finalize_requires_at_least_one_covered_artifact(self) -> None:
         self.assertResponseRejected("at least one artifact", reviewed_artifacts=[])
+
+    def test_finalize_requires_explicit_findings_even_for_clean_reviews(self) -> None:
+        response = valid_response(self.packet)
+        self.assertEqual("passed", finalize_review_response(self.packet, response)["status"])
+        del response["findings"]
+        with self.assertRaisesRegex(ValueError, "findings must be a list"):
+            finalize_review_response(self.packet, response)
+
+    def test_finalize_rejects_explicit_affected_claims_outside_packet(self) -> None:
+        finding = {"id": "F1", "severity": "minor", "code": "c", "message": "m"}
+        receipt = finalize_review_response(self.packet, {**valid_response(self.packet),
+            "findings": [{**finding, "affected_claim_id": "C1"}]})
+        self.assertEqual("passed", receipt["status"])
+        self.assertEqual("passed", finalize_review_response(self.packet, {
+            **valid_response(self.packet), "findings": [finding]})["status"])
+        for claim_id in ("C999", "", "  ", None, 0, [], {}):
+            with self.subTest(claim_id=claim_id):
+                self.assertResponseRejected("affected_claim_id", findings=[
+                    {**finding, "affected_claim_id": claim_id}])
 
     def test_finalize_findings_must_be_a_list_of_valid_objects(self) -> None:
         self.assertResponseRejected("findings must be a list", findings={"id": "F1"})

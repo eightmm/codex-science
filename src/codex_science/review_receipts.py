@@ -7,6 +7,8 @@ from typing import Any, Mapping
 
 REVIEW_MODES = {"record", "source", "method", "reproduction"}
 REVIEW_STATUSES = {"passed", "findings", "blocked", "superseded"}
+SEVERITIES = {"critical", "major", "minor", "suggestion"}
+RESOLUTION_STATUSES = {"open", "resolved", "accepted-risk", "not-applicable"}
 
 
 def _text(value: Any, label: str) -> str:
@@ -72,6 +74,13 @@ def validate_review_receipt(payload: dict[str, Any]) -> None:
         raise ValueError("findings must be a list")
     if not all(isinstance(item, Mapping) for item in findings):
         raise ValueError("findings must contain objects")
+    for item in findings:
+        severity = item.get("severity")
+        if not isinstance(severity, str) or severity not in SEVERITIES:
+            raise ValueError(f"invalid finding severity: {severity}")
+        resolution = item.get("resolution_status", "open")
+        if not isinstance(resolution, str) or resolution not in RESOLUTION_STATUSES:
+            raise ValueError(f"invalid finding resolution status: {resolution}")
     limitations = payload.get("limitations", [])
     if not isinstance(limitations, list) or not all(
         isinstance(item, str) and item.strip() for item in limitations
@@ -124,6 +133,18 @@ def review_receipt_findings(
         actual = current_artifact_hashes.get(path)
         if actual != expected:
             findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} covers stale or missing artifact {path}."})
+    for index, finding in enumerate(payload.get("findings", [])):
+        evidence = finding.get("evidence", [])
+        if not isinstance(evidence, list):
+            continue
+        for entry in evidence:
+            if not isinstance(entry, Mapping):
+                continue
+            path = str(entry.get("artifact_path", ""))
+            if path in current_artifact_hashes and "artifact_sha256" in entry:
+                expected = str(entry["artifact_sha256"]).lower()
+                if current_artifact_hashes[path] != expected:
+                    findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} finding {finding.get('id', index)} cites stale artifact {path}."})
     expected_registry = payload.get("covered_registry_sha256")
     if expected_registry is not None and registry_sha256 != expected_registry:
         findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} covers a different model registry."})

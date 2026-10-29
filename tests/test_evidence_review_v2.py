@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.evidence_graph_v2 import independent_support_groups, impacted_nodes, validate_graph_payload
-from codex_science.review_receipts import build_review_receipt, review_receipt_findings, validate_review_receipt
+from codex_science.review_receipts import build_review_receipt, canonical_sha256, review_receipt_findings, validate_review_receipt
 from codex_science.reviewer_benchmark import load_cases, score_cases
 
 
@@ -137,8 +137,8 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         )
 
     def test_blocking_severity_normalization_preserves_honest_receipts(self) -> None:
-        for severity in ("major ", " critical\t", "major", "critical", "minor", ""):
-            for resolution in ("open", "resolved", "not-applicable"):
+        for severity in ("major", "critical", "minor", "suggestion"):
+            for resolution in ("open", "resolved", "accepted-risk", "not-applicable"):
                 with self.subTest(severity=severity, resolution=resolution):
                     receipt = build_review_receipt(
                         review_id="review-normalized", reviewer="reviewer", independent=True,
@@ -148,9 +148,74 @@ class EvidenceReviewV2Tests(unittest.TestCase):
                     )
                     codes = {item["code"] for item in review_receipt_findings(receipt, {"metrics.json": "a" * 64})}
                     self.assertEqual(
-                        severity.strip() in {"major", "critical"} and resolution == "open",
+                        severity in {"major", "critical"} and resolution not in {"resolved", "not-applicable"},
                         "unsafe-review-pass" in codes,
                     )
+        for severity in ("", "major ", " critical\t", "MAJOR"):
+            with self.subTest(severity=severity):
+                with self.assertRaisesRegex(ValueError, "invalid finding severity"):
+                    build_review_receipt(
+                        review_id="review-invalid-severity", reviewer="reviewer", independent=True,
+                        review_modes=["record"], status="passed",
+                        covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+                        covered_claim_ids=[], findings=[{"severity": severity}],
+                    )
+
+    def test_receipt_finding_decision_fields_are_validated_with_valid_fingerprint(self) -> None:
+        base = build_review_receipt(
+            review_id="review-fields", reviewer="reviewer", independent=True,
+            review_modes=["record"], status="passed",
+            covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+            covered_claim_ids=[], findings=[],
+        )
+        invalid = [{}]
+        for field in ("severity", "resolution_status"):
+            invalid.extend({"severity": "minor", field: value}
+                           for value in ("", "  ", "later", "MAJOR", 0, None, [], {}))
+        for finding in invalid:
+            with self.subTest(finding=finding):
+                receipt = {**base, "findings": [finding]}
+                receipt.pop("fingerprint")
+                receipt["fingerprint"] = canonical_sha256(receipt)
+                with self.assertRaises(ValueError):
+                    validate_review_receipt(receipt)
+                self.assertEqual(["invalid-review-receipt"], [item["code"] for item in
+                    review_receipt_findings(receipt, {"metrics.json": "a" * 64})])
+        accepted = [{"severity": "minor"}, {"severity": "major", "resolution_status": "resolved"}]
+        accepted.extend({"severity": "suggestion", "evidence": value} for value in ([], None, 0, "", {}))
+        for finding in accepted:
+            with self.subTest(accepted=finding):
+                receipt = {**base, "findings": [finding]}
+                receipt.pop("fingerprint")
+                receipt["fingerprint"] = canonical_sha256(receipt)
+                validate_review_receipt(receipt)
+                self.assertEqual([], review_receipt_findings(receipt, {"metrics.json": "a" * 64}))
+
+    def test_finding_evidence_freshness_includes_artifacts_outside_coverage(self) -> None:
+        receipt = build_review_receipt(
+            review_id="review-evidence", reviewer="reviewer", independent=True,
+            review_modes=["record"], status="passed",
+            covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+            covered_claim_ids=[], findings=[{
+                "severity": "major", "resolution_status": "resolved", "evidence": [
+                    {"artifact_path": "counter.json", "artifact_sha256": "b" * 64},
+                    {"artifact_path": "manifest.json", "artifact_sha256": "d" * 64},
+                    {"artifact_path": "review-task.json", "artifact_sha256": "e" * 64},
+                ],
+            }],
+        )
+        original = copy.deepcopy(receipt)
+        for digest, stale in (("b" * 64, False), ("c" * 64, True)):
+            with self.subTest(digest=digest):
+                findings = review_receipt_findings(receipt, {"metrics.json": "a" * 64,
+                                                           "counter.json": digest})
+                self.assertEqual(stale, bool(findings))
+                if stale:
+                    self.assertEqual("stale-review-receipt", findings[0]["code"])
+                    self.assertEqual("major", findings[0]["severity"])
+                    self.assertIn("counter.json", findings[0]["message"])
+        self.assertEqual([], review_receipt_findings(receipt, {"metrics.json": "a" * 64}))
+        self.assertEqual(original, receipt)
 
     def test_review_receipt_requires_an_actual_reviewer_string(self) -> None:
         receipt = build_review_receipt(

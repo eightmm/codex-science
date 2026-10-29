@@ -177,6 +177,11 @@ class EvidenceSupportExcerptTests(unittest.TestCase):
             )
             write_manifest(manifest, path)
 
+            with self.assertRaisesRegex(ValueError, "conflicting claim text.*C1"):
+                build_review_packet(path, review_modes=["record"])
+            manifest["claims"][0]["text"] = claim()["claims"][0]["text"]
+            write_manifest(manifest, path)
+
             routed = build_review_packet(path, review_modes=["record"], created_at="2026-10-21T00:00:00Z")
 
             self.assertEqual("causal", routed["claims"][0].get("kind"))

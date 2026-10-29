@@ -293,6 +293,39 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertEqual(["f1"], results[0]["matched_finding_ids"])
         self.assertEqual(["p"], results[2]["matched_finding_ids"])
 
+    def test_score_excludes_findings_with_contradictory_seeded_artifact_hashes(self) -> None:
+        key = self.run_seed()
+        before, after = key["file_sha256_before"], key["file_sha256_after"]
+        self.assertNotEqual(before, after)
+        for claim_id in (CLAIM, "other"):
+            for digest, caught in ((before, False), (after, True), (after.upper(), True),
+                                   ("", False), ("malformed", False), (None, False), (0, False)):
+                with self.subTest(claim_id=claim_id, digest=digest):
+                    evidence = [{"artifact_path": "claims.json", "artifact_sha256": digest}]
+                    finding = {"id": "F1", "severity": "major", "affected_claim_id": claim_id,
+                               "evidence": evidence}
+                    result = review_seeding.score_response(key, {"findings": [finding]})
+                    self.assertEqual(caught, result["caught"])
+                    self.assertEqual(caught, result["caught_any_severity"])
+                    self.assertEqual(["F1"] if caught else [], result["matched_finding_ids"])
+        for evidence in ([], [{"artifact_path": "claims.json"}],
+                         [{"artifact_path": "report.md", "artifact_sha256": before}]):
+            result = review_seeding.score_response(key, {"findings": [{"id": "F1", "severity": "major",
+                "affected_claim_id": CLAIM, "evidence": evidence}]})
+            self.assertTrue(result["caught"])
+        mixed = [{"artifact_path": "claims.json", "artifact_sha256": after},
+                 {"artifact_path": "claims.json", "artifact_sha256": before}]
+        self.assertFalse(review_seeding.score_response(key, {"findings": [{"id": "F1",
+            "severity": "major", "affected_claim_id": CLAIM, "evidence": mixed}]})["caught"])
+
+        findings = [{"id": "stale", "severity": "major", "affected_claim_id": CLAIM,
+                     "evidence": [{"artifact_path": "claims.json", "artifact_sha256": before}]},
+                    {"id": "current", "severity": "major", "affected_claim_id": CLAIM}]
+        result = review_seeding.score_response(key, {"findings": findings})
+        self.assertEqual(["current"], result["matched_finding_ids"])
+        legacy_key = {name: value for name, value in key.items() if name != "file_sha256_after"}
+        self.assertTrue(review_seeding.score_response(legacy_key, {"findings": findings[:1]})["caught"])
+
     def test_score_path_only_key_and_critical_threshold(self) -> None:
         self.run_seed(claim_id=None, expected_min_severity="critical")
         major = self.response("major.json", [{"id": "a", "severity": "major", "evidence": [{"artifact_path": "claims.json"}]}])

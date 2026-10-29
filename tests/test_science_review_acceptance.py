@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_science.artifacts import add_artifact
-from codex_science.review_receipts import validate_review_receipt
+from codex_science.review_receipts import canonical_sha256, validate_review_receipt
 from codex_science.reviewer_runtime import (
     build_review_packet,
     finalize_review_response,
@@ -115,6 +115,49 @@ class ScienceReviewAcceptanceTests(unittest.TestCase):
             except SystemExit as error:
                 code = error.code
         return code, stdout.getvalue() + stderr.getvalue(), self.read(report)
+
+    def test_completion_cli_refuses_malformed_fingerprinted_receipt_findings(self) -> None:
+        _, response = self.respond()
+        base = finalize_review_response(self.packet, response)
+        good = {"id": "F1", "severity": "minor", "code": "c", "message": "m"}
+        for finding in ({}, {**good, "severity": "MAJOR"}, {**good, "resolution_status": "later"}):
+            with self.subTest(finding=finding):
+                receipt = {**base, "findings": [finding]}
+                receipt.pop("fingerprint")
+                receipt["fingerprint"] = canonical_sha256(receipt)
+                receipt_path = self.run_dir / "review-receipt-v2.json"
+                self.write(receipt_path, receipt)
+                manifest = copy.deepcopy(self.manifest)
+                add_artifact(manifest, receipt_path.name, kind="review-receipt-v2",
+                             sha256=hashlib.sha256(receipt_path.read_bytes()).hexdigest())
+                self.write(self.manifest_path, manifest)
+                result = subprocess.run([sys.executable, str(ROOT / "scripts" / "validate_artifact.py"),
+                    str(self.manifest_path), "--review-output", str(self.run_dir / "report.json"),
+                    "--require-passed-review"], capture_output=True, text=True)
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn("finding", result.stderr)
+
+    def test_completion_cli_flags_changed_finding_evidence_outside_coverage(self) -> None:
+        counter = self.run_dir / "counter.json"
+        counter.write_text('{"estimate": 0.1}', encoding="utf-8")
+        manifest = copy.deepcopy(self.manifest)
+        add_artifact(manifest, counter.name, kind="fixture-evidence",
+                     sha256=hashlib.sha256(counter.read_bytes()).hexdigest())
+        self.write(self.manifest_path, manifest)
+        packet = build_review_packet(self.manifest_path, review_modes=["record"])
+        _, response = self.respond()
+        response.update(review_task_id=packet["review_task_id"], packet_fingerprint=packet["fingerprint"])
+        response["findings"] = [{"id": "F1", "severity": "major", "code": "c", "message": "m",
+            "resolution_status": "resolved", "evidence": [{"artifact_path": counter.name,
+                "artifact_sha256": hashlib.sha256(counter.read_bytes()).hexdigest()}]}]
+        receipt = finalize_review_response(packet, response)
+        self.assertEqual(["evidence.txt"], [item["path"] for item in receipt["covered_artifacts"]])
+        counter.write_text('{"estimate": 0.9}', encoding="utf-8")
+        manifest["artifacts"][-1]["sha256"] = hashlib.sha256(counter.read_bytes()).hexdigest()
+        self.manifest = manifest
+        code, _, report = self.validate_receipt(receipt)
+        self.assertNotEqual(0, code)
+        self.assertIn("stale-review-receipt", {item["code"] for item in report["findings"]})
 
     def test_acceptance_fixture_passes_the_public_review_workflow(self) -> None:
         self.assertEqual((FIXTURE / "input.json").read_bytes(), self.manifest_path.read_bytes())
