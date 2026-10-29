@@ -1,17 +1,22 @@
 import copy
 import hashlib
+import io
 import json
+import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from codex_science.discovery import attach_cycle
 from codex_science.artifacts import new_manifest
 from codex_science.collaboration import annotation_resolution_lock
 from codex_science.project_store import ProjectStore
 from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle
+from codex_science.workbench import _referenced_paths, render_workbench, write_workbench
 from tests.test_discovery_integration import ROOT, prepare
 from tests import test_discovery_design as design_fixtures
 
@@ -35,6 +40,305 @@ def add_fixture_annotation(cli, *, annotation_id="A1", text="Check the claim", a
 
 
 class DiscoveryWorkbenchTests(unittest.TestCase):
+    def workbench_cli(self, manifest_path, output=None):
+        command = [sys.executable, str(ROOT / "scripts/render_workbench.py"), str(manifest_path)]
+        if output is not None:
+            command.extend(["--output", str(output)])
+        return subprocess.run(command, capture_output=True, text=True)
+
+    def assert_workbench_protected(self, manifest_path, output, kind):
+        before = {path: path.read_bytes() for path in manifest_path.parent.rglob("*") if path.is_file()}
+        result = self.workbench_cli(manifest_path, output)
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("error: workbench output", result.stderr)
+        self.assertIn(kind, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(before, {path: path.read_bytes() for path in manifest_path.parent.rglob("*") if path.is_file()})
+
+    def test_workbench_protects_run_files_and_aliases(self):
+        for relative, kind in (("manifest.json", "manifest"), ("result.json", "referenced input"),
+                               ("annotations/resolutions.jsonl", "annotation resolution log"),
+                               ("annotations/.resolutions.lock", "annotation resolution lock"),
+                               ("execution-log.jsonl", "execution journal"),
+                               *((value, "referenced input") for value in (123, 0, 1.25, False, None, [], {}))):
+            for alias_type in ("direct", "symlink", "hardlink", "missing"):
+                with self.subTest(relative=relative, alias_type=alias_type), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary) / "run"
+                    manifest_path, artifact, _ = annotation_fixture(root)
+                    target = root / str(relative)
+                    if not isinstance(relative, str):
+                        artifact.rename(target)
+                        manifest = json.loads(manifest_path.read_text())
+                        manifest["artifacts"][0]["path"] = relative
+                        manifest_path.write_text(json.dumps(manifest))
+                        render_workbench(manifest, root)
+                    target.parent.mkdir(exist_ok=True)
+                    if not target.exists() and alias_type != "missing":
+                        target.write_bytes(b"")
+                    output = target
+                    if alias_type in ("symlink", "hardlink"):
+                        output = root / "alias.html"
+                        if alias_type == "symlink":
+                            output.symlink_to(target)
+                        else:
+                            output.hardlink_to(target)
+                    self.assert_workbench_protected(manifest_path, output, kind)
+
+    def test_workbench_protects_nested_references_and_skips_unusable_strings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            (root / "loop").symlink_to("loop")
+            manifest = json.loads(manifest_path.read_text())
+            manifest["extra"] = {"evidence": ["", 0, None, {}, [], "missing", "bad\x00path", "x" * 5000,
+                                                "result.json/child", "loop", {"nested": ["notes.txt"]}],
+                                 "nested_path": {"values": ["other.txt", 4.5]},
+                                 "nested": [{"path": ["third.txt", True]}]}
+            referenced_names = ("notes.txt", "other.txt", "third.txt", "0", "None", "{}", "[]", "4.5", "True")
+            for name in referenced_names:
+                (root / name).write_text("preserve me")
+            manifest_path.write_text(json.dumps(manifest))
+            expected = render_workbench(manifest, root).encode()
+            result = self.workbench_cli(manifest_path)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(expected, (root / "workbench.html").read_bytes())
+            for name in referenced_names:
+                self.assert_workbench_protected(manifest_path, root / name, "referenced input")
+            original_resolve, original_stat = Path.resolve, Path.stat
+            for operation in ("resolve", "stat"):
+                for error in (PermissionError("unavailable"), RuntimeError("loop"), ValueError("invalid path")):
+                    with self.subTest(operation=operation, error=type(error).__name__):
+                        def unavailable(path, *args, **kwargs):
+                            if path.name == "notes.txt":
+                                raise error
+                            original = original_resolve if operation == "resolve" else original_stat
+                            return original(path, *args, **kwargs)
+                        with mock.patch.object(Path, operation, unavailable):
+                            write_workbench(manifest_path, root / "workbench.html")
+                        self.assertEqual(expected, (root / "workbench.html").read_bytes())
+
+    def test_workbench_protects_tree_members_and_aliases_without_following_links(self):
+        from codex_science.artifact_store import describe_directory
+        for relative in ("tree", 123, 0, 1.25, False, None, [], {}):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "run"
+                manifest_path, _, _ = annotation_fixture(root)
+                tree = root / str(relative)
+                tree.mkdir()
+                member = tree / "nested/member.txt"
+                member.parent.mkdir()
+                member.write_text("tree data")
+                manifest = json.loads(manifest_path.read_text())
+                manifest["artifacts"].append({"path": relative, "kind": "data", "artifact_type": "directory-tree",
+                                              "sha256": describe_directory(tree).root_sha256})
+                empty_tree = root / "empty-tree"
+                empty_tree.mkdir()
+                manifest["artifacts"].append({"path": "empty-tree", "kind": "data", "artifact_type": "directory-tree",
+                                              "sha256": describe_directory(empty_tree).root_sha256})
+                manifest_path.write_text(json.dumps(manifest))
+                alias = root / "alias.html"
+                alias.hardlink_to(member)
+                render_workbench(manifest, root)
+                for output in (member, alias, tree, tree / "new.html", empty_tree / "new.html"):
+                    self.assert_workbench_protected(manifest_path, output, "directory-tree")
+                result = self.workbench_cli(manifest_path)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(render_workbench(manifest, root).encode(), (root / "workbench.html").read_bytes())
+                (tree / "external").symlink_to(root, target_is_directory=True)
+                with mock.patch("codex_science.workbench.render_workbench", return_value="page"):
+                    write_workbench(manifest_path, root / "outside.html")
+                self.assertEqual("page", (root / "outside.html").read_text())
+                shutil.rmtree(tree)
+                result = self.workbench_cli(manifest_path)
+                self.assertEqual(1, result.returncode)
+                self.assertIn("Artifact directory is missing", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_workbench_preserves_pages_and_directory_reference_allows_default_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            manifest = json.loads(manifest_path.read_text())
+            manifest["extra"] = {"path": str(root), "evidence": [str(root.parent)]}
+            manifest_path.write_text(json.dumps(manifest))
+            output = root / "workbench.html"
+            output.write_text("old page")
+            output.chmod(0o640)
+            inode = output.stat().st_ino
+            for _ in range(2):
+                result = self.workbench_cli(manifest_path)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(render_workbench(manifest, root).encode(), output.read_bytes())
+                self.assertEqual(inode, output.stat().st_ino)
+                self.assertEqual(0o640, output.stat().st_mode & 0o777)
+            for example in sorted((ROOT / "examples").glob("*/manifest.json")):
+                with self.subTest(example=example.parent.name):
+                    data = json.loads(example.read_text())
+                    expected = render_workbench(data, example.parent).encode()
+                    write_workbench(example, output)
+                    self.assertEqual(expected, output.read_bytes())
+            self.assert_workbench_protected(manifest_path, manifest_path, "manifest")
+
+    def test_workbench_labels_output_resolution_errors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            output = root / "loop"
+            output.symlink_to(output.name)
+            result = self.workbench_cli(manifest_path, output)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("error: workbench output", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            for error in (OSError("unavailable"), RuntimeError("loop"), ValueError("invalid path")):
+                original_resolve = Path.resolve
+                def unavailable(path, *args, **kwargs):
+                    if path == output:
+                        raise error
+                    return original_resolve(path, *args, **kwargs)
+                with mock.patch.object(Path, "resolve", unavailable):
+                    with self.assertRaisesRegex(ValueError, "workbench output"):
+                        write_workbench(manifest_path, output)
+            with self.assertRaisesRegex(ValueError, "workbench output"):
+                write_workbench(manifest_path, root / "bad\x00path")
+            for output in (root / ("x" * 5000), root / "result.json/child"):
+                result = self.workbench_cli(manifest_path, output)
+                self.assertEqual(1, result.returncode)
+                self.assertIn("error: workbench output", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+            output = root / "page.html"
+            original_stat = Path.stat
+            def unavailable(path, *args, **kwargs):
+                if path == output:
+                    raise PermissionError("unavailable")
+                return original_stat(path, *args, **kwargs)
+            with mock.patch.object(Path, "stat", unavailable):
+                with self.assertRaisesRegex(ValueError, "workbench output"):
+                    write_workbench(manifest_path, output)
+            self.assertFalse(output.exists())
+
+    def test_workbench_validates_manifest_before_protecting_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            valid = json.loads(manifest_path.read_text())
+            malformed = [[], None, 0, "", {}, {**valid, "artifacts": None},
+                         {**valid, "artifacts": {}}, {**valid, "artifacts": 0},
+                         {**valid, "artifacts": ""}, {**valid, "artifacts": [None]}]
+            for manifest in malformed:
+                with self.subTest(manifest=manifest):
+                    with self.assertRaises(ValueError) as expected:
+                        render_workbench(manifest, root)
+                    manifest_path.write_text(json.dumps(manifest))
+                    before = manifest_path.read_bytes()
+                    for output in (root / "new.html", root / "existing.html", manifest_path):
+                        if output.name == "existing.html":
+                            output.write_text("preserve me")
+                        result = self.workbench_cli(manifest_path, output)
+                        self.assertEqual(1, result.returncode)
+                        self.assertEqual(f"error: {expected.exception}\n", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(before, manifest_path.read_bytes())
+                        self.assertFalse((root / "new.html").exists())
+                        if (root / "existing.html").exists():
+                            self.assertEqual("preserve me", (root / "existing.html").read_text())
+
+    def test_workbench_handles_manifest_deeper_than_recursion_limit(self):
+        depth = sys.getrecursionlimit() + 100
+        leaf = {"path": "deep-input.txt"}
+        nested = leaf
+        for _ in range(depth):
+            nested = [nested]
+        try:
+            references = list(_referenced_paths({"extra": nested}))
+        except RecursionError:
+            self.fail("reference traversal must not recurse")
+        self.assertEqual(list(_referenced_paths(leaf)), references)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            original = manifest_path.read_text()
+            expected = render_workbench(json.loads(original), root).encode()
+            encoded = original[:-1] + ',"extra":' + '[' * depth + json.dumps(leaf) + ']' * depth + '}'
+            manifest_path.write_text(encoded)
+            (root / "deep-input.txt").write_text("preserve me")
+            result = self.workbench_cli(manifest_path)
+            self.assertNotIn("Traceback", result.stderr)
+            try:
+                json.loads(encoded)
+            except RecursionError:
+                self.assertEqual(1, result.returncode)
+                self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                self.assertFalse((root / "workbench.html").exists())
+            else:
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(expected, (root / "workbench.html").read_bytes())
+                self.assert_workbench_protected(manifest_path, root / "deep-input.txt", "referenced input")
+            self.assertEqual(encoded, manifest_path.read_text())
+            self.assertEqual("preserve me", (root / "deep-input.txt").read_text())
+
+    def test_workbench_labels_decode_and_validation_recursion_errors(self):
+        main = runpy.run_path(str(ROOT / "scripts/render_workbench.py"))["main"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            before = manifest_path.read_bytes()
+            output = root / "workbench.html"
+            for target in ("json.loads", "validate_manifest"):
+                for existing in (False, True):
+                    with self.subTest(target=target, existing=existing):
+                        if existing:
+                            output.write_text("preserve me")
+                        elif output.exists():
+                            output.unlink()
+                        with mock.patch("codex_science.workbench." + target, side_effect=RecursionError("too deep")), \
+                             mock.patch.object(sys, "argv", ["render_workbench.py", str(manifest_path)]), \
+                             mock.patch.object(sys, "stderr", io.StringIO()) as stderr:
+                            try:
+                                status = main()
+                            except RecursionError:
+                                self.fail("CLI must label recursion failures")
+                        self.assertEqual(1, status)
+                        self.assertEqual("error: workbench manifest exceeds the supported nesting depth\n", stderr.getvalue())
+                        self.assertEqual(before, manifest_path.read_bytes())
+                        if existing:
+                            self.assertEqual("preserve me", output.read_text())
+                        else:
+                            self.assertFalse(output.exists())
+
+    def test_workbench_never_walks_directory_tree_outside_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            manifest = json.loads(manifest_path.read_text())
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            sentinel = outside / "data.txt"
+            sentinel.write_text("preserve me")
+            (root / "linked-tree").symlink_to(outside, target_is_directory=True)
+            for relative in ("linked-tree", str(outside), "../outside"):
+                with self.subTest(relative=relative):
+                    manifest["artifacts"] = [{"path": relative, "kind": "data",
+                                              "artifact_type": "directory-tree", "sha256": "0" * 64}]
+                    manifest_path.write_text(json.dumps(manifest))
+                    before = manifest_path.read_bytes()
+                    message = ("Artifact resolves outside the run bundle: linked-tree" if relative == "linked-tree"
+                               else f"Artifact path must stay inside the run bundle: {relative}")
+                    with mock.patch("codex_science.workbench.os.walk", side_effect=AssertionError("outside tree walked")) as walk:
+                        with self.assertRaisesRegex(ValueError, message):
+                            write_workbench(manifest_path, root / "workbench.html")
+                        walk.assert_not_called()
+                    result = self.workbench_cli(manifest_path)
+                    self.assertEqual(1, result.returncode)
+                    self.assertEqual(f"error: {message}\n", result.stderr)
+                    self.assertFalse((root / "workbench.html").exists())
+                    self.assertEqual(before, manifest_path.read_bytes())
+                    self.assertEqual("preserve me", sentinel.read_text())
+            manifest["artifacts"][0]["path"] = "."
+            manifest_path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, "workbench output cannot overwrite directory-tree artifact"):
+                write_workbench(manifest_path, root / "workbench.html")
+            self.assertFalse((root / "workbench.html").exists())
+
     def test_annotation_cli_round_trip_history_hash_guard_and_workbench(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "run"

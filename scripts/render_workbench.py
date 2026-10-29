@@ -10,13 +10,16 @@ from codex_science.workbench import write_workbench  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path, help="HTML destination (must not overwrite run inputs or registered directory trees)")
     args = parser.parse_args()
     output = args.output or args.manifest.parent / "workbench.html"
     try:
-        write_workbench(args.manifest.resolve(), output.resolve())
+        write_workbench(args.manifest.resolve(), output)
     except ValueError as error:
         print(f"error: {error}{digest_mismatch_hint(error, args.manifest.resolve().parent)}", file=sys.stderr)
+        return 1
+    except RecursionError:
+        print("error: workbench manifest exceeds the supported nesting depth", file=sys.stderr)
         return 1
     print(output.resolve())
     return 0

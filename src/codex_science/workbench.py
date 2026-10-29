@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import html
 import json
+import os
 from collections import Counter
 from pathlib import Path
+from stat import S_ISREG
 from typing import Any
 
-from codex_science.artifacts import validate_bundle
+from codex_science.artifacts import validate_bundle, validate_manifest
 from codex_science.collaboration import fold_annotation_resolutions, load_resolution_events
 
 
@@ -64,6 +66,75 @@ def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
 <p><em>Offline derived view. Registered bundle artifacts and sidecars were validated against the manifest. Resolution events are operator-recorded and not covered by the manifest.</em></p></body></html>\n"""
 
 
+def _referenced_paths(value: Any, kind: str | None = None):
+    pending = [(value, kind)]
+    while pending:
+        value, kind = pending.pop()
+        if kind is not None:
+            yield kind, str(value)
+        if isinstance(value, dict):
+            for key, item in value.items():
+                label = f"referenced input ({key})" if key in {"path", "evidence"} or key.endswith("_path") else kind
+                pending.append((item, label))
+        elif isinstance(value, list):
+            pending.extend((item, kind) for item in value)
+
+
+def _protect_workbench_output(manifest: dict[str, Any], manifest_path: Path, output: Path) -> None:
+    validate_manifest(manifest)
+    try:
+        resolved_output = output.resolve()
+        try:
+            info = resolved_output.stat()
+        except FileNotFoundError:
+            output_identity = None
+        else:
+            output_identity = (info.st_dev, info.st_ino)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ValueError(f"workbench output cannot be resolved: {error}") from None
+
+    run_dir = manifest_path.parent
+    resolved_run = run_dir.resolve()
+    protected: list[tuple[str, Path]] = [
+        ("manifest", manifest_path),
+        ("annotation resolution log", run_dir / "annotations/resolutions.jsonl"),
+        ("annotation resolution lock", run_dir / "annotations/.resolutions.lock"),
+        ("execution journal", run_dir / "execution-log.jsonl"),
+    ]
+    for artifact in manifest.get("artifacts", []):
+        if not isinstance(artifact, dict) or artifact.get("artifact_type") != "directory-tree":
+            continue
+        relative = str(artifact["path"])
+        try:
+            tree = (run_dir / relative).resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if not tree.is_relative_to(resolved_run):
+            continue
+        if resolved_output.is_relative_to(tree):
+            raise ValueError(f"workbench output cannot overwrite directory-tree artifact: {tree}")
+        # Do not traverse directory symlinks into files outside the registered tree.
+        for directory, _, files in os.walk(tree, followlinks=False):
+            protected.extend(("directory-tree member", Path(directory) / name) for name in files)
+    protected.extend((kind, run_dir / relative) for kind, relative in _referenced_paths(manifest))
+    for kind, path in protected:
+        try:
+            resolved = path.resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if resolved_output == resolved:
+            raise ValueError(f"workbench output cannot overwrite {kind}: {path}")
+        if output_identity is None:
+            continue
+        try:
+            info = resolved.stat()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if S_ISREG(info.st_mode) and output_identity == (info.st_dev, info.st_ino):
+            raise ValueError(f"workbench output cannot overwrite {kind}: {path}")
+
+
 def write_workbench(manifest_path: Path, output: Path) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _protect_workbench_output(manifest, manifest_path, output)
     output.write_text(render_workbench(manifest, manifest_path.parent), encoding="utf-8")
