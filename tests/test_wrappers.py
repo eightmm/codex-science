@@ -1,5 +1,8 @@
 import json
+import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -163,6 +166,226 @@ class WrapperGenerationTests(unittest.TestCase):
         inventory = json.loads((repository_root / "catalog" / "inventory.json").read_text())
 
         self.assertEqual([], check_wrappers(inventory, repository_root / "catalog" / "codex-skills"))
+
+    def test_unsafe_names_are_refused_without_output(self) -> None:
+        for name in (
+            "", ".", "..", "../escaped", "a/b", "a\\b", "/escaped",
+            ".hidden", "bad\x00name", None, 0, [],
+        ):
+            record = make_record("safe")
+            record["name"] = name
+            for operation in (generate_wrappers, check_wrappers):
+                with self.subTest(name=name, operation=operation.__name__):
+                    with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                        output = Path(temporary) / "out"
+                        with self.assertRaisesRegex(ValueError, "[Ss]kill record.*name"):
+                            operation({"skills": [record]}, output)
+                        self.assertFalse(output.exists())
+                        self.assertFalse((Path(temporary) / "escaped").exists())
+
+    def test_symlink_destinations_are_refused_before_any_write(self) -> None:
+        record = make_record("z-linked")
+        for relative in (
+            "z-linked", "z-linked/agents", "z-linked/SKILL.md",
+            "z-linked/agents/openai.yaml",
+        ):
+            for target_kind in ("outside", "inside", "dangling"):
+                with self.subTest(relative=relative, target_kind=target_kind):
+                    with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                        base = Path(temporary)
+                        output = base / "out"
+                        link = output / relative
+                        link.parent.mkdir(parents=True, exist_ok=True)
+                        target = (
+                            output / "target" if target_kind == "inside" else base / "target"
+                        )
+                        is_file = link.name in {"SKILL.md", "openai.yaml"}
+                        if target_kind != "dangling":
+                            if is_file:
+                                target.write_text(render_skill_wrapper(record), encoding="utf-8")
+                            else:
+                                target.mkdir()
+                        link.symlink_to(target, target_is_directory=not is_file)
+                        before = target.read_bytes() if target.is_file() else None
+                        for operation in (generate_wrappers, check_wrappers):
+                            with self.subTest(operation=operation.__name__):
+                                with self.assertRaisesRegex(ValueError, "[Uu]nsafe wrapper destination"):
+                                    operation(
+                                        {"skills": [make_record("a-first"), record]}, output
+                                    )
+                                self.assertFalse((output / "a-first").exists())
+                                if target.is_file():
+                                    self.assertEqual(before, target.read_bytes())
+                                elif target.exists():
+                                    self.assertEqual([], list(target.iterdir()))
+        for relative_output in (False, True):
+            for root_link in (False, True):
+                for existing in (False, True):
+                    for records in ([], [record]):
+                        with self.subTest(
+                            relative_output=relative_output, root_link=root_link,
+                            existing=existing, records=bool(records),
+                        ):
+                            with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                                base = Path(temporary)
+                                target = base / "real"
+                                if existing:
+                                    target.mkdir()
+                                alias = base / "alias"
+                                alias.symlink_to("real", target_is_directory=True)
+                                output = alias if root_link else alias / "out"
+                                expected = target if root_link else target / "out"
+                                if relative_output:
+                                    output = Path(os.path.relpath(output))
+                                inventory = {"skills": records}
+                                summary = generate_wrappers(inventory, output)
+                                self.assertEqual(len(records), summary["generated"])
+                                self.assertEqual([], check_wrappers(inventory, output))
+                                self.assertTrue(expected.is_dir())
+                                if records:
+                                    self.assertEqual(
+                                        render_skill_wrapper(record),
+                                        (expected / "z-linked/SKILL.md").read_text(encoding="utf-8"),
+                                    )
+                                (expected / "redirected").symlink_to(
+                                    base / "outside", target_is_directory=True
+                                )
+                                linked_inventory = {"skills": [*records, make_record("redirected")]}
+                                for operation in (generate_wrappers, check_wrappers):
+                                    with self.assertRaisesRegex(ValueError, "[Uu]nsafe wrapper destination"):
+                                        operation(linked_inventory, output)
+                                self.assertFalse((base / "outside").exists())
+        loop = self.root / "loop"
+        loop.symlink_to("loop", target_is_directory=True)
+        root_file = self.root / "root-file"
+        root_file.write_text("preserve me\n", encoding="utf-8")
+        file_link = self.root / "file-link"
+        file_link.symlink_to(root_file)
+        for output in (loop, file_link, self.root / "bad\x00root"):
+            for operation in (generate_wrappers, check_wrappers):
+                with self.subTest(operation=operation.__name__, invalid_root=output.name):
+                    with self.assertRaisesRegex(ValueError, "[Uu]nsafe wrapper destination"):
+                        operation({"skills": []}, output)
+        self.assertEqual("preserve me\n", root_file.read_text(encoding="utf-8"))
+
+    def test_all_records_are_rendered_before_creating_or_updating_outputs(self) -> None:
+        first = make_record("a-first")
+        invalid = make_record("z-invalid")
+        for existing in (False, True):
+            for count in (True, -1, 1.5, "1", None):
+                with self.subTest(existing=existing, count=count):
+                    with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                        output = Path(temporary) / "out"
+                        if existing:
+                            generate_wrappers({"skills": [first, make_record("stale")]}, output)
+                        before = {
+                            path.relative_to(output): path.read_bytes()
+                            for path in output.rglob("*") if path.is_file()
+                        }
+                        invalid["instruction_line_count"] = count
+                        changed = dict(first, description="Changed description")
+                        with self.assertRaisesRegex(ValueError, "z-invalid.*instruction line count"):
+                            generate_wrappers({"skills": [changed, invalid]}, output)
+                        after = {
+                            path.relative_to(output): path.read_bytes()
+                            for path in output.rglob("*") if path.is_file()
+                        }
+                        self.assertEqual(before, after)
+                        self.assertEqual(existing, output.exists())
+        for count in (0, 500, 501):
+            first["instruction_line_count"] = count
+            generate_wrappers({"skills": [first]}, self.output)
+            self.assertEqual([], check_wrappers({"skills": [first]}, self.output))
+        self.assertEqual(
+            {"generated": 0, "active": 0, "inactive": 0},
+            generate_wrappers({"skills": []}, self.output),
+        )
+        self.assertEqual([], list(self.output.iterdir()))
+
+    def test_late_destination_conflicts_preserve_earlier_outputs(self) -> None:
+        first = make_record("a-first")
+        last = make_record("z-last")
+        for relative in (
+            ".", "z-last", "z-last/SKILL.md", "z-last/agents", "z-last/agents/openai.yaml",
+        ):
+            with self.subTest(relative=relative):
+                with tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                    output = Path(temporary) / "out"
+                    conflict = output / relative
+                    conflict.parent.mkdir(parents=True, exist_ok=True)
+                    if conflict.name == "SKILL.md":
+                        conflict.write_text("handwritten\n", encoding="utf-8")
+                        error_type = FileExistsError
+                    elif relative in (".", "z-last", "z-last/agents"):
+                        conflict.write_text("not a directory\n", encoding="utf-8")
+                        error_type = ValueError
+                    else:
+                        conflict.mkdir()
+                        error_type = ValueError
+                    with self.assertRaises(error_type):
+                        generate_wrappers({"skills": [first, last]}, output)
+                    self.assertFalse((output / "a-first").exists())
+
+    def test_stale_symlink_is_refused_without_cleanup(self) -> None:
+        outside = self.root / "outside"
+        generate_wrappers({"skills": [make_record("old")]}, outside)
+        self.output.mkdir()
+        (self.output / "old").symlink_to(outside / "old", target_is_directory=True)
+        for operation in (generate_wrappers, check_wrappers):
+            with self.subTest(operation=operation.__name__):
+                with self.assertRaisesRegex(ValueError, "[Uu]nsafe wrapper destination"):
+                    operation({"skills": []}, self.output)
+                self.assertTrue((outside / "old" / "SKILL.md").is_file())
+
+    def test_cli_refuses_escaping_destinations(self) -> None:
+        repository_root = Path(__file__).resolve().parents[1]
+        inventory_path = self.root / "inventory.json"
+        record = make_record("../escaped")
+        record["path"] = "runtime-skills/science-review"
+        for linked in (False, True):
+            if linked:
+                record["name"] = "linked"
+                self.output.mkdir(exist_ok=True)
+                (self.output / "linked").symlink_to(self.root / "outside", target_is_directory=True)
+            inventory_path.write_text(
+                json.dumps({"schema_version": 1, "skills": [record]}), encoding="utf-8"
+            )
+            for flags in ([], ["--check"]):
+                with self.subTest(linked=linked, flags=flags):
+                    result = subprocess.run(
+                        [
+                            sys.executable, str(repository_root / "scripts" / "generate_wrappers.py"),
+                            "--inventory", str(inventory_path), "--output", str(self.output), *flags,
+                        ],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")),
+                    )
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn("ValueError", result.stderr)
+                    self.assertFalse((self.root / "escaped").exists())
+                    self.assertFalse((self.root / "outside").exists())
+        (self.root / "real").mkdir()
+        (self.root / "alias").symlink_to("real", target_is_directory=True)
+        record["name"] = "safe"
+        inventory_path.write_text(
+            json.dumps({"schema_version": 1, "skills": [record]}), encoding="utf-8"
+        )
+        for flags in ([], ["--check"]):
+            with self.subTest(trusted_alias=True, flags=flags):
+                result = subprocess.run(
+                    [
+                        sys.executable, str(repository_root / "scripts/generate_wrappers.py"),
+                        "--inventory", "inventory.json", "--output", "alias/out", *flags,
+                    ],
+                    cwd=self.root, env=dict(os.environ, PYTHONPATH=str(repository_root / "src")),
+                    capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")),
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(
+                    render_skill_wrapper(record),
+                    (self.root / "real/out/safe/SKILL.md").read_text(encoding="utf-8"),
+                )
 
 
 class SessionContractTests(unittest.TestCase):

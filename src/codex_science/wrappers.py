@@ -39,8 +39,15 @@ def _record(record: dict[str, Any]) -> tuple[str, str, str, list[str], str, str]
     reasons = record.get("reasons")
     source = record.get("path")
     license_name = record.get("license", "Unknown")
-    if not isinstance(name, str) or not name:
-        raise ValueError("Skill record has no name")
+    if (
+        not isinstance(name, str)
+        or not name
+        or name.startswith(".")
+        or "/" in name
+        or "\\" in name
+        or any(ord(character) < 32 or ord(character) == 127 for character in name)
+    ):
+        raise ValueError(f"Skill record has unsafe name: {name!r}")
     if not isinstance(description, str) or not description:
         raise ValueError(f"Skill record {name} has no description")
     if status not in {"active", "inactive"}:
@@ -185,61 +192,93 @@ def check_sources(inventory: dict[str, Any], plugin_root: Path) -> list[str]:
     return errors
 
 
-def check_wrappers(inventory: dict[str, Any], output_root: Path) -> list[str]:
-    errors: list[str] = []
-    expected_names: set[str] = set()
+def _wrapper_destination(path: Path, output_root: Path, *, directory: bool = False) -> None:
+    try:
+        current = output_root
+        components = [current]
+        for part in path.relative_to(output_root).parts:
+            current = current / part
+            components.append(current)
+        for component in components:
+            if component.is_symlink() or not component.resolve().is_relative_to(output_root):
+                raise ValueError("symlink or path outside output root")
+            needs_directory = component != path or directory
+            if component.exists() and (
+                not component.is_dir() if needs_directory else not component.is_file()
+            ):
+                raise ValueError("unexpected file type")
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ValueError(f"Unsafe wrapper destination {path}: {error}") from error
+
+
+def _wrapper_plan(
+    inventory: dict[str, Any], output_root: Path
+) -> tuple[Path, list[tuple[str, dict[str, str]]], list[Path]]:
+    try:
+        output_root = output_root.resolve()
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ValueError(f"Unsafe wrapper destination {output_root}: {error}") from error
+    _wrapper_destination(output_root, output_root, directory=True)
+    planned: list[tuple[str, dict[str, str]]] = []
     for record in _records(inventory):
         name, *_ = _record(record)
-        expected_names.add(name)
         expected = {
             "SKILL.md": render_skill_wrapper(record),
             "agents/openai.yaml": render_agent_manifest(record),
         }
+        for relative in expected:
+            _wrapper_destination(output_root / name / relative, output_root)
+        planned.append((name, expected))
+    expected_names = {name for name, _ in planned}
+    stale: list[Path] = []
+    if output_root.is_dir():
+        for skill_dir in output_root.iterdir():
+            if skill_dir.is_symlink() or skill_dir.is_dir():
+                _wrapper_destination(skill_dir, output_root, directory=True)
+                if skill_dir.name in expected_names:
+                    continue
+                skill_file = skill_dir / "SKILL.md"
+                _wrapper_destination(skill_file, output_root)
+                if (
+                    skill_file.is_file()
+                    and GENERATED_MARKER in skill_file.read_text(encoding="utf-8", errors="replace")
+                ):
+                    stale.append(skill_dir)
+    return output_root, planned, stale
+
+
+def check_wrappers(inventory: dict[str, Any], output_root: Path) -> list[str]:
+    output_root, planned, stale = _wrapper_plan(inventory, output_root)
+    errors: list[str] = []
+    for name, expected in planned:
         for relative, contents in expected.items():
             path = output_root / name / relative
             if not path.is_file():
                 errors.append(f"{name}/{relative} is missing")
             elif path.read_text(encoding="utf-8") != contents:
                 errors.append(f"{name}/{relative} is stale")
-    if output_root.is_dir():
-        for skill_dir in output_root.iterdir():
-            skill_file = skill_dir / "SKILL.md"
-            if (
-                skill_dir.is_dir()
-                and skill_dir.name not in expected_names
-                and skill_file.is_file()
-                and GENERATED_MARKER in skill_file.read_text(encoding="utf-8", errors="replace")
-            ):
-                errors.append(f"{skill_dir.name}/ is a stale generated wrapper")
+    errors.extend(f"{skill_dir.name}/ is a stale generated wrapper" for skill_dir in stale)
     return errors
 
 
 def generate_wrappers(inventory: dict[str, Any], output_root: Path) -> dict[str, int]:
     records = _records(inventory)
-    expected_names = {str(record["name"]) for record in records}
-    output_root.mkdir(parents=True, exist_ok=True)
-    for record in records:
-        name, *_ = _record(record)
+    output_root, planned, stale = _wrapper_plan(inventory, output_root)
+    for name, _ in planned:
         skill_dir = output_root / name
         skill_file = skill_dir / "SKILL.md"
         if skill_file.is_file() and GENERATED_MARKER not in skill_file.read_text(
             encoding="utf-8", errors="replace"
         ):
             raise FileExistsError(f"Refusing to overwrite non-generated skill: {skill_dir}")
+    output_root.mkdir(parents=True, exist_ok=True)
+    for name, expected in planned:
+        skill_dir = output_root / name
         (skill_dir / "agents").mkdir(parents=True, exist_ok=True)
-        skill_file.write_text(render_skill_wrapper(record), encoding="utf-8")
-        (skill_dir / "agents" / "openai.yaml").write_text(
-            render_agent_manifest(record), encoding="utf-8"
-        )
-    for skill_dir in output_root.iterdir():
-        skill_file = skill_dir / "SKILL.md"
-        if (
-            skill_dir.is_dir()
-            and skill_dir.name not in expected_names
-            and skill_file.is_file()
-            and GENERATED_MARKER in skill_file.read_text(encoding="utf-8", errors="replace")
-        ):
-            shutil.rmtree(skill_dir)
+        for relative, contents in expected.items():
+            (skill_dir / relative).write_text(contents, encoding="utf-8")
+    for skill_dir in stale:
+        shutil.rmtree(skill_dir)
     return {
         "generated": len(records),
         "active": sum(record["status"] == "active" for record in records),
