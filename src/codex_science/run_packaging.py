@@ -957,6 +957,11 @@ def prepare_review(
     """Refresh, record existing checks, refresh their outputs, and build a packet."""
     from codex_science.reviewer_runtime import build_review_packet
     run_dir = run_dir.resolve()
+    registry_path = Path(__file__).resolve().parents[2] / "models" / "registry-v2.json"
+    if registry_path.is_file():
+        from codex_science.model_registry_v2 import load_registry_v2
+
+        load_registry_v2(registry_path)
     problems: list[dict[str, Any]] = []
     outputs: list[str] = []
     packet_path = run_dir / "review-task.json"

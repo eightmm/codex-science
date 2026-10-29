@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import itertools
 import json
 import math
@@ -9,7 +10,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_science.artifacts import validate_bundle
+from codex_science.model_registry_v2 import load_registry_v2
 from codex_science.review import review_manifest
+from codex_science.run_packaging import prepare_review
 from codex_science.sbdd_execution import average_precision, bootstrap_mean, compute_acceptance, execute_acceptance, rmsd, symmetry_rmsd
 from codex_science.workbench import render_workbench
 
@@ -410,6 +413,57 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
             self.assertIn("Scientific workbench", html)
             self.assertIn("claim-sbdd-acceptance", html)
             self.assertIn("not evidence of experimental binding affinity", (output / "report.md").read_text())
+
+            temporary = Path(tempdir)
+            registry = json.loads((self.root / "models/registry-v2.json").read_text(encoding="utf-8"))
+            model = registry["models"][0]
+            model["status"] = "acceptance-tested"
+            model["implementation"]["commit_sha256"] = "a" * 64
+            bundle = temporary / "bundle.json"
+            bundle.write_bytes(self.input_path.read_bytes())
+            digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+            model["acceptance"] = {"status": "passed", "bundle": bundle.name, "bundle_sha256": "0" * 64}
+            registry_paths = []
+            for dirname in ("models", "other"):
+                directory = temporary / dirname
+                directory.mkdir()
+                registry_path = directory / "registry-v2.json"
+                registry_path.write_text(json.dumps(registry), encoding="utf-8")
+                registry_paths.append(registry_path)
+                model["acceptance"]["bundle_sha256"] = digest
+            changed_input = temporary / "changed-input.json"
+            changed_payload = copy.deepcopy(self.payload)
+            changed_payload["records"][0]["pose_delta"][0] += 0.5
+            changed_input.write_text(json.dumps(changed_payload), encoding="utf-8")
+            for registry_path in registry_paths:
+                for existing in (False, True):
+                    target = temporary / f"{registry_path.parent.name}-run-{existing}"
+                    if existing:
+                        execute_acceptance(self.input_path, target, registry_path=self.root / "models/registry-v2.json")
+                    before = {path.relative_to(target).as_posix(): path.read_bytes()
+                              for path in target.rglob("*") if path.is_file()}
+                    with self.subTest(registry=registry_path, existing=existing):
+                        with self.assertRaisesRegex(ValueError, "acceptance bundle"):
+                            execute_acceptance(changed_input, target, registry_path=registry_path)
+                        if existing:
+                            after = {path.relative_to(target).as_posix(): path.read_bytes()
+                                     for path in target.rglob("*") if path.is_file()}
+                            self.assertEqual(before, after)
+                        else:
+                            self.assertFalse(target.exists())
+
+            before = {path.relative_to(output).as_posix(): path.read_bytes()
+                      for path in output.rglob("*") if path.is_file()}
+            invalid_registry = lambda _path: load_registry_v2(registry_paths[0])
+            with patch("codex_science.model_registry_v2.load_registry_v2", side_effect=invalid_registry), \
+                    patch("codex_science.advanced_sidecars.load_registry_v2", side_effect=invalid_registry):
+                with self.subTest(action="prepare-review-refusal"):
+                    with self.assertRaisesRegex(ValueError, "acceptance bundle.*SHA-256 mismatch"):
+                        prepare_review(output, tier="standard", new_round=True)
+                with self.subTest(action="prepare-review-files"):
+                    after = {path.relative_to(output).as_posix(): path.read_bytes()
+                             for path in output.rglob("*") if path.is_file()}
+                    self.assertEqual(before, after)
 
 
 if __name__ == "__main__":

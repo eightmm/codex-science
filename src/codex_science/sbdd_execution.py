@@ -248,6 +248,9 @@ def _write_json(path: Path, payload: Any) -> None:
 def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Path) -> Path:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     poses, metrics, leakage_findings = compute_acceptance(payload)
+    registry = load_registry_v2(registry_path)
+    models = validate_registry_v2(registry)
+    model = models["deterministic-translation-baseline"]
     output_dir.mkdir(parents=True, exist_ok=True)
     poses_path, metrics_path = output_dir / "poses.json", output_dir / "metrics.json"
     _write_json(poses_path, {"schema_version": 1, "poses": poses})
@@ -280,9 +283,6 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     graph_v1_path, graph_v2_path = output_dir / "evidence_graph.json", output_dir / "evidence_graph_v2.json"
     _write_json(graph_v1_path, graph_v1)
     _write_json(graph_v2_path, graph_v2)
-    registry = load_registry_v2(registry_path)
-    models = validate_registry_v2(registry)
-    model = models["deterministic-translation-baseline"]
     config_hash = canonical_sha256({"thresholds": payload.get("numeric_thresholds", {}), "algorithm": "deterministic-translation-baseline-v1"})
     model_receipt = build_model_receipt_v2(
         model,

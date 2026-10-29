@@ -4,7 +4,7 @@ import argparse, json, sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.model_registry_v2 import registry_sha256, validate_model_receipt_v2, validate_registry_v2  # noqa: E402
+from codex_science.model_registry_v2 import load_registry_v2, registry_sha256, validate_model_receipt_v2, validate_registry_v2  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -15,7 +15,7 @@ def main() -> int:
     if args.current_revisions is not None and not args.receipt:
         parser.error("--current-revisions requires at least one --receipt")
     try:
-        payload = json.loads(args.registry.read_text(encoding="utf-8"))
+        payload = load_registry_v2(args.registry)
         models = validate_registry_v2(payload)
         if not args.receipt:
             print(f"model registry v2: valid ({len(models)} models, sha256={registry_sha256(payload)})")

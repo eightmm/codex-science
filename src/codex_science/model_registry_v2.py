@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable, Mapping
 
 from codex_science.models import _revision, _revision_mapping
@@ -24,10 +24,20 @@ def _sha(value: Any, label: str) -> str:
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
-    if not text:
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label} is required")
-    return text
+    return value.strip()
+
+
+def _acceptance_bundle_path(value: Any, model_id: str) -> Path:
+    label = f"model {model_id} acceptance bundle"
+    value = _text(value, label)
+    path = Path(value)
+    windows_path = PureWindowsPath(value)
+    if (path.is_absolute() or windows_path.drive or windows_path.root
+            or ".." in path.parts or ".." in windows_path.parts or "\x00" in value):
+        raise ValueError(f"{label} must be a safe repository-relative path: {value!r}")
+    return path
 
 
 def model_contract_material(model: dict[str, Any]) -> dict[str, Any]:
@@ -76,6 +86,7 @@ def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if status == "acceptance-tested":
             _sha(implementation.get("commit_sha256"), f"model {model_id} implementation commit")
             _sha(acceptance.get("bundle_sha256"), f"model {model_id} acceptance bundle")
+            _acceptance_bundle_path(acceptance.get("bundle"), model_id)
             if acceptance.get("status") != "passed":
                 raise ValueError(f"acceptance-tested model {model_id} must have passed acceptance")
         expected_contract = canonical_sha256(model_contract_material(model))
@@ -88,7 +99,29 @@ def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def load_registry_v2(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    validate_registry_v2(payload)
+    models = validate_registry_v2(payload)
+    registry_directory = path.resolve().parent
+    repository_root = registry_directory.parent
+    for model_id, model in models.items():
+        if model["status"].strip() != "acceptance-tested":
+            continue
+        acceptance = model["acceptance"]
+        bundle = acceptance["bundle"]
+        label = f"model {model_id} acceptance bundle {bundle!r}"
+        try:
+            if registry_directory.name != "models":
+                raise ValueError(f"registry must be in a models/ directory: {path}")
+            bundle_path = (repository_root / _acceptance_bundle_path(bundle, model_id)).resolve()
+            if not bundle_path.is_relative_to(repository_root) or not bundle_path.is_file():
+                raise ValueError("must be a file within the registry repository")
+            digest = hashlib.sha256()
+            with bundle_path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise ValueError(f"{label}: {error}") from error
+        if digest.hexdigest() != _sha(acceptance["bundle_sha256"], label):
+            raise ValueError(f"{label}: SHA-256 mismatch")
     return payload
 
 

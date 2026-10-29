@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 from codex_science.model_registry_v2 import (
     build_model_receipt_v2,
     canonical_sha256,
+    load_registry_v2,
     registry_sha256,
     select_models,
     validate_model_receipt_v2,
@@ -29,6 +31,197 @@ class ModelRegistryV2Tests(unittest.TestCase):
             self.assertTrue(model["contract_sha256"])
             self.assertTrue(model["leakage_risks"])
             self.assertTrue(model["confidence_semantics"]["not_equivalent_to"])
+
+    def test_registry_requires_nonblank_string_fields(self) -> None:
+        missing = object()
+        fields = (
+            (("registry_revision",), "registry_revision"),
+            (("models", 0, "id"), "model 0 id"),
+            (("models", 0, "status"), "model deterministic-translation-baseline status"),
+            *((("models", 0, field), f"model deterministic-translation-baseline {field}")
+              for field in ("family", "skill", "acceptance_contract")),
+            (("models", 0, "implementation", "repository"), "model deterministic-translation-baseline repository"),
+            (("models", 0, "license", "code"), "model deterministic-translation-baseline code license"),
+            (("models", 0, "license", "weights"), "model deterministic-translation-baseline weights license"),
+        )
+        for path, label in fields:
+            for value in (missing, None, "", " \t", 0, 1, False, True, 1.5, [], {}):
+                payload = copy.deepcopy(self.registry)
+                record = payload
+                for key in path[:-1]:
+                    record = record[key]
+                if value is missing:
+                    record.pop(path[-1])
+                else:
+                    record[path[-1]] = value
+                before = copy.deepcopy(payload)
+                with self.subTest(field=path, value=value):
+                    with self.assertRaises(ValueError) as error:
+                        validate_registry_v2(payload)
+                    self.assertEqual(f"{label} is required", str(error.exception))
+                    self.assertEqual(before, payload)
+        for field, label in (("implementation", "repository"), ("license", "code license")):
+            payload = copy.deepcopy(self.registry)
+            payload["models"][0][field] = {}
+            with self.subTest(empty=field), self.assertRaisesRegex(ValueError, f"{label} is required"):
+                select_models(payload, task="acceptance-fixture", modality="protein-ligand")
+
+    def _acceptance_registry(self):
+        payload = copy.deepcopy(self.registry)
+        model = payload["models"][0]
+        model["status"] = "acceptance-tested"
+        model["implementation"]["commit_sha256"] = "a" * 64
+        model["acceptance"] = {
+            "status": "passed", "bundle": "examples/sbdd-executable/input.json",
+            "bundle_sha256": hashlib.sha256((self.root / "examples/sbdd-executable/input.json").read_bytes()).hexdigest(),
+        }
+        return payload
+
+    def _write_registry(self, root, payload):
+        registry_path = root / "models" / "registry-v2.json"
+        registry_path.parent.mkdir(exist_ok=True)
+        registry_path.write_text(json.dumps(payload), encoding="utf-8")
+        return registry_path
+
+    def _registry_cli(self, path, *arguments):
+        return subprocess.run(
+            [sys.executable, str(self.root / "scripts/validate_model_registry_v2.py"), "--registry", str(path), *arguments],
+            capture_output=True, text=True,
+        )
+
+    def test_acceptance_bundle_requires_safe_relative_text_path(self) -> None:
+        missing = object()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for value in (missing, None, "", " \t", 0, False, [], {}, "../x.json", "examples/../x.json",
+                          str(root / "outside.json"), "C:/outside.json", "C:outside.json", "\\\\server\\share\\x.json",
+                          "..\\x.json", "bad\x00path", " ../x.json ", " /outside.json "):
+                payload = self._acceptance_registry()
+                if value is missing:
+                    payload["models"][0]["acceptance"].pop("bundle")
+                else:
+                    payload["models"][0]["acceptance"]["bundle"] = value
+                with self.subTest(bundle=value):
+                    with self.assertRaisesRegex(ValueError, "deterministic-translation-baseline.*acceptance bundle"):
+                        validate_registry_v2(payload)
+                    registry_path = self._write_registry(root, payload)
+                    with self.assertRaises(ValueError):
+                        load_registry_v2(registry_path)
+                    result = self._registry_cli(registry_path)
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertIn("acceptance bundle", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_acceptance_bundle_file_must_exist_and_match_in_loader_and_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = self._acceptance_registry()
+            bundle = payload["models"][0]["acceptance"]["bundle"]
+            bundle_path = root / bundle
+            bundle_path.parent.mkdir(parents=True)
+            for case in ("missing", "wrong-digest", "directory", "escaping-symlink", "symlink-loop"):
+                payload["models"][0]["status"] = " acceptance-tested " if case == "missing" else "acceptance-tested"
+                if case == "wrong-digest":
+                    bundle_path.write_bytes(b"different bytes")
+                elif case == "directory":
+                    bundle_path.mkdir()
+                elif case == "escaping-symlink":
+                    bundle_path.symlink_to(self.root / bundle)
+                elif case == "symlink-loop":
+                    bundle_path.symlink_to(bundle_path.name)
+                registry_path = self._write_registry(root, payload)
+                with self.subTest(case=case):
+                    self.assertTrue(validate_registry_v2(payload))
+                    with self.assertRaisesRegex(ValueError, f"deterministic-translation-baseline.*{bundle}"):
+                        load_registry_v2(registry_path)
+                    for arguments in ((), ("--receipt", str(root / "absent-receipt.json"))):
+                        result = self._registry_cli(registry_path, *arguments)
+                        self.assertEqual(2, result.returncode, result.stderr)
+                        self.assertIn("deterministic-translation-baseline", result.stderr)
+                        self.assertIn(bundle, result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                if bundle_path.is_dir():
+                    bundle_path.rmdir()
+                elif bundle_path.exists() or bundle_path.is_symlink():
+                    bundle_path.unlink()
+
+            payload = self._acceptance_registry()
+            bundle = payload["models"][0]["acceptance"]["bundle"]
+            bundle_path.write_bytes((self.root / bundle).read_bytes())
+            registry_path = self._write_registry(root, payload)
+            self.assertEqual(payload, load_registry_v2(registry_path))
+            self.assertEqual(0, self._registry_cli(registry_path).returncode)
+            outside_directory = root / "other"
+            outside_directory.mkdir()
+            outside_registry = outside_directory / registry_path.name
+            outside_registry.write_text(json.dumps(payload), encoding="utf-8")
+            registry_alias = registry_path.parent / "alias.json"
+            registry_alias.symlink_to(outside_registry)
+            for path in (outside_registry, registry_alias):
+                with self.subTest(registry=path):
+                    with self.assertRaisesRegex(ValueError, "deterministic-translation-baseline.*models/"):
+                        load_registry_v2(path)
+                    for arguments in ((), ("--receipt", str(root / "absent-receipt.json"))):
+                        result = self._registry_cli(path, *arguments)
+                        self.assertEqual(2, result.returncode, result.stderr)
+                        self.assertIn("models/", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+            for padding in (" ", "\t"):
+                payload["models"][0]["acceptance"]["bundle"] = f"{padding}{bundle}{padding}"
+                registry_path = self._write_registry(root, payload)
+                with self.subTest(padding=padding):
+                    self.assertEqual(payload, load_registry_v2(registry_path))
+                    result = self._registry_cli(registry_path)
+                    self.assertEqual(0, result.returncode, result.stderr)
+
+            for status in ("cataloged", "experimental", "smoke-tested", "contract-tested", "degraded", "deprecated", "license-blocked"):
+                for bundle in (None, "../absent.json", str(root / "absent.json"), 0):
+                    payload = copy.deepcopy(self.registry)
+                    payload["models"][0]["status"] = status
+                    payload["models"][0]["acceptance"]["bundle"] = bundle
+                    with self.subTest(status=status, bundle=bundle):
+                        registry_path = self._write_registry(root, payload)
+                        self.assertEqual(payload, load_registry_v2(registry_path))
+                        result = self._registry_cli(registry_path)
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        outside_registry.write_text(json.dumps(payload), encoding="utf-8")
+                        self.assertEqual(payload, load_registry_v2(outside_registry))
+                        result = self._registry_cli(outside_registry)
+                        self.assertEqual(0, result.returncode, result.stderr)
+            payload = dict(self.registry, models=[])
+            outside_registry.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(payload, load_registry_v2(outside_registry))
+            result = self._registry_cli(outside_registry)
+            self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_acceptance_bundle_matching_example_and_empty_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = self._acceptance_registry()
+            bundle = payload["models"][0]["acceptance"]["bundle"]
+            bundle_path = root / bundle
+            bundle_path.parent.mkdir(parents=True)
+            example_bytes = (self.root / bundle).read_bytes()
+            for content in (example_bytes, b"", b"x" * (1024 * 1024), b"x" * (1024 * 1024 + 1)):
+                bundle_path.write_bytes(content)
+                payload["models"][0]["acceptance"]["bundle_sha256"] = hashlib.sha256(content).hexdigest()
+                registry_path = self._write_registry(root, payload)
+                self.assertEqual(payload, load_registry_v2(registry_path))
+                model = validate_registry_v2(payload)["deterministic-translation-baseline"]
+                receipt = build_model_receipt_v2(
+                    model, registry_sha256_value=registry_sha256(payload), code_revision="code-a",
+                    weight_revision="not-applicable", database_revisions={}, configuration_sha256="a" * 64,
+                    input_sha256="b" * 64, acceptance_bundle_sha256=model["acceptance"]["bundle_sha256"],
+                )
+                receipt_path = root / "receipt.json"
+                receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+                for arguments in ((), ("--receipt", str(receipt_path))):
+                    result = self._registry_cli(registry_path, *arguments)
+                    self.assertEqual(0, result.returncode, result.stderr)
+            bundle_path.write_bytes(b"changed after receipt")
+            result = self._registry_cli(registry_path, "--receipt", str(receipt_path))
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn(bundle, result.stderr)
 
     def test_receipt_invalidates_on_registry_or_contract_change(self) -> None:
         model = self.models["autodock-vina"]
