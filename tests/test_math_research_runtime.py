@@ -319,6 +319,7 @@ class MathResearchRuntimeTests(unittest.TestCase):
             ("x is positive", "y > 0", -1, "disproved", "passed"),
             ("x**64 >= 0", "x**64 >= 0", 0, "conjecture", "passed"),
             ("x**65 >= 0", "y > 0", -1, "disproved", "findings"),
+            ("x**" + "9" * 400 + " >= 0", "x*x >= 0", 1, "conjecture", "findings"),
             ("(x" + " " * (MAX_EXPRESSION_CHARS - 3) + ")", "x", 0, "disproved", "passed"),
             ("(x" + " " * (MAX_EXPRESSION_CHARS - 2) + ")", "x", 0, "disproved", "findings"),
         ):
@@ -333,10 +334,16 @@ class MathResearchRuntimeTests(unittest.TestCase):
                     quantifiers=["forall x"], status=status, permitted_inference="counterexample",
                     counterexample_receipt_ids=[receipt["fingerprint"]],
                 )
-                review = self._bundle_review([("mathematical-claim", linked_claim), ("counterexample-search", receipt)])
-                self.assertEqual(expected, review["status"])
-                if expected == "findings":
-                    self.assertIn("counterexample-conclusion-mismatch", {item["code"] for item in review["findings"]})
+                with tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    manifest = self._bundle_manifest(root, [("mathematical-claim", linked_claim), ("counterexample-search", receipt)])
+                    for validate, field in ((validate_bundle, "advanced_findings"), (review_manifest, "findings")):
+                        with self.subTest(entrypoint=validate.__name__):
+                            result = validate(manifest, root)
+                            if validate is review_manifest:
+                                self.assertEqual(expected, result["status"])
+                            if expected == "findings":
+                                self.assertIn("counterexample-conclusion-mismatch", {item["code"] for item in result[field]})
         witness = search_counterexample({**search_input, "statement": "x > 0", "conclusion": "x > 0", "variables": [{"name": "x", "values": [-1, 1]}]})
         self.assertEqual({"x": -1}, witness["counterexample"])
         duplicate_claims = [

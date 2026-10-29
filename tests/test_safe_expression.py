@@ -71,7 +71,11 @@ class ParseRejectionTests(unittest.TestCase):
     def test_power_exponent_literal_bound(self):
         parse_expression("2 ** 64")
         parse_expression("2 ** -64")
-        self.assertRejected("2 ** 65", "power exponent exceeds")
+        parse_expression("2 ** 0")
+        parse_expression("2 ** 64.0")
+        for exponent in ("65", "65.0", str(10**400), "9" * 400):
+            with self.subTest(exponent=exponent):
+                self.assertRejected("2 ** " + exponent, "power exponent exceeds the configured bound")
 
     def test_numeric_literal_limits(self):
         self.assertRejected("1" + "0" * 1300, "integer-size limit")
@@ -86,6 +90,20 @@ class EvaluateTests(unittest.TestCase):
         with self.assertRaises(ExpressionError) as caught:
             evaluate_expression(source, variables)
         self.assertIn(fragment, str(caught.exception))
+
+    def test_mixed_numeric_overflow_is_labelled(self):
+        huge = 10**400
+        for operation in ("+", "-", "*", "/", "//", "%"):
+            with self.subTest(operation=operation):
+                expression = f"x {operation} 0.5"
+                self.assertEvalRejected(expression, "numeric evaluation overflow", {"x": huge})
+                with self.assertRaisesRegex(ExpressionError, "numeric evaluation overflow"):
+                    search_counterexample({
+                        "schema_version": 1, "claim_id": "C", "statement": expression,
+                        "variables": [{"name": "x", "values": [huge]}], "conclusion": expression,
+                    })
+        self.assertEvalRejected("sqrt(x)", "function sqrt failed", {"x": huge})
+        self.assertEvalRejected("2 ** x", "power exponent exceeds", {"x": huge})
 
     def test_arithmetic_operators(self):
         cases = {
@@ -272,6 +290,8 @@ class CounterexampleNumericValidityTests(unittest.TestCase):
             {"statement_sha256": "a" * 64},
             {"variables": []},
             {"variables": [None]},
+            {"variables": [{"name": "x", "float_grid": {"start": 10**400, "stop": 0, "count": 2}}]},
+            {"variables": [{"name": "x", "values": [10**400]}], "conclusion": "x + 0.5 > 0"},
             {"conclusion": ""},
             {"conclusion": "x <"},
             {"conclusion": "x < 0"},
@@ -383,6 +403,15 @@ class CounterexampleNumericValidityTests(unittest.TestCase):
             self.search({"float_grid": {"start": 0, "stop": 0, "count": 2}}, "True")
         with self.assertRaisesRegex(ValueError, "within its bounds"):
             self.search({"float_grid": {"start": 1e-17, "stop": 1e-17, "count": 7}}, "True")
+        for field in ("start", "stop"):
+            for sign in (-1, 1):
+                with self.subTest(field=field, sign=sign):
+                    spec = {"start": 0, "stop": 1, "count": 2, field: sign * 10**400}
+                    with self.assertRaisesRegex(ExpressionError, "variable x grid"):
+                        self.search({"float_grid": spec}, "True")
+                    spec[field] = sign * int(float.fromhex("0x1.fffffffffffffp+1023"))
+                    result = self.search({"float_grid": spec}, "True")
+                    self.assertEqual("tested-no-counterexample", result["status"])
 
     def test_integer_range_requires_non_boolean_integers(self):
         for field in ("start", "stop", "step"):

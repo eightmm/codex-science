@@ -24,6 +24,8 @@
 
 Domains are explicit `values`, inclusive `integer_range`, or sampled `float_grid`. The evaluator allows bounded arithmetic, comparisons, Boolean logic, conditional expressions, and approved elementary functions. It rejects attributes, indexing, containers, comprehensions, imports, file access, arbitrary calls, excessive powers, huge integers, and oversized searches.
 
+Power bounds compare integer exponents directly, without converting them to floating point. Oversized exponents raise the existing power-bound expression error. Numeric evaluation and float-grid endpoint conversion also report overflow as labelled expression errors.
+
 ## Result statuses
 
 - `disproved`: a returned assignment passed every assumption and failed the conclusion;

@@ -196,7 +196,7 @@ def _parse_expression(source: str, *, allowed_names: Iterable[str], allow_unknow
                 raise _UnsupportedExpressionError("keyword arguments are not supported")
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and isinstance(node.right, ast.Constant):
             exponent = _finite_number(node.right.value, "power exponent")
-            if abs(float(exponent)) > MAX_POWER_ABS:
+            if abs(exponent) > MAX_POWER_ABS:
                 raise ExpressionError("power exponent exceeds the configured bound")
     return ParsedExpression(
         source=source,
@@ -208,7 +208,10 @@ def _parse_expression(source: str, *, allowed_names: Iterable[str], allow_unknow
 
 def _eval(node: ast.AST, variables: Mapping[str, Any], arithmetic: _SearchArithmetic | None = None) -> Any:
     def evaluate(child: ast.AST) -> Any:
-        return _eval(child, variables, arithmetic)
+        try:
+            return _eval(child, variables, arithmetic)
+        except OverflowError as error:
+            raise ExpressionError(f"numeric evaluation overflow: {error}") from error
 
     number = _finite_number if arithmetic is None else arithmetic.number
     checked = _checked if arithmetic is None else arithmetic.checked
@@ -380,8 +383,11 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
         spec = payload["float_grid"]
         if not isinstance(spec, Mapping):
             raise ValueError(f"variable {name} float_grid must be an object")
-        start = float(_finite_number(spec.get("start"), f"variable {name} grid start"))
-        stop = float(_finite_number(spec.get("stop"), f"variable {name} grid stop"))
+        try:
+            start = float(_finite_number(spec.get("start"), f"variable {name} grid start"))
+            stop = float(_finite_number(spec.get("stop"), f"variable {name} grid stop"))
+        except OverflowError as error:
+            raise ExpressionError(f"variable {name} grid endpoint exceeds the floating-point range") from error
         count = spec.get("count")
         if isinstance(count, bool) or not isinstance(count, int) or count < 2:
             raise ValueError(f"variable {name} float_grid count must be an integer at least 2")
