@@ -95,7 +95,12 @@ def resolve_study_families(records: list[dict[str, Any]]) -> list[dict[str, Any]
     if not records:
         return []
     validate_relationships(records)
-    by_id = {str(record["study_id"]): dict(record) for record in records}
+    by_id: dict[str, dict[str, Any]] = {}
+    for record in records:
+        study_id = str(record["study_id"])
+        if study_id in by_id:
+            raise ValueError(f"duplicate study_id: {study_id!r}")
+        by_id[study_id] = dict(record)
     union = UnionFind(by_id)
     owner: dict[str, str] = {}
     for study_id, record in by_id.items():
@@ -128,9 +133,11 @@ def resolve_study_families(records: list[dict[str, Any]]) -> list[dict[str, Any]
 def validate_risk_of_bias(payload: dict[str, Any]) -> None:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported risk-of-bias schema")
-    if not str(payload.get("study_id", "")).strip() or not str(payload.get("instrument", "")).strip():
+    study_id, instrument = payload.get("study_id"), payload.get("instrument")
+    valid_study_id = isinstance(study_id, str) and bool(study_id.strip())
+    if not valid_study_id or not isinstance(instrument, str) or not instrument.strip():
         message = "risk-of-bias study_id and instrument are required"
-        if not str(payload.get("study_id", "")).strip():
+        if not valid_study_id:
             aggregate = next(
                 (key for key, value in payload.items()
                  if key != "domains" and isinstance(value, list) and value and all(isinstance(entry, dict) for entry in value)),
@@ -149,11 +156,11 @@ def validate_risk_of_bias(payload: dict[str, Any]) -> None:
     if not isinstance(domains, list) or not domains:
         raise ValueError("risk-of-bias domains must be non-empty")
     for index, domain in enumerate(domains):
-        if not isinstance(domain, dict) or not str(domain.get("name", "")).strip():
+        if not isinstance(domain, dict) or not isinstance(domain.get("name"), str) or not domain["name"].strip():
             raise ValueError(f"risk-of-bias domain {index} is invalid")
         if domain.get("judgment") not in ROB_JUDGMENTS:
             raise ValueError(f"risk-of-bias domain {index} has invalid judgment")
-        if not str(domain.get("rationale", "")).strip():
+        if not isinstance(domain.get("rationale"), str) or not domain["rationale"].strip():
             raise ValueError(f"risk-of-bias domain {index} needs rationale")
     if payload.get("overall_judgment") not in ROB_JUDGMENTS:
         raise ValueError("invalid overall risk-of-bias judgment")

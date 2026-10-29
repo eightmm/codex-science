@@ -8,7 +8,7 @@ from codex_science.literature_v2 import resolve_study_families  # noqa: E402
 
 FAMILY_EPILOG = """\
 records JSON: a list of study objects, or an object whose studies[] is used.
-  study_id            required, non-empty string
+  study_id            required, non-empty string; must be unique across records
   relationships       optional list of {type, target_study_id}; type is one of
                       preprint_of, published_as, corrected_by, retracted_by,
                       secondary_analysis_of, protocol_for, registry_for;
@@ -33,11 +33,15 @@ def main() -> int:
     parser.add_argument("records", type=Path, help="study records JSON (format below)")
     parser.add_argument("--output", type=Path, help="write the family report JSON to this path instead of stdout")
     args = parser.parse_args()
-    payload = json.loads(args.records.read_text())
-    records = payload.get("studies", payload) if isinstance(payload, dict) else payload
-    report = {"schema_version": 1, "families": resolve_study_families(records)}
-    text = json.dumps(report, indent=2, sort_keys=True) + "\n"
-    if args.output: args.output.write_text(text, encoding="utf-8")
-    else: print(text, end="")
+    try:
+        payload = json.loads(args.records.read_text())
+        records = payload.get("studies", payload) if isinstance(payload, dict) else payload
+        report = {"schema_version": 1, "families": resolve_study_families(records)}
+        text = json.dumps(report, indent=2, sort_keys=True) + "\n"
+        if args.output: args.output.write_text(text, encoding="utf-8")
+        else: print(text, end="")
+    except (ValueError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 if __name__ == "__main__": raise SystemExit(main())

@@ -746,6 +746,142 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         self.assertEqual("correction", families[0]["canonical_study_id"])
         self.assertIn("doi:10.1000/abc", families[0]["persistent_ids"])
 
+    def test_study_families_reject_duplicate_ids_without_losing_unique_records(self) -> None:
+        first = {"study_id": "S1", "persistent_id": "doi:10.1000/one"}
+        second = {"study_id": "S2", "persistent_id": "doi:10.1000/two"}
+        expected = [
+            {"family_id": "family-21bf2304857a65fa6cc8", "canonical_study_id": "S1",
+             "study_ids": ["S1"], "persistent_ids": ["doi:10.1000/one"], "publication_states": ["unknown"]},
+            {"family_id": "family-528fa5db9d12b5361c9d", "canonical_study_id": "S2",
+             "study_ids": ["S2"], "persistent_ids": ["doi:10.1000/two"], "publication_states": ["unknown"]},
+        ]
+        self.assertEqual([], resolve_study_families([]))
+        self.assertEqual(expected[:1], resolve_study_families([first]))
+        records = [first, second]
+        original = deepcopy(records)
+        self.assertEqual(expected, resolve_study_families(records))
+        self.assertEqual(expected, resolve_study_families(list(reversed(records))))
+        linked = resolve_study_families([first, {**first, "study_id": "S2"}])
+        self.assertEqual(["S1", "S2"], linked[0]["study_ids"])
+        for duplicate in (dict(first), {**first, "persistent_id": "doi:10.1000/other"}):
+            with self.subTest(duplicate=duplicate):
+                with self.assertRaisesRegex(ValueError, r"duplicate study_id.*S1"):
+                    resolve_study_families([first, second, duplicate])
+        self.assertEqual(original, records)
+
+    def test_study_families_cli_refuses_duplicates_before_writing(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_study_families.py"
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, output = root / "records.json", root / "families.json"
+            command = [sys.executable, str(script), str(source), "--output", str(output)]
+            for other in ("doi:10.1000/one", "doi:10.1000/other"):
+                records = [{"study_id": "S1", "persistent_id": identifier}
+                           for identifier in ("doi:10.1000/one", other)]
+                for payload in (records, {"studies": records}):
+                    with self.subTest(payload=payload):
+                        source.write_text(json.dumps(payload), encoding="utf-8")
+                        before = source.read_bytes()
+                        output.unlink(missing_ok=True)
+                        for existing in (False, True):
+                            if existing:
+                                output.write_text("preserve existing output", encoding="utf-8")
+                            result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+                            self.assertEqual(1, result.returncode, result.stderr)
+                            self.assertRegex(result.stderr, r"^error: duplicate study_id.*S1")
+                            self.assertNotIn("Traceback", result.stderr)
+                            self.assertEqual("", result.stdout)
+                            self.assertEqual(before, source.read_bytes())
+                            if existing:
+                                self.assertEqual("preserve existing output", output.read_text())
+                            else:
+                                self.assertFalse(output.exists())
+            source.write_text("{", encoding="utf-8")
+            malformed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, malformed.returncode, malformed.stderr)
+            self.assertTrue(malformed.stderr.startswith("error: "))
+            self.assertNotIn("Traceback", malformed.stderr)
+            self.assertEqual("preserve existing output", output.read_text())
+            source.unlink()
+            missing = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, missing.returncode, missing.stderr)
+            self.assertTrue(missing.stderr.startswith("error: "))
+            self.assertNotIn("Traceback", missing.stderr)
+            self.assertEqual("preserve existing output", output.read_text())
+            for records in ([], [{"study_id": "S1"}], [{"study_id": "S1"}, {"study_id": "S2"}]):
+                with self.subTest(unique=records):
+                    source.write_text(json.dumps(records), encoding="utf-8")
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual({"schema_version": 1, "families": resolve_study_families(records)},
+                                     json.loads(output.read_text()))
+
+    @staticmethod
+    def risk_of_bias_payload() -> dict:
+        return {"schema_version": 1, "study_id": "S1", "instrument": "RoB 2",
+                "domains": [{"name": "selection", "judgment": "low", "rationale": "Reported."}],
+                "overall_judgment": "low"}
+
+    def test_risk_of_bias_required_fields_are_nonempty_strings(self) -> None:
+        for field in ("study_id", "instrument", "name", "rationale"):
+            for value in (None, 0, 1, False, True, [], {}, "", " \t\n"):
+                with self.subTest(field=field, value=value):
+                    payload = self.risk_of_bias_payload()
+                    target = payload if field in ("study_id", "instrument") else payload["domains"][0]
+                    target[field] = value
+                    original = deepcopy(payload)
+                    with self.assertRaises(ValueError):
+                        validate_risk_of_bias(payload)
+                    self.assertEqual(original, payload)
+            payload = self.risk_of_bias_payload()
+            target = payload if field in ("study_id", "instrument") else payload["domains"][0]
+            del target[field]
+            with self.assertRaises(ValueError):
+                validate_risk_of_bias(payload)
+            for value in ("x", " padded "):
+                target[field] = value
+                original = deepcopy(payload)
+                validate_risk_of_bias(payload)
+                self.assertEqual(original, payload)
+
+    def test_risk_of_bias_cli_rejects_null_required_fields(self) -> None:
+        from codex_science.artifacts import add_artifact, new_manifest
+
+        script = Path(__file__).resolve().parents[1] / "scripts/validate_artifact.py"
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, source, output = root / "bias.json", root / "manifest.json", root / "review.json"
+            command = [sys.executable, str(script), str(source), "--review-output", str(output),
+                       "--require-passed-review"]
+            for field in (None, "study_id", "instrument", "name", "rationale"):
+                with self.subTest(field=field):
+                    payload = self.risk_of_bias_payload()
+                    if field is not None:
+                        target = payload if field in ("study_id", "instrument") else payload["domains"][0]
+                        target[field] = None
+                    artifact.write_text(json.dumps(payload), encoding="utf-8")
+                    manifest = new_manifest("bias-test", "Is the record valid?", [])
+                    manifest["review"]["status"] = "passed"
+                    add_artifact(manifest, "bias.json", kind="risk-of-bias",
+                                 sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+                    source.write_text(json.dumps(manifest), encoding="utf-8")
+                    before = source.read_bytes(), artifact.read_bytes()
+                    output.unlink(missing_ok=True)
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+                    self.assertEqual(before, (source.read_bytes(), artifact.read_bytes()))
+                    if field is None:
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertIn("artifact review: passed", result.stdout)
+                    else:
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "))
+                        self.assertIn("bias.json (risk-of-bias):", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertNotIn("artifact bundle: valid", result.stdout)
+                        self.assertFalse(output.exists())
+
     def test_risk_of_bias_requires_explicit_domain_rationales(self) -> None:
         payload = {
             "schema_version": 1,

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Require non-empty strings for risk-of-bias `study_id`, `instrument`, `domains[].name` and `domains[].rationale`; reject duplicate study IDs (including identical records) before study-family resolution can discard records. `resolve_study_families.py` reports validation and filesystem failures as `error: ...` with exit 1 and no traceback, preserving existing outputs on validation refusal. Valid payloads and family reports are unchanged.
 - Correct refusal recovery advice: stale study-table screening evidence requires rebuilding the candidate pool before reapplying decisions; FAIR export receipt collisions require a fresh `--receipt` path; malformed unregistered annotation sidecars require removal or repair, while valid annotation objects retain identical-content adoption. Refusal statuses, successful outputs and CLI options are unchanged.
 - Update both READMEs to report the latest recorded benchmark run and 49 source contracts, with source-specific maturity caveats.
 - Regenerate the reviewed literature graph, current snapshot and diff, and life-science artifact index from shipped inputs; refresh affected hashes, test builder parity, and label the three bundles' legacy deterministic record-review fixtures separately from registered hash-bound receipts.
