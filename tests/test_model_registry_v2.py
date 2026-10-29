@@ -8,6 +8,7 @@ from pathlib import Path
 
 from codex_science.model_registry_v2 import (
     build_model_receipt_v2,
+    canonical_sha256,
     registry_sha256,
     select_models,
     validate_model_receipt_v2,
@@ -65,6 +66,71 @@ class ModelRegistryV2Tests(unittest.TestCase):
         self.assertEqual(1, len(validate_model_receipt_v2(receipt, self.registry, current_revisions=changed_db)))
         missing_db = dict(current, database_revisions={"missing": "db-x"})
         self.assertEqual(1, len(validate_model_receipt_v2(receipt, self.registry, current_revisions=missing_db)))
+
+    def test_receipt_builder_requires_string_revision_pins(self) -> None:
+        arguments = dict(
+            registry_sha256_value=registry_sha256(self.registry),
+            code_revision=" c ", weight_revision="not-applicable", database_revisions={},
+            configuration_sha256="a" * 64, input_sha256="b" * 64,
+        )
+        model = self.models["autodock-vina"]
+        receipt = build_model_receipt_v2(model, **arguments)
+        self.assertEqual("c", receipt["code_revision"])
+        self.assertEqual({}, receipt["database_revisions"])
+        self.assertEqual([], validate_model_receipt_v2(receipt, self.registry))
+        for field in ("code_revision", "weight_revision", "database_revisions"):
+            omitted = dict(arguments)
+            omitted.pop(field)
+            with self.subTest(omitted=field), self.assertRaises(TypeError):
+                build_model_receipt_v2(model, **omitted)
+        for value in (None, "", " ", 0, 1, False, [], {}):
+            for field in ("code_revision", "weight_revision", "database_revisions"):
+                override = {"db": value} if field == "database_revisions" else value
+                changed = dict(arguments, **{field: override})
+                before = copy.deepcopy(changed)
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "revision"):
+                    build_model_receipt_v2(model, **changed)
+                self.assertEqual(before, changed)
+        for value in (None, [], "db"):
+            with self.subTest(mapping=value), self.assertRaisesRegex(ValueError, "database_revisions"):
+                build_model_receipt_v2(model, **dict(arguments, database_revisions=value))
+        pinned = build_model_receipt_v2(model, **dict(arguments, database_revisions={"db": "v"}))
+        self.assertEqual({"db": "v"}, pinned["database_revisions"])
+        self.assertEqual([], validate_model_receipt_v2(pinned, self.registry))
+
+    def test_receipt_cli_refuses_missing_and_invalid_revision_pins(self) -> None:
+        missing = object()
+        cases = [dict(self._receipt())]
+        for field in ("code_revision", "weight_revision", "database_revisions"):
+            cases[0].pop(field)
+            values = (missing, None, "", " ", 0, 1, False, [], {})
+            if field == "database_revisions":
+                values = (missing, None, [], "db") + tuple({"db": value} for value in values[1:])
+            for value in values:
+                receipt = self._receipt()
+                if value is missing:
+                    receipt.pop(field)
+                else:
+                    receipt[field] = value
+                cases.append(receipt)
+        with tempfile.TemporaryDirectory() as directory:
+            receipt_path = Path(directory) / "receipt.json"
+            command = [sys.executable, str(self.root / "scripts" / "validate_model_registry_v2.py"), "--receipt", str(receipt_path)]
+            for receipt in cases:
+                receipt.pop("fingerprint")
+                receipt["fingerprint"] = canonical_sha256(receipt)
+                before = copy.deepcopy(receipt)
+                with self.subTest(receipt=receipt):
+                    findings = validate_model_receipt_v2(receipt, self.registry)
+                    self.assertEqual(["invalid-model-receipt-v2"], [item["code"] for item in findings])
+                    self.assertEqual("critical", findings[0]["severity"])
+                    self.assertIn("revision", findings[0]["message"])
+                    self.assertEqual(before, receipt)
+                    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+                    result = subprocess.run(command, capture_output=True, text=True)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual(findings[0]["message"], json.loads(result.stdout)["message"])
+                    self.assertNotIn("Traceback", result.stderr)
 
     def test_current_revision_input_validation_and_tampered_receipt(self) -> None:
         receipt = self._receipt()

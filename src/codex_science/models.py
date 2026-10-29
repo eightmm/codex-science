@@ -33,6 +33,20 @@ def _mapping(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
+def _revision(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty string")
+    return value.strip()
+
+
+def _revision_mapping(value: Any) -> dict[str, str]:
+    revisions = _mapping(value, "database_revisions")
+    for name, revision in revisions.items():
+        _text(name, "database revision name")
+        _revision(revision, f"database revision {name}")
+    return revisions
+
+
 def _list(value: Any, label: str) -> list[Any]:
     if not isinstance(value, list):
         raise ValueError(f"{label} must be a list")
@@ -149,9 +163,9 @@ def build_model_receipt(
         "schema_version": 1,
         "model_id": model_id,
         "registry_contract_revision": model["contract_revision"],
-        "code_revision": _text(code_revision, "code_revision"),
-        "weight_revision": _text(weight_revision, "weight_revision"),
-        "database_revisions": dict(sorted(database_revisions.items())),
+        "code_revision": _revision(code_revision, "code_revision"),
+        "weight_revision": _revision(weight_revision, "weight_revision"),
+        "database_revisions": dict(sorted(_revision_mapping(database_revisions).items())),
         "configuration_sha256": configuration_sha256.lower(),
         "input_sha256": input_sha256.lower(),
     }
@@ -159,9 +173,6 @@ def build_model_receipt(
         raise ValueError("configuration_sha256 must be a SHA-256 digest")
     if not _valid_sha256(receipt["input_sha256"]):
         raise ValueError("input_sha256 must be a SHA-256 digest")
-    for name, revision in receipt["database_revisions"].items():
-        _text(name, "database revision name")
-        _text(revision, f"database revision {name}")
     receipt["fingerprint"] = _canonical_sha256(_receipt_material(receipt))
     return receipt
 
@@ -181,14 +192,9 @@ def validate_model_receipt(
         or contract_revision < 1
     ):
         raise ValueError("registry_contract_revision must be a positive integer")
-    _text(receipt.get("code_revision"), "model receipt code_revision")
-    _text(receipt.get("weight_revision"), "model receipt weight_revision")
-    database_revisions = _mapping(
-        receipt.get("database_revisions"), "model receipt database_revisions"
-    )
-    for name, revision in database_revisions.items():
-        _text(name, "database revision name")
-        _text(revision, f"database revision {name}")
+    _revision(receipt.get("code_revision"), "model receipt code_revision")
+    _revision(receipt.get("weight_revision"), "model receipt weight_revision")
+    _revision_mapping(receipt.get("database_revisions"))
     for field in ("configuration_sha256", "input_sha256", "fingerprint"):
         if not _valid_sha256(str(receipt.get(field, ""))):
             raise ValueError(f"Invalid model receipt {field}")

@@ -85,6 +85,61 @@ class ModelRegistryTests(unittest.TestCase):
         ] += 1
         self.assertIn("diffdock", changed_model_contracts(self.registry, changed_registry))
 
+    def test_receipt_builder_requires_string_revision_pins(self) -> None:
+        arguments = dict(
+            code_revision=" c ", weight_revision="not-applicable", database_revisions={},
+            configuration_sha256="a" * 64, input_sha256="b" * 64,
+        )
+        model = self.models["autodock-vina"]
+        receipt = build_model_receipt(model, **arguments)
+        self.assertEqual("c", receipt["code_revision"])
+        self.assertEqual({}, receipt["database_revisions"])
+        validate_model_receipt(receipt, model)
+        for field in ("code_revision", "weight_revision", "database_revisions"):
+            omitted = dict(arguments)
+            omitted.pop(field)
+            with self.subTest(omitted=field), self.assertRaises(TypeError):
+                build_model_receipt(model, **omitted)
+        for value in (None, "", " ", 0, 1, False, [], {}):
+            for field in ("code_revision", "weight_revision", "database_revisions"):
+                override = {"db": value} if field == "database_revisions" else value
+                changed = dict(arguments, **{field: override})
+                before = copy.deepcopy(changed)
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "revision"):
+                    build_model_receipt(model, **changed)
+                self.assertEqual(before, changed)
+        for value in (None, [], "db"):
+            with self.subTest(mapping=value), self.assertRaisesRegex(ValueError, "database_revisions"):
+                build_model_receipt(model, **dict(arguments, database_revisions=value))
+        pinned = build_model_receipt(model, **dict(arguments, database_revisions={"db": "v"}))
+        self.assertEqual({"db": "v"}, pinned["database_revisions"])
+        validate_model_receipt(pinned, model)
+
+    def test_receipt_review_refuses_missing_and_invalid_revision_pins(self) -> None:
+        valid = build_model_receipt(
+            self.models["autodock-vina"], code_revision="c", weight_revision="w",
+            database_revisions={}, configuration_sha256="a" * 64, input_sha256="b" * 64,
+        )
+        missing = object()
+        for field in ("code_revision", "weight_revision", "database_revisions"):
+            values = (missing, None, "", " ", 0, 1, False, [], {})
+            if field == "database_revisions":
+                values = (missing, None, [], "db") + tuple({"db": value} for value in values[1:])
+            for value in values:
+                receipt = copy.deepcopy(valid)
+                if value is missing:
+                    receipt.pop(field)
+                else:
+                    receipt[field] = value
+                material = {key: item for key, item in receipt.items() if key not in ("schema_version", "fingerprint")}
+                receipt["fingerprint"] = model_module._canonical_sha256(material)
+                before = copy.deepcopy(receipt)
+                with self.subTest(field=field, value=value):
+                    findings = review_model_receipt(receipt)
+                    self.assertEqual(["invalid-model-receipt"], [item["code"] for item in findings])
+                    self.assertIn("revision", findings[0]["message"])
+                    self.assertEqual(before, receipt)
+
     def test_registry_validation_refuses_invalid_shapes_and_values_without_mutation(self) -> None:
         valid_model = copy.deepcopy(self.registry["models"][0])
 

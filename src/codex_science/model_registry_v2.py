@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from codex_science.models import _revision, _revision_mapping
+
 STATUSES = {"cataloged", "experimental", "smoke-tested", "contract-tested", "acceptance-tested", "degraded", "deprecated", "license-blocked"}
 USABLE_STATUSES = {"experimental", "smoke-tested", "contract-tested", "acceptance-tested"}
 
@@ -105,9 +107,9 @@ def build_model_receipt_v2(
         "model_id": _text(model.get("id"), "model_id"),
         "model_contract_sha256": canonical_sha256(model_contract_material(model)),
         "registry_sha256": _sha(registry_sha256_value, "registry_sha256"),
-        "code_revision": _text(code_revision, "code_revision"),
-        "weight_revision": _text(weight_revision, "weight_revision"),
-        "database_revisions": dict(sorted(database_revisions.items())),
+        "code_revision": _revision(code_revision, "code_revision"),
+        "weight_revision": _revision(weight_revision, "weight_revision"),
+        "database_revisions": dict(sorted(_revision_mapping(database_revisions).items())),
         "configuration_sha256": _sha(configuration_sha256, "configuration_sha256"),
         "input_sha256": _sha(input_sha256, "input_sha256"),
         "acceptance_bundle_sha256": None if acceptance_bundle_sha256 is None else _sha(acceptance_bundle_sha256, "acceptance_bundle_sha256"),
@@ -124,6 +126,9 @@ def validate_model_receipt_v2(
     if receipt.get("schema_version") != 2:
         return [{"code": "invalid-model-receipt-v2", "severity": "critical", "message": "unsupported model receipt v2 schema"}]
     try:
+        _revision(receipt.get("code_revision"), "code_revision")
+        _revision(receipt.get("weight_revision"), "weight_revision")
+        _revision_mapping(receipt.get("database_revisions"))
         material = dict(receipt)
         fingerprint = _sha(material.pop("fingerprint", None), "fingerprint")
         if canonical_sha256(material) != fingerprint:
