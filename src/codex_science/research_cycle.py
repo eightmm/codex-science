@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from pathlib import Path
 from typing import Any, Mapping
@@ -34,12 +35,23 @@ def _number(value: Any, field: str) -> float:
     if isinstance(value, bool):
         raise ValueError(f"{field} must be numeric")
     try:
-        value = float(value)
-    except (TypeError, ValueError) as error:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
         raise ValueError(f"{field} must be numeric") from error
-    if not math.isfinite(value):
+    if not math.isfinite(number):
         raise ValueError(f"{field} must be finite")
-    return value
+    integer = value if isinstance(value, int) else None
+    if isinstance(value, str):
+        try:
+            exact = Decimal(value)
+        except InvalidOperation:
+            # Finite float spellings beyond Decimal's exponent range yield zero.
+            return number
+        if exact == exact.to_integral_value():
+            integer = exact
+    if integer is not None and number != integer:
+        raise ValueError(f"{field} integer must be exactly representable as binary64")
+    return number
 
 
 def _refs(value: Any, field: str, run_dir: Path | None = None) -> list[dict[str, str]]:

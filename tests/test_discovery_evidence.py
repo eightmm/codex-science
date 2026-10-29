@@ -85,6 +85,71 @@ class DiscoveryEvidenceTests(unittest.TestCase):
         result = assess_cycle(cycle, self.root, {"review_refs": [good]})
         self.assertEqual("conflicting", result["review_axes"]["method"]["status"])
 
+    def test_assessment_checks_finding_evidence_outside_review_coverage(self):
+        from codex_science.artifacts import add_artifact, validate_bundle
+
+        cycle = self.start()
+        ref = self.review_ref(cycle, ["method"])
+        path = self.root / "manifest.json"
+        manifest = json.loads(path.read_text())
+        add_artifact(manifest, ref["path"], kind="review-receipt", sha256=ref["sha256"])
+        counter = write_ref(self.root, "counter.json", {"count": 0})
+        add_artifact(manifest, counter["path"], kind="data", sha256=counter["sha256"])
+        original = json.loads((self.root / ref["path"]).read_text())
+        for registered in (True, False):
+            for stale in (True, False):
+                with self.subTest(registered=registered, stale=stale):
+                    receipt = copy.deepcopy(original)
+                    receipt.pop("fingerprint")
+                    receipt["findings"] = [{"id": "counter", "code": "counter-check", "severity": "major",
+                                            "message": "Counter checked", "resolution_status": "resolved",
+                                            "evidence": [{"artifact_path": counter["path"],
+                                                          "artifact_sha256": "0" * 64 if stale else counter["sha256"]}]}]
+                    ref = write_ref(self.root, ref["path"], build_review_receipt(**{
+                        key: value for key, value in receipt.items() if key != "schema_version"}))
+                    manifest["artifacts"] = [item for item in manifest["artifacts"] if item["path"] != ref["path"]]
+                    if registered:
+                        add_artifact(manifest, ref["path"], kind="review-receipt", sha256=ref["sha256"])
+                    path.write_text(json.dumps(manifest))
+                    bundle = validate_bundle(manifest, self.root)
+                    bundle_stale = any(item["code"] == "stale-review-receipt" for item in bundle["advanced_findings"])
+                    self.assertEqual(registered and stale, bundle_stale)
+                    result = assess_cycle(cycle, self.root, {} if registered else {"review_refs": [ref]})
+                    method = result["review_axes"]["method"]
+                    self.assertEqual("pending" if stale else "passed_in_review_scope", method["status"])
+                    self.assertEqual(not stale, method["receipts"][0]["qualified_coverage"])
+                    self.assertEqual(stale, bool(method["receipts"][0]["integrity_findings"]))
+        receipt["findings"][0]["evidence"][0]["artifact_sha256"] = "0" * 64
+        ref = write_ref(self.root, ref["path"], build_review_receipt(**{
+            key: value for key, value in receipt.items() if key != "schema_version"}))
+        path.unlink()
+        self.assertEqual("passed_in_review_scope", assess_cycle(cycle, self.root, {"review_refs": [ref]})["review_axes"]["method"]["status"])
+
+    def test_assessment_uses_the_bundle_model_registry_digest(self):
+        from codex_science.artifacts import validate_bundle
+        from codex_science.model_registry_v2 import load_registry_v2, registry_sha256
+
+        cycle = self.start()
+        ref = self.review_ref(cycle, ["method"])
+        original = json.loads((self.root / ref["path"]).read_text())
+        current = registry_sha256(load_registry_v2(ROOT / "models/registry-v2.json"))
+        for digest in (current, "0" * 64):
+            with self.subTest(current=digest == current):
+                receipt = copy.deepcopy(original)
+                receipt.pop("fingerprint")
+                receipt["covered_registry_sha256"] = digest
+                ref = write_ref(self.root, ref["path"], build_review_receipt(**{
+                    key: value for key, value in receipt.items() if key != "schema_version"}))
+                manifest_path = self.root / "manifest.json"
+                manifest = json.loads(manifest_path.read_text())
+                manifest["artifacts"] = [item for item in manifest["artifacts"] if item["path"] != ref["path"]]
+                manifest["artifacts"].append({**ref, "kind": "review-receipt"})
+                manifest_path.write_text(json.dumps(manifest))
+                bundle = validate_bundle(manifest, self.root)
+                method = assess_cycle(cycle, self.root)["review_axes"]["method"]
+                self.assertEqual("passed_in_review_scope" if digest == current else "pending", method["status"])
+                self.assertEqual(bundle["advanced_findings"], method["receipts"][0]["integrity_findings"])
+
     def test_reviewer_packet_contains_cycle_and_redacts_producer_fields(self):
         self.payload["problem"]["producer_rationale"] = "hidden rationale sentinel"
         cycle = self.start()

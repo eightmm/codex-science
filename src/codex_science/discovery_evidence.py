@@ -101,10 +101,17 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
     axes: dict[str, list[dict[str, Any]]] = {mode: [] for mode in ("record", "source", "method", "reproduction")}
     review_refs = _refs(payload.get("review_refs", []), "review_refs", run_dir)
     registered_reviews = []
+    artifact_hashes: dict[str, str] = {}
+    registry_digest = None
     if (run_dir / "manifest.json").exists():
         from codex_science.artifacts import validate_bundle
+        from codex_science.model_registry_v2 import load_registry_v2, registry_sha256
         manifest = load_json_object(_confined_file(run_dir, "manifest.json"))
-        validate_bundle(manifest, run_dir)
+        bundle = validate_bundle(manifest, run_dir)
+        artifact_hashes = bundle["artifact_hashes"]
+        registry_path = Path(__file__).resolve().parents[2] / "models" / "registry-v2.json"
+        if registry_path.is_file():
+            registry_digest = registry_sha256(load_registry_v2(registry_path))
         registered_reviews = [{"path": item["path"], "sha256": item["sha256"]}
                               for item in manifest["artifacts"]
                               if item["kind"] in {"review-receipt", "review-receipt-v2"}]
@@ -122,7 +129,7 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
         # then require coverage of the current scientific state and references.
         covered = _refs(receipt["covered_artifacts"], "review covered_artifacts", run_dir)
         hashes = {item["path"]: item["sha256"] for item in covered}
-        findings = review_receipt_findings(receipt, hashes)
+        findings = review_receipt_findings(receipt, {**artifact_hashes, **hashes}, registry_sha256=registry_digest)
         missing = sorted(path for path, digest in refs.items() if hashes.get(path) != digest)
         qualified = receipt["independent"] and not missing and not findings
         entry = {"review_id": receipt["review_id"], "receipt_ref": ref,

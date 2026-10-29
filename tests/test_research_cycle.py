@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_science.research_cycle import _experiment_fingerprint, _pointer, _stored_hash, apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_cycle
+from codex_science.research_cycle import _experiment_fingerprint, _number, _pointer, _stored_hash, apply_cycle_event, load_cycle, new_cycle, save_cycle, validate_cycle
 
 
 def digest(path: Path) -> str:
@@ -224,6 +224,67 @@ class ResearchCycleTests(unittest.TestCase):
             bad = dict(event); bad["observations"] = [{**event["observations"][0], "value": 0.4}]
             with self.assertRaisesRegex(ValueError, "does not match|conflicting replay"):
                 apply_cycle_event(done, bad, root)
+
+    def test_numeric_conversion_preserves_exact_boundaries_and_refuses_inexact_integers(self):
+        for value in (0, 2**53 - 1, 2**53, -2**53, 2**53 + 2, 1e300, 0.1,
+                      "0", str(2**53), str(-2**53), "0.1", "1.5", " 1_000 ",
+                      "1e-99999999999999999999", "0e99999999999999999999"):
+            with self.subTest(value=value):
+                self.assertEqual(float(value), _number(value, "metric"))
+        for value in ("", "bad", None, True, [], float("inf"), float("nan")):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "metric"):
+                _number(value, "metric")
+        for value in (2**53 + 1, -2**53 - 1, 10**400, str(2**53 + 1),
+                      str(-2**53 - 1), "9007199254740993.0", "9.007199254740993e15", "1e300"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "metric"):
+                _number(value, "metric")
+
+    def test_observation_refuses_inexact_declared_and_artifact_integers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            cycle = self.make_cycle(root)
+            reserved = apply_cycle_event(cycle, {"kind": "reserve", "experiment_id": "e", "request_id": "r"})
+            running = apply_cycle_event(reserved, {"kind": "running", "experiment_id": "e", "request_id": "r"})
+            for value in (2**53 + 1, str(2**53 + 1), "9007199254740993.0"):
+                for artifact_bad in (False, True):
+                    with self.subTest(value=value, artifact_bad=artifact_bad):
+                        event = self.completion_event(root, running, value if artifact_bad else 2**53)
+                        event["observations"][0]["value"] = 2**53 if artifact_bad else value
+                        before = copy.deepcopy(running)
+                        field = "observed artifact value" if artifact_bad else "observation value"
+                        with self.assertRaisesRegex(ValueError, field):
+                            apply_cycle_event(running, event, root)
+                        self.assertEqual(before, running)
+
+    def test_threshold_refuses_inexact_integers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cycle = self.make_cycle(Path(temp))
+            for value in (2**53 + 1, str(2**53 + 1), "9.007199254740993e15"):
+                cycle["evaluation"]["threshold"]["value"] = value
+                with self.subTest(value=value), self.assertRaisesRegex(ValueError, "evaluation threshold value"):
+                    new_cycle(cycle)
+
+    def test_prediction_bounds_refuse_inexact_integers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cycle = self.make_cycle(Path(temp))
+            experiment = cycle["experiments"][0]
+            for bound in (0, 1):
+                for value in (2**53 + 1, str(2**53 + 1), "9007199254740993.0"):
+                    experiment["predictions"]["h1"] = [0, 2**54]
+                    experiment["predictions"]["h1"][bound] = value
+                    experiment["fingerprint"] = _experiment_fingerprint(experiment)
+                    with self.subTest(bound=bound, value=value), self.assertRaisesRegex(ValueError, "prediction lower|prediction upper"):
+                        new_cycle(cycle)
+
+    def test_resolution_refuses_inexact_integers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cycle = self.make_cycle(Path(temp))
+            experiment = cycle["experiments"][0]
+            for value in (2**53 + 1, str(2**53 + 1), "9007199254740993.0"):
+                experiment["resolution"] = value
+                experiment["fingerprint"] = _experiment_fingerprint(experiment)
+                with self.subTest(value=value), self.assertRaisesRegex(ValueError, "experiment resolution"):
+                    new_cycle(cycle)
 
     def test_proposed_experiment_cannot_arrive_precompleted(self):
         with tempfile.TemporaryDirectory() as temp:
