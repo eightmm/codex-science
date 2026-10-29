@@ -55,10 +55,21 @@ def _pubmed_url(endpoint: str, ids: list[str]) -> str:
     return "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/" + endpoint + ".fcgi?" + urllib.parse.urlencode(params)
 
 
-def _pubmed_records(payload: Any) -> dict[str, dict[str, str]]:
+def _pubmed_records(payload: Any, *, requested_ids: list[str] | None = None) -> dict[str, dict[str, str]]:
+    if requested_ids is not None and len(set(requested_ids)) != len(requested_ids):
+        raise ValueError("schema-drift: pubmed pagination returned duplicate PMIDs")
     result = payload.get("result") if isinstance(payload, dict) else None
     if not isinstance(result, dict):
         raise ValueError("invalid PubMed esummary response: missing result")
+    if requested_ids is not None:
+        uids = result.get("uids")
+        if (not isinstance(uids, list) or not all(isinstance(uid, str) for uid in uids)
+                or len(uids) != len(requested_ids) or set(uids) != set(requested_ids)):
+            raise ValueError("invalid PubMed esummary response: uids differ from requested IDs")
+        for uid in uids:
+            raw = result.get(uid)
+            if not isinstance(raw, dict) or raw.get("uid") != uid:
+                raise ValueError("invalid PubMed esummary response: embedded uid differs from record key")
     records: dict[str, dict[str, str]] = {}
     for uid in result.get("uids", []):
         raw = result.get(str(uid))
@@ -116,6 +127,8 @@ def _fetch_pubmed_metadata(
     ids: list[str], *, transport: Any, snapshot_dir: Path, query_id: str,
     page_offset: int, abstracts: bool,
 ) -> tuple[dict[str, dict[str, str]], list[Any], list[dict[str, Any]]]:
+    if len(set(ids)) != len(ids):
+        raise ValueError("schema-drift: pubmed pagination returned duplicate PMIDs")
     records: dict[str, dict[str, str]] = {}
     payloads: list[Any] = []
     receipt_pages: list[dict[str, Any]] = []
@@ -136,7 +149,7 @@ def _fetch_pubmed_metadata(
             )
             if endpoint == "esummary":
                 payload = response.json()
-                batch_records = _pubmed_records(payload)
+                batch_records = _pubmed_records(payload, requested_ids=batch)
                 records.update(batch_records)
                 payloads.append(payload)
                 normalized_count = len(batch_records)
@@ -207,12 +220,21 @@ def _plain_abstract(value: str) -> bytes:
     return (" ".join(html.unescape(tag.sub(" ", value)).split()) + "\n").encode("utf-8")
 
 
+def _record_identity(record: dict[str, Any]) -> tuple[str, str]:
+    return str(record.get("source") or ""), str(record.get("id", ""))
+
+
+def _abstract_identities(rows: list[dict[str, Any]]) -> set[tuple[str, str]]:
+    return {_record_identity(row) for row in rows if row.get("id") and isinstance(row.get("abstractText"), str)}
+
+
 def _write_abstracts(root: Path, payloads: list[Any]) -> tuple[set[str], set[str]]:
     """Return (filenames with an abstract file, subset kept because an earlier file differs)."""
     abstract_files: set[str] = set()
     kept_existing: set[str] = set()
     pending: list[tuple[Path, str, bytes]] = []
     wanted: dict[str, bytes] = {}
+    sources: dict[str, str] = {}
     for payload in payloads:
         rows = payload.get("resultList", {}).get("result", []) if isinstance(payload, dict) else []
         for raw in rows if isinstance(rows, list) else []:
@@ -220,6 +242,13 @@ def _write_abstracts(root: Path, payloads: list[Any]) -> tuple[set[str], set[str
             text = raw.get("abstractText") if isinstance(raw, dict) else None
             if not record_id or not isinstance(text, str):
                 continue
+            source, identifier = _record_identity(raw)
+            if identifier in sources and sources[identifier] != source:
+                raise ValueError(
+                    f"ambiguous literature abstract identity: {identifier} has multiple sources; "
+                    "nothing was written; rerun without --abstracts to retrieve records"
+                )
+            sources[identifier] = source
             if not _SAFE_ID.fullmatch(str(record_id)):
                 raise ValueError(f"unsafe literature record id: {record_id!r}")
             filename = f"{record_id}.abstract.txt"
@@ -301,6 +330,15 @@ def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str
         raise ValueError(f"saved literature result has invalid page receipts: {query_id}")
     if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
         raise ValueError(f"saved literature result has invalid records: {query_id}")
+    for declaration in (receipt, row):
+        count = declaration.get("records_returned")
+        if type(count) is not int or count != len(records):
+            raise ValueError(f"saved literature records count mismatch: {query_id}")
+    if sha256_json(records) != receipt.get("normalized_records_sha256"):
+        raise ValueError(f"saved literature records digest mismatch: {query_id}")
+    record_ids = [str(item.get("id") or f"record-{index}") for index, item in enumerate(records)]
+    if record_ids != receipt.get("returned_record_ids"):
+        raise ValueError(f"saved literature record identities mismatch: {query_id}")
     pages = receipt["pages"]
     payloads = []
     for page in pages:
@@ -332,17 +370,23 @@ def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str
         if not isinstance(results, list) or not all(isinstance(item, dict) for item in results):
             raise ValueError(f"saved page body has invalid result list: {name}")
         raw_rows.extend(results)
+    saved_identities = [_record_identity(record) for payload in payloads
+                        for record in SOURCE_OPERATIONS_V3["europepmc"].normalize(payload)]
+    if saved_identities != [_record_identity(record) for record in records]:
+        raise ValueError(f"saved literature page record identities mismatch: {query_id}")
     summary_rows = []
     for normalized in records:
-        raw = next((item for item in raw_rows if str(item.get("id", "")) == str(normalized.get("id", ""))), {})
+        raw = next((item for item in raw_rows if _record_identity(item) == _record_identity(normalized)), {})
         year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or ""
         summary_rows.append({"id": normalized.get("id", ""), "year": str(year)[:4],
                              "title": str(raw.get("title") or normalized.get("title") or "")[:120],
                              "abstract_written": False})
     abstract_files, kept_existing = _write_abstracts(root, payloads)
-    for item in summary_rows:
-        item["abstract_written"] = f"{item['id']}.abstract.txt" in abstract_files
-        item["abstract_kept_existing"] = f"{item['id']}.abstract.txt" in kept_existing
+    abstract_identities = _abstract_identities(raw_rows)
+    for normalized, item in zip(records, summary_rows):
+        has_abstract = _record_identity(normalized) in abstract_identities
+        item["abstract_written"] = has_abstract and f"{item['id']}.abstract.txt" in abstract_files
+        item["abstract_kept_existing"] = has_abstract and f"{item['id']}.abstract.txt" in kept_existing
     return {"query_id": query_id, "status": _status(receipt),
             "hit_count": next((p.get("hitCount") for p in payloads if isinstance(p, dict)
                                 and p.get("hitCount") is not None), None),
@@ -502,12 +546,14 @@ def retrieve_literature(
                 if isinstance(rs, list):
                     rows.extend(rs)
             summary_rows = []
+            abstract_identities = _abstract_identities(rows)
             for index, normalized in enumerate(result_obj["records"]):
-                raw = next((r for r in rows if str(r.get("id", "")) == str(normalized.get("id", ""))), {})
+                raw = next((r for r in rows if _record_identity(r) == _record_identity(normalized)), {})
                 title = str(raw.get("title") or normalized.get("title") or "")
                 year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or normalized.get("year") or ""
-                summary_row = {"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": f"{normalized.get('id')}.abstract.txt" in abstract_files,
-                               "abstract_kept_existing": f"{normalized.get('id')}.abstract.txt" in kept_existing}
+                has_abstract = source != "europepmc" or _record_identity(normalized) in abstract_identities
+                summary_row = {"id": normalized.get("id", ""), "year": str(year)[:4], "title": title[:120], "abstract_written": has_abstract and f"{normalized.get('id')}.abstract.txt" in abstract_files,
+                               "abstract_kept_existing": has_abstract and f"{normalized.get('id')}.abstract.txt" in kept_existing}
                 if source == "pubmed" and normalized.get("doi"):
                     summary_row["doi"] = normalized["doi"]
                 if source == "pubmed" and normalized.get("journal"):

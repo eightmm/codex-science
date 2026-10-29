@@ -75,9 +75,15 @@ def _record_identifier(value: Any) -> str:
 
 
 @dataclass(frozen=True)
+class _PubMedPageRequest(PageRequest):
+    _hit_count: int | None = None
+
+
+@dataclass(frozen=True)
 class _EuropePMCPageRequest(PageRequest):
     # Cursor pages can be shorter than page_size; page_index cannot count hits.
     _records_received: int = 0
+    _hit_count: int | None = None
 
 
 def _pubmed_result(payload: Any) -> Mapping[str, Any]:
@@ -122,10 +128,17 @@ class PubMedSearchV3:
         try:
             result = _pubmed_result(payload)
             count = _required_integer(result, "count")
+            parameters = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(page_request.url).query, keep_blank_values=True))
+            requested_start = _required_integer(parameters, "retstart")
             current = (
                 _required_integer(result, "retstart")
-                if "retstart" in result else page_index * request.page_size
+                if "retstart" in result else requested_start
             )
+            if current != requested_start:
+                raise ValueError("invalid retstart: differs from requested offset")
+            previous_count = getattr(page_request, "_hit_count", None)
+            if previous_count is not None and count != previous_count:
+                raise ValueError("invalid count: changed between pages")
         except ValueError as error:
             raise _pagination_drift(self.source, error) from error
         returned = len(result["idlist"])
@@ -138,7 +151,7 @@ class PubMedSearchV3:
         params = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
         params["retstart"] = str(next_start)
         url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(params), parsed.fragment))
-        return PageRequest("GET", url, {}, cursor=str(next_start))
+        return _PubMedPageRequest("GET", url, {}, cursor=str(next_start), _hit_count=count)
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
         result = _pubmed_result(payload)
@@ -181,6 +194,9 @@ class EuropePMCSearchV3:
                 hit_count = _required_value(payload, "hitCount")
                 if isinstance(hit_count, bool) or not isinstance(hit_count, int) or hit_count < 0:
                     raise ValueError("invalid hitCount: expected non-negative integer")
+            previous_count = getattr(page_request, "_hit_count", None)
+            if previous_count is not None and hit_count != previous_count:
+                raise ValueError("invalid hitCount: changed between pages")
             if not returned and hit_count is not None and received < hit_count:
                 raise ValueError("invalid empty page before hitCount was reached")
         except ValueError as error:
@@ -213,7 +229,8 @@ class EuropePMCSearchV3:
         params = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
         params["cursorMark"] = cursor
         url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(params), parsed.fragment))
-        return _EuropePMCPageRequest("GET", url, {}, cursor=cursor, _records_received=received)
+        return _EuropePMCPageRequest("GET", url, {}, cursor=cursor,
+                                     _records_received=received, _hit_count=hit_count)
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
         results = _europepmc_results(payload)

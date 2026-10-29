@@ -12,8 +12,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codex_science.evidence import _validate_query_records
-from codex_science.connector_contract import QueryRequest
-from codex_science.literature_retrieval import _ledger_ids, _plain_abstract, _pubmed_records, _status, retrieve_literature
+from codex_science.connector_contract import QueryRequest, sha256_json
+from codex_science.literature_retrieval import _fetch_pubmed_metadata, _ledger_ids, _plain_abstract, _pubmed_records, _status, retrieve_literature
+from codex_science.source_operations_v3 import PubMedSearchV3
 from codex_science.transport_v3 import PageRequest, TransportError, TransportResponse
 from scripts.retrieve_literature import main
 
@@ -75,6 +76,235 @@ class RetrieveLiteratureTests(unittest.TestCase):
             self.assertEqual("partial", row["status"])
             self.assertEqual(2, row["hit_count"])
             self.assertEqual(1, row["records_returned"])
+
+    def test_search_offset_and_totals_must_match_requested_pages(self):
+        first = europe_payload([{"id": "123"}], 100)
+        first["nextCursorMark"] = "next"
+        second = europe_payload([{"id": "456"}], 2)
+        second["nextCursorMark"] = "next"
+        cases = [
+            ("pubmed", [{"esearchresult": {"count": "100", "retstart": "99", "idlist": ["123"]}}]),
+            ("pubmed", [{"esearchresult": {"count": "100", "retstart": "0", "idlist": ["123"]}},
+                        {"esearchresult": {"count": "2", "retstart": "1", "idlist": ["456"]}}]),
+            ("europepmc", [first, second]),
+        ]
+        for total in (0, 101, "bad", True):
+            cases.extend([
+                ("pubmed", [{"esearchresult": {"count": "100", "retstart": "0", "idlist": ["123"]}},
+                            {"esearchresult": {"count": total, "retstart": "1", "idlist": ["456"]}}]),
+                ("europepmc", [first, europe_payload([{"id": "456"}], total)]),
+            ])
+        for offset in ("", "bad", -1, True):
+            cases.append(("pubmed", [{"esearchresult": {"count": "1", "retstart": offset, "idlist": ["123"]}}]))
+        missing_total = europe_payload([{"id": "456"}])
+        missing_total.pop("hitCount")
+        cases.append(("europepmc", [first, missing_total]))
+        for source, pages in cases:
+            with self.subTest(source=source, pages=pages), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                transport = FakeTransport(pages + [pubmed_esummary(["123", "456"])])
+                with self.assertRaisesRegex(ValueError, "schema-drift"):
+                    retrieve_literature(root, source, "drifting", page_size=1, max_pages=2,
+                                        transport=transport)
+                self.assertEqual([], list(root.iterdir()))
+
+        for source in ("pubmed", "europepmc"):
+            for count in (0, 1, 2):
+                with self.subTest(source=source, count=count), tempfile.TemporaryDirectory() as temp:
+                    ids = [str(index) for index in range(count)]
+                    if source == "pubmed":
+                        pages = [{"esearchresult": {"count": str(count), "idlist": [identifier]}}
+                                 for identifier in ids] or [{"esearchresult": {"count": "0", "idlist": []}}]
+                        if ids:
+                            pages.append(pubmed_esummary(ids))
+                    else:
+                        pages = [europe_payload([{"id": identifier}], count) for identifier in ids] or [europe_payload()]
+                        if count > 1:
+                            pages[0]["nextCursorMark"] = "next"
+                            pages[1]["nextCursorMark"] = "next"
+                    result = retrieve_literature(Path(temp), source, "stable", page_size=3, max_pages=3,
+                                                 transport=FakeTransport(pages))
+                    self.assertEqual("complete", result["status"])
+                    self.assertEqual(count, result["records_returned"])
+                    self.assertEqual(count, result["hit_count"])
+
+    def test_pubmed_request_offset_errors_have_schema_drift_labels(self):
+        operation = PubMedSearchV3()
+        query = QueryRequest("pubmed", "search", {"query": "offset"}, 1, 1, None, "3")
+        payload = {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["123"]}}
+        base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+        for suffix in ("", "?retstart=", "?retstart=bad", "?retstart=-1"):
+            with self.subTest(suffix=suffix), self.assertRaisesRegex(ValueError, "schema-drift: pubmed pagination.*retstart"):
+                operation.next_request(query, PageRequest("GET", base_url + suffix, {}), payload, 0)
+        for count in (0, 1):
+            with self.subTest(count=count):
+                page = {"esearchresult": {"count": str(count), "retstart": "0", "idlist": ["123"] if count else []}}
+                self.assertIsNone(operation.next_request(query, operation.first_request(query), page, 0))
+
+    def test_pubmed_metadata_identity_must_match_search(self):
+        invalid = []
+        for uids in ([], ["999"], ["123", "123"], None, "123", [True]):
+            payload = pubmed_esummary(["123"])
+            payload["result"]["uids"] = uids
+            invalid.append(payload)
+        for raw in ({"uid": "999", "title": "Paper 999"}, {}, None):
+            payload = pubmed_esummary(["123"])
+            payload["result"]["123"] = raw
+            invalid.append(payload)
+        for payload in invalid:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                with self.assertRaisesRegex(ValueError, "PubMed esummary"):
+                    retrieve_literature(root, "pubmed", "identity", transport=FakeTransport([
+                        {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["123"]}}, payload]))
+                self.assertEqual([], list(root.iterdir()))
+
+        with tempfile.TemporaryDirectory() as temp:
+            ids = ["123", "456"]
+            result = retrieve_literature(Path(temp), "pubmed", "reordered", transport=FakeTransport([
+                {"esearchresult": {"count": "2", "idlist": ids}}, pubmed_esummary(list(reversed(ids)))]))
+            self.assertEqual(["Title 123", "Title 456"], [row["title"] for row in result["records"]])
+
+    def test_europepmc_summaries_preserve_source_identity_on_fetch_and_recovery(self):
+        rows = [{"source": source, "id": "123", "title": source + " title"}
+                for source in ("MED", "AGR")]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            result = retrieve_literature(root, "europepmc", "sources", transport=FakeTransport([europe_payload(rows)]))
+            self.assertEqual(["MED title", "AGR title"], [r["title"] for r in result["records"]])
+            before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            recovered = retrieve_literature(root, "europepmc", "sources", abstracts=True)
+            self.assertEqual("complete", recovered["status"])
+            self.assertEqual(["MED title", "AGR title"], [r["title"] for r in recovered["records"]])
+            self.assertTrue(all(not r["abstract_written"] for r in recovered["records"]))
+            self.assertEqual(before, {p: p.read_bytes() for p in root.rglob("*") if p.is_file()})
+
+    def test_europepmc_only_abstract_rows_with_ids_can_collide(self):
+        for text in (None, "words", "", 0, {}):
+            for fetch_abstracts in (False, True):
+                for abstract_source in ("MED", "CBA"):
+                    with self.subTest(text=text, fetch=fetch_abstracts, source=abstract_source), tempfile.TemporaryDirectory() as temp:
+                        root = Path(temp)
+                        rows = [{"source": source, "id": "123", "title": source + " title"}
+                                for source in ("MED", "CBA")]
+                        rows[0 if abstract_source == "MED" else 1]["abstractText"] = text
+                        rows.extend({"source": source, "id": "", "abstractText": "ignored"}
+                                    for source in ("MED", "CBA"))
+                        rows.extend({"source": source, "abstractText": "ignored"}
+                                    for source in ("MED", "CBA"))
+                        transport = FakeTransport([europe_payload(rows)])
+                        fetched = retrieve_literature(root, "europepmc", "shared id", abstracts=fetch_abstracts,
+                                                      transport=transport)
+                        recovered = retrieve_literature(root, "europepmc", "shared id", abstracts=True,
+                                                        transport=transport)
+                        self.assertEqual(1, transport.calls)
+                        for result, requested in ((fetched, fetch_abstracts), (recovered, True)):
+                            self.assertEqual("complete", result["status"])
+                            self.assertEqual(2, result["records_returned"])
+                            self.assertEqual(["MED title", "CBA title"], [r["title"] for r in result["records"]])
+                            self.assertEqual([bool(requested and isinstance(text, str) and source == abstract_source)
+                                              for source in ("MED", "CBA")],
+                                             [r["abstract_written"] for r in result["records"]])
+                        abstract_files = sorted(p.name for p in (root / "sources").glob("*"))
+                        self.assertEqual(["123.abstract.txt"] if isinstance(text, str) else [], abstract_files)
+                        if isinstance(text, str):
+                            self.assertEqual(text + "\n", (root / "sources/123.abstract.txt").read_text())
+
+    def test_pubmed_duplicate_requested_pmids_report_pagination_drift(self):
+        for ids, page_size in ((["123", "123"], 1), ([str(i) for i in range(1, 201)] + ["1"], 100)):
+            with self.subTest(count=len(ids)), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                pages = [{"esearchresult": {"count": str(len(ids)), "retstart": str(offset),
+                                            "idlist": ids[offset:offset + page_size]}}
+                         for offset in range(0, len(ids), page_size)]
+                metadata = [pubmed_esummary(ids[offset:offset + 200]) for offset in range(0, len(ids), 200)]
+                transport = FakeTransport(pages + metadata)
+                with self.assertRaisesRegex(ValueError, "pagination.*duplicate PMIDs"):
+                    retrieve_literature(root, "pubmed", "shifted pages", page_size=page_size, max_pages=len(pages),
+                                        transport=transport)
+                self.assertEqual(len(pages), transport.calls)
+                self.assertEqual([], list(root.iterdir()))
+        with tempfile.TemporaryDirectory() as temp:
+            transport = FakeTransport([])
+            self.assertEqual(({}, [], []), _fetch_pubmed_metadata(
+                [], transport=transport, snapshot_dir=Path(temp), query_id="q-empty", page_offset=0, abstracts=True))
+            self.assertEqual(0, transport.calls)
+            self.assertEqual([], list(Path(temp).iterdir()))
+        for payload in (None, {}, pubmed_esummary(["123"])):
+            with self.subTest(payload=payload), self.assertRaisesRegex(ValueError, "pagination.*duplicate PMIDs"):
+                _pubmed_records(payload, requested_ids=["123", "123"])
+        for ids in ([], ["123"], ["123", "456"]):
+            with self.subTest(ids=ids):
+                self.assertEqual(set(ids), set(_pubmed_records(pubmed_esummary(ids), requested_ids=ids)))
+
+    def test_europepmc_ambiguous_abstract_identity_refused_before_writes(self):
+        for text in ("same", "different", ""):
+            rows = [{"source": "MED", "id": "123", "abstractText": "same"},
+                    {"source": "AGR", "id": "123", "abstractText": text}]
+            with self.subTest(text=text), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                with self.assertRaisesRegex(ValueError, "ambiguous.*abstract.*nothing was written.*without --abstracts"):
+                    retrieve_literature(root, "europepmc", "ambiguous", abstracts=True,
+                                        transport=FakeTransport([europe_payload(rows)]))
+                self.assertEqual([], list(root.iterdir()))
+                result = retrieve_literature(root, "europepmc", "ambiguous", transport=FakeTransport([europe_payload(rows)]))
+                self.assertEqual("complete", result["status"])
+                self.assertFalse((root / "sources").exists())
+
+    def test_recovery_cross_checks_saved_records_before_writes(self):
+        for mutation in ("empty", "metadata", "receipt-count", "ledger-count", "record-ids", "page-identity",
+                         "count-bool", "count-negative", "count-malformed", "count-missing", "digest-missing", "pages-empty"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                retrieve_literature(root, "europepmc", "consistency", transport=FakeTransport([
+                    europe_payload([{"source": "MED", "id": "123", "title": "A", "abstractText": "saved"}])]))
+                ledger = root / "queries.jsonl"
+                row = json.loads(ledger.read_text())
+                result_path = root / row["result_path"]
+                result = json.loads(result_path.read_text())
+                if mutation == "empty":
+                    result["records"] = []
+                elif mutation == "metadata":
+                    result["records"][0]["title"] = "altered"
+                elif mutation == "receipt-count":
+                    result["receipt"]["records_returned"] = 0
+                elif mutation == "ledger-count":
+                    row["records_returned"] = 0
+                elif mutation == "count-bool":
+                    result["receipt"]["records_returned"] = True
+                elif mutation == "count-negative":
+                    result["receipt"]["records_returned"] = -1
+                elif mutation == "count-malformed":
+                    result["receipt"]["records_returned"] = "1"
+                elif mutation == "count-missing":
+                    result["receipt"].pop("records_returned")
+                elif mutation == "digest-missing":
+                    result["receipt"].pop("normalized_records_sha256")
+                elif mutation == "record-ids":
+                    result["receipt"]["returned_record_ids"] = []
+                elif mutation == "pages-empty":
+                    result["receipt"]["pages"] = []
+                else:
+                    result["records"][0]["source"] = "AGR"
+                    result["receipt"]["normalized_records_sha256"] = sha256_json(result["records"])
+                data = (json.dumps(result, indent=2, sort_keys=True) + "\n").encode()
+                result_path.write_bytes(data)
+                row["response_sha256"] = hashlib.sha256(data).hexdigest()
+                ledger.write_text(json.dumps(row) + "\n")
+                before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                with self.assertRaisesRegex(ValueError, "saved literature.*(records|identit|count|digest)"):
+                    retrieve_literature(root, "europepmc", "consistency", abstracts=True)
+                self.assertEqual(before, {p: p.read_bytes() for p in root.rglob("*") if p.is_file()})
+                self.assertFalse((root / "sources").exists())
+
+        for rows in ([], [{"source": "MED", "id": "0", "title": "Zero", "abstractText": "saved"}]):
+            with self.subTest(rows=rows), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                initial = retrieve_literature(root, "europepmc", "consistent", transport=FakeTransport([europe_payload(rows)]))
+                recovered = retrieve_literature(root, "europepmc", "consistent", abstracts=True)
+                self.assertEqual("complete", recovered["status"])
+                self.assertEqual(initial["records_returned"], recovered["records_returned"])
+                self.assertEqual([r["title"] for r in initial["records"]], [r["title"] for r in recovered["records"]])
 
     def test_plain_abstract_strips_markup_without_deleting_comparisons(self):
         cases = {
