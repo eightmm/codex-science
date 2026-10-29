@@ -575,5 +575,190 @@ class UncertaintyRuntimeContractTests(unittest.TestCase):
                 self.assertEqual(before, candidate)
 
 
+class QuantitativeInputTypeTests(unittest.TestCase):
+    def cases(self):
+        import json
+        from pathlib import Path
+        from codex_science.artifact_runtime import describe_runtime, validate_runtime_descriptor
+        from codex_science.decision_analysis import run_decision_analysis
+        from codex_science.experiment_planner import plan_next_experiment
+        from codex_science.formal_proof import run_formal_proof_check
+        from codex_science.safe_expression import search_counterexample
+        from codex_science.statistics_runtime import run_statistical_analysis
+
+        root = Path(__file__).resolve().parents[1]
+        data = json.loads((root / "examples/quantitative-research/input.json").read_text())
+        statistics = data["statistical_analysis"]
+        statistics.update(bootstrap_replicates=200, permutation_replicates=200)
+        uncertainty = data["uncertainty_propagation"]
+        uncertainty.update(method="linear")
+        formal = json.loads((root / "examples/formal-theorem-proving/input.json").read_text())
+        decision = json.loads((root / "examples/statistical-decision-analysis/input.json").read_text())
+        artifact = describe_runtime(root / "examples/formal-theorem-proving/Main.lean",
+                                    artifact_path="Main.lean", kind="text").to_dict()
+        return [
+            ("check_dimensions", run_dimension_check, data["dimension_check"],
+             ["check_id", "claim_id"], ["conversions.0.value"]),
+            ("check_formal_proof", lambda p: run_formal_proof_check(
+                p, workspace=root / "examples/formal-theorem-proving", execute=False), formal,
+             ["check_id", "receipt_id", "claim_id", "statement", "theorem_file"], ["timeout_seconds"]),
+            ("propagate_uncertainty", run_uncertainty_propagation, uncertainty,
+             ["propagation_id", "claim_id", "expression"], ["confidence_level", "samples"]),
+            ("run_statistical_analysis", run_statistical_analysis, statistics,
+             ["analysis_id", "claim_id", "design_id", "data.0.unit_id"],
+             ["confidence_level", "bootstrap_replicates", "permutation_replicates"]),
+            ("verify_numerical_result", run_numerical_verification, data["numerical_verification"],
+             ["verification_id", "claim_id", "method"],
+             ["reference_value", "refinements.0.resolution", "refinements.0.estimate"]),
+            ("search_counterexample", search_counterexample, data["finite_statement_search"],
+             ["claim_id", "statement", "conclusion"], ["max_evaluations"]),
+            ("run_decision_analysis", run_decision_analysis, decision,
+             ["analysis_id", "claim_id"], []),
+            ("plan_next_experiment", plan_next_experiment,
+             {"decision": "Choose measurements", "objectives": [{"name": "s", "direction": "maximize"}],
+              "candidates": [{"id": "a", "properties": {"s": 1}}], "constraints": {"batch_size": 1}},
+             ["decision", "candidates.0.id"], ["objectives.0.required"]),
+            ("render_artifact_runtime", validate_runtime_descriptor, artifact, [], ["size_bytes"]),
+        ]
+
+    def mutate(self, payload, field, value):
+        result = copy.deepcopy(payload)
+        target = result
+        parts = field.split(".")
+        for part in parts[:-1]:
+            target = target[int(part)] if isinstance(target, list) else target[part]
+        target[parts[-1]] = value
+        return result
+
+    def test_required_text_and_schema_are_not_coerced(self):
+        for name, run, payload, fields, _ in self.cases():
+            for field in fields:
+                for value in (None, [], {}, True, 0, 10**400, float("nan"), float("inf"), "", "  "):
+                    with self.subTest(cli=name, field=field, value=repr(value)):
+                        with self.assertRaises(ValueError):
+                            run(self.mutate(payload, field, value))
+            for version in (True, 1.0, "1", None, [], {}):
+                with self.subTest(cli=name, schema=version), self.assertRaises(ValueError):
+                    run({**payload, "schema_version": version})
+        from codex_science.numerical_verification import validate_numerical_verification
+        from codex_science.safe_expression import validate_counterexample_receipt
+        from codex_science.statistics_runtime import validate_statistical_analysis
+        validators = {
+            "check_dimensions": validate_dimension_check,
+            "propagate_uncertainty": validate_uncertainty_propagation,
+            "run_statistical_analysis": validate_statistical_analysis,
+            "verify_numerical_result": validate_numerical_verification,
+            "search_counterexample": validate_counterexample_receipt,
+        }
+        for name, run, payload, fields, _ in self.cases():
+            if name not in validators:
+                continue
+            receipt = run(payload)
+            for field, value in (("schema_version", True), (fields[0], None)):
+                malformed = {**receipt, field: value}
+                malformed.pop("fingerprint")
+                malformed["fingerprint"] = canonical_sha256(malformed)
+                with self.subTest(receipt=name, field=field), self.assertRaises(ValueError):
+                    validators[name](malformed)
+        planner = next(item for item in self.cases() if item[0] == "plan_next_experiment")
+        payload = copy.deepcopy(planner[2])
+        payload.pop("decision")
+        with self.assertRaises(ValueError):
+            planner[1](payload)
+
+    def test_numeric_fields_refuse_invalid_types_and_overflow(self):
+        for name, run, payload, _, fields in self.cases():
+            for field in fields:
+                invalid = [None, [], {}, "", "1", float("inf"), float("nan")]
+                if field == "reference_value":
+                    invalid.remove(None)
+                candidate = {**payload, "method": "both", "samples": 100} if field == "samples" else payload
+                if field == "objectives.0.required":
+                    invalid.extend([0, 1, 1.5, 10**400])
+                else:
+                    invalid.append(True)
+                if field not in {"objectives.0.required", "size_bytes"}:
+                    invalid.append(10**400)
+                if field in {"timeout_seconds", "samples", "bootstrap_replicates", "permutation_replicates",
+                             "max_evaluations", "size_bytes"}:
+                    invalid.extend([1.5, -1] + ([] if field == "size_bytes" else [0]))
+                for value in invalid:
+                    with self.subTest(cli=name, field=field, value=repr(value)), self.assertRaises(ValueError):
+                        run(self.mutate(candidate, field, value))
+        by_name = {case[0]: case for case in self.cases()}
+        for name, field, bounds in (
+            ("check_formal_proof", "timeout_seconds", (1, 600)),
+            ("search_counterexample", "max_evaluations", (1, 1_000_000)),
+            ("run_statistical_analysis", "bootstrap_replicates", (200, 100_000)),
+            ("run_statistical_analysis", "permutation_replicates", (200, 100_000)),
+            ("propagate_uncertainty", "samples", (100, 1_000_000)),
+        ):
+            _, run, payload, _, _ = by_name[name]
+            if field == "samples":
+                payload = {**payload, "method": "monte-carlo", "seed": 1}
+            for value in bounds:
+                with self.subTest(cli=name, field=field, boundary=value):
+                    run(self.mutate(payload, field, value))
+            with self.subTest(cli=name, field=field, above=bounds[1] + 1), self.assertRaises(ValueError):
+                run(self.mutate(payload, field, bounds[1] + 1))
+        _, run, payload, _, _ = by_name["check_dimensions"]
+        self.assertEqual(0, run(self.mutate(payload, "conversions.0.value", 0))["conversions"][0]["converted"])
+        _, run, payload, _, _ = by_name["render_artifact_runtime"]
+        payload = {**payload, "size_bytes": 0}
+        payload.pop("fingerprint")
+        payload["fingerprint"] = canonical_sha256(payload)
+        run(payload)
+        _, run, payload, _, _ = by_name["verify_numerical_result"]
+        run({**payload, "reference_value": None})
+        _, run, payload, _, _ = by_name["plan_next_experiment"]
+        for required in (False, True):
+            run(self.mutate(payload, "objectives.0.required", required))
+        # An integer expression can be within the expression evaluator's limit
+        # yet outside binary64, so conversion must still report a refusal.
+        case = next(item for item in self.cases() if item[0] == "propagate_uncertainty")
+        with self.assertRaises(ValueError):
+            case[1]({**case[2], "expression": str(10**400)})
+
+    def test_cli_refusals_preserve_existing_and_absent_outputs(self):
+        import json
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+        import tempfile
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tempdir:
+            folder = Path(tempdir)
+            source = folder / "input.json"
+            for name, _, payload, text_fields, numeric_fields in self.cases():
+                mutations = [(field, 10**400 if field == "reference_value" else None)
+                             for field in (text_fields[:1] + numeric_fields[:1])]
+                for field, value in mutations:
+                    source.write_text(json.dumps(self.mutate(payload, field, value)))
+                    for exists in (False, True):
+                        output = folder / "output.json"
+                        if exists:
+                            output.write_bytes(b"existing output\n")
+                        args = [sys.executable, str(root / "scripts" / (name + ".py"))]
+                        if name == "render_artifact_runtime":
+                            args.append("render")
+                        args += [str(source), "--output", str(output)]
+                        if name == "check_formal_proof":
+                            args += ["--workspace", str(root / "examples/formal-theorem-proving"), "--preview"]
+                        with self.subTest(cli=name, field=field, exists=exists):
+                            completed = subprocess.run(args, capture_output=True, text=True,
+                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                            self.assertEqual(1, completed.returncode)
+                            self.assertEqual("", completed.stdout)
+                            self.assertTrue(completed.stderr.startswith("error: "), completed.stderr)
+                            self.assertNotIn("Traceback", completed.stderr)
+                            if exists:
+                                self.assertEqual(b"existing output\n", output.read_bytes())
+                            else:
+                                self.assertFalse(output.exists())
+                        output.unlink(missing_ok=True)
+
+
 if __name__ == "__main__":
     unittest.main()

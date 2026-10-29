@@ -62,6 +62,25 @@ class DiscoveryPlannerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "interval"):
             plan_discriminating_experiment(payload)
 
+    def test_computed_costs_preserve_exact_feasibility_and_finite_output(self):
+        for cost, control_cost, budget, selected in (
+            (0, 0, 0, True), (.1, .2, .3, True), (.3, 1e-18, .3, False),
+            (sys.float_info.max, 0, sys.float_info.max, True),
+        ):
+            with self.subTest(cost=cost, control_cost=control_cost):
+                plan = plan_discriminating_experiment(self.candidate_input(
+                    cost=cost, control_cost=control_cost, budget=budget))
+                self.assertEqual(selected, plan["selected"] is not None)
+                self.assertEqual(budget, plan["ranked"][0]["total_cost"])
+                self.assertEqual([] if selected else ["budget"], plan["ranked"][0]["reasons"])
+        with self.assertRaisesRegex(ValueError, "candidate total cost must be finite"):
+            plan_discriminating_experiment(self.candidate_input(
+                cost=sys.float_info.max, control_cost=sys.float_info.max, budget=sys.float_info.max))
+        for value in (True, "0.1", "", None, [], {}, float("nan"), float("inf")):
+            for field in ("cost", "control_cost", "budget", "resolution"):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    plan_discriminating_experiment(self.candidate_input(**{field: value}))
+
     def test_discovery_cli_preserves_exact_cost_and_resolution_boundaries(self):
         script = Path(__file__).resolve().parents[1] / "scripts" / "science_project.py"
         with tempfile.TemporaryDirectory() as tmp:

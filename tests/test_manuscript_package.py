@@ -1109,5 +1109,42 @@ class ManuscriptPackageTests(unittest.TestCase):
         self.assertIn("unsupported-material-claim", result.stdout)
 
 
+class ManuscriptAcceptanceInputTests(unittest.TestCase):
+    def test_invalid_specification_refuses_before_creating_output(self):
+        import os
+
+        invalid = [{"schema_version": 1}]
+        invalid += [{"schema_version": 1, "manuscript_id": value}
+                    for value in (None, [], {}, True, 0, 10**400, float("nan"), float("inf"), "", "  ")]
+        invalid += [{"schema_version": version, "manuscript_id": "m"} for version in (True, 1.0, "1")]
+        invalid += [[], None]
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            source = root / "input.json"
+            for payload in invalid:
+                for exists in (False, True):
+                    output = root / "package"
+                    if exists:
+                        output.mkdir()
+                    with self.subTest(payload=payload, exists=exists):
+                        with self.assertRaises(ValueError):
+                            build_acceptance_package(payload, output)
+                        self.assertEqual(exists, output.exists())
+                        source.write_text(json.dumps(payload))
+                        result = subprocess.run([sys.executable, str(ROOT / "scripts/run_manuscript_acceptance.py"),
+                                                 str(source), str(output)], capture_output=True, text=True,
+                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode)
+                        self.assertEqual("", result.stdout)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual(exists, output.exists())
+                        if exists:
+                            self.assertEqual([], list(output.iterdir()))
+                    if output.exists():
+                        import shutil
+                        shutil.rmtree(output)
+
+
 if __name__ == "__main__":
     unittest.main()

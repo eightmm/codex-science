@@ -26,6 +26,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
 from codex_science.artifact_store import describe_directory, stream_sha256
+from codex_science.safe_expression import _integer
 
 
 DEFAULT_MAX_BYTES = 1024 * 1024
@@ -647,14 +648,14 @@ def describe_runtime(
 
 
 def validate_runtime_descriptor(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported artifact runtime descriptor schema")
     _safe_relative(str(payload.get("artifact_path", "")), "artifact_path")
     _sha256(payload.get("artifact_sha256"), "artifact_sha256")
     viewer = str(payload.get("viewer", ""))
     if viewer not in VIEWER_SELECTIONS:
         raise ValueError(f"unsupported artifact viewer: {viewer}")
-    if int(payload.get("size_bytes", -1)) < 0:
+    if _integer(payload.get("size_bytes", -1), "size_bytes") < 0:
         raise ValueError("size_bytes must be non-negative")
     for field in ("artifact_kind", "artifact_type", "generated_at", "evidence_boundary"):
         if not str(payload.get(field, "")).strip():

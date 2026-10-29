@@ -8,7 +8,11 @@ from decimal import Decimal, DecimalException, localcontext
 from fractions import Fraction
 from typing import Any, Mapping
 
-from codex_science.safe_expression import canonical_sha256
+from codex_science.safe_expression import (
+    _finite_real,
+    _required_text,
+    canonical_sha256,
+)
 
 BASE_DIMENSIONS = ("length", "mass", "time", "current", "temperature", "amount", "luminous_intensity")
 Dimension = tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]
@@ -245,11 +249,7 @@ def dimension_dict(dimension: Dimension) -> dict[str, str]:
 
 
 def convert_value(value: float, source: str, target: str) -> float:
-    if isinstance(value, bool):
-        raise ValueError("conversion value must be numeric")
-    numeric = float(value)
-    if not math.isfinite(numeric):
-        raise ValueError("conversion value must be finite")
+    numeric = _finite_real(value, "conversion value")
     try:
         source_unit = parse_unit(source)
         target_unit = parse_unit(target)
@@ -366,12 +366,10 @@ def infer_dimension(expression: str, variables: Mapping[str, Unit]) -> Dimension
 
 
 def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported dimension-check input schema")
-    check_id = str(payload.get("check_id", "")).strip()
-    claim_id = str(payload.get("claim_id", "")).strip()
-    if not check_id or not claim_id:
-        raise ValueError("check_id and claim_id are required")
+    check_id = _required_text(payload.get("check_id"), "check_id", error="check_id and claim_id are required")
+    claim_id = _required_text(payload.get("claim_id"), "claim_id", error="check_id and claim_id are required")
     raw_variables = payload.get("variables")
     if not isinstance(raw_variables, Mapping) or not raw_variables:
         raise ValueError("variables must map names to unit expressions")
@@ -421,9 +419,7 @@ def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
             })
     conversions: list[dict[str, Any]] = []
     for index, item in enumerate(conversions_raw):
-        if isinstance(item.get("value"), bool):
-            raise ValueError("conversion value must be numeric")
-        value = float(item.get("value"))
+        value = _finite_real(item.get("value"), "conversion value")
         source = str(item.get("from", "")).strip()
         target = str(item.get("to", "")).strip()
         identifier = str(item.get("id", f"conversion-{index}"))
@@ -459,11 +455,10 @@ def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_dimension_check(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported dimension-check receipt schema")
     for field in ("check_id", "claim_id", "status"):
-        if not str(payload.get(field, "")).strip():
-            raise ValueError(f"{field} is required")
+        _required_text(payload.get(field), field)
     if payload.get("status") not in {"passed", "findings"}:
         raise ValueError("invalid dimension-check status")
     if not isinstance(payload.get("equations"), list) or not isinstance(payload.get("findings"), list):

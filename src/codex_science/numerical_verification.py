@@ -5,18 +5,17 @@ import math
 import statistics
 from typing import Any, Mapping
 
-from codex_science.safe_expression import canonical_sha256
+from codex_science.safe_expression import (
+    _finite_real,
+    _required_text,
+    canonical_sha256,
+)
 
 MAX_REFINEMENTS = 1000
 
 
 def _finite(value: Any, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{label} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ValueError(f"{label} must be finite")
-    return result
+    return _finite_real(value, label)
 
 
 def _finding(code: str, severity: str, message: str) -> dict[str, str]:
@@ -90,13 +89,11 @@ def _unequal_difference_order(log_ratio_1: float, log_ratio_2: float, target: fl
 
 
 def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported numerical-verification input schema")
-    verification_id = str(payload.get("verification_id", "")).strip()
-    claim_id = str(payload.get("claim_id", "")).strip()
-    method = str(payload.get("method", "")).strip()
-    if not verification_id or not claim_id or not method:
-        raise ValueError("verification_id, claim_id, and method are required")
+    verification_id = _required_text(payload.get("verification_id"), "verification_id", error="verification_id, claim_id, and method are required")
+    claim_id = _required_text(payload.get("claim_id"), "claim_id", error="verification_id, claim_id, and method are required")
+    method = _required_text(payload.get("method"), "method", error="verification_id, claim_id, and method are required")
     raw_refinements = payload.get("refinements")
     if not isinstance(raw_refinements, list) or not 2 <= len(raw_refinements) <= MAX_REFINEMENTS:
         raise ValueError(f"refinements must contain 2 to {MAX_REFINEMENTS} levels")
@@ -309,11 +306,10 @@ def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_numerical_verification(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported numerical-verification receipt schema")
     for field in ("verification_id", "claim_id", "method", "status"):
-        if not str(payload.get(field, "")).strip():
-            raise ValueError(f"{field} is required")
+        _required_text(payload.get(field), field)
     if payload.get("status") not in {"passed", "findings"}:
         raise ValueError("invalid numerical verification status")
     refinements = payload.get("refinements")

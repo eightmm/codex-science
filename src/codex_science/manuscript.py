@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 from codex_science.advanced_sidecars import review_advanced_sidecars
+from codex_science.safe_expression import _required_text
 from codex_science.artifacts import validate_bundle
 from codex_science.review import review_manifest
 from codex_science.review_receipts import review_receipt_findings
@@ -1231,15 +1232,15 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
 
 def build_acceptance_package(specification: Mapping[str, Any], output: Path) -> Path:
     """Create a deterministic review-ready fixture; this is not a prose generator."""
-    if specification.get("schema_version") != 1:
+    if (not isinstance(specification, Mapping)
+            or type(specification.get("schema_version")) is not int
+            or specification.get("schema_version") != 1):
         raise ValueError("unsupported manuscript acceptance schema")
+    manuscript_id = _required_text(specification.get("manuscript_id"), "manuscript_id")
     root = Path(output)
     if root.exists() and any(root.iterdir()):
         raise ValueError(f"output directory is not empty: {root}")
     root.mkdir(parents=True, exist_ok=True)
-    manuscript_id = str(specification.get("manuscript_id", "")).strip()
-    if not manuscript_id:
-        raise ValueError("manuscript_id is required")
 
     source_result = {
         "schema_version": 1,

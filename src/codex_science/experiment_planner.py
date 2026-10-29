@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from fractions import Fraction
 from typing import Any, Iterable, Mapping
 
+from codex_science.safe_expression import _finite_real, _required_text
+
 
 DIRECTIONS = {"maximize", "minimize"}
 
@@ -35,22 +37,11 @@ def _fingerprint(value: Mapping[str, Any]) -> str:
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
-    if not text:
-        raise ValueError(f"{label} is required")
-    return text
+    return _required_text(value, label)
 
 
 def _number(value: Any, label: str) -> float:
-    if isinstance(value, bool):
-        raise ValueError(f"{label} must be numeric")
-    try:
-        result = float(value)
-    except (TypeError, ValueError, OverflowError) as error:
-        raise ValueError(f"{label} must be numeric") from error
-    if result != result or result in {float("inf"), float("-inf")}:
-        raise ValueError(f"{label} must be finite")
-    return result
+    return _finite_real(value, label)
 
 
 def _boolean(value: Any, label: str) -> bool:
@@ -82,7 +73,7 @@ def _validate_objectives(raw: Any) -> list[dict[str, Any]]:
         weight = _number(item.get("weight", 1.0), f"objective {name} weight")
         if weight < 0:
             raise ValueError(f"objective {name} weight must be non-negative")
-        objectives.append({"name": name, "direction": direction, "weight": weight, "required": bool(item.get("required", True))})
+        objectives.append({"name": name, "direction": direction, "weight": weight, "required": _boolean(item.get("required", True), f"objective {name} required")})
     if not any(item["weight"] > 0 for item in objectives):
         raise ValueError("at least one objective must have positive weight")
     return objectives
@@ -184,7 +175,7 @@ def pareto_fronts(candidates: list[dict[str, Any]], normalized: Mapping[str, Map
 
 
 def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None = None) -> dict[str, Any]:
-    if payload.get("schema_version", 1) != 1:
+    if type(payload.get("schema_version", 1)) is not int or payload.get("schema_version", 1) != 1:
         raise ValueError("unsupported next-experiment input schema")
     decision = _text(payload.get("decision"), "decision")
     objectives = _validate_objectives(payload.get("objectives"))
@@ -395,7 +386,11 @@ def plan_discriminating_experiment(payload: Mapping[str, Any]) -> dict[str, Any]
                 if gap >= _decimal(resolution): pairs.append([left, right])
         reasons = []
         total_cost_exact = _decimal(cost) + _decimal(control_cost)
-        total_cost = _number(total_cost_exact, "candidate total cost")
+        # Round only the reported cost; feasibility still uses the exact sum.
+        try:
+            total_cost = float(total_cost_exact)
+        except OverflowError as error:
+            raise ValueError("candidate total cost must be finite") from error
         if total_cost_exact > _decimal(budget): reasons.append("budget")
         if not pairs: reasons.append("no-distinguishable-pair-at-declared-resolution")
         scored.append({"id": ident, "cost": cost, "control_cost": control_cost, "total_cost": total_cost, "resolution": resolution, "controls": list(controls), "predictions": dict(predictions), "distinguishable_pairs": pairs, "reasons": reasons})

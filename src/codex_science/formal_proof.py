@@ -8,8 +8,12 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from codex_science.safe_expression import (
+    _integer,
+    _required_text,
+    canonical_sha256,
+)
 from codex_science.math_contracts import build_proof_receipt, statement_sha256
-from codex_science.safe_expression import canonical_sha256
 
 ADMITTED_RE = re.compile(r"\b(sorry|sorryAx|admit|by_contra'\s*\?|exact\s*\?)\b")
 THEOREM_RE = re.compile(
@@ -77,17 +81,15 @@ def run_formal_proof_check(
     execute: bool = True,
     runner: Runner | None = None,
 ) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported formal-proof-check input schema")
-    check_id = str(payload.get("check_id", "")).strip()
-    receipt_id = str(payload.get("receipt_id", "")).strip()
-    claim_id = str(payload.get("claim_id", "")).strip()
-    statement = str(payload.get("statement", "")).strip()
-    theorem_file = str(payload.get("theorem_file", "")).strip()
-    if not check_id or not receipt_id or not claim_id or not statement or not theorem_file:
-        raise ValueError("check_id, receipt_id, claim_id, statement, and theorem_file are required")
-    timeout = int(payload.get("timeout_seconds", 120))
-    if isinstance(payload.get("timeout_seconds"), bool) or not 1 <= timeout <= MAX_TIMEOUT_SECONDS:
+    check_id = _required_text(payload.get("check_id"), "check_id", error="check_id, receipt_id, claim_id, statement, and theorem_file are required")
+    receipt_id = _required_text(payload.get("receipt_id"), "receipt_id", error="check_id, receipt_id, claim_id, statement, and theorem_file are required")
+    claim_id = _required_text(payload.get("claim_id"), "claim_id", error="check_id, receipt_id, claim_id, statement, and theorem_file are required")
+    statement = _required_text(payload.get("statement"), "statement", error="check_id, receipt_id, claim_id, statement, and theorem_file are required")
+    theorem_file = _required_text(payload.get("theorem_file"), "theorem_file", error="check_id, receipt_id, claim_id, statement, and theorem_file are required")
+    timeout = _integer(payload.get("timeout_seconds", 120), "timeout_seconds")
+    if not 1 <= timeout <= MAX_TIMEOUT_SECONDS:
         raise ValueError(f"timeout_seconds must be between 1 and {MAX_TIMEOUT_SECONDS}")
     workspace = workspace.resolve()
     theorem_path = _safe_path(workspace, theorem_file)

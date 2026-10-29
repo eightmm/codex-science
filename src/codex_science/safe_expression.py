@@ -36,6 +36,30 @@ def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _required_text(value: Any, label: str, *, error: str | None = None) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(error or f"{label} is required and must be a non-empty string")
+    return value.strip()
+
+
+def _integer(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} has an invalid literal or type; must be an integer")
+    return value
+
+
+def _finite_real(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be numeric")
+    try:
+        result = float(value)
+    except OverflowError as error:
+        raise ValueError(f"{label} must be finite") from error
+    if not math.isfinite(result):
+        raise ValueError(f"{label} must be finite")
+    return result
+
+
 def _finite_number(value: Any, label: str) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ExpressionError(f"{label} must be a real number")
@@ -409,13 +433,11 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
 
 
 def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported counterexample-search schema")
-    claim_id = str(payload.get("claim_id", "")).strip()
-    statement = str(payload.get("statement", "")).strip()
+    claim_id = _required_text(payload.get("claim_id"), "claim_id", error="claim_id and statement are required")
+    statement = _required_text(payload.get("statement"), "statement", error="claim_id and statement are required")
     scope = str(payload.get("scope", "general")).strip()
-    if not claim_id or not statement:
-        raise ValueError("claim_id and statement are required")
     if scope not in {"finite", "general"}:
         raise ValueError("scope must be finite or general")
     raw_variables = payload.get("variables")
@@ -430,13 +452,11 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
     assumptions = payload.get("assumptions", [])
     if not isinstance(assumptions, list) or not all(isinstance(item, str) and item.strip() for item in assumptions):
         raise ValueError("assumptions must be a list of expressions")
-    conclusion = str(payload.get("conclusion", "")).strip()
-    if not conclusion:
-        raise ValueError("conclusion expression is required")
+    conclusion = _required_text(payload.get("conclusion"), "conclusion expression")
     parsed_assumptions = [parse_expression(item, allowed_names=names) for item in assumptions]
     parsed_conclusion = parse_expression(conclusion, allowed_names=names)
-    max_evaluations = int(payload.get("max_evaluations", 100_000))
-    if isinstance(payload.get("max_evaluations"), bool) or not 1 <= max_evaluations <= MAX_SEARCH_EVALUATIONS:
+    max_evaluations = _integer(payload.get("max_evaluations", 100_000), "max_evaluations")
+    if not 1 <= max_evaluations <= MAX_SEARCH_EVALUATIONS:
         raise ValueError(f"max_evaluations must be between 1 and {MAX_SEARCH_EVALUATIONS}")
 
     total_combinations = math.prod(len(item[1]) for item in domains)
@@ -522,7 +542,7 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_counterexample_receipt(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported counterexample receipt schema")
     status = str(payload.get("status", ""))
     if status not in {"disproved", "proved-by-exhaustion", "tested-no-counterexample", "bounded-no-counterexample"}:

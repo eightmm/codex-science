@@ -7,22 +7,21 @@ import statistics
 import sys
 from typing import Any, Mapping
 
-from codex_science.safe_expression import canonical_sha256, evaluate_expression, parse_expression
+from codex_science.safe_expression import (
+    _finite_real,
+    _integer,
+    _required_text,
+    canonical_sha256,
+    evaluate_expression,
+    parse_expression,
+)
 
 MAX_INPUTS = 64
 MAX_SAMPLES = 1_000_000
 
 
 def _finite(value: Any, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{label} must be numeric")
-    try:
-        result = float(value)
-    except OverflowError as error:
-        raise ValueError(f"{label} must be finite") from error
-    if not math.isfinite(result):
-        raise ValueError(f"{label} must be finite")
-    return result
+    return _finite_real(value, label)
 
 
 def _quantile(values: list[float], probability: float) -> float:
@@ -157,13 +156,11 @@ def _variance(
 
 
 def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported uncertainty-propagation input schema")
-    propagation_id = str(payload.get("propagation_id", "")).strip()
-    claim_id = str(payload.get("claim_id", "")).strip()
-    expression = str(payload.get("expression", "")).strip()
-    if not propagation_id or not claim_id or not expression:
-        raise ValueError("propagation_id, claim_id, and expression are required")
+    propagation_id = _required_text(payload.get("propagation_id"), "propagation_id", error="propagation_id, claim_id, and expression are required")
+    claim_id = _required_text(payload.get("claim_id"), "claim_id", error="propagation_id, claim_id, and expression are required")
+    expression = _required_text(payload.get("expression"), "expression", error="propagation_id, claim_id, and expression are required")
     method = str(payload.get("method", "both"))
     if method == "both":
         threshold = payload.get("nonlinearity_threshold", 0.25)
@@ -198,9 +195,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         uncertainties.append(uncertainty)
         units.append(None if item.get("unit") is None else str(item.get("unit")))
     parsed = parse_expression(expression, allowed_names=names)
-    nominal = float(evaluate_expression(parsed, dict(zip(names, means))))
-    if not math.isfinite(nominal):
-        raise ValueError("nominal expression value is not finite")
+    nominal = _finite(evaluate_expression(parsed, dict(zip(names, means))), "nominal expression value")
     covariance = [[0.0] * len(names) for _ in names]
     for index, uncertainty in enumerate(uncertainties):
         try:
@@ -235,11 +230,11 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     lower = _cholesky(covariance)
     if method not in {"linear", "monte-carlo", "both"}:
         raise ValueError("method must be linear, monte-carlo, or both")
-    confidence_level = float(payload.get("confidence_level", 0.95))
+    confidence_level = _finite(payload.get("confidence_level", 0.95), "confidence_level")
     if not 0.5 < confidence_level < 1:
         raise ValueError("confidence_level must be between 0.5 and 1")
     seed = payload.get("seed")
-    samples = int(payload.get("samples", 20_000))
+    samples = _integer(payload.get("samples", 20_000), "samples")
     if method in {"monte-carlo", "both"}:
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise ValueError("Monte Carlo propagation requires an explicit integer seed")
@@ -381,11 +376,10 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_uncertainty_propagation(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported uncertainty-propagation receipt schema")
     for field in ("propagation_id", "claim_id", "expression", "status", "method"):
-        if not str(payload.get(field, "")).strip():
-            raise ValueError(f"{field} is required")
+        _required_text(payload.get(field), field)
     if payload.get("status") not in {"passed", "findings"}:
         raise ValueError("invalid uncertainty propagation status")
     if not isinstance(payload.get("linear"), Mapping) or not isinstance(payload.get("findings"), list):

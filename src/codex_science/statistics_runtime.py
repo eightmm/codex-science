@@ -15,7 +15,12 @@ from collections import defaultdict
 from fractions import Fraction
 from typing import Any, Iterable, Mapping
 
-from codex_science.safe_expression import canonical_sha256
+from codex_science.safe_expression import (
+    _finite_real,
+    _integer,
+    _required_text,
+    canonical_sha256,
+)
 
 MAX_ROWS = 100_000
 MAX_REPLICATES = 100_000
@@ -23,12 +28,7 @@ MAX_EXACT_PERMUTATIONS = 100_000
 
 
 def _finite(value: Any, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{label} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ValueError(f"{label} must be finite")
-    return result
+    return _finite_real(value, label)
 
 
 def _quantile(values: list[float], probability: float) -> float:
@@ -261,9 +261,10 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
         if group not in {group_a_label, group_b_label}:
             raise ValueError(f"data[{index}].group is not one of group_labels")
         raw_counts[group] += 1
-        unit_id = str(row.get("unit_id", f"row-{index}")).strip()
-        if not unit_id:
-            raise ValueError(f"data[{index}].unit_id is empty")
+        unit_id = _required_text(
+            row.get("unit_id", f"row-{index}"), f"data[{index}].unit_id",
+            error=f"data[{index}].unit_id is empty or is not a string",
+        )
         if analysis_type == "paired":
             pair_id = str(row.get("pair_id", "")).strip()
             if not pair_id:
@@ -327,27 +328,25 @@ def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported statistical-analysis input schema")
-    analysis_id = str(payload.get("analysis_id", "")).strip()
-    claim_id = str(payload.get("claim_id", "")).strip()
-    design_id = str(payload.get("design_id", "")).strip()
-    if not analysis_id or not claim_id or not design_id:
-        raise ValueError("analysis_id, claim_id, and design_id are required")
+    analysis_id = _required_text(payload.get("analysis_id"), "analysis_id", error="analysis_id, claim_id, and design_id are required")
+    claim_id = _required_text(payload.get("claim_id"), "claim_id", error="analysis_id, claim_id, and design_id are required")
+    design_id = _required_text(payload.get("design_id"), "design_id", error="analysis_id, claim_id, and design_id are required")
     measure = str(payload.get("estimand", "mean-difference"))
     if measure not in {"mean-difference", "median-difference"}:
         raise ValueError("estimand must be mean-difference or median-difference")
     alternative = str(payload.get("alternative", "two-sided"))
     if alternative not in {"two-sided", "greater", "less"}:
         raise ValueError("invalid alternative")
-    confidence_level = float(payload.get("confidence_level", 0.95))
+    confidence_level = _finite(payload.get("confidence_level", 0.95), "confidence_level")
     if not 0.5 < confidence_level < 1:
         raise ValueError("confidence_level must be between 0.5 and 1")
     seed = payload.get("seed")
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise ValueError("seed must be an explicit integer")
-    bootstrap_replicates = int(payload.get("bootstrap_replicates", 5000))
-    permutation_replicates = int(payload.get("permutation_replicates", 10_000))
+    bootstrap_replicates = _integer(payload.get("bootstrap_replicates", 5000), "bootstrap_replicates")
+    permutation_replicates = _integer(payload.get("permutation_replicates", 10_000), "permutation_replicates")
     if not 200 <= bootstrap_replicates <= MAX_REPLICATES:
         raise ValueError(f"bootstrap_replicates must be between 200 and {MAX_REPLICATES}")
     if not 200 <= permutation_replicates <= MAX_REPLICATES:
@@ -448,11 +447,10 @@ def _nonnegative_integer(value: Any, label: str) -> None:
 
 
 def validate_statistical_analysis(payload: Mapping[str, Any]) -> None:
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported statistical-analysis receipt schema")
     for field in ("analysis_id", "claim_id", "design_id", "analysis_type", "estimand", "contrast", "status"):
-        if not str(payload.get(field, "")).strip():
-            raise ValueError(f"{field} is required")
+        _required_text(payload.get(field), field)
     effect = payload.get("effect")
     interval = payload.get("interval")
     test = payload.get("test")

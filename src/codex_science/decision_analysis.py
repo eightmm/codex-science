@@ -172,8 +172,8 @@ def _normalize_distribution(
 def _normalize_problem(payload: Mapping[str, Any]) -> dict[str, Any]:
     if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported decision-analysis input schema")
-    analysis_id = _text(payload.get("analysis_id"), "analysis_id")
-    claim_id = _text(payload.get("claim_id"), "claim_id")
+    analysis_id = _required_text(payload.get("analysis_id"), "analysis_id")
+    claim_id = _required_text(payload.get("claim_id"), "claim_id")
     question = _required_text(payload.get("question"), "question")
     information_boundary = _required_text(payload.get("information_boundary"), "information_boundary")
     consequence_horizon = _required_text(payload.get("consequence_horizon"), "consequence_horizon")
