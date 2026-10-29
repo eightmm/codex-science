@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Discovery comparisons reject non-finite derived differences or aggregates (for example finite scores of opposite sign near the float limit) instead of reporting them as passed, while preserving representable large-score means. Existing finding codes, payload keys, statuses and CLI options are unchanged.
 - Discovery bundle and project history validation reject symlinked revision files and directories using the shared cycle file-confinement check. Release validation checks the editable or virtual root package version in an existing `uv.lock` and reports malformed TOML; an absent lock remains optional.
 - Literature snapshot builds refuse supported, replicated or suggestive claims below their required included-study support count using validator-normalized statuses and claim IDs, and duplicate query IDs with conflicting response digests (compared without case; missing and null are equivalent). Output schemas, query rows and CLI options are unchanged.
 - MCP stdio returns structured errors for excessive JSON or handler nesting and continues serving subsequent requests; v2 and v3 source queries reject non-object parameters and boolean or non-integer pagination, and tool calls reject non-string names before dispatch. Existing schemas, defaults and CLI options are unchanged.

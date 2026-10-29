@@ -86,6 +86,46 @@ class DiscoveryComparisonTests(unittest.TestCase):
 
     def test_complete_synthetic_fixture_is_descriptive_only(self):
         root,c,r=_fixture(); report=evaluate_comparison(c,r,root); self.assertEqual(report["status"],"passed"); self.assertIn("not empirical P4",report["evidence_boundary"]); self.assertEqual(report["aggregation"]["paired_differences_vs_ordinary"]["rdl"]["score"]["mean_difference"],2)
+
+    def test_nonfinite_derived_comparisons_are_rejected(self):
+        maximum = float.fromhex("0x1.fffffffffffffp+1023")
+        cases = (("score", -1e308, 1e308, True), ("score", 1e308, -1e308, True),
+                 ("score", -int(maximum), int(maximum), True),
+                 ("score", 0.0, maximum, False), ("score", 0.0, 0.0, False),
+                 ("score", 0.0, "malformed", True),
+                 ("wall_time_seconds", maximum, maximum, True),
+                 ("wall_time_seconds", maximum / 2, maximum / 2, False),
+                 ("wall_time_seconds", 0.0, 0.0, False))
+        for field, ordinary, other, rejected in cases:
+            with self.subTest(field=field, ordinary=ordinary, other=other):
+                root, contract, records = _fixture()
+                self.addCleanup(shutil.rmtree, root)
+                if field == "wall_time_seconds":
+                    contract["budget"][field] = maximum
+                    contract["contract_digest"] = _digest(_frozen_contract(contract))
+                for record in records:
+                    target = record["cost"] if field == "wall_time_seconds" else record["outcome"]["metrics"]
+                    target[field] = ordinary if record["arm"] == "ordinary" else other
+                    for ref_key in ("result_ref", "execution_receipt_ref"):
+                        payload = json.loads((root / record[ref_key]["path"]).read_text())
+                        payload["contract_digest"] = contract["contract_digest"]
+                        payload["cost"] = record["cost"]
+                        payload["outcome"] = record["outcome"]
+                        if ref_key == "execution_receipt_ref":
+                            payload["result_ref"] = record["result_ref"]
+                        record[ref_key]["sha256"] = _write(root, record[ref_key]["path"], payload)
+                report = evaluate_comparison(contract, records, root)
+                self.assertEqual("rejected" if rejected else "passed", report["status"])
+                json.dumps(report, allow_nan=False)
+                if rejected:
+                    self.assertTrue(any(e["code"] == "metrics"
+                                        for e in report["errors"]), report)
+                    if other != "malformed":
+                        self.assertTrue(any("non-finite" in e["message"] for e in report["errors"]), report)
+                elif field == "score":
+                    self.assertEqual(other - ordinary, report["aggregation"]["paired_differences_vs_ordinary"]["rdl"]["score"]["mean_difference"])
+                else:
+                    self.assertEqual(other * 2, report["aggregation"]["by_arm"]["rdl"][field])
     def test_missing_cell_is_incomplete(self):
         root,c,r=_fixture(); r.pop(); report=evaluate_comparison(c,r,root); self.assertEqual(report["status"],"incomplete"); self.assertEqual(len(report["missing_cells"]),1)
     def test_model_and_tool_drift_rejected(self):

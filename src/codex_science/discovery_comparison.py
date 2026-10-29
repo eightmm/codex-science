@@ -40,9 +40,14 @@ def _same_json(left, right):
 def _mean(values):
     if not values:
         return None
+    if any(not _finite(value) for value in values):
+        raise ValueError("non-finite derived difference or aggregate input")
     total = sum(values)
     # Keep ordinary rounding unchanged; statistics.mean avoids intermediate overflow.
-    return total / len(values) if isinstance(total, int) or math.isfinite(total) else mean(values)
+    result = total / len(values) if isinstance(total, int) or math.isfinite(total) else mean(values)
+    if not _finite(result):
+        raise ValueError("non-finite aggregate mean")
+    return result
 
 def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, Any]], root: Path) -> dict[str, Any]:
     errors=[]; violations=[]; root=Path(root).resolve()
@@ -120,7 +125,11 @@ def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, 
             if all(e["code"] == "budget_overrun" for e in local):
                 valid.append(record)
         else: valid.append(record)
-    missing=sorted(expected-seen,key=repr); aggregation=_aggregate(valid,metric_ids)
+    missing=sorted(expected-seen,key=repr)
+    try: aggregation=_aggregate(valid,metric_ids)
+    except (ValueError, OverflowError) as exc:
+        _err(errors,"metrics",f"Comparison aggregation refused a non-finite or unrepresentable derived difference or aggregate: {exc}")
+        aggregation={}
     status="incomplete" if missing and not errors else "rejected" if missing or errors or violations else "passed"
     return _report(status, errors, violations, aggregation, [list(x) for x in missing], synthetic)
 
@@ -174,6 +183,8 @@ def _aggregate(records,metric_ids):
     for arm in ARMS:
         rows=[r for r in records if r.get("arm")==arm]; successes=[r for r in rows if r.get("outcome",{}).get("status")=="success"]
         result["by_arm"][arm]={"n":len(rows),"successes":len(successes),"failures":sum(r.get("outcome",{}).get("status")=="failure" for r in rows),"inconclusive":sum(r.get("outcome",{}).get("status")=="inconclusive" for r in rows),"tokens":sum(r.get("cost",{}).get("tokens",0) for r in rows),"wall_time_seconds":sum(r.get("cost",{}).get("wall_time_seconds",0) for r in rows),"human_interventions":sum(r.get("cost",{}).get("human_interventions",0) for r in rows),"metrics":{}}
+        if not _finite(result["by_arm"][arm]["wall_time_seconds"]):
+            raise ValueError("non-finite aggregate wall_time_seconds")
         for metric in metric_ids:
             vals=[r["outcome"].get("metrics",{}).get(metric) for r in successes]; vals=[v for v in vals if _finite(v)]
             result["by_arm"][arm]["metrics"][metric]={"n":len(vals),"mean_success_conditioned":_mean(vals),"excluded_non_success":len(rows)-len(vals)}
