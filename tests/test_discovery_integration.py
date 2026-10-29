@@ -151,6 +151,25 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.discovery_history(project_id="p")
 
+    def test_project_history_refuses_symlinked_snapshots(self):
+        for relative in ("discovery/revisions/000001.json", "discovery/revisions", "discovery"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp) / "run"
+                save_cycle(new_cycle(prepare(root)), root)
+                manifest = attach_cycle(root)
+                store = ProjectStore(Path(tmp) / "project.sqlite")
+                store.create_project(project_id="p", title="Discovery", question="Why?")
+                store.import_run(project_id="p", manifest_path=root / "manifest.json")
+                self.assertEqual(1, len(store.discovery_history(project_id="p")["runs"][0]["cycles"]))
+                snapshot = root / relative
+                moved = snapshot.with_name("moved-" + snapshot.name)
+                snapshot.rename(moved)
+                snapshot.symlink_to(moved.name, target_is_directory=moved.is_dir())
+                for action in (lambda: load_cycle(root), lambda: validate_bundle(manifest, root),
+                               lambda: store.discovery_history(project_id="p")):
+                    with self.subTest(action=action), self.assertRaisesRegex(ValueError, "symlink"):
+                        action()
+
     def test_cli_init_show_attach_and_legacy_database_requirement(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "run"

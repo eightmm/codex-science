@@ -15,7 +15,7 @@ def cycle_artifacts(manifest: dict[str, Any], run_dir: Path) -> list[dict[str, A
     records = [item for item in manifest["artifacts"] if item["kind"] == "research-cycle"]
     if not records:
         return []
-    from codex_science.research_cycle import validate_cycle, validate_history
+    from codex_science.research_cycle import _confined_file, validate_cycle, validate_history
     cycles = []
     artifact_hashes = {item["path"]: item["sha256"].lower() for item in manifest["artifacts"]}
 
@@ -31,7 +31,7 @@ def cycle_artifacts(manifest: dict[str, Any], run_dir: Path) -> list[dict[str, A
                 check_refs(child)
 
     for record in records:
-        cycle = load_json_object(run_dir / record["path"])
+        cycle = load_json_object(_confined_file(run_dir, record["path"]))
         validate_cycle(cycle, run_dir=run_dir)
         if record["path"] != f"discovery/revisions/{cycle['revision']:06d}.json":
             raise ValueError("research-cycle snapshot path does not match revision")

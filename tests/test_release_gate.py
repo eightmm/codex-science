@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.release import manifest_runtime_version, release_version_advances
+from codex_science.release import manifest_runtime_version, release_version_advances, validate_release
+from codex_science.version import PACKAGE_VERSION
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,57 @@ BASE_PLUGIN = "1.0.0+codex.20260101000000"
 BASE_RUNTIME = "1.0.0+codex.20260101000000"
 NEXT_PLUGIN = "1.0.0+codex.20260102000000"
 NEXT_RUNTIME = "1.0.0+codex.20260102000000"
+
+
+class ReleaseLockTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tempdir.cleanup)
+        self.root = Path(self.tempdir.name)
+        for relative in (".codex-plugin/plugin.json", "pyproject.toml", "release/manifest.json"):
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / relative).read_bytes())
+
+    def test_lock_root_version_and_optional_file(self) -> None:
+        lock = self.root / "uv.lock"
+        self.assertEqual([], validate_release(self.root))
+        for source in ("editable", "virtual"):
+            for version in (PACKAGE_VERSION, "9.9.9", "", "0", 0, [], None):
+                with self.subTest(source=source, version=version):
+                    version_line = "" if version is None else f'version = {json.dumps(version)}\n'
+                    lock.write_text(
+                        '[[package]]\nname = "dependency"\nversion = "9.9.9"\n'
+                        'source = { registry = "index" }\n'
+                        '[[package]]\nname = "codex-science"\n' + version_line
+                        + f'source = {{ {source} = "." }}\n', encoding="utf-8",
+                    )
+                    errors = validate_release(self.root)
+                    if version == PACKAGE_VERSION:
+                        self.assertEqual([], errors)
+                    else:
+                        self.assertTrue(any("uv.lock" in error and "mismatch" in error for error in errors), errors)
+        lock.unlink()
+        self.assertEqual([], validate_release(self.root))
+
+    def test_lock_malformed_toml_is_labelled(self) -> None:
+        (self.root / "uv.lock").write_text("[[package]\n", encoding="utf-8")
+        errors = validate_release(self.root)
+        self.assertTrue(any("uv.lock" in error and "TOML" in error for error in errors), errors)
+
+    def test_lock_requires_one_root_package(self) -> None:
+        valid = ('[[package]]\nname = "codex-science"\n'
+                 f'version = "{PACKAGE_VERSION}"\nsource = {{ editable = "." }}\n')
+        for content in ("", "package = 0\n", "package = {}\n", "package = [0]\n",
+                        valid.replace("codex-science", "dependency"),
+                        valid.replace('source = { editable = "." }', 'source = 0'),
+                        valid.replace('source = { editable = "." }', ''),
+                        valid.replace('editable = "."', 'editable = "subdir"'),
+                        valid.replace('editable = "."', 'registry = "index"'), valid + valid):
+            with self.subTest(content=content):
+                (self.root / "uv.lock").write_text(content, encoding="utf-8")
+                errors = validate_release(self.root)
+                self.assertTrue(any("uv.lock" in error for error in errors), errors)
 
 
 class ReleaseGateTests(unittest.TestCase):

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Discovery bundle and project history validation reject symlinked revision files and directories using the shared cycle file-confinement check. Release validation checks the editable or virtual root package version in an existing `uv.lock` and reports malformed TOML; an absent lock remains optional.
 - Literature snapshot builds refuse supported, replicated or suggestive claims below their required included-study support count using validator-normalized statuses and claim IDs, and duplicate query IDs with conflicting response digests (compared without case; missing and null are equivalent). Output schemas, query rows and CLI options are unchanged.
 - MCP stdio returns structured errors for excessive JSON or handler nesting and continues serving subsequent requests; v2 and v3 source queries reject non-object parameters and boolean or non-integer pagination, and tool calls reject non-string names before dispatch. Existing schemas, defaults and CLI options are unchanged.
 - Connector actions serialize replay, execution and receipt recording per ledger with a persistent POSIX sibling lock, execute a private deep copy of the approved spec, and refuse non-string required identifiers through the library and validation CLI. Concurrent callers replay the recorded receipt; process termination releases the lock, but interruption after provider execution and before receipt recording still requires provider-side recovery. Payload fields, CLI options and SQLite ledger columns are unchanged.

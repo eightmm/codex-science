@@ -69,6 +69,26 @@ def validate_release(root: Path) -> list[str]:
     ):
         if observed != expected:
             errors.append(f"{key} mismatch: expected {expected}, got {observed}")
+    lock_path = root / "uv.lock"
+    if lock_path.exists():
+        try:
+            lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as error:
+            errors.append(f"uv.lock invalid TOML: {error}")
+        else:
+            packages = lock.get("package", [])
+            root_packages = [
+                package for package in packages
+                if isinstance(package, dict) and package.get("name") == "codex-science"
+                and isinstance(package.get("source"), dict)
+                and any(package["source"].get(kind) == "." for kind in ("editable", "virtual"))
+            ] if isinstance(packages, list) else []
+            if len(root_packages) != 1:
+                errors.append("uv.lock must contain exactly one editable or virtual codex-science root package")
+            else:
+                observed_lock = root_packages[0].get("version", "")
+                if observed_lock != PACKAGE_VERSION:
+                    errors.append(f"uv.lock package_version mismatch: expected {PACKAGE_VERSION}, got {observed_lock}")
     for key, expected in (
         ("package_version", PACKAGE_VERSION),
         ("plugin_version", PLUGIN_VERSION),
