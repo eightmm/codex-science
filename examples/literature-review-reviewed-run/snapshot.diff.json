@@ -21,7 +21,23 @@
   "protocol_id": "literature-review-example-v1",
   "queries": {
     "added": [],
-    "changed": [],
+    "changed": [
+      {
+        "after": {
+          "accessed_at": "2026-07-19T00:00:00Z",
+          "query": "example intervention AND prespecified outcome AND controlled study",
+          "query_id": "q-pubmed-1",
+          "source": "PubMed",
+          "status": "complete"
+        },
+        "before": {
+          "query": "example intervention AND prespecified outcome AND controlled study",
+          "query_id": "q-pubmed-1",
+          "source": "PubMed"
+        },
+        "id": "q-pubmed-1"
+      }
+    ],
     "removed": []
   },
   "schema_version": 1,

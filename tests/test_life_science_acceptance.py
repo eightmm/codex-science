@@ -48,6 +48,20 @@ class LifeScienceAcceptanceTests(unittest.TestCase):
         self.assertIn("not established", result["conclusion"])
         self.assertIn("missing evidence is not negative evidence", result["limitations"])
 
+    def test_shipped_index_matches_fresh_render(self) -> None:
+        expected = (self.example / "index.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tempdir:
+            copied = Path(tempdir) / "run"
+            shutil.copytree(self.example, copied)
+            (copied / "index.md").unlink()
+            completed = subprocess.run(
+                [sys.executable, str(self.root / "scripts/render_artifact_index.py"),
+                 str(copied / "manifest.json")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual(expected, (copied / "index.md").read_text(encoding="utf-8"))
+
     def test_snapshot_analysis_is_deterministic(self) -> None:
         expected = (self.example / "result.json").read_bytes()
         with tempfile.TemporaryDirectory() as tempdir:

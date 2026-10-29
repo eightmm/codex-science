@@ -10,6 +10,8 @@ uv run python scripts/generate_wrappers.py
 ./scripts/doctor.sh
 ```
 
+The three `*-reviewed-run` bundles use `review.json` as a legacy deterministic record-review fixture, not a registered hash-bound review receipt; real runs register receipts through the science-review flow.
+
 Reproduce the reviewed example with:
 
 ```bash

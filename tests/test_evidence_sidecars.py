@@ -91,6 +91,9 @@ class EvidenceSidecarTests(unittest.TestCase):
                 ]
                 claim = claims["claims"][0]
                 study = studies["studies"][0]
+                self.assertIn({"source": study["study_id"], "target": study["cohort_id"],
+                               "relation": "depends_on"}, graph["edges"])
+                support_edge = next(edge for edge in graph["edges"] if edge["relation"] == "supports")
                 if case == "unsupported":
                     graph["edges"] = []
                     study["supports_claim_ids"] = []
@@ -99,7 +102,7 @@ class EvidenceSidecarTests(unittest.TestCase):
                 elif case == "mismatch":
                     study["supports_claim_ids"] = []
                 elif case == "contradiction":
-                    graph["edges"][0]["relation"] = "contradicts"
+                    support_edge["relation"] = "contradicts"
                     study["contradicts_claim_ids"] = study["supports_claim_ids"]
                     study["supports_claim_ids"] = []
                 elif case == "replicated":
@@ -115,7 +118,7 @@ class EvidenceSidecarTests(unittest.TestCase):
                     if padded and case in {"unsupported", "replicated"}:
                         claim["status"] = " " + claim["status"] + " "
                     elif padded and case == "excluded":
-                        graph["edges"][0]["source"] = " " + graph["edges"][0]["source"] + " "
+                        support_edge["source"] = " " + support_edge["source"] + " "
                     elif padded:
                         for record, fields in (
                             (claim, ("id", "status")),

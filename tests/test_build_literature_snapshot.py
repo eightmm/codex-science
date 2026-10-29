@@ -30,14 +30,19 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_shipped_example_matches_fresh_build(self):
+        (self.root / "snapshot.current.json").unlink()
+        build_literature_snapshot(self.root)
+        actual = json.loads((self.root / "snapshot.current.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.expected, actual)
+
     def test_snapshot_validates_and_matches_example_without_screening(self):
         result = build_literature_snapshot(self.root)
         snapshot = json.loads((self.root / "snapshot.current.json").read_text(encoding="utf-8"))
         validate_review_snapshot(snapshot)
         for field in ("schema_version", "protocol_id", "question", "question_framework", "evidence_cutoff", "studies", "claims"):
             self.assertEqual(self.expected[field], snapshot[field], field)
-        shared_query_fields = {key: value for key, value in snapshot["queries"][0].items() if key in {"query_id", "source", "query"}}
-        self.assertEqual(self.expected["queries"][0], shared_query_fields)
+        self.assertEqual(self.expected["queries"], snapshot["queries"])
         self.assertEqual("complete", snapshot["queries"][0]["status"])
         self.assertEqual("2026-07-19T00:00:00Z", snapshot["queries"][0]["accessed_at"])
         self.assertEqual(hashlib.sha256((self.root / "protocol.json").read_bytes()).hexdigest(), result["inputs_sha256"]["protocol"])

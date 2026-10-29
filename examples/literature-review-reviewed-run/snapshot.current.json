@@ -9,9 +9,11 @@
   "protocol_id": "literature-review-example-v1",
   "queries": [
     {
+      "accessed_at": "2026-07-19T00:00:00Z",
       "query": "example intervention AND prespecified outcome AND controlled study",
       "query_id": "q-pubmed-1",
-      "source": "PubMed"
+      "source": "PubMed",
+      "status": "complete"
     }
   ],
   "question": "Does the example intervention improve the prespecified outcome versus control in the defined population?",

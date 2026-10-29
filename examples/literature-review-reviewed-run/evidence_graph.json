@@ -1,6 +1,11 @@
 {
   "edges": [
     {
+      "relation": "depends_on",
+      "source": "study-example-1",
+      "target": "cohort-example-a"
+    },
+    {
       "independence_group": "cohort-example-a",
       "relation": "supports",
       "source": "study-example-1",
@@ -10,13 +15,18 @@
   "nodes": [
     {
       "id": "claim-method-effect",
-      "label": "Prespecified methodological effect claim",
+      "label": "The example intervention improved the prespecified outcome relative to control in the included study.",
       "type": "claim"
     },
     {
       "id": "study-example-1",
-      "label": "Example controlled primary study",
+      "label": "Example controlled study of the prespecified intervention",
       "type": "study"
+    },
+    {
+      "id": "cohort-example-a",
+      "label": "cohort-example-a",
+      "type": "cohort"
     }
   ],
   "schema_version": 1

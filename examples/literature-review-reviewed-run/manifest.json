@@ -23,7 +23,7 @@
     {
       "kind": "evidence-graph",
       "path": "evidence_graph.json",
-      "sha256": "cc0e0e91469100ec99ff8c1a0545e4d4a145fe5e4abab0348bfe7732cbb0d076"
+      "sha256": "eec79fba4321eb21353422c1cb1908ae06ccfafde8ca695fa9d213376a1de877"
     },
     {
       "kind": "lane-receipt",
@@ -38,17 +38,17 @@
     {
       "kind": "literature-snapshot",
       "path": "snapshot.current.json",
-      "sha256": "7490ab203e76c1059d8bd794d75a11a7c4f8256b85db848c3ce7079e675942f9"
+      "sha256": "ceacbbc88fab74d6d083917f89a6f7dc339c134aefb6cf9eda5e96284080963b"
     },
     {
       "kind": "literature-snapshot-diff",
       "path": "snapshot.diff.json",
-      "sha256": "0869414597ace717ba72f8522c910d92dbb878d762d419a0e58996ee98c307c8"
+      "sha256": "c0af1944baef0e4463c182ca2dc0680c99cd18020df43a0e15befada3500c1f9"
     },
     {
       "kind": "report",
       "path": "report.md",
-      "sha256": "5fd1e51f952b1280f6614d931cb03c1f0dd1fc9b595ec29b90374d80f4757799"
+      "sha256": "c8bcd1ebff9174df974f2a680e73f01a394b8e32b69db7a6e8752ffa352ace68"
     },
     {
       "kind": "review-receipt",

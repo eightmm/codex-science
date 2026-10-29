@@ -4,6 +4,8 @@ Research experiments belong in the user's research project and follow the `$scie
 
 The checked-in smoke example is `examples/reviewed-run/`: a deterministic mathematical comparison with code, execution log, result, environment, hashes, claim, and passed record-based review.
 
+The three `*-reviewed-run` bundles use `review.json` as a legacy deterministic record-review fixture, not a registered hash-bound review receipt; real runs register receipts through the science-review flow.
+
 The checked-in life-science acceptance run is
 `examples/life-science-reviewed-run/`. It tests whether three public PheWAS
 sources provide comparable directional diabetes evidence for one normalized

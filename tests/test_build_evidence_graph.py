@@ -82,6 +82,13 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         item["sha256"] = hashlib.sha256((self.root / item["path"]).read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
+    def test_shipped_example_matches_fresh_build(self):
+        expected = json.loads((EXAMPLE / "evidence_graph.json").read_text(encoding="utf-8"))
+        (self.root / "evidence_graph.json").unlink()
+        build_evidence_graph(self.root)
+        actual = json.loads((self.root / "evidence_graph.json").read_text(encoding="utf-8"))
+        self.assertEqual(expected, actual)
+
     def test_derived_graph_validates_and_manifest_artifact_passes(self):
         result = build_evidence_graph(self.root)
         graph = json.loads((self.root / "evidence_graph.json").read_text(encoding="utf-8"))

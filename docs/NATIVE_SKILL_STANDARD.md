@@ -142,7 +142,7 @@ Each lane receives:
 - output schema and artifact directory;
 - stop, approval, and retry rules.
 
-Each lane returns a `lane-receipt` sidecar. This deterministic retrieval example uses the schema and references from `examples/literature-review-reviewed-run/lanes/pubmed-search.json`; its query, study, claim, and output references resolve within that example bundle. The fixture is not a live scientific conclusion.
+Each lane returns a `lane-receipt` sidecar. This deterministic retrieval example uses the schema and references from `examples/literature-review-reviewed-run/lanes/pubmed-search.json`; its query, study, claim, and output references resolve within that example bundle. The fixture is not a live scientific conclusion. Its `review.json`, like those in the other two `*-reviewed-run` bundles, is a legacy deterministic record-review fixture, not a registered hash-bound review receipt; real runs register receipts through the science-review flow.
 
 ```json
 {
