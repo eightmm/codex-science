@@ -17,7 +17,7 @@ from codex_science.artifact_store import (
     describe_file,
     validate_descriptor,
 )
-from codex_science.artifacts import add_artifact, new_manifest, verify_bundle_artifacts
+from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, verify_bundle_artifacts
 
 
 class ArtifactStoreTests(unittest.TestCase):
@@ -188,6 +188,34 @@ class ValidateDescriptorRejectionTests(unittest.TestCase):
     def test_valid_baselines_are_accepted(self) -> None:
         validate_descriptor(self.chunked(), self.file)
         validate_descriptor(self.external())
+
+    def test_chunked_entries_require_complete_chunk_lists_in_bundles(self) -> None:
+        for content in (b"", b"a", b"ab", b"abc"):
+            self.file.write_bytes(content)
+            payload = self.chunked()
+            validate_descriptor(payload)
+            validate_descriptor(payload, self.file)
+            for missing in (True, False):
+                bad = copy.deepcopy(payload)
+                if missing:
+                    del bad["entries"][0]["chunks"]
+                else:
+                    bad["entries"][0]["chunks"] = None
+                with self.subTest(content=content, missing=missing):
+                    self.assertRejects(bad, "chunks must be a list")
+                    self.assertRejects(bad, "chunks must be a list", self.file)
+                    descriptor_path = self.root / "descriptor.json"
+                    descriptor_path.write_text(json.dumps(bad))
+                    manifest = new_manifest("chunk-review", "Validate chunk coverage", [])
+                    add_artifact(manifest, descriptor_path.name, kind="artifact-descriptor",
+                                 sha256=hashlib.sha256(descriptor_path.read_bytes()).hexdigest())
+                    with self.assertRaisesRegex(ValueError, "descriptor.json.*chunks must be a list"):
+                        validate_bundle(manifest, self.root)
+            if content:
+                for chunks in ([], payload["entries"][0]["chunks"][:-1]):
+                    bad = copy.deepcopy(payload)
+                    bad["entries"][0]["chunks"] = chunks
+                    self.assertRejects(bad, "chunk sizes do not sum to entry size")
 
     def test_external_local_verification_checks_digest_size_and_existence(self) -> None:
         for content in (b"", b"abc"):

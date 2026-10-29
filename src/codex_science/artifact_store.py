@@ -230,7 +230,7 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
         if artifact_type == "chunked-file" or "chunk_size" in item:
             _descriptor_integer(item.get("chunk_size"), "chunk_size", positive=True)
         chunks = item.get("chunks")
-        if chunks is not None:
+        if artifact_type == "chunked-file" or chunks is not None:
             if not isinstance(chunks, list):
                 raise ValueError("chunks must be a list")
             expected_offset = 0

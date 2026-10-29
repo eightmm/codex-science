@@ -176,8 +176,12 @@ def build_literature_snapshot(
     protected.update({(root / "manifest.json").resolve(), (root / "snapshot.previous.json").resolve()})
     if output_path.resolve() in protected:
         raise ValueError("output file must not replace an input file, an excerpt source, manifest.json, or snapshot.previous.json")
+    declared_claim_statuses: dict[str, Any] = {}
     try:
         claim_by_id = _validate_claim_register(claims_payload)
+        declared_claim_statuses = {
+            str(claim.get("id")).strip(): claim["status"] for claim in claims_payload["claims"]
+        }
     except (ValueError, TypeError) as error:
         problems.append(f"claims: {error}")
         claim_by_id = {}
@@ -290,7 +294,7 @@ def build_literature_snapshot(
         "evidence_cutoff": protocol.get("evidence_cutoff"),
         "queries": query_rows,
         "studies": study_rows,
-        "claims": [{"id": claim_id, "status": claim["status"]} for claim_id, claim in claim_by_id.items()],
+        "claims": [{"id": claim_id, "status": declared_claim_statuses[claim_id]} for claim_id in claim_by_id],
     }
     try:
         validate_review_snapshot(snapshot)

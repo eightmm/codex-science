@@ -137,6 +137,11 @@ def _string_list(value: Any, label: str) -> list[str]:
     items = _list(value, label)
     result: list[str] = []
     for index, item in enumerate(items):
+        if not isinstance(item, (str, int)) or isinstance(item, bool):
+            raise ValueError(
+                f"{label}[{index}] must be a string or integer: {_bounded_repr(item)}; "
+                "expected: string or non-boolean integer"
+            )
         result.append(_text(item, f"{label}[{index}]"))
     return result
 
@@ -190,7 +195,7 @@ def _validate_claim_register(payload: dict[str, Any]) -> dict[str, dict[str, Any
     claims = _list(payload.get("claims"), "claim register claims")
     by_id: dict[str, dict[str, Any]] = {}
     for index, raw in enumerate(claims):
-        claim = _mapping(raw, f"claim register claim {index}")
+        claim = dict(_mapping(raw, f"claim register claim {index}"))
         claim_id = _text(claim.get("id"), f"claim register claim {index} id")
         if claim_id in by_id:
             raise ValueError(f"Duplicate claim register id: {claim_id}")
@@ -218,8 +223,8 @@ def _validate_claim_register(payload: dict[str, Any]) -> dict[str, dict[str, Any
             )
         for field in ("required_evidence", "dependencies"):
             if field in claim:
-                _string_list(claim[field], f"claim {claim_id} {field}")
-        by_id[claim_id] = claim
+                claim[field] = _string_list(claim[field], f"claim {claim_id} {field}")
+        by_id[claim_id] = {**claim, "id": claim_id, "status": status}
     return by_id
 
 
@@ -241,7 +246,7 @@ def _validate_evidence_graph(
                 f"Invalid evidence node type for {node_id}: {_bounded_repr(node_type)}; "
                 f"allowed: {sorted(NODE_TYPES)}"
             )
-        by_id[node_id] = node
+        by_id[node_id] = {**node, "id": node_id, "type": node_type}
 
     seen_edges: set[tuple[str, str, str]] = set()
     normalized_edges: list[dict[str, Any]] = []
@@ -262,7 +267,7 @@ def _validate_evidence_graph(
         if key in seen_edges:
             raise ValueError(f"Duplicate evidence edge: {source} {relation} {target}")
         seen_edges.add(key)
-        normalized_edges.append(edge)
+        normalized_edges.append({**edge, "source": source, "target": target, "relation": relation})
     return by_id, normalized_edges
 
 
@@ -287,7 +292,7 @@ def _validate_query_records(records: list[dict[str, Any]]) -> dict[str, dict[str
                 f"Invalid response_sha256 for query {query_id}: {_bounded_repr(digest)}; "
                 "expected: 64 hexadecimal characters"
             )
-        by_id[query_id] = record
+        by_id[query_id] = {**record, "query_id": query_id, "status": status}
     return by_id
 
 
@@ -512,7 +517,7 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                     if (isinstance(line, int) and not isinstance(line, bool)
                             and not 1 <= line <= len(source_text.splitlines())):
                         raise ValueError(f"{label} locator.line {line} is outside source line count")
-        by_id[study_id] = study
+        by_id[study_id] = {**study, "study_id": study_id, "evidence_type": evidence_type}
     if run_dir is not None:
         _validate_bound_study_metadata(studies, run_dir)
     return by_id
@@ -520,6 +525,7 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
 
 def _validate_lane_receipt(payload: dict[str, Any]) -> dict[str, Any]:
     _schema_one(payload, "lane receipt")
+    payload = dict(payload)
     lane_id = _text(payload.get("lane_id"), "lane receipt lane_id")
     _text(payload.get("lane_type"), f"lane {lane_id} lane_type")
     _mapping(payload.get("normalized_inputs"), f"lane {lane_id} normalized_inputs")
@@ -543,7 +549,7 @@ def _validate_lane_receipt(payload: dict[str, Any]) -> dict[str, Any]:
                 _text(source_record.get("source"), f"lane {lane_id} source {index} name")
                 _text(source_record.get("release"), f"lane {lane_id} source {index} release")
         else:
-            _string_list(value, f"lane {lane_id} {field}")
+            payload[field] = _string_list(value, f"lane {lane_id} {field}")
     confidence = _text(payload.get("confidence"), f"lane {lane_id} confidence")
     if confidence not in CONFIDENCE_LEVELS:
         raise ValueError(
@@ -761,14 +767,18 @@ def validate_sidecars(
                 f"expected={sorted(study_by_id)} actual={sorted(graph_study_ids)}"
             )
 
-    lane_ids: set[str] = set()
+    lane_by_id: dict[str, dict[str, Any]] = {}
     known_claims = set(claim_by_id) or manifest_claim_ids
-    for raw in loaded["lane_receipts"]:
-        lane = _validate_lane_receipt(raw)
-        lane_id = str(lane["lane_id"])
-        if lane_id in lane_ids:
+    for index, raw in enumerate(loaded["lane_receipts"]):
+        try:
+            lane = _validate_lane_receipt(raw)
+        except ValueError as error:
+            relative = loaded["paths"]["lane-receipt"][index]
+            raise ValueError(f"{relative} (lane-receipt): {error}") from error
+        lane_id = str(lane["lane_id"]).strip()
+        if lane_id in lane_by_id:
             raise ValueError(f"Duplicate lane receipt id: {lane_id}")
-        lane_ids.add(lane_id)
+        lane_by_id[lane_id] = lane
         claim_refs = set(lane["claim_ids"]) | set(lane["supported_claim_ids"]) | set(
             lane["contradicted_claim_ids"]
         )
@@ -796,7 +806,7 @@ def validate_sidecars(
     loaded["edges"] = edges
     loaded["query_by_id"] = query_by_id
     loaded["study_by_id"] = study_by_id
-    loaded["lane_by_id"] = {str(item["lane_id"]): item for item in loaded["lane_receipts"]}
+    loaded["lane_by_id"] = lane_by_id
     return loaded
 
 
@@ -839,30 +849,34 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
     support_edges: dict[str, list[dict[str, Any]]] = defaultdict(list)
     contradiction_edges: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for edge in edges:
-        target = str(edge["target"])
-        source = str(edge["source"])
+        target = str(edge["target"]).strip()
+        source = str(edge["source"]).strip()
+        relation = str(edge["relation"]).strip()
         eligible = source not in claims and studies.get(source, {}).get("included") is not False
-        if eligible and edge["relation"] == "supports":
+        if eligible and relation == "supports":
             support_edges[target].append(edge)
-        elif eligible and edge["relation"] == "contradicts":
+        elif eligible and relation == "contradicts":
             contradiction_edges[target].append(edge)
 
         if target in claims and source in studies:
             declared_field = (
-                "supports_claim_ids" if edge["relation"] == "supports" else "contradicts_claim_ids"
+                "supports_claim_ids" if relation == "supports" else "contradicts_claim_ids"
             )
-            if edge["relation"] in {"supports", "contradicts"} and target not in studies[
+            if relation in {"supports", "contradicts"} and target not in studies[
                 source
             ].get(declared_field, []):
                 add(
                     "citation-mismatch",
                     "major",
-                    f"Graph says {source} {edge['relation']} {target}, but the study table does not declare that relationship.",
+                    f"Graph says {source} {relation} {target}, but the study table does not declare that relationship.",
                     target,
                 )
 
     if sidecars.get("evidence_graph") is not None or edges:
-        relationships = {(str(edge["source"]), str(edge["target"]), edge["relation"]) for edge in edges}
+        relationships = {
+            tuple(str(edge[field]).strip() for field in ("source", "target", "relation"))
+            for edge in edges
+        }
         for study_id, study in studies.items():
             if study.get("included") is False:
                 continue
@@ -878,7 +892,7 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
                         )
 
     for claim_id, claim in claims.items():
-        status = str(claim.get("status"))
+        status = str(claim.get("status")).strip()
         supports = support_edges.get(claim_id, [])
         contradictions = contradiction_edges.get(claim_id, [])
         required_support = int(claim.get("required_support", 1))
@@ -890,12 +904,12 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
                 claim_id,
             )
 
-        required_evidence = set(claim.get("required_evidence", []))
+        required_evidence = {str(value).strip() for value in claim.get("required_evidence", [])}
         if "primary" in required_evidence:
             primary_sources = [
                 edge
                 for edge in supports
-                if studies.get(str(edge["source"]), {}).get("evidence_type") == "primary"
+                if str(studies.get(str(edge["source"]).strip(), {}).get("evidence_type")).strip() == "primary"
             ]
             if not primary_sources:
                 add(
@@ -918,7 +932,7 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
         if status == "replicated":
             independence_groups: set[str] = set()
             for edge in supports:
-                source = str(edge["source"])
+                source = str(edge["source"]).strip()
                 group = str(edge.get("independence_group") or "").strip()
                 if not group and source in studies:
                     group = str(studies[source].get("cohort_id") or "").strip()
@@ -931,12 +945,13 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
                     claim_id,
                 )
 
-    for lane in sidecars.get("lane_receipts", []):
-        lane_id = str(lane["lane_id"])
+    lanes = sidecars.get("lane_by_id")
+    for lane in lanes.values() if lanes is not None else sidecars.get("lane_receipts", []):
+        lane_id = str(lane["lane_id"]).strip()
         bad_queries = [
             query_id
             for query_id in lane["queries"]
-            if queries[query_id]["status"] in {"failed", "unavailable"}
+            if str(queries[query_id]["status"]).strip() in {"failed", "unavailable"}
         ]
         if bad_queries and lane["supported_claim_ids"]:
             add(

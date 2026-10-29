@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,205 @@ class EvidenceSidecarTests(unittest.TestCase):
         self.assertIn("**Report:** [report.md](report.md)", rendered)
         self.assertNotIn("status=supported", rendered)
         self.assertNotIn("SHA-256 `", rendered)
+
+    def test_padded_bundle_values_match_canonical_review(self) -> None:
+        cases = {
+            "unsupported": "unsupported-conclusion",
+            "excluded": "unsupported-conclusion",
+            "supported": None,
+            "mismatch": "citation-mismatch",
+            "contradiction": "unresolved-contradiction",
+            "replicated": "dependent-evidence",
+            "secondary": "missing-primary-evidence",
+            "failed-query": "unavailable-query-used",
+        }
+        for case, expected in cases.items():
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tempdir:
+                run_dir, manifest = self._copy_example(Path(tempdir))
+                names = ("claims.json", "studies.json", "evidence_graph.json",
+                         "lanes/pubmed-search.json")
+                claims, studies, graph, lane = [
+                    json.loads((run_dir / name).read_text()) for name in names
+                ]
+                claim = claims["claims"][0]
+                study = studies["studies"][0]
+                if case == "unsupported":
+                    graph["edges"] = []
+                    study["supports_claim_ids"] = []
+                elif case == "excluded":
+                    study["included"] = False
+                elif case == "mismatch":
+                    study["supports_claim_ids"] = []
+                elif case == "contradiction":
+                    graph["edges"][0]["relation"] = "contradicts"
+                    study["contradicts_claim_ids"] = study["supports_claim_ids"]
+                    study["supports_claim_ids"] = []
+                elif case == "replicated":
+                    claim["status"] = "replicated"
+                elif case == "secondary":
+                    study["evidence_type"] = "secondary"
+                query_name = "queries.jsonl"
+                queries = [json.loads(line) for line in (run_dir / query_name).read_text().splitlines()]
+                if case == "failed-query":
+                    queries[0]["status"] = "failed"
+                results = []
+                for padded in (False, True):
+                    if padded and case in {"unsupported", "replicated"}:
+                        claim["status"] = " " + claim["status"] + " "
+                    elif padded and case == "excluded":
+                        graph["edges"][0]["source"] = " " + graph["edges"][0]["source"] + " "
+                    elif padded:
+                        for record, fields in (
+                            (claim, ("id", "status")),
+                            (study, ("study_id", "evidence_type")),
+                            (lane, ("lane_id",)),
+                            *[(node, ("id", "type")) for node in graph["nodes"]],
+                            *[(edge, ("source", "target", "relation")) for edge in graph["edges"]],
+                            *[(query, ("query_id", "status")) for query in queries],
+                        ):
+                            for field in fields:
+                                record[field] = " \t" + record[field] + "\n "
+                        for record, fields in (
+                            (claim, ("required_evidence",)),
+                            (study, ("supports_claim_ids", "contradicts_claim_ids")),
+                            (lane, ("claim_ids", "supported_claim_ids", "contradicted_claim_ids",
+                                    "queries", "outputs")),
+                        ):
+                            for field in fields:
+                                record[field] = [" " + value + " " for value in record[field]]
+                    for name, payload in zip(names, (claims, studies, graph, lane)):
+                        (run_dir / name).write_text(json.dumps(payload))
+                        self._rehash(manifest, run_dir, name)
+                    (run_dir / query_name).write_text("\n".join(json.dumps(query) for query in queries) + "\n")
+                    self._rehash(manifest, run_dir, query_name)
+                    sidecars = validate_bundle(manifest, run_dir)
+                    results.append(review_manifest(manifest, run_dir, sidecars=sidecars))
+                if expected:
+                    self.assertIn(expected, {item["code"] for item in results[0]["findings"]})
+                    self.assertNotEqual("passed", results[0]["status"])
+                else:
+                    self.assertEqual("passed", results[0]["status"])
+                self.assertEqual(results[0]["findings"], results[1]["findings"])
+                self.assertEqual(results[0]["status"], results[1]["status"])
+
+    def test_lane_reference_types_are_labelled_cli_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            relative = "lanes/pubmed-search.json"
+            path = run_dir / relative
+            lane = json.loads(path.read_text())
+            for field in ("claim_ids", "supported_claim_ids", "contradicted_claim_ids", "queries", "outputs"):
+                original = lane[field]
+                for value in ({}, [], None, True, 0.0, "", " \t"):
+                    with self.subTest(field=field, value=value):
+                        lane[field] = [value]
+                        path.write_text(json.dumps(lane))
+                        self._rehash(manifest, run_dir, relative)
+                        with self.assertRaisesRegex(ValueError, r"lanes/pubmed-search.json.*" + field):
+                            validate_bundle(manifest, run_dir)
+                        result = subprocess.run(
+                            [sys.executable, str(self.repository_root / "scripts" / "validate_artifact.py"),
+                             str(run_dir / "manifest.json")], capture_output=True, text=True,
+                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                        )
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertIn(relative, result.stderr)
+                        self.assertIn(field, result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                lane[field] = original
+            for field in ("claim_ids", "supported_claim_ids", "contradicted_claim_ids", "queries", "outputs"):
+                lane[field] = []
+            path.write_text(json.dumps(lane))
+            self._rehash(manifest, run_dir, relative)
+            validate_bundle(manifest, run_dir)
+
+    def test_reference_lists_preserve_integer_items(self) -> None:
+        from codex_science.evidence import (
+            _string_list,
+            _validate_claim_register,
+            _validate_lane_receipt,
+        )
+
+        self.assertEqual([], _string_list([], "references"))
+        self.assertEqual(
+            ["key", "0", "-1", "7"], _string_list([" key ", 0, -1, 7], "references")
+        )
+        for value in ({}, [], True, False, None, 0.0, 1.5):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, r"references\[0\]"):
+                _string_list([value], "references")
+
+        claims = json.loads((self.example / "claims.json").read_text())
+        for field in ("required_evidence", "dependencies"):
+            claims["claims"][0][field] = [0, 7]
+        claim = _validate_claim_register(claims)["claim-method-effect"]
+        for field in ("required_evidence", "dependencies"):
+            self.assertEqual(["0", "7"], claim[field])
+
+        studies = json.loads((self.example / "studies.json").read_text())
+        for field in ("supports_claim_ids", "contradicts_claim_ids"):
+            studies["studies"][0][field] = [0, 7]
+        study = _validate_study_table(studies)["study-example-1"]
+        for field in ("supports_claim_ids", "contradicts_claim_ids"):
+            self.assertEqual(["0", "7"], study[field])
+
+        lane = json.loads((self.example / "lanes" / "pubmed-search.json").read_text())
+        fields = ("claim_ids", "queries", "included_records", "excluded_records", "outputs",
+                  "supported_claim_ids", "contradicted_claim_ids", "dependencies", "limitations")
+        for field in fields:
+            lane[field] = [0, 7]
+        normalized_lane = _validate_lane_receipt(lane)
+        for field in fields:
+            self.assertEqual(["0", "7"], normalized_lane[field])
+
+    def test_writers_preserve_declared_values_with_normalized_review(self) -> None:
+        from codex_science.evidence_graph_build import build_evidence_graph
+        from codex_science.literature_snapshot_build import build_literature_snapshot
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            names = ("claims.json", "studies.json", "evidence_graph.json", "lanes/pubmed-search.json")
+            claims, studies, graph, lane = [json.loads((run_dir / name).read_text()) for name in names]
+            claim = claims["claims"][0]
+            claim["id"] = " claim-method-effect "
+            claim["status"] = "\tsupported\n"
+            claim["required_evidence"] = [" primary ", 0]
+            claim["dependencies"] = [7, " cohort-example-a "]
+            studies["studies"][0]["study_id"] = " study-example-1 "
+            studies["studies"][0]["evidence_type"] = " primary "
+            for node in graph["nodes"]:
+                for field in ("id", "type"):
+                    node[field] = " " + node[field] + " "
+            for edge in graph["edges"]:
+                for field in ("source", "target", "relation"):
+                    edge[field] = " " + edge[field] + " "
+            for field in ("claim_ids", "supported_claim_ids", "queries", "outputs"):
+                lane[field] = [" " + value + " " for value in lane[field]]
+            lane["dependencies"] = [0, " cohort-example-a "]
+            for name, payload in zip(names, (claims, studies, graph, lane)):
+                (run_dir / name).write_text(json.dumps(payload))
+                self._rehash(manifest, run_dir, name)
+            before = {name: (run_dir / name).read_bytes() for name in names}
+            sidecars = validate_bundle(manifest, run_dir)
+            self.assertEqual("supported", sidecars["claim_by_id"]["claim-method-effect"]["status"])
+            self.assertEqual(["primary", "0"], sidecars["claim_by_id"]["claim-method-effect"]["required_evidence"])
+            self.assertEqual(["q-pubmed-1"], sidecars["lane_by_id"][lane["lane_id"]]["queries"])
+            self.assertEqual("passed", review_manifest(manifest, run_dir, sidecars=sidecars)["status"])
+
+            for _ in range(2):
+                packet = build_review_packet(run_dir / "manifest.json", review_modes=["record"])
+                self.assertEqual(claims["claims"], packet["claims"])
+                self.assertEqual(studies, packet["study_table"])
+                self.assertEqual(graph, packet["evidence_graph"])
+                self.assertEqual([lane], packet["lane_receipts"])
+                build_literature_snapshot(run_dir, "declared-snapshot.json")
+                snapshot = json.loads((run_dir / "declared-snapshot.json").read_text())
+                self.assertEqual([{"id": "claim-method-effect", "status": claim["status"]}], snapshot["claims"])
+                build_evidence_graph(run_dir, output="derived-graph.json")
+                derived = json.loads((run_dir / "derived-graph.json").read_text())
+                self.assertIn({"id": "claim-method-effect", "type": "claim", "label": claim["text"]}, derived["nodes"])
+                self.assertIn({"source": "study-example-1", "target": "claim-method-effect", "relation": "supports",
+                               "independence_group": "cohort-example-a"}, derived["edges"])
+            self.assertEqual(before, {name: (run_dir / name).read_bytes() for name in names})
 
     def test_bundle_reports_base_and_advanced_sidecar_errors_together(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
