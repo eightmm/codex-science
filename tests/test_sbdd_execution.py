@@ -299,6 +299,22 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
         self.assertAlmostEqual(1.0, by_name["pr_auc"]["value"])
         self.assertIsInstance(by_name["top1_symmetry_rmsd"]["confidence_interval"], list)
 
+    def test_large_integer_scores_rank_exactly(self) -> None:
+        big = copy.deepcopy(self.payload)
+        screening = [record for record in big["records"] if record["task"] == "screening"]
+        self.assertGreaterEqual(len(screening), 2)
+        for record in screening:
+            record["active"] = False
+        screening[0]["active"] = True
+        screening[0]["score"] = 2**53 + 1
+        for record in screening[1:]:
+            record["score"] = 2**53
+        self.assertEqual(1.0, average_precision([r["active"] for r in screening], [r["score"] for r in screening]))
+        _poses, metrics, _leakage = compute_acceptance(big)
+        by_name = {item["name"]: item for item in metrics}
+        self.assertEqual(1.0, by_name["pr_auc"]["value"])
+        self.assertTrue(by_name["pr_auc"]["passed"])
+
     def test_threshold_failure_is_machine_readable(self) -> None:
         failed = copy.deepcopy(self.payload)
         failed["numeric_thresholds"]["top1_symmetry_rmsd"] = 0.1

@@ -188,7 +188,7 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
     control_rmsds: list[float] = []
     interaction_values: list[float] = []
     labels: list[bool] = []
-    scores: list[float] = []
+    scores: list[int | float] = []
     for record in payload["records"]:
         reference = _coords(record["reference_coords"], f"{record['complex_id']} reference_coords")
         starting = _coords(record["starting_coords"], f"{record['complex_id']} starting_coords")
@@ -198,7 +198,8 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
             recovery = _finite_real(interaction_recovery(record.get("reference_interactions", []), record.get("predicted_interactions", [])), "interaction_recovery")
         except ValueError as exc:
             raise ValueError(f"{record['complex_id']} {exc}") from exc
-        score = _finite_real(record.get("score", 0.0), f"{record['complex_id']} score")
+        raw_score = record.get("score", 0.0)
+        score = _finite_real(raw_score, f"{record['complex_id']} score")
         active = record.get("active", False)
         if not isinstance(active, bool):
             raise ValueError(f"{record['complex_id']} active must be a JSON boolean")
@@ -217,7 +218,8 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
             interaction_values.append(recovery)
         if record["task"] == "screening":
             labels.append(active)
-            scores.append(score)
+            # Rank on the original JSON number: float() would merge distinct integers above 2**53.
+            scores.append(raw_score)
     if not control_rmsds or not labels:
         raise ValueError("acceptance input needs redocking controls and screening records")
     rmsd_mean = _mean(control_rmsds, "top1_symmetry_rmsd mean")
