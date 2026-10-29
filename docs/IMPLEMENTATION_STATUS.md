@@ -22,7 +22,7 @@
   `output_cap`, while runner receipts use `last_message_present` for empty or
   capped last-message output.
 - All 135 first-party skills meet L3 (the documentation contract); the audit
-  reports L0 0, L1 0, L2 0, L3 124, and L4 11. Five additional skills now
+  reports 135 skills: L0 0, L1 0, L2 0, L3 120, L4 15. Five additional skills now
   have L4 executable acceptance fixtures with named seeded failures exercised
   through their public entry points. These deterministic fixtures validate
   software contracts, not empirical results. Existing endpoints, attribution, and gates

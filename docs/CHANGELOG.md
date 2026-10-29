@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Correct release-gate documentation to distinguish static candidate validation from baseline-dependent monotonic checks, replace the hardcoded runtime build stamp with source pointers, and update native-skill maturity counts to 120 L3 and 15 L4 with a regression check against the audit.
 - Make native runtime quickstart sections 1–3 runnable in a fresh dedicated workspace, refuse existing preparation destinations, import the shipped provenance fixture under its recorded run ID, and create a bounded local job spec; regression-test the documented commands through the local Python runtime.
 - Require non-empty strings for risk-of-bias `study_id`, `instrument`, `domains[].name` and `domains[].rationale`; reject duplicate study IDs (including identical records) before study-family resolution can discard records. `resolve_study_families.py` reports validation and filesystem failures as `error: ...` with exit 1 and no traceback, preserving existing outputs on validation refusal. Valid payloads and family reports are unchanged.
 - Correct refusal recovery advice: stale study-table screening evidence requires rebuilding the candidate pool before reapplying decisions; FAIR export receipt collisions require a fresh `--receipt` path; malformed unregistered annotation sidecars require removal or repair, while valid annotation objects retain identical-content adoption. Refusal statuses, successful outputs and CLI options are unchanged.

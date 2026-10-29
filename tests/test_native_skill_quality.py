@@ -5,6 +5,7 @@ from pathlib import Path
 
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS, classify_rigor
 from codex_science.mcp_server import CodexScienceMCP
+from codex_science.skill_maturity import audit_native_skills
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +84,20 @@ REQUIRED_SECTIONS = (
 
 
 class NativeSkillQualityTests(unittest.TestCase):
+    def test_status_documents_match_native_skill_maturity_audit(self) -> None:
+        report = audit_native_skills(ROOT)
+        expected = (
+            f"{report['skill_count']} skills: "
+            + ", ".join(
+                f"{level} {report['summary'][level]}"
+                for level in ("L0", "L1", "L2", "L3", "L4")
+            )
+        )
+        for name in ("IMPLEMENTATION_STATUS.md", "ROADMAP.md"):
+            with self.subTest(document=name):
+                document = (ROOT / "docs" / name).read_text(encoding="utf-8")
+                self.assertRegex(document, r"(?<!\d)" + re.escape(expected) + r"(?!\d)")
+
     def test_readme_connector_count_and_latest_evaluation_run(self) -> None:
         server = CodexScienceMCP(ROOT / "catalog" / "inventory.json")
         contracts = server.handle({

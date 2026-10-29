@@ -9,7 +9,7 @@ Codex Science uses one release identity module: `src/codex_science/version.py`.
 - Python package: `0.5.0`
 - MCP server: `0.5.0`
 - Stable host-bootstrap version: `0.5.0+codex.20260803040515`
-- Scientific runtime version: `0.5.0+codex.20260804051742`
+- Scientific runtime version: see `RUNTIME_VERSION` in `src/codex_science/version.py` and `runtime_version` in `release/manifest.json`.
 - Machine-readable release record: `release/manifest.json`
 
 Run:
@@ -70,9 +70,9 @@ Run:
 python scripts/candidate_contract_check.py
 ```
 
-The gate verifies:
+The gate verifies static candidate validity:
 
-1. independent host-bootstrap and scientific-runtime identities, monotonic bumps, and cachebuster syntax;
+1. independent host-bootstrap and scientific-runtime identities, and cachebuster syntax;
 2. Connector Contract v2 registry, legacy connector compatibility, snapshot replay, and typed parser fixtures;
 3. Python compilation;
 4. deterministic skill inventory and generated wrappers;
@@ -82,6 +82,10 @@ The gate verifies:
 8. hash-valid artifact bundle and passed record review.
 
 It is deliberately bounded and uses only deterministic local fixtures after the pinned submodule is present.
+
+Historical monotonic version comparisons run when `scripts/validate_release.py`
+receives `--base-ref`. The managed updater separately refuses a changed runtime or bootstrap
+version that does not advance, and runtime content changes that are not cache-neutral without a new runtime version.
 
 ## Connector Contract v2
 
