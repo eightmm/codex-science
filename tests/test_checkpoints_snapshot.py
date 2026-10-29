@@ -43,15 +43,18 @@ class CheckpointLockTests(unittest.TestCase):
             return original_open(path, flags, *args, **kwargs)
 
         def nfs_flock(descriptor, operation):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise OSError(errno.ENOLCK, "NFS directory lock")
             self.assertTrue(stat.S_ISREG(os.fstat(descriptor).st_mode))
             access = checkpoints.fcntl.fcntl(descriptor, checkpoints.fcntl.F_GETFL) & os.O_ACCMODE
             self.assertEqual(os.O_RDWR, access)
             return original_flock(descriptor, operation)
 
         with mock.patch.object(os, "open", side_effect=checked_open), \
-                mock.patch.object(checkpoints.fcntl, "flock", side_effect=nfs_flock):
+                mock.patch.object(checkpoints.fcntl, "flock", side_effect=nfs_flock) as flock:
             with checkpoints._checkpoint_lock(self.run):
                 self.assertEqual([], list(self.run.iterdir()))
+        self.assertEqual(3, flock.call_count)
 
     def test_lock_file_is_private_external_and_shared_by_realpath_aliases(self):
         previous_mask = os.umask(0)
@@ -111,13 +114,15 @@ class CheckpointLockTests(unittest.TestCase):
                         )
                     self.assertEqual(action, checkpoint["next_action"])
                     self.assertEqual(run_entries, set(self.run.iterdir()))
+                    self.assertTrue(stat.S_ISDIR(locked_modes[0]))
                     if existing or mode != 0o555:
                         self.assertEqual(0o600, stat.S_IMODE(self.lock_path.stat().st_mode))
                         self.assertEqual(parent_entries | {self.lock_path}, set(self.root.iterdir()))
-                        self.assertTrue(stat.S_ISREG(locked_modes[0]))
+                        self.assertEqual(2, len(locked_modes))
+                        self.assertTrue(stat.S_ISREG(locked_modes[1]))
                     else:
                         self.assertEqual(parent_entries, set(self.root.iterdir()))
-                        self.assertTrue(stat.S_ISDIR(locked_modes[0]))
+                        self.assertEqual(1, len(locked_modes))
                     if existing:
                         calls = [call for call in opened.call_args_list if Path(call.args[0]) == self.lock_path]
                         self.assertEqual(1, len(calls))
@@ -127,18 +132,73 @@ class CheckpointLockTests(unittest.TestCase):
         original_open = os.open
         for code in (errno.EACCES, errno.EPERM, errno.EROFS):
             with self.subTest(code=code):
+                operations = []
+
                 def denied_creation(path, flags, *args, **kwargs):
                     if Path(path) == self.lock_path and flags & os.O_CREAT:
+                        operations.append("create")
                         raise OSError(code, "parent is not writable")
                     return original_open(path, flags, *args, **kwargs)
 
+                def unsupported_directory(descriptor, operation):
+                    operations.append("directory")
+                    raise OSError(errno.ENOLCK, "NFS directory lock")
+
                 with mock.patch.object(os, "open", side_effect=denied_creation), \
-                        mock.patch.object(checkpoints.fcntl, "flock", side_effect=OSError("NFS directory lock")):
+                        mock.patch.object(checkpoints.fcntl, "flock", side_effect=unsupported_directory):
                     with self.assertRaisesRegex(ValueError, "make the parent writable.*pre-create.*0600"):
                         with checkpoints._checkpoint_lock(self.run):
                             self.fail("unsupported directory lock was accepted")
+                self.assertEqual(["directory", "create"], operations)
                 self.assertEqual([self.run], list(self.root.iterdir()))
                 self.assertEqual([], list(self.run.iterdir()))
+
+    def test_unsupported_directory_flock_uses_sibling_in_order(self):
+        original_flock = checkpoints.fcntl.flock
+        for code in (errno.ENOLCK, errno.EOPNOTSUPP, errno.EBADF, errno.EINVAL):
+            with self.subTest(code=code):
+                operations = []
+
+                def unsupported_directory(descriptor, operation):
+                    directory = stat.S_ISDIR(os.fstat(descriptor).st_mode)
+                    operations.append((directory, operation))
+                    if directory:
+                        raise OSError(code, "directory flock is unsupported")
+                    return original_flock(descriptor, operation)
+
+                with mock.patch.object(checkpoints.fcntl, "flock", side_effect=unsupported_directory):
+                    with checkpoints._checkpoint_lock(self.run):
+                        self.assertEqual([(True, checkpoints.fcntl.LOCK_EX),
+                                          (False, checkpoints.fcntl.LOCK_EX)], operations)
+                self.assertEqual((False, checkpoints.fcntl.LOCK_UN), operations[-1])
+
+    def test_directory_flock_errors_outside_unsupported_set_are_propagated(self):
+        for code in (errno.EIO, errno.EACCES, None):
+            with self.subTest(code=code):
+                with mock.patch.object(os, "close", wraps=os.close) as close, \
+                        mock.patch.object(checkpoints.fcntl, "flock", side_effect=OSError(code, "failed")):
+                    with self.assertRaises(OSError) as caught:
+                        with checkpoints._checkpoint_lock(self.run):
+                            self.fail("directory flock error was ignored")
+                self.assertEqual(code, caught.exception.errno)
+                self.assertFalse(self.lock_path.exists())
+                self.assertEqual(1, close.call_count)
+                with self.assertRaises(OSError):
+                    os.fstat(close.call_args.args[0])
+
+    def test_locks_acquire_directory_first_and_release_in_reverse(self):
+        original_flock = checkpoints.fcntl.flock
+        operations = []
+
+        def observed_flock(descriptor, operation):
+            operations.append((stat.S_ISDIR(os.fstat(descriptor).st_mode), operation))
+            return original_flock(descriptor, operation)
+
+        with mock.patch.object(checkpoints.fcntl, "flock", side_effect=observed_flock):
+            with checkpoints._checkpoint_lock(self.run):
+                pass
+        self.assertEqual([(True, checkpoints.fcntl.LOCK_EX), (False, checkpoints.fcntl.LOCK_EX),
+                          (False, checkpoints.fcntl.LOCK_UN), (True, checkpoints.fcntl.LOCK_UN)], operations)
 
     def test_lock_open_errors_do_not_switch_to_directory_lock(self):
         original_open = os.open
@@ -151,12 +211,13 @@ class CheckpointLockTests(unittest.TestCase):
                     return original_open(path, flags, *args, **kwargs)
 
                 with mock.patch.object(os, "open", side_effect=failed_open), \
-                        mock.patch.object(checkpoints.fcntl, "flock") as flock:
+                        mock.patch.object(checkpoints.fcntl, "flock", wraps=checkpoints.fcntl.flock) as flock:
                     with self.assertRaises(OSError) as caught:
                         with checkpoints._checkpoint_lock(self.run):
                             self.fail("lock error was ignored")
                     self.assertEqual(code, caught.exception.errno)
-                    flock.assert_not_called()
+                    self.assertEqual([checkpoints.fcntl.LOCK_EX, checkpoints.fcntl.LOCK_UN],
+                                     [call.args[1] for call in flock.call_args_list])
 
     def test_failed_creation_retries_a_concurrently_created_sibling(self):
         original_open = os.open
@@ -178,7 +239,9 @@ class CheckpointLockTests(unittest.TestCase):
                 mock.patch.object(checkpoints.fcntl, "flock", side_effect=observed_flock):
             with checkpoints._checkpoint_lock(self.run):
                 self.assertTrue(self.lock_path.is_file())
-        self.assertTrue(stat.S_ISREG(locked_modes[0]))
+        self.assertEqual(2, len(locked_modes))
+        self.assertTrue(stat.S_ISDIR(locked_modes[0]))
+        self.assertTrue(stat.S_ISREG(locked_modes[1]))
 
     def test_unsafe_lock_files_are_refused_without_changing_targets(self):
         target = self.root / "target"
@@ -206,11 +269,12 @@ class CheckpointLockTests(unittest.TestCase):
 
                 try:
                     with mock.patch.object(os, "fstat", side_effect=metadata), \
-                            mock.patch.object(checkpoints.fcntl, "flock") as flock:
+                            mock.patch.object(checkpoints.fcntl, "flock", wraps=checkpoints.fcntl.flock) as flock:
                         with self.assertRaises((OSError, ValueError)):
                             with checkpoints._checkpoint_lock(self.run):
                                 self.fail("unsafe lock file was accepted")
-                        flock.assert_not_called()
+                        self.assertEqual([checkpoints.fcntl.LOCK_EX, checkpoints.fcntl.LOCK_UN],
+                                         [call.args[1] for call in flock.call_args_list])
                     self.assertEqual(b"unchanged", target.read_bytes())
                 finally:
                     if kind == "directory":
@@ -220,11 +284,24 @@ class CheckpointLockTests(unittest.TestCase):
 
     def test_lock_failure_and_body_exception_close_descriptors_and_allow_retry(self):
         original_close = os.close
+        original_flock = checkpoints.fcntl.flock
+        locked_modes = []
+
+        def failed_sibling_flock(descriptor, operation):
+            if operation == checkpoints.fcntl.LOCK_EX:
+                locked_modes.append(os.fstat(descriptor).st_mode)
+            if stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise OSError("lock unavailable")
+            return original_flock(descriptor, operation)
+
         with mock.patch.object(os, "close", wraps=original_close) as close, \
-                mock.patch.object(checkpoints.fcntl, "flock", side_effect=OSError("lock unavailable")):
+                mock.patch.object(checkpoints.fcntl, "flock", side_effect=failed_sibling_flock):
             with self.assertRaisesRegex(OSError, "lock unavailable"):
                 with checkpoints._checkpoint_lock(self.run):
                     self.fail("failed lock was acquired")
+        self.assertEqual(2, len(locked_modes))
+        self.assertTrue(stat.S_ISDIR(locked_modes[0]))
+        self.assertTrue(stat.S_ISREG(locked_modes[1]))
         self.assertTrue(self.lock_path.exists())
         for call in close.call_args_list:
             with self.assertRaises(OSError):
@@ -498,9 +575,17 @@ class CheckpointSnapshotTests(unittest.TestCase):
 
     @unittest.skipIf(os.getuid() == 0, "root bypasses directory permissions")
     def test_directory_fallback_serializes_a_concurrent_decision_gate(self):
-        self.assert_concurrent_decision_gate(readonly_parent=True)
+        for restore_parent, completion_first in ((False, False), (True, False), (True, True)):
+            with self.subTest(restore_parent=restore_parent, completion_first=completion_first):
+                self.run = Path(self.scratch.name) / f"{restore_parent}-{completion_first}" / "artifacts" / "run"
+                self.assert_concurrent_decision_gate(readonly_parent=True, restore_parent=restore_parent,
+                                                    completion_first=completion_first)
 
-    def assert_concurrent_decision_gate(self, *, readonly_parent=False):
+    def test_sibling_lock_serializes_when_directory_flock_is_unavailable(self):
+        self.assert_concurrent_decision_gate(unsupported_directory=True)
+
+    def assert_concurrent_decision_gate(self, *, readonly_parent=False, restore_parent=False,
+                                      unsupported_directory=False, completion_first=False):
         self.ready()
         if readonly_parent:
             (self.run.parent / ".run.checkpoint.lock").unlink()
@@ -509,11 +594,20 @@ class CheckpointSnapshotTests(unittest.TestCase):
             self.addCleanup(self.run.parent.chmod, 0o700)
         revision = checkpoints.load_checkpoint(self.run)["revision"]
         ctx = multiprocessing.get_context("fork")
-        gate_loaded, completion_observed, gate_written = (ctx.Event() for _ in range(3))
+        first_loaded, second_observed, first_written = (ctx.Event() for _ in range(3))
+        directory_attempted = ctx.Event()
         receive, send = ctx.Pipe(duplex=False)
-        temp_roots = [Path(self.scratch.name) / name for name in ("gate-tmp", "completion-tmp")]
+        temp_roots = [self.run.parent.parent / name for name in ("first-tmp", "second-tmp")]
         for root in temp_roots:
             root.mkdir()
+
+        original_flock = checkpoints.fcntl.flock
+
+        def filesystem_flock(handle, operation):
+            if unsupported_directory and stat.S_ISDIR(os.fstat(handle).st_mode):
+                directory_attempted.set()
+                raise OSError(errno.ENOLCK, "directory flock is unsupported")
+            return original_flock(handle, operation)
 
         def separate_temp_root(index):
             os.environ["TMPDIR"] = str(temp_roots[index])
@@ -524,51 +618,69 @@ class CheckpointSnapshotTests(unittest.TestCase):
             if not event.wait(CALL_TIMEOUT):
                 raise TimeoutError("concurrent checkpoint operation did not reach its barrier")
 
-        def gate():
+        def first_mutation():
             separate_temp_root(0)
             original = checkpoints._write_checkpoint
 
             def paused_write(*args):
-                gate_loaded.set()
-                wait(completion_observed)
+                first_loaded.set()
+                wait(second_observed)
                 result = original(*args)
-                gate_written.set()
+                first_written.set()
                 return result
 
-            with mock.patch.object(checkpoints, "_write_checkpoint", side_effect=paused_write):
-                checkpoints.request_decision(self.run, questions=["Approve?"], reason="Owner decision")
+            with mock.patch.object(checkpoints, "_write_checkpoint", side_effect=paused_write), \
+                    mock.patch.object(checkpoints.fcntl, "flock", side_effect=filesystem_flock):
+                if completion_first:
+                    checkpoints.complete_checkpoint(self.run)
+                else:
+                    checkpoints.request_decision(self.run, questions=["Approve?"], reason="Owner decision")
 
-        def completion():
+        def second_mutation():
             separate_temp_root(1)
-            original_load, original_flock = checkpoints.load_checkpoint, checkpoints.fcntl.flock
+            original_load = checkpoints.load_checkpoint
+            original_write = checkpoints._write_checkpoint
 
             def observed_load(*args):
                 result = original_load(*args)
-                completion_observed.set()
-                wait(gate_written)
+                if not completion_first:
+                    second_observed.set()
+                    wait(first_written)
+                return result
+
+            def observed_write(*args):
+                result = original_write(*args)
+                if completion_first:
+                    second_observed.set()
                 return result
 
             def observed_flock(handle, operation):
                 if operation == checkpoints.fcntl.LOCK_EX:
                     try:
-                        return original_flock(handle, operation | checkpoints.fcntl.LOCK_NB)
+                        return filesystem_flock(handle, operation | checkpoints.fcntl.LOCK_NB)
                     except BlockingIOError:
-                        completion_observed.set()
-                return original_flock(handle, operation)
+                        second_observed.set()
+                return filesystem_flock(handle, operation)
 
             with mock.patch.object(checkpoints, "load_checkpoint", side_effect=observed_load), \
+                    mock.patch.object(checkpoints, "_write_checkpoint", side_effect=observed_write), \
                     mock.patch.object(checkpoints.fcntl, "flock", side_effect=observed_flock):
                 try:
-                    checkpoints.complete_checkpoint(self.run)
+                    if completion_first:
+                        result = checkpoints.request_decision(self.run, questions=["Approve?"], reason="Owner decision")
+                    else:
+                        result = checkpoints.complete_checkpoint(self.run)
                 except ValueError as error:
                     send.send(str(error))
                 else:
-                    send.send("completion unexpectedly succeeded")
+                    send.send(result["state"])
 
-        processes = [ctx.Process(target=gate), ctx.Process(target=completion)]
+        processes = [ctx.Process(target=first_mutation), ctx.Process(target=second_mutation)]
         try:
             processes[0].start()
-            wait(gate_loaded)
+            wait(first_loaded)
+            if restore_parent:
+                self.run.parent.chmod(0o755)
             processes[1].start()
             for process in processes:
                 process.join(CALL_TIMEOUT)
@@ -576,12 +688,17 @@ class CheckpointSnapshotTests(unittest.TestCase):
             self.assertTrue(receive.poll(CALL_TIMEOUT))
             self.assertIn("only an active checkpoint", receive.recv())
             checkpoint = checkpoints.load_checkpoint(self.run)
-            self.assertEqual("approval_required", checkpoint["state"])
-            self.assertEqual([{"question": "Approve?", "reason": "Owner decision"}], checkpoint["pending_decisions"])
+            self.assertEqual("complete" if completion_first else "approval_required", checkpoint["state"])
+            decisions = [] if completion_first else [{"question": "Approve?", "reason": "Owner decision"}]
+            self.assertEqual(decisions, checkpoint["pending_decisions"])
             self.assertEqual(revision + 1, checkpoint["revision"])
+            if restore_parent or unsupported_directory:
+                self.assertTrue((self.run.parent / ".run.checkpoint.lock").is_file())
+            if unsupported_directory:
+                self.assertTrue(directory_attempted.is_set())
         finally:
-            completion_observed.set()
-            gate_written.set()
+            second_observed.set()
+            first_written.set()
             for process in processes:
                 if process.pid is not None:
                     if process.is_alive():

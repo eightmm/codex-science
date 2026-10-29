@@ -451,9 +451,18 @@ def _checkpoint_lock(run_dir: Path) -> Iterator[None]:
     run_dir = Path(run_dir).resolve()
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
     directory = os.open(run_dir, flags)
+    directory_locked = False
     try:
         if not stat.S_ISDIR(os.fstat(directory).st_mode):
             raise ValueError("checkpoint run must be a directory")
+        # Lock directory then sibling so callers cannot hold disjoint locks where directory flock works.
+        try:
+            fcntl.flock(directory, fcntl.LOCK_EX)
+        except OSError as error:
+            if error.errno not in {errno.ENOLCK, errno.EOPNOTSUPP, errno.EBADF, errno.EINVAL}:
+                raise
+        else:
+            directory_locked = True
         lock_path = run_dir.parent / f".{run_dir.name}.checkpoint.lock"
         flags = os.O_RDWR | os.O_NOFOLLOW
         try:
@@ -467,33 +476,33 @@ def _checkpoint_lock(run_dir: Path) -> Iterator[None]:
                 try:
                     descriptor = os.open(lock_path, flags)
                 except FileNotFoundError:
-                    # With the same parent permissions and no sibling file,
-                    # callers of one user consistently choose the run inode.
-                    descriptor = directory
+                    if not directory_locked:
+                        raise ValueError(
+                            "checkpoint directory lock is unavailable; make the parent writable "
+                            "or pre-create the checkpoint lock file with mode 0600"
+                        ) from error
+                    descriptor = None
         try:
-            if descriptor != directory:
+            if descriptor is not None:
                 metadata = os.fstat(descriptor)
                 if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid() or metadata.st_mode & 0o077:
                     raise ValueError("checkpoint lock file is unsafe")
-            try:
                 fcntl.flock(descriptor, fcntl.LOCK_EX)
-            except OSError as error:
-                if descriptor == directory:
-                    raise ValueError(
-                        "checkpoint directory lock is unavailable; make the parent writable "
-                        "or pre-create the checkpoint lock file with mode 0600"
-                    ) from error
-                raise
             try:
                 yield
             finally:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                if descriptor is not None:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
         finally:
             # Unlinking would let a concurrent caller lock a different inode.
-            if descriptor != directory:
+            if descriptor is not None:
                 os.close(descriptor)
     finally:
-        os.close(directory)
+        try:
+            if directory_locked:
+                fcntl.flock(directory, fcntl.LOCK_UN)
+        finally:
+            os.close(directory)
 
 
 def _serialized_mutation(function: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
