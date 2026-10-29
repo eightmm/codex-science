@@ -282,6 +282,139 @@ class ArtifactManifestTests(unittest.TestCase):
         self.assertEqual("passed", manifest["review"]["status"])
         self.assertEqual("passed", review_manifest(manifest)["status"])
 
+    def test_local_code_digest_mismatch_blocks_passed_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            source = run / "code/deep/analysis.R"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"changed code\n")
+            manifest = new_manifest("code-digest", "Question", [])
+            manifest["code"] = [{"path": "code/deep/analysis.R", "sha256": "0" * 64}]
+            add_artifact(manifest, "code/deep/analysis.R", kind="code",
+                         sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+            manifest_path = run / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest))
+            output = run / "review-output.json"
+            cli = Path(__file__).resolve().parents[1] / "scripts/validate_artifact.py"
+            result = subprocess.run([sys.executable, str(cli), str(manifest_path),
+                                     "--review-output", str(output), "--require-passed-review"],
+                                    text=True, capture_output=True, check=False)
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            finding = next(item for item in json.loads(output.read_text())["findings"]
+                           if item["code"] == "code-digest-mismatch")
+            self.assertEqual("major", finding["severity"])
+            for content in (b"", b"changed code\n"):
+                source.write_bytes(content)
+                digest = hashlib.sha256(content).hexdigest()
+                manifest["code"][0]["sha256"] = digest.upper()
+                manifest["artifacts"][0]["sha256"] = digest
+                self.assertEqual("passed", review_manifest(manifest, run)["status"])
+            manifest["code"][0].pop("sha256")
+            manifest["code"][0]["revision"] = "v1"
+            self.assertEqual("passed", review_manifest(manifest, run)["status"])
+            for value in ("", "0", None, 0, "z" * 64):
+                with self.subTest(value=value):
+                    manifest["code"][0]["sha256"] = value
+                    self.assertIn("code-digest-mismatch", {item["code"] for item in review_manifest(manifest, run)["findings"]})
+
+    def test_lane_output_digest_mismatch_blocks_passed_review(self) -> None:
+        import shutil
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            from codex_science.evidence import validate_sidecars
+            self.assertEqual({}, validate_sidecars({}, run, {})["lane_by_id"])
+            example = Path(__file__).resolve().parents[1] / "examples/literature-review-reviewed-run"
+            shutil.copytree(example, run)
+            manifest = json.loads((run / "manifest.json").read_text())
+            lane_path = run / "lanes/pubmed-search.json"
+            lane = json.loads(lane_path.read_text())
+            lane["output_sha256"] = {"./report.md": "0" * 64}
+            lane_path.write_text(json.dumps(lane))
+            record = next(item for item in manifest["artifacts"] if item["path"] == "lanes/pubmed-search.json")
+            record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+            findings = review_manifest(manifest, run)["findings"]
+            finding = next(item for item in findings if item["code"] == "lane-output-digest-mismatch")
+            self.assertEqual("major", finding["severity"])
+            self.assertIn("report.md", finding["message"])
+            manifest_path = run / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest))
+            output = Path(tmp) / "review-output.json"
+            cli = example.parents[1] / "scripts/validate_artifact.py"
+            result = subprocess.run([sys.executable, str(cli), str(manifest_path),
+                                     "--review-output", str(output), "--require-passed-review"],
+                                    text=True, capture_output=True, check=False)
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("lane-output-digest-mismatch", {item["code"] for item in json.loads(output.read_text())["findings"]})
+            for hashes in ({}, {"./report.md": hashlib.sha256((run / "report.md").read_bytes()).hexdigest().upper()}):
+                lane["output_sha256"] = hashes
+                lane_path.write_text(json.dumps(lane))
+                record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                self.assertEqual("passed", review_manifest(manifest, run)["status"])
+            for target, content in (("unregistered.txt", b"changed bytes"), ("empty.txt", b""),
+                                    ("missing.txt", None), ("", None), ("../outside.txt", None)):
+                with self.subTest(target=target):
+                    if content is not None:
+                        (run / target).write_bytes(content)
+                    lane["output_sha256"] = {target: "0" * 64}
+                    lane_path.write_text(json.dumps(lane))
+                    record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+            for hashes in (None, [], {"report.md": None}, {"report.md": ""}, {"report.md": "z" * 64}):
+                with self.subTest(hashes=hashes):
+                    lane["output_sha256"] = hashes
+                    lane_path.write_text(json.dumps(lane))
+                    record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                    with self.assertRaises(ValueError):
+                        validate_bundle(manifest, run)
+            from codex_science.fair_export import export_run
+            tree = run / "tree"
+            tree.mkdir()
+            directory_record = {"path": "tree", "kind": "data", "artifact_type": "directory-tree"}
+            manifest["artifacts"].append(directory_record)
+            lane["outputs"].append("tree")
+            for index, content in enumerate((None, b"", b"changed bytes")):
+                with self.subTest(directory_content=content):
+                    if content is not None:
+                        (tree / "data.bin").write_bytes(content)
+                    descriptor = describe_directory(tree)
+                    directory_record.update(sha256=descriptor.root_sha256, size_bytes=descriptor.total_bytes,
+                                            entry_count=descriptor.entry_count)
+                    lane["output_sha256"] = {"./tree/": descriptor.root_sha256}
+                    lane_path.write_text(json.dumps(lane))
+                    record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+                    manifest_path.write_text(json.dumps(manifest))
+                    self.assertEqual("generated", export_run(manifest_path, Path(tmp) / f"tree-export-{index}")["status"])
+                    lane["output_sha256"]["./tree/"] = "0" * 64
+                    lane_path.write_text(json.dumps(lane))
+                    record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                    finding = next(item for item in review_manifest(manifest, run)["findings"]
+                                   if item["code"] == "lane-output-digest-mismatch")
+                    self.assertEqual("major", finding["severity"])
+                    manifest_path.write_text(json.dumps(manifest))
+                    rejected = Path(tmp) / f"tree-rejected-{index}"
+                    with self.assertRaisesRegex(ValueError, "Bundle digest mismatch"):
+                        export_run(manifest_path, rejected)
+                    self.assertFalse(rejected.exists())
+                    for invalid in (None, "", "z" * 64):
+                        lane["output_sha256"]["./tree/"] = invalid
+                        lane_path.write_text(json.dumps(lane))
+                        record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                        with self.assertRaises(ValueError):
+                            validate_bundle(manifest, run)
+            for raw_path in ([], {}, 0, None):
+                with self.subTest(raw_path=raw_path):
+                    relative = str(raw_path)
+                    target = run / relative
+                    target.write_bytes(b"legacy path bytes")
+                    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+                    manifest["artifacts"].append({"path": raw_path, "kind": "data", "sha256": digest})
+                    lane["outputs"].append(relative)
+                    lane["output_sha256"] = {relative: digest}
+                    lane_path.write_text(json.dumps(lane))
+                    record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+
     def test_error_object_artifact_is_a_major_finding(self) -> None:
         manifest = new_manifest("run-001", "Question", [])
         with tempfile.TemporaryDirectory() as temp:

@@ -36,7 +36,10 @@ def main() -> int:
         "so a re-run needs a new ID or no --id",
     )
     execute.add_argument("command", nargs=argparse.REMAINDER, help="command to run, after --")
-    update = commands.add_parser("refresh", help="refresh manifest hashes and registrations")
+    update = commands.add_parser("refresh", help="refresh manifest hashes and registrations",
+                                description="Refresh artifact and existing local code digests at any depth or extension, "
+                                "and lane output digests using final planned bytes. Dependency cycles are refused before writing; "
+                                "unchanged lanes retain their original bytes. Use a single writer per run directory.")
     update.add_argument("--run-dir", type=Path, required=True, help="run directory containing manifest.json")
     update.add_argument("--kind", action="append", default=[], metavar="PATH=KIND",
                         help="register a file as an artifact kind, PATH=KIND; PATH may be a glob relative to the run directory, later options win, repeatable; an exact PATH also reclassifies an artifact already in the manifest, a glob applies only to newly added files")

@@ -244,13 +244,18 @@ def export_run(
     receipt must be outside the output directory and have no ancestor/descendant
     overlap with any export output. All destinations must be
     absent with no non-directory ancestors; unrelated output-directory files
-    are preserved. Preflight rejection creates no files.
+    are preserved. Recorded local code and saved lane-output digests must match
+    the bundle bytes. Preflight rejection creates no files.
     """
     manifest_path = manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("manifest must be an object")
     sidecars = validate_bundle(manifest, manifest_path.parent)
+    if sidecars.get("digest_findings"):
+        raise ValueError("Bundle digest mismatch: " + "; ".join(
+            finding["message"] for finding in sidecars["digest_findings"]
+        ))
     output_dir = output_dir.resolve()
     files = {
         "ro_crate": output_dir / "ro-crate-metadata.json",

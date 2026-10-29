@@ -14,10 +14,11 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
+from graphlib import CycleError, TopologicalSorter
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from codex_science.artifacts import validate_bundle, validate_manifest, write_manifest
+from codex_science.artifacts import _artifact_metadata, _local_code_path, validate_bundle, validate_manifest, write_manifest
 from codex_science.artifact_store import describe_directory
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 from codex_science.review import review_manifest
@@ -45,9 +46,7 @@ def _sha(path: Path) -> str:
 
 
 def _artifact_sha(path: Path, item: dict[str, Any]) -> str:
-    if item.get("artifact_type") == "directory-tree":
-        return describe_directory(path, media_type=item.get("media_type")).root_sha256
-    return _sha(path)
+    return _artifact_metadata(path, item)[0]
 
 
 def _canonical_relative(value: str) -> str:
@@ -64,6 +63,10 @@ def _inside(root: Path, relative: str) -> Path:
     if not resolved.is_relative_to(resolved_root):
         raise ValueError(f"Path escapes run directory: {relative}")
     return candidate
+
+
+def _tree_contains(root: Path, tree: str, relative: str) -> bool:
+    return _inside(root, relative).resolve().is_relative_to(_inside(root, tree).resolve())
 
 
 def _write_target(root: Path, relative: str) -> Path:
@@ -719,11 +722,11 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         artifacts = manifest["artifacts"]
 
         for item in artifacts:
-            if not isinstance(item, dict) or item.get("artifact_type") != "directory-tree" or not item.get("path"):
+            if not isinstance(item, dict) or item.get("artifact_type") != "directory-tree" or "path" not in item:
                 continue
             artifact_root = PurePosixPath(_canonical_relative(str(item["path"])))
             affected = [path for pair in archive_moves for path in pair]
-            if any(PurePosixPath(_canonical_relative(path)).is_relative_to(artifact_root) for path in affected):
+            if any(_tree_contains(run_dir, str(artifact_root), path) for path in affected):
                 raise ValueError(
                     f"Cannot archive review files inside directory-tree artifact {artifact_root}; "
                     "exclude the review files from the directory artifact; no files were changed"
@@ -734,8 +737,9 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         artifacts, forgotten = _forget_artifacts(run_dir, manifest, artifacts, forget)
         manifest["artifacts"] = artifacts
 
-    lanes_updated = 0
     lane_updates: list[tuple[str, bytes]] = []
+    lane_payloads: dict[str, Any] = {}
+    lane_outputs: dict[str, dict[str, str]] = {}
     lanes_dir = run_dir / "lanes"
     if lanes_dir.exists() or lanes_dir.is_symlink():
         _safe_directory(run_dir, "lanes")
@@ -744,29 +748,57 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             continue
         lane_relative = lane.relative_to(run_dir).as_posix()
         _write_target(run_dir, lane_relative)
-        payload = json.loads(lane.read_text(encoding="utf-8"))
+        lane_payloads[lane_relative] = json.loads(lane.read_text(encoding="utf-8"))
+    # The manifest records every rewritten lane, so hashing it from a lane
+    # would also create a dependency cycle, even without a direct lane edge.
+    dependencies: dict[str, set[str]] = {"manifest.json": set(lane_payloads)}
+    artifact_outputs = {}
+    for item in artifacts:
+        if isinstance(item, dict) and "path" in item:
+            target = _inside(run_dir, str(item["path"]))
+            artifact_outputs[target.resolve().relative_to(run_dir.resolve()).as_posix()] = item
+    for lane_relative, payload in lane_payloads.items():
+        hashes = payload.get("output_sha256") if isinstance(payload, dict) else None
+        outputs = lane_outputs[lane_relative] = {}
+        if isinstance(hashes, dict):
+            for key in hashes:
+                target = _inside(run_dir, str(key))
+                output = target.resolve().relative_to(run_dir.resolve()).as_posix()
+                item = artifact_outputs.get(output, {})
+                present = target.is_dir() if item.get("artifact_type") == "directory-tree" else target.is_file()
+                if not present:
+                    raise ValueError(f"Lane output is missing: {key}")
+                outputs[key] = output
+        dependencies[lane_relative] = set(outputs.values()) & (lane_payloads.keys() | {"manifest.json"})
+    try:
+        ordered = list(TopologicalSorter(dependencies).static_order())
+    except CycleError as error:
+        raise ValueError("Lane output digest dependency cycle: " + " -> ".join(error.args[1])) from None
+    planned_lanes: dict[str, bytes] = {}
+    for lane_relative in ordered:
+        if lane_relative not in lane_payloads:
+            continue
+        payload = lane_payloads[lane_relative]
         hashes = payload.get("output_sha256") if isinstance(payload, dict) else None
         lane_changed = False
         if isinstance(hashes, dict):
-            for key in list(hashes):
-                canonical_key = _canonical_relative(str(key))
-                target = _inside(run_dir, canonical_key)
-                if not target.is_file():
-                    raise ValueError(f"Lane output is missing: {key}")
-                digest = _sha(target)
+            for key, output in lane_outputs[lane_relative].items():
+                content = planned_lanes.get(output)
+                digest = hashlib.sha256(content).hexdigest() if content is not None else _artifact_sha(run_dir / output, artifact_outputs.get(output, {}))
                 if hashes[key] != digest:
                     hashes[key] = digest
                     lane_changed = True
             if lane_changed:
-                lane_updates.append((lane_relative, (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")))
-                lanes_updated += 1
-    planned_lanes = dict(lane_updates)
+                content = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+                planned_lanes[lane_relative] = content
+                lane_updates.append((lane_relative, content))
+    lanes_updated = len(lane_updates)
     for item in artifacts:
-        if not isinstance(item, dict) or item.get("artifact_type") != "directory-tree" or not item.get("path"):
+        if not isinstance(item, dict) or item.get("artifact_type") != "directory-tree" or "path" not in item:
             continue
         artifact_root = PurePosixPath(_canonical_relative(str(item["path"])))
         for lane_path in planned_lanes:
-            if PurePosixPath(_canonical_relative(lane_path)).is_relative_to(artifact_root):
+            if _tree_contains(run_dir, str(artifact_root), lane_path):
                 raise ValueError(
                     f"Cannot refresh directory-tree artifact {artifact_root} while lane {lane_path} needs rewriting; "
                     "refresh the lane outputs first or exclude the lane from the directory artifact; no files were changed"
@@ -785,11 +817,11 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
                 f"Artifact file is missing: {relative}; restore the file, or if it was renamed or deleted "
                 f"on purpose, rerun package_run.py refresh --forget {relative}"
             )
+        planned_lane = planned_lanes.get(target.resolve().relative_to(run_dir.resolve()).as_posix())
         if item.get("artifact_type") == "directory-tree":
             descriptor = describe_directory(target, media_type=item.get("media_type"))
             digest = descriptor.root_sha256
-        elif canonical in planned_lanes:
-            planned_lane = planned_lanes[canonical]
+        elif planned_lane is not None:
             digest = hashlib.sha256(planned_lane).hexdigest()
         else:
             digest = _artifact_sha(target, item)
@@ -800,8 +832,8 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             if "size_bytes" in item:
                 if item.get("artifact_type") == "directory-tree":
                     item["size_bytes"] = descriptor.total_bytes
-                elif canonical in planned_lanes:
-                    item["size_bytes"] = len(planned_lanes[canonical])
+                elif planned_lane is not None:
+                    item["size_bytes"] = len(planned_lane)
                 else:
                     item["size_bytes"] = target.stat().st_size
             if item.get("artifact_type") == "directory-tree" and "entry_count" in item:
@@ -840,7 +872,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         if kind is None:
             unclassified.append(relative)
             continue
-        planned_lane = planned_lanes.get(canonical)
+        planned_lane = planned_lanes.get(target.resolve().relative_to(run_dir.resolve()).as_posix())
         item = {"path": relative, "kind": kind, "sha256": hashlib.sha256(planned_lane).hexdigest() if planned_lane is not None else _sha(target)}
         if canonical.startswith("lanes/"):
             item["size_bytes"] = len(planned_lane) if planned_lane is not None else target.stat().st_size
@@ -851,10 +883,27 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         raise ValueError("Unclassified files: " + ", ".join(unclassified) + "; classify each with --kind PATH=KIND or --default-kind KIND")
 
     manifest["artifacts"] = artifacts
-    code_by_path = {_canonical_relative(str(item.get("path"))): item for item in manifest["code"] if isinstance(item, dict) and item.get("path")}
+
+    def code_digest(path: Path) -> str:
+        relative = path.resolve().relative_to(run_dir.resolve()).as_posix()
+        if relative == "manifest.json":
+            raise ValueError("Code digest dependency cycle: manifest.json -> manifest.json")
+        planned = planned_lanes.get(relative)
+        return hashlib.sha256(planned).hexdigest() if planned is not None else _sha(path)
+
+    code_by_path = {}
+    for item in manifest["code"]:
+        if not isinstance(item, dict):
+            continue
+        path = _local_code_path(run_dir, item.get("path"))
+        if path is None:
+            continue
+        canonical = path.relative_to(run_dir).as_posix()
+        item["sha256"] = code_digest(path)
+        code_by_path[canonical] = item
     for path in sorted(run_dir.glob("*.py")):
         relative = path.relative_to(run_dir).as_posix()
-        digest = _sha(path)
+        digest = code_digest(path)
         canonical = _canonical_relative(relative)
         if canonical in code_by_path:
             code_by_path[canonical]["sha256"] = digest

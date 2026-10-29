@@ -617,6 +617,43 @@ class FairExportTests(unittest.TestCase):
             result.write_text('{"value": 2}\n', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "digest mismatch"):
                 export_run(path, root / "export")
+        for variant in ("code", "lane"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                path = self._bundle(root)
+                manifest = json.loads(path.read_text())
+                if variant == "code":
+                    source = path.parent / "code/analysis.py"
+                    source.parent.mkdir()
+                    source.write_bytes(b"changed code\n")
+                    manifest["code"] = [{"path": "code/analysis.py", "sha256": "0" * 64}]
+                else:
+                    example = CLI.parents[1] / "examples/literature-review-reviewed-run/lanes/pubmed-search.json"
+                    lane = json.loads(example.read_text())
+                    for field in ("claim_ids", "queries", "supported_claim_ids", "contradicted_claim_ids"):
+                        lane[field] = []
+                    lane["outputs"] = ["result.csv"]
+                    lane["output_sha256"] = {"result.csv": "0" * 64}
+                    source = path.parent / "lane.json"
+                    source.write_text(json.dumps(lane))
+                    add_artifact(manifest, "lane.json", kind="lane-receipt",
+                                 sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+                write_manifest(manifest, path)
+                before = self._snapshot(root)
+                with self.assertRaisesRegex(ValueError, "Bundle digest mismatch"):
+                    export_run(path, root / "export", receipt_path=root / "receipt.json")
+                self.assertEqual(before, self._snapshot(root))
+                self._refused(path, root / "export", root / "receipt.json", root,
+                              error="Bundle digest mismatch:")
+                if variant == "code":
+                    manifest["code"][0].pop("sha256")
+                else:
+                    lane["output_sha256"] = {"result.csv": hashlib.sha256((path.parent / "result.csv").read_bytes()).hexdigest(),
+                                             "unregistered.txt": "0" * 64}
+                    source.write_text(json.dumps(lane))
+                    manifest["artifacts"][-1]["sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
+                write_manifest(manifest, path)
+                self.assertEqual("generated", export_run(path, root / "export")["status"])
 
 
 if __name__ == "__main__":

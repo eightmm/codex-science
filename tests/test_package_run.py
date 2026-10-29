@@ -1068,6 +1068,143 @@ class PackageRunTests(unittest.TestCase):
         lane = json.loads(lane_path.read_text())
         self.assertEqual(lane["output_sha256"]["report.md"], __import__("hashlib").sha256((self.run_dir / "report.md").read_bytes()).hexdigest())
 
+    def test_refresh_hashes_final_lane_bytes_in_dependency_order(self) -> None:
+        from codex_science.runtime_identity import record_runtime_identity
+        manifest_path = self.run_dir / "manifest.json"
+        expected = json.loads(manifest_path.read_text())
+        files = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                 for path in self.run_dir.rglob("*") if path.is_file() and path.name != "manifest.json"}
+        record_runtime_identity(expected)
+        expected["superseded_executions"] = []
+        expected["review"]["status"] = "pending"
+        expected["review"].pop("receipt", None)
+        expected["artifacts"] = [item for item in expected["artifacts"] if item["path"] != "review.json"]
+        initial = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(0, initial.returncode, initial.stderr)
+        summary = json.loads(initial.stdout.splitlines()[-1])
+        self.assertEqual([], summary["rehashed_changed"])
+        self.assertEqual([], summary["added"])
+        self.assertEqual(0, summary["lanes_updated"])
+        self.assertEqual(expected, json.loads(manifest_path.read_text()))
+        files["review-rounds/1/review.json"] = files.pop("review.json")
+        self.assertEqual(files, {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                                 for path in self.run_dir.rglob("*") if path.is_file() and path.name != "manifest.json"})
+        before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                  for path in self.run_dir.rglob("*") if path.is_file()}
+        repeated = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(0, repeated.returncode, repeated.stderr)
+        self.assertEqual(before, {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                                  for path in self.run_dir.rglob("*") if path.is_file()})
+        lane_path = self.run_dir / "lanes/pubmed-search.json"
+        lane = json.loads(lane_path.read_text())
+        lane["output_sha256"] = {"report.md": "0" * 64}
+        lane_path.write_text(json.dumps(lane))
+        for name, output in (("b-downstream", "lanes/pubmed-search.json"),
+                             ("a-downstream", "lanes/b-downstream.json")):
+            dependent = {**lane, "lane_id": name, "outputs": [output],
+                         "output_sha256": {"./" + output: hashlib.sha256((self.run_dir / output).read_bytes()).hexdigest()}}
+            (self.run_dir / f"lanes/{name}.json").write_text(json.dumps(dependent))
+        untouched = self.run_dir / "lanes/unchanged.json"
+        untouched.write_text(json.dumps({**lane, "lane_id": "unchanged", "output_sha256": {}}))
+        original = untouched.read_bytes()
+        alias = self.run_dir / "lane-alias.py"
+        alias.symlink_to("lanes/pubmed-search.json")
+        alias_lane = {**lane, "lane_id": "alias", "outputs": ["lane-alias.py"],
+                      "output_sha256": {"lane-alias.py": "0" * 64}}
+        (self.run_dir / "lanes/alias.json").write_text(json.dumps(alias_lane))
+        # Code can name a rewritten lane too; both records must identify final bytes.
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["code"].append({"path": "lanes/pubmed-search.json", "sha256": "0" * 64})
+        manifest["code"].append({"path": "lane-alias.py", "sha256": "0" * 64})
+        manifest_path.write_text(json.dumps(manifest))
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(0, result.returncode, result.stderr)
+        for path in (self.run_dir / "lanes").glob("*.json"):
+            for output, digest in json.loads(path.read_text())["output_sha256"].items():
+                self.assertEqual(hashlib.sha256((self.run_dir / output).read_bytes()).hexdigest(), digest)
+        self.assertEqual(original, untouched.read_bytes())
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual(hashlib.sha256(lane_path.read_bytes()).hexdigest(), manifest["code"][-1]["sha256"])
+        self.assertEqual("passed", review_manifest(manifest, self.run_dir)["status"])
+        before = self._snapshot()
+        result = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(before, self._snapshot())
+
+    def test_refresh_refuses_lane_cycles_before_any_writes(self) -> None:
+        lane_path = self.run_dir / "lanes/pubmed-search.json"
+        lane = json.loads(lane_path.read_text())
+        other = self.run_dir / "lanes/other.json"
+        for output in ("lanes/pubmed-search.json", "lanes/other.json", "manifest.json"):
+            with self.subTest(output=output):
+                lane["output_sha256"] = {output: "0" * 64}
+                lane_path.write_text(json.dumps(lane))
+                other.write_text(json.dumps({**lane, "lane_id": "other",
+                                            "output_sha256": {"lanes/pubmed-search.json": "0" * 64}}))
+                before = self._snapshot()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("error: Lane output digest dependency cycle", result.stderr)
+                self.assertIn(output, result.stderr)
+                self.assertEqual(before, self._snapshot())
+
+    def test_refresh_local_code_at_any_depth_and_extension(self) -> None:
+        self.run_dir = Path(self.temp.name) / "code-run"
+        shutil.copytree(ROOT / "examples/reviewed-run", self.run_dir)
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        (self.run_dir / "code").mkdir()
+        shutil.move(self.run_dir / "analysis.py", self.run_dir / "code/analysis.py")
+        manifest["code"][0]["path"] = "code/analysis.py"
+        references = ["code/analysis.py", "code/deep/analysis.R", "code/empty", "analysis.txt"]
+        for index, relative in enumerate(references):
+            path = self.run_dir / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            content = path.read_bytes() if path.exists() else b""
+            path.write_bytes(b"" if relative.endswith("empty") else content + b"\n# changed scientific code\n")
+            if index == 0:
+                manifest["code"][0]["revision"] = index
+            else:
+                manifest["code"].append({"path": relative, "sha256": "0" * 64, "revision": index})
+        manifest["code"].append({"path": "./code/analysis.py", "sha256": "0" * 64})
+        external = {"path": "https://example.org/source.py", "sha256": "a" * 64}
+        absent = {"path": "absent/source.R", "sha256": "b" * 64}
+        manifest["code"].extend((external, absent))
+        manifest_path.write_text(json.dumps(manifest))
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review",
+                          "--kind", "code/*=code", "--kind", "analysis.txt=code")
+        self.assertEqual(0, result.returncode, result.stderr)
+        manifest = json.loads(manifest_path.read_text())
+        for record in manifest["code"]:
+            if record["path"].removeprefix("./") in references:
+                self.assertEqual(hashlib.sha256((self.run_dir / record["path"]).read_bytes()).hexdigest(), record["sha256"])
+        self.assertIn(external, manifest["code"])
+        self.assertIn(absent, manifest["code"])
+        self.assertEqual(list(range(4)), [record["revision"] for record in manifest["code"] if record["path"] in references])
+        self.assertEqual("passed", review_manifest(manifest, self.run_dir)["status"])
+        from codex_science.fair_export import export_run
+        output = Path(self.temp.name) / "export"
+        export_run(manifest_path, output)
+        bom = json.loads((output / "scientific-bom.json").read_text())
+        component = next(item for item in bom["components"] if item["id"] == "code/analysis.py")
+        self.assertEqual(hashlib.sha256((self.run_dir / component["id"]).read_bytes()).hexdigest(), component["record"]["sha256"])
+        manifest["code"].append({"path": "manifest.json", "sha256": "0" * 64})
+        manifest_path.write_text(json.dumps(manifest))
+        before = self._snapshot()
+        result = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("Code digest dependency cycle", result.stderr)
+        self.assertEqual(before, self._snapshot())
+        manifest["code"].pop()
+        manifest_path.write_text(json.dumps(manifest))
+        (self.run_dir / "manifest-alias.py").symlink_to("manifest.json")
+        before = self._snapshot()
+        result = self.cli("refresh", "--run-dir", str(self.run_dir))
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("Code digest dependency cycle", result.stderr)
+        self.assertEqual(before, self._snapshot())
+
     def test_code_entries_preserved_and_merged(self) -> None:
         manifest = json.loads((self.run_dir / "manifest.json").read_text())
         old_code = next(item for item in manifest["code"] if item["path"] == "scripts/diff_literature_review.py")
@@ -1578,6 +1715,51 @@ class PackageRunTests(unittest.TestCase):
         manifest_path.write_text(json.dumps(manifest))
         return manifest_path
 
+    def test_refresh_lane_directory_output_uses_final_merkle_digest(self) -> None:
+        tree = self.run_dir / "0"
+        tree.mkdir()
+        descriptor = describe_directory(tree)
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifacts"].append({"path": 0, "kind": "data", "artifact_type": "directory-tree",
+                                      "sha256": descriptor.root_sha256, "size_bytes": 0, "entry_count": 0})
+        manifest_path.write_text(json.dumps(manifest))
+        lane_path = self.run_dir / "lanes/pubmed-search.json"
+        lane = json.loads(lane_path.read_text())
+        lane["outputs"].append("0")
+        lane["output_sha256"] = {"./0/": "0" * 64}
+        lane_path.write_text(json.dumps(lane))
+        args = ("refresh", "--run-dir", str(self.run_dir), "--invalidate-review", "--kind", "0/*=data")
+        for content in (None, b"", b"changed bytes"):
+            with self.subTest(content=content):
+                if content is not None:
+                    (tree / "data.bin").write_bytes(content)
+                result = self.cli(*args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                final = describe_directory(tree)
+                self.assertEqual(final.root_sha256, json.loads(lane_path.read_text())["output_sha256"]["./0/"])
+                refreshed = json.loads(manifest_path.read_text())
+                record = next(item for item in refreshed["artifacts"] if item["path"] == 0)
+                self.assertEqual(final.root_sha256, record["sha256"])
+                self.assertEqual(final.total_bytes, record["size_bytes"])
+                self.assertEqual(final.entry_count, record["entry_count"])
+                self.assertEqual("passed", review_manifest(refreshed, self.run_dir)["status"])
+        before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                  for path in self.run_dir.rglob("*") if path.is_file()}
+        repeated = self.cli(*args)
+        self.assertEqual(0, repeated.returncode, repeated.stderr)
+        self.assertEqual(before, {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                                  for path in self.run_dir.rglob("*") if path.is_file()})
+        (tree / "data.bin").unlink()
+        tree.rmdir()
+        before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                  for path in self.run_dir.rglob("*") if path.is_file()}
+        missing = self.cli(*args)
+        self.assertEqual(1, missing.returncode, missing.stderr)
+        self.assertIn("Lane output is missing", missing.stderr)
+        self.assertEqual(before, {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                                  for path in self.run_dir.rglob("*") if path.is_file()})
+
     def test_directory_tree_containing_stale_lane_refused_transactionally(self) -> None:
         manifest_path = self._register_lanes_directory(stale_lane=True, descriptor=True)
         before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes() for path in self.run_dir.rglob("*") if path.is_file()}
@@ -1588,6 +1770,40 @@ class PackageRunTests(unittest.TestCase):
         self.assertIn("no files were changed", result.stderr)
         after = {path.relative_to(self.run_dir).as_posix(): path.read_bytes() for path in self.run_dir.rglob("*") if path.is_file()}
         self.assertEqual(after, before)
+        alias = self.run_dir / "0"
+        alias.symlink_to("lanes", target_is_directory=True)
+        manifest = json.loads(manifest_path.read_text())
+        next(item for item in manifest["artifacts"] if item.get("artifact_type") == "directory-tree")["path"] = 0
+        manifest_path.write_text(json.dumps(manifest))
+        before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                  for path in self.run_dir.rglob("*") if path.is_file()}
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("Cannot refresh directory-tree artifact 0", result.stderr)
+        self.assertTrue(alias.is_symlink())
+        self.assertEqual(before, {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                                  for path in self.run_dir.rglob("*") if path.is_file()})
+
+    def test_directory_tree_alias_containing_review_refused_transactionally(self) -> None:
+        reviews = self.run_dir / "reviews"
+        reviews.mkdir()
+        shutil.move(self.run_dir / "review.json", reviews / "review.json")
+        alias = self.run_dir / "review-tree"
+        alias.symlink_to("reviews", target_is_directory=True)
+        manifest_path = self.run_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        next(item for item in manifest["artifacts"] if item["path"] == "review.json")["path"] = "reviews/review.json"
+        manifest["artifacts"].append({"path": alias.name, "kind": "data", "artifact_type": "directory-tree",
+                                      "sha256": describe_directory(alias).root_sha256})
+        manifest_path.write_text(json.dumps(manifest))
+        before = {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                  for path in self.run_dir.rglob("*") if path.is_file()}
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review")
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("Cannot archive review files inside directory-tree artifact review-tree", result.stderr)
+        self.assertTrue(alias.is_symlink())
+        self.assertEqual(before, {path.relative_to(self.run_dir).as_posix(): path.read_bytes()
+                                  for path in self.run_dir.rglob("*") if path.is_file()})
 
     def test_directory_tree_containing_unchanged_lane_refreshes(self) -> None:
         manifest_path = self._register_lanes_directory(stale_lane=False)

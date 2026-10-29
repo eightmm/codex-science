@@ -156,6 +156,14 @@ def _validate_descriptor_path(record: dict[str, Any], run_dir: Path, target: Pat
         raise ValueError(f"Artifact descriptor root mismatch: {record['path']}")
 
 
+def _artifact_metadata(path: Path, record: dict[str, Any]) -> tuple[str, int, int]:
+    if record.get("artifact_type") == "directory-tree":
+        descriptor = describe_directory(path, media_type=record.get("media_type"))
+        return descriptor.root_sha256, descriptor.total_bytes, descriptor.entry_count
+    digest, size_bytes = stream_sha256(path)
+    return digest, size_bytes, 1
+
+
 def verify_bundle_artifacts(manifest: dict[str, Any], run_dir: Path) -> dict[str, Path]:
     validate_manifest(manifest)
     resolved_run = run_dir.resolve()
@@ -172,14 +180,7 @@ def verify_bundle_artifacts(manifest: dict[str, Any], run_dir: Path) -> dict[str
         resolved = path.resolve()
         if not resolved.is_relative_to(resolved_run):
             raise ValueError(f"Artifact resolves outside the run bundle: {relative}")
-        if artifact_type == "directory-tree":
-            descriptor = describe_directory(path, media_type=record.get("media_type"))
-            digest = descriptor.root_sha256
-            size_bytes = descriptor.total_bytes
-            entry_count = descriptor.entry_count
-        else:
-            digest, size_bytes = stream_sha256(path)
-            entry_count = 1
+        digest, size_bytes, entry_count = _artifact_metadata(path, record)
         if digest != str(record["sha256"]).lower():
             raise ValueError(f"Artifact digest mismatch: {relative}")
         if "size_bytes" in record and record["size_bytes"] != size_bytes:
@@ -189,6 +190,19 @@ def verify_bundle_artifacts(manifest: dict[str, Any], run_dir: Path) -> dict[str
         _validate_descriptor_path(record, run_dir, path)
         verified[relative] = path
     return verified
+
+
+def _local_code_path(run_dir: Path, value: Any) -> Path | None:
+    """Locate existing in-bundle code without reading external references."""
+    if not isinstance(value, str) or not value or "://" in value:
+        return None
+    relative = PurePosixPath(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    path = run_dir / relative
+    if not path.resolve().is_relative_to(run_dir.resolve()) or not path.is_file():
+        return None
+    return path
 
 
 def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
@@ -210,6 +224,15 @@ def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     if errors:
         raise ValueError("Sidecar validation failed:\n" + "\n".join(errors))
     assert base is not None and advanced is not None
+    for record in manifest["code"]:
+        if not isinstance(record, dict) or "sha256" not in record:
+            continue
+        path = _local_code_path(run_dir, record.get("path"))
+        if path is not None and stream_sha256(path)[0] != str(record.get("sha256", "")).lower():
+            base.setdefault("digest_findings", []).append({
+                "code": "code-digest-mismatch", "severity": "major",
+                "message": f"Code digest mismatch: {record['path']}",
+            })
     advanced["base_sidecars"] = base
     advanced["advanced_findings"] = review_advanced_sidecars(advanced)
     base.update(advanced)

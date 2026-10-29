@@ -67,7 +67,7 @@ Complete example of the stable sidecars: examples/literature-review-reviewed-run
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Check manifest artifact bytes and sidecar schemas (exit 1 with an error on failure); optionally write the record/source review.",
+        description="Check manifest artifact bytes and sidecar schemas (exit 1 with an error on failure); optionally write the record/source review, including major findings for stale recorded local code and saved lane output digests.",
         epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

@@ -16,6 +16,7 @@ from collections import defaultdict
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from codex_science.artifacts import _artifact_metadata
 from codex_science.rigor import CLAIM_STRENGTHS
 from codex_science import commitment_ledger
 
@@ -768,6 +769,8 @@ def validate_sidecars(
             )
 
     lane_by_id: dict[str, dict[str, Any]] = {}
+    saved_outputs = {PurePosixPath(str(record["path"])).as_posix(): record
+                     for record in manifest.get("artifacts", []) if str(record["path"]) in artifact_paths}
     known_claims = set(claim_by_id) or manifest_claim_ids
     for index, raw in enumerate(loaded["lane_receipts"]):
         try:
@@ -791,6 +794,25 @@ def validate_sidecars(
         unknown_outputs = set(lane["outputs"]) - artifact_paths
         if unknown_outputs:
             raise ValueError(f"Lane {lane_id} references unsaved outputs: {sorted(unknown_outputs)}")
+        if "output_sha256" in lane:
+            hashes = _mapping(lane["output_sha256"], f"lane {lane_id} output_sha256")
+            for output, expected in hashes.items():
+                relative = PurePosixPath(output)
+                record = saved_outputs.get(relative.as_posix())
+                if record is None:
+                    continue
+                if relative.is_absolute() or ".." in relative.parts or not output:
+                    raise ValueError(f"Lane {lane_id} output path must stay inside the run bundle: {output}")
+                path = run_dir / relative
+                if not path.resolve().is_relative_to(run_dir.resolve()) or not path.exists():
+                    raise ValueError(f"Lane {lane_id} output artifact is missing or outside the run bundle: {output}")
+                if not isinstance(expected, str) or not _valid_sha256(expected):
+                    raise ValueError(f"Lane {lane_id} output_sha256 digest is invalid: {output}")
+                if _artifact_metadata(path, record)[0] != expected.lower():
+                    loaded.setdefault("digest_findings", []).append({
+                        "code": "lane-output-digest-mismatch", "severity": "major",
+                        "message": f"Lane {lane_id} output digest mismatch: {output}",
+                    })
 
     if loaded["literature_snapshot"] is not None:
         _validate_literature_snapshot(loaded["literature_snapshot"])
@@ -822,7 +844,7 @@ def _persistent_id(value: Any) -> str:
 def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
     """Return record/source-level findings from validated sidecars."""
 
-    findings: list[dict[str, str]] = []
+    findings: list[dict[str, str]] = list(sidecars.get("digest_findings", []))
 
     def add(code: str, severity: str, message: str, claim_id: str = "") -> None:
         finding = {"code": code, "severity": severity, "message": message}
