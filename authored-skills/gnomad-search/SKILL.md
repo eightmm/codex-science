@@ -46,15 +46,19 @@ individual's genotype.
 4. POST an exact GraphQL query to `https://gnomad.broadinstitute.org/api` for a
    variant (by ID/rsID), gene, region, or `gnomad_constraint` gene fields (pLI,
    LOEUF, oe), explicitly requesting dataset/version. If using the optional
-   Codex Science route, call `science_query_source_v2` with
-   `source="gnomad"` and only top-level arguments `source`, `parameters`,
-   optional `operation`, `page_size`, `max_pages`, `evidence_cutoff`, and
-   `include_snapshot`; first consult `science_list_source_contracts` for
-   source-specific parameters. The v2 connector accepts only `parameters.query`
-   for a GRCh38 variant in `gnomad_r4`; dataset and assembly overrides are refused.
-   This connector is fixture-tested experimental,
-   not live-validated. Record exact query, endpoint/tool, access time, and
-   returned version.
+   Codex Science route, use `science_query_source_v2` with `source="gnomad"`.
+   `science_query_source_v2` requires `source` and `parameters`; optional
+   top-level fields are `operation`, `page_size`, `max_pages`, and
+   `include_snapshot`. Current v2 legacy sources accept required
+   `parameters.query` (a non-empty string) and optional `parameters.limit` (an
+   integer from 1 to 10). `science_list_source_contracts` lists available
+   sources and operations; it does not return a parameter schema. Current v2
+   routes refuse `evidence_cutoff`; record the cutoff in your protocol and
+   apply it to returned record dates yourself, treating missing dates as
+   unresolved. The v2 connector queries a GRCh38 variant in `gnomad_r4`;
+   dataset and assembly overrides are refused. This connector is
+   fixture-tested experimental, not live-validated. Record exact query,
+   endpoint/tool, access time, and returned version.
 5. Verify response dataset, assembly, identity, population fields, flags, and
    completeness; record missing, null, no-match, truncation, and failed request
    separately, with excluded records and reasons.

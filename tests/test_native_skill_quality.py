@@ -82,6 +82,29 @@ REQUIRED_SECTIONS = (
 
 
 class NativeSkillQualityTests(unittest.TestCase):
+    def test_authored_connector_guidance_matches_v2_capabilities(self) -> None:
+        cutoff_rule = (
+            "Current v2 routes refuse `evidence_cutoff`; record the cutoff in your "
+            "protocol and apply it to returned record dates yourself, treating "
+            "missing dates as unresolved."
+        )
+        listing_rule = (
+            "`science_list_source_contracts` lists available sources and operations; "
+            "it does not return a parameter schema."
+        )
+        for path in sorted(AUTHORED.glob("*/SKILL.md")):
+            for index, paragraph in enumerate(path.read_text(encoding="utf-8").split("\n\n")):
+                paragraph = " ".join(paragraph.split())
+                with self.subTest(skill=path.parent.name, paragraph=index):
+                    if "science_query_source_v2" in paragraph:
+                        self.assertNotRegex(paragraph.replace(cutoff_rule, ""), r"\bevidence_cutoff\b")
+                    if "science_list_source_contracts" in paragraph:
+                        self.assertIn(listing_rule, paragraph)
+                        self.assertNotRegex(
+                            paragraph.replace(listing_rule, ""),
+                            r"parameter schema|source-specific parameters",
+                        )
+
     def test_quick_tier_requires_fixed_unreviewed_label(self) -> None:
         text = (ROOT / "runtime-skills" / "codex-science" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("End the reply", text)

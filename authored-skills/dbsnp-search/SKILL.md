@@ -48,10 +48,16 @@ clinical or functional conclusion.
    (`db=snp`) is an additional retrieval route. Given an rsID, retrieve the
    refsnp record for type, gene, clinical significance, frequencies, and
    returned GRCh38 coordinates; use Variation Services to map rsID/VCF/HGVS.
-   If using optional Codex Science MCP, call `science_query_source_v2` with
-   `source="dbsnp"` and only `source`, `parameters`, optional `operation`,
-   `page_size`, `max_pages`, `evidence_cutoff`, and `include_snapshot`; consult
-   `science_list_source_contracts` before setting source-specific parameters.
+   If using optional Codex Science MCP, use `science_query_source_v2` with
+   `source="dbsnp"`. `science_query_source_v2` requires `source` and
+   `parameters`; optional top-level fields are `operation`, `page_size`,
+   `max_pages`, and `include_snapshot`. Current v2 legacy sources accept
+   required `parameters.query` (a non-empty string) and optional
+   `parameters.limit` (an integer from 1 to 10).
+   `science_list_source_contracts` lists available sources and operations; it
+   does not return a parameter schema. Current v2 routes refuse
+   `evidence_cutoff`; record the cutoff in your protocol and apply it to
+   returned record dates yourself, treating missing dates as unresolved.
    Record exact request, endpoint/tool, access time, and release/version when
    reported.
 5. Verify returned identifier, allele, assembly, and locus before accepting a

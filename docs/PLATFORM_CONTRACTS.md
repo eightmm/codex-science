@@ -87,7 +87,7 @@ It is deliberately bounded and uses only deterministic local fixtures after the 
 
 Material source retrieval should use the MCP tool `science_query_source_v2`. Existing `science_search_*` tools remain available for compatibility and quick discovery.
 
-A v2 request contains:
+Pass these MCP arguments to `science_query_source_v2`:
 
 ```json
 {
@@ -95,11 +95,13 @@ A v2 request contains:
   "operation": "search",
   "parameters": {"query": "protein folding"},
   "page_size": 5,
-  "max_pages": 1,
-  "evidence_cutoff": "2026-07-19",
-  "source_contract_version": "2"
+  "max_pages": 1
 }
 ```
+
+The internal canonical request adds `source_contract_version: "2"` and a null
+`evidence_cutoff` when omitted. These canonical receipt fields are separate from
+the MCP arguments above; do not pass `source_contract_version` to the tool.
 
 The response contains normalized records plus a receipt with:
 
@@ -114,7 +116,10 @@ The response contains normalized records plus a receipt with:
 
 Use `include_snapshot: true` when stored page responses are required. Snapshots must not contain credentials or secret-bearing URLs.
 
-`evidence_cutoff` is enforced only by typed source implementations. Legacy search adapters reject a cutoff instead of silently returning evidence outside the requested boundary.
+Current v2 routes refuse `evidence_cutoff`; record the cutoff in your protocol
+and apply it to returned record dates yourself, treating missing dates as
+unresolved. For literature searches that need an enforced cutoff, use
+`science_query_source_v3` with `source="pubmed"` or `source="europepmc"`.
 
 ### Offline replay and drift
 

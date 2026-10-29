@@ -47,11 +47,17 @@ label.
    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/` (`esearch`, `esummary`,
    `efetch`, `db=clinvar`), retain the exact query and returned IDs, then fetch
    selected records; if using Codex Science MCP, use
-   `science_query_source_v2(source="clinvar")` with only the top-level
-   arguments `source`, `parameters`, optional `operation`, `page_size`,
-   `max_pages`, `evidence_cutoff`, and `include_snapshot`, and first consult
-   `science_list_source_contracts` for its parameter schema. Record query,
-   endpoint/tool, access time, and release/version when reported.
+   `science_query_source_v2` with `source="clinvar"`.
+   `science_query_source_v2` requires `source` and `parameters`; optional
+   top-level fields are `operation`, `page_size`, `max_pages`, and
+   `include_snapshot`. Current v2 legacy sources accept required
+   `parameters.query` (a non-empty string) and optional `parameters.limit` (an
+   integer from 1 to 10). `science_list_source_contracts` lists available
+   sources and operations; it does not return a parameter schema. Current v2
+   routes refuse `evidence_cutoff`; record the cutoff in your protocol and
+   apply it to returned record dates yourself, treating missing dates as
+   unresolved. Record query, endpoint/tool, access time, and release/version
+   when reported.
 5. Verify variant allele, assembly, condition, accession, and response
    completeness against the request; mismatch or truncation prevents a positive
    mapping, and the record is retained as unresolved with its reason.

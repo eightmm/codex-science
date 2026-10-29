@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -89,6 +90,42 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(connector_names, listed_names)
         self.assertIn("gnomad", self.server.sources)
         self.assertIn("eqtl_catalogue", self.server.sources)
+
+    def test_platform_v2_mcp_example_matches_input_schema_and_executes(self) -> None:
+        document = (Path(__file__).resolve().parents[1] / "docs/PLATFORM_CONTRACTS.md").read_text(
+            encoding="utf-8"
+        )
+        section = document.split("## Connector Contract v2\n", 1)[1].split("\n### ", 1)[0]
+        examples = re.findall(r"```json\n(.*?)\n```", section, re.S)
+        self.assertEqual(1, len(examples))
+        arguments = json.loads(examples[0])
+        listed = self.server.handle({"id": 1, "method": "tools/list"})
+        schema = next(tool["inputSchema"] for tool in listed["result"]["tools"]
+                      if tool["name"] == "science_query_source_v2")
+        self.assertIsInstance(arguments, dict)
+        self.assertLessEqual(set(schema["required"]), set(arguments))
+        self.assertFalse(schema["additionalProperties"])
+        self.assertLessEqual(set(arguments), set(schema["properties"]))
+        types = {"string": str, "object": dict, "integer": int, "boolean": bool, "null": type(None)}
+        for name, value in arguments.items():
+            field = schema["properties"][name]
+            kinds = field["type"] if isinstance(field["type"], list) else [field["type"]]
+            with self.subTest(argument=name):
+                self.assertIn(type(value), [types[kind] for kind in kinds])
+                if "enum" in field:
+                    self.assertIn(value, field["enum"])
+                if "minimum" in field:
+                    self.assertGreaterEqual(value, field["minimum"])
+                if "maximum" in field:
+                    self.assertLessEqual(value, field["maximum"])
+        with patch.object(self.server.sources[arguments["source"]], "search", return_value=[]) as search:
+            response = self.server.handle({"id": 2, "method": "tools/call", "params": {
+                "name": "science_query_source_v2", "arguments": arguments,
+            }})
+        self.assertNotIn("error", response)
+        self.assertNotIn("isError", response["result"])
+        self.assertEqual([], json.loads(response["result"]["content"][0]["text"])["records"])
+        search.assert_called_once()
 
     def test_life_science_planner_is_exposed_as_read_only_tool(self) -> None:
         response = self.server.handle(

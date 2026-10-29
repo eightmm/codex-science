@@ -29,13 +29,21 @@ catalog's applicability domain.
    selected EFO/MONDO ID and rejected alternatives. Use this legacy MCP tool
    with `query` (required) and `limit` (1–10, default 5). Record the chosen
    concept and why it matches the intended phenotype.
-2. For structured paginated retrieval, check `science_list_source_contracts`
-   before `science_query_source_v2` with `source="gwas_catalog"`. Supported
-   top-level options include `parameters`, `operation`, `page_size`,
-   `max_pages`, `evidence_cutoff`, and `include_snapshot`. Use the current v2
-   API, prefer ontology IDs for downstream queries, and record the exact
-   contract and parameters. If trait identity is ambiguous, stop and
-   return alternatives instead of choosing silently.
+2. For bounded normalized retrieval, use `science_query_source_v2` with
+   `source="gwas_catalog"`. `science_query_source_v2` requires `source` and
+   `parameters`; optional top-level fields are `operation`, `page_size`,
+   `max_pages`, and `include_snapshot`. Current v2 legacy sources accept
+   required `parameters.query` (a non-empty string) and optional
+   `parameters.limit` (an integer from 1 to 10).
+   `science_list_source_contracts` lists available sources and operations; it
+   does not return a parameter schema. Current v2 routes refuse
+   `evidence_cutoff`; record the cutoff in your protocol and apply it to
+   returned record dates yourself, treating missing dates as unresolved. The
+   v2 adapter has no cursor pagination and returns at most 10 records. Use the
+   current GWAS Catalog v2 API for broader retrieval, prefer ontology IDs for
+   downstream queries, and record the exact route and parameters. If trait
+   identity is ambiguous, stop and return alternatives instead of choosing
+   silently.
 3. Define evidence scope before retrieval: association endpoint, study or
    ancestry criteria, build, evidence cutoff, and whether lead associations or
    summary statistics are required. Record dataset-specific terms, excluded
