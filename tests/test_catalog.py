@@ -479,5 +479,137 @@ class CatalogAuditTests(unittest.TestCase):
             )
 
 
+    def test_audit_cli_refuses_malformed_sources_without_writing(self) -> None:
+        from loader_cases import assert_refused, malformed_json, nested_values
+        path = self.root / "sources.json"
+        output = self.root / "output.json"
+        payloads = malformed_json() + [json.dumps({"sources": [value]}).encode() for value in nested_values()]
+        payloads += [json.dumps({"sources": value}).encode() for value in (None, {}, "x", 0)]
+        make_skill(self.root, "demo", license_name="MIT")
+        for field in ("key", "name_prefix", "catalog_path", "default_license", "exclude"):
+            source = {"key": "demo", "catalog_path": str(self.root), field: "\ud800"}
+            payloads.append(json.dumps({"sources": [source]}).encode())
+        source = {"key": "demo", "catalog_path": str(self.root), "exclude": ["\ud800"]}
+        payloads.append(json.dumps({"sources": [source]}).encode())
+        for contents in payloads:
+            path.write_bytes(contents)
+            for existing in (False, True):
+                if existing:
+                    output.write_bytes(b"preserve")
+                with self.subTest(contents=contents, existing=existing):
+                    assert_refused(self, "audit_skills.py", ["--sources", path, "--output", output], 1, output)
+                output.unlink(missing_ok=True)
+        path.unlink()
+        for candidate in (path, self.root):
+            assert_refused(self, "audit_skills.py", ["--sources", candidate, "--output", output], 1, output)
+
+    def test_inventory_loader_rejects_invalid_shapes(self) -> None:
+        from loader_cases import malformed_json, nested_values
+        path = self.root / "inventory.json"
+        payloads = malformed_json() + [json.dumps({"schema_version": 2, "sources": [], "skills": [value]}).encode() for value in nested_values()]
+        payloads += [json.dumps({"schema_version": value, "skills": []}).encode() for value in (True, 1.0, 0)]
+        payloads += [json.dumps({"schema_version": 2, "skills": [], "sources": value}).encode() for value in (None, {}, [None], [{}])]
+        for contents in payloads:
+            path.write_bytes(contents)
+            with self.subTest(contents=contents), self.assertRaises(ValueError):
+                load_inventory(path)
+
+    def test_source_fields_are_validated_before_audit(self) -> None:
+        make_skill(self.root, "demo", license_name="MIT")
+        base = {"key": "demo", "catalog_path": "."}
+        fields = {
+            "key": [None, "", " ", True, [], {}, float("inf"), "\ud800"],
+            "catalog_path": [None, True, [], {}, float("inf"), "\ud800"],
+            "name_prefix": [None, True, [], {}, float("inf"), "\ud800"],
+            "default_license": [True, [], {}, float("inf"), "\ud800"],
+            "exclude": [None, 0, True, {}, [[]], [{}], [None], [True], [float("inf")], ["\ud800"], "\ud800"],
+        }
+        for field, values in fields.items():
+            for value in values:
+                source = dict(base, **{field: value})
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    audit_sources([source], self.root, self.policy)
+        for options in ({}, {"name_prefix": "", "default_license": None, "exclude": []},
+                        {"default_license": "", "exclude": ["absent"]}):
+            self.assertEqual(1, audit_sources([dict(base, **options)], self.root, self.policy)["summary"]["total"])
+
+    def test_source_legacy_scalar_values_preserve_inventory_bytes(self) -> None:
+        make_skill(self.root, "demo", license_name="MIT")
+        base = {"key": "source", "catalog_path": "."}
+        expected = audit_sources([base], self.root, self.policy)
+        for value in (0, 123, -1, 1.5, 10**400):
+            for field in ("key", "name_prefix"):
+                source = dict(base, **{field: value})
+                wanted = json.loads(json.dumps(expected))
+                wanted["skills"][0]["name"] = f"{value}-demo"
+                if field == "key":
+                    wanted["skills"][0]["source"] = str(value)
+                    wanted["sources"][0]["key"] = str(value)
+                with self.subTest(field=field, value=value):
+                    actual = audit_sources([source], self.root, self.policy)
+                    self.assertEqual(json.dumps(wanted, sort_keys=True), json.dumps(actual, sort_keys=True))
+        for value in (0, 123, 1.5):
+            location = self.root / str(value)
+            location.mkdir()
+            make_skill(location, "demo", license_name="MIT")
+            self.assertEqual(str(value) + "/demo", audit_sources([dict(base, catalog_path=value)], self.root, self.policy)["skills"][0]["path"])
+        for options in ({"catalog_path": ""}, {"exclude": ""}, {"exclude": "demo"},
+                        {"exclude": [123, 1.5]}, {"default_license": 0}, {"default_license": 123}):
+            with self.subTest(options=options):
+                wanted = json.loads(json.dumps(expected))
+                if "catalog_path" in options:
+                    wanted["sources"][0]["catalog_path"] = options["catalog_path"]
+                self.assertEqual(wanted, audit_sources([dict(base, **options)], self.root, self.policy))
+        self.assertEqual([], audit_sources([dict(base, exclude=["demo"])], self.root, self.policy)["skills"])
+        unlicensed = self.root / "unlicensed"
+        unlicensed.mkdir()
+        make_skill(unlicensed, "demo", license_name=None)
+        self.assertEqual("Unknown", audit_sources([dict(base, catalog_path="unlicensed", default_license=0)], self.root, self.policy)["skills"][0]["license"])
+        with self.assertRaises(ValueError):
+            audit_sources([dict(base, catalog_path="unlicensed", default_license=123)], self.root, self.policy)
+        with self.assertRaisesRegex(ValueError, "Duplicate source key"):
+            audit_sources([dict(base, key=123), dict(base, key="123")], self.root, self.policy)
+        for field in ("key", "name_prefix", "catalog_path", "default_license", "exclude"):
+            source = dict(base, **{field: [10**5000] if field == "exclude" else 10**5000})
+            with self.subTest(overflowing=field), self.assertRaises(ValueError):
+                audit_sources([source], self.root, self.policy)
+
+    def test_inventory_write_refuses_invalid_utf8_before_any_write(self) -> None:
+        output = self.root / "output.json"
+        for inventory in ({"source": {"commit": "\ud800"}}, {"skills": [{"name": "\ud800"}]}, {"\ud800": "value"}):
+            for existing in (False, True):
+                if existing:
+                    output.write_bytes(b"preserve")
+                with self.subTest(inventory=inventory, existing=existing), self.assertRaises(ValueError):
+                    write_inventory(inventory, output)
+                if existing:
+                    self.assertEqual(b"preserve", output.read_bytes())
+                    output.unlink()
+                else:
+                    self.assertFalse(output.exists())
+        make_skill(self.root, "demo", license_name="MIT")
+        with self.assertRaises(ValueError):
+            audit_catalog(self.root, "revision", self.policy, name_prefix="\ud800")
+        nested_output = self.root / "not-created" / "output.json"
+        with self.assertRaises(ValueError):
+            write_inventory({"value": "\ud800"}, nested_output)
+        self.assertFalse(nested_output.parent.exists())
+
+    def test_inventory_numeric_names_retain_their_declared_values(self) -> None:
+        path = self.root / "inventory.json"
+        for value in (0, 123, 1.5, 10**400):
+            payload = {"schema_version": 2, "skills": [{"name": value, "status": "active"}]}
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(payload, load_inventory(path))
+
+    def test_search_limit_requires_an_integer(self) -> None:
+        inventory = {"skills": []}
+        for value in (None, "1", 1.0, True, False, [], {}, 0, -1, 21, 10**400):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                search_inventory(inventory, "demo", limit=value)
+        for value in (1, 20):
+            self.assertEqual([], search_inventory(inventory, "demo", limit=value))
+
+
 if __name__ == "__main__":
     unittest.main()

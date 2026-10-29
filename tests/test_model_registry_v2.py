@@ -408,5 +408,24 @@ class ModelRegistryV2Tests(unittest.TestCase):
         self.assertIn("diffdock", {item["id"] for item in experimental})
 
 
+    def test_registry_cli_refuses_malformed_loader_inputs(self) -> None:
+        from loader_cases import assert_refused, malformed_json
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            for contents in malformed_json():
+                path.write_bytes(contents)
+                with self.subTest(contents=contents):
+                    assert_refused(self, "validate_model_registry_v2.py", ["--registry", path], 2)
+            path.unlink()
+            for candidate in (path, Path(directory)):
+                assert_refused(self, "validate_model_registry_v2.py", ["--registry", candidate], 2)
+
+    def test_registry_schema_rejects_boolean_and_float(self) -> None:
+        for value in (True, 2.0, 0):
+            payload = dict(self.registry, schema_version=value)
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                validate_registry_v2(payload)
+
+
 if __name__ == "__main__":
     unittest.main()

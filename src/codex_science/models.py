@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from codex_science.catalog import _required_text
+
 
 MODEL_FAMILIES = {
     "docking",
@@ -21,10 +23,10 @@ REVISION_POLICIES = {"pin-required", "not-applicable"}
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
-    if not text:
-        raise ValueError(f"{label} is required")
-    return text
+    try:
+        return _required_text(value, label).strip()
+    except ValueError as error:
+        raise ValueError(f"{label} is required") from error
 
 
 def _mapping(value: Any, label: str) -> dict[str, Any]:
@@ -69,7 +71,7 @@ def default_registry_path() -> Path:
 def validate_registry(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
     if not isinstance(registry, dict):
         raise ValueError("Model registry must be an object")
-    if registry.get("schema_version") != 1:
+    if type(registry.get("schema_version")) is not int or registry.get("schema_version") != 1:
         raise ValueError("Unsupported model registry schema version")
     _text(registry.get("registry_revision"), "model registry revision")
     models = _list(registry.get("models"), "model registry models")

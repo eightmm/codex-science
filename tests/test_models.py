@@ -407,5 +407,76 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertEqual([], changed_model_contracts(previous, copy.deepcopy(previous)))
 
 
+    def test_cli_refuses_malformed_registry_and_inventory(self) -> None:
+        from loader_cases import assert_refused, malformed_json, nested_values
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "input.json"
+            for option in ("--registry", "--inventory"):
+                payloads = malformed_json()
+                if option == "--inventory":
+                    payloads += [json.dumps({"schema_version": 2, "skills": [value]}).encode() for value in nested_values()]
+                for contents in payloads:
+                    path.write_bytes(contents)
+                    with self.subTest(option=option, contents=contents):
+                        assert_refused(self, "validate_models.py", [option, path], 1)
+                path.unlink()
+                for candidate in (path, Path(directory)):
+                    assert_refused(self, "validate_models.py", [option, candidate], 1)
+
+    def test_registry_required_text_and_schema_are_typed(self) -> None:
+        for value in (None, True, [], {}, float("nan"), float("inf"), "", " ", "\ud800"):
+            for field in ("registry_revision", "id", "skill"):
+                payload = copy.deepcopy(self.registry)
+                target = payload if field == "registry_revision" else payload["models"][0]
+                target[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    validate_registry(payload)
+        for value in (True, 1.0, 0):
+            payload = dict(self.registry, schema_version=value)
+            with self.subTest(schema=value), self.assertRaises(ValueError):
+                validate_registry(payload)
+
+    def test_registry_legacy_numeric_text_preserves_records_and_cli_output(self) -> None:
+        from codex_science.models import _text
+        import os
+        import subprocess
+        import sys
+        fields = (("registry_revision",), ("models", 0, "id"), ("models", 0, "skill"),
+                  ("models", 0, "implementation", "repository"),
+                  ("models", 0, "license", "code"), ("models", 0, "license", "weights"),
+                  ("models", 0, "acceptance_contract"))
+        for value in (0, 123, -1, 1.5, 10**400):
+            self.assertEqual(str(value), _text(value, "value"))
+            for path in fields:
+                payload = copy.deepcopy(self.registry)
+                target = payload
+                for part in path[:-1]:
+                    target = target[part]
+                target[path[-1]] = value
+                with self.subTest(path=path, value=value):
+                    before = copy.deepcopy(payload)
+                    records = validate_registry(payload)
+                    self.assertEqual(len(self.models), len(records))
+                    self.assertEqual(before, payload)
+        payload = dict(self.registry, registry_revision=20261029)
+        self.assertEqual(8, len(validate_registry(payload)))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry_path = root / "registry.json"
+            registry_path.write_text(json.dumps(payload), encoding="utf-8")
+            command = [sys.executable, str(self.repository_root / "scripts/validate_models.py"), "--registry", str(registry_path)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(f"model registry: valid (8 models, sha256={registry_sha256(payload)})\n", result.stdout)
+            model = copy.deepcopy(payload["models"][0])
+            model["skill"] = 123
+            payload["models"] = [model]
+            registry_path.write_text(json.dumps(payload), encoding="utf-8")
+            inventory_path = root / "inventory.json"
+            inventory_path.write_text(json.dumps({"schema_version": 2, "skills": [{"name": 123, "status": "active"}]}), encoding="utf-8")
+            result = subprocess.run(command + ["--inventory", str(inventory_path)], capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")))
+            self.assertEqual(0, result.returncode, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

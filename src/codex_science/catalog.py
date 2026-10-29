@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from hashlib import sha256
 from dataclasses import dataclass
@@ -136,7 +137,11 @@ def parse_frontmatter(path: Path) -> dict[str, str]:
 
 
 def _license_reason(license_name: str | None, policy: CatalogPolicy) -> str | None:
-    if not license_name or license_name.strip().lower() in {"unknown", "n/a", "none"}:
+    if not license_name:
+        return "unknown-license"
+    if not isinstance(license_name, str):
+        raise ValueError("Default license must be a string when used")
+    if license_name.strip().lower() in {"unknown", "n/a", "none"}:
         return "unknown-license"
     normalized = license_name.lower()
     restricted = ("proprietary", "non-commercial", "noncommercial", "by-nc", "nc-sa", "gpl")
@@ -254,6 +259,7 @@ def _audit_records(
         record["path"] = str(Path(path_prefix) / folder) if path_prefix else folder
         if name_prefix:
             record["name"] = f"{name_prefix}-{record['name']}"
+        _required_text(record["name"], "Generated skill name")
         if source_key:
             record["source"] = source_key
         records.append(record)
@@ -289,12 +295,40 @@ def audit_catalog(
 
 
 def _validate_source_keys(sources: list[dict[str, Any]]) -> None:
+    if not isinstance(sources, list):
+        raise ValueError("Sources must be a list")
+    # Keep duplicate diagnostics stable even when repeated keys are invalid.
     seen: set[str] = set()
-    for source in sources:
-        key = str(source["key"])
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            raise ValueError(f"Source {index} must be an object")
+        key = _required_text(source.get("key"), f"Source {index} key", allow_empty=True)
         if key in seen:
             raise ValueError(f"Duplicate source key: {key}")
         seen.add(key)
+    for index, source in enumerate(sources):
+        _required_text(source.get("key"), f"Source {index} key")
+
+
+def _required_text(value: Any, label: str, *, allow_empty: bool = False) -> str:
+    """Retain legacy scalar text coercion without inventing missing text."""
+    if (isinstance(value, bool) or not isinstance(value, (str, int, float))
+            or isinstance(value, float) and not math.isfinite(value)):
+        raise ValueError(f"{label} must be finite scalar text")
+    text = str(value)
+    if not allow_empty and not text.strip():
+        raise ValueError(f"{label} must be a non-empty string")
+    text.encode("utf-8")
+    return text
+
+
+def load_sources(path: Path) -> list[dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or "sources" not in payload:
+        raise ValueError("Sources config must be an object with a sources list")
+    sources = payload["sources"]
+    _validate_source_keys(sources)
+    return sources
 
 
 def audit_sources(
@@ -304,6 +338,18 @@ def audit_sources(
 ) -> dict[str, Any]:
     """Audit multiple catalogs into one deterministic schema-2 inventory."""
     _validate_source_keys(sources)
+    for index, source in enumerate(sources):
+        _required_text(source.get("catalog_path"), f"Source {index} catalog_path", allow_empty=True)
+        if "name_prefix" in source:
+            _required_text(source["name_prefix"], f"Source {index} name_prefix", allow_empty=True)
+        license_name = source.get("default_license")
+        if license_name is not None:
+            _required_text(license_name, f"Source {index} default_license", allow_empty=True)
+        exclude = source.get("exclude", [])
+        if not isinstance(exclude, (list, str)):
+            raise ValueError(f"Source {index} exclude must be a list or string")
+        for item in [exclude] if isinstance(exclude, str) else exclude:
+            _required_text(item, f"Source {index} exclude entry", allow_empty=True)
     all_records: list[dict[str, Any]] = []
     source_meta: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -352,15 +398,24 @@ def audit_sources(
 
 
 def write_inventory(inventory: dict[str, Any], path: Path) -> None:
+    # JSON escaping must not hide unencodable text before the output is opened.
+    json.dumps(inventory, ensure_ascii=False).encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def load_inventory(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") not in (1, 2) or not isinstance(payload.get("skills"), list):
+    if not isinstance(payload, dict):
+        raise ValueError(f"Inventory must be an object: {path}")
+    version = payload.get("schema_version")
+    if type(version) is not int or version not in (1, 2) or not isinstance(payload.get("skills"), list):
         raise ValueError(f"Unsupported inventory: {path}")
     _validate_source_keys(payload.get("sources", []))
+    for index, skill in enumerate(payload["skills"]):
+        if not isinstance(skill, dict):
+            raise ValueError(f"Skill {index} must be an object")
+        _required_text(skill.get("name"), f"Skill {index} name")
     return payload
 
 
@@ -374,7 +429,7 @@ def search_inventory(
     terms = set(TOKEN_RE.findall(query.lower())) - SEARCH_STOPWORDS
     if not terms:
         raise ValueError("Query must contain a searchable term")
-    if not 1 <= limit <= 20:
+    if type(limit) is not int or not 1 <= limit <= 20:
         raise ValueError("Limit must be between 1 and 20")
 
     ranked: list[tuple[int, str, dict[str, Any]]] = []

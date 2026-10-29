@@ -67,5 +67,30 @@ class SearchSkillsCliTests(unittest.TestCase):
             self.assertIn(text, result.stdout)
 
 
+    def test_loader_failures_are_clean_for_search_and_lookup(self) -> None:
+        from loader_cases import assert_refused, malformed_json, nested_values
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "inventory.json"
+            payloads = malformed_json() + [json.dumps({"schema_version": 2, "sources": [], "skills": [value]}).encode() for value in nested_values()]
+            for contents in payloads:
+                path.write_bytes(contents)
+                for query in (["test"], ["--name", "demo"]):
+                    with self.subTest(contents=contents, query=query):
+                        assert_refused(self, "search_skills.py", [*query, "--inventory", path], 1)
+            path.unlink()
+            for candidate in (path, Path(directory)):
+                assert_refused(self, "search_skills.py", ["test", "--inventory", candidate], 1)
+
+    def test_limit_bounds_refuse_cleanly(self) -> None:
+        from loader_cases import assert_refused
+        for value in ("0", "-1", "21", str(10**400), "bad", ""):
+            with self.subTest(value=value):
+                assert_refused(self, "search_skills.py", ["test", "--limit", value], 2 if value in ("bad", "") else 1)
+        for value in ("1", "20"):
+            result = run("test", "--limit", value)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertLessEqual(len(json.loads(result.stdout)), int(value))
+
+
 if __name__ == "__main__":
     unittest.main()

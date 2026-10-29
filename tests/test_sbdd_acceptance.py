@@ -35,5 +35,27 @@ class SBDDAcceptanceTests(unittest.TestCase):
         self.assertFalse(benchmark_passes(self.seeded))
 
 
+    def test_execution_cli_refuses_malformed_registry_without_writing(self) -> None:
+        import tempfile
+        from loader_cases import assert_refused, malformed_json
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            output = Path(directory) / "output"
+            for contents in malformed_json():
+                path.write_bytes(contents)
+                for existing in (False, True):
+                    if existing:
+                        output.mkdir(exist_ok=True)
+                        (output / "keep").write_bytes(b"preserve")
+                    with self.subTest(contents=contents, existing=existing):
+                        assert_refused(self, "run_sbdd_acceptance.py", [root / "examples/sbdd-executable/input.json", output, "--registry", path], 1, output)
+                (output / "keep").unlink()
+                output.rmdir()
+            path.unlink()
+            for candidate in (path, Path(directory)):
+                assert_refused(self, "run_sbdd_acceptance.py", [root / "examples/sbdd-executable/input.json", output, "--registry", candidate], 1, output)
+
+
 if __name__ == "__main__":
     unittest.main()

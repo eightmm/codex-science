@@ -388,6 +388,29 @@ class WrapperGenerationTests(unittest.TestCase):
                 )
 
 
+    def test_cli_refuses_malformed_inventory_without_writing(self) -> None:
+        from loader_cases import assert_refused, malformed_json, nested_values
+        path = self.root / "inventory.json"
+        payloads = malformed_json() + [json.dumps({"schema_version": 2, "sources": [], "skills": [value]}).encode() for value in nested_values()]
+        record = make_record("demo")
+        record["status"] = []
+        payloads.append(json.dumps({"schema_version": 2, "skills": [record]}).encode())
+        record = make_record("demo")
+        record["path"] = "runtime-skills/science-review"
+        record["description"] = "\ud800"
+        payloads.append(json.dumps({"schema_version": 2, "skills": [record]}).encode())
+        for contents in payloads:
+            path.write_bytes(contents)
+            for flags in ([], ["--check"]):
+                with self.subTest(contents=contents, flags=flags):
+                    assert_refused(self, "generate_wrappers.py", ["--inventory", path, "--output", self.output, *flags], 1, self.output)
+        self.output.mkdir()
+        (self.output / "keep").write_bytes(b"preserve")
+        for candidate in (path, self.root / "missing.json", self.root):
+            for flags in ([], ["--check"]):
+                assert_refused(self, "generate_wrappers.py", ["--inventory", candidate, "--output", self.output, *flags], 1, self.output)
+
+
 class SessionContractTests(unittest.TestCase):
     def test_only_core_skills_are_registered_with_the_plugin(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]

@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import json
+import sys
 import subprocess
 from pathlib import Path
 
-from codex_science.catalog import CatalogPolicy, audit_catalog, audit_sources, write_inventory
+from codex_science.catalog import CatalogPolicy, audit_catalog, audit_sources, load_sources, write_inventory
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,14 +54,15 @@ def main() -> None:
         inventory = audit_single(args.catalog, args.commit)
     else:
         sources_path = args.sources or DEFAULT_SOURCES
-        if not sources_path.is_file():
-            raise SystemExit(f"Sources config not found: {sources_path}")
-        config = json.loads(sources_path.read_text(encoding="utf-8"))
-        inventory = audit_sources(config["sources"], ROOT, CatalogPolicy.default())
+        inventory = audit_sources(load_sources(sources_path), ROOT, CatalogPolicy.default())
     write_inventory(inventory, args.output)
     summary = inventory["summary"]
     print(f"catalog audit: total={summary['total']} active={summary['active']} inactive={summary['inactive']}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1)

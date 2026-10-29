@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from codex_science.catalog import load_inventory
@@ -38,4 +39,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        print(f"error: {type(error).__name__}: {error}", file=sys.stderr)
+        raise SystemExit(1)

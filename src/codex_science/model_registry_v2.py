@@ -47,7 +47,9 @@ def model_contract_material(model: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    if payload.get("schema_version") != 2:
+    if not isinstance(payload, dict):
+        raise ValueError("Model registry v2 must be an object")
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 2:
         raise ValueError("unsupported model registry v2 schema")
     _text(payload.get("registry_revision"), "registry_revision")
     models = payload.get("models")

@@ -4,14 +4,14 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.models import registry_sha256, validate_registry  # noqa: E402
+from codex_science.catalog import load_inventory  # noqa: E402
+from codex_science.models import load_registry, registry_sha256, validate_registry  # noqa: E402
 
 
 def main() -> int:
@@ -19,9 +19,9 @@ def main() -> int:
     parser.add_argument("--registry", type=Path, default=ROOT / "models" / "registry.json")
     parser.add_argument("--inventory", type=Path, default=ROOT / "catalog" / "inventory.json")
     args = parser.parse_args()
-    registry = json.loads(args.registry.read_text(encoding="utf-8"))
+    registry = load_registry(args.registry)
     models = validate_registry(registry)
-    inventory = json.loads(args.inventory.read_text(encoding="utf-8"))
+    inventory = load_inventory(args.inventory)
     active_skills = {
         str(record["name"])
         for record in inventory["skills"]
@@ -37,4 +37,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (ValueError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1)

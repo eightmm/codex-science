@@ -50,7 +50,7 @@ def _record(record: dict[str, Any]) -> tuple[str, str, str, list[str], str, str]
         raise ValueError(f"Skill record has unsafe name: {name!r}")
     if not isinstance(description, str) or not description:
         raise ValueError(f"Skill record {name} has no description")
-    if status not in {"active", "inactive"}:
+    if not isinstance(status, str) or status not in {"active", "inactive"}:
         raise ValueError(f"Skill record {name} has invalid status: {status}")
     if not isinstance(reasons, list) or not all(isinstance(reason, str) for reason in reasons):
         raise ValueError(f"Skill record {name} has invalid reasons")
@@ -226,6 +226,8 @@ def _wrapper_plan(
             "SKILL.md": render_skill_wrapper(record),
             "agents/openai.yaml": render_agent_manifest(record),
         }
+        for contents in expected.values():
+            contents.encode("utf-8")
         for relative in expected:
             _wrapper_destination(output_root / name / relative, output_root)
         planned.append((name, expected))

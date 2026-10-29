@@ -59,4 +59,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1)
