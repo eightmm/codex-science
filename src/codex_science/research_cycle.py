@@ -206,6 +206,12 @@ def _experiment_fingerprint(item: Mapping[str, Any]) -> str:
     return _hash(_experiment_definition(item))
 
 
+def _remaining_budget(cycle: Mapping[str, Any]) -> Fraction:
+    reserved = sum((Fraction(str(item["cost"])) + Fraction(str(item.get("control_cost", 0)))
+                    for item in cycle["experiments"] if item.get("state", "planned") != "planned"), Fraction(0))
+    return Fraction(str(cycle["evaluation"]["budget"])) - reserved
+
+
 def _classify(experiment: Mapping[str, Any], evaluation: Mapping[str, Any], observations: list[dict[str, Any]]) -> tuple[str, dict[str, str]]:
     resolution = _number(experiment["resolution"], "experiment resolution")
     intervals = []
@@ -297,7 +303,6 @@ def validate_cycle(cycle: Mapping[str, Any], run_dir: Path | str | None = None) 
         if not isinstance(checks, list) or not checks or not all(isinstance(x, str) and x.strip() for x in checks):
             raise ValueError("method correctness_checks are required")
     experiment_ids = _ids(cycle.get("experiments"), "experiments")
-    reserved = Fraction(0)
     definitions: list[tuple[dict[str, Any], Mapping[str, Any]]] = []
     requests: dict[str, str] = {}
     for item in cycle["experiments"]:
@@ -321,8 +326,6 @@ def validate_cycle(cycle: Mapping[str, Any], run_dir: Path | str | None = None) 
                 raise ValueError("duplicate experiment fingerprint requires retry_of resolved failure")
         definitions.append((definition, item))
         if item.get("state", "planned") not in {"planned", "reserved", "running", "completed", "failed", "ambiguous"}: raise ValueError("experiment state is invalid")
-        if item.get("state") in {"reserved", "running", "ambiguous", "completed", "failed"}:
-            reserved += Fraction(str(item["cost"])) + Fraction(str(item.get("control_cost", 0)))
         if item.get("request_id"):
             request = _text(item["request_id"], "experiment request_id")
             if request in requests and requests[request] != item["id"]: raise ValueError("request_id is already reserved")
@@ -345,7 +348,7 @@ def validate_cycle(cycle: Mapping[str, Any], run_dir: Path | str | None = None) 
                 root,
             )
         if item.get("state") == "failed" and item.get("failure_kind") not in {"execution", "implementation", "measurement"}: raise ValueError("failure kind is invalid")
-    if reserved > Fraction(str(evaluation["budget"])): raise ValueError("reserved experiment cost exceeds frozen budget")
+    if _remaining_budget(cycle) < 0: raise ValueError("reserved experiment cost exceeds frozen budget")
     if cycle.get("status", "active") not in {"active", *TERMINAL}: raise ValueError("cycle status is invalid")
     if cycle.get("status") in TERMINAL:
         _text(cycle.get("rationale"), "terminal rationale")

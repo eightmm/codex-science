@@ -160,6 +160,24 @@ class DiscoveryBoundaryTests(unittest.TestCase):
         self.assertIsNone(plan["selected"])
         self.assertEqual(2, plan["remaining_budget"])
 
+        root = Path(self.temp.name) / "decimal-budget"
+        payload = prepare(root)
+        payload["evaluation"]["budget"] = 0.3
+        payload["experiments"][0].update(cost=0.1, control_cost=0.2)
+        other = copy.deepcopy(payload["experiments"][0])
+        other.update(id="e2", cost=0, control_cost=0)
+        payload["experiments"].append(other)
+        save_cycle(new_cycle(payload), root)
+        cycle = apply_cycle_event(load_cycle(root), {
+            "kind": "reserve", "experiment_id": "e1", "request_id": "decimal-budget",
+        }, root)
+        save_cycle(cycle, root)
+        plan = plan_cycle(load_cycle(root), root)
+        self.assertEqual(0.0, plan["remaining_budget"])
+        self.assertIsInstance(plan["remaining_budget"], float)
+        self.assertEqual("e2", plan["selected"]["id"])
+        self.assertEqual(["e2"], [item["id"] for item in plan["ranked"]])
+
     def test_code_free_idea_cannot_be_reserved(self):
         payload = copy.deepcopy(self.input)
         payload["methods"][0]["code_refs"] = []

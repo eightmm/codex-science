@@ -186,12 +186,10 @@ def _observed_policy(cycle: dict[str, Any], payload: dict[str, Any],
 def plan_cycle(cycle: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     """Rank only unreserved experiments against the remaining frozen budget."""
     from codex_science.experiment_planner import plan_discriminating_experiment
-    from codex_science.research_cycle import validate_cycle
+    from codex_science.research_cycle import _remaining_budget, validate_cycle
 
     validate_cycle(cycle, run_dir=run_dir)
-    reserved = sum(float(item["cost"]) + float(item.get("control_cost", 0))
-                   for item in cycle["experiments"] if item.get("state", "planned") != "planned")
-    remaining = float(cycle["evaluation"]["budget"]) - reserved
+    remaining = float(_remaining_budget(cycle))
     ranked = []
     if cycle["status"] == "active":
         for experiment in cycle["experiments"]:
