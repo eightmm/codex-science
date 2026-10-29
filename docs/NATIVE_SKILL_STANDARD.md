@@ -142,23 +142,50 @@ Each lane receives:
 - output schema and artifact directory;
 - stop, approval, and retry rules.
 
-Each lane returns a receipt such as:
+Each lane returns a `lane-receipt` sidecar. This deterministic retrieval example uses the schema and references from `examples/literature-review-reviewed-run/lanes/pubmed-search.json`; its query, study, claim, and output references resolve within that example bundle. The fixture is not a live scientific conclusion.
 
 ```json
 {
-  "lane_id": "genetics",
-  "question": "Does human genetics support target X for disease Y?",
-  "claim_ids": ["C1", "C2"],
-  "sources": [{"name": "source", "release": "version", "query_ref": "queries.jsonl#12"}],
-  "included": ["persistent-id"],
-  "excluded": [{"id": "persistent-id", "reason": "wrong phenotype"}],
-  "artifacts": [{"path": "lanes/genetics/evidence.tsv", "sha256": "..."}],
-  "supports": ["C1"],
-  "contradicts": [],
-  "dependencies": ["shared-cohort-id"],
-  "limitations": ["ancestry coverage"],
+  "claim_ids": [
+    "claim-method-effect"
+  ],
   "confidence": "moderate",
-  "next_action": "replicate in an independent ancestry"
+  "contradicted_claim_ids": [],
+  "dependencies": [
+    "cohort-example-a"
+  ],
+  "excluded_records": [],
+  "included_records": [
+    "study-example-1"
+  ],
+  "lane_id": "literature-search-pubmed",
+  "lane_type": "retrieval-and-study-extraction",
+  "limitations": [
+    "The checked-in example is a deterministic fixture, not a live biomedical conclusion."
+  ],
+  "next_action": "Run the same protocol against a later cutoff and inspect the generated diff.",
+  "normalized_inputs": {
+    "evidence_cutoff": "2026-07-19",
+    "question_framework": "PICO"
+  },
+  "outputs": [
+    "studies.json",
+    "evidence_graph.json",
+    "report.md"
+  ],
+  "queries": [
+    "q-pubmed-1"
+  ],
+  "schema_version": 1,
+  "sources": [
+    {
+      "release": "accessed-2026-07-19",
+      "source": "PubMed"
+    }
+  ],
+  "supported_claim_ids": [
+    "claim-method-effect"
+  ]
 }
 ```
 

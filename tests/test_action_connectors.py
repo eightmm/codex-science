@@ -4,6 +4,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -110,6 +111,40 @@ def rehash_payload(payload: dict) -> dict:
 
 
 class ActionConnectorTests(unittest.TestCase):
+    def test_documented_preview_matches_producer_and_validates_through_cli(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        text = (root / "runtime-skills" / "codex-science" / "references" /
+                "authenticated-connector-packs.md").read_text(encoding="utf-8")
+        blocks = re.findall(r"```json\n(.*?)\n```", text, re.DOTALL)
+        spec_payload, preview = map(json.loads, blocks[:2])
+        with tempfile.TemporaryDirectory() as tempdir:
+            directory = Path(tempdir)
+            spec_path = directory / "spec.json"
+            preview_path = directory / "preview.json"
+            output = directory / "validated.json"
+            spec_path.write_text(json.dumps(spec_payload), encoding="utf-8")
+            preview_path.write_text(json.dumps(preview), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts" / "connector_action_contract.py"),
+                 "validate-preview", str(preview_path), "--spec", str(spec_path),
+                 "--output", str(output)], capture_output=True, text=True, timeout=CALL_TIMEOUT,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("valid", json.loads(output.read_text())["status"])
+
+        spec = ActionSpec.from_payload(spec_payload)
+
+        class ExampleAdapter:
+            connector_name = spec.connector
+
+            def snapshot(self, spec):
+                return {"schema_id": spec.parameters["schema_id"], "result_count": 0}
+
+            def preview(self, spec, before):
+                return {"create": spec.parameters["record"]}
+
+        self.assertEqual(preview, build_preview(ExampleAdapter(), spec, created_at=preview["created_at"]))
+
     def test_concurrent_calls_execute_once_and_replay_the_same_receipt(self) -> None:
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         path = directory / "actions.sqlite"

@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,25 @@ class EvidenceSidecarTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repository_root = Path(__file__).resolve().parents[1]
         self.example = self.repository_root / "examples" / "literature-review-reviewed-run"
+
+    def test_native_standard_lane_example_validates_through_cli(self) -> None:
+        text = (self.repository_root / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")
+        section = text.split("Each lane returns", 1)[1]
+        match = re.search(r"```json\n(.*?)\n```", section, re.DOTALL)
+        self.assertIsNotNone(match)
+        lane = json.loads(match.group(1))
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            relative = "lanes/pubmed-search.json"
+            (run_dir / relative).write_text(json.dumps(lane), encoding="utf-8")
+            self._rehash(manifest, run_dir, relative)
+            result = subprocess.run(
+                [sys.executable, str(self.repository_root / "scripts" / "validate_artifact.py"),
+                 str(run_dir / "manifest.json")], capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("artifact bundle: valid", result.stdout)
 
     def test_checked_in_literature_bundle_validates_reviews_and_renders(self) -> None:
         manifest = json.loads((self.example / "manifest.json").read_text(encoding="utf-8"))

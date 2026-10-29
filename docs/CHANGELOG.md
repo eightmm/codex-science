@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Correct the native lane receipt, authenticated connector preview, and artifact selection examples to match their validators; regression tests extract the Markdown JSON and exercise the advertised local CLI entry points. Payload schemas and CLI options are unchanged.
 - Workbench output refuses manifest and referenced input paths, annotation resolution logs and locks, execution journals, and registered directory-tree contents, including symlink and hardlink aliases; manifest shape and artifact paths are validated first, path values use the bundle validator's string conversion, outside trees are never walked, nested references are walked iteratively with labelled nesting failures, unusable reference strings are skipped, and rendered pages and the existing write method are unchanged.
 - Make the statistical-analysis and next-experiment JSON examples executable with sufficient units and controls, test the fenced examples through runtime entry points, and clarify that checkpoint collection and hashing require listing paths in `outputs`.
 - Catalog discovery and source digests resolve the caller-named root, including root aliases, then refuse every symlink inside that tree; direct audits and the audit CLI agree. Source registration and inventory lookups refuse duplicate source keys. Regular-file digests and inventory formats are unchanged.

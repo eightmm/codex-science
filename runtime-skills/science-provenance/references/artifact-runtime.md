@@ -117,6 +117,8 @@ The HTML uses no hosted assets and escapes source-controlled text. It is a deriv
 
 Selection output:
 
+The artifact SHA-256 is computed from the source bytes. `selection_id` and `fingerprint` are computed by `build_selection` from the complete selection content, including `evidence_boundary`; the ellipses in those three fields stand for computed values.
+
 ```json
 {
   "schema_version": 1,
@@ -125,12 +127,13 @@ Selection output:
   "artifact_sha256": "...",
   "viewer": "structure-3d",
   "selector_type": "residue",
-  "selector": {"chain":"A","residue_number":145},
+  "selector": {"chain":"A","residue_number":145,"insertion_code":""},
   "selected_by": "reviewer-agent-2",
-  "reason": "...",
+  "reason": "Alternate conformation conflicts with the declared inactive receptor state.",
   "label": "A:145",
-  "created_at": "...",
+  "created_at": "2026-07-21T00:01:00Z",
   "status": "active",
+  "evidence_boundary": "A selection identifies part of an artifact; it does not validate the selected interpretation.",
   "fingerprint": "..."
 }
 ```

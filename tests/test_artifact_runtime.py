@@ -1,4 +1,8 @@
 import json
+import os
+import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -231,6 +235,55 @@ BASE_DECODING_SNAPSHOTS = json.loads(r'''
 
 
 class ArtifactRuntimeTests(unittest.TestCase):
+    def test_documented_selection_can_propose_through_cli(self) -> None:
+        repository = Path(__file__).resolve().parents[1]
+        text = (repository / "runtime-skills" / "science-provenance" / "references" /
+                "artifact-runtime.md").read_text(encoding="utf-8")
+        section = text.split("Selection output:", 1)[1]
+        match = re.search(r"```json\n(.*?)\n```", section, re.DOTALL)
+        self.assertIsNotNone(match)
+        selection = json.loads(match.group(1))
+        with tempfile.TemporaryDirectory() as tempdir:
+            directory = Path(tempdir)
+            structure = directory / "receptor.pdb"
+            structure.write_text(
+                "ATOM      1  N   GLY A 145      11.104  13.207   9.101  1.00 20.00           N  \n",
+                encoding="utf-8",
+            )
+            descriptor = describe_runtime(
+                structure, artifact_path=selection["artifact_path"], kind="receptor-structure",
+            ).to_dict()
+            generated = build_selection(
+                descriptor, selector_type=selection["selector_type"], selector=selection["selector"],
+                selected_by=selection["selected_by"], reason=selection["reason"],
+                label=selection["label"], created_at=selection["created_at"],
+            )
+            self.assertEqual("...", selection["artifact_sha256"])
+            self.assertEqual("selection-...", selection["selection_id"])
+            self.assertEqual("...", selection["fingerprint"])
+            selection["artifact_sha256"] = generated["artifact_sha256"]
+            selection["selection_id"] = generated["selection_id"]
+            selection["fingerprint"] = generated["fingerprint"]
+            source = directory / "selection.json"
+            output = directory / "proposal.json"
+            source.write_text(json.dumps(selection), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(repository / "scripts" / "render_artifact_runtime.py"),
+                 "propose", str(source), "--operation", "exclude-alternate-conformation",
+                 "--parameters", '{"altloc":"B","retain":"highest-occupancy"}',
+                 "--reason", "Use one receptor microstate before docking.",
+                 "--affected-step", "receptor-preparation", "--expected-output", "prepared/receptor.pdbqt",
+                 "--proposed-by", "analyst-agent-1", "--output", str(output)],
+                capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(selection, generated)
+            proposal = json.loads(output.read_text())
+            validate_transform_proposal(proposal, selection)
+            self.assertFalse(proposal["executed"])
+            self.assertTrue(proposal["requires_approval"])
+
     def test_structure_descriptor_selection_and_proposal_are_hash_bound(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
