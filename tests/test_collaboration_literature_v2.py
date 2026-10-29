@@ -23,6 +23,38 @@ from codex_science.literature_v2 import normalize_identifier, resolve_study_fami
 
 
 class CollaborationAndLiteratureV2Tests(unittest.TestCase):
+    def test_cli_malformed_annotation_advice_recovers_after_removal(self) -> None:
+        from tests.test_discovery_workbench import annotation_fixture
+
+        for content in (None, b"", b"0", b"{", b"[]", b"{}"):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "run"
+                manifest, artifact, cli = annotation_fixture(root)
+                sidecar = root / "annotations/A1.json"
+                sidecar.parent.mkdir()
+                if content is None:
+                    sidecar.mkdir()
+                else:
+                    sidecar.write_bytes(content)
+                command = cli + ["add", "--id", "A1", "--author", "reviewer", "--text", "Check the claim",
+                                 "--artifact", "result.json", "--json-pointer", "/answer"]
+                timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+                before = {path: path.read_bytes() if path.is_file() else None
+                          for path in (manifest, artifact, sidecar)}
+                for _ in range(2):
+                    refused = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+                    self.assertEqual(2, refused.returncode, refused.stderr)
+                    self.assertIn("unregistered annotation sidecar exists: annotations/A1.json", refused.stderr)
+                    self.assertIn("remove it or repair the file", refused.stderr)
+                    self.assertNotIn("identical content", refused.stderr)
+                    self.assertEqual(before, {path: path.read_bytes() if path.is_file() else None
+                                              for path in (manifest, artifact, sidecar)})
+                sidecar.rmdir() if content is None else sidecar.unlink()
+                recovered = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+                self.assertEqual(0, recovered.returncode, recovered.stderr)
+                self.assertEqual("A1", json.loads(recovered.stdout)[0]["annotation_id"])
+                self.assertIn("annotations/A1.json", {row["path"] for row in json.loads(manifest.read_text())["artifacts"]})
+
     def annotation_run(self, root: Path) -> Path:
         from tests.test_discovery_workbench import add_fixture_annotation, annotation_fixture
 

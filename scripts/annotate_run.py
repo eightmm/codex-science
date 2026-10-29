@@ -129,7 +129,7 @@ def _add_annotation(args: argparse.Namespace, registration: dict[str, str]) -> l
                 )
             if not target.is_file():
                 raise ValueError(
-                    f"unregistered annotation sidecar exists: {relative}; remove it or re-run add with identical content to register it"
+                    f"unregistered annotation sidecar exists: {relative}; remove it or repair the file"
                 )
             try:
                 existing_record = json.loads(target.read_text(encoding="utf-8"))
@@ -138,7 +138,7 @@ def _add_annotation(args: argparse.Namespace, registration: dict[str, str]) -> l
                 validate_annotation(existing_record)
             except (OSError, ValueError, json.JSONDecodeError) as error:
                 raise ValueError(
-                    f"unregistered annotation sidecar exists: {relative}; remove it or re-run add with identical content to register it"
+                    f"unregistered annotation sidecar exists: {relative}; remove it or repair the file"
                 ) from error
             expected_content = {key: value for key, value in record.items() if key != "created_at"}
             existing_content = {key: value for key, value in existing_record.items() if key != "created_at"}

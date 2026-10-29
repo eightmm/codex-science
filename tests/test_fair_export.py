@@ -90,8 +90,29 @@ class FairExportTests(unittest.TestCase):
                 receipt = root / "receipt.json"
                 receipt.write_bytes(content)
                 self._refused(manifest, root / "absent" / "export", receipt, root,
-                              f"export destination already exists: {str(receipt)!r}; "
-                              "choose a new versioned output directory or archive the old export explicitly")
+                              f"receipt destination already exists: {str(receipt)!r}; "
+                              "choose a fresh --receipt path or archive the old receipt explicitly")
+
+    def test_cli_receipt_collision_advice_recovers_with_fresh_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = self._bundle(root)
+            output = root / "export"
+            receipt = root / "receipt.json"
+            receipt.write_bytes(b"old receipt\n")
+            self._refused(manifest, output, receipt, root,
+                          f"receipt destination already exists: {str(receipt)!r}; "
+                          "choose a fresh --receipt path or archive the old receipt explicitly")
+            self._refused(manifest, root / "export-v2", receipt, root,
+                          "receipt destination already exists:")
+            fresh = root / "receipt-v2.json"
+            command = [sys.executable, str(CLI), str(manifest), str(output), "--receipt", str(fresh)]
+            recovered = subprocess.run(command, capture_output=True, text=True,
+                                       timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+            self.assertEqual(0, recovered.returncode, recovered.stderr)
+            self.assertEqual(b"old receipt\n", receipt.read_bytes())
+            self.assertEqual((output / "export-receipt.json").read_bytes(), fresh.read_bytes())
+            self._refused(manifest, output, fresh, root, "export destination already exists:")
 
     def test_non_directory_ancestors_are_refused_before_any_writes(self) -> None:
         for destination in ("output", "receipt"):
@@ -130,8 +151,11 @@ class FairExportTests(unittest.TestCase):
                     destination = receipt if name == "receipt.json" else output / name
                     destination.symlink_to(target)
                     self._refused(manifest, output, receipt, root,
-                                  f"export destination already exists: {str(destination)!r}; "
-                                  "choose a new versioned output directory or archive the old export explicitly")
+                                  (f"receipt destination already exists: {str(destination)!r}; "
+                                   "choose a fresh --receipt path or archive the old receipt explicitly")
+                                  if name == "receipt.json" else
+                                  (f"export destination already exists: {str(destination)!r}; "
+                                   "choose a new versioned output directory or archive the old export explicitly"))
                     self.assertTrue(destination.is_symlink())
                     self.assertEqual(target, destination.readlink())
 

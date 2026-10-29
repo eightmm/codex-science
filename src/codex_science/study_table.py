@@ -238,7 +238,11 @@ def build_study_table(
                 consumed.add(evidence_path)
                 content = evidence_path.read_bytes()
                 if hashlib.sha256(content).hexdigest() != screening_row.get("evidence_sha256"):
-                    raise ValueError(f"{record_id}: evidence_sha256 does not match screening evidence_artifact; rerun screening")
+                    raise ValueError(
+                        f"{record_id}: evidence_sha256 does not match screening evidence_artifact; "
+                        "rebuild the candidate pool with screen_candidates.py pool --run-dir <run>, "
+                        "then reapply decisions with screen_candidates.py apply --run-dir <run> --decisions <decisions>"
+                    )
         except (ValueError, OSError, TypeError) as error:
             problems.append(str(error))
         screening_sources[record_id] = evidence_path, content

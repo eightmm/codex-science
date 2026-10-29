@@ -288,6 +288,9 @@ def export_run(
                for path in (destination.resolve() for destination in [output_dir, *files.values(), receipt_paths[0]])):
             raise ValueError(f"receipt destination has ancestor/descendant overlap with export output: {str(receipt_path)!r}")
     if existing_destination is not None:
+        if existing_destination == receipt_path:
+            raise ValueError(f"receipt destination already exists: {str(existing_destination)!r}; "
+                             "choose a fresh --receipt path or archive the old receipt explicitly")
         raise ValueError(f"export destination already exists: {str(existing_destination)!r}; "
                          "choose a new versioned output directory or archive the old export explicitly")
     timestamp = exported_at or _now()

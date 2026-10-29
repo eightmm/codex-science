@@ -509,6 +509,49 @@ class BuildStudyTableTests(unittest.TestCase):
             build_study_table(self.root, self.extraction)
         self.assertEqual(before, (self.root / "studies.json").read_bytes())
 
+    def test_cli_stale_evidence_advice_rebuilds_pool_then_reapplies_decisions(self):
+        result_path = self.root / "query-result.json"
+        result_path.write_text(json.dumps({"records": [{
+            "source": "med", "id": "24390308", "doi": "10.1038/nm.3444",
+            "title": self.candidate["title"], "publication_date": "2014-01-01",
+        }]}))
+        (self.root / "queries.jsonl").write_text(json.dumps({
+            "query_id": "q-1", "result_path": result_path.name,
+        }) + "\n")
+        decisions = self.root / "decisions.json"
+        decisions.write_text(json.dumps({
+            "schema": "screening-decisions-v1", "reviewer": "R", "stage": "abstract",
+            "groups": [{"decision": "include", "criterion": "eligible", "rationale": "eligible",
+                        "record_ids": [self.record["record_id"]]}],
+        }))
+        build = [sys.executable, str(CLI), "--run-dir", str(self.root),
+                 "--extraction", str(self.extraction)]
+        screen = [sys.executable, str(ROOT / "scripts/screen_candidates.py")]
+        apply = screen + ["apply", "--run-dir", str(self.root), "--decisions", str(decisions)]
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        initial = subprocess.run(build, capture_output=True, text=True, timeout=timeout)
+        self.assertEqual(0, initial.returncode, initial.stderr)
+        source = self.root / self.record["evidence_artifact"]
+        source.write_bytes(b"CHANGED SOURCE. " + source.read_bytes())
+        before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        refused = subprocess.run(build, capture_output=True, text=True, timeout=timeout)
+        self.assertEqual(1, refused.returncode, refused.stderr)
+        self.assertEqual(before, {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
+        stale_apply = subprocess.run(apply, capture_output=True, text=True, timeout=timeout)
+        self.assertEqual(1, stale_apply.returncode, stale_apply.stderr)
+        self.assertIn("candidate abstract hash does not match artifact", stale_apply.stderr)
+        pool_advice = "screen_candidates.py pool --run-dir <run>"
+        apply_advice = "screen_candidates.py apply --run-dir <run> --decisions <decisions>"
+        self.assertIn(pool_advice, refused.stderr)
+        self.assertIn(apply_advice, refused.stderr)
+        self.assertLess(refused.stderr.index(pool_advice), refused.stderr.index(apply_advice))
+        for command in (screen + ["pool", "--run-dir", str(self.root)], apply, build, build):
+            recovered = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(0, recovered.returncode, recovered.stderr)
+        payload = json.loads((self.root / "studies.json").read_text())
+        _validate_study_table(payload, self.root)
+        self.assertEqual(self.source, payload["studies"][0]["support_excerpts"][0]["text"])
+
     def test_title_screening_without_evidence_uses_extraction_source(self):
         screening_path = self.root / "screening.json"
         screening = json.loads(screening_path.read_text())
