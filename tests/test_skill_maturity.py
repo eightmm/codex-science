@@ -1,5 +1,6 @@
 import json
 import copy
+import os
 import tempfile
 import unittest
 import subprocess
@@ -44,6 +45,121 @@ Do not overclaim the fixture.
 
 
 class SkillMaturityTests(unittest.TestCase):
+    def test_cli_write_failures_are_labelled_without_success_stdout(self) -> None:
+        launcher = (
+            "import runpy, sys\nfrom pathlib import Path\n"
+            "failed = Path(sys.argv.pop(1))\noriginal = Path.write_text\n"
+            "def write(path, *args, **kwargs):\n"
+            "    if path == failed: raise PermissionError('unwritable destination')\n"
+            "    return original(path, *args, **kwargs)\n"
+            "Path.write_text = write\nscript = sys.argv[1]\nsys.argv = sys.argv[1:]\n"
+            "runpy.run_path(script, run_name='__main__')\n"
+        )
+        for failed_report, output_file in (("json", True), ("markdown", True), ("markdown", False)):
+            with self.subTest(failed_report=failed_report, output_file=output_file), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                self.make_skill(root, quality=self.valid_quality())
+                policy = root / "catalog" / "native-skill-policy.json"
+                policy.parent.mkdir()
+                policy.write_text(json.dumps({"schema_version": 1, "requirements": []}))
+                output = root / "audit.json"
+                markdown = root / "audit.md"
+                output.write_bytes(b"previous JSON")
+                markdown.write_bytes(b"previous Markdown")
+                failed = output if failed_report == "json" else markdown
+                script = Path(__file__).resolve().parents[1] / "scripts" / "audit_native_skill_maturity.py"
+                arguments = ["--root", str(root), "--markdown", str(markdown)]
+                if output_file:
+                    arguments.extend(["--output", str(output)])
+                result = subprocess.run([sys.executable, "-c", launcher, str(failed), str(script), *arguments],
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertIn("unwritable destination", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(b"previous Markdown", markdown.read_bytes())
+                if failed_report == "json" or not output_file:
+                    self.assertEqual(b"previous JSON", output.read_bytes())
+                else:
+                    self.assertEqual("passed", json.loads(output.read_text())["status"])
+
+    def test_cli_refuses_matching_or_nested_outputs_before_writing(self) -> None:
+        for conflict in ("same", "symlink", "hardlink", "nested", "directory", "bad-ancestor", "policy",
+                         "skill", "authored-skill", "quality", "reference", "fixture", "test", "skill-alias",
+                         "tree-descendant", "root-loop", "reference-loop", "fixture-loop", "unscanned-output"):
+            with self.subTest(conflict=conflict), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                output = root / "audit.json"
+                markdown = output
+                extra = []
+                if conflict != "nested":
+                    output.write_bytes(b"previous report")
+                if conflict in ("symlink", "hardlink"):
+                    markdown = root / "report.md"
+                    if conflict == "symlink":
+                        markdown.symlink_to(output)
+                    else:
+                        os.link(output, markdown)
+                elif conflict in ("nested", "bad-ancestor"):
+                    markdown = output / "report.md"
+                elif conflict == "directory":
+                    markdown = root / "directory"
+                    markdown.mkdir()
+                elif conflict == "policy":
+                    self.make_skill(root)
+                    output = root / "catalog" / "native-skill-policy.json"
+                    output.parent.mkdir()
+                    output.write_text(json.dumps({"schema_version": 1, "requirements": []}))
+                    markdown = root / "report.md"
+                    extra = ["--root", str(root)]
+                elif conflict in ("skill", "authored-skill", "quality", "reference", "fixture", "test", "skill-alias",
+                                  "tree-descendant", "root-loop", "reference-loop", "fixture-loop", "unscanned-output"):
+                    skill = self.make_skill(root, quality=self.valid_quality())
+                    policy = root / "catalog" / "native-skill-policy.json"
+                    policy.parent.mkdir()
+                    policy.write_text(json.dumps({"schema_version": 1, "requirements": []}))
+                    extra = ["--root", str(root)]
+                    markdown = root / "report.md"
+                    if conflict == "authored-skill":
+                        (root / "runtime-skills").rename(root / "authored-skills")
+                        skill = root / "authored-skills" / "demo"
+                    targets = {"skill": skill / "SKILL.md", "authored-skill": skill / "SKILL.md",
+                               "quality": skill / "quality.json", "reference": skill / "references" / "index.json",
+                               "fixture": root / "fixtures" / "case.json", "test": root / "tests" / "test_demo.py",
+                               "tree-descendant": skill / "new.json"}
+                    if conflict == "unscanned-output":
+                        output = root / "runtime-skills" / "unscanned" / "report.json"
+                    elif conflict in targets:
+                        output = targets[conflict]
+                    elif conflict == "skill-alias":
+                        output.unlink()
+                        os.link(skill / "SKILL.md", output)
+                    elif conflict == "root-loop":
+                        loop = root / "root-loop"
+                        loop.symlink_to(loop)
+                        extra = ["--root", str(loop)]
+                    else:
+                        loop = skill / "references" / "index.json" if conflict == "reference-loop" else root / "fixtures" / "case.json"
+                        loop.unlink()
+                        loop.symlink_to(loop)
+                before = {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+                entries = set(root.rglob("*"))
+                script = Path(__file__).resolve().parents[1] / "scripts" / "audit_native_skill_maturity.py"
+                result = subprocess.run([sys.executable, str(script), "--output", str(output), "--markdown", str(markdown), *extra],
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                if conflict == "unscanned-output":
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual("passed", json.loads(output.read_text())["status"])
+                    continue
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(entries, set(root.rglob("*")))
+                self.assertEqual(before, {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()})
+
     def make_skill(self, root: Path, *, quality: dict | None = None) -> Path:
         skill = root / "runtime-skills" / "demo"
         references = skill / "references"

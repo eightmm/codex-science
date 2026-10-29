@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Describe, render, select, or propose changes to a scientific artifact.
 
-This CLI always writes structured output to a file. It never mutates the source
-artifact and never executes a transform proposal.
+This CLI always writes structured output to a file and never executes a transform
+proposal. Source files are protected by identity and described directories by
+containment; external hardlinks to files in directory inputs are not detected.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from codex_science.artifact_runtime import (  # noqa: E402
     VIEWER_SELECTIONS,
     validate_selection,
 )
+from codex_science.cli_io import preflight_output_paths, resolve_input_path  # noqa: E402
 
 SELECTOR_EPILOG = "selector types by viewer:\n" + "\n".join(
     f"  {viewer}: {', '.join(sorted(types))}" for viewer, types in sorted(VIEWER_SELECTIONS.items())
@@ -71,8 +73,9 @@ def command_describe(args: argparse.Namespace) -> None:
 def command_render(args: argparse.Namespace) -> None:
     descriptor = _read_json(args.descriptor)
     validate_runtime_descriptor(descriptor)
+    rendered = render_runtime_html(descriptor, title=args.title)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render_runtime_html(descriptor, title=args.title), encoding="utf-8")
+    args.output.write_text(rendered, encoding="utf-8")
     print(f"Success! Runtime view written to: {args.output.resolve()}")
 
 
@@ -159,6 +162,10 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
+        source = getattr(args, "artifact", None) or getattr(args, "descriptor", None) or args.selection
+        source = resolve_input_path(source)
+        preflight_output_paths(args.output, inputs=[source],
+                               protected_dirs=[source] if args.command == "describe" and source.is_dir() else [])
         args.handler(args)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)

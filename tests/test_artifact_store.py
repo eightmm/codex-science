@@ -21,6 +21,123 @@ from codex_science.artifacts import add_artifact, new_manifest, validate_bundle,
 
 
 class ArtifactStoreTests(unittest.TestCase):
+    def test_cli_store_write_failure_does_not_print_descriptor_success(self) -> None:
+        launcher = (
+            "import runpy, sys\nfrom pathlib import Path\nscript = sys.argv[1]\nsys.argv = sys.argv[1:]\n"
+            "sys.path.insert(0, str(Path(script).parents[1] / 'src'))\n"
+            "from codex_science.artifact_store import ContentAddressedStore\n"
+            "def add(*args, **kwargs): raise PermissionError('store write failed')\n"
+            "ContentAddressedStore.add_file = add\nrunpy.run_path(script, run_name='__main__')\n"
+        )
+        for content in (b"", b"artifact bytes"):
+            for output_file in (False, True):
+                with self.subTest(content=content, output_file=output_file), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    source = root / "source.bin"
+                    source.write_bytes(content)
+                    output = root / "descriptor.json"
+                    script = Path(__file__).resolve().parents[1] / "scripts" / "describe_artifact.py"
+                    arguments = [str(source), "--store", str(root / "store")]
+                    if output_file:
+                        arguments.extend(["--output", str(output)])
+                    result = subprocess.run([sys.executable, "-c", launcher, str(script), *arguments],
+                                            capture_output=True, text=True,
+                                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(content, source.read_bytes())
+                    self.assertFalse((root / "store").exists())
+                    self.assertEqual(output_file, output.exists())
+
+    def test_cli_refuses_parent_output_from_subdirectory_without_writes(self) -> None:
+        for content in (b"", b"scientific bytes"):
+            for existing in (False, True):
+                with self.subTest(content=content, existing=existing), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    working = root / "subdirectory"
+                    working.mkdir()
+                    source = working / "source.bin"
+                    source.write_bytes(content)
+                    if existing:
+                        (root / "x").write_bytes(b"previous descriptor")
+                    entries = set(root.rglob("*"))
+                    before = {path.relative_to(root): path.read_bytes() for path in entries if path.is_file()}
+                    script = Path(__file__).resolve().parents[1] / "scripts" / "describe_artifact.py"
+                    result = subprocess.run([sys.executable, str(script), source.name, "--output", "../x"],
+                                            cwd=working, capture_output=True, text=True,
+                                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("error: invalid output path: parent component is not allowed: ../x\n", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(entries, set(root.rglob("*")))
+                    self.assertEqual(before, {path.relative_to(root): path.read_bytes() for path in entries if path.is_file()})
+
+    def test_cli_refuses_descriptor_input_and_store_conflicts_before_writes(self) -> None:
+        for conflict in ("source", "symlink", "hardlink", "object", "object-child", "directory-store", "corrupt-store",
+                         "store-loop", "target-loop", "verify-loop", "directory-child-alias"):
+            with self.subTest(conflict=conflict), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                source = root / "source.bin"
+                source.write_bytes(b"scientific bytes")
+                store = ContentAddressedStore(root / "store")
+                output = source
+                extra = ["--store", str(store.root)]
+                if conflict in ("symlink", "hardlink"):
+                    output = root / "alias"
+                    if conflict == "symlink":
+                        output.symlink_to(source)
+                    else:
+                        os.link(source, output)
+                elif conflict.startswith("object"):
+                    output = store.objects if conflict == "object" else store.objects / "new" / "descriptor.json"
+                elif conflict == "directory-store":
+                    source = root / "dataset"
+                    source.mkdir()
+                    output = root / "descriptor.json"
+                elif conflict == "corrupt-store":
+                    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+                    stored = store.object_path(digest)
+                    stored.parent.mkdir(parents=True)
+                    stored.write_bytes(b"corrupt")
+                    output = root / "descriptor.json"
+                elif conflict == "store-loop":
+                    store.root.symlink_to(store.root)
+                    output = root / "descriptor.json"
+                elif conflict == "target-loop":
+                    source.unlink()
+                    source.symlink_to(source)
+                    output = root / "descriptor.json"
+                elif conflict == "verify-loop":
+                    descriptor = root / "verify-loop"
+                    descriptor.symlink_to(descriptor)
+                    output = root / "descriptor.json"
+                    extra.extend(["--verify", str(descriptor)])
+                elif conflict == "directory-child-alias":
+                    source = root / "dataset"
+                    source.mkdir()
+                    child = source / "data"
+                    child.write_bytes(b"original data")
+                    output = root / "alias.json"
+                    os.link(child, output)
+                    extra = []
+                before = {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+                entries = set(root.rglob("*"))
+                script = Path(__file__).resolve().parents[1] / "scripts" / "describe_artifact.py"
+                result = subprocess.run([sys.executable, str(script), str(source), "--output", str(output), *extra],
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                if conflict == "directory-child-alias":
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual("directory-tree", json.loads(output.read_text())["artifact_type"])
+                    continue
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(entries, set(root.rglob("*")))
+                self.assertEqual(before, {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()})
+
     def test_chunked_hashes_use_one_stream_during_atomic_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             path = Path(tempdir) / "data.bin"

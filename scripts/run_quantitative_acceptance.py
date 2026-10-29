@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.artifact_store import stream_sha256  # noqa: E402
 from codex_science.artifacts import add_artifact, new_manifest, write_manifest  # noqa: E402
-from codex_science.cli_io import load_json_object, write_json_atomic  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, resolve_input_path, write_json_atomic  # noqa: E402
 from codex_science.math_contracts import build_mathematical_claim, build_proof_receipt  # noqa: E402
 from codex_science.numerical_verification import run_numerical_verification  # noqa: E402
 from codex_science.research_design import build_research_design  # noqa: E402
@@ -46,11 +46,14 @@ def run(input_path: Path, output: Path) -> Path:
     run_id = str(payload.get("run_id", "")).strip()
     if not run_id:
         raise ValueError("run_id is required")
+    for key in ("research_design", "statistical_analysis", "numerical_verification",
+                "dimension_check", "uncertainty_propagation", "false_statement_search",
+                "finite_statement_search"):
+        if key not in payload:
+            raise ValueError(f"missing required input key: {key}")
     if output.exists() and any(output.iterdir()):
         raise ValueError(f"output directory is not empty: {output}")
-    output.mkdir(parents=True, exist_ok=True)
     copied_input = output / "input.json"
-    shutil.copyfile(input_path, copied_input)
 
     design = build_research_design(payload["research_design"])
     if design["audit_status"] != "passed":
@@ -180,6 +183,12 @@ def run(input_path: Path, output: Path) -> Path:
         ("proof-finite.json", finite_proof, "proof-receipt"),
         ("proof-obligations.json", obligation_graph, "proof-obligation-graph"),
     ]
+    destinations = [copied_input, output / "report.md", output / "manifest.json"]
+    destinations.extend(output / filename for filename, _, _ in records)
+    destinations.extend(output / f"mathematical-claim-{index:02d}.json" for index in range(1, len(claims) + 1))
+    preflight_output_paths(*destinations, inputs=[input_path])
+    output.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(input_path, copied_input)
     for filename, record, kind in records:
         path = output / filename
         _write(path, record)
@@ -248,7 +257,8 @@ def main() -> int:
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
     try:
-        manifest_path = run(args.input.resolve(), args.output.resolve())
+        preflight_output_paths(args.output / "input.json", inputs=[args.input])
+        manifest_path = run(resolve_input_path(args.input), resolve_input_path(args.output))
     except (KeyError, OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

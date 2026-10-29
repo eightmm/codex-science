@@ -487,6 +487,232 @@ class DescriptorPathRejectionTests(unittest.TestCase):
 
 
 class ArtifactIndexTests(unittest.TestCase):
+    def test_cli_protects_numeric_manifest_paths_before_writing_indexes(self) -> None:
+        for field in ("path", "descriptor_path"):
+            for value in (0, 123):
+                for alias in ("symlink", "hardlink"):
+                    with self.subTest(field=field, value=value, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                        manifest_path = self._make_run(Path(tempdir))
+                        run = manifest_path.parent
+                        manifest = json.loads(manifest_path.read_text())
+                        numeric = run / str(value)
+                        if field == "path":
+                            numeric.write_bytes(b"numeric artifact")
+                            manifest["artifacts"].append({"path": value, "kind": "result",
+                                                          "sha256": hashlib.sha256(numeric.read_bytes()).hexdigest()})
+                        else:
+                            numeric.write_text(json.dumps(describe_file(run / "report.md").to_dict()))
+                            manifest["artifacts"][-1][field] = value
+                        write_manifest(manifest, manifest_path)
+                        validate_bundle(manifest, run)
+                        output = run / "index.html"
+                        if alias == "symlink":
+                            output.symlink_to(numeric)
+                        else:
+                            os.link(numeric, output)
+                        entries = set(run.rglob("*"))
+                        before = {path.relative_to(run): path.read_bytes() for path in entries if path.is_file()}
+                        result = subprocess.run([sys.executable, str(self.script), str(manifest_path), "--html"],
+                                                capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                        self.assertIn("would overwrite input", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(entries, set(run.rglob("*")))
+                        self.assertEqual(before, {path.relative_to(run): path.read_bytes() for path in entries if path.is_file()})
+
+    def test_preflight_refuses_loops_in_protected_path_components(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            loop = root / "loop"
+            loop.symlink_to(loop)
+            first = root / "first"
+            second = root / "second"
+            first.symlink_to(second)
+            second.symlink_to(first)
+            indirect = root / "indirect"
+            indirect.symlink_to(loop / "missing")
+            looping_paths = (loop, loop / "missing" / "nested", first, second / "child",
+                             indirect / "child", root / "absent" / ".." / "loop")
+            before = set(root.iterdir())
+            for keyword in ("inputs", "protected_dirs"):
+                for path in looping_paths:
+                    with self.subTest(keyword=keyword, path=path), self.assertRaisesRegex(ValueError, "invalid protected input path"):
+                        preflight_output_paths(root / "output", **{keyword: [path]})
+                dangling = root / (keyword + "-dangling")
+                dangling.symlink_to(root / "missing-target")
+                preflight_output_paths(root / "output", **{keyword: [dangling / "child"]})
+                dangling.unlink()
+                directory = root / (keyword + "-directory")
+                directory.mkdir()
+                alias = root / (keyword + "-alias")
+                alias.symlink_to(directory, target_is_directory=True)
+                preflight_output_paths(root / "output", **{keyword: [alias / "child"]})
+                alias.unlink()
+                directory.rmdir()
+            self.assertEqual(before, set(root.iterdir()))
+
+    def test_preflight_protects_inputs_and_directory_trees(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            source = root / "source"
+            source.write_bytes(b"original")
+            symbolic = root / "symbolic"
+            symbolic.symlink_to(source)
+            hard = root / "hard"
+            os.link(source, hard)
+            for destination in (source, symbolic, hard, root):
+                with self.subTest(destination=destination), self.assertRaises(ValueError):
+                    preflight_output_paths(destination, inputs=[source])
+            # Missing inputs still reserve their resolved spelling and ancestors.
+            for destination in (root / "missing", root / "missing" / "input"):
+                with self.subTest(destination=destination), self.assertRaises(ValueError):
+                    preflight_output_paths(destination, inputs=[root / "missing" / "input"])
+            preflight_output_paths(None, root / "new", inputs=[])
+            preflight_output_paths(root / "source-other", inputs=[source])
+            preflight_output_paths(root / "new", inputs=[symbolic, hard])
+            unavailable = root / "unavailable"
+            original_resolve = Path.resolve
+
+            def guarded_resolve(path, *args, **kwargs):
+                if path == unavailable:
+                    raise PermissionError("unreadable protected path")
+                return original_resolve(path, *args, **kwargs)
+
+            with mock.patch.object(Path, "resolve", guarded_resolve):
+                preflight_output_paths(root / "new", inputs=[unavailable], protected_dirs=[unavailable])
+            with mock.patch.object(Path, "is_symlink", side_effect=PermissionError("unreadable link probe")):
+                preflight_output_paths(root / "new", inputs=[unavailable], protected_dirs=[unavailable])
+            with mock.patch("codex_science.cli_io.os.path.samefile", side_effect=PermissionError("unreadable identity")):
+                preflight_output_paths(root / "new", inputs=[source])
+            for destination in (root / "tree", root / "tree" / "child", root / "tree" / "nested" / "file"):
+                with self.subTest(protected=destination), self.assertRaises(ValueError):
+                    preflight_output_paths(destination, protected_dirs=[root / "tree"])
+            preflight_output_paths(root / "tree-other", protected_dirs=[root / "tree"])
+            tree = root / "tree"
+            tree.mkdir()
+            preflight_output_paths(root / "new", protected_dirs=[tree])
+            child = tree / "0"
+            child.write_bytes(b"protected child")
+            alias = root / "child-alias"
+            os.link(child, alias)
+            preflight_output_paths(alias, protected_dirs=[tree])
+            with self.assertRaisesRegex(ValueError, "would overwrite input"):
+                preflight_output_paths(alias, inputs=[child], protected_dirs=[tree])
+            (tree / "back").symlink_to(tree, target_is_directory=True)
+            preflight_output_paths(root / "new", protected_dirs=[tree])
+            (tree / "loop").symlink_to(tree / "loop")
+            preflight_output_paths(root / "new", protected_dirs=[tree])
+            (tree / "loop").unlink()
+            with self.assertRaises(ValueError):
+                preflight_output_paths(root / "tree", protected_dirs=[root / "tree" / "nested"])
+            with self.assertRaises(ValueError):
+                preflight_output_paths(root / "bad\x00", inputs=[source])
+            loop = root / "loop"
+            loop.symlink_to(loop)
+            for keywords in ({"inputs": [loop]}, {"protected_dirs": [loop]}):
+                with self.subTest(keywords=keywords), self.assertRaises(ValueError):
+                    preflight_output_paths(root / "new", **keywords)
+            self.assertEqual(b"original", source.read_bytes())
+
+    def test_cli_refuses_index_input_conflicts_before_either_write(self) -> None:
+        for conflict in ("manifest-md", "manifest-html", "artifact-md", "artifact-html",
+                         "symlink", "hardlink", "outputs-alias", "html-directory", "input-md",
+                         "input-tree", "input-loop", "manifest-loop", "input-unreadable", "input-ancestor"):
+            with self.subTest(conflict=conflict), tempfile.TemporaryDirectory() as tempdir:
+                manifest_path = self._make_run(Path(tempdir))
+                run = manifest_path.parent
+                if conflict.startswith("manifest-"):
+                    renamed = run / ("index.md" if conflict.endswith("md") else "index.html")
+                    manifest_path.rename(renamed)
+                    manifest_path = renamed
+                elif conflict.startswith("artifact-"):
+                    artifact = run / ("index.md" if conflict.endswith("md") else "index.html")
+                    artifact.write_bytes(b"registered result")
+                    manifest = json.loads(manifest_path.read_text())
+                    add_artifact(manifest, artifact.name, kind="result", sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+                    write_manifest(manifest, manifest_path)
+                elif conflict in ("symlink", "hardlink"):
+                    destination = run / "index.html"
+                    if conflict == "symlink":
+                        destination.symlink_to(run / "report.md")
+                    else:
+                        os.link(run / "report.md", destination)
+                elif conflict == "outputs-alias":
+                    (run / "index.md").write_bytes(b"previous view")
+                    os.link(run / "index.md", run / "index.html")
+                elif conflict == "html-directory":
+                    (run / "index.html").mkdir()
+                elif conflict.startswith("input-"):
+                    source = run / ("index.md" if conflict == "input-md" else "source")
+                    if conflict in ("input-tree", "input-unreadable"):
+                        source.mkdir()
+                        child = source / "data"
+                        child.write_bytes(b"declared input")
+                        if conflict == "input-tree":
+                            os.link(child, run / "index.html")
+                        else:
+                            (source / "unreadable").mkdir()
+                    elif conflict == "input-ancestor":
+                        source = Path(tempdir)
+                    elif conflict == "input-loop":
+                        source.symlink_to(source)
+                    else:
+                        source.write_bytes(b"declared input")
+                    manifest = json.loads(manifest_path.read_text())
+                    manifest["inputs"].append({"path": str(source) if conflict == "input-ancestor" else source.name})
+                    write_manifest(manifest, manifest_path)
+                elif conflict == "manifest-loop":
+                    manifest_path = run / "manifest-loop"
+                    manifest_path.symlink_to(manifest_path)
+                before = {path.relative_to(run): path.read_bytes() for path in run.rglob("*") if path.is_file()}
+                entries = set(run.rglob("*"))
+                command = [sys.executable, str(self.script), str(manifest_path), "--html"]
+                if conflict == "input-unreadable":
+                    launcher = (
+                        "import runpy, sys; from pathlib import Path; original = Path.iterdir; "
+                        "blocked = Path(sys.argv.pop(1)); "
+                        "Path.iterdir = lambda path: (_ for _ in ()).throw(PermissionError('unreadable')) "
+                        "if path == blocked else original(path); "
+                        "script = sys.argv[1]; sys.argv = sys.argv[1:]; runpy.run_path(script, run_name='__main__')"
+                    )
+                    command = [sys.executable, "-c", launcher, str(source / "unreadable"), *command[1:]]
+                result = subprocess.run(command,
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                if conflict in ("input-tree", "input-unreadable", "input-ancestor"):
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertTrue((run / "index.md").is_file())
+                    self.assertTrue((run / "index.html").is_file())
+                    for relative, content in before.items():
+                        if relative != Path("index.html"):
+                            self.assertEqual(content, (run / relative).read_bytes())
+                    continue
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(entries, set(run.rglob("*")))
+                self.assertEqual(before, {path.relative_to(run): path.read_bytes() for path in run.rglob("*") if path.is_file()})
+
+    def test_preflight_registered_tree_uses_containment_without_listing(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            tree = root / "registered-tree"
+            tree.mkdir()
+            (tree / "link").symlink_to(Path("/"), target_is_directory=True)
+            with mock.patch.object(Path, "iterdir", side_effect=AssertionError("preflight must not list trees")):
+                preflight_output_paths(root / "index.md", inputs=[tree], protected_dirs=[tree])
+                with self.assertRaisesRegex(ValueError, "overlaps protected directory"):
+                    preflight_output_paths(tree / "index.md", protected_dirs=[tree])
+
     def setUp(self) -> None:
         self.repository_root = Path(__file__).resolve().parents[1]
         self.script = self.repository_root / "scripts" / "render_artifact_index.py"

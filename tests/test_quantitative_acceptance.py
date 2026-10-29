@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +13,35 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class QuantitativeAcceptanceTests(unittest.TestCase):
+    def test_cli_invalid_inputs_leave_no_partial_output(self) -> None:
+        fixture = json.loads((ROOT / "examples" / "quantitative-research" / "input.json").read_text())
+        required = ("research_design", "statistical_analysis", "numerical_verification", "dimension_check",
+                    "uncertainty_propagation", "false_statement_search", "finite_statement_search")
+        cases = [(key, {name: value for name, value in fixture.items() if name != key}) for key in required]
+        cases.extend([("empty", {}), ("zero", {**fixture, "schema_version": 0}),
+                      ("malformed", "{"), ("invalid-dimension", {**fixture, "dimension_check": {}})])
+        for label, payload in cases:
+            for existing in (False, True):
+                with self.subTest(label=label, existing=existing), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    source = root / "input.json"
+                    source.write_text(payload if isinstance(payload, str) else json.dumps(payload))
+                    original = source.read_bytes()
+                    output = root / "run"
+                    if existing:
+                        output.mkdir()
+                    entries = set(root.rglob("*"))
+                    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "run_quantitative_acceptance.py"), str(source), str(output)],
+                                            capture_output=True, text=True,
+                                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                    if label in required:
+                        self.assertIn(f"missing required input key: {label}", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(entries, set(root.rglob("*")))
+                    self.assertEqual(original, source.read_bytes())
+
     def test_quantitative_acceptance_is_hash_valid_and_reviewed(self) -> None:
         from importlib.util import module_from_spec, spec_from_file_location
 

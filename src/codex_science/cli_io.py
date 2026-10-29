@@ -1,12 +1,13 @@
 """Small bounded JSON helpers shared by scientific command-line contracts."""
 from __future__ import annotations
 
+import errno
 import json
 import os
 import stat
 import tempfile
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 DEFAULT_MAX_JSON_BYTES = 64 * 1024 * 1024
 
@@ -28,8 +29,56 @@ def load_json_object(path: Path, *, max_bytes: int = DEFAULT_MAX_JSON_BYTES) -> 
     return payload
 
 
-def preflight_output_paths(*paths: Path | None) -> None:
-    """Reject predictable destination conflicts before writing any output."""
+def resolve_input_path(path: Path) -> Path:
+    """Resolve an input with component-wise loop refusal on supported runtimes."""
+    def check_components(candidate: Path) -> None:
+        for entry in (*reversed(candidate.parents), candidate):
+            try:
+                is_link = entry.is_symlink()
+            except OSError:
+                continue
+            if is_link:
+                try:
+                    os.stat(entry)
+                except OSError as error:
+                    if error.errno == errno.ELOOP:
+                        raise ValueError(f"invalid protected input path: {entry}: {error}") from error
+
+    check_components(path)
+    try:
+        resolved = path.resolve()
+    except RuntimeError as error:
+        raise ValueError(f"invalid protected input path: {path}: {error}") from error
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ValueError(f"invalid protected input path: {path}: {error}") from error
+        resolved = Path(os.path.realpath(path))
+    # Non-strict resolution can remove missing/.. components and leave a loop
+    # unresolved on Python 3.13+, so check the resulting spelling as well.
+    check_components(resolved)
+    return resolved
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+def preflight_output_paths(
+    *paths: Path | None,
+    inputs: Iterable[Path] = (),
+    protected_dirs: Iterable[Path] = (),
+) -> None:
+    """Reject destination conflicts, input replacement and protected-tree writes.
+
+    Trees use resolved containment only, without listing descendants or detecting
+    their external hardlinks. This does not reserve paths against concurrent
+    changes or make a group of writes transactional.
+    """
+    sources = [(path, resolve_input_path(path)) for path in inputs]
+    directories = [(path, resolve_input_path(path)) for path in protected_dirs]
     checked: list[tuple[Path, Path]] = []
     for path in paths:
         if path is None:
@@ -55,10 +104,17 @@ def preflight_output_paths(*paths: Path | None) -> None:
             resolved = path.resolve()
         except RuntimeError as error:
             raise ValueError(f"invalid output path: {path}: {error}") from error
+        for source, source_resolved in sources:
+            if resolved == source_resolved or _same_file(path, source):
+                raise ValueError(f"output path would overwrite input: {source}: {path}")
+            if resolved in source_resolved.parents:
+                raise ValueError(f"output path is an input ancestor: {source}: {path}")
+        for directory, directory_resolved in directories:
+            if (resolved == directory_resolved or directory_resolved in resolved.parents
+                    or resolved in directory_resolved.parents):
+                raise ValueError(f"output path overlaps protected directory: {directory}: {path}")
         for previous, previous_resolved in checked:
-            if resolved == previous_resolved or (
-                path.exists() and previous.exists() and os.path.samefile(path, previous)
-            ):
+            if resolved == previous_resolved or _same_file(path, previous):
                 raise ValueError(f"output paths refer to the same file: {previous} and {path}")
             if resolved in previous_resolved.parents or previous_resolved in resolved.parents:
                 raise ValueError(f"output paths overlap: {previous} and {path}")

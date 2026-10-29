@@ -128,6 +128,59 @@ def digest(path: Path) -> str:
 
 
 class ArtifactRuntimeSidecarTests(unittest.TestCase):
+    def test_cli_describe_preserves_source_on_destination_refusal(self) -> None:
+        for conflict in ("source", "symlink", "hardlink", "directory", "parent", "bad-ancestor", "directory-child-alias",
+                         "directory-descendant", "directory-new-output"):
+            with self.subTest(conflict=conflict), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                source = root / "source.txt"
+                source.write_bytes(b"scientific bytes\n")
+                output = source
+                if conflict in ("symlink", "hardlink"):
+                    output = root / "alias"
+                    if conflict == "symlink":
+                        output.symlink_to(source)
+                    else:
+                        os.link(source, output)
+                elif conflict == "directory":
+                    output = root / "dataset"
+                    output.mkdir()
+                    source = output
+                elif conflict == "parent":
+                    output = root / "new" / ".." / "descriptor.json"
+                elif conflict == "bad-ancestor":
+                    output = source / "descriptor.json"
+                elif conflict == "directory-child-alias":
+                    source = root / "dataset"
+                    source.mkdir()
+                    child = source / "data.txt"
+                    child.write_bytes(b"original data")
+                    output = root / "alias.json"
+                    os.link(child, output)
+                elif conflict in ("directory-descendant", "directory-new-output"):
+                    source = root / "dataset"
+                    source.mkdir()
+                    child = source / "observations.csv"
+                    child.write_bytes(b"value\n7\n")
+                    output = child if conflict == "directory-descendant" else source / "descriptor.json"
+                before = {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+                entries = set(root.rglob("*"))
+                script = Path(__file__).resolve().parents[1] / "scripts" / "render_artifact_runtime.py"
+                result = subprocess.run([sys.executable, str(script), "describe", str(source),
+                                         "--artifact-path", source.name, "--kind", "text",
+                                         "--max-bytes", "1024", "--max-records", "10", "--output", str(output)],
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                if conflict == "directory-child-alias":
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual("directory-tree", json.loads(output.read_text())["artifact_type"])
+                    continue
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(entries, set(root.rglob("*")))
+                self.assertEqual(before, {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()})
+
     def add_legacy_selections(self, manifest, run_dir, *, refresh=False):
         records = []
         # Fingerprints captured from the actual base 6e4e0507 build_selection producer.
