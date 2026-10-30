@@ -791,7 +791,8 @@ class RunDriverTests(unittest.TestCase):
     def test_popen_oserror_is_recorded_in_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            receipt = drive(self._project(root), "task", run_dir=root / "out", codex_bin=str(root / "missing-codex"))
+            with patch.dict(os.environ, {"CODEX_HOME": str(root / "codex-home")}):
+                receipt = drive(self._project(root), "task", run_dir=root / "out", codex_bin=str(root / "missing-codex"))
             self.assertEqual("turn_failed", receipt["stop"]["code"])
             self.assertEqual("launch_error", receipt["stop"]["reason"])
             self.assertIn("No such file", receipt["turns"][0]["launch_error"])

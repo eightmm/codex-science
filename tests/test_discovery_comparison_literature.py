@@ -417,7 +417,8 @@ class LiteratureReportTests(unittest.TestCase):
             empty = root / "empty"; empty.mkdir()
             self.assertEqual(2, self._cli(TASKS, empty).returncode)
             planned = root / "planned"
-            run_evaluation(TASKS, planned, execute=False, codex_bin=sys.executable)
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(root / "codex-home")}):
+                run_evaluation(TASKS, planned, execute=False, codex_bin=sys.executable)
             dry = self._cli(TASKS, planned)
             self.assertEqual(2, dry.returncode)
             self.assertIn("no receipts found", dry.stderr)
@@ -516,6 +517,7 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':1,'output_toke
             common = [sys.executable, str(runner), "--tasks", str(TASKS), "--out", str(out),
                       "--task", task_id, "--codex-bin", str(binary)]
             env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), PYTHONDONTWRITEBYTECODE="1")
+            env["CODEX_HOME"] = str(root / "codex-home")
             dry = subprocess.run(common, env=env, text=True, capture_output=True)
             self.assertEqual(0, dry.returncode, dry.stderr)
             execute = subprocess.run(common + ["--execute"], env=env, text=True, capture_output=True)
