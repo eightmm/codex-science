@@ -35,6 +35,20 @@ class SBDDAcceptanceTests(unittest.TestCase):
         self.assertFalse(benchmark_passes(self.seeded))
 
 
+    def test_execution_cli_refuses_output_symlink_loop(self) -> None:
+        import tempfile
+        from loader_cases import assert_refused
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "loop"
+            output.symlink_to(output.name)
+            for path in (output, output / "child"):
+                with self.subTest(path=path):
+                    assert_refused(self, "run_sbdd_acceptance.py",
+                                   [root / "examples/sbdd-executable/input.json", path], 1)
+            self.assertEqual(output.name, output.readlink().name)
+            self.assertEqual([output], list(Path(directory).iterdir()))
+
     def test_execution_cli_refuses_malformed_registry_without_writing(self) -> None:
         import tempfile
         from loader_cases import assert_refused, malformed_json

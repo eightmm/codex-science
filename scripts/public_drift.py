@@ -14,6 +14,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from codex_science.cli_io import preflight_output_paths  # noqa: E402
 from public_smoke import CHECKS  # type: ignore  # noqa: E402
 
 
@@ -126,9 +127,16 @@ def main() -> int:
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--output-md", type=Path, required=True)
     args = parser.parse_args()
+    summary = Path(os.environ["GITHUB_STEP_SUMMARY"]) if os.environ.get("GITHUB_STEP_SUMMARY") else None
     try:
+        outputs = (args.state_out, args.output_json, args.output_md)
+        preflight_output_paths(*outputs, summary)
+        if summary is not None and not summary.parent.is_dir():
+            raise ValueError(f"output parent is not a directory: {summary.parent}")
         previous = _load_state(args.state_in).get("sources", {})
-    except (OSError, ValueError) as error:
+        for path in outputs:
+            path.parent.mkdir(parents=True, exist_ok=True)
+    except (OSError, RuntimeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     records = [
@@ -144,14 +152,16 @@ def main() -> int:
         "summary": {status: sum(item["status"] == status for item in records) for status in sorted({item["status"] for item in records})},
     }
     state = {"schema_version": 1, "updated_at": report["checked_at"], "sources": {item["source"]: {"status": item["status"], "consecutive_failures": item["consecutive_failures"], "checked_at": item["checked_at"]} for item in records}}
-    for path in (args.state_out, args.output_json, args.output_md):
-        path.parent.mkdir(parents=True, exist_ok=True)
-    args.state_out.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    args.output_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    args.output_md.write_text(render_markdown(report), encoding="utf-8")
-    if os.environ.get("GITHUB_STEP_SUMMARY"):
-        with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
-            handle.write(render_markdown(report))
+    try:
+        args.state_out.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.output_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.output_md.write_text(render_markdown(report), encoding="utf-8")
+        if summary is not None:
+            with summary.open("a", encoding="utf-8") as handle:
+                handle.write(render_markdown(report))
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 1 if blocking else 0
 
 

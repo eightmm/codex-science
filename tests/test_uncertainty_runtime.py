@@ -383,6 +383,38 @@ class UncertaintyValidityTests(unittest.TestCase):
                 else:
                     self.assertEqual([], result["findings"])
 
+    def test_cli_refuses_untyped_identifiers_before_writing(self):
+        from loader_cases import assert_refused
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.json"
+            output = Path(directory) / "output.json"
+            base = {
+                "schema_version": 1, "propagation_id": "u", "claim_id": "c",
+                "expression": "1", "method": "linear",
+                "inputs": [{"name": "x", "mean": 1, "standard_uncertainty": 0.1}],
+            }
+            cases = []
+            for field in ("propagation_id", "claim_id", "name", "left", "right"):
+                for value in (None, "", " ", 0, True, [], {}):
+                    payload = copy.deepcopy(base)
+                    if field == "name":
+                        payload["inputs"][0]["name"] = value
+                    elif field in ("left", "right"):
+                        payload["inputs"][0]["name"] = str(value)
+                        payload["covariance"] = [{"left": str(value), "right": str(value), "value": 0.01}]
+                        payload["covariance"][0][field] = value
+                    else:
+                        payload[field] = value
+                    cases.append((field, value, payload))
+            for field, value, payload in cases:
+                source.write_text(json.dumps(payload))
+                for existing in (False, True):
+                    if existing:
+                        output.write_bytes(b"preserve")
+                    with self.subTest(field=field, value=value, existing=existing):
+                        assert_refused(self, "propagate_uncertainty.py", [source, "--output", output], 1, output)
+                    output.unlink(missing_ok=True)
+
     def test_public_command_refuses_invalid_clean_results(self):
         root = Path(__file__).resolve().parents[1]
         cases = (

@@ -20,6 +20,10 @@ class QuantitativeAcceptanceTests(unittest.TestCase):
         cases = [(key, {name: value for name, value in fixture.items() if name != key}) for key in required]
         cases.extend([("empty", {}), ("zero", {**fixture, "schema_version": 0}),
                       ("malformed", "{"), ("invalid-dimension", {**fixture, "dimension_check": {}})])
+        cases.extend(("schema-type", {**fixture, "schema_version": value})
+                     for value in (None, "", True, False, 1.0, "1", [], {}))
+        cases.extend(("run-id-type", {**fixture, "run_id": value})
+                     for value in (None, "", " ", 0, True, [], {}))
         for label, payload in cases:
             for existing in (False, True):
                 with self.subTest(label=label, existing=existing), tempfile.TemporaryDirectory() as tempdir:

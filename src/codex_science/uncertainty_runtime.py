@@ -183,7 +183,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     for index, item in enumerate(raw_inputs):
         if not isinstance(item, Mapping):
             raise ValueError(f"inputs[{index}] must be an object")
-        name = str(item.get("name", "")).strip()
+        name = _required_text(item.get("name"), f"inputs[{index}].name")
         if not name.isidentifier():
             raise ValueError(f"inputs[{index}].name must be an identifier")
         if name in names:
@@ -211,8 +211,10 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     index_by_name = {name: index for index, name in enumerate(names)}
     declared_pairs: dict[tuple[int, int], float] = {}
     for index, item in enumerate(raw_covariance):
-        left = str(item.get("left", ""))
-        right = str(item.get("right", ""))
+        left = item.get("left")
+        right = item.get("right")
+        if not isinstance(left, str) or not isinstance(right, str):
+            raise ValueError(f"covariance[{index}] input names must be non-empty strings")
         if left not in index_by_name or right not in index_by_name:
             raise ValueError(f"covariance[{index}] references an unknown input")
         value = _finite(item.get("value"), f"covariance[{index}].value")

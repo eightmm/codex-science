@@ -92,6 +92,90 @@ class PublicDriftTests(unittest.TestCase):
                                          {p.name for p in root.iterdir()})
         self.check_initial_optional_fields_and_writer_output()
 
+    def test_cli_preflights_every_destination_before_probing_or_writing(self) -> None:
+        for option in ("--state-out", "--output-json", "--output-md", "summary"):
+            for kind in ("directory", "missing-parent", "file-parent", "loop"):
+                for existing in (False, True):
+                    with self.subTest(option=option, kind=kind, existing=existing), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        outputs = [root / name / "report" for name in ("state", "json", "markdown")]
+                        for path in outputs:
+                            if existing:
+                                path.parent.mkdir()
+                                path.write_bytes(b"preserve")
+                        bad = root / "bad"
+                        if kind == "directory":
+                            bad.mkdir()
+                        elif kind == "missing-parent":
+                            bad = bad / "nested" / "report"
+                        elif kind == "file-parent":
+                            bad.write_bytes(b"preserve")
+                            bad = bad / "report"
+                        else:
+                            bad.symlink_to(bad.name)
+                        arguments = ["public_drift.py"]
+                        destinations = []
+                        for flag, path in zip(("--state-out", "--output-json", "--output-md"), outputs):
+                            destination = bad if flag == option else path
+                            destinations.append(destination)
+                            arguments.extend((flag, str(destination)))
+                        environment = {"GITHUB_STEP_SUMMARY": str(bad)} if option == "summary" else {}
+                        before = set(root.rglob("*"))
+                        succeeds = kind == "missing-parent" and option != "summary"
+                        def healthy_probe(*args, **kwargs):
+                            for destination in destinations:
+                                self.assertTrue(destination.parent.is_dir())
+                            return {"source": "mock", "status": "healthy", "consecutive_failures": 0,
+                                    "checked_at": "fixed", "detail": "record=1"}
+                        with mock.patch.object(sys, "argv", arguments), \
+                             mock.patch.object(self.module, "CHECKS", [("mock", object(), "query")]), \
+                             mock.patch.object(self.module, "probe", side_effect=healthy_probe) as probe, \
+                             mock.patch.dict(os.environ, environment, clear=True), \
+                             contextlib.redirect_stderr(io.StringIO()) as stderr:
+                            self.assertEqual(0 if succeeds else 1, self.module.main())
+                        if succeeds:
+                            probe.assert_called_once()
+                            self.assertEqual("", stderr.getvalue())
+                            self.assertTrue(bad.parent.is_dir())
+                            for destination in destinations:
+                                self.assertTrue(destination.is_file())
+                            self.assertEqual(1, json.loads(destinations[0].read_text())["schema_version"])
+                            self.assertEqual("healthy", json.loads(destinations[1].read_text())["status"])
+                            self.assertIn("Overall: **healthy**", destinations[2].read_text())
+                        else:
+                            probe.assert_not_called()
+                            self.assertTrue(stderr.getvalue().startswith("error:"), stderr.getvalue())
+                            self.assertEqual(before, set(root.rglob("*")))
+                            for path in outputs:
+                                if existing:
+                                    self.assertEqual(b"preserve", path.read_bytes())
+                                else:
+                                    self.assertFalse(path.exists())
+
+    def test_cli_labels_write_failure_after_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            outputs = [root / name for name in ("state.json", "report.json", "report.md")]
+            arguments = ["public_drift.py", "--state-out", str(outputs[0]),
+                         "--output-json", str(outputs[1]), "--output-md", str(outputs[2])]
+            original_write = Path.write_text
+            def fail_report(path, *args, **kwargs):
+                if path == outputs[2]:
+                    raise OSError("injected write failure")
+                return original_write(path, *args, **kwargs)
+            with mock.patch.object(sys, "argv", arguments), \
+                 mock.patch.object(self.module, "CHECKS", []), \
+                 mock.patch.object(self.module, "probe") as probe, \
+                 mock.patch.object(Path, "write_text", fail_report), \
+                 mock.patch.dict(os.environ, {}, clear=True), \
+                 contextlib.redirect_stderr(io.StringIO()) as stderr:
+                self.assertEqual(1, self.module.main())
+            probe.assert_not_called()
+            self.assertIn("error: injected write failure", stderr.getvalue())
+            self.assertTrue(outputs[0].is_file())
+            self.assertTrue(outputs[1].is_file())
+            self.assertFalse(outputs[2].exists())
+
     def check_initial_optional_fields_and_writer_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

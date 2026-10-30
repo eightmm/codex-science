@@ -18,7 +18,7 @@ from codex_science.cli_io import load_json_object, preflight_output_paths, resol
 from codex_science.math_contracts import build_mathematical_claim, build_proof_receipt  # noqa: E402
 from codex_science.numerical_verification import run_numerical_verification  # noqa: E402
 from codex_science.research_design import build_research_design  # noqa: E402
-from codex_science.safe_expression import canonical_sha256, search_counterexample  # noqa: E402
+from codex_science.safe_expression import _required_text, canonical_sha256, search_counterexample  # noqa: E402
 from codex_science.statistics_runtime import run_statistical_analysis  # noqa: E402
 from codex_science.uncertainty_runtime import run_uncertainty_propagation  # noqa: E402
 from codex_science.units_runtime import run_dimension_check  # noqa: E402
@@ -41,11 +41,9 @@ def _add(manifest: dict[str, Any], output: Path, path: Path, kind: str) -> None:
 
 def run(input_path: Path, output: Path) -> Path:
     payload = load_json_object(input_path)
-    if payload.get("schema_version") != 1:
+    if type(payload.get("schema_version")) is not int or payload["schema_version"] != 1:
         raise ValueError("unsupported quantitative acceptance input schema")
-    run_id = str(payload.get("run_id", "")).strip()
-    if not run_id:
-        raise ValueError("run_id is required")
+    run_id = _required_text(payload.get("run_id"), "run_id")
     for key in ("research_design", "statistical_analysis", "numerical_verification",
                 "dimension_check", "uncertainty_propagation", "false_statement_search",
                 "finite_statement_search"):

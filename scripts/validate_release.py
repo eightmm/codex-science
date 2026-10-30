@@ -239,10 +239,12 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--base-ref")
     args = parser.parse_args()
-    root = args.root.resolve()
     try:
+        # stat also refuses loops when non-strict resolve leaves them on Python 3.13+.
+        args.root.stat()
+        root = args.root.resolve()
         errors = validate_release(root)
-    except (OSError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     errors.extend(_tracked_path_errors(root))

@@ -326,6 +326,8 @@ def load_sources(path: Path) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or "sources" not in payload:
         raise ValueError("Sources config must be an object with a sources list")
+    if type(payload.get("schema_version")) is not int or payload["schema_version"] != 2:
+        raise ValueError("Unsupported sources config schema_version: expected integer 2")
     sources = payload["sources"]
     _validate_source_keys(sources)
     return sources

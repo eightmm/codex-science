@@ -12,6 +12,7 @@ from codex_science.catalog import (
     audit_skill,
     audit_sources,
     load_inventory,
+    load_sources,
     search_inventory,
     source_content_digest,
     write_inventory,
@@ -502,6 +503,24 @@ class CatalogAuditTests(unittest.TestCase):
         path.unlink()
         for candidate in (path, self.root):
             assert_refused(self, "audit_skills.py", ["--sources", candidate, "--output", output], 1, output)
+
+    def test_audit_cli_refuses_unsupported_source_schema_before_writing(self) -> None:
+        from loader_cases import assert_refused
+        source = self.root / "sources.json"
+        output = self.root / "inventory.json"
+        invalid = [{"sources": []}]
+        invalid.extend({"schema_version": value, "sources": []}
+                       for value in (None, "", 0, 1, 999, True, False, 2.0, "2", [], {}))
+        for payload in invalid:
+            source.write_text(json.dumps(payload))
+            for existing in (False, True):
+                if existing:
+                    output.write_bytes(b"preserve")
+                with self.subTest(payload=payload, existing=existing):
+                    assert_refused(self, "audit_skills.py", ["--sources", source, "--output", output], 1, output)
+                output.unlink(missing_ok=True)
+        source.write_text(json.dumps({"schema_version": 2, "sources": []}))
+        self.assertEqual([], load_sources(source))
 
     def test_inventory_loader_rejects_invalid_shapes(self) -> None:
         from loader_cases import malformed_json, nested_values

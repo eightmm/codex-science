@@ -32,7 +32,9 @@ class ReleasePathRefusalTests(unittest.TestCase):
             regular.write_bytes(b"preserve")
             empty = root / "empty"
             empty.mkdir()
-            paths = [root / "missing", regular]
+            loop = root / "loop"
+            loop.symlink_to(loop.name)
+            paths = [loop, loop / "child", root / "missing", regular]
             if include_empty:
                 paths.append(empty)
             for path in paths:
@@ -48,7 +50,7 @@ class ReleasePathRefusalTests(unittest.TestCase):
                     self.assertNotIn("Traceback", result.stderr)
                     self.assertEqual(b"preserve", regular.read_bytes())
                     self.assertEqual([], list(empty.iterdir()))
-                    self.assertEqual({"file", "empty"}, {item.name for item in root.iterdir()})
+                    self.assertEqual({"file", "empty", "loop"}, {item.name for item in root.iterdir()})
 
 
 class ReleaseLockTests(unittest.TestCase):
