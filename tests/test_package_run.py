@@ -596,6 +596,82 @@ class PackageRunTests(unittest.TestCase):
         helped = self.cli("exec", "--help")
         self.assertIn("unique within the run", " ".join(helped.stdout.split()))
 
+    def test_exec_refuses_non_object_journal_before_running(self) -> None:
+        for value in ("null", "[]", '"text"', "0", "false"):
+            for prefix, line_number in (("", 1), ("{}\n\n", 3)):
+                with self.subTest(value=value, prefix=prefix), tempfile.TemporaryDirectory() as directory:
+                    run_dir = Path(directory)
+                    journal = run_dir / "execution-log.jsonl"
+                    content = (prefix + value).encode("utf-8")
+                    journal.write_bytes(content)
+                    for _ in range(2):
+                        result = self.cli(
+                            "exec", "--run-dir", str(run_dir), "--", sys.executable,
+                            "-c", "import sys; from pathlib import Path; Path(sys.argv[1]).touch()", str(run_dir / "ran"),
+                        )
+                        self.assertEqual(result.returncode, 1, result.stderr)
+                        self.assertIn("error:", result.stderr)
+                        self.assertIn(f"execution-log.jsonl line {line_number}", result.stderr)
+                        self.assertIn("must be a JSON object", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual(result.stdout, "")
+                        self.assertEqual(journal.read_bytes(), content)
+                        self.assertEqual(list(run_dir.iterdir()), [journal])
+
+    def test_exec_refuses_undecodable_journal_before_running(self) -> None:
+        prefixes = [(b"", 1), (b"{}\n\n", 3)]
+        prefixes.extend((f"{{}}{separator}{{}}\n".encode("utf-8"), 3) for separator in ("\u2028", "\u0085", "\v"))
+        for prefix, line_number in prefixes:
+            for value in (b"{", b"null{}", b"\xff", b"1" * 5000, b"[" * 10000 + b"]" * 10000):
+                with self.subTest(prefix=prefix, value_start=value[:8], size=len(value)), tempfile.TemporaryDirectory() as directory:
+                    run_dir = Path(directory)
+                    journal = run_dir / "execution-log.jsonl"
+                    content = prefix + value + b"\n"
+                    journal.write_bytes(content)
+                    result = self.cli(
+                        "exec", "--run-dir", str(run_dir), "--", sys.executable,
+                        "-c", "import sys; from pathlib import Path; Path(sys.argv[1]).touch()", str(run_dir / "ran"),
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("error:", result.stderr)
+                    self.assertIn(f"execution-log.jsonl line {line_number}", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    if value.startswith(b"["):
+                        self.assertIn("excessive nesting", result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertEqual(journal.read_bytes(), content)
+                    self.assertEqual(list(run_dir.iterdir()), [journal])
+
+    def test_exec_preserves_journal_boundaries_and_log_tail(self) -> None:
+        contents = [None, b"", b"\n \t\n", b"{}\n", b"{}", b"{}\r", b"{}\n \t", b'{"id":"exec-001","exit_code":0}']
+        for separator in ("\n", "\r", "\r\n", "\u2028", "\u2029", "\u0085", "\v", "\f", "\x1c", "\x1d", "\x1e"):
+            for suffix in ("", "\n", "{}\n"):
+                contents.append(('{"id":"exec-001","exit_code":0}' + separator + suffix).encode("utf-8"))
+        for content in contents:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
+                run_dir = Path(directory)
+                journal = run_dir / "execution-log.jsonl"
+                if content is not None:
+                    journal.write_bytes(content)
+                first = 2 if content and b"exec-001" in content else 1
+                for expected in range(first, first + 2):
+                    before = journal.read_bytes() if journal.exists() else b""
+                    result = self.cli(
+                        "exec", "--run-dir", str(run_dir), "--", sys.executable,
+                        "-c", "for i in range(45): print(i)",
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, "".join(f"{i}\n" for i in range(5, 45)))
+                    separator = b"\n" if before and not before.endswith(b"\n") else b""
+                    appended = journal.read_bytes()[len(before + separator):]
+                    record = json.loads(appended)
+                    self.assertEqual(journal.read_bytes(), before + separator + (json.dumps(record, sort_keys=True) + "\n").encode("utf-8"))
+                    records = [json.loads(line) for line in journal.read_bytes().decode("utf-8").splitlines() if line.strip()]
+                    self.assertEqual(records[-1], record)
+                    self.assertEqual(record["id"], f"exec-{expected:03d}")
+                    self.assertEqual(record["exit_code"], 0)
+                    self.assertEqual((run_dir / record["log_path"]).read_text(), "".join(f"{i}\n" for i in range(45)))
+
     def test_refresh_forget_removes_entry_of_deleted_file_and_refuses_unsafe_paths(self) -> None:
         self._make_unreviewed_run()
         manifest_path = self.run_dir / "manifest.json"

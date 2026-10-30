@@ -200,7 +200,27 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
     log_file = run_dir / "execution-log.jsonl"
     _write_target(run_dir, "execution-log.jsonl")
     logs_dir = _safe_directory(run_dir, "logs")
-    records = [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip()] if log_file.exists() else []
+    records = []
+    if log_file.exists():
+        content = log_file.read_bytes()
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError as error:
+            # The sentinel retains the current line after any str.splitlines separator.
+            number = len((content[:error.start].decode("utf-8") + "x").splitlines())
+            raise ValueError(f"Invalid execution-log.jsonl line {number}: {error}") from error
+        for number, line in enumerate(text.splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError as error:
+                raise ValueError(f"Invalid execution-log.jsonl line {number}: {error}") from error
+            except RecursionError as error:
+                raise ValueError(f"Invalid execution-log.jsonl line {number}: excessive nesting") from error
+            if not isinstance(entry, dict):
+                raise ValueError(f"Invalid execution-log.jsonl line {number}: execution record must be a JSON object")
+            records.append(entry)
     exit_codes: dict[str, list[Any]] = {}
 
     def _note(item: Any) -> None:
@@ -268,10 +288,13 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
     ended = _utc()
     record = {"id": identifier, "command": shlex.join(command), "started_at": started, "ended_at": ended,
               "exit_code": result.returncode, "log_path": log_relative, "log_sha256": _sha(log_path)}
-    journal_fd = os.open(log_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o666)
+    journal_fd = os.open(log_file, os.O_RDWR | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o666)
     with os.fdopen(journal_fd, "a", encoding="utf-8") as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
         payload = (json.dumps(record, sort_keys=True) + "\n").encode("utf-8")
+        size = os.fstat(stream.fileno()).st_size
+        if size and os.pread(stream.fileno(), 1, size - 1) != b"\n":
+            os.write(stream.fileno(), b"\n")
         os.write(stream.fileno(), payload)
         fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
     lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
