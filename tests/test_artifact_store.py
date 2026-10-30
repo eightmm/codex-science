@@ -15,12 +15,104 @@ from codex_science.artifact_store import (
     describe_directory,
     describe_external_reference,
     describe_file,
+    iter_chunk_hashes,
     validate_descriptor,
 )
 from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, verify_bundle_artifacts
 
 
 class ArtifactStoreTests(unittest.TestCase):
+    def test_cli_refuses_nonobject_descriptor_and_invalid_chunk_sizes(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/describe_artifact.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, descriptor, output = root / "file", root / "verify.json", root / "output.json"
+            source.write_bytes(b"x")
+            cases = []
+            for value in ([], "x", 1, None, True, float("nan"), float("inf"), {"schema_version": True}):
+                cases.append((["--verify", str(descriptor)], json.dumps(value)))
+            external = describe_external_reference(
+                uri="s3://bucket/data", version="v1", sha256=hashlib.sha256(b"x").hexdigest(), size_bytes=1,
+            ).to_dict()
+            for baseline in (describe_file(source).to_dict(), external):
+                for value in (False, True, 0, 1, 1.0, "x", [], [["uri", "s3://bucket/data"]], float("nan"), float("inf")):
+                    cases.append((["--verify", str(descriptor)], json.dumps({**baseline, "external": value})))
+            for field in ("uri", "version"):
+                for value in (None, False, True, 0, 1, 1.0, [], {}, "", " "):
+                    payload = copy.deepcopy(external)
+                    payload["external"][field] = value
+                    cases.append((["--verify", str(descriptor)], json.dumps(payload)))
+            for value in (float("nan"), float("inf")):
+                payload = copy.deepcopy(external)
+                payload["external"]["license"] = value
+                cases.append((["--verify", str(descriptor)], json.dumps(payload)))
+            cases.extend((["--chunk-size", str(value)], "{}") for value in (0, -1))
+            for arguments, raw in cases:
+                for existing in (False, True):
+                    with self.subTest(arguments=arguments, raw=raw, existing=existing):
+                        descriptor.write_text(raw, encoding="utf-8")
+                        output.unlink(missing_ok=True)
+                        if existing: output.write_bytes(b"previous descriptor")
+                        result = subprocess.run([sys.executable, str(script), str(source), "--output", str(output), *arguments],
+                                                capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(b"x", source.read_bytes())
+                        self.assertEqual(b"previous descriptor" if existing else None,
+                                         output.read_bytes() if output.exists() else None)
+            payload = copy.deepcopy(external)
+            payload["external"]["license"] = float("nan")
+            descriptor.write_text(json.dumps(payload), encoding="utf-8")
+            store = root / "store"
+            result = subprocess.run([sys.executable, str(script), str(source), "--verify", str(descriptor),
+                                     "--store", str(store)], capture_output=True, text=True,
+                                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual("", result.stdout)
+            self.assertFalse(store.exists())
+            for content in (b"", b"x", b"scientific bytes"):
+                source.write_bytes(content)
+                normal = len(content) + 1
+                reference = describe_file(source, chunk_size=normal).to_dict()
+                for chunk_size in (normal, 2 ** 60, 10 ** 400):
+                    with self.subTest(content=content, chunk_size=chunk_size):
+                        result = subprocess.run([sys.executable, str(script), str(source), "--chunk-size", str(chunk_size)],
+                                                capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        expected = copy.deepcopy(reference)
+                        expected["entries"][0]["chunk_size"] = chunk_size
+                        self.assertEqual(json.dumps(expected, indent=2, sort_keys=True) + "\n", result.stdout)
+            for content in (b"", b"x", b"xx"):
+                source.write_bytes(content)
+                self.assertEqual(len(content), describe_file(source, chunk_size=1).total_bytes)
+                payload = describe_external_reference(
+                    uri="s3://bucket/data", version="v1", sha256=hashlib.sha256(content).hexdigest(), size_bytes=len(content),
+                ).to_dict()
+                self.assertEqual(payload, validate_descriptor(payload, source).to_dict())
+            for value in (True, False, 1.0, "1", [], {}):
+                with self.subTest(chunk_size=value), self.assertRaises(ValueError):
+                    describe_file(source, chunk_size=value)
+            payload = describe_file(source).to_dict()
+            for value in (True, 1.0, None, 0, "1"):
+                with self.subTest(schema_version=value), self.assertRaises(ValueError):
+                    validate_descriptor({**payload, "schema_version": value})
+            for value in (None, False, True, 0, 1, [], {}):
+                payload = describe_file(source).to_dict()
+                payload["entries"][0]["path"] = value
+                with self.subTest(entry_path=value), self.assertRaises(ValueError):
+                    validate_descriptor(payload)
+            payload = copy.deepcopy(external)
+            payload["root_sha256"] = int("1" * 64)
+            payload["external"]["sha256"] = int("1" * 64)
+            with self.assertRaises(ValueError):
+                validate_descriptor(payload)
+
     def test_cli_store_write_failure_does_not_print_descriptor_success(self) -> None:
         launcher = (
             "import runpy, sys\nfrom pathlib import Path\nscript = sys.argv[1]\nsys.argv = sys.argv[1:]\n"
@@ -171,6 +263,38 @@ class ArtifactStoreTests(unittest.TestCase):
             for invalid in (0, -1):
                 with self.subTest(chunk_size=invalid), self.assertRaisesRegex(ValueError, "positive"):
                     describe_file(path, chunk_size=invalid)
+            content = b"x" * (2 * 1024 * 1024 + 1)
+            path.write_bytes(content)
+            for chunk_size in (1, 1024 * 1024, 1024 * 1024 + 1, len(content), 2 ** 60):
+                if chunk_size == 1:
+                    path.write_bytes(b"abc")
+                    data = b"abc"
+                else:
+                    path.write_bytes(content)
+                    data = content
+                reads = []
+
+                @contextmanager
+                def bounded_open(target, *args, **kwargs):
+                    with original_open(target, *args, **kwargs) as handle:
+                        def read(size):
+                            self.assertLessEqual(size, 1024 * 1024)
+                            self.assertGreater(size, 0)
+                            reads.append(size)
+                            return handle.read(size)
+                        yield mock.Mock(read=read)
+
+                expected_chunks = [
+                    {"index": index, "offset": offset, "size": len(data[offset:offset + chunk_size]),
+                     "sha256": hashlib.sha256(data[offset:offset + chunk_size]).hexdigest()}
+                    for index, offset in enumerate(range(0, len(data), chunk_size))
+                ]
+                with self.subTest(chunk_size=chunk_size), mock.patch.object(Path, "open", bounded_open):
+                    descriptor = describe_file(path, chunk_size=chunk_size)
+                    self.assertEqual(expected_chunks, descriptor.entries[0]["chunks"])
+                    self.assertEqual(expected_chunks, list(iter_chunk_hashes(path, chunk_size=chunk_size)))
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), descriptor.root_sha256)
+                    self.assertTrue(reads)
 
     def test_store_verification_normalizes_digest_and_handles_missing_or_corrupt_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

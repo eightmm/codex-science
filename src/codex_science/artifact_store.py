@@ -8,14 +8,17 @@ import shutil
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterator, Mapping
+from typing import Any, BinaryIO, Iterator, Mapping
 
 DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
+_READ_BUFFER_SIZE = 1024 * 1024
 ARTIFACT_TYPES = {"file", "chunked-file", "directory-tree", "external-reference"}
 
 
 def _hex_sha256(value: Any, label: str) -> str:
-    text = str(value).lower().strip()
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a SHA-256 digest")
+    text = value.lower().strip()
     if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise ValueError(f"{label} must be a SHA-256 digest")
     return text
@@ -42,27 +45,39 @@ def stream_sha256(path: Path, *, block_size: int = 1024 * 1024) -> tuple[str, in
 
 
 def iter_chunk_hashes(path: Path, *, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Iterator[dict[str, Any]]:
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be positive")
+    _descriptor_integer(chunk_size, "chunk_size", positive=True)
+    with path.open("rb") as handle:
+        yield from _iter_chunk_hashes(handle, chunk_size)
+
+
+def _iter_chunk_hashes(handle: BinaryIO, chunk_size: int, whole: Any = None) -> Iterator[dict[str, Any]]:
     offset = 0
     index = 0
-    with path.open("rb") as handle:
-        while chunk := handle.read(chunk_size):
-            yield {
-                "index": index,
-                "offset": offset,
-                "size": len(chunk),
-                "sha256": hashlib.sha256(chunk).hexdigest(),
-            }
-            index += 1
-            offset += len(chunk)
+    while True:
+        digest = hashlib.sha256()
+        size = 0
+        while size < chunk_size:
+            block = handle.read(min(chunk_size - size, _READ_BUFFER_SIZE))
+            if not block:
+                break
+            digest.update(block)
+            if whole is not None:
+                whole.update(block)
+            size += len(block)
+        if not size:
+            return
+        yield {"index": index, "offset": offset, "size": size, "sha256": digest.hexdigest()}
+        index += 1
+        offset += size
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def _validate_relative(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("artifact entry path must be a non-empty string")
     pure = PurePosixPath(value)
     if not value or pure.is_absolute() or ".." in pure.parts:
         raise ValueError(f"artifact entry must be a safe relative path: {value}")
@@ -99,21 +114,11 @@ def describe_file(
         entries = ({"path": path.name, "size": size, "sha256": digest},)
         artifact_type = "file"
     else:
-        if chunk_size <= 0:
-            raise ValueError("chunk_size must be positive")
+        _descriptor_integer(chunk_size, "chunk_size", positive=True)
         whole = hashlib.sha256()
-        size = 0
-        chunks = []
         with path.open("rb") as handle:
-            while chunk := handle.read(chunk_size):
-                whole.update(chunk)
-                chunks.append({
-                    "index": len(chunks),
-                    "offset": size,
-                    "size": len(chunk),
-                    "sha256": hashlib.sha256(chunk).hexdigest(),
-                })
-                size += len(chunk)
+            chunks = list(_iter_chunk_hashes(handle, chunk_size, whole))
+        size = sum(chunk["size"] for chunk in chunks)
         digest = whole.hexdigest()
         entries = (
             {
@@ -205,10 +210,12 @@ def describe_external_reference(
 
 
 def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) -> ArtifactDescriptor:
-    if payload.get("schema_version") != 1:
+    if not isinstance(payload, Mapping):
+        raise ValueError("artifact descriptor must be an object")
+    if type(payload.get("schema_version")) is not int or payload["schema_version"] != 1:
         raise ValueError("unsupported artifact descriptor schema")
-    artifact_type = str(payload.get("artifact_type", ""))
-    if artifact_type not in ARTIFACT_TYPES:
+    artifact_type = payload.get("artifact_type", "")
+    if not isinstance(artifact_type, str) or artifact_type not in ARTIFACT_TYPES:
         raise ValueError(f"unsupported artifact type: {artifact_type}")
     root_sha256 = _hex_sha256(payload.get("root_sha256"), "root_sha256")
     total_bytes = _descriptor_integer(payload.get("total_bytes", 0), "total_bytes")
@@ -221,7 +228,7 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
         raise ValueError("every descriptor entry must be an object")
     entry_paths: set[str] = set()
     for item in entries:
-        entry_path = _validate_relative(str(item.get("path", "")))
+        entry_path = _validate_relative(item.get("path", ""))
         if entry_path in entry_paths:
             raise ValueError(f"Duplicate descriptor entry path: {entry_path}")
         entry_paths.add(entry_path)
@@ -246,6 +253,9 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
                 expected_offset += size
             if expected_offset != entry_size:
                 raise ValueError("chunk sizes do not sum to entry size")
+    external_raw = payload.get("external")
+    if external_raw is not None and not isinstance(external_raw, Mapping):
+        raise ValueError("external metadata must be an object")
     descriptor = ArtifactDescriptor(
         1,
         artifact_type,
@@ -254,7 +264,7 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
         entry_count,
         None if payload.get("media_type") is None else str(payload.get("media_type")),
         entries,
-        None if payload.get("external") is None else dict(payload.get("external")),
+        None if external_raw is None else dict(external_raw),
     )
     if artifact_type == "external-reference":
         external = descriptor.external
@@ -262,8 +272,8 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
             raise ValueError("external-reference requires external metadata")
         if _hex_sha256(external.get("sha256"), "external sha256") != root_sha256:
             raise ValueError("external reference digest does not match root_sha256")
-        if not str(external.get("uri", "")).strip() or not str(external.get("version", "")).strip():
-            raise ValueError("external reference requires uri and version")
+        if any(not isinstance(external.get(field), str) or not external[field].strip() for field in ("uri", "version")):
+            raise ValueError("external reference requires uri and version as non-empty strings")
         if entries or entry_count != 0:
             raise ValueError("external reference cannot contain local entries")
         external_size = external.get("size_bytes")
@@ -301,8 +311,9 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
 
 
 def write_descriptor(path: Path, descriptor: ArtifactDescriptor) -> None:
+    rendered = (json.dumps(descriptor.to_dict(), indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(descriptor.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_bytes(rendered)
 
 
 class ContentAddressedStore:

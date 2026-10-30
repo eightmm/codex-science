@@ -249,5 +249,10 @@ class VersionedSnapshotConnector:
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, limit = _validate(query, limit)
         payload = json.loads(self.path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("release snapshot must be an object")
+        releases = payload.get("releases", [])
+        if not isinstance(releases, list) or any(not isinstance(item, dict) for item in releases):
+            raise ValueError("snapshot releases must be a list of objects")
         needle = query.lower()
-        return _received_records([dict(item) for item in payload.get("releases", []) if needle in json.dumps(item, ensure_ascii=False).lower()])[:limit]
+        return _received_records([dict(item) for item in releases if needle in json.dumps(item, ensure_ascii=False).lower()])[:limit]

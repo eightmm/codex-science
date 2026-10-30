@@ -29,7 +29,7 @@ class FixtureTransport:
     def send(self, request: PageRequest) -> TransportResponse:
         self.requests.append(request)
         payload = self.payloads.pop(0)
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        body = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
         return TransportResponse(
             status_code=200,
             url=request.url,
@@ -127,9 +127,13 @@ def main() -> int:
     )
     if gnomad.search("1-100-A-G", limit=1)[0]["assembly"] != "GRCh38":
         raise SystemExit("gnomAD fixture normalization failed")
-    release = VersionedSnapshotConnector(
-        "eqtl-catalogue-releases.json", root=root / "connectors"
-    ).search("current", limit=1)
+    try:
+        release = VersionedSnapshotConnector(
+            "eqtl-catalogue-releases.json", root=root / "connectors"
+        ).search("current", limit=1)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     if not release:
         raise SystemExit("versioned eQTL release snapshot is unavailable")
 

@@ -99,6 +99,25 @@ class ConsensusTests(unittest.TestCase):
         self.assertIsNone(result["ranking"])
         self.assertEqual(size // 2, len(result["disconnected_components"]))
         self.assertLess(peak, size * 4096)
+    def test_cli_refuses_surrogates_before_stdout_serialization(self):
+        script = ROOT / "scripts/rank_trajectories.py"
+        for statement in ("", "\ud800", "\udfff", "ok\ud800end"):
+            with self.subTest(statement=repr(statement)):
+                payload = {"schema": "trajectory-set-v1", "trajectories": [
+                    {"id": "t", "claims": [{"key": "k", "statement": statement, "status": "supported"}]}]}
+                result = subprocess.run([sys.executable, str(script), "--input", "-"], input=json.dumps(payload),
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertEqual("", result.stderr)
+                self.assertEqual("invalid_request", json.loads(result.stdout)["error"]["code"])
+        for statement in ("valid", "한글", "\U00010000"):
+            payload["trajectories"][0]["claims"][0]["statement"] = statement
+            result = subprocess.run([sys.executable, str(script), "--input", "-"], input=json.dumps(payload),
+                                    capture_output=True, text=True,
+                                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(build_consensus(payload), json.loads(result.stdout))
 
     def test_rank_matches_dense_reference(self):
         cases = [

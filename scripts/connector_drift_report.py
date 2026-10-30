@@ -12,9 +12,13 @@ def main() -> int:
     parser.add_argument("current", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    report = classify_drift(json.loads(args.previous.read_text()), json.loads(args.current.read_text()))
-    text = json.dumps(report, indent=2, sort_keys=True) + "\n"
-    if args.output: args.output.write_text(text, encoding="utf-8")
-    else: print(text, end="")
+    try:
+        report = classify_drift(json.loads(args.previous.read_text()), json.loads(args.current.read_text()))
+        text = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        if args.output: args.output.write_text(text, encoding="utf-8")
+        else: print(text, end="")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 if __name__ == "__main__": raise SystemExit(main())

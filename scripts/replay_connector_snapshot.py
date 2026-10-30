@@ -10,8 +10,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("snapshot", type=Path)
     args = parser.parse_args()
-    payload = json.loads(args.snapshot.read_text(encoding="utf-8"))
-    result = replay_snapshot(payload)
-    print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+    try:
+        payload = json.loads(args.snapshot.read_text(encoding="utf-8"))
+        result = replay_snapshot(payload)
+        print(json.dumps(result.to_dict(), indent=2, sort_keys=True, allow_nan=False))
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 if __name__ == "__main__": raise SystemExit(main())

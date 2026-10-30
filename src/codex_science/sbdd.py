@@ -19,10 +19,9 @@ CLAIM_TYPES = {"pose", "ranking", "enrichment", "probability", "affinity", "mech
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
-    if not text:
-        raise ValueError(f"{label} is required")
-    return text
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty string")
+    return value.strip()
 
 
 def _list(value: Any, label: str) -> list[Any]:
@@ -40,7 +39,7 @@ def _mapping(value: Any, label: str) -> dict[str, Any]:
 def validate_benchmark(bundle: dict[str, Any]) -> None:
     if not isinstance(bundle, dict):
         raise ValueError("SBDD benchmark must be an object")
-    if bundle.get("schema_version") != 1:
+    if type(bundle.get("schema_version")) is not int or bundle["schema_version"] != 1:
         raise ValueError("Unsupported SBDD benchmark schema version")
     _text(bundle.get("benchmark_id"), "benchmark_id")
     split_policy = _text(bundle.get("split_policy"), "split_policy")

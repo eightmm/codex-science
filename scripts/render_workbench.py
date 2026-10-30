@@ -15,7 +15,7 @@ def main() -> int:
     output = args.output or args.manifest.parent / "workbench.html"
     try:
         write_workbench(args.manifest.resolve(), output)
-    except ValueError as error:
+    except (OSError, UnicodeError, ValueError) as error:
         print(f"error: {error}{digest_mismatch_hint(error, args.manifest.resolve().parent)}", file=sys.stderr)
         return 1
     except RecursionError:

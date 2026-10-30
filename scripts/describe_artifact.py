@@ -31,7 +31,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return describe(args)
-    except (OSError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, OverflowError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
@@ -62,6 +62,7 @@ def describe(args: argparse.Namespace) -> int:
         descriptor = describe_directory(target, media_type=args.media_type)
     else:
         descriptor = describe_file(target, media_type=args.media_type, chunk_size=args.chunk_size)
+    rendered = None if args.output else json.dumps(descriptor.to_dict(), indent=2, sort_keys=True, allow_nan=False)
     if args.output:
         write_descriptor(args.output.resolve(), descriptor)
     stored_record = None
@@ -69,9 +70,9 @@ def describe(args: argparse.Namespace) -> int:
         digest, stored = store.add_file(target)
         stored_record = {"sha256": digest, "stored_path": str(stored)}
     if not args.output:
-        print(json.dumps(descriptor.to_dict(), indent=2, sort_keys=True))
+        print(rendered)
     if stored_record is not None:
-        print(json.dumps(stored_record, sort_keys=True))
+        print(json.dumps(stored_record, sort_keys=True, allow_nan=False))
     return 0
 
 

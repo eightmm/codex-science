@@ -86,25 +86,32 @@ def _identifiers(record: dict[str, Any]) -> set[str]:
 
 
 def validate_relationships(records: list[dict[str, Any]]) -> None:
-    ids = {str(record.get("study_id", "")) for record in records}
+    if not isinstance(records, list):
+        raise ValueError("studies must be a list of objects")
+    ids = set()
     for record in records:
-        source = str(record.get("study_id", ""))
-        if not source:
-            raise ValueError("study_id is required")
+        if not isinstance(record, dict):
+            raise ValueError("each study must be an object")
+        study_id = record.get("study_id")
+        if not isinstance(study_id, str) or not study_id.strip():
+            raise ValueError("study_id must be a non-empty string")
+        ids.add(study_id)
+    for record in records:
+        source = record["study_id"]
         relations = record.get("relationships", [])
         if not isinstance(relations, list):
             raise ValueError(f"study {source} relationships must be a list")
         for relation in relations:
             if not isinstance(relation, dict):
                 raise ValueError(f"study {source} relationship must be an object")
-            kind, target = str(relation.get("type", "")), str(relation.get("target_study_id", ""))
+            kind, target = relation.get("type"), relation.get("target_study_id")
+            if not isinstance(kind, str) or not isinstance(target, str) or not target.strip():
+                raise ValueError("relationship type and target_study_id must be non-empty strings")
             if kind not in RELATIONSHIPS or target not in ids:
                 raise ValueError(f"invalid study relationship: {source} {kind} {target}")
 
 
 def resolve_study_families(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if not records:
-        return []
     validate_relationships(records)
     by_id: dict[str, dict[str, Any]] = {}
     for record in records:

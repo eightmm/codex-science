@@ -1,4 +1,9 @@
 import json
+import copy
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -6,6 +11,37 @@ from codex_science.sbdd import audit_sbdd_benchmark, benchmark_passes
 
 
 class SBDDAcceptanceTests(unittest.TestCase):
+    def test_cli_refuses_invalid_benchmark_without_writes(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/audit_sbdd_benchmark.py"
+        invalid = [None, [], "x", 1, True, float("nan"), float("inf"), {}, {"schema_version": 1}]
+        for field in ("benchmark_id", "schema_version"):
+            for value in (None, False, True, 1.0, [], {}, ""):
+                payload = copy.deepcopy(self.valid)
+                payload[field] = value
+                invalid.append(payload)
+        cases = [b"", b"{", b"\xff", *(json.dumps(item).encode() for item in invalid)]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, output = root / "benchmark.json", root / "report.json"
+            for raw in ["missing", "directory", *cases]:
+                for existing in (False, True):
+                    with self.subTest(raw=raw, existing=existing):
+                        if source.is_dir(): source.rmdir()
+                        else: source.unlink(missing_ok=True)
+                        if raw == "directory": source.mkdir()
+                        elif raw != "missing": source.write_bytes(raw)
+                        output.unlink(missing_ok=True)
+                        if existing: output.write_bytes(b"previous report")
+                        result = subprocess.run([sys.executable, str(script), str(source), "--output", str(output)],
+                                                capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(b"previous report" if existing else None,
+                                         output.read_bytes() if output.exists() else None)
+
     def setUp(self) -> None:
         root = Path(__file__).resolve().parents[1] / "examples" / "sbdd-acceptance"
         self.valid = json.loads((root / "benchmark.json").read_text(encoding="utf-8"))

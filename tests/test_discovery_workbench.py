@@ -1,9 +1,13 @@
 import copy
+import errno
 import hashlib
 import io
 import json
+import os
 import runpy
 import shutil
+import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -40,11 +44,33 @@ def add_fixture_annotation(cli, *, annotation_id="A1", text="Check the claim", a
 
 
 class DiscoveryWorkbenchTests(unittest.TestCase):
+    def test_cli_refuses_missing_or_directory_manifest_without_writes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, output = root / "manifest.json", root / "workbench.html"
+            for directory in (False, True):
+                if directory: source.mkdir()
+                for existing in (False, True):
+                    with self.subTest(directory=directory, existing=existing):
+                        output.unlink(missing_ok=True)
+                        if existing: output.write_bytes(b"previous view")
+                        result = subprocess.run([sys.executable, str(ROOT / "scripts/render_workbench.py"),
+                                                 str(source), "--output", str(output)],
+                                                capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(b"previous view" if existing else None,
+                                         output.read_bytes() if output.exists() else None)
+
     def workbench_cli(self, manifest_path, output=None):
         command = [sys.executable, str(ROOT / "scripts/render_workbench.py"), str(manifest_path)]
         if output is not None:
             command.extend(["--output", str(output)])
-        return subprocess.run(command, capture_output=True, text=True)
+        return subprocess.run(command, capture_output=True, text=True,
+                              timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
 
     def assert_workbench_protected(self, manifest_path, output, kind):
         before = {path: path.read_bytes() for path in manifest_path.parent.rglob("*") if path.is_file()}
@@ -169,15 +195,164 @@ class DiscoveryWorkbenchTests(unittest.TestCase):
                 result = self.workbench_cli(manifest_path)
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertEqual(render_workbench(manifest, root).encode(), output.read_bytes())
-                self.assertEqual(inode, output.stat().st_ino)
+                self.assertNotEqual(inode, output.stat().st_ino)
                 self.assertEqual(0o640, output.stat().st_mode & 0o777)
+                inode = output.stat().st_ino
+            for mask in (0, 0o022, 0o027, 0o077, 0o777):
+                with self.subTest(umask=mask):
+                    previous_mask = os.umask(mask)
+                    try:
+                        plain = root / f"plain-{mask}"
+                        plain.write_bytes(b"reference mode")
+                        destination = root / f"new-{mask}.html"
+                        result = self.workbench_cli(manifest_path, destination)
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertEqual(plain.stat().st_mode & 0o777, destination.stat().st_mode & 0o777)
+                        destination.chmod(0o600)
+                        self.assertEqual(render_workbench(manifest, root).encode(), destination.read_bytes())
+                        result = self.workbench_cli(manifest_path, output)
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertEqual(0o640, output.stat().st_mode & 0o777)
+                    finally:
+                        os.umask(previous_mask)
+                        plain.chmod(0o600)
+            collision = root / (".wb-" + "0" * 10)
+            collision.write_bytes(b"keep existing temporary name")
+            main = runpy.run_path(str(ROOT / "scripts/render_workbench.py"))["main"]
+            for attempts in (0, 2):
+                for existing in (False, True):
+                    with self.subTest(attempts=attempts, existing=existing):
+                        destination = root / f"collision-{attempts}-{existing}.html"
+                        if existing: destination.write_bytes(b"keep existing output")
+                        before = {path: path.read_bytes() for path in root.iterdir() if path.is_file()}
+                        stdout, stderr = io.StringIO(), io.StringIO()
+                        with mock.patch("codex_science.workbench.tempfile.TMP_MAX", attempts), \
+                                mock.patch("codex_science.workbench.os.urandom", return_value=b"\x00" * 5) as random_bytes, \
+                                mock.patch.object(sys, "argv", ["render_workbench.py", str(manifest_path), "--output", str(destination)]), \
+                                mock.patch.object(sys, "stdout", stdout), mock.patch.object(sys, "stderr", stderr):
+                            status = main()
+                        self.assertEqual(1, status)
+                        self.assertTrue(stderr.getvalue().startswith("error: "), stderr.getvalue())
+                        self.assertNotIn("Traceback", stderr.getvalue())
+                        self.assertEqual("", stdout.getvalue())
+                        self.assertEqual(attempts, random_bytes.call_count)
+                        self.assertEqual(before, {path: path.read_bytes() for path in root.iterdir() if path.is_file()})
+            destination = root / "after-collision.html"
+            with mock.patch("codex_science.workbench.tempfile.TMP_MAX", 2), \
+                    mock.patch("codex_science.workbench.os.urandom", side_effect=[b"\x00" * 5, b"\x01" * 5]) as random_bytes:
+                write_workbench(manifest_path, destination)
+            self.assertEqual(2, random_bytes.call_count)
+            self.assertEqual(b"keep existing temporary name", collision.read_bytes())
+            self.assertEqual(render_workbench(manifest, root).encode(), destination.read_bytes())
             for example in sorted((ROOT / "examples").glob("*/manifest.json")):
                 with self.subTest(example=example.parent.name):
                     data = json.loads(example.read_text())
                     expected = render_workbench(data, example.parent).encode()
                     write_workbench(example, output)
                     self.assertEqual(expected, output.read_bytes())
+            with self.subTest(filesystem_name_limit=True):
+                try:
+                    name_max = os.pathconf(root, "PC_NAME_MAX")
+                except (AttributeError, ValueError) as error:
+                    self.skipTest(f"filesystem NAME_MAX unavailable: {error}")
+                except OSError as error:
+                    if error.errno in (errno.EINVAL, errno.ENOSYS, errno.ENOTSUP):
+                        self.skipTest(f"filesystem NAME_MAX unavailable: {error}")
+                    raise
+                if name_max < 1:
+                    self.skipTest("filesystem NAME_MAX is indeterminate")
+                expected = render_workbench(manifest, root).encode("utf-8")
+                for length in sorted({1, max(1, name_max - 9), name_max}):
+                    for existing in (False, True):
+                        with self.subTest(length=length, existing=existing):
+                            destination = root / ("x" * length)
+                            destination.unlink(missing_ok=True)
+                            if existing:
+                                destination.write_bytes(b"previous view")
+                                destination.chmod(0o640)
+                            before = set(root.iterdir())
+                            result = self.workbench_cli(manifest_path, destination)
+                            self.assertEqual(0, result.returncode, result.stderr)
+                            self.assertEqual(expected, destination.read_bytes())
+                            self.assertEqual(before | {destination}, set(root.iterdir()))
+                            if existing:
+                                self.assertEqual(0o640, destination.stat().st_mode & 0o777)
+                for destination in (root, root / ("x" * (name_max + 1))):
+                    before = {path: path.read_bytes() for path in root.iterdir() if path.is_file()}
+                    result = self.workbench_cli(manifest_path, destination)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(before, {path: path.read_bytes() for path in root.iterdir() if path.is_file()})
             self.assert_workbench_protected(manifest_path, manifest_path, "manifest")
+
+            def assert_special_preserved(destination):
+                before = destination.lstat()
+                entries = set(root.iterdir())
+                result = self.workbench_cli(manifest_path, destination)
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual("", result.stdout)
+                after = destination.lstat()
+                self.assertEqual((before.st_dev, before.st_ino, before.st_mode),
+                                 (after.st_dev, after.st_ino, after.st_mode))
+                self.assertEqual(entries, set(root.iterdir()))
+
+            with self.subTest(special_output="socket"):
+                destination = root / "s"
+                unavailable = (errno.EAFNOSUPPORT, errno.EPROTONOSUPPORT, errno.ENOTSUP, errno.ENOSYS,
+                               errno.EPERM, errno.EACCES)
+                if hasattr(os, "mknod"):
+                    try:
+                        os.mknod(destination, stat.S_IFSOCK | 0o600)
+                    except OSError as error:
+                        if error.errno not in unavailable:
+                            raise
+                if not destination.exists():
+                    if not hasattr(socket, "AF_UNIX"):
+                        self.skipTest("Unix sockets are unavailable")
+                    try:
+                        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as endpoint:
+                            endpoint.bind(str(destination))
+                    except OSError as error:
+                        if error.errno in unavailable:
+                            self.skipTest(f"Unix sockets are unavailable: {error}")
+                        raise
+                assert_special_preserved(destination)
+                alias = root / "socket-link"
+                alias.symlink_to(destination.name)
+                assert_special_preserved(alias)
+                assert_special_preserved(destination)
+            with self.subTest(special_output="fifo"):
+                if not hasattr(os, "mkfifo"):
+                    self.skipTest("FIFOs are unavailable")
+                destination = root / "f"
+                try:
+                    os.mkfifo(destination)
+                except OSError as error:
+                    if error.errno in (errno.ENOTSUP, errno.ENOSYS):
+                        self.skipTest(f"FIFOs are unavailable: {error}")
+                    raise
+                assert_special_preserved(destination)
+            for target_exists in (False, True):
+                with self.subTest(symlink_target_exists=target_exists):
+                    target = root / f"target-{target_exists}.html"
+                    if target_exists:
+                        target.write_bytes(b"previous view")
+                        target.chmod(0o640)
+                    alias = root / f"alias-{target_exists}.html"
+                    alias.symlink_to(target.name)
+                    before = alias.lstat()
+                    result = self.workbench_cli(manifest_path, alias)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertTrue(alias.is_symlink())
+                    self.assertEqual(before.st_ino, alias.lstat().st_ino)
+                    self.assertEqual(Path(target.name), alias.readlink())
+                    self.assertEqual(render_workbench(manifest, root).encode(), target.read_bytes())
+                    if target_exists:
+                        self.assertEqual(0o640, target.stat().st_mode & 0o777)
 
     def test_workbench_labels_output_resolution_errors(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -230,17 +405,52 @@ class DiscoveryWorkbenchTests(unittest.TestCase):
                         render_workbench(manifest, root)
                     manifest_path.write_text(json.dumps(manifest))
                     before = manifest_path.read_bytes()
+                    existing = root / "existing.html"
+                    existing.write_bytes(b"preserve me")
                     for output in (root / "new.html", root / "existing.html", manifest_path):
-                        if output.name == "existing.html":
-                            output.write_text("preserve me")
                         result = self.workbench_cli(manifest_path, output)
                         self.assertEqual(1, result.returncode)
                         self.assertEqual(f"error: {expected.exception}\n", result.stderr)
                         self.assertEqual("", result.stdout)
                         self.assertEqual(before, manifest_path.read_bytes())
                         self.assertFalse((root / "new.html").exists())
-                        if (root / "existing.html").exists():
-                            self.assertEqual("preserve me", (root / "existing.html").read_text())
+                        self.assertTrue(existing.is_file())
+                        self.assertEqual(b"preserve me", existing.read_bytes())
+            for question in ("bad\ud800question", "bad\udfffquestion"):
+                manifest_path.write_text(json.dumps({**valid, "question": question}))
+                before = manifest_path.read_bytes()
+                for existing in (False, True):
+                    with self.subTest(question=repr(question), existing=existing):
+                        output = root / "view.html"
+                        output.unlink(missing_ok=True)
+                        if existing: output.write_bytes(b"preserve existing view")
+                        entries = set(root.iterdir())
+                        result = self.workbench_cli(manifest_path, output)
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(before, manifest_path.read_bytes())
+                        self.assertEqual(entries, set(root.iterdir()))
+                        self.assertEqual(b"preserve existing view" if existing else None,
+                                         output.read_bytes() if output.exists() else None)
+            manifest_path.write_text(json.dumps(valid))
+            for operation in ("os.replace", "os.fsync"):
+                for existing in (False, True):
+                    output = root / "view.html"
+                    output.unlink(missing_ok=True)
+                    if existing: output.write_bytes(b"preserve existing view")
+                    entries = set(root.iterdir())
+                    with mock.patch("codex_science.workbench." + operation, side_effect=PermissionError("write refused")):
+                        with self.assertRaises(OSError):
+                            write_workbench(manifest_path, output)
+                    self.assertEqual(entries, set(root.iterdir()))
+                    self.assertEqual(b"preserve existing view" if existing else None,
+                                     output.read_bytes() if output.exists() else None)
+            for rendered in ("", "valid 한글 page"):
+                with mock.patch("codex_science.workbench.render_workbench", return_value=rendered):
+                    write_workbench(manifest_path, output)
+                self.assertEqual(rendered.encode("utf-8"), output.read_bytes())
 
     def test_workbench_handles_manifest_deeper_than_recursion_limit(self):
         depth = sys.getrecursionlimit() + 100

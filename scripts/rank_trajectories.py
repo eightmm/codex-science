@@ -19,12 +19,14 @@ def main() -> int:
     try:
         raw = sys.stdin.read() if args.input == "-" else Path(args.input).read_text(encoding="utf-8")
         result = build_consensus(json.loads(raw))
+        rendered = json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        rendered.encode("utf-8")
+        print(rendered)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError, KeyError,
             RecursionError, OverflowError, ArithmeticError) as error:
         print(json.dumps({"schema": "trajectory-consensus-error-v1",
-                          "error": {"code": "invalid_request", "message": str(error)}}, sort_keys=True))
+                          "error": {"code": "invalid_request", "message": str(error)}}, sort_keys=True, allow_nan=False))
         return 2
-    print(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
     return 0
 
 

@@ -4,9 +4,10 @@ from __future__ import annotations
 import html
 import json
 import os
+import tempfile
 from collections import Counter
 from pathlib import Path
-from stat import S_ISREG
+from stat import S_IMODE, S_ISREG
 from typing import Any
 
 from codex_science.artifacts import validate_bundle, validate_manifest
@@ -137,4 +138,33 @@ def _protect_workbench_output(manifest: dict[str, Any], manifest_path: Path, out
 def write_workbench(manifest_path: Path, output: Path) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     _protect_workbench_output(manifest, manifest_path, output)
-    output.write_text(render_workbench(manifest, manifest_path.parent), encoding="utf-8")
+    rendered = render_workbench(manifest, manifest_path.parent).encode("utf-8")
+    destination = output.resolve()
+    try:
+        info = destination.lstat()
+        if not S_ISREG(info.st_mode):
+            raise ValueError("workbench output must be a regular file")
+        mode = S_IMODE(info.st_mode)
+    except FileNotFoundError:
+        mode = None
+    # Exclusive creation applies the umask without changing process-wide state.
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    for _ in range(tempfile.TMP_MAX):
+        temporary = destination.parent / (".wb-" + os.urandom(5).hex())
+        try:
+            descriptor = os.open(temporary, flags, 0o666 if mode is None else 0o600)
+        except FileExistsError:
+            continue
+        break
+    else:
+        raise FileExistsError("no unused temporary workbench filename")
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(rendered)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if mode is not None:
+            temporary.chmod(mode)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)

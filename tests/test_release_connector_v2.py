@@ -1,5 +1,9 @@
 import copy
+import hashlib
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 import urllib.parse
@@ -49,6 +53,185 @@ from codex_science.version import (
 class ReleaseAndConnectorV2Tests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
+
+    def test_snapshot_clis_refuse_loader_errors_without_writes(self) -> None:
+        invalid = [[], "x", 1, None, True, float("nan"), float("inf"), {}, {"schema_version": 1},
+                   {"schema_version": True}, {"schema_version": 1.0}]
+        for request in ([], "x", True, {"source": None}, {"source": 1},
+                        {"source": "pubmed", "operation": None}):
+            invalid.append({"schema_version": 1, "request": request})
+        cases = ["missing", "directory", b"", b"{", b"\xff",
+                 *(json.dumps(item).encode() for item in invalid)]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, output = root / "snapshot.json", root / "drift.json"
+            for script in ("replay_connector_snapshot.py", "connector_drift_report.py"):
+                for raw in cases:
+                    for existing in (False, True):
+                        with self.subTest(script=script, raw=raw, existing=existing):
+                            if source.is_dir(): source.rmdir()
+                            else: source.unlink(missing_ok=True)
+                            if raw == "directory": source.mkdir()
+                            elif raw != "missing": source.write_bytes(raw)
+                            output.unlink(missing_ok=True)
+                            if existing: output.write_bytes(b"previous drift")
+                            arguments = [str(source)]
+                            if script == "connector_drift_report.py":
+                                arguments += [str(source), "--output", str(output)]
+                            result = subprocess.run([sys.executable, str(self.root / "scripts" / script), *arguments],
+                                                    capture_output=True, text=True,
+                                                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                            self.assertEqual(1, result.returncode, result.stderr)
+                            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                            self.assertNotIn("Traceback", result.stderr)
+                            self.assertEqual("", result.stdout)
+                            self.assertEqual(b"previous drift" if existing else None,
+                                             output.read_bytes() if output.exists() else None)
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                replay_snapshot(value)
+        for value in (None, 1, True, [], {}):
+            for field in ("source", "operation"):
+                request = {"source": "pubmed", "operation": "search", field: value}
+                with self.subTest(request=request), self.assertRaises(ValueError):
+                    QueryRequest.from_payload(request)
+
+    def test_connector_validator_refuses_invalid_release_snapshots(self) -> None:
+        cases = ["missing", "directory", b"", b"{", b"\xff", *(json.dumps(item).encode() for item in
+                 ([], "x", 1, None, True, float("nan"), float("inf"), {"releases": None},
+                  {"releases": {}}, {"releases": "x"}, {"releases": [None]}, {"releases": [[]]}))]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "connectors").mkdir()
+            source = root / "connectors/eqtl-catalogue-releases.json"
+            for raw in cases:
+                with self.subTest(raw=raw):
+                    if source.is_dir(): source.rmdir()
+                    else: source.unlink(missing_ok=True)
+                    if raw == "directory": source.mkdir()
+                    elif raw != "missing": source.write_bytes(raw)
+                    before = source.read_bytes() if source.is_file() else None
+                    result = subprocess.run([sys.executable, str(self.root / "scripts/validate_connector_contracts.py"),
+                                             "--root", str(root)], capture_output=True, text=True,
+                                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(before, source.read_bytes() if source.is_file() else None)
+                    self.assertEqual({root / "connectors", source} if raw != "missing" else {root / "connectors"},
+                                     set(root.rglob("*")))
+            if source.is_dir(): source.rmdir()
+            connector = VersionedSnapshotConnector(source.name, root=source.parent)
+            for payload in ({}, {"releases": []}, {"releases": [{}]}, {"schema_version": 1, "releases": [{}]}):
+                source.write_text(json.dumps(payload), encoding="utf-8")
+                self.assertEqual([], connector.search("absent", limit=1))
+            for version in (None, 0, True, 1.0, "1", 2):
+                source.write_text(json.dumps({"schema_version": version, "releases": [{"id": "current"}]}))
+                with self.subTest(version_metadata=version):
+                    self.assertEqual([{"id": "current"}], connector.search("current", limit=1))
+
+    def test_snapshot_nested_shapes_are_refused_before_replay(self) -> None:
+        snapshot = execute_connector(
+            PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": ["123"]}}),
+            QueryRequest("pubmed", "search", {"query": "fixture"}), include_snapshot=True,
+        ).snapshot()
+        mutations = [
+            (("schema_version",), True), (("schema_version",), 1.0),
+            (("request",), None), (("request",), [1]),
+            (("records",), None), (("records",), {}), (("records",), [None]),
+            (("receipt",), [1]), (("receipt",), 1),
+            (("receipt", "pages"), [None]), (("receipt", "pages"), [{}]),
+            (("receipt", "unexpected"), True),
+        ]
+        for field in ("returned_record_ids", "excluded_records", "warnings", "pages"):
+            for value in (None, 0, False, "", {}):
+                if field in {"returned_record_ids", "pages"}:
+                    mutations.append((("receipt", field), value))
+            if field in {"warnings", "excluded_records"}:
+                for value in (1, True, "x", {"value": "x"}):
+                    mutations.append((("receipt", field), value))
+        for value in ({}, [], 1, None, True, float("nan"), float("inf")):
+            mutations.append((("receipt", "warnings"), [value]))
+        for value in ([], 1, None, True, "x", float("nan")):
+            mutations.append((("receipt", "excluded_records"), [value]))
+        mutations.append((("receipt", "excluded_records"), [{"value": float("nan")}]))
+        for value in (None, 0, True, 1.0, "1"):
+            mutations.append((("receipt", "schema_version"), value))
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "snapshot.json"
+            previous, output = Path(temporary) / "previous.json", Path(temporary) / "drift.json"
+            previous.write_text(json.dumps(snapshot), encoding="utf-8")
+            invalid = []
+            for path, value in mutations:
+                changed = copy.deepcopy(snapshot)
+                target = changed
+                for part in path[:-1]: target = target[part]
+                target[path[-1]] = value
+                invalid.append(changed)
+            for value in (float("nan"), float("inf"), -float("inf")):
+                changed = copy.deepcopy(snapshot)
+                changed["request"]["parameters"]["nested"] = [{"value": value}]
+                encoded = json.dumps(changed["request"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                digest = hashlib.sha256(encoded).hexdigest()
+                changed["receipt"]["canonical_request_sha256"] = digest
+                changed["receipt"]["query_id"] = "q-" + digest[:24]
+                invalid.append(changed)
+            for changed in invalid:
+                with self.subTest(changed=changed):
+                    with self.assertRaises(ValueError): replay_snapshot(changed)
+                    with self.assertRaises(ValueError): classify_drift(snapshot, changed)
+                    source.write_text(json.dumps(changed), encoding="utf-8")
+                    for script, arguments in (("replay_connector_snapshot.py", [str(source)]),
+                                              ("connector_drift_report.py", [str(previous), str(source), "--output", str(output)])):
+                        for existing in (False, True):
+                            output.unlink(missing_ok=True)
+                            if existing: output.write_bytes(b"preserve previous drift")
+                            result = subprocess.run([sys.executable, str(self.root / "scripts" / script), *arguments],
+                                                    capture_output=True, text=True,
+                                                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                            self.assertEqual(1, result.returncode, result.stderr)
+                            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                            self.assertNotIn("Traceback", result.stderr)
+                            self.assertEqual("", result.stdout)
+                            self.assertEqual(b"preserve previous drift" if existing else None,
+                                             output.read_bytes() if output.exists() else None)
+            empty = execute_connector(mock.Mock(query_v2=mock.Mock(return_value=[]), spec=["query_v2"]),
+                                      QueryRequest("fixture", "search", {}), include_snapshot=True).snapshot()
+            for baseline in (snapshot, empty):
+                legacy_paths = [("receipt", "warnings"), ("receipt", "excluded_records")]
+                if baseline is empty:
+                    legacy_paths += [("records",), ("receipt", "pages"), ("receipt", "returned_record_ids")]
+                for path in legacy_paths:
+                    for value in (None, False, 0, "", {}, []):
+                        changed = copy.deepcopy(baseline)
+                        target = changed
+                        for part in path[:-1]: target = target[part]
+                        target[path[-1]] = value
+                        with self.subTest(legacy_empty=path, value=value):
+                            self.assertEqual(replay_snapshot(baseline).to_dict(), replay_snapshot(changed).to_dict())
+                            self.assertEqual("unchanged", classify_drift(baseline, changed)["status"])
+            for value in (0, 1, -1, 1.5, 10 ** 400):
+                request = QueryRequest("pubmed", "search", {"nested": [{"value": value}]})
+                request.validate()
+            for field in ("warnings", "excluded_records"):
+                for absent in (False, True):
+                    changed = copy.deepcopy(snapshot)
+                    if absent: changed["receipt"].pop(field)
+                    else: changed["receipt"][field] = None
+                    source.write_text(json.dumps(changed), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(self.root / "scripts/replay_connector_snapshot.py"), str(source)],
+                                            capture_output=True, text=True,
+                                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    expected = json.loads(json.dumps(replay_snapshot(snapshot).to_dict()))
+                    self.assertEqual(expected, json.loads(result.stdout))
+            changed = copy.deepcopy(snapshot)
+            changed["receipt"]["warnings"] = ["", "fixture warning"]
+            changed["receipt"]["excluded_records"] = [{}, {"reason": "bounded", "count": 0}]
+            self.assertEqual(("", "fixture warning"), replay_snapshot(changed).receipt.warnings)
+            self.assertEqual("unchanged", classify_drift(snapshot, changed)["status"])
+        self.assertEqual(tuple(snapshot["records"]), replay_snapshot(snapshot).records)
 
     def test_release_identities_are_synchronized(self) -> None:
         self.assertEqual([], validate_release(self.root))

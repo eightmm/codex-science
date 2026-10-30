@@ -856,6 +856,46 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                     self.assertEqual({"schema_version": 1, "families": resolve_study_families(records)},
                                      json.loads(output.read_text()))
 
+    def test_study_families_refuse_invalid_shapes_and_ids(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_study_families.py"
+        values = [None, {}, "x", 1, True, float("nan"), float("inf"), {"schema_version": 1}]
+        payloads = values + [{"studies": item} for item in values]
+        payloads += [{"studies": [item]} for item in [*values, []]]
+        for value in (None, 0, True, [], {}, "", " \t"):
+            payloads.append([{"study_id": value}])
+            for field in ("type", "target_study_id"):
+                relation = {"type": "published_as", "target_study_id": "t", field: value}
+                payloads.append([{"study_id": "s", "relationships": [relation]}, {"study_id": "t"}])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, output = root / "records.json", root / "families.json"
+            for payload in payloads:
+                for existing in (False, True):
+                    with self.subTest(payload=payload, existing=existing):
+                        source.write_text(json.dumps(payload), encoding="utf-8")
+                        output.unlink(missing_ok=True)
+                        if existing: output.write_bytes(b"previous families")
+                        result = subprocess.run([sys.executable, str(script), str(source), "--output", str(output)],
+                                                capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(b"previous families" if existing else None,
+                                         output.read_bytes() if output.exists() else None)
+            for records in (None, {}, "", 0, False, [None], [[]], ["x"], [{"study_id": None}]):
+                with self.subTest(records=records), self.assertRaises(ValueError):
+                    resolve_study_families(records)
+            for payload in ([], {"studies": []}, [{"study_id": "s"}], {"studies": [{"study_id": "s"}]}):
+                source.write_text(json.dumps(payload), encoding="utf-8")
+                result = subprocess.run([sys.executable, str(script), str(source), "--output", str(output)],
+                                        capture_output=True, text=True,
+                                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(0, result.returncode, result.stderr)
+                records = payload["studies"] if isinstance(payload, dict) else payload
+                self.assertEqual(resolve_study_families(records), json.loads(output.read_text())["families"])
+
     @staticmethod
     def risk_of_bias_payload() -> dict:
         return {"schema_version": 1, "study_id": "S1", "instrument": "RoB 2",

@@ -20,18 +20,22 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--allow-findings", action="store_true")
     args = parser.parse_args()
-    benchmark = json.loads(args.benchmark.read_text(encoding="utf-8"))
-    findings = audit_sbdd_benchmark(benchmark)
-    payload = {
-        "status": "findings" if findings else "passed",
-        "findings": findings,
-    }
-    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(rendered, encoding="utf-8")
-    else:
-        print(rendered, end="")
+    try:
+        benchmark = json.loads(args.benchmark.read_text(encoding="utf-8"))
+        findings = audit_sbdd_benchmark(benchmark)
+        payload = {
+            "status": "findings" if findings else "passed",
+            "findings": findings,
+        }
+        rendered = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     if findings and not args.allow_findings:
         return 1
     return 0

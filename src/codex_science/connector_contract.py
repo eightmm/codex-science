@@ -5,6 +5,7 @@ import contextlib
 import copy
 import hashlib
 import json
+import math
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -18,7 +19,7 @@ _record_counts: ContextVar[list[int] | None] = ContextVar("connector_record_coun
 SECRET_RE = re.compile(r"(?:key|token|secret|password|credential)", re.I)
 QUERY_STATUSES = {"complete", "partial", "failed", "unavailable", "environment-blocked"}
 def canonical_json_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def sha256_json(value: Any) -> str:
@@ -37,6 +38,8 @@ def _redact_url(url: str) -> str:
 
 
 def _json_value(value: Any, label: str) -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{label} must contain finite JSON numbers")
     if value is None or isinstance(value, (str, int, float, bool)):
         return
     if isinstance(value, list):
@@ -63,8 +66,8 @@ class QueryRequest:
     source_contract_version: str = "2"
 
     def validate(self) -> None:
-        if not self.source.strip() or not self.operation.strip():
-            raise ValueError("source and operation are required")
+        if any(not isinstance(value, str) or not value.strip() for value in (self.source, self.operation)):
+            raise ValueError("source and operation must be non-empty strings")
         if not isinstance(self.parameters, dict):
             raise ValueError("parameters must be an object")
         _json_value(self.parameters, "parameters")
@@ -81,12 +84,14 @@ class QueryRequest:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "QueryRequest":
+        if not isinstance(payload, Mapping):
+            raise ValueError("connector request must be an object")
         parameters = payload.get("parameters", {})
         if not isinstance(parameters, dict):
             raise ValueError("parameters must be an object")
         request = cls(
-            source=str(payload.get("source", "")),
-            operation=str(payload.get("operation", "search")),
+            source=payload.get("source", ""),
+            operation=payload.get("operation", "search"),
             parameters=dict(parameters),
             page_size=payload.get("page_size", 5),
             max_pages=payload.get("max_pages", 1),
@@ -349,12 +354,38 @@ def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
     return _replay_snapshot(payload, verify_responses=True)
 
 
+def _snapshot_list(value: Any, label: str) -> list[Any] | tuple[Any, ...]:
+    if not value:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{label} must be a list")
+    return value
+
+
 def _replay_snapshot(payload: Mapping[str, Any], *, verify_responses: bool) -> QueryResult:
-    if payload.get("schema_version") != 1:
+    if not isinstance(payload, Mapping):
+        raise ValueError("connector snapshot must be an object")
+    if type(payload.get("schema_version")) is not int or payload["schema_version"] != 1:
         raise ValueError("unsupported connector snapshot schema")
-    request = QueryRequest.from_payload(payload.get("request") or {})
-    records = [dict(item) for item in payload.get("records") or []]
-    receipt_payload = dict(payload.get("receipt") or {})
+    request = QueryRequest.from_payload(payload.get("request", {}))
+    records_raw = _snapshot_list(payload.get("records", []), "snapshot records")
+    if any(not isinstance(item, Mapping) for item in records_raw):
+        raise ValueError("snapshot records must be a list of objects")
+    records = [dict(item) for item in records_raw]
+    receipt_raw = payload.get("receipt", {})
+    if not isinstance(receipt_raw, Mapping):
+        raise ValueError("snapshot receipt must be an object")
+    receipt_payload = dict(receipt_raw)
+    if type(receipt_payload.get("schema_version")) is not int or receipt_payload["schema_version"] != 1:
+        raise ValueError("unsupported snapshot receipt schema")
+    for field in ("returned_record_ids", "excluded_records", "warnings"):
+        receipt_payload[field] = tuple(_snapshot_list(receipt_payload.get(field, []), f"snapshot receipt {field}"))
+    if any(not isinstance(item, str) for item in receipt_payload["warnings"]):
+        raise ValueError("snapshot receipt warnings must contain strings")
+    for item in receipt_payload["excluded_records"]:
+        if not isinstance(item, dict):
+            raise ValueError("snapshot receipt excluded_records must contain objects")
+        _json_value(item, "snapshot receipt excluded_records")
     if receipt_payload.get("canonical_request_sha256") != request.request_sha256:
         raise ValueError("snapshot request hash mismatch")
     if receipt_payload.get("query_id") != request.query_id:
@@ -365,9 +396,15 @@ def _replay_snapshot(payload: Mapping[str, Any], *, verify_responses: bool) -> Q
         if receipt_payload.get(field) != getattr(request, field):
             raise ValueError(f"snapshot receipt {field} mismatch")
     ids = tuple(str(item.get("id") or f"record-{index}") for index, item in enumerate(records))
-    if tuple(receipt_payload.get("returned_record_ids") or []) != ids:
+    if receipt_payload["returned_record_ids"] != ids:
         raise ValueError("snapshot returned record IDs mismatch")
-    pages = tuple(PageReceipt(**item) for item in receipt_payload.get("pages") or [])
+    pages_raw = _snapshot_list(receipt_payload.get("pages", []), "snapshot receipt pages")
+    if any(not isinstance(item, Mapping) for item in pages_raw):
+        raise ValueError("snapshot receipt pages must be a list of objects")
+    try:
+        pages = tuple(PageReceipt(**item) for item in pages_raw)
+    except TypeError as error:
+        raise ValueError(f"invalid snapshot page receipt: {error}") from None
     for page in pages:
         if type(page.record_count) is not int or page.record_count != len(records):
             raise ValueError("snapshot page record count mismatch")
@@ -391,9 +428,10 @@ def _replay_snapshot(payload: Mapping[str, Any], *, verify_responses: bool) -> Q
                 if "response" not in stored or hashlib.sha256(raw).hexdigest() != page.response_sha256:
                     raise ValueError("snapshot page response hash mismatch")
     receipt_payload["pages"] = pages
-    for field in ("returned_record_ids", "excluded_records", "warnings"):
-        receipt_payload[field] = tuple(receipt_payload.get(field) or [])
-    receipt = QueryReceipt(**receipt_payload)
+    try:
+        receipt = QueryReceipt(**receipt_payload)
+    except TypeError as error:
+        raise ValueError(f"invalid snapshot receipt: {error}") from None
     return QueryResult(request, tuple(records), receipt, tuple(payload.get("pages") or []))
 
 
