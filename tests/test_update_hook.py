@@ -3,7 +3,10 @@ import fcntl
 import io
 import json
 import os
+import re
+import selectors
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -1990,6 +1993,332 @@ class ScienceUpdateHookTests(unittest.TestCase):
         self.assertIn("RUNNING_INSTALLER_SHA256", installer)
         self.assertIn("CODEX_SCIENCE_INSTALLER_HANDOFF_COUNT", installer)
         self.assertNotIn("cmp -s \"$RUNNING_INSTALLER\"", installer)
+
+    def _installer_functions(self) -> str:
+        installer = (self.repository_root / "scripts" / "install.sh").read_text()
+        return installer.split("\nselect_python\nacquire_installer_lock\n", 1)[0]
+
+    def test_installer_uses_bash32_and_bsd_syntax(self) -> None:
+        shell_lines = []
+        delimiter = None
+        for line in (self.repository_root / "scripts" / "install.sh").read_text().splitlines():
+            if delimiter is not None:
+                if line.strip() == delimiter:
+                    delimiter = None
+                continue
+            if line.lstrip().startswith("#"):
+                continue
+            shell_lines.append(line.split(" #", 1)[0])
+            match = re.search(r"<<-?\s*['\"]?(\w+)", line)
+            if match:
+                delimiter = match.group(1)
+        shell = "\n".join(shell_lines)
+        patterns = (
+            r"\bcoproc\b", r"\bmv\s+[^\n]*-T\b",
+            r"\b(?:declare|typeset)\s+-[^\s]*A", r"\$\{[^}\n]*(?:,,|\^\^)",
+            r"\b(?:mapfile|readarray)\b", r"\[\[[^\n]*\s-v\s", r"&>>", r";&",
+            r"\*\*", r"\blocal\s+-n\b", r"\bprintf\b[^\n]*%\([^\n]*\)T",
+            r"\bsed\s+-i\b", r"\breadlink\s+-f\b", r"\bstat\s+-c\b",
+            r"\bdate\s+-d\b", r"\bgrep\s+-P\b", r"\bxargs\s+-r\b",
+            r"\bcp\b[^\n]*--reflink", r"\binstall\s+-D\b", r"\b(?:realpath|timeout)\b",
+        )
+        for pattern in patterns:
+            with self.subTest(pattern=pattern):
+                self.assertIsNone(re.search(pattern, shell), pattern)
+
+    def test_installer_concurrent_lock_releases_on_exit_and_signals(self) -> None:
+        environment = {
+            **self.installer_environment(self.root / "installed"),
+            "CODEX_SCIENCE_PYTHON": sys.executable,
+            "TMPDIR": str(self.root),
+        }
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        script = self._installer_functions() + (
+            '\nPYTHON="$CODEX_SCIENCE_PYTHON"\nacquire_installer_lock\n'
+            '"$PYTHON" - <<\'PY\'\n'
+            'import json, os, stat\n'
+            'inherited = []\n'
+            'for name in os.listdir("/dev/fd"):\n'
+            '    descriptor = int(name)\n'
+            '    if descriptor <= 2:\n'
+            '        continue\n'
+            '    try:\n'
+            '        mode = os.fstat(descriptor).st_mode\n'
+            '    except OSError:\n'
+            '        continue\n'
+            '    if stat.S_ISFIFO(mode):\n'
+            '        inherited.append(descriptor)\n'
+            'print(json.dumps(inherited), flush=True)\n'
+            'PY\nread -r reply\n'
+        )
+        for termination in (None, signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGKILL):
+            with self.subTest(termination=termination):
+                first = subprocess.Popen(
+                    ["bash", "-c", script], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, text=True, env=environment, start_new_session=True,
+                    # Bash cannot trap signals ignored on entry, as under nohup.
+                    preexec_fn=lambda: [signal.signal(s, signal.SIG_DFL) for s in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)],
+                )
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(first.stdout, selectors.EVENT_READ)
+                        self.assertTrue(selector.select(timeout), "lock handshake did not finish")
+                        inherited = json.loads(first.stdout.readline())
+                    with self.subTest(inherited_fifo=True):
+                        self.assertEqual([], inherited)
+                    second = subprocess.run(
+                        ["bash", "-c", script], input="done\n", capture_output=True,
+                        text=True, env=environment, timeout=timeout,
+                    )
+                    self.assertNotEqual(0, second.returncode)
+                    self.assertIn("another Codex Science install or update is running", second.stderr)
+                    expected = 0 if termination is None else 128 + termination
+                    if termination == signal.SIGKILL:
+                        expected = -termination
+                    if termination is not None:
+                        first.send_signal(termination)
+                        first.wait(timeout=timeout)
+                        self.assertEqual(expected, first.returncode)
+                    stdout, stderr = first.communicate("done\n", timeout=timeout)
+                    self.assertEqual(expected, first.returncode, stdout + stderr)
+                    with (self.root / ".codex-science-update.lock").open("r+") as handle:
+                        self.assertEqual(0o600, stat.S_IMODE(os.fstat(handle.fileno()).st_mode))
+                        deadline = time.monotonic() + timeout
+                        while True:
+                            try:
+                                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                                break
+                            except BlockingIOError:
+                                if time.monotonic() >= deadline:
+                                    self.fail("lock holder did not release after parent exit")
+                                time.sleep(0.01)
+                    self.assertEqual([], list(self.root.glob("codex-science-lock.*")))
+                finally:
+                    try:
+                        os.killpg(first.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    first.communicate(timeout=timeout)
+        for state, status in (("", 0), ("0", 0), ("malformed", 0), ("locked", 1)):
+            with self.subTest(state=state, status=status):
+                script = self._installer_functions() + (
+                    '\nPYTHON="$(command -v true)"\n'
+                    'read() { LOCK_STATE="$HANDSHAKE_STATE"; return "$HANDSHAKE_STATUS"; }\n'
+                    'acquire_installer_lock\nexit 99\n'
+                )
+                result = subprocess.run(
+                    ["bash", "-c", script], capture_output=True, text=True, timeout=timeout,
+                    env={**environment, "HANDSHAKE_STATE": state, "HANDSHAKE_STATUS": str(status)},
+                )
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("lock path is unsafe", result.stderr)
+                self.assertEqual([], list(self.root.glob("codex-science-lock.*")))
+
+    def test_installer_lock_preparation_cleans_up_on_failure_and_signal(self) -> None:
+        real_mkfifo = shutil.which("mkfifo")
+        self.assertIsNotNone(real_mkfifo)
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        script = self._installer_functions() + (
+            '\nPYTHON="$CODEX_SCIENCE_PYTHON"\nacquire_installer_lock\n'
+            'test -z "$LOCK_STATE_DIR"\n'
+        )
+        for outcome in ("failure", "signal", "success"):
+            with self.subTest(outcome=outcome):
+                temporary = self.root / outcome
+                temporary.mkdir()
+                environment = {
+                    **self.installer_environment(temporary / "installed"),
+                    "CODEX_SCIENCE_PYTHON": sys.executable,
+                    "TMPDIR": str(temporary),
+                }
+                shim = self.root / "installer-bin" / "mkfifo"
+                shim_script = '#!/bin/sh\n'
+                if outcome == "failure":
+                    shim_script += 'exit 1\n'
+                else:
+                    shim_script += f'"{real_mkfifo}" "$@" || exit 1\n'
+                if outcome == "signal":
+                    shim_script += 'printf "ready\\n"\nread -r reply\n'
+                shim.write_text(shim_script)
+                shim.chmod(0o755)
+                installer = subprocess.Popen(
+                    ["bash", "-c", script], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, text=True, env=environment, start_new_session=True,
+                )
+                try:
+                    if outcome == "signal":
+                        with selectors.DefaultSelector() as selector:
+                            selector.register(installer.stdout, selectors.EVENT_READ)
+                            self.assertTrue(selector.select(timeout), "FIFO preparation did not start")
+                            self.assertEqual("ready\n", installer.stdout.readline())
+                        self.assertEqual(1, len(list(temporary.glob("codex-science-lock.*/state"))))
+                        installer.send_signal(signal.SIGTERM)
+                    stdout, stderr = installer.communicate("finish\n", timeout=timeout)
+                    expected = {"failure": 1, "signal": 143, "success": 0}[outcome]
+                    self.assertEqual(expected, installer.returncode, stdout + stderr)
+                    self.assertEqual([], list(temporary.glob("codex-science-lock.*")))
+                finally:
+                    try:
+                        os.killpg(installer.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    installer.communicate(timeout=timeout)
+
+    def test_installer_signal_cleanup_waits_for_foreground_child(self) -> None:
+        environment = {
+            **self.installer_environment(self.root / "installed"),
+            "CODEX_SCIENCE_PYTHON": sys.executable,
+            "TMPDIR": str(self.root),
+        }
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        child = (
+            'import os, sys\nfrom pathlib import Path\n'
+            'root = Path(os.environ["TMPDIR"])\n'
+            '(root / "child-started").write_text("started")\n'
+            'print("ready", flush=True)\n'
+            'sys.stdin.readline()\n'
+            'assert Path(sys.argv[1]).is_dir(), "cleanup ran before child finished"\n'
+            '(root / "child-finished").write_text("finished")\n'
+        )
+        script = self._installer_functions() + (
+            '\nPYTHON="$CODEX_SCIENCE_PYTHON"\nacquire_installer_lock\n'
+            'STAGING="$TMPDIR/staging"\nmkdir "$STAGING"\n'
+            f'"$PYTHON" -c \'{child}\' "$STAGING"\n'
+        )
+        installer = subprocess.Popen(
+            ["bash", "-c", script], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, env=environment, start_new_session=True,
+        )
+        try:
+            with selectors.DefaultSelector() as selector:
+                selector.register(installer.stdout, selectors.EVENT_READ)
+                self.assertTrue(selector.select(timeout), "foreground child did not start")
+                self.assertEqual("ready\n", installer.stdout.readline())
+            self.assertTrue((self.root / "child-started").is_file())
+            installer.send_signal(signal.SIGTERM)
+            # This timed wait tests deferral while the child awaits input.
+            with self.assertRaises(subprocess.TimeoutExpired):
+                installer.wait(timeout=min(timeout, 0.1))
+            self.assertTrue((self.root / "staging").is_dir())
+            self.assertFalse((self.root / "child-finished").exists())
+            with (self.root / ".codex-science-update.lock").open("r+") as handle:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                stdout, stderr = installer.communicate("finish\n", timeout=timeout)
+                self.assertEqual(143, installer.returncode, stdout + stderr)
+                self.assertTrue((self.root / "child-finished").is_file())
+                self.assertFalse((self.root / "staging").exists())
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assertEqual([], list(self.root.glob("codex-science-lock.*")))
+        finally:
+            try:
+                os.killpg(installer.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            installer.communicate(timeout=timeout)
+
+    def test_installer_directory_moves_refuse_existing_destinations(self) -> None:
+        environment = {
+            **self.installer_environment(self.root / "installed"),
+            "CODEX_SCIENCE_PYTHON": sys.executable,
+        }
+        script = self._installer_functions() + (
+            '\nPYTHON="$CODEX_SCIENCE_PYTHON"\nmove_install_directory "$1" "$2"\n'
+        )
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        for kind in ("absent", "trailing-slash", "empty", "nonempty", "file", "symlink", "dangling", "invalid", "empty-path"):
+            with self.subTest(kind=kind):
+                source = self.root / f"source-{kind}"
+                source.mkdir()
+                (source / "marker").write_text("preserve")
+                destination = self.root / f"destination-{kind}"
+                if kind in ("empty", "nonempty"):
+                    destination.mkdir()
+                    if kind == "nonempty":
+                        (destination / "keep").write_text("existing")
+                elif kind == "file":
+                    destination.write_text("existing")
+                elif kind in ("symlink", "dangling"):
+                    destination.symlink_to(source if kind == "symlink" else self.root / "missing")
+                elif kind == "invalid":
+                    destination = self.root / "missing-parent" / "destination"
+                result = subprocess.run(
+                    ["bash", "-c", script, "installer", str(source),
+                     "" if kind == "empty-path" else str(destination) + ("/" if kind == "trailing-slash" else "")],
+                    capture_output=True, text=True, env=environment, timeout=timeout,
+                )
+                if kind in ("absent", "trailing-slash"):
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertFalse(source.exists())
+                    self.assertEqual("preserve", (destination / "marker").read_text())
+                else:
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertEqual("preserve", (source / "marker").read_text())
+                    self.assertFalse((destination / source.name).exists())
+
+    def test_fresh_installer_refuses_publish_collision_with_bsd_commands(self) -> None:
+        fixture, fake_bin = self._fresh_installer_fixture()
+        target = self.root / "installed"
+        bootstrap = fixture / "scripts" / "bootstrap.sh"
+        bootstrap.write_text('#!/bin/sh\nmkdir -p "$CODEX_SCIENCE_HOME"\n')
+        self._bsd_installer_shims(fake_bin)
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True, text=True,
+            env={**self.installer_environment(target), "FAKE_CANDIDATE": str(fixture),
+                 "CODEX_SCIENCE_PYTHON": sys.executable,
+                 "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("destination already exists", result.stderr)
+        self.assertEqual([], list(target.iterdir()))
+
+    def _bsd_installer_shims(self, fake_bin: Path) -> None:
+        for name, flags in (("mv", "-T|--no-target-directory"),
+                            ("readlink", "-f|--canonicalize*"),
+                            ("stat", "-c|--format*|--printf*")):
+            executable = shutil.which(name)
+            self.assertIsNotNone(executable)
+            shim = fake_bin / name
+            shim.write_text(
+                '#!/bin/sh\nfor arg in "$@"; do\n'
+                f'  case "$arg" in {flags}) echo "GNU-only option refused" >&2; exit 64 ;; esac\n'
+                f'done\nexec "{executable}" "$@"\n'
+            )
+            shim.chmod(0o755)
+
+    def test_fresh_installer_succeeds_with_bsd_commands(self) -> None:
+        fixture, fake_bin = self._fresh_installer_fixture()
+        self._bsd_installer_shims(fake_bin)
+        target = self.root / "installed"
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True, text=True,
+            env={**os.environ, "CODEX_SCIENCE_HOME": str(target),
+                 "CODEX_SCIENCE_RUNTIME_FILE": str(self.root / "runtime-python"),
+                 "CODEX_SCIENCE_PYTHON": sys.executable, "FAKE_CANDIDATE": str(fixture),
+                 "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Codex Science is installed at:", result.stdout)
+
+    def test_legacy_installer_restores_with_bsd_commands(self) -> None:
+        target, _, environment = self._legacy_installer_setup()
+        fake_bin = Path(environment["PATH"].split(os.pathsep, 1)[0])
+        self._bsd_installer_shims(fake_bin)
+        result = subprocess.run(
+            ["bash", str(self.repository_root / "scripts" / "install.sh")],
+            capture_output=True, text=True,
+            env={**environment, "CODEX_SCIENCE_MIGRATION_ACK": "all-codex-tasks-closed",
+                 "FAIL_CANDIDATE_BOOTSTRAP": "1"},
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("Restored legacy install to", result.stdout)
+        self.assertEqual("preserve me", (target / "legacy-marker").read_text())
+        self.assertEqual([], list(self.root.glob(f"{target.name}.legacy-*")))
 
     def test_streamed_installer_hands_off_to_managed_checkout(self) -> None:
         target = self.root / "installed"

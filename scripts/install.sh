@@ -109,6 +109,7 @@ select_python() {
 STAGING=""
 LOCKER_PID=""
 LOCK_PATH=""
+LOCK_STATE_DIR=""
 HOOK_DATA=""
 RECOVERY_DIR=""
 UPDATE_HOOK=""
@@ -125,8 +126,14 @@ acquire_installer_lock() {
   INSTALL_PARENT="$(dirname "$INSTALL_DIR")"
   mkdir -p "$INSTALL_PARENT"
   LOCK_PATH="$INSTALL_PARENT/.codex-science-update.lock"
-  coproc CODEX_SCIENCE_LOCKER {
-    exec "$PYTHON" - "$LOCK_PATH" <<'PY'
+  LOCK_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codex-science-lock.XXXXXX")"
+  mkfifo "$LOCK_STATE_DIR/state"
+  # Open both ends so startup cannot block before the bounded handshake read.
+  exec 9<> "$LOCK_STATE_DIR/state"
+  rm "$LOCK_STATE_DIR/state"
+  rmdir "$LOCK_STATE_DIR"
+  LOCK_STATE_DIR=""
+  "$PYTHON" - "$LOCK_PATH" "$$" >&9 9>&- <<'PY' &
 import fcntl
 import os
 import sys
@@ -143,27 +150,43 @@ except (OSError, BlockingIOError):
     print("rejected", flush=True)
     raise SystemExit(1)
 print("locked", flush=True)
-while True:
-    time.sleep(60)
+# Also release after an untrappable shell death, when EXIT cleanup cannot run.
+while os.getppid() == int(sys.argv[2]):
+    time.sleep(1)
 PY
-  }
-  LOCKER_PID="$CODEX_SCIENCE_LOCKER_PID"
-  read -r LOCK_STATE <&"${CODEX_SCIENCE_LOCKER[0]}" || LOCK_STATE="rejected"
+  LOCKER_PID="$!"
+  read -r -t 30 LOCK_STATE <&9 || LOCK_STATE="rejected"
+  exec 9>&-
   if [ "$LOCK_STATE" != "locked" ]; then
-    wait "$LOCKER_PID" 2>/dev/null || true
-    LOCKER_PID=""
+    release_installer_lock
     err "another Codex Science install or update is running, or the lock path is unsafe"
     exit 1
   fi
 }
 
+move_install_directory() {
+  "$PYTHON" - "$1" "$2" <<'PY'
+import os
+import sys
+
+# Strip trailing slashes without turning an empty path into the current directory.
+source, destination = (path.rstrip(os.sep) or path for path in sys.argv[1:])
+if os.path.lexists(destination):
+    raise SystemExit(f"destination already exists: {destination}")
+# An empty destination directory created after this check can be replaced, as
+# with GNU mv's no-target-directory mode. rename never nests source in destination.
+os.rename(source, destination)
+PY
+}
+
 cleanup() {
+  if [ -n "$LOCK_STATE_DIR" ]; then rm -rf "$LOCK_STATE_DIR"; fi
   if [ -n "$HOOK_DATA" ]; then rm -rf "$HOOK_DATA"; fi
   if [ -n "$RECOVERY_DIR" ]; then rm -rf "$RECOVERY_DIR"; fi
   if [ -n "$STAGING" ]; then rm -rf "$STAGING"; fi
   if [ -n "$LEGACY_BACKUP" ] && { [ -e "$LEGACY_BACKUP" ] || [ -L "$LEGACY_BACKUP" ]; }; then
     if [ ! -e "$INSTALL_DIR" ] && [ ! -L "$INSTALL_DIR" ]; then
-      if mv -T "$LEGACY_BACKUP" "$INSTALL_DIR"; then
+      if move_install_directory "$LEGACY_BACKUP" "$INSTALL_DIR"; then
         info "Restored legacy install to $INSTALL_DIR"
       else
         err "could not restore legacy install; backup remains at $LEGACY_BACKUP"
@@ -175,6 +198,9 @@ cleanup() {
   release_installer_lock
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 legacy_release_policy_missing() {
   [ -e "$INSTALL_DIR/.git" ] || [ -L "$INSTALL_DIR/.git" ] || return 1
@@ -249,7 +275,7 @@ backup_legacy_install() {
     backup_candidate="$backup_base-$suffix"
     suffix="$((suffix + 1))"
   done
-  mv -T "$INSTALL_DIR" "$backup_candidate"
+  move_install_directory "$INSTALL_DIR" "$backup_candidate"
   LEGACY_BACKUP="$backup_candidate"
   info "Backed up legacy install to $LEGACY_BACKUP"
 }
@@ -365,7 +391,7 @@ else
   "$STAGING/candidate/scripts/bootstrap.sh"
   "$PYTHON" "$STAGING/candidate/scripts/science_update_hook.py" \
     --candidate-check "$STAGING/candidate"
-  mv -T "$STAGING/candidate" "$INSTALL_DIR"
+  move_install_directory "$STAGING/candidate" "$INSTALL_DIR"
   LEGACY_BACKUP=""
   rm -rf "$STAGING"
   STAGING=""
