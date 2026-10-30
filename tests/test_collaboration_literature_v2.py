@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from unittest import mock
 
 from codex_science.collaboration import (
     append_resolution_event,
@@ -85,6 +86,157 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
             self.assertEqual(["resolved", "dismissed", "resolved"],
                              [event["status"] for event in load_resolution_events(root)])
             self.assertTrue(ledger.read_bytes().endswith(b"\n"))
+
+    def test_resolution_torn_tail_read_and_append_preserves_bytes(self) -> None:
+        event = self.resolution_payload()
+        record = json.dumps(event).encode() + b"\n"
+        oversized = b"9" * 5000
+        nested = b"[" * 10000 + b"]" * 10000
+        for prefix, prior_events in ((b"", []), (record, [event]),
+                                     (record[:-1] + b"\r", [event]),
+                                     ((record[:-1] + b"\r") * 2, [event, event]),
+                                     ((record[:-1] + b"\r\n") * 2, [event, event]),
+                                     (record + record[:-1] + b"\r" + record[:-1] + b"\r\n", [event] * 3)):
+            for tail in (b"", b"{}", record[:-1], b"{", b'{"schema_version', b"[]", b"0", b"null",
+                         b"\xe2", b'{"note":"\xe2', oversized, nested,
+                         *(b"x" * size for size in (65535, 65536, 65537))):
+                with self.subTest(prefix=prefix[-2:], tail=tail[:20]), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    ledger = root / "annotations/resolutions.jsonl"
+                    ledger.parent.mkdir()
+                    original = prefix + tail
+                    ledger.write_bytes(original)
+                    expected = list(prior_events)
+                    if tail in (b"{}", record[:-1]):
+                        expected.append(json.loads(tail))
+                    self.assertEqual(expected, load_resolution_events(root))
+                    self.assertEqual(original, ledger.read_bytes())
+                    self.assertEqual([], list(ledger.parent.glob("resolutions.jsonl.torn-*")))
+                    append_resolution_event(root, event)
+                    self.assertTrue(ledger.read_bytes().startswith(prefix))
+                    self.assertEqual([*expected, event], load_resolution_events(root))
+                    self.assertEqual([*expected, event], [json.loads(line) for line in ledger.read_bytes().splitlines()])
+                    self.assertTrue(ledger.read_bytes().endswith(b"\n"))
+                    quarantined = list(ledger.parent.glob("resolutions.jsonl.torn-*"))
+                    if tail and tail not in (b"{}", record[:-1]):
+                        self.assertEqual([tail], [path.read_bytes() for path in quarantined])
+                    else:
+                        self.assertEqual([], quarantined)
+                    for malformed, message in ((b"{\n", "invalid resolution event at line 2"),
+                                               (b"{\r", "invalid resolution event at line 2"),
+                                               (b"{\r\n", "invalid resolution event at line 2"),
+                                               (oversized + b"\n", "invalid resolution event at line 2"),
+                                               (nested + b"\n", "invalid resolution event at line 2"),
+                                               (b"\xe2\n", "invalid resolution event at line 2"),
+                                               (b"\xe2\r", "invalid resolution event at line 2"),
+                                               (b"\xe2\r\n", "invalid resolution event at line 2"),
+                                               (b"[]\n", "resolution event at line 2 must be an object"),
+                                               (b"[]\r", "resolution event at line 2 must be an object")):
+                        ledger.write_bytes(record + malformed)
+                        with self.assertRaisesRegex(ValueError, message):
+                            load_resolution_events(root)
+                        self.assertEqual(record + malformed, ledger.read_bytes())
+
+    def test_resolution_parser_limits_have_clean_cli_refusals(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.annotation_run(Path(temporary))
+            ledger = root / "annotations/resolutions.jsonl"
+            timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+            for tail in (b"9" * 5000, b"[" * 10000 + b"]" * 10000, b"\xe2"):
+                for command in (["list"], ["resolve", "--id", "A-1", "--status", "resolved",
+                                           "--resolver", "reviewer"]):
+                    with self.subTest(tail=tail[:20], command=command[0]):
+                        original = tail + b"\n"
+                        ledger.write_bytes(original)
+                        result = subprocess.run([sys.executable, str(script), str(root), *command],
+                                                capture_output=True, text=True, timeout=timeout)
+                        self.assertEqual(2, result.returncode, result.stderr)
+                        self.assertIn("invalid resolution event at line 1", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual(original, ledger.read_bytes())
+                        self.assertEqual([], list(ledger.parent.glob("resolutions.jsonl.torn-*")))
+
+    def test_resolution_torn_tail_cli_serializes_repair_and_appends(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.annotation_run(Path(temporary))
+            ledger = root / "annotations/resolutions.jsonl"
+            event = {**self.resolution_payload(),
+                     "artifact_sha256": hashlib.sha256((root / "result.json").read_bytes()).hexdigest()}
+            append_resolution_event(root, event)
+            prefix = ledger.read_bytes()
+            tail = b'{"schema_version'
+            ledger.write_bytes(prefix + tail)
+            timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+            workers = [subprocess.Popen(
+                [sys.executable, str(script), str(root), "resolve", "--id", "A-1", "--status", status,
+                 "--resolver", "reviewer"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            ) for status in ("resolved", "dismissed")]
+            try:
+                for worker in workers:
+                    stdout, stderr = worker.communicate(timeout=timeout)
+                    self.assertEqual(0, worker.returncode, stderr or stdout)
+            finally:
+                for worker in workers:
+                    if worker.poll() is None:
+                        worker.kill()
+                    worker.communicate(timeout=timeout)
+            events = load_resolution_events(root)
+            self.assertEqual(event, events[0])
+            self.assertCountEqual(["resolved", "dismissed"], [item["status"] for item in events[1:]])
+            self.assertEqual(events, [json.loads(line) for line in ledger.read_bytes().splitlines()])
+            self.assertTrue(ledger.read_bytes().startswith(prefix))
+            self.assertEqual([tail], [path.read_bytes() for path in ledger.parent.glob("resolutions.jsonl.torn-*")])
+
+    def test_resolution_torn_tail_sync_failure_preserves_log_and_collisions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ledger = root / "annotations/resolutions.jsonl"
+            ledger.parent.mkdir()
+            original = json.dumps(self.resolution_payload()).encode() + b'\n{"broken'
+            ledger.write_bytes(original)
+            sentinel = root / "sentinel"
+            sentinel.write_bytes(b"preserve")
+            (ledger.parent / "resolutions.jsonl.torn-1").symlink_to(sentinel)
+            (ledger.parent / "resolutions.jsonl.torn-2").write_bytes(b"existing")
+            real_fsync = os.fsync
+            def sync_before_truncation(descriptor):
+                self.assertEqual(original, ledger.read_bytes())
+                real_fsync(descriptor)
+                raise OSError("interrupted quarantine sync")
+            with mock.patch("codex_science.collaboration.os.fsync", side_effect=sync_before_truncation):
+                with self.assertRaisesRegex(OSError, "interrupted quarantine sync"):
+                    append_resolution_event(root, self.resolution_payload())
+            self.assertEqual(original, ledger.read_bytes())
+            self.assertEqual(b'{"broken', (ledger.parent / "resolutions.jsonl.torn-3").read_bytes())
+            append_resolution_event(root, self.resolution_payload())
+            self.assertEqual(b'{"broken', (ledger.parent / "resolutions.jsonl.torn-4").read_bytes())
+            self.assertEqual(b"preserve", sentinel.read_bytes())
+            self.assertEqual(b"existing", (ledger.parent / "resolutions.jsonl.torn-2").read_bytes())
+            self.assertEqual([self.resolution_payload()] * 2, load_resolution_events(root))
+
+    def test_resolution_torn_tail_after_short_write_is_recoverable(self) -> None:
+        for written in (0, 16):
+            with self.subTest(written=written), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                real_write = os.write
+                def interrupted_write(descriptor, payload):
+                    if not written:
+                        return 0
+                    real_write(descriptor, payload[:written])
+                    raise OSError("interrupted append")
+                with mock.patch("codex_science.collaboration.os.write", side_effect=interrupted_write):
+                    with self.assertRaises(OSError):
+                        append_resolution_event(root, self.resolution_payload())
+                ledger = root / "annotations/resolutions.jsonl"
+                tail = ledger.read_bytes()
+                self.assertEqual(written, len(tail))
+                self.assertEqual([], load_resolution_events(root))
+                append_resolution_event(root, self.resolution_payload())
+                self.assertEqual([self.resolution_payload()], load_resolution_events(root))
+                self.assertEqual([tail] if tail else [],
+                                 [path.read_bytes() for path in ledger.parent.glob("resolutions.jsonl.torn-*")])
 
     def test_annotation_enum_types_have_labelled_validation_errors(self) -> None:
         script = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"

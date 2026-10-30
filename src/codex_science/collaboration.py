@@ -137,15 +137,21 @@ def _read_resolution_events(run_dir: Path) -> list[dict[str, Any]]:
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise ValueError("resolution event sidecar must be a regular file")
-        with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+        with os.fdopen(descriptor, "r", encoding="utf-8", errors="surrogateescape") as stream:
             descriptor = -1
             events = []
             for line_number, line in enumerate(stream, 1):
                 try:
+                    # Validate UTF-8 per logical line so a cut tail cannot hide earlier records.
+                    line = line.encode("utf-8", "surrogateescape").decode("utf-8")
                     event = json.loads(line)
-                except json.JSONDecodeError as error:
+                except (ValueError, RecursionError) as error:
+                    if not line.endswith("\n"):
+                        continue
                     raise ValueError(f"invalid resolution event at line {line_number}: {error}") from error
                 if not isinstance(event, dict):
+                    if not line.endswith("\n"):
+                        continue
                     raise ValueError(f"resolution event at line {line_number} must be an object")
                 events.append(event)
             return events
@@ -176,6 +182,48 @@ def load_resolution_events(run_dir: Path, *, lock_held: bool = False) -> list[di
     return []
 
 
+def _repair_resolution_tail_locked(path: Path, descriptor: int, size: int) -> bool:
+    """Quarantine an incomplete final record before truncating the locked log."""
+    position = size
+    chunks = []
+    while position:
+        count = min(position, 65536)
+        position -= count
+        chunk = os.pread(descriptor, count, position)
+        newline = max(chunk.rfind(b"\n"), chunk.rfind(b"\r"))
+        if newline >= 0:
+            chunks.append(chunk[newline + 1:])
+            position += newline + 1
+            break
+        chunks.append(chunk)
+    tail = b"".join(reversed(chunks))
+    try:
+        if isinstance(json.loads(tail.decode("utf-8")), dict):
+            return False
+    except (ValueError, RecursionError):
+        pass
+    index = 1
+    while True:
+        quarantine = path.with_name(f"{path.name}.torn-{index}")
+        try:
+            stream = quarantine.open("xb")
+            break
+        except FileExistsError:
+            index += 1
+    with stream:
+        stream.write(tail)
+        stream.flush()
+        os.fsync(stream.fileno())
+    # Persist the sidecar name as well as its bytes before removing log bytes.
+    directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+    os.ftruncate(descriptor, position)
+    return True
+
+
 def _append_resolution_event_locked(root: Path, event: dict[str, Any]) -> None:
     path = root / "annotations" / "resolutions.jsonl"
     flags = os.O_RDWR | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
@@ -186,8 +234,9 @@ def _append_resolution_event_locked(root: Path, event: dict[str, Any]) -> None:
         os.fchmod(descriptor, 0o644)
         payload = json.dumps(event, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
         size = os.fstat(descriptor).st_size
-        if size and os.pread(descriptor, 1, size - 1) != b"\n":
-            payload = b"\n" + payload
+        if size and os.pread(descriptor, 1, size - 1) not in (b"\n", b"\r"):
+            if not _repair_resolution_tail_locked(path, descriptor, size):
+                payload = b"\n" + payload
         remaining = memoryview(payload)
         while remaining:
             written = os.write(descriptor, remaining)
