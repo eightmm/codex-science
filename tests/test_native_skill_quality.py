@@ -3,6 +3,7 @@ import re
 import unittest
 from pathlib import Path
 
+from codex_science.evidence import CLAIM_STATUSES
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS, classify_rigor
 from codex_science.mcp_server import CodexScienceMCP
 from codex_science.skill_maturity import audit_native_skills
@@ -281,6 +282,24 @@ class NativeSkillQualityTests(unittest.TestCase):
 
     def test_native_skill_standard_and_roadmap_are_present(self) -> None:
         standard = (ROOT / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")
+        claim_semantics = standard.split("## Claim semantics", 1)[1].split("## ", 1)[0]
+        documented_fields = re.findall(r"^- `([^`]+)`:", claim_semantics, flags=re.MULTILINE)
+        self.assertIn("kind", documented_fields)
+        self.assertNotIn("claim_type", documented_fields)
+        kind_match = re.search(r"^- `kind`: (.+)[;.]$", claim_semantics, flags=re.MULTILINE)
+        self.assertIsNotNone(kind_match)
+        documented_kinds = {
+            item.strip().removeprefix("or ").rstrip(";.")
+            for item in kind_match.group(1).split(",")
+        }
+        self.assertEqual(set(CLAIM_STRENGTHS), documented_kinds)
+        status_match = re.search(r"^- `status`: (.+)\.$", claim_semantics, flags=re.MULTILINE)
+        self.assertIsNotNone(status_match)
+        documented_statuses = {
+            item.strip().removeprefix("or ").removesuffix(".")
+            for item in status_match.group(1).split(",")
+        }
+        self.assertEqual(CLAIM_STATUSES, documented_statuses)
         roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
         sidecars = (
             ROOT / "runtime-skills" / "science-provenance" / "references" / "artifact-contract.md"

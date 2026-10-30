@@ -117,7 +117,7 @@ State:
 
 Assign stable claim IDs before final synthesis. Record:
 
-- `claim_type`: descriptive, associational, causal, mechanistic, predictive, comparative, translational, clinical, or operational;
+- `kind`: descriptive, associational, causal, or confirmatory;
 - `required_support`: the minimum evidence or acceptance test;
 - `falsifier`: an observation or test that would materially weaken the claim;
 - `support`: source IDs, artifact paths, execution IDs, and hashes;
@@ -125,7 +125,7 @@ Assign stable claim IDs before final synthesis. Record:
 - `dependencies`: shared study, cohort, sample, portal, template, model training data, code, or transformation;
 - `uncertainty`: interval, calibration, sensitivity, or qualitative rationale;
 - `applicability`: population, assay, chemical space, target class, tissue, hardware, or other domain;
-- `status`: planned, supported, contradicted, inconclusive, or withdrawn.
+- `status`: planned, supported, replicated, suggestive, conflicting, unsupported, withdrawn, or unavailable.
 
 Confidence cannot exceed the weakest essential evidence link. Missing, filtered, stale, unavailable, and negative evidence are distinct states.
 

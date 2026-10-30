@@ -128,5 +128,7 @@ After `advance` durably writes the checkpoint, its JSON output includes an
 advisory `early_check` summary when `manifest.json` is present. Deterministic
 findings can be repaired before the next step; a skipped check includes a
 reason. This check never blocks advancement or writes a review receipt, and it
-does not replace the final independent review or `complete
---require-passed-review` requirement.
+does not replace the final independent review. Validate the manifest with
+`validate_artifact.py <manifest> --review-output <output> --require-passed-review`
+(`--require-passed-review` requires `--review-output`), then run
+`science_checkpoint.py complete <run-dir>` after the independent review passes.

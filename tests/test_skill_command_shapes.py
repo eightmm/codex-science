@@ -20,6 +20,9 @@ class SkillCommandShapeTests(unittest.TestCase):
         skill = (ROOT / "runtime-skills/codex-science/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("### Command shapes", skill)
         block = skill.split("### Command shapes", 1)[1].split("\n## ", 1)[0]
+        heartbeat = next(line for line in block.splitlines() if "heartbeat <run-dir>" in line)
+        self.assertIn("--progress-ref <path>", heartbeat)
+        self.assertIn("required for schema 3+ checkpoints", heartbeat)
         lines = [line for line in block.splitlines() if line.startswith("-")]
         documented: dict[tuple[str, str], set[str]] = {}
 
@@ -65,6 +68,12 @@ class SkillCommandShapeTests(unittest.TestCase):
                 f"{script} {command} omits required flags: "
                 f"{sorted(required_flags - documented[(script, command)])}",
             )
+
+    def test_checkpoint_completion_docs_use_real_command_and_review_validation(self) -> None:
+        docs = (ROOT / "docs/CHECKPOINTS.md").read_text(encoding="utf-8")
+        self.assertIn("validate_artifact.py <manifest> --review-output <output> --require-passed-review", docs)
+        self.assertIn("science_checkpoint.py complete <run-dir>", docs)
+        self.assertNotIn("complete --require-passed-review", docs)
 
 
 if __name__ == "__main__":

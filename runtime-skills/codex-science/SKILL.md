@@ -110,7 +110,7 @@ Use `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_ch
 - `criterion <run-dir> --id <criterion-id> --evidence-ref <path> [--evidence-ref <path> ...]` (at least one evidence reference is required).
 - `review <run-dir> --artifact-ref <receipt-path>`.
 - `complete <run-dir>`.
-- `heartbeat <run-dir> --next-action <text>`; optional `--progress-ref <path>`.
+- `heartbeat <run-dir> --next-action <text> [--progress-ref <path>]`; `--progress-ref <path>` is required for schema 3+ checkpoints, including all new checkpoints.
 - `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" prepare <manifest> --mode <record|source|method|reproduction> [--mode ...] --output <packet-path>`; required `--mode` (choices shown) may repeat; optional repeatable `--question <text>`, `--independence-not-required`, and `--tier <quick|standard|full>`.
 - `"<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/science_reviewer.py" finalize <packet> <response> --output <receipt-path>`.
 
