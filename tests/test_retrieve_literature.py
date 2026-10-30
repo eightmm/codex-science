@@ -352,6 +352,158 @@ class RetrieveLiteratureTests(unittest.TestCase):
             self.assertEqual(1, transport.calls)
             self.assertEqual(before, sorted(p.relative_to(root).as_posix() for p in root.rglob("*")))
 
+    def test_retry_quarantines_snapshot_after_interrupted_publication(self):
+        from codex_science.artifacts import new_manifest, validate_bundle, write_manifest
+        from codex_science.run_packaging import refresh
+        from codex_science.screening_pool import build_candidate_pool
+
+        for retry_text in (None, "saved", "changed"):
+            with self.subTest(retry_text=retry_text), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                request = QueryRequest("europepmc", "search", {"query": "interrupted"}, 25, 1, None, "3")
+                dest = root / "raw/queries" / request.query_id
+                real_rename = os.rename
+
+                def interrupt_after_publish(src, dst):
+                    real_rename(src, dst)
+                    if Path(dst) == dest:
+                        raise RuntimeError("interrupted after snapshot rename")
+
+                rows = [{"id": "PMC123", "title": "Saved", "abstractText": "saved"}] if retry_text else []
+                with patch("codex_science.literature_retrieval.os.rename", side_effect=interrupt_after_publish):
+                    with self.assertRaisesRegex(RuntimeError, "interrupted after snapshot rename"):
+                        retrieve_literature(root, "europepmc", "interrupted", abstracts=bool(retry_text),
+                                            transport=FakeTransport([europe_payload(rows)]))
+                self.assertFalse((root / "queries.jsonl").exists())
+                original = {p.relative_to(dest): p.read_bytes() for p in dest.rglob("*") if p.is_file()}
+                self.assertIn(Path("result.json"), original)
+                retry_rows = [{"id": "PMC123", "title": "Retry", "abstractText": retry_text}] if retry_text else []
+                stderr = io.StringIO()
+                with patch("sys.stderr", stderr):
+                    summary = retrieve_literature(root, "europepmc", "interrupted", abstracts=bool(retry_text),
+                                                  transport=FakeTransport([europe_payload(retry_rows)]))
+                quarantines = list((root / "raw/queries/review-rounds").glob(f".orphan-{request.query_id}-*"))
+                self.assertEqual(1, len(quarantines))
+                orphan = quarantines[0]
+                self.assertEqual(f".orphan-{request.query_id}-0", orphan.name)
+                self.assertIn(str(orphan), stderr.getvalue())
+                self.assertEqual(original, {p.relative_to(orphan): p.read_bytes()
+                                            for p in orphan.rglob("*") if p.is_file()})
+                ledger = [json.loads(line) for line in (root / "queries.jsonl").read_text().splitlines()]
+                self.assertEqual([request.query_id], [row["query_id"] for row in ledger])
+                _validate_query_records(ledger)
+                self.assertEqual("complete", summary["status"])
+                if retry_text:
+                    self.assertEqual("saved\n", (root / "sources/PMC123.abstract.txt").read_text())
+                    self.assertTrue(summary["records"][0]["abstract_written"])
+                    self.assertEqual(retry_text != "saved", summary["records"][0]["abstract_kept_existing"])
+                    self.assertEqual(["PMC123.abstract.txt"] if retry_text != "saved" else [],
+                                     summary["abstracts_kept_existing"])
+                pool = build_candidate_pool(root)
+                self.assertEqual(len(retry_rows), pool["returned_records"])
+                self.assertEqual([], pool["skipped_results"])
+                (root / "candidates.json").unlink()
+                write_manifest(new_manifest("orphan-retry", "interrupted", []), root / "manifest.json")
+                refresh(root, [])
+                manifest = json.loads((root / "manifest.json").read_text())
+                self.assertFalse(any("review-rounds" in Path(item["path"]).parts for item in manifest["artifacts"]))
+                validate_bundle(manifest, root)
+
+    def test_orphan_quarantine_preserves_collisions_and_refuses_unsafe_targets(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            request = QueryRequest("europepmc", "search", {"query": "orphan"}, 25, 1, None, "3")
+            dest = root / "raw/queries" / request.query_id
+            dest.mkdir(parents=True)
+            (dest / "result.json").write_text("malformed orphan")
+            archive = root / "raw/queries/review-rounds"
+            archive.mkdir()
+            occupied = [archive / f".orphan-{request.query_id}-{n}" for n in range(3)]
+            occupied[0].mkdir()
+            occupied[1].write_text("preserved file")
+            occupied[2].symlink_to("missing")
+            stderr = io.StringIO()
+            with patch("sys.stderr", stderr):
+                retrieve_literature(root, "europepmc", "orphan", transport=FakeTransport([europe_payload()]))
+            orphan = archive / f".orphan-{request.query_id}-3"
+            self.assertIn(str(orphan), stderr.getvalue())
+            self.assertEqual("malformed orphan", (orphan / "result.json").read_text())
+            self.assertEqual([], list(occupied[0].iterdir()))
+            self.assertEqual("preserved file", occupied[1].read_text())
+            self.assertEqual(Path("missing"), occupied[2].readlink())
+            transport = FakeTransport([])
+            with self.assertRaisesRegex(FileExistsError, "query already exists in queries.jsonl"):
+                retrieve_literature(root, "europepmc", "orphan", transport=transport)
+            self.assertEqual(0, transport.calls)
+            (root / "queries.jsonl").unlink()
+            for child in dest.iterdir():
+                child.unlink()
+            dest.rmdir()
+            for target in (orphan, root / "missing"):
+                dest.symlink_to(target, target_is_directory=True)
+                with self.assertRaisesRegex(FileExistsError, "snapshot already exists for query"):
+                    retrieve_literature(root, "europepmc", "orphan", transport=transport)
+                self.assertEqual(target, dest.readlink())
+                dest.unlink()
+            dest.write_text("preserved target")
+            with self.assertRaisesRegex(FileExistsError, "snapshot already exists for query"):
+                retrieve_literature(root, "europepmc", "orphan", transport=transport)
+            self.assertEqual("preserved target", dest.read_text())
+            self.assertEqual(0, transport.calls)
+
+    def test_orphan_quarantine_failure_and_interruption_leave_retryable_state(self):
+        request = QueryRequest("europepmc", "search", {"query": "retry"}, 25, 1, None, "3")
+        for failure in ("rename", "after-rename", "transport"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                dest = root / "raw/queries" / request.query_id
+                dest.mkdir(parents=True)
+                (dest / "preserved").write_text("orphan bytes")
+                real_rename = os.rename
+
+                def interrupt_quarantine(src, dst):
+                    if Path(src) == dest:
+                        if failure == "after-rename":
+                            real_rename(src, dst)
+                        raise OSError("quarantine interrupted")
+                    real_rename(src, dst)
+
+                transport = FakeTransport([TransportError("offline")])
+                stderr = io.StringIO()
+                if failure == "transport":
+                    with patch("sys.stderr", stderr), self.assertRaisesRegex(RuntimeError, "transport failed"):
+                        retrieve_literature(root, "europepmc", "retry", transport=transport)
+                else:
+                    with patch("codex_science.literature_retrieval.os.rename", side_effect=interrupt_quarantine):
+                        with self.assertRaisesRegex(OSError, "quarantine interrupted"):
+                            retrieve_literature(root, "europepmc", "retry", transport=transport)
+                    self.assertEqual(0, transport.calls)
+                self.assertFalse((root / "queries.jsonl").exists())
+                orphan = root / "raw/queries/review-rounds" / f".orphan-{request.query_id}-0"
+                preserved = dest if failure == "rename" else orphan
+                self.assertEqual("orphan bytes", (preserved / "preserved").read_text())
+                with patch("sys.stderr", stderr):
+                    retrieve_literature(root, "europepmc", "retry", transport=FakeTransport([europe_payload()]))
+                self.assertEqual("orphan bytes", (orphan / "preserved").read_text())
+                self.assertEqual(1, len((root / "queries.jsonl").read_text().splitlines()))
+                self.assertFalse(list(root.glob(".literature-*")))
+
+        for kind in ("symlink", "file"):
+            with self.subTest(archive=kind), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                dest = root / "raw/queries" / request.query_id
+                dest.mkdir(parents=True)
+                archive = root / "raw/queries/review-rounds"
+                if kind == "symlink":
+                    archive.symlink_to("missing", target_is_directory=True)
+                else:
+                    archive.write_text("preserved archive file")
+                transport = FakeTransport([])
+                with self.assertRaisesRegex((ValueError, FileExistsError), "symlinked run target|review-rounds"):
+                    retrieve_literature(root, "europepmc", "retry", transport=transport)
+                self.assertTrue(dest.is_dir())
+                self.assertEqual(0, transport.calls)
+
     def test_existing_europepmc_query_adds_abstracts_offline_from_snapshot(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

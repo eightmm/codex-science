@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -439,7 +440,18 @@ def retrieve_literature(
             )
         dest = snapshots / query_id
         if dest.exists() or dest.is_symlink():
-            raise FileExistsError(f"snapshot already exists for query: {query_id}")
+            if dest.is_symlink() or not dest.is_dir():
+                raise FileExistsError(f"snapshot already exists for query: {query_id}")
+            # Packaging skips review-rounds; a dot prefix alone does not hide raw snapshots.
+            archive = _check_path(root, Path("raw/queries/review-rounds"))
+            archive.mkdir(exist_ok=True)
+            index = 0
+            orphan = archive / f".orphan-{query_id}-{index}"
+            while orphan.exists() or orphan.is_symlink():
+                index += 1
+                orphan = archive / f".orphan-{query_id}-{index}"
+            os.rename(dest, orphan)
+            print(f"quarantined orphan literature snapshot: {orphan}", file=sys.stderr)
         stage_root = Path(tempfile.mkdtemp(prefix=".literature-", dir=root))
         stage_query = stage_root / query_id
         try:
