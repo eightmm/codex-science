@@ -1,7 +1,10 @@
 import hashlib
 import json
+import os
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 from contextlib import contextmanager
@@ -31,6 +34,102 @@ def make_run(root: Path, run_id: str, claim_text: str, metric_value: float) -> t
 
 
 class ProjectStoreTests(unittest.TestCase):
+    def _race_imports(self, store, first_path, second_path, branch_name="main"):
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        first_at_insert = threading.Event()
+        second_ready = threading.Event()
+        first_finished = threading.Event()
+        caller = threading.local()
+        connect = store.connect
+        case = self
+
+        class PausingConnection:
+            def __init__(self, connection):
+                self.connection = connection
+
+            def __getattr__(self, name):
+                return getattr(self.connection, name)
+
+            def execute(self, sql, parameters=()):
+                if caller.role == "second" and sql == "BEGIN IMMEDIATE":
+                    second_ready.set()
+                if sql.startswith("INSERT INTO runs("):
+                    if caller.role == "first":
+                        first_at_insert.set()
+                        case.assertTrue(second_ready.wait(timeout), "second import did not arrive")
+                    else:
+                        # Deferred callers have both read the old head here;
+                        # serialized callers announced their lock attempt above.
+                        second_ready.set()
+                        case.assertTrue(first_finished.wait(timeout), "first import did not finish")
+                return self.connection.execute(sql, parameters)
+
+        @contextmanager
+        def racing_connect():
+            with connect() as connection:
+                yield PausingConnection(connection)
+
+        def run(role, path):
+            caller.role = role
+            try:
+                return store.import_run(project_id="p", manifest_path=path, branch_name=branch_name)
+            finally:
+                if role == "first":
+                    first_finished.set()
+
+        # The fixture has initialized the schema; isolate the import transaction.
+        with patch.object(store, "initialize"), patch.object(store, "connect", racing_connect):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(run, "first", first_path)
+                self.assertTrue(first_at_insert.wait(timeout), "first import did not reach its insert")
+                second = pool.submit(run, "second", second_path)
+                return first.result(timeout), second.result(timeout)
+
+    def test_concurrent_imports_keep_branch_ancestry_linear(self) -> None:
+        for branch in ("main", "new-branch"):
+            with self.subTest(branch=branch), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                store = ProjectStore(root / "project.sqlite")
+                store.create_project(project_id="p", title="P", question="Q")
+                base_path, _ = make_run(root, "base", "Base", 0)
+                store.import_run(project_id="p", manifest_path=base_path)
+                first_path, _ = make_run(root, "first", "First", 1)
+                second_path, _ = make_run(root, "second", "Second", 2)
+
+                first, second = self._race_imports(store, first_path, second_path, branch)
+
+                self.assertEqual("base" if branch == "main" else None, first.parent_run_id)
+                self.assertEqual(first.run_id, second.parent_run_id)
+                summary = store.summary(project_id="p")
+                head = next(row for row in summary["branches"] if row["branch_name"] == branch)
+                self.assertEqual(second.run_id, head["head_run_id"])
+                with store.connect() as connection:
+                    events = connection.execute("SELECT * FROM events ORDER BY sequence").fetchall()
+                self.assertEqual(list(range(1, 5)), [row["sequence"] for row in events])
+                self.assertEqual([None] + [row["event_sha256"] for row in events[:-1]],
+                                 [row["previous_event_sha256"] for row in events])
+                self.assertEqual(first.run_id, json.loads(events[-1]["payload_json"])["parent_run_id"])
+
+    def test_concurrent_reimports_preserve_digest_checks_and_idempotence(self) -> None:
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                store = ProjectStore(root / "project.sqlite")
+                store.create_project(project_id="p", title="P", question="Q")
+                first_path, _ = make_run(root, "same", "First", 1)
+                second_path = first_path
+                if changed:
+                    second_path, _ = make_run(root / "other", "same", "Changed", 2)
+                    with self.assertRaisesRegex(ValueError, "different manifest bytes"):
+                        self._race_imports(store, first_path, second_path)
+                else:
+                    first, second = self._race_imports(store, first_path, second_path)
+                    self.assertEqual(first, second)
+                summary = store.summary(project_id="p")
+                self.assertEqual(1, len(summary["runs"]))
+                self.assertEqual("same", summary["branches"][0]["head_run_id"])
+                self.assertEqual(2, summary["event_chain_head"]["sequence"])
+
     def test_import_fork_assert_compare_and_merge_plan_preserve_run_authority(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)

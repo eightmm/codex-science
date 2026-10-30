@@ -315,6 +315,8 @@ class ProjectStore:
         review_status = str(manifest.get("review", {}).get("status", "unknown"))
         imported_at = _now()
         with self.connect() as connection:
+            # Serialize head selection and replay checks with the writes below.
+            connection.execute("BEGIN IMMEDIATE")
             self._require_project(connection, project_id)
             if parent_run_id is not None:
                 self._require_run(connection, project_id, parent_run_id)
