@@ -13,7 +13,7 @@ from unittest.mock import Mock
 
 from codex_science.citation_resolve import (EVIDENCE_BOUNDARY, normalize_identifiers, resolve_identifiers,
                                             supported_identifiers_from_text)
-from codex_science.citation_resolve import _CitationRedirectHandler
+from codex_science.citation_resolve import _CitationRedirectHandler, _normalized_text
 
 
 class CitationResolveTests(unittest.TestCase):
@@ -271,6 +271,34 @@ class CitationResolveTests(unittest.TestCase):
                             delay=lambda _: None)
         self.assertEqual(1, len(fetched))
 
+    def test_spaced_labels_preserve_valid_identifiers_and_cap(self):
+        for text, expected in (
+            ("", []), ("PMID : 12345", ["pmid:12345"]),
+            ("arXiv : 2401.00001", ["arxiv:2401.00001"]),
+            ("DOI : 10.1234/example", ["doi:10.1234/example"]),
+            ("PMID : 12345 PMID:12345 pmid : 12345.", ["pmid:12345"]),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual((expected, []), supported_identifiers_from_text(text))
+        for count in (0, 1, 50, 51):
+            with self.subTest(count=count):
+                ids = [f"pmid:{10000 + index}" for index in range(count)]
+                text = " ".join(f"PMID : {identifier.split(':')[1]}" for identifier in reversed(ids))
+                expected_skipped = [{"identifier": identifier, "reason": "over_cap"} for identifier in ids[50:]]
+                self.assertEqual((ids[:50], expected_skipped), supported_identifiers_from_text(text))
+        self.assertEqual(([], [{"identifier": "pmid:0", "reason": "malformed"},
+                               {"identifier": "pmid:abc", "reason": "malformed"}]),
+                         supported_identifiers_from_text("PMID : 0 PMID : abc"))
+
+    def test_cli_plan_includes_spaced_labels(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"
+        result = subprocess.run([sys.executable, str(script), "--input", "-"],
+                                input="PMID : 12345 arXiv : 2401.00001", capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(["arxiv:2401.00001", "pmid:12345"], payload["plan"]["identifiers"])
+        self.assertEqual([], payload["skipped_identifiers"])
+
     def test_labelled_scan_uses_identifier_span_overlap_and_keeps_only_malformed(self):
         for text, identifiers in (
             ("DOI: https://doi.org/10.1038/nature12373", ["doi:10.1038/nature12373"]),
@@ -400,6 +428,39 @@ class CitationResolveTests(unittest.TestCase):
         got = resolve_identifiers(["pmid:12345", "pmid:23456"],
                                   fetch=lambda *a, **k: (200, json.dumps(payload).encode()), delay=lambda _: None)
         self.assertEqual([entry["status"] for entry in got["results"]], ["not_found", "not_found"])
+
+    def test_pubmed_malformed_responses_do_not_establish_absence(self):
+        for payload in (
+            {}, {"result": {}}, {"result": []}, {"result": None}, {"result": 0},
+            *({"result": {"uids": uids}} for uids in (None, "12345", {}, 0, [None], [True], [0], ["0"], [""], [-1], [1.5], ["１２３４５"], ["bad"])),
+            {"result": {"uids": ["12345"]}},
+            *({"result": {"uids": ["12345"], "12345": item}} for item in ([], "", None, 0)),
+            {"error": "service down", "result": {"uids": []}},
+            {"result": {"error": "service down", "uids": []}},
+        ):
+            with self.subTest(payload=payload):
+                record = resolve_identifiers(["pmid:12345"], fetch=lambda *a, **k: (
+                    200, json.dumps(payload)), delay=lambda _: None)["results"][0]
+                self.assertEqual("unavailable", record["status"])
+                self.assertNotIn("title", record)
+        for uids in ([], ["23456"], [23456]):
+            with self.subTest(absent_from=uids):
+                record = resolve_identifiers(["pmid:12345"], fetch=lambda *a, **k: (
+                    200, json.dumps({"result": {"uids": uids}})), delay=lambda _: None)["results"][0]
+                self.assertEqual("not_found", record["status"])
+
+    def test_title_comparison_preserves_unicode_without_digit_only_matches(self):
+        self.assertEqual("2024年癌症治疗", _normalized_text("2024年癌症治疗"))
+        for actual, expected in (
+            ("2024年癌症治疗", "2024年气候变化"), ("2024", "2024"),
+            ("2024", "X2024"), ("X2024", "2024"),
+            ("0", "0"), ("!!!", "!!!"), ("", ""),
+        ):
+            with self.subTest(actual=actual, expected=expected):
+                record = resolve_identifiers(["doi:10.1234/example"], fetch=lambda *a, **k: (
+                    200, json.dumps({"message": {"title": [actual]}})), delay=lambda _: None,
+                    expected_metadata={"doi:10.1234/example": {"title": expected}})["results"][0]
+                self.assertNotEqual("match", record["metadata_check"])
 
     def test_pubmed_resolves_only_uid_in_uids_without_error(self):
         payload = {"result": {"uids": ["12345"], "12345": {"uid": "12345", "title": "A present study", "pubdate": "2022 Jan", "authors": [{"name": "Van der Meer J"}]}}}

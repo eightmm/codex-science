@@ -134,10 +134,21 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
                                 if isinstance(authors, list) and authors and isinstance(authors[0], dict) else None)
             else:
                 summary = payload["result"]
+                if not isinstance(summary, dict) or "error" in payload or "error" in summary:
+                    return result
                 item = summary.get(value)
-                uids = summary.get("uids", [])
-                if not isinstance(item, dict) or "error" in item or value not in {str(uid) for uid in uids}:
+                uids = summary.get("uids")
+                if not isinstance(uids, list) or any(
+                    isinstance(uid, bool) or not isinstance(uid, (str, int))
+                    or not str(uid).isascii() or not str(uid).isdigit() or not str(uid).strip("0")
+                    for uid in uids
+                ):
+                    return result
+                # NCBI esummary reports unknown PMIDs as a per-UID error entry.
+                if (isinstance(item, dict) and "error" in item) or value not in {str(uid) for uid in uids}:
                     result["status"] = "not_found"
+                    return result
+                if not isinstance(item, dict):
                     return result
                 if "uid" in item and str(item["uid"]) != value:
                     return result
@@ -168,7 +179,7 @@ def _normalized_text(value: Any) -> str:
     value = html.unescape(re.sub(r"<[^>]*>", " ", str(value or "")))
     value = unicodedata.normalize("NFKD", value)
     value = "".join(ch for ch in value if not unicodedata.combining(ch)).casefold()
-    return " ".join(re.findall(r"[a-z0-9]+", value))
+    return " ".join("".join(ch if ch.isalnum() else " " for ch in value).split())
 
 
 def _year_value(value: Any) -> int | None:
@@ -237,7 +248,10 @@ def _check_metadata(record: dict[str, Any], expected: dict[str, Any] | None) -> 
         return "mismatch"
     if expected_year is not None and actual_year is not None and abs(expected_year - actual_year) > 1:
         return "uncertain" if expected_title and similarity >= 0.75 else "mismatch"
-    if expected_title and actual_title and similarity >= 0.75 and not author_mismatch:
+    # Preserve conservative non-Latin results and require letters for a positive title match.
+    if (expected_title and actual_title and expected_title.isascii() and actual_title.isascii()
+            and any(ch.isalpha() for ch in expected_title) and any(ch.isalpha() for ch in actual_title)
+            and similarity >= 0.75 and not author_mismatch):
         return "match"
     return "uncertain"
 
@@ -311,7 +325,7 @@ def supported_identifiers_from_text(text: str) -> tuple[list[str], list[dict[str
                 supported.append(identifier)
         else:
             skip(identifier, "unsupported_kind")
-    # The label scan reports malformed values only when no identifier span was
+    # The label scan handles values only when no identifier span was
     # extracted inside that value (for example, a DOI nested inside a URL label).
     for match in _LABELED_ID.finditer(text):
         label_start, label_end = match.span(2)
@@ -319,8 +333,11 @@ def supported_identifiers_from_text(text: str) -> tuple[list[str], list[dict[str
             continue
         identifier = _clean_labeled_identifier(match.group(1), match.group(2))
         kind = identifier.split(":", 1)[0]
-        if kind in SUPPORTED_KINDS and not _valid_supported_identifier(identifier):
-            skip(identifier, "malformed")
+        if kind in SUPPORTED_KINDS:
+            if _valid_supported_identifier(identifier):
+                supported.append(identifier)
+            else:
+                skip(identifier, "malformed")
     ordered = sorted(set(supported))
     normalized = normalize_identifiers(ordered[:MAX_IDS])
     overflow = ordered[MAX_IDS:]
