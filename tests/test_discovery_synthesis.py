@@ -1,10 +1,15 @@
 import hashlib
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from codex_science.discovery import attach_cycle
 from codex_science.discovery_synthesis import summarize_cycle, synthesize_history
+from codex_science.project_store import ProjectStore
 from codex_science.research_cycle import apply_cycle_event, load_cycle, new_cycle, save_cycle
 
 
@@ -110,6 +115,78 @@ class DiscoverySynthesisTests(unittest.TestCase):
             self.assertEqual("e1", result["next_discriminating_action"]["id"])
             self.assertEqual("planned", result["hypothesis_ledger"][0]["evidence"][0]["label"])
             self.assertIn("does not prove a mechanism", result["evidence_boundary"])
+
+    def test_missing_fingerprint_uses_validated_identity_and_cli_has_no_traceback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cycle = make_cycle(root)
+            expected = cycle["experiments"][0].pop("fingerprint")
+            save_cycle(cycle, root)
+            cycle = load_cycle(root)
+            before = json.dumps(cycle, sort_keys=True)
+            summary = summarize_cycle(cycle, root)
+            history = synthesize_history({"project_id": "p", "runs": [{"run_id": "r", "cycles": [cycle]}]})
+            for ledger in (summary["hypothesis_ledger"], summary["method_ledger"], history["comparable_evidence_groups"]):
+                for group in ledger:
+                    self.assertEqual(expected, group["evidence"][0]["experiment_fingerprint"])
+            self.assertEqual(before, json.dumps(cycle, sort_keys=True))
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts/science_project.py"),
+                 "discovery", "next", "--run-dir", str(root)],
+                capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual(summary, json.loads(result.stdout))
+            self.assertEqual(cycle, load_cycle(root))
+            for malformed in ("", None):
+                cycle["experiments"][0]["fingerprint"] = malformed
+                with self.subTest(fingerprint=malformed), self.assertRaisesRegex(ValueError, "experiment fingerprint"):
+                    summarize_cycle(cycle, root)
+
+    def test_history_refuses_nonfinite_total_cost_and_cli_reports_labelled_error(self):
+        self.assertEqual([], synthesize_history({"runs": []})["comparable_evidence_groups"])
+        maximum = sys.float_info.max
+        for cost, control_cost in ((0, 0), (maximum, 0), (maximum / 2, maximum / 2), (1e308, 1e308)):
+            with self.subTest(cost=cost, control_cost=control_cost), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "run"
+                cycle = make_cycle(root)
+                experiment = cycle["experiments"][0]
+                experiment.pop("fingerprint")
+                experiment.update(cost=cost, control_cost=control_cost)
+                save_cycle(new_cycle(cycle), root)
+                cycle = load_cycle(root)
+                history = {"project_id": "p", "runs": [{"run_id": "r", "cycles": [cycle]}]}
+                if cost == 1e308:
+                    with self.assertRaisesRegex(ValueError, "experiment e1 total_cost must be finite"):
+                        synthesize_history(history)
+                    attach_cycle(root)
+                    database = Path(temporary) / "project.sqlite"
+                    store = ProjectStore(database)
+                    store.create_project(project_id="p", title="Discovery", question="Why?")
+                    store.import_run(project_id="p", manifest_path=root / "manifest.json")
+                    result = subprocess.run(
+                        [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts/science_project.py"),
+                         "--database", str(database), "discovery", "memory", "--project-id", "p"],
+                        capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("error: experiment e1 total_cost must be finite", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                else:
+                    result = synthesize_history(history)
+                    json.dumps(result, allow_nan=False)
+                    for group in result["comparable_evidence_groups"]:
+                        self.assertEqual(cost + control_cost, group["evidence"][0]["total_cost"])
+                self.assertEqual(cycle, load_cycle(root))
+        for malformed in ("", None, -1):
+            with self.subTest(cost=malformed), tempfile.TemporaryDirectory() as temporary:
+                cycle = make_cycle(Path(temporary))
+                cycle["experiments"][0].pop("fingerprint")
+                cycle["experiments"][0]["cost"] = malformed
+                with self.assertRaisesRegex(ValueError, "experiment cost"):
+                    new_cycle(cycle)
 
     def test_unevidenced_idea_requires_implementation_before_reservation(self):
         with tempfile.TemporaryDirectory() as temporary:

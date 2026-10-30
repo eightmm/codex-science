@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -182,10 +183,12 @@ def _experiment_evidence(
     *,
     hypothesis_id: str | None = None,
 ) -> dict[str, Any]:
+    from codex_science.research_cycle import _experiment_fingerprint
+
     state = experiment.get("state", "planned")
     entry: dict[str, Any] = {
         "experiment_id": experiment["id"],
-        "experiment_fingerprint": experiment["fingerprint"],
+        "experiment_fingerprint": experiment.get("fingerprint", _experiment_fingerprint(experiment)),
         "cycle_hash": cycle["cycle_hash"],
         "cycle_revision": cycle["revision"],
         "state": state,
@@ -350,6 +353,8 @@ def synthesize_history(history: Mapping[str, Any]) -> dict[str, Any]:
                     entry = _experiment_evidence(experiment, method, cycle, hypothesis_id=hypothesis_id)
                     entry["run_id"] = run["run_id"]
                     entry["total_cost"] = float(experiment["cost"]) + float(experiment.get("control_cost", 0))
+                    if not math.isfinite(entry["total_cost"]):
+                        raise ValueError(f"experiment {experiment['id']} total_cost must be finite")
                     group["evidence"].append(entry)
     for group in groups.values():
         group["evidence"].sort(key=lambda item: (item["run_id"], item["cycle_revision"], item["experiment_id"]))
