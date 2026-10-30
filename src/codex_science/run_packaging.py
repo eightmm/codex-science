@@ -20,6 +20,7 @@ from typing import Any
 
 from codex_science.artifacts import _artifact_metadata, _local_code_path, validate_bundle, validate_manifest, write_manifest
 from codex_science.artifact_store import describe_directory
+from codex_science.open_fulltext import _PUBLICATION_TEMPORARY
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 from codex_science.review import review_manifest
 from codex_science.runtime_identity import record_runtime_identity
@@ -887,6 +888,8 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             or canonical.startswith("logs/") or canonical.startswith(".review/")
             or "review-rounds" in PurePosixPath(canonical).parts
             or any(part in {"review", "reviews"} for part in PurePosixPath(canonical).parts)
+            or (PurePosixPath(canonical).parent == PurePosixPath("fulltext")
+                and _PUBLICATION_TEMPORARY.fullmatch(target.name) and not target.is_symlink())
         ):
             continue
         if _is_review_flow_file(target):

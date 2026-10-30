@@ -411,6 +411,95 @@ class PackageRunTests(unittest.TestCase):
         lock = self.run_dir.parent / f".{self.run_dir.name}.screening.lock"
         self.assertTrue(lock.is_file())
 
+    def test_fulltext_fetch_and_retry_refresh_without_extra_classifications(self) -> None:
+        from codex_science.open_fulltext import fetch_fulltext
+        from codex_science.workbench import render_workbench
+
+        output = self.run_dir / "fulltext"
+        raw = self.run_dir / "raw"
+        raw_before = {path.relative_to(raw): path.read_bytes() for path in raw.rglob("*") if path.is_file()}
+        metadata = b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
+        xml = b"<article><p>Fetched response</p></article>"
+        for retry in (False, True):
+            with self.subTest(retry=retry):
+                if retry:
+                    abandoned = []
+                    for suffix in (".xml", ".txt"):
+                        path = output / (".fulltext-" + "0" * 32 + "-deadbeef" + suffix)
+                        path.write_bytes(b"" if suffix == ".xml" else b"partial")
+                        abandoned.append(path)
+                    for extra in ([], ["--default-kind", "provenance"], ["--kind", "fulltext/*=source-snapshot"]):
+                        refreshed = self.cli("refresh", "--run-dir", str(self.run_dir), *extra)
+                        self.assertEqual(0, refreshed.returncode, refreshed.stdout + refreshed.stderr)
+                        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+                        self.assertFalse(any(item["path"] in {path.relative_to(self.run_dir).as_posix()
+                                                             for path in abandoned}
+                                             for item in manifest["artifacts"]))
+                        self.assertEqual([b"", b"partial"], [path.read_bytes() for path in abandoned])
+                    validation = self.cli_validator(self.run_dir / "manifest.json")
+                    self.assertEqual(0, validation.returncode, validation.stdout + validation.stderr)
+                    rendered = render_workbench(manifest, self.run_dir)
+                    for path in abandoned:
+                        self.assertNotIn(path.relative_to(self.run_dir).as_posix(), rendered)
+
+                    stem = ".fulltext-" + "0" * 32
+                    ordinary = [
+                        "fulltext/.user-notes.txt", "fulltext/.fulltext--deadbeef.xml",
+                        "fulltext/.fulltext-" + "0" * 31 + "-deadbeef.xml",
+                        "fulltext/.fulltext-" + "0" * 33 + "-deadbeef.xml",
+                        "fulltext/.fulltext-" + "g" * 32 + "-deadbeef.xml",
+                        "fulltext/" + stem + "-.txt", "fulltext/" + stem + "-dead.beef.xml",
+                        "fulltext/" + stem + "-deadbeef.xml.extra",
+                        "fulltext/" + stem.removeprefix(".") + "-deadbeef.xml",
+                        "fulltext/nested/" + abandoned[0].name,
+                        "other/" + abandoned[0].name, abandoned[0].name,
+                    ]
+                    created_directories = set()
+                    for relative in ordinary:
+                        path = self.run_dir / relative
+                        if not path.parent.exists():
+                            path.parent.mkdir()
+                            created_directories.add(path.parent)
+                        path.write_bytes(b"user file")
+                    symlink = output / (".fulltext-" + "1" * 32 + "-deadbeef.xml")
+                    symlink.symlink_to("PMC12345.xml")
+                    manifest_path = self.run_dir / "manifest.json"
+                    before = manifest_path.read_bytes()
+                    refused = self.cli("refresh", "--run-dir", str(self.run_dir))
+                    self.assertEqual(1, refused.returncode)
+                    self.assertIn("Unclassified files: ", refused.stderr)
+                    reported = refused.stderr.split("Unclassified files: ", 1)[1].split("; classify each", 1)[0]
+                    self.assertEqual(set(ordinary) | {symlink.relative_to(self.run_dir).as_posix()},
+                                     set(reported.split(", ")))
+                    self.assertEqual(before, manifest_path.read_bytes())
+                    self.assertEqual(Path("PMC12345.xml"), symlink.readlink())
+                    symlink.unlink()
+                    for relative in ordinary:
+                        path = self.run_dir / relative
+                        self.assertEqual(b"user file", path.read_bytes())
+                        path.unlink()
+                    for directory in created_directories:
+                        directory.rmdir()
+
+                def fetch(url, **kwargs):
+                    return 200, metadata if "search?" in url else xml
+
+                result = fetch_fulltext(["pmid:12345"], self.run_dir, execute=True, fetch=fetch)
+                self.assertEqual("fetched", result["results"][0]["status"])
+                refreshed = self.cli("refresh", "--run-dir", str(self.run_dir), "--invalidate-review",
+                                     "--kind", "fulltext/PMC12345.xml=source-snapshot",
+                                     "--kind", "fulltext/PMC12345.txt=source-snapshot",
+                                     "--kind", "fulltext/fetch-ledger.jsonl=provenance")
+                self.assertEqual(0, refreshed.returncode, refreshed.stdout + refreshed.stderr)
+                expected = {"PMC12345.xml", "PMC12345.txt", "fetch-ledger.jsonl"}
+                self.assertEqual(expected, {path.name for path in output.iterdir()})
+                self.assertEqual(raw_before, {path.relative_to(raw): path.read_bytes()
+                                             for path in raw.rglob("*") if path.is_file()})
+                manifest = json.loads((self.run_dir / "manifest.json").read_text())
+                self.assertEqual({"fulltext/" + name for name in expected},
+                                 {item["path"] for item in manifest["artifacts"]
+                                  if item["path"].startswith("fulltext/")})
+
     def test_prepare_review_initial_refresh_failure_marks_existing_packet_stale(self) -> None:
         self._make_unreviewed_run()
         first = self.cli("prepare-review", "--run-dir", str(self.run_dir), "--tier", "quick")

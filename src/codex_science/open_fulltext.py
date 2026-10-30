@@ -5,8 +5,10 @@ import fcntl
 import hashlib
 import http.client
 import json
+import os
 import re
 import stat
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -32,6 +34,12 @@ MAX_FETCHES = 10
 MAX_SECONDS = 60.0
 MAX_BODY_BYTES = 8 * 1024 * 1024
 _HOSTS = frozenset({"www.ebi.ac.uk"})
+_PUBLICATION_TEMPORARY_PREFIX = ".fulltext-"
+_PUBLICATION_TEMPORARY_SUFFIXES = (".xml", ".txt")
+_PUBLICATION_TEMPORARY = re.compile(
+    re.escape(_PUBLICATION_TEMPORARY_PREFIX) + r"[0-9a-f]{32}-[a-z0-9_]+(?:"
+    + "|".join(re.escape(suffix) for suffix in _PUBLICATION_TEMPORARY_SUFFIXES) + ")"
+)
 _DOCTYPE_START = re.compile(br"<!\s*DOCTYPE\b", re.IGNORECASE)
 _DOCTYPE = re.compile(
     br"<!DOCTYPE\s+[A-Za-z_:][A-Za-z0-9_.:-]*\s+"
@@ -473,6 +481,35 @@ def _open_license(value: str) -> bool:
         return False
 
 
+def _remove_publication_temporaries(output_dir: Path) -> None:
+    # The caller holds the ledger lock, so no live publisher owns these names.
+    for path in output_dir.iterdir():
+        if _PUBLICATION_TEMPORARY.fullmatch(path.name):
+            path.unlink()
+
+
+def _publish_pair(output_dir: Path, pmcid: str, xml: bytes, plain: str) -> None:
+    """Stage both artifacts before exposing either; caller holds the ledger lock."""
+    _remove_publication_temporaries(output_dir)
+    staged: list[Path] = []
+    try:
+        for suffix in _PUBLICATION_TEMPORARY_SUFFIXES:
+            descriptor, name = tempfile.mkstemp(
+                prefix=f"{_PUBLICATION_TEMPORARY_PREFIX}{uuid.uuid4().hex}-", suffix=suffix, dir=output_dir)
+            staged.append(Path(name))
+            os.close(descriptor)
+        staged[0].write_bytes(xml)
+        staged[1].write_text(plain, encoding="utf-8")
+        for path in staged:
+            with path.open("rb") as stream:
+                os.fsync(stream.fileno())
+        os.replace(staged[0], output_dir / f"{pmcid}.xml")
+        os.replace(staged[1], output_dir / f"{pmcid}.txt")
+    finally:
+        for path in staged:
+            path.unlink(missing_ok=True)
+
+
 def _prepare_output_paths(root: Path, ids: list[str]) -> tuple[Path, Path]:
     output_dir = root / "fulltext"
     if output_dir.is_symlink() or (output_dir.exists() and not output_dir.is_dir()):
@@ -481,12 +518,19 @@ def _prepare_output_paths(root: Path, ids: list[str]) -> tuple[Path, Path]:
         try:
             output_dir.resolve(strict=True).relative_to(root)
             for item in output_dir.iterdir():
-                if item.is_symlink() or not item.is_file():
+                try:
+                    metadata = item.lstat()
+                except FileNotFoundError:
+                    # A concurrent publisher can replace or remove its staging files.
+                    if _PUBLICATION_TEMPORARY.fullmatch(item.name):
+                        continue
+                    raise
+                if not stat.S_ISREG(metadata.st_mode):
                     raise ValueError(f"unsafe fulltext entry: {item.name}")
         except (OSError, RuntimeError, ValueError) as exc:
             raise ValueError("fulltext output path is unsafe") from exc
     else:
-        output_dir.mkdir()
+        output_dir.mkdir(exist_ok=True)
     for identifier in ids:
         if identifier.startswith("pmcid:"):
             pmcid = identifier.split(":", 1)[1].upper()
@@ -494,8 +538,7 @@ def _prepare_output_paths(root: Path, ids: list[str]) -> tuple[Path, Path]:
                 candidate = _safe_run_file(root, f"fulltext/{pmcid}{suffix}", required=False)
                 if candidate is None:
                     raise ValueError("unsafe fulltext artifact path")
-    ledger_relative = "fulltext/fetch-ledger.jsonl"
-    ledger = _safe_run_file(root, ledger_relative, required=False)
+    ledger = _safe_run_file(root, "fulltext/fetch-ledger.jsonl", required=False)
     if ledger is None:
         raise ValueError("unsafe fulltext ledger path")
     return output_dir, ledger
@@ -582,6 +625,7 @@ def fetch_fulltext(
             "fulltext_pmcid": pmcid,
             "license": license_value,
         }
+        row_recorded = False
         try:
             with ledger_path.open("a+b") as stream:
                 fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
@@ -592,9 +636,14 @@ def fetch_fulltext(
                     if stream.read(1) != b"\n":
                         prefix = b"\n"
                 stream.write(prefix + (json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
-            requests_recorded += 1
+                stream.flush()
+                requests_recorded += 1
+                row_recorded = True
+                if pmcid is not None and response_status == 200 and isinstance(plain, str):
+                    _publish_pair(output_dir, pmcid, body, plain)
         except OSError:
-            ledger_failed = True
+            if not row_recorded:
+                ledger_failed = True
             return response_status, body, False, True, plain
         return response_status, body, True, True, plain
 
@@ -696,13 +745,6 @@ def fetch_fulltext(
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "unavailable",
                             "reason": "xml-declaration-refused"})
-            continue
-        try:
-            (output_dir / f"{pmcid}.xml").write_bytes(xml)
-            (output_dir / f"{pmcid}.txt").write_text(plain, encoding="utf-8")
-        except OSError:
-            results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
-                            "license": license_value, "status": "write-failed"})
             continue
         results.append({"identifier": identifier, "fulltext_pmcid": pmcid, "license": license_value,
                         "status": "fetched", "response_sha256": hashlib.sha256(xml).hexdigest()})

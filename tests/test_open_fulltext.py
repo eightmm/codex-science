@@ -9,6 +9,7 @@ from contextlib import redirect_stdout
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 import tempfile
+import threading
 import time
 import unittest
 import urllib.request
@@ -232,6 +233,292 @@ class OpenFulltextTests(unittest.TestCase):
         self.assertTrue(all(entry["source"] == "europepmc" and entry["query"] and entry["accessed_at"]
                             and entry["status"] == "complete" for entry in ledger))
         _validate_query_records(ledger)
+
+    def _article_fetch(self, xml):
+        metadata = b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
+        return Mock(side_effect=[(200, metadata), (200, xml)])
+
+    def test_concurrent_fulltext_publications_keep_pair_and_ledger_order(self):
+        output = self.run / "fulltext"
+        output.mkdir()
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        responses_ready = threading.Barrier(2, timeout=timeout)
+        first_xml = threading.Event()
+        second_finished_or_blocked = threading.Event()
+        worker = threading.local()
+        original_write = Path.write_bytes
+        original_replace = os.replace
+        original_flock = open_fulltext.fcntl.flock
+
+        def after_xml():
+            if worker.label == "First":
+                first_xml.set()
+                self.assertTrue(second_finished_or_blocked.wait(timeout))
+
+        def write_bytes(path, data):
+            result = original_write(path, data)
+            if path.name == "PMC12345.xml":
+                after_xml()
+            return result
+
+        def replace(source, destination):
+            result = original_replace(source, destination)
+            if Path(destination).name == "PMC12345.xml":
+                after_xml()
+            return result
+
+        def flock(descriptor, operation):
+            if getattr(worker, "label", None) == "Second" and operation == open_fulltext.fcntl.LOCK_EX:
+                try:
+                    return original_flock(descriptor, operation | open_fulltext.fcntl.LOCK_NB)
+                except BlockingIOError:
+                    second_finished_or_blocked.set()
+            return original_flock(descriptor, operation)
+
+        def run(label):
+            worker.label = label
+            xml = f"<article><p>{label} response</p></article>".encode()
+            transport = self._article_fetch(xml)
+
+            def fetch(url, **kwargs):
+                response = transport(url, **kwargs)
+                if "search?" not in url:
+                    responses_ready.wait()
+                    if label == "Second":
+                        self.assertTrue(first_xml.wait(timeout))
+                return response
+
+            try:
+                return fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=fetch)
+            finally:
+                if label == "Second":
+                    second_finished_or_blocked.set()
+
+        with patch.object(Path, "write_bytes", write_bytes), patch.object(
+            os, "replace", replace,
+        ), patch.object(open_fulltext.fcntl, "flock", flock), ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(run, label) for label in ("First", "Second")]
+            results = [future.result(timeout=timeout) for future in futures]
+        for result in results:
+            self.assertEqual("fetched", result["results"][0]["status"])
+            self.assertEqual(2, result["requests_recorded"])
+        xml = (output / "PMC12345.xml").read_bytes()
+        self.assertEqual(open_fulltext._plain_text(xml), (output / "PMC12345.txt").read_text())
+        rows = [json.loads(line) for line in (output / "fetch-ledger.jsonl").read_text().splitlines()]
+        fulltext_rows = [row for row in rows if row["fulltext_pmcid"] is not None]
+        self.assertEqual(2, len(fulltext_rows))
+        self.assertEqual(hashlib.sha256(xml).hexdigest(), fulltext_rows[-1]["response_sha256"])
+        self.assertEqual({row["response_sha256"] for row in fulltext_rows},
+                         {result["results"][0]["response_sha256"] for result in results})
+        self.assertEqual({"fetch-ledger.jsonl", "PMC12345.xml", "PMC12345.txt"},
+                         {path.name for path in output.iterdir()})
+
+    def test_fulltext_staging_failures_preserve_existing_pair_and_remove_temporaries(self):
+        original_bytes = Path.write_bytes
+        original_text = Path.write_text
+        original_sync = os.fsync
+        original_replace = os.replace
+        original_flock = open_fulltext.fcntl.flock
+        original_open = Path.open
+        original_mkstemp = tempfile.mkstemp
+        script = Path(__file__).resolve().parents[1] / "scripts/fetch_open_fulltext.py"
+        spec = importlib.util.spec_from_file_location("fetch_open_fulltext_cli", script)
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        for prior in (None, b"", b"<article><p>Old response</p></article>"):
+            for failure in ("xml-create", "text-create", "xml-write", "text-write", "xml-sync",
+                            "text-sync", "replace", "lock", "ledger", "initial-ledger", "initial-lock",
+                            "initial-ledger-missing", "initial-lock-missing"):
+                with self.subTest(prior=prior, failure=failure), tempfile.TemporaryDirectory() as temp:
+                    output = Path(temp) / "fulltext"
+                    output.mkdir()
+                    initial_failure = failure.startswith("initial-")
+                    if initial_failure and not failure.endswith("-missing"):
+                        (output / "fetch-ledger.jsonl").write_bytes(b"")
+                    xml_path, text_path = output / "PMC12345.xml", output / "PMC12345.txt"
+                    old_text = open_fulltext._plain_text(prior) if prior else ""
+                    if prior is not None:
+                        xml_path.write_bytes(prior)
+                        text_path.write_text(old_text)
+                    sync_count = 0
+                    create_count = 0
+                    response_received = False
+
+                    def mkstemp(**kwargs):
+                        nonlocal create_count
+                        create_count += 1
+                        self.assertEqual(output, kwargs["dir"])
+                        self.assertTrue(kwargs["prefix"].startswith("."))
+                        if (failure, create_count) in (("xml-create", 1), ("text-create", 2)):
+                            raise OSError("fixture temporary creation failure")
+                        return original_mkstemp(**kwargs)
+
+                    def flock(descriptor, operation):
+                        if failure.startswith("initial-lock") or (failure == "lock" and response_received):
+                            raise OSError("fixture lock failure")
+                        return original_flock(descriptor, operation)
+
+                    def open_file(path, *args, **kwargs):
+                        if path.name == "fetch-ledger.jsonl" and (
+                            failure.startswith("initial-ledger") or (failure == "ledger" and response_received)
+                        ):
+                            raise OSError("fixture ledger failure")
+                        return original_open(path, *args, **kwargs)
+
+                    def write_bytes(path, data):
+                        if failure == "xml-write" and path.suffix == ".xml":
+                            original_bytes(path, b"partial")
+                            raise OSError("fixture XML write failure")
+                        return original_bytes(path, data)
+
+                    def write_text(path, text, **kwargs):
+                        if failure == "text-write" and path.suffix == ".txt":
+                            original_text(path, "partial", **kwargs)
+                            raise OSError("fixture text write failure")
+                        return original_text(path, text, **kwargs)
+
+                    def fsync(descriptor):
+                        nonlocal sync_count
+                        sync_count += 1
+                        if (failure, sync_count) in (("xml-sync", 1), ("text-sync", 2)):
+                            raise OSError("fixture sync failure")
+                        return original_sync(descriptor)
+
+                    def replace(source, destination):
+                        if failure == "replace":
+                            raise OSError("fixture replacement failure")
+                        return original_replace(source, destination)
+
+                    with patch.object(Path, "write_bytes", write_bytes), patch.object(
+                        Path, "write_text", write_text,
+                    ), patch.object(os, "fsync", fsync), patch.object(
+                        os, "replace", replace,
+                    ), patch.object(open_fulltext.fcntl, "flock", flock), patch.object(
+                        Path, "open", open_file,
+                    ), patch.object(tempfile, "mkstemp", mkstemp):
+                        xml = b"<article><p>New response</p></article>"
+                        transport = self._article_fetch(xml)
+
+                        def fetch(url, **kwargs):
+                            nonlocal response_received
+                            response_received = "search?" not in url
+                            return transport(url, **kwargs)
+
+                        ids = ["pmid:12345", "pmid:67890"] if initial_failure or failure in {"lock", "ledger"} else ["pmid:12345"]
+                        if initial_failure:
+                            stdout = io.StringIO()
+                            with patch.object(open_fulltext, "_http_fetch", fetch), redirect_stdout(stdout):
+                                code = cli.main(["--run-dir", temp, "--id", ids[0], "--id", ids[1], "--execute"])
+                            self.assertEqual(0, code)
+                            result = json.loads(stdout.getvalue())
+                            self.assertEqual("open-fulltext-v1", result["schema"])
+                            self.assertEqual([{"identifier": identifier, "status": "write-failed"} for identifier in ids],
+                                             result["results"])
+                        else:
+                            result = fetch_fulltext(ids, temp, execute=True, fetch=fetch)
+                    self.assertEqual("write-failed", result["results"][0]["status"])
+                    self.assertEqual(prior is not None, xml_path.exists())
+                    self.assertEqual(prior is not None, text_path.exists())
+                    if prior is not None:
+                        self.assertEqual(prior, xml_path.read_bytes())
+                        self.assertEqual(old_text, text_path.read_text())
+                    names = {"fetch-ledger.jsonl"}
+                    if failure == "initial-ledger-missing":
+                        names.clear()
+                    if prior is not None:
+                        names.update({"PMC12345.xml", "PMC12345.txt"})
+                    self.assertEqual(names, {path.name for path in output.iterdir()})
+                    ledger = output / "fetch-ledger.jsonl"
+                    rows = [json.loads(line) for line in ledger.read_text().splitlines()] if ledger.exists() else []
+                    expected_requests = 0 if initial_failure else (1 if failure in {"lock", "ledger"} else 2)
+                    self.assertEqual(expected_requests, result["requests_recorded"])
+                    self.assertEqual(expected_requests, len(rows))
+                    if initial_failure or failure in {"lock", "ledger"}:
+                        self.assertEqual(1 if initial_failure else 2, transport.call_count)
+                        self.assertEqual(["write-failed", "write-failed"],
+                                         [row["status"] for row in result["results"]])
+                    if expected_requests == 2:
+                        self.assertEqual(hashlib.sha256(xml).hexdigest(), rows[-1]["response_sha256"])
+
+    def test_fulltext_ledger_lock_is_stable_across_retries_without_extra_files(self):
+        output = self.run / "fulltext"
+        ledger = output / "fetch-ledger.jsonl"
+        raw = self.run / "raw"
+        raw.mkdir()
+        xml = b"<article><p>Response</p></article>"
+        original_replace = os.replace
+
+        def replace(source, destination):
+            with ledger.open("a+b") as contender:
+                with self.assertRaises(BlockingIOError):
+                    open_fulltext.fcntl.flock(contender.fileno(), open_fulltext.fcntl.LOCK_EX | open_fulltext.fcntl.LOCK_NB)
+            return original_replace(source, destination)
+
+        with patch.object(os, "replace", side_effect=replace) as replacements:
+            first = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=self._article_fetch(xml))
+        self.assertEqual("fetched", first["results"][0]["status"])
+        self.assertEqual(2, replacements.call_count)
+        inode = ledger.stat().st_ino
+        with patch.object(os, "replace", side_effect=replace) as replacements:
+            second = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=self._article_fetch(xml))
+        self.assertEqual("fetched", second["results"][0]["status"])
+        self.assertEqual(2, replacements.call_count)
+        self.assertEqual(inode, ledger.stat().st_ino)
+        self.assertEqual(4, len(ledger.read_text().splitlines()))
+        self.assertEqual({"fetch-ledger.jsonl", "PMC12345.xml", "PMC12345.txt"},
+                         {path.name for path in output.iterdir()})
+        self.assertEqual([], list(raw.iterdir()))
+        self.assertEqual([output / "PMC12345.xml"], list(output.glob("PMC*.xml")))
+        self.assertEqual([output / "PMC12345.txt"], list(output.glob("PMC*.txt")))
+        for kind in ("directory", "fifo", "symlink"):
+            with self.subTest(lock=kind), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp) / "fulltext"
+                directory.mkdir()
+                unsafe_lock = directory / "fetch-ledger.jsonl"
+                if kind == "directory":
+                    unsafe_lock.mkdir()
+                elif kind == "fifo":
+                    os.mkfifo(unsafe_lock)
+                else:
+                    unsafe_lock.symlink_to("missing")
+                fetch = Mock()
+                with self.assertRaises(ValueError):
+                    fetch_fulltext(["pmid:12345"], temp, execute=True, fetch=fetch)
+                fetch.assert_not_called()
+
+    def test_fulltext_retry_removes_only_abandoned_publication_temporaries(self):
+        output = self.run / "fulltext"
+        output.mkdir()
+        abandoned = [output / (".fulltext-" + "0" * 32 + "-deadbeef" + suffix)
+                     for suffix in (".xml", ".txt")]
+        unrelated = [output / name for name in (
+            ".fulltext-user-notes.xml", ".fulltext-" + "0" * 31 + "-deadbeef.xml",
+            ".fulltext-" + "0" * 33 + "-deadbeef.xml", ".fulltext-" + "g" * 32 + "-deadbeef.xml",
+            ".fulltext-" + "0" * 32 + "-.txt",
+        )]
+        for path in unrelated:
+            path.write_bytes(b"keep")
+        xml = b"<article><p>Response</p></article>"
+        for during_fetch in (False, True):
+            with self.subTest(during_fetch=during_fetch):
+                if not during_fetch:
+                    for path in abandoned:
+                        path.write_bytes(b"partial")
+                transport = self._article_fetch(xml)
+
+                def fetch(url, **kwargs):
+                    if during_fetch and "search?" not in url:
+                        for path in abandoned:
+                            path.write_bytes(b"partial")
+                    return transport(url, **kwargs)
+
+                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=fetch)
+                self.assertEqual("fetched", result["results"][0]["status"])
+                self.assertTrue(all(not path.exists() for path in abandoned))
+                self.assertTrue(all(path.read_bytes() == b"keep" for path in unrelated))
+                expected = {"fetch-ledger.jsonl", "PMC12345.xml", "PMC12345.txt"}
+                self.assertEqual(expected | {path.name for path in unrelated},
+                                 {path.name for path in output.iterdir()})
 
     def test_structured_jats_rendering_preserves_order_without_nested_duplicates(self):
         xml = b"""<article><front><article-meta><title-group><article-title>Article title</article-title></title-group><abstract><p>Abstract text.</p></abstract></article-meta></front><body><sec><title>Methods</title><p>First paragraph.</p><sec><title>Nested section</title><p>Nested paragraph.</p><fig><label>Figure 1</label><caption><p>Figure caption text.</p></caption></fig><table-wrap><label>Table 1</label><caption><p>Table caption text.</p></caption><table><thead><tr><th>Outcome</th><th>Count</th></tr></thead><tbody><tr><td>Positive</td><td>12</td></tr></tbody></table></table-wrap></sec></sec><ref-list><title>References</title><ref><p>Reference text must be omitted.</p></ref></ref-list><supplementary-material><label>Supplement</label><caption><p>Supplement caption.</p></caption><p>Supplement body must be omitted.</p></supplementary-material></body></article>"""
@@ -494,12 +781,71 @@ class OpenFulltextTests(unittest.TestCase):
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
         fetch = Mock()
+
+        def snapshot(root):
+            return {path.relative_to(root).as_posix(): (
+                ("symlink", os.readlink(path)) if path.is_symlink() else
+                ("directory", None) if path.is_dir() else ("file", path.read_bytes())
+            ) for path in root.rglob("*")}
+
+        before = snapshot(self.run)
         stdout = io.StringIO()
         with patch.object(open_fulltext, "_http_fetch", fetch), redirect_stdout(stdout):
             code = cli.main(["--run-dir", str(self.run), "--id", "pmid:12345", "--execute"])
         self.assertEqual(2, code)
         self.assertEqual("open-fulltext-error-v1", json.loads(stdout.getvalue())["schema"])
         fetch.assert_not_called()
+        self.assertEqual(before, snapshot(self.run))
+        for kind in ("symlink", "directory"):
+            with self.subTest(entry=kind), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                output = root / "fulltext"
+                output.mkdir()
+                (output / "keep.xml").write_bytes(b"unchanged")
+                entry = output / "unsafe"
+                if kind == "symlink":
+                    entry.symlink_to("missing")
+                else:
+                    entry.mkdir()
+                    (entry / "keep.txt").write_bytes(b"unchanged")
+                before = snapshot(root)
+                stdout = io.StringIO()
+                with patch.object(open_fulltext, "_http_fetch", fetch), redirect_stdout(stdout):
+                    code = cli.main(["--run-dir", temp, "--id", "pmid:12345", "--execute"])
+                self.assertEqual(2, code)
+                self.assertEqual("invalid_request", json.loads(stdout.getvalue())["error"]["code"])
+                self.assertEqual(before, snapshot(root))
+                fetch.assert_not_called()
+
+    def test_fulltext_preparation_tolerates_only_vanished_publication_temporaries(self):
+        prefix = ".fulltext-" + "0" * 32
+        for name, allowed in ((None, True), (prefix + "-deadbeef.xml", True),
+                              (prefix + "-deadbeef.txt", True), (prefix + "-.xml", False),
+                              ("ordinary.xml", False)):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                output = root / "fulltext"
+                output.mkdir()
+                disappearing = output / name if name is not None else None
+                if disappearing is not None:
+                    disappearing.write_bytes(b"partial")
+                original_lstat = Path.lstat
+
+                def lstat(path, *args, **kwargs):
+                    if path == disappearing:
+                        path.unlink(missing_ok=True)
+                        raise FileNotFoundError("fixture concurrent replacement")
+                    return original_lstat(path, *args, **kwargs)
+
+                with patch.object(Path, "lstat", lstat):
+                    if allowed:
+                        prepared, ledger = open_fulltext._prepare_output_paths(root, [])
+                        self.assertEqual(output, prepared)
+                        self.assertEqual(output / "fetch-ledger.jsonl", ledger)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "fulltext output path is unsafe"):
+                            open_fulltext._prepare_output_paths(root, [])
+                self.assertFalse((output / "fetch-ledger.jsonl").exists())
 
     def test_fetch_ledger_is_appended_before_later_artifact_write_failure(self):
         calls = []
