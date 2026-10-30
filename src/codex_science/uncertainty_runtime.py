@@ -262,19 +262,12 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         if len(outputs) < max(10, int(0.9 * samples)):
             raise ValueError("too many Monte Carlo samples failed expression evaluation")
         try:
-            monte_carlo_mean = sum(outputs) / len(outputs)
-            monte_carlo_uncertainty = math.sqrt(sum((value - monte_carlo_mean) ** 2 for value in outputs) / max(1, len(outputs) - 1))
-        except OverflowError:
-            monte_carlo_uncertainty = math.inf
+            monte_carlo_mean = statistics.mean(outputs)
+            monte_carlo_uncertainty = statistics.stdev(outputs)
+        except OverflowError as error:
+            raise ValueError("Monte Carlo statistics must be finite") from error
         if not math.isfinite(monte_carlo_mean) or not math.isfinite(monte_carlo_uncertainty):
-            # Retain ordinary receipt rounding; use exact accumulation only when
-            # the original mean or variance formula overflows.
-            try:
-                monte_carlo_mean = statistics.mean(outputs)
-                monte_carlo_uncertainty = statistics.stdev(outputs)
-            except OverflowError as error:
-                raise ValueError("Monte Carlo statistics must be finite") from error
-            _require_finite_statistics([monte_carlo_mean, monte_carlo_uncertainty])
+            raise ValueError("Monte Carlo statistics must be finite")
         alpha = 1.0 - confidence_level
         interval = [_quantile(outputs, alpha / 2.0), _quantile(outputs, 1.0 - alpha / 2.0)]
     else:
@@ -290,7 +283,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     linear_uncertainty = math.sqrt(linear_variance)
     sensitivities = []
     for index, name in enumerate(names):
-        contribution = gradient[index] ** 2 * covariance[index][index]
+        contribution = gradient[index] * covariance[index][index] * gradient[index]
         sensitivities.append({
             "name": name,
             "derivative": gradient[index],
@@ -319,14 +312,20 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     if method in {"monte-carlo", "both"} and samples < 1000:
         findings.append({"code": "low-monte-carlo-samples", "severity": "minor", "message": "Monte Carlo propagation uses fewer than 1000 accepted samples."})
     if method == "both" and monte_carlo_uncertainty is not None:
-        scale = max(linear_uncertainty, monte_carlo_uncertainty, 1e-15)
-        uncertainty_discrepancy = abs(linear_uncertainty - monte_carlo_uncertainty) / scale
-        mean_discrepancy = abs(nominal - float(monte_carlo_mean)) / scale
-        if uncertainty_discrepancy > nonlinearity_threshold or mean_discrepancy > 0.25:
+        scale = max(linear_uncertainty, monte_carlo_uncertainty)
+        zero_scale_shift = scale == 0.0 and nominal != monte_carlo_mean
+        # Keep finite zero-scale fields; the finding records undefined normalization.
+        uncertainty_discrepancy = abs(linear_uncertainty - monte_carlo_uncertainty) / scale if scale else 0.0
+        mean_discrepancy = abs(nominal - float(monte_carlo_mean)) / scale if scale else 0.0
+        if zero_scale_shift or uncertainty_discrepancy > nonlinearity_threshold or mean_discrepancy > 0.25:
             findings.append({
                 "code": "nonlinear-propagation-disagreement",
                 "severity": "major",
-                "message": "Linear and Monte Carlo propagation disagree materially; report the nonlinear distribution rather than only a first-order standard uncertainty.",
+                "message": (
+                    "mean shift cannot be normalized by zero uncertainty; nominal and Monte Carlo means differ."
+                    if zero_scale_shift else
+                    "Linear and Monte Carlo propagation disagree materially; report the nonlinear distribution rather than only a first-order standard uncertainty."
+                ),
             })
     else:
         uncertainty_discrepancy = None
@@ -386,7 +385,75 @@ def validate_uncertainty_propagation(payload: Mapping[str, Any]) -> None:
         raise ValueError("invalid uncertainty propagation status")
     if not isinstance(payload.get("linear"), Mapping) or not isinstance(payload.get("findings"), list):
         raise ValueError("linear result and findings are required")
+    method = payload["method"]
+    if method not in {"linear", "monte-carlo", "both"}:
+        raise ValueError("method must be linear, monte-carlo, or both")
     _require_finite_statistics(payload)
+    _finite(payload.get("nominal_value"), "nominal_value")
+    linear = payload["linear"]
+    for field in ("standard_uncertainty", "variance"):
+        if _finite(linear.get(field), f"linear.{field}") < 0:
+            raise ValueError(f"linear.{field} must be non-negative")
+    gradient = linear.get("gradient")
+    sensitivities = linear.get("sensitivities")
+    if (not isinstance(gradient, list) or not gradient or not isinstance(sensitivities, list)
+            or len(sensitivities) != len(gradient)):
+        raise ValueError("linear gradient and matching sensitivities are required")
+    for index, (derivative, item) in enumerate(zip(gradient, sensitivities)):
+        _finite(derivative, f"linear.gradient[{index}]")
+        if not isinstance(item, Mapping):
+            raise ValueError("linear sensitivities must be objects")
+        _required_text(item.get("name"), "sensitivity.name")
+        _finite(item.get("derivative"), "sensitivity.derivative")
+        for field in ("diagonal_variance_contribution", "fraction_of_linear_variance"):
+            if field == "fraction_of_linear_variance" and item.get(field) is None:
+                continue
+            if _finite(item.get(field), f"sensitivity.{field}") < 0:
+                raise ValueError(f"sensitivity.{field} must be non-negative")
+    monte_carlo = payload.get("monte_carlo")
+    if method in {"monte-carlo", "both"}:
+        if not isinstance(monte_carlo, Mapping):
+            raise ValueError("monte_carlo result is required for this method")
+        _finite(monte_carlo.get("mean"), "monte_carlo.mean")
+        if _finite(monte_carlo.get("standard_uncertainty"), "monte_carlo.standard_uncertainty") < 0:
+            raise ValueError("monte_carlo.standard_uncertainty must be non-negative")
+        confidence = _finite(monte_carlo.get("confidence_level"), "monte_carlo.confidence_level")
+        if not 0.5 < confidence < 1:
+            raise ValueError("confidence_level must be between 0.5 and 1")
+        if monte_carlo.get("seed") is not None:
+            _integer(monte_carlo["seed"], "monte_carlo.seed")
+        requested, accepted, failed = (
+            _integer(monte_carlo.get(field), f"monte_carlo.{field}")
+            for field in ("requested_samples", "accepted_samples", "failed_samples")
+        )
+        if (not 100 <= requested <= MAX_SAMPLES or failed < 0
+                or accepted < max(10, int(0.9 * requested)) or accepted + failed != requested):
+            raise ValueError("invalid Monte Carlo sample counts")
+        interval = monte_carlo.get("interval")
+        if not isinstance(interval, list) or len(interval) != 2:
+            raise ValueError("monte_carlo.interval must contain two finite bounds")
+        low, high = (_finite(value, "monte_carlo.interval bound") for value in interval)
+        # Quantile interpolation can reverse equal bounds by up to two ulps.
+        if low > high and low - high > 2 * max(math.ulp(low), math.ulp(high)):
+            raise ValueError("monte_carlo.interval bounds must be ordered")
+    elif monte_carlo is not None:
+        raise ValueError("monte_carlo must be null for the linear method")
+    nonlinearity = payload.get("nonlinearity")
+    if not isinstance(nonlinearity, Mapping):
+        raise ValueError("nonlinearity result is required")
+    for field in ("relative_uncertainty_discrepancy", "mean_shift_in_uncertainty_units"):
+        if method == "both":
+            if _finite(nonlinearity.get(field), f"nonlinearity.{field}") < 0:
+                raise ValueError(f"nonlinearity.{field} must be non-negative")
+        elif nonlinearity.get(field) is not None:
+            raise ValueError(f"nonlinearity.{field} must be null for this method")
+    for item in payload["findings"]:
+        if not isinstance(item, Mapping):
+            raise ValueError("findings must contain objects")
+        for field in ("code", "severity", "message"):
+            _required_text(item.get(field), f"finding.{field}")
+        if item["severity"] not in {"critical", "major", "minor", "suggestion"}:
+            raise ValueError("invalid uncertainty finding severity")
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:

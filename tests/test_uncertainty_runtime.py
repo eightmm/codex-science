@@ -2,7 +2,10 @@
 import copy
 import json
 import math
+import os
 from pathlib import Path
+import random
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -39,6 +42,215 @@ class UncertaintyValidityTests(unittest.TestCase):
             return run_uncertainty_propagation(payload)
         finally:
             self.assertEqual(before, payload)
+
+    def test_nonlinearity_discrepancy_is_scale_invariant(self):
+        baseline = self.propagate("x*x", [("x", 0, 1)])
+        for scale in (1e-20, 1, 1e20):
+            with self.subTest(scale=scale):
+                result = self.propagate(f"{scale}*x*x", [("x", 0, 1)])
+                self.assertEqual("findings", result["status"])
+                for field, expected in baseline["nonlinearity"].items():
+                    self.assertAlmostEqual(expected, result["nonlinearity"][field])
+        for expression in ("0", "1", "1.919541620668976e-21", "1e-170", "1e-160", "5e-324", "x*x"):
+            result = self.propagate(expression, [("x", 0, 0)], samples=1000)
+            self.assertEqual("passed", result["status"])
+            self.assertEqual(result["nominal_value"], result["monte_carlo"]["mean"])
+            self.assertEqual(0, result["monte_carlo"]["standard_uncertainty"])
+            self.assertEqual(0, result["nonlinearity"]["relative_uncertainty_discrepancy"])
+            self.assertEqual(0, result["nonlinearity"]["mean_shift_in_uncertainty_units"])
+        with patch("codex_science.uncertainty_runtime.random.Random.gauss", return_value=1):
+            result = self.propagate("x*x", [("x", 0, 1)], samples=1000)
+        self.assertEqual("findings", result["status"])
+        self.assertIn("zero uncertainty", result["findings"][0]["message"])
+        validate_uncertainty_propagation(result)
+        result = self.propagate("1e-20+1e-32*x", [("x", 0, 1)], samples=100000)
+        generator = random.Random(1)
+        outputs = [1e-20 + 1e-32 * generator.gauss(0, 1) for _ in range(100000)]
+        expected_mean = statistics.mean(outputs)
+        expected_spread = statistics.stdev(outputs)
+        scale = max(result["linear"]["standard_uncertainty"], expected_spread)
+        expected = {
+            "relative_uncertainty_discrepancy": abs(result["linear"]["standard_uncertainty"] - expected_spread) / scale,
+            "mean_shift_in_uncertainty_units": abs(result["nominal_value"] - expected_mean) / scale,
+        }
+        self.assertEqual("passed", result["status"])
+        self.assertEqual(expected_mean, result["monte_carlo"]["mean"])
+        self.assertTrue(math.isclose(expected_spread, result["monte_carlo"]["standard_uncertainty"], rel_tol=1e-7))
+        for field, reference in expected.items():
+            self.assertTrue(math.isclose(reference, result["nonlinearity"][field], rel_tol=1e-7), field)
+        validate_uncertainty_propagation(result)
+
+    def test_monte_carlo_spread_survives_underflow(self):
+        generator = random.Random(1)
+        draws = [generator.gauss(0, 1) for _ in range(10000)]
+        for scale in (1e-170, 1e-160, math.sqrt(sys.float_info.min), 1):
+            expected = statistics.stdev([scale * value * value for value in draws])
+            with self.subTest(scale=scale):
+                result = self.propagate(f"{scale}*x*x", [("x", 0, 1)], method="monte-carlo")
+                self.assertAlmostEqual(1, result["monte_carlo"]["standard_uncertainty"] / expected)
+                validate_uncertainty_propagation(result)
+        result = self.propagate("0", [("x", 0, 0)], method="monte-carlo", samples=1000)
+        self.assertEqual(0, result["monte_carlo"]["standard_uncertainty"])
+        draws = [-1.0] + [1.0] * 999
+        for positive in (sys.float_info.max, sys.float_info.max / 500):
+            outputs = [-sys.float_info.max] + [positive] * 999
+            with self.subTest(positive=positive), patch("codex_science.uncertainty_runtime.random.Random.gauss", side_effect=draws):
+                result = self.propagate(
+                    f"{positive} if x > 0.5 else -{sys.float_info.max}",
+                    [("x", 0, 1)], method="monte-carlo", samples=1000,
+                )
+            self.assertEqual(statistics.mean(outputs), result["monte_carlo"]["mean"])
+            self.assertTrue(math.isclose(statistics.stdev(outputs), result["monte_carlo"]["standard_uncertainty"], rel_tol=1e-14))
+            validate_uncertainty_propagation(result)
+
+    def test_sensitivity_contribution_survives_extreme_gradient_scales(self):
+        for scale, uncertainty, variance in ((1e160, 1e-150, 1e20), (1e-170, 1e150, 1e-40), (1, 0, 0)):
+            with self.subTest(scale=scale):
+                result = self.propagate(f"{scale}*x", [("x", 0, uncertainty)], method="linear")
+                linear = result["linear"]
+                contribution = linear["sensitivities"][0]["diagonal_variance_contribution"]
+                self.assertEqual(linear["variance"], contribution)
+                if variance:
+                    self.assertAlmostEqual(1, contribution / variance)
+                    self.assertEqual(1, linear["sensitivities"][0]["fraction_of_linear_variance"])
+                else:
+                    self.assertIsNone(linear["sensitivities"][0]["fraction_of_linear_variance"])
+
+    def test_receipt_rejects_malformed_results_with_valid_fingerprint(self):
+        base = self.propagate("x", [("x", 0, 1)], samples=1000)
+        cases = [("method", value) for value in ("garbage", "", None, [], {})]
+        for section in ("linear", "monte_carlo", "nonlinearity"):
+            cases.extend((section, value) for value in (None, {}, [], "bad"))
+        for field in ("linear.variance", "linear.standard_uncertainty", "monte_carlo.standard_uncertainty",
+                      "nonlinearity.relative_uncertainty_discrepancy", "nonlinearity.mean_shift_in_uncertainty_units"):
+            cases.extend((field, value) for value in (-1, None, "", True, math.inf, math.nan))
+        for field in ("monte_carlo.mean", "nominal_value", "monte_carlo.confidence_level"):
+            cases.extend((field, value) for value in (None, "", True, math.inf))
+        cases.extend(("monte_carlo.confidence_level", value) for value in (0, 0.5, 1))
+        for field in ("requested_samples", "accepted_samples", "failed_samples"):
+            cases.extend(("monte_carlo." + field, value) for value in (None, "", True, -1, 1.5))
+        cases.extend(("monte_carlo.requested_samples", value) for value in (0, 99, 1000001))
+        cases.extend(("monte_carlo.accepted_samples", value) for value in (0, 999, 1001))
+        cases.extend(("monte_carlo.seed", value) for value in (True, "1", []))
+        cases.extend(("monte_carlo.interval", value) for value in (None, [], [0], [1, 0], [0, "bad"], [0, 1, 2]))
+        cases.append(("monte_carlo.interval", [1 + 3 * math.ulp(1), 1]))
+        cases.extend(("linear.gradient", value) for value in (None, [], ["bad"], [True]))
+        cases.extend(("linear.sensitivities", value) for value in (None, [], [None], [{}]))
+        for field in ("derivative", "diagonal_variance_contribution", "fraction_of_linear_variance"):
+            cases.extend(("linear.sensitivities.0." + field, value) for value in ("", True, math.inf))
+        for field in ("diagonal_variance_contribution", "fraction_of_linear_variance"):
+            cases.append(("linear.sensitivities.0." + field, -1))
+        cases.extend(("linear.sensitivities.0.name", value) for value in (None, "", [], 1))
+        cases.extend(("findings", value) for value in ([None], [{}], [["bad"]], [{"code": "x", "severity": [], "message": "x"}],
+                     [{"code": "x", "severity": "unknown", "message": "x"}],
+                     [{"code": "x", "severity": "minor", "message": None}]))
+        for path, value in cases:
+            candidate = copy.deepcopy(base)
+            target = candidate
+            *parents, field = path.split(".")
+            for parent in parents:
+                target = target[int(parent)] if isinstance(target, list) else target[parent]
+            target[field] = value
+            candidate.pop("fingerprint")
+            candidate["fingerprint"] = canonical_sha256(candidate)
+            with self.subTest(path=path, value=value):
+                with self.assertRaises(ValueError):
+                    validate_uncertainty_propagation(candidate)
+                findings = review_uncertainty_propagation(candidate)
+                self.assertEqual("invalid-uncertainty-propagation", findings[0]["code"])
+                self.assertEqual("critical", findings[0]["severity"])
+
+    def test_receipt_validation_preserves_valid_method_boundaries(self):
+        for method in ("linear", "monte-carlo", "both"):
+            for uncertainty in (0, 1):
+                for samples in (100, 1000):
+                    result = self.propagate("x", [("x", 0, uncertainty)], method=method, samples=samples)
+                    validate_uncertainty_propagation(result)
+                    self.assertEqual(result["findings"], review_uncertainty_propagation(result))
+        cases = (
+            ("x+y", [("x", 2, 1), ("y", 3, 2)],
+             {"covariance": [{"left": "x", "right": "y", "value": 1}]}),
+            ("log(x)", [("x", 2, 1)], {}),
+            ("1.919541620668976e-21", [("x", 0, 0)], {}),
+            ("x*x", [("x", 0, 0)], {}),
+            ("0 if x == 0 else 1", [("x", 0, 1)], {}),
+        )
+        for method in ("linear", "monte-carlo", "both"):
+            for samples in (100, 1000):
+                for expression, inputs, overrides in cases:
+                    with self.subTest(method=method, samples=samples, expression=expression):
+                        result = self.propagate(expression, inputs, method=method, samples=samples, **overrides)
+                        validate_uncertainty_propagation(result)
+                        self.assertEqual(result["findings"], review_uncertainty_propagation(result))
+                        if method != "linear" and expression == "log(x)":
+                            self.assertGreater(result["monte_carlo"]["failed_samples"], 0)
+                        if method == "both" and expression == "0 if x == 0 else 1":
+                            self.assertEqual("findings", result["status"])
+                            self.assertIn("nonlinear-propagation-disagreement", {item["code"] for item in result["findings"]})
+        for samples, failed in ((100, 10), (101, 11), (1000, 100)):
+            draws = [-3.0] * failed + [0.0] * (samples - failed)
+            with self.subTest(samples=samples, failed=failed), patch(
+                "codex_science.uncertainty_runtime.random.Random.gauss", side_effect=draws,
+            ):
+                result = self.propagate("log(x)", [("x", 2, 1)], method="both", samples=samples)
+            self.assertEqual(failed, result["monte_carlo"]["failed_samples"])
+            validate_uncertainty_propagation(result)
+        base = self.propagate("x", [("x", 0, 1)], samples=1000)
+        for requested, failed in ((100, 0), (1000, 100), (1000000, 100000)):
+            result = copy.deepcopy(base)
+            result["monte_carlo"].update(requested_samples=requested, accepted_samples=requested - failed, failed_samples=failed)
+            result["monte_carlo"]["interval"] = [0, 0]
+            for field in result["nonlinearity"]:
+                result["nonlinearity"][field] = 0
+            result.pop("fingerprint")
+            result["fingerprint"] = canonical_sha256(result)
+            validate_uncertainty_propagation(result)
+        for low, high in ((0, 0), (1, 1), (1 + math.ulp(1), 1), (1 + 2 * math.ulp(1), 1)):
+            result = copy.deepcopy(base)
+            result["monte_carlo"]["interval"] = [low, high]
+            result.pop("fingerprint")
+            result["fingerprint"] = canonical_sha256(result)
+            validate_uncertainty_propagation(result)
+        for method in ("linear", "monte-carlo"):
+            result = self.propagate("x", [("x", 0, 1)], method=method, samples=1000)
+            result["nonlinearity"]["relative_uncertainty_discrepancy"] = 0
+            result.pop("fingerprint")
+            result["fingerprint"] = canonical_sha256(result)
+            with self.assertRaises(ValueError):
+                validate_uncertainty_propagation(result)
+        result = self.propagate("x", [("x", 0, 1)], method="linear")
+        result["monte_carlo"] = {}
+        result.pop("fingerprint")
+        result["fingerprint"] = canonical_sha256(result)
+        with self.assertRaises(ValueError):
+            validate_uncertainty_propagation(result)
+
+    def test_cli_refuses_input_output_alias_before_evaluation(self):
+        root = Path(__file__).resolve().parents[1]
+        payload = {
+            "schema_version": 1, "propagation_id": "u", "claim_id": "c", "expression": "x",
+            "inputs": [{"name": "x", "mean": 0, "standard_uncertainty": 1}], "method": "linear",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.json"
+            symbolic = Path(directory) / "symbolic.json"
+            linked = Path(directory) / "linked.json"
+            symbolic.symlink_to(source)
+            for content in (json.dumps(payload), "", "malformed"):
+                source.write_text(content, encoding="utf-8")
+                linked.unlink(missing_ok=True)
+                linked.hardlink_to(source)
+                for output in (source, symbolic, linked):
+                    with self.subTest(content=content, output=output.name):
+                        process = subprocess.run(
+                            [sys.executable, str(root / "scripts/propagate_uncertainty.py"), str(source),
+                             "--output", str(output)], capture_output=True, text=True,
+                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                        )
+                        self.assertEqual(1, process.returncode, process.stderr)
+                        self.assertIn("output path would overwrite input", process.stderr)
+                        self.assertNotIn("Traceback", process.stderr)
+                        self.assertEqual(content, source.read_text(encoding="utf-8"))
 
     def test_duplicate_covariance_cannot_change_with_order(self):
         for values in ((1, -1), (-1, 1), (0, 1), (1, 0)):
@@ -153,6 +365,14 @@ class UncertaintyValidityTests(unittest.TestCase):
                 self.assertEqual(0.0, result["monte_carlo"]["standard_uncertainty"])
                 self.assertEqual("passed", result["status"])
                 validate_uncertainty_propagation(result)
+        low = 1e200
+        high = math.nextafter(low, math.inf)
+        outputs = [low, high] * 500
+        with patch("codex_science.uncertainty_runtime.random.Random.gauss", side_effect=[-1.0, 1.0] * 500):
+            result = self.propagate(f"{high} if x > 0.5 else {low}", [("x", 0, 1)], method="monte-carlo", samples=1000)
+        self.assertEqual(statistics.mean(outputs), result["monte_carlo"]["mean"])
+        self.assertEqual(statistics.stdev(outputs), result["monte_carlo"]["standard_uncertainty"])
+        validate_uncertainty_propagation(result)
         # A representable standard deviation can have an overflowing variance.
         draws = [-1.0, 1.0] * 500
         with patch("codex_science.uncertainty_runtime.random.Random.gauss", side_effect=draws):

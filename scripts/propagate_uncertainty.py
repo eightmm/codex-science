@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.cli_io import load_json_object, write_json_atomic  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, write_json_atomic  # noqa: E402
 from codex_science.uncertainty_runtime import run_uncertainty_propagation  # noqa: E402
 
 
@@ -36,10 +36,11 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("input", type=Path, help="propagation JSON object (format below)")
-    parser.add_argument("--output", type=Path, required=True, help="output JSON path; overwritten with the propagation result")
+    parser.add_argument("--output", type=Path, required=True, help="output JSON path; overwritten with the propagation result; refuses input aliases")
     parser.add_argument("--require-clean", action="store_true", help="exit 1 unless status is 'passed' (default: exit 0)")
     args = parser.parse_args()
     try:
+        preflight_output_paths(args.output, inputs=[args.input])
         result = run_uncertainty_propagation(load_json_object(args.input))
         write_json_atomic(args.output, result)
     except (OSError, ValueError) as error:
