@@ -1,11 +1,14 @@
+import io
 import json
 import math
 import os
+import runpy
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from codex_science.literature_saturation import estimate_saturation
 
@@ -155,6 +158,133 @@ class SaturationTests(unittest.TestCase):
         self.assertEqual(error["schema"], "saturation-estimate-error-v1")
         self.assertEqual(error["error"]["code"], "invalid_request")
         self.assertIn("message", error["error"])
+
+    def test_cli_bounds_file_and_stdin_reads(self):
+        command = runpy.run_path(str(ROOT / "scripts/estimate_saturation.py"))
+        limit = 128
+        valid = '[{"evaluated":30,"relevant":10}]'
+
+        class BoundedInput(io.StringIO):
+            def read(stream, size=-1):
+                self.assertGreater(size, 0, "stdin must use a bounded read")
+                self.assertLessEqual(size, limit + 1)
+                return super().read(size)
+
+        wide_prefix = '{"checkpoints":[],"extra":"'
+        wide = wide_prefix + "é" * (limit - len(wide_prefix) - 2) + '"}'
+        cases = (("", 2, 2), ("0", 2, 2), ("{", 2, 2), (valid, 0, 0),
+                 (valid + " " * (limit - len(valid)), 0, 0),
+                 (valid + " " * (limit + 1 - len(valid)), 2, 2),
+                 (valid + " " * (limit * 4), 2, 2),
+                 (valid + "é" * limit, 2, 2), (valid + "\r\n" * limit, 2, 2),
+                 (b"\xff", 2, 2), (wide, 2, 0), (wide + " ", 2, 2),
+                 ('[' * 1100 + '0' + ']' * 1100, 2, 2))
+        with tempfile.TemporaryDirectory() as tempdir:
+            source = Path(tempdir) / "input.json"
+            output = Path(tempdir) / "output.json"
+            for raw, file_status, stdin_status in cases:
+                for from_stdin in (False, True):
+                    with self.subTest(length=len(raw), stdin=from_stdin):
+                        encoded = raw if isinstance(raw, bytes) else raw.encode("utf-8")
+                        source.write_bytes(encoded)
+                        output.write_text("keep")
+                        stdout = io.StringIO()
+                        stdin = BoundedInput(raw if isinstance(raw, str) else "\udcff")
+                        expected = stdin_status if from_stdin else file_status
+                        argv = ["estimate_saturation.py", "--input",
+                                "-" if from_stdin else str(source), "--hard-cap", "500",
+                                "--output", str(output)]
+                        with patch.dict(command["main"].__globals__, DEFAULT_MAX_JSON_BYTES=limit), \
+                                patch("sys.argv", argv), patch("sys.stdin", stdin), \
+                                patch("sys.stdout", stdout):
+                            status = command["main"]()
+                        self.assertEqual(expected, status, stdout.getvalue())
+                        result = json.loads(stdout.getvalue())
+                        if expected:
+                            self.assertEqual("invalid_request", result["error"]["code"])
+                            self.assertEqual("keep", output.read_text())
+                            size = len(stdin.getvalue()) if from_stdin else len(encoded)
+                            if size > limit:
+                                unit = "characters" if from_stdin else "bytes"
+                                self.assertIn(f"exceeds {limit} {unit}", result["error"]["message"])
+                        else:
+                            self.assertEqual(json.loads(output.read_text()), result)
+
+            raw_metadata = b'{"checkpoints":[],"hard_cap":500,"extra":"\xff"}\r\n'
+            expected_output = json.dumps(estimate_saturation([], hard_cap=500), sort_keys=True) + "\n"
+            reference = """\
+import json, sys
+from codex_science.literature_saturation import estimate_saturation
+try:
+    params = json.loads(sys.stdin.read())
+    result = estimate_saturation(params["checkpoints"], hard_cap=params["hard_cap"])
+except (OSError, UnicodeError, ValueError, TypeError, ArithmeticError, RecursionError) as error:
+    print(json.dumps({"schema": "saturation-estimate-error-v1",
+                      "error": {"code": "invalid_request", "message": str(error)}}, sort_keys=True))
+    raise SystemExit(2)
+print(json.dumps(result, sort_keys=True))
+"""
+            locale = os.environ.get("LC_ALL", "C.UTF-8")
+            if locale not in ("C", "C.UTF-8"):
+                locale = "C.UTF-8"
+            for setting in (None, "utf-8:strict", "utf-8:surrogateescape", "latin-1:strict",
+                            "utf-8:replace", "utf-8:ignore", "utf-16:strict", "utf-32:strict"):
+                env = dict(os.environ, LC_ALL=locale, LANG=locale,
+                           PYTHONUTF8="0", PYTHONCOERCECLOCALE="0")
+                env.pop("PYTHONIOENCODING", None)
+                if setting is not None:
+                    env["PYTHONIOENCODING"] = setting
+                with self.subTest(stdin_encoding=setting):
+                    configuration = subprocess.run(
+                        [sys.executable, "-c", "import json,sys; print(json.dumps([sys.stdin.encoding,sys.stdin.errors,sys.stdout.encoding]))"],
+                        capture_output=True, env=env,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                    self.assertEqual(0, configuration.returncode, configuration.stderr)
+                    encoding, errors, output_encoding = json.loads(configuration.stdout)
+                    payload = (raw_metadata.decode("latin-1").encode(encoding)
+                               if setting in ("utf-16:strict", "utf-32:strict") else raw_metadata)
+                    try:
+                        payload.decode(encoding, errors)
+                    except UnicodeError:
+                        expected_exit = 2
+                    else:
+                        expected_exit = 0
+                    native = subprocess.run(
+                        [sys.executable, "-c", reference],
+                        input=payload, capture_output=True, env=env,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                    self.assertEqual(expected_exit, native.returncode, native.stderr)
+                    completed = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts/estimate_saturation.py"), "--input", "-"],
+                        input=payload, capture_output=True, env=env,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                    self.assertEqual(native.returncode, completed.returncode, completed.stdout)
+                    self.assertEqual(native.stdout, completed.stdout)
+                    if not expected_exit:
+                        self.assertEqual(expected_output, completed.stdout.decode(output_encoding))
+                    source.write_bytes(raw_metadata)
+                    completed = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts/estimate_saturation.py"), "--input", str(source)],
+                        capture_output=True, env=env,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                    self.assertEqual(2, completed.returncode)
+                    self.assertEqual("invalid_request", json.loads(completed.stdout)["error"]["code"])
+            stdout = io.StringIO()
+            with patch("sys.argv", ["estimate_saturation.py", "--input", "-"]), \
+                    patch.dict(command["main"].__globals__, DEFAULT_MAX_JSON_BYTES=limit), \
+                    patch("sys.stdin", BoundedInput(raw_metadata.decode("utf-8", "surrogateescape"))), \
+                    patch("sys.stdout", stdout):
+                self.assertEqual(0, command["main"]())
+            self.assertEqual(expected_output, stdout.getvalue())
+
+            source.write_bytes(b'\r\n{}0')
+            stdout = io.StringIO()
+            with self.assertRaises(ValueError) as native_error:
+                json.loads(source.read_text(encoding="utf-8"))
+            with patch("sys.argv", ["estimate_saturation.py", "--input", str(source)]), \
+                    patch("sys.stdout", stdout):
+                self.assertEqual(2, command["main"]())
+            self.assertEqual(str(native_error.exception), json.loads(stdout.getvalue())["error"]["message"])
 
     def test_cli_output_file(self):
         env = dict(os.environ)

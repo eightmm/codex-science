@@ -24,6 +24,8 @@ def load_json_object(path: Path, *, max_bytes: int = DEFAULT_MAX_JSON_BYTES) -> 
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise ValueError(f"invalid JSON in {path}: {error}") from error
+    except RecursionError as error:
+        raise ValueError(f"invalid JSON in {path}: excessive nesting") from error
     if not isinstance(payload, dict):
         raise ValueError(f"input JSON must be an object: {path}")
     return payload

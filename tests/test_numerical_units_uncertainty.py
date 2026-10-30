@@ -759,6 +759,36 @@ class QuantitativeInputTypeTests(unittest.TestCase):
                                 self.assertFalse(output.exists())
                         output.unlink(missing_ok=True)
 
+    def test_cli_refuses_excessive_json_nesting_without_traceback(self):
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+        import tempfile
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tempdir:
+            source = Path(tempdir) / "nested.json"
+            output = Path(tempdir) / "output.json"
+            source.write_text('{"x":' + '[' * 10000 + '0' + ']' * 10000 + '}')
+            for exists in (False, True):
+                if exists:
+                    output.write_text("keep")
+                with self.subTest(exists=exists):
+                    completed = subprocess.run(
+                        [sys.executable, str(root / "scripts/check_dimensions.py"),
+                         str(source), "--output", str(output)],
+                        text=True, capture_output=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, completed.returncode)
+                    self.assertEqual("", completed.stdout)
+                    self.assertTrue(completed.stderr.startswith("error: "), completed.stderr)
+                    self.assertIn("excessive nesting", completed.stderr)
+                    self.assertNotIn("Traceback", completed.stderr)
+                    self.assertEqual(output.exists(), exists)
+                    if exists:
+                        self.assertEqual("keep", output.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

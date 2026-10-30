@@ -269,6 +269,134 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(-32700, responses[0]["error"]["code"])
         self.assertEqual({"jsonrpc": "2.0", "id": 44, "result": {}}, responses[1])
 
+    def test_stdio_bounds_frames_and_recovers_in_real_process(self) -> None:
+        limit = 96
+        ping = '{"id":44,"method":"ping"}'
+        exact = ping + " " * (limit - len(ping) - 1) + "\n"
+        wide_prefix = '{"id":49,"method":"ping","extra":"'
+        wide = wide_prefix + "é" * (limit - len(wide_prefix) - 3) + '"}\n'
+        oversized = ping + " " * (limit - len(ping)) + "\n"
+        frames = ("\n\u00a0\n0\n{\n" + exact + oversized + " " * (2 * 65536 + 17) + "\n"
+                  + '{"method":"notifications/initialized"}\n'
+                  + '{"id":45,"method":"ping","extra":"' + "é" * limit + '"}\n'
+                  + ping + "\n" + wide + " " * (limit * 4))
+        launcher = (
+            "import runpy, sys; import codex_science.mcp_server as server; "
+            f"server.DEFAULT_MAX_JSON_BYTES = {limit}; "
+            "sys.argv = ['scripts/science_mcp.py', '--inventory', sys.argv[1]]; "
+            "runpy.run_path('scripts/science_mcp.py', run_name='__main__')"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", launcher, str(self.inventory)],
+            cwd=Path(__file__).resolve().parents[1], input=frames,
+            encoding="utf-8", capture_output=True,
+            env=dict(os.environ, LC_ALL="C.UTF-8", LANG="C.UTF-8",
+                     PYTHONUTF8="0", PYTHONCOERCECLOCALE="0",
+                     PYTHONIOENCODING="utf-8:strict"),
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")),
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        responses = [json.loads(line) for line in completed.stdout.splitlines()]
+        self.assertEqual(9, len(responses))
+        self.assertEqual(-32600, responses[0]["error"]["code"])
+        self.assertEqual(-32700, responses[1]["error"]["code"])
+        for index in (2, 6):
+            self.assertEqual({"jsonrpc": "2.0", "id": 44, "result": {}}, responses[index])
+        self.assertEqual({"jsonrpc": "2.0", "id": 49, "result": {}}, responses[7])
+        for index in (3, 4, 5, 8):
+            self.assertIsNone(responses[index]["id"])
+            self.assertEqual(-32600, responses[index]["error"]["code"])
+            self.assertIn(f"frame limit of {limit} characters", responses[index]["error"]["message"])
+
+        class BoundedInput(io.StringIO):
+            def readline(stream, size=-1):
+                self.assertGreater(size, 0)
+                self.assertLessEqual(size, max(limit + 1, 65536))
+                return super().readline(size)
+
+            def __iter__(stream):
+                self.fail("stdio must read bounded frames")
+
+        stdout = io.StringIO()
+        with patch("sys.stdin", BoundedInput(frames)), patch("sys.stdout", stdout), \
+                patch("codex_science.mcp_server.DEFAULT_MAX_JSON_BYTES", limit, create=True):
+            run_stdio(self.inventory)
+        self.assertEqual(completed.stdout, stdout.getvalue())
+        for raw in ("", ping):
+            stdout = io.StringIO()
+            with patch("sys.stdin", BoundedInput(raw)), patch("sys.stdout", stdout), \
+                    patch("codex_science.mcp_server.DEFAULT_MAX_JSON_BYTES", limit, create=True):
+                run_stdio(self.inventory)
+            self.assertEqual("" if not raw else json.dumps(
+                {"jsonrpc": "2.0", "id": 44, "result": {}}, separators=(",", ":")) + "\n",
+                stdout.getvalue())
+
+        raw_frames = (b'{"id":47,"method":"ping","extra":"\xff"}\r\n'
+                      b'{"method":"notifications/initialized","extra":"\xff"}\r\n'
+                      b'{"id":48,"method":"ping"}')
+        reference = """\
+import json, sys
+from pathlib import Path
+from codex_science.mcp_server import CodexScienceMCP
+server = CodexScienceMCP(Path(sys.argv[1]))
+for line in sys.stdin:
+    if not line.strip():
+        continue
+    try:
+        response = server.handle(json.loads(line))
+    except (json.JSONDecodeError, TypeError, ValueError, RecursionError) as error:
+        response = server._error(None, -32700, str(error))
+    if response is not None:
+        print(json.dumps(response, separators=(",", ":")), flush=True)
+"""
+        locale = os.environ.get("LC_ALL", "C.UTF-8")
+        if locale not in ("C", "C.UTF-8"):
+            locale = "C.UTF-8"
+        for setting in (None, "utf-8:strict", "utf-8:surrogateescape", "latin-1:strict",
+                        "utf-8:replace", "utf-8:ignore", "utf-16:strict", "utf-32:strict"):
+            env = dict(os.environ, LC_ALL=locale, LANG=locale,
+                       PYTHONUTF8="0", PYTHONCOERCECLOCALE="0")
+            env.pop("PYTHONIOENCODING", None)
+            if setting is not None:
+                env["PYTHONIOENCODING"] = setting
+            with self.subTest(stdin_encoding=setting):
+                configuration = subprocess.run(
+                    [sys.executable, "-c", "import json,sys; print(json.dumps([sys.stdin.encoding,sys.stdin.errors,sys.stdout.encoding]))"],
+                    capture_output=True, env=env,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                self.assertEqual(0, configuration.returncode, configuration.stderr)
+                encoding, errors, output_encoding = json.loads(configuration.stdout)
+                payload = (raw_frames.decode("latin-1").encode(encoding)
+                           if setting in ("utf-16:strict", "utf-32:strict") else raw_frames)
+                try:
+                    payload.decode(encoding, errors)
+                except UnicodeError:
+                    expected_exit, expected_responses = 1, []
+                else:
+                    expected_exit, expected_responses = 0, [
+                        {"jsonrpc": "2.0", "id": 47, "result": {}},
+                        {"jsonrpc": "2.0", "id": 48, "result": {}},
+                    ]
+                native = subprocess.run(
+                    [sys.executable, "-c", reference, str(self.inventory)],
+                    input=payload, capture_output=True, env=env,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                self.assertEqual(expected_exit, native.returncode, native.stderr)
+                self.assertEqual(expected_responses, [json.loads(line) for line in native.stdout.decode(output_encoding).splitlines()])
+                completed = subprocess.run(
+                    [sys.executable, "-c", launcher, str(self.inventory)],
+                    cwd=Path(__file__).resolve().parents[1], input=payload,
+                    capture_output=True, env=env,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                self.assertEqual(native.returncode, completed.returncode, completed.stderr)
+                self.assertEqual(native.stdout, completed.stdout)
+        stdout = io.StringIO()
+        with patch("sys.stdin", BoundedInput(raw_frames.decode("utf-8", "surrogateescape"))), \
+                patch("sys.stdout", stdout), \
+                patch("codex_science.mcp_server.DEFAULT_MAX_JSON_BYTES", limit):
+            run_stdio(self.inventory)
+        self.assertEqual([47, 48], [json.loads(line)["id"] for line in stdout.getvalue().splitlines()])
+
     def test_stdio_survives_handler_recursion(self) -> None:
         stdin = io.StringIO(
             '{"jsonrpc":"2.0","id":45,"method":"tools/call",'

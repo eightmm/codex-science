@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from codex_science.catalog import load_inventory, search_inventory
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES
 from codex_science.connector_contract import QueryRequest, execute_connector
 from codex_science.connector_sources import SOURCE_BY_KEY, SOURCE_BY_TOOL, SOURCE_SPECS
 from codex_science.life_science import plan_life_science_research
@@ -251,14 +252,24 @@ class CodexScienceMCP:
 
 def run_stdio(inventory_path: Path) -> None:
     server = CodexScienceMCP(inventory_path)
-    for line in sys.stdin:
-        if not line.strip():
-            continue
-        try:
-            request = json.loads(line)
-            response = server.handle(request)
-        except (json.JSONDecodeError, TypeError, ValueError, RecursionError) as exc:
-            response = CodexScienceMCP._error(None, -32700, str(exc))
+    # Count characters; decoded text may occupy a few times as many bytes.
+    while True:
+        line = sys.stdin.readline(DEFAULT_MAX_JSON_BYTES + 1)
+        if not line:
+            break
+        if len(line) > DEFAULT_MAX_JSON_BYTES:
+            while line and not line.endswith("\n"):
+                line = sys.stdin.readline(65536)
+            response = CodexScienceMCP._error(
+                None, -32600, f"Request exceeds frame limit of {DEFAULT_MAX_JSON_BYTES} characters")
+        else:
+            try:
+                if not line.strip():
+                    continue
+                request = json.loads(line)
+                response = server.handle(request)
+            except (json.JSONDecodeError, TypeError, ValueError, RecursionError) as exc:
+                response = CodexScienceMCP._error(None, -32700, str(exc))
         if response is not None:
             sys.stdout.write(json.dumps(response, separators=(",", ":")) + "\n")
             sys.stdout.flush()
