@@ -4,6 +4,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from graphlib import TopologicalSorter
 from pathlib import Path
 from unittest import mock
 
@@ -50,6 +51,148 @@ class MathResearchRuntimeTests(unittest.TestCase):
             manifest = self._bundle_manifest(root, records)
             sidecars = validate_bundle(manifest, root)
             return review_manifest(manifest, root, sidecars=sidecars)
+
+    def test_claim_required_text_rejects_non_strings_before_normalization(self):
+        claim, _ = self._deductive_pair()
+        arguments = {field: claim[field] for field in (
+            "claim_id", "statement", "domain", "assumptions", "quantifiers", "permitted_inference",
+        )}
+        for field in ("claim_id", "statement", "domain", "permitted_inference"):
+            for value in (None, 0, False, 1.0, [], {}, "", " \t\n"):
+                with self.subTest(field=field, value=value):
+                    altered = {**claim, field: value}
+                    altered.pop("fingerprint")
+                    altered["fingerprint"] = canonical_sha256(altered)
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        validate_mathematical_claim(altered)
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        build_mathematical_claim(**{**arguments, field: value})
+                    self.assertIn("invalid-mathematical-claim", {
+                        item["code"] for item in math_review_findings([altered], [], [], [])
+                    })
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        self._bundle_review([("mathematical-claim", altered)])
+            missing = {key: value for key, value in claim.items() if key not in (field, "fingerprint")}
+            with self.subTest(field=field, missing=True), self.assertRaisesRegex(ValueError, f"{field} is required"):
+                validate_mathematical_claim(missing)
+        self.assertEqual("passed", self._bundle_review([
+            ("mathematical-claim", build_mathematical_claim(**{**arguments, "domain": " 0 "})),
+        ])["status"])
+
+    def test_proof_required_text_rejects_non_strings_before_normalization(self):
+        claim, proof = self._deductive_pair()
+        arguments = {field: proof[field] for field in (
+            "receipt_id", "claim_id", "kind", "status", "assumptions",
+        )}
+        arguments["statement"] = claim["statement"]
+        for field in ("receipt_id", "claim_id", "statement"):
+            for value in (None, 0, False, 1.0, [], {}, "", " \t\n"):
+                with self.subTest(field=field, value=value):
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        build_proof_receipt(**{**arguments, field: value})
+                    if field == "statement":
+                        continue
+                    altered = {key: value for key, value in proof.items() if key != "fingerprint"}
+                    altered[field] = value
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        validate_proof_receipt(altered)
+                    self.assertIn("invalid-proof-receipt", {
+                        item["code"] for item in math_review_findings([claim], [altered], [], [])
+                    })
+        validate_proof_receipt(build_proof_receipt(**{**arguments, "receipt_id": " 0 "}))
+
+    def test_passed_formal_checker_requires_string_tool_and_version(self):
+        claim, _ = self._deductive_pair()
+        claim = {key: value for key, value in claim.items() if key != "fingerprint"}
+        claim["status"] = "proved-formal"
+        arguments = dict(
+            receipt_id="P", claim_id="C", statement=claim["statement"], kind="formal-kernel",
+            status="passed", assumptions=[],
+        )
+        checker = {"kernel_checked": True, "tool": "lean", "tool_version": "4"}
+        proof = build_proof_receipt(**arguments, checker=checker)
+        self.assertEqual("passed", self._bundle_review([
+            ("mathematical-claim", claim), ("proof-receipt", proof),
+        ])["status"])
+        for field in ("tool", "tool_version"):
+            for value in (None, 0, False, 1.0, [], {}, "", " \t\n"):
+                with self.subTest(field=field, value=value):
+                    altered_checker = {**checker, field: value}
+                    altered = {key: value for key, value in proof.items() if key != "fingerprint"}
+                    altered["checker"] = altered_checker
+                    altered["fingerprint"] = canonical_sha256(altered)
+                    message = "passed formal proof requires checker tool and version"
+                    with self.assertRaisesRegex(ValueError, message):
+                        build_proof_receipt(**arguments, checker=altered_checker)
+                    with self.assertRaisesRegex(ValueError, message):
+                        validate_proof_receipt(altered)
+                    codes = {item["code"] for item in math_review_findings([claim], [altered], [], [])}
+                    self.assertTrue({"invalid-proof-receipt", "formal-proof-missing"}.issubset(codes))
+                    for kind, record in (
+                        ("proof-receipt", altered), ("formal-proof-check", {"proof_receipt": altered}),
+                    ):
+                        with self.assertRaisesRegex(ValueError, message):
+                            self._bundle_review([("mathematical-claim", claim), (kind, record)])
+            missing_checker = {key: value for key, value in checker.items() if key != field}
+            with self.assertRaisesRegex(ValueError, "checker tool and version"):
+                build_proof_receipt(**arguments, checker=missing_checker)
+        for status in ("failed", "unavailable", "blocked"):
+            validate_proof_receipt(build_proof_receipt(**{**arguments, "status": status}))
+        validate_proof_receipt(build_proof_receipt(**arguments, checker={
+            **checker, "tool": " 0 ", "tool_version": " 0 ",
+        }))
+
+    def test_obligation_required_text_rejects_non_strings(self):
+        graph = {
+            "schema_version": 1, "graph_id": "G", "claim_id": "C",
+            "obligations": [{"id": "O", "statement": "x > 0", "status": "passed"}],
+        }
+        for field in ("graph_id", "claim_id", "id", "statement"):
+            for value in (None, 0, False, 1.0, [], {}, "", " \t\n"):
+                with self.subTest(field=field, value=value):
+                    altered = {**graph, field: value} if field in graph else {
+                        **graph, "obligations": [{**graph["obligations"][0], field: value}],
+                    }
+                    with self.assertRaisesRegex(ValueError, f"{field} is required"):
+                        validate_proof_obligation_graph(altered)
+                    self.assertIn("invalid-proof-obligation-graph", {
+                        item["code"] for item in math_review_findings([], [], [], [altered])
+                    })
+        self.assertEqual([], validate_proof_obligation_graph(graph))
+
+    def test_long_obligation_chains_validate_and_preserve_cycle_diagnostics(self):
+        claim, proof = self._deductive_pair()
+        for count in (1, 1000, 1100):
+            graph = {
+                "schema_version": 1, "graph_id": "G", "claim_id": "C",
+                "obligations": [
+                    {"id": f"O{index:04d}", "statement": "x > 0", "status": "passed",
+                     "dependencies": [f"O{index + 1:04d}"] if index + 1 < count else []}
+                    for index in range(count)
+                ],
+            }
+            with self.subTest(count=count):
+                self.assertEqual(count, len(list(TopologicalSorter({
+                    item["id"]: item["dependencies"] for item in graph["obligations"]
+                }).static_order())))
+                self.assertEqual([], validate_proof_obligation_graph(graph))
+                self.assertEqual([], math_review_findings([claim], [proof], [], [graph]))
+                self.assertEqual("passed", self._bundle_review([
+                    ("mathematical-claim", claim), ("proof-receipt", proof), ("proof-obligation-graph", graph),
+                ])["status"])
+                last = graph["obligations"][-1]
+                last["dependencies"] = [last["id"]]
+                cycle = [{"code": "proof-obligation-cycle", "severity": "major",
+                          "message": f"Proof obligation cycle: {last['id']} -> {last['id']}"}]
+                self.assertEqual(cycle, validate_proof_obligation_graph(graph))
+                last["dependencies"] = ["O0000"]
+                cycle[0]["message"] = "Proof obligation cycle: " + " -> ".join(
+                    [item["id"] for item in graph["obligations"]] + ["O0000"]
+                )
+                self.assertEqual(cycle, validate_proof_obligation_graph(graph))
+        for obligations in ([], None, 0, "bad", [None]):
+            with self.subTest(obligations=obligations), self.assertRaises(ValueError):
+                validate_proof_obligation_graph({**graph, "obligations": obligations})
 
     def test_finite_exhaustion_validates_optional_evaluation_counts(self):
         claim = build_mathematical_claim(

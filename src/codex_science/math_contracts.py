@@ -31,10 +31,10 @@ def statement_sha256(statement: str) -> str:
 
 
 def _required_text(payload: Mapping[str, Any], field: str) -> str:
-    value = str(payload.get(field, "")).strip()
-    if not value:
+    value = payload.get(field)
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field} is required")
-    return value
+    return value.strip()
 
 
 def _string_list(payload: Mapping[str, Any], field: str, *, required: bool = False) -> list[str]:
@@ -69,6 +69,7 @@ def build_mathematical_claim(
     proof_receipt_ids: list[str] | None = None,
     counterexample_receipt_ids: list[str] | None = None,
 ) -> dict[str, Any]:
+    _required_text({"statement": statement}, "statement")
     payload: dict[str, Any] = {
         "schema_version": 1,
         "claim_id": claim_id,
@@ -126,6 +127,7 @@ def build_proof_receipt(
     admitted_constructs: list[str] | None = None,
     limitations: list[str] | None = None,
 ) -> dict[str, Any]:
+    _required_text({"statement": statement}, "statement")
     payload: dict[str, Any] = {
         "schema_version": 1,
         "receipt_id": receipt_id,
@@ -200,7 +202,7 @@ def validate_proof_receipt(payload: Mapping[str, Any], *, bundle_root: Path | No
     if kind == "formal-kernel" and status == "passed":
         if checker.get("kernel_checked") is not True:
             raise ValueError("passed formal proof requires kernel_checked=true")
-        if not str(checker.get("tool", "")).strip() or not str(checker.get("tool_version", "")).strip():
+        if any(not isinstance(checker.get(field), str) or not checker[field].strip() for field in ("tool", "tool_version")):
             raise ValueError("passed formal proof requires checker tool and version")
     if kind == "finite-exhaustion" and status == "passed":
         if checker.get("exhaustive") is not True:
@@ -256,11 +258,18 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
                     })
     state: dict[str, int] = {}
     stack: list[str] = []
-
-    def visit(node: str) -> None:
-        state[node] = 1
-        stack.append(node)
-        for dependency in graph.get(node, []):
+    for obligation_id in sorted(obligations):
+        if state.get(obligation_id, 0) != 0:
+            continue
+        state[obligation_id] = 1
+        stack.append(obligation_id)
+        pending = [iter(graph.get(obligation_id, []))]
+        while pending:
+            dependency = next(pending[-1], None)
+            if dependency is None:
+                state[stack.pop()] = 2
+                pending.pop()
+                continue
             if state.get(dependency) == 1:
                 cycle = stack[stack.index(dependency):] + [dependency]
                 findings.append({
@@ -269,13 +278,9 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
                     "message": "Proof obligation cycle: " + " -> ".join(cycle),
                 })
             elif state.get(dependency, 0) == 0:
-                visit(dependency)
-        stack.pop()
-        state[node] = 2
-
-    for obligation_id in sorted(obligations):
-        if state.get(obligation_id, 0) == 0:
-            visit(obligation_id)
+                state[dependency] = 1
+                stack.append(dependency)
+                pending.append(iter(graph.get(dependency, [])))
     _validate_fingerprint(payload)
     unique = {(item["code"], item["message"]): item for item in findings}
     return sorted(unique.values(), key=lambda item: (item["code"], item["message"]))
