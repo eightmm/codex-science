@@ -620,6 +620,60 @@ class DescriptorPathRejectionTests(unittest.TestCase):
 
 
 class ArtifactIndexTests(unittest.TestCase):
+    def test_cli_preserves_recorded_code_and_execution_provenance(self) -> None:
+        for field in ("code", "missing-code", "executions", "superseded_executions", "journal"):
+            for output in ("index.md", "index.html"):
+                with self.subTest(field=field, output=output), tempfile.TemporaryDirectory() as tempdir:
+                    manifest_path = self._make_run(Path(tempdir))
+                    run = manifest_path.parent
+                    source = run / ("execution-log.jsonl" if field == "journal" else output)
+                    content = b'{"id":"E1"}\n' if field == "journal" else b""
+                    if field != "missing-code":
+                        source.write_bytes(content)
+                    manifest = json.loads(manifest_path.read_text())
+                    digest = hashlib.sha256(content).hexdigest()
+                    if field in ("code", "missing-code"):
+                        manifest["code"] = [{"path": source.name, "sha256": digest}]
+                    else:
+                        record = {"id": "E1", "exit_code": 0}
+                        if field != "journal":
+                            record.update(log_path=source.name, log_sha256=digest)
+                        manifest["executions" if field == "journal" else field] = [record]
+                    if field == "journal":
+                        (run / output).symlink_to(source)
+                    write_manifest(manifest, manifest_path)
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+                    before = {p.relative_to(run): p.read_bytes() for p in run.rglob("*") if p.is_file()}
+                    result = subprocess.run(
+                        [sys.executable, str(self.script), str(manifest_path), "--html"],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("output path would overwrite input", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual(before, {p.relative_to(run): p.read_bytes() for p in run.rglob("*") if p.is_file()})
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest_path = self._make_run(Path(tempdir))
+            manifest = json.loads(manifest_path.read_text())
+            manifest["code"] = [None, 0, {}, {"path": 0, "sha256": "0" * 64}]
+            for value in ("", "missing.py", "https://example.test/code.py", "../outside.py"):
+                manifest["code"].append({"path": value, "sha256": "0" * 64})
+            manifest["code"].append({"path": str(manifest_path.parent / "index.md"), "sha256": "0" * 64})
+            manifest["executions"] = [{"id": "no-log", "exit_code": 0}]
+            for value in (None, 0, "", "missing.log", "https://example.test/log", "bad\x00path", "../outside.log"):
+                manifest["executions"].append({"exit_code": 0, "log_path": value, "log_sha256": "0" * 64})
+            write_manifest(manifest, manifest_path)
+            result = subprocess.run(
+                [sys.executable, str(self.script), str(manifest_path), "--html"],
+                capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue((manifest_path.parent / "index.md").is_file())
+            self.assertTrue((manifest_path.parent / "index.html").is_file())
+
     def test_cli_protects_numeric_manifest_paths_before_writing_indexes(self) -> None:
         for field in ("path", "descriptor_path"):
             for value in (0, 123):

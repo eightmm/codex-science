@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.pipeline_compiler import _validate_command, compile_pipeline_draft  # noqa: E402
-from codex_science.artifacts import validate_manifest  # noqa: E402
+from codex_science.artifacts import manifest_provenance_paths, validate_manifest  # noqa: E402
 from codex_science.cli_io import preflight_output_paths, resolve_input_path  # noqa: E402
 from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
@@ -39,22 +39,14 @@ def main() -> int:
         preflight_output_paths(args.receipt, protected_dirs=[args.output])
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
         validate_manifest(manifest)
-        inputs = [args.manifest]
+        inputs = [args.manifest, *manifest_provenance_paths(manifest, args.manifest.parent)]
         trees = []
-        for record in manifest["inputs"]:
-            if isinstance(record, dict) and "path" in record:
-                relative = str(record["path"])
-                if relative:
-                    inputs.append(args.manifest.parent / relative)
         for record in manifest["artifacts"]:
             artifact = args.manifest.parent / str(record["path"])
-            inputs.append(artifact)
             if str(record.get("artifact_type", "file")) == "directory-tree":
                 if not resolve_input_path(artifact).is_relative_to(args.manifest.parent):
                     raise ValueError(f"Artifact resolves outside the run bundle: {record['path']}")
                 trees.append(artifact)
-            if record.get("descriptor_path") is not None:
-                inputs.append(args.manifest.parent / str(record["descriptor_path"]))
         if args.commands:
             inputs.append(args.commands)
         draft_paths = [args.output / relative for relative in (

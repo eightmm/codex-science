@@ -205,6 +205,48 @@ def _local_code_path(run_dir: Path, value: Any) -> Path | None:
     return path
 
 
+def manifest_provenance_paths(manifest: dict[str, Any], run_dir: Path) -> list[Path]:
+    """Collect preflight inputs without requiring optional provenance to exist.
+
+    Code uses the bundle validator's run-relative policy; execution logs use
+    review's resolved containment, including superseded records. The execution
+    journal is also consumed by review even when it is not an artifact.
+    """
+    paths = [run_dir / "execution-log.jsonl"]
+    for record in manifest["inputs"]:
+        if isinstance(record, dict) and "path" in record:
+            relative = str(record["path"])
+            if relative:
+                paths.append(run_dir / relative)
+    for record in manifest["artifacts"]:
+        paths.append(run_dir / str(record["path"]))
+        if record.get("descriptor_path") is not None:
+            paths.append(run_dir / str(record["descriptor_path"]))
+    root = run_dir.resolve()
+    for field, key, digest_key in (
+        ("code", "path", "sha256"),
+        ("executions", "log_path", "log_sha256"),
+        ("superseded_executions", "log_path", "log_sha256"),
+    ):
+        for record in manifest.get(field, []):
+            if not isinstance(record, dict) or digest_key not in record:
+                continue
+            value = record.get(key)
+            if not isinstance(value, str) or not value or (field == "code" and "://" in value):
+                continue
+            relative = PurePosixPath(value)
+            if field == "code" and (relative.is_absolute() or ".." in relative.parts):
+                continue
+            path = root / relative
+            try:
+                if not path.resolve().is_relative_to(root):
+                    continue
+            except (OSError, ValueError, RuntimeError):
+                continue
+            paths.append(path)
+    return paths
+
+
 def validate_bundle(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     verified = verify_bundle_artifacts(manifest, run_dir)
     from codex_science.evidence import validate_sidecars

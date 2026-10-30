@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.artifact_index import render_html, render_markdown  # noqa: E402
-from codex_science.artifacts import validate_manifest  # noqa: E402
+from codex_science.artifacts import manifest_provenance_paths, validate_manifest  # noqa: E402
 from codex_science.cli_io import preflight_output_paths, resolve_input_path  # noqa: E402
 from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
 
@@ -46,22 +46,14 @@ def main() -> int:
         validate_manifest(manifest)
         markdown_path = run_dir / "index.md"
         html_path = run_dir / "index.html" if args.html else None
-        inputs = [manifest_path]
+        inputs = [manifest_path, *manifest_provenance_paths(manifest, run_dir)]
         trees = []
-        for record in manifest["inputs"]:
-            if isinstance(record, dict) and "path" in record:
-                relative = str(record["path"])
-                if relative:
-                    inputs.append(run_dir / relative)
         for record in manifest["artifacts"]:
             artifact = run_dir / str(record["path"])
-            inputs.append(artifact)
             if str(record.get("artifact_type", "file")) == "directory-tree":
                 if not resolve_input_path(artifact).is_relative_to(run_dir):
                     raise ValueError(f"Artifact resolves outside the run bundle: {record['path']}")
                 trees.append(artifact)
-            if record.get("descriptor_path") is not None:
-                inputs.append(run_dir / str(record["descriptor_path"]))
         preflight_output_paths(markdown_path, html_path, inputs=inputs, protected_dirs=trees)
         markdown = render_markdown(manifest, run_dir)
         html = render_html(manifest, run_dir) if args.html else None

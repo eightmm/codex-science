@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Artifact index rendering and run-to-skill promotion protect recorded local code, current and superseded execution logs, and the execution journal alongside existing manifest inputs, artifacts and descriptors. Output aliases are refused before either CLI writes, preserving provenance bytes and review results; missing optional references do not block unrelated destinations. Execution-log spellings, including `://`, resolve as filesystem paths exactly as review does; code references retain their separate remote-reference policy.
 - Make the installer portable to Bash 3.2 and BSD userland with a bounded FIFO lock handshake that closes inherited descriptors, immediately removes FIFO paths on success, and cleans failed or interrupted FIFO preparation, plus portable no-target-directory moves. On INT/TERM/HUP, cleanup waits for the running foreground child to finish before removing staging and releasing the lock.
 - Document the boundary between domain evidence records and adjudicated claim-register sidecars.
 - Manuscript submission validation accepts generic reviewer receipts for nested packages when one run ancestor covers every required package file, normalizing listed and receipt paths for coverage while checking original receipt keys against current file or directory-tree digests; package-relative coverage remains limited to current listed-file hashes even when findings cite extra evidence, and both forms refuse stale, missing or unsafe hashed finding evidence.

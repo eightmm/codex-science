@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -8,6 +9,8 @@ import unittest
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from codex_science.artifacts import new_manifest, write_manifest
+from codex_science.review import review_manifest
 from codex_science.wrappers import (
     check_wrappers,
     generate_wrappers,
@@ -409,6 +412,70 @@ class WrapperGenerationTests(unittest.TestCase):
         for candidate in (path, self.root / "missing.json", self.root):
             for flags in ([], ["--check"]):
                 assert_refused(self, "generate_wrappers.py", ["--inventory", candidate, "--output", self.output, *flags], 1, self.output)
+
+
+class PromotionProvenanceTests(unittest.TestCase):
+    def test_cli_preserves_provenance_before_creating_draft_or_receipt(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "promote_run_to_skill.py"
+        for field in ("code", "executions", "superseded_executions", "journal"):
+            for alias in ("direct", "symlink", "hardlink", "case", "scheme"):
+                if alias == "scheme" and field not in ("executions", "superseded_executions"):
+                    continue
+                with self.subTest(field=field, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    run = root / "run"
+                    run.mkdir()
+                    source = run / ("execution-log.jsonl" if field == "journal" else "source.log")
+                    content = b'{"id":"E1"}\n' if field == "journal" else b"recorded provenance\n"
+                    source.write_bytes(content)
+                    manifest = new_manifest("promotion", "Can the workflow be reused?", [])
+                    manifest["review"] = {"status": "passed", "findings": []}
+                    manifest["code"] = [{"path": value, "sha256": "0" * 64}
+                                        for value in ("", "missing.py", "https://example.test/code.py")]
+                    digest = hashlib.sha256(content).hexdigest()
+                    if field == "code":
+                        manifest[field] = [{"path": source.name, "sha256": digest}]
+                    else:
+                        record = {"id": "E1", "exit_code": 0}
+                        if field != "journal":
+                            relative = f"unused://../{source.name}" if alias == "scheme" else source.name
+                            record.update(log_path=relative, log_sha256=digest)
+                        manifest["executions" if field == "journal" else field] = [record]
+                    manifest_path = run / "manifest.json"
+                    write_manifest(manifest, manifest_path)
+                    receipt = source
+                    if alias in ("symlink", "hardlink"):
+                        receipt = root / "receipt.json"
+                        if alias == "symlink":
+                            receipt.symlink_to(source)
+                        else:
+                            os.link(source, receipt)
+                    elif alias == "case":
+                        receipt = source.with_name(source.name.upper())
+                    draft = root / "draft"
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+                    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                    command = [sys.executable, str(script), str(manifest_path), str(draft),
+                               "--name", "fixture-workflow", "--description", "Bounded workflow.", "--receipt"]
+                    result = subprocess.run(
+                        [*command, str(receipt)], capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("output path would overwrite input", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertFalse(draft.exists())
+                    self.assertEqual(before, {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()})
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
+                    result = subprocess.run(
+                        [*command, str(root / "safe-receipt.json")], capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertTrue((draft / "SKILL.md").is_file())
+                    self.assertTrue((root / "safe-receipt.json").is_file())
+                    self.assertEqual(content, source.read_bytes())
+                    self.assertEqual("passed", review_manifest(manifest, run)["status"])
 
 
 class SessionContractTests(unittest.TestCase):
