@@ -38,9 +38,14 @@ class OpenFulltextTests(unittest.TestCase):
                 fetch_fulltext([], self.run, execute=True, max_seconds=value)
 
     def test_slow_trailers_obey_fulltext_wall_budget(self):
+        wall_budget = 0.5
+        prompt_limit = wall_budget + 1.5
+        # Fast hops need scheduling headroom; every drip lasts at least five seconds.
+        slow_chunks = 500
+        search_path = urllib.parse.urlsplit(open_fulltext.BASE + "/search").path
         for mode in ("opener", "http-error", "injected"):
             with self.subTest(mode=mode), local_chunked_response(
-                status=503 if mode == "http-error" else 200,
+                status=503 if mode == "http-error" else 200, trailers=slow_chunks,
             ) as response:
                 opener = Mock()
                 if mode == "http-error":
@@ -50,36 +55,41 @@ class OpenFulltextTests(unittest.TestCase):
                     opener.open.return_value = response
                 with patch.object(open_fulltext.urllib.request, "build_opener", return_value=opener):
                     started = time.monotonic()
-                    result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=0.05,
+                    result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=wall_budget,
                                             fetch=(lambda *_args, **_kwargs: response) if mode == "injected" else None)
                     elapsed = time.monotonic() - started
                 self.assertTrue(result["cap_reached"])
                 self.assertEqual("unavailable", result["results"][0]["status"])
-                self.assertLess(elapsed, 0.3)
+                self.assertLess(elapsed, prompt_limit)
                 self.assertTrue(response.isclosed())
 
-        with local_redirect_server() as (_url, seen, build_opener), patch.object(
+        with local_redirect_server(trailers=slow_chunks) as (_url, seen, build_opener), patch.object(
             open_fulltext.urllib.request, "build_opener", side_effect=build_opener,
         ):
             started = time.monotonic()
-            result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=0.05)
+            result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=wall_budget)
             elapsed = time.monotonic() - started
             self.assertTrue(result["cap_reached"])
             self.assertEqual("unavailable", result["results"][0]["status"])
-            self.assertLess(elapsed, 0.3)
+            self.assertLess(elapsed, prompt_limit)
             self.assertEqual(1, len(seen))
             self.assertIn("/search?", seen[0])
 
         for hop in ("initial", "redirect", "target", "status", "tls"):
-            with self.subTest(slow_headers=hop), local_redirect_server(trailers=0, slow_headers=hop) as (
+            with self.subTest(slow_headers=hop), local_redirect_server(
+                trailers=0, slow_headers=hop, header_chunks=slow_chunks, single_header=True,
+            ) as (
                 _url, seen, build_opener,
             ), patch.object(open_fulltext.urllib.request, "build_opener", side_effect=build_opener):
                 started = time.monotonic()
-                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=0.05)
-                self.assertLess(time.monotonic() - started, 0.3)
+                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=wall_budget)
+                self.assertLess(time.monotonic() - started, prompt_limit)
                 self.assertTrue(result["cap_reached"])
                 self.assertEqual("unavailable", result["results"][0]["status"])
-                self.assertEqual(2 if hop == "target" else 1, len(seen))
+                self.assertEqual(
+                    ["tls"] if hop == "tls" else [search_path] + (["/target"] if hop == "target" else []),
+                    [urllib.parse.urlsplit(path).path for path in seen],
+                )
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

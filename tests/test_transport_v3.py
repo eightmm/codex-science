@@ -86,7 +86,8 @@ def local_chunked_response(body=b'{"resultList":{"result":[]}}', *, trailers=60,
 
 
 @contextmanager
-def local_redirect_server(*, trailers=60, body=b"{}", malformed=False, slow_headers=None):
+def local_redirect_server(*, trailers=60, body=b"{}", malformed=False, slow_headers=None, header_chunks=60,
+                          single_header=False):
     stopped = threading.Event()
     seen = []
     errors = []
@@ -104,7 +105,7 @@ def local_redirect_server(*, trailers=60, body=b"{}", malformed=False, slow_head
                 if slow_headers == "status":
                     self.wfile.write(b"HTTP/1.1 200 ")
                     self.wfile.flush()
-                    for _ in range(60):
+                    for _ in range(header_chunks):
                         if stopped.wait(0.01):
                             return
                         self.wfile.write(b"X")
@@ -116,11 +117,17 @@ def local_redirect_server(*, trailers=60, body=b"{}", malformed=False, slow_head
                 self.send_response(302 if redirect else 200)
                 if slow_headers == "initial" or slow_headers == ("redirect" if redirect else "target"):
                     self.flush_headers()
-                    for _ in range(60):
+                    # An incomplete line avoids the parser's header-count cap during a long drip.
+                    prefix, piece, ending = ((b"X-H: ", b"1", b"\r\n") if single_header
+                                             else (b"", b"X-H: 1\r\n", b""))
+                    self.wfile.write(prefix)
+                    self.wfile.flush()
+                    for _ in range(header_chunks):
                         if stopped.wait(0.01):
                             return
-                        self.send_header("X-H", "1")
-                        self.flush_headers()
+                        self.wfile.write(piece)
+                        self.wfile.flush()
+                    self.wfile.write(ending)
                 if not redirect:
                     self.send_header("Content-Length", str(len(body)))
                     self.send_header("Connection", "close")
@@ -229,6 +236,20 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_slow_header_drip_stays_within_parser_limits(self):
+        call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        for single_header, chunks in ((False, 0), (False, 2), (True, 0),
+                                      (True, http.client._MAXHEADERS), (True, http.client._MAXHEADERS + 1)):
+            body = b"{}" if chunks else b""
+            with self.subTest(single_header=single_header, chunks=chunks), local_redirect_server(
+                trailers=0, body=body, slow_headers="target", header_chunks=chunks, single_header=single_header,
+            ) as (url, seen, build_opener):
+                with build_opener().open(url + "/target", timeout=call_timeout) as response:
+                    self.assertEqual(body, response.read())
+                    self.assertEqual(["1" * chunks] if single_header else ["1"] * chunks,
+                                     response.headers.get_all("X-H", []))
+                self.assertEqual(["/target"], seen)
+
     def test_slow_trailers_obey_attempt_deadline(self):
         timers = []
         duplicates = []
