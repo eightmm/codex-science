@@ -97,13 +97,13 @@ class ComputeBackendTests(unittest.TestCase):
                 "backend": "local",
                 "name": "legacy",
                 "command": ["echo", "ok"],
-                "working_directory": "/tmp",
+                "working_directory": "/",
                 "outputs": [],
             }
         )
         self.assertNotIn("source_snapshot", spec.to_dict())
         self.assertEqual(
-            "37fcf5fb8aaf3dded5f377e00024d87f892dbf8eb6b215a963993b9623acafb3",
+            "91d571260e85dc215fc0cf6f149f794400cbc58449f54bc41728f34a64e40c71",
             spec.fingerprint,
         )
 

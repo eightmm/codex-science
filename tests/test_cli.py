@@ -68,7 +68,7 @@ class CLITests(unittest.TestCase):
                     )
                     self.assertNotEqual(0, result.returncode)
                     self.assertIn("Symlink in catalog tree:", result.stderr)
-                    self.assertIn(str(link), result.stderr)
+                    self.assertIn(str(link.parent.resolve() / link.name), result.stderr)
                     self.assertEqual("", result.stdout)
                     self.assertEqual(expected, output.read_bytes())
 

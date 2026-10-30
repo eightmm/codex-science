@@ -22,11 +22,11 @@ cat > artifacts/run/receptor.pdb <<'PDB' || exit 1
 ATOM      1  CA  ALA A 145      11.000  12.000  13.000  1.00 20.00           C
 END
 PDB
-sha256sum artifacts/run/receptor.pdb
+"<plugin-root>/scripts/python_runtime.sh" -c 'import hashlib; print(hashlib.sha256(open("artifacts/run/receptor.pdb", "rb").read()).hexdigest(), " artifacts/run/receptor.pdb")'
 )
 ```
 
-Copy the digest from the first column of `sha256sum` into `<manifest-sha256>`
+Copy the digest from the first column of the digest output into `<manifest-sha256>`
 in the `describe` command below.
 
 Read first:

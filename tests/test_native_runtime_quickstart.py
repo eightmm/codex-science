@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,7 +17,10 @@ DOC = ROOT / "docs" / "NATIVE_RUNTIME_QUICKSTART.md"
 
 class NativeRuntimeQuickstartTests(unittest.TestCase):
     def test_sections_one_through_three_run_from_prepared_inputs(self) -> None:
-        self._run_document(DOC.read_text(encoding="utf-8"))
+        text = DOC.read_text(encoding="utf-8")
+        for restricted_path in (False, True):
+            with self.subTest(restricted_path=restricted_path):
+                self._run_document(text, restricted_path=restricted_path)
 
     def test_removing_section_one_preparation_block_fails(self) -> None:
         text = DOC.read_text(encoding="utf-8")
@@ -38,7 +42,7 @@ class NativeRuntimeQuickstartTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self._run_document(mutated)
 
-    def test_changed_pdb_content_uses_documented_sha256sum_output(self) -> None:
+    def test_changed_pdb_content_uses_documented_digest_output(self) -> None:
         text = DOC.read_text(encoding="utf-8")
         self.assertIn("11.000  12.000  13.000", text)
         self._run_document(text.replace("11.000  12.000  13.000", "14.000  15.000  16.000", 1))
@@ -90,7 +94,7 @@ class NativeRuntimeQuickstartTests(unittest.TestCase):
                 self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertEqual(original_bytes, destination.read_bytes())
 
-    def _run_document(self, text: str) -> None:
+    def _run_document(self, text: str, *, restricted_path: bool = False) -> None:
         sections = self._sections(text)
         self.assertEqual(3, len(sections), "quickstart sections 1-3 must exist")
         environment = os.environ.copy()
@@ -100,6 +104,15 @@ class NativeRuntimeQuickstartTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
+            if restricted_path:
+                shim = base / "bin"
+                shim.mkdir()
+                for name in ("bash", "mkdir", "cat", "cp"):
+                    executable = shutil.which(name)
+                    self.assertIsNotNone(executable, name)
+                    (shim / name).symlink_to(executable)
+                environment["PATH"] = str(shim)
+                self.assertIsNone(shutil.which("python3", path=environment["PATH"]))
             plugin_root = base / "plugin root"
             plugin_root.symlink_to(ROOT, target_is_directory=True)
             preamble = re.findall(
@@ -120,7 +133,7 @@ class NativeRuntimeQuickstartTests(unittest.TestCase):
                 self.assertTrue(scripts, f"section {index} has no bash examples")
                 if index == 1:
                     self.assertIn(
-                        "sha256sum artifacts/run/receptor.pdb", scripts[0],
+                        '"<plugin-root>/scripts/python_runtime.sh" -c \'import hashlib; print(hashlib.sha256(open("artifacts/run/receptor.pdb", "rb").read()).hexdigest(), " artifacts/run/receptor.pdb")\'', scripts[0],
                         "section 1 must prepare and hash the PDB first",
                     )
                 for script in scripts:
@@ -146,7 +159,7 @@ class NativeRuntimeQuickstartTests(unittest.TestCase):
                         )
                         executed_commands += 1
                         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-                        if index == 1 and "sha256sum artifacts/run/receptor.pdb" in command:
+                        if index == 1 and '"<plugin-root>/scripts/python_runtime.sh" -c \'import hashlib; print(hashlib.sha256(open("artifacts/run/receptor.pdb", "rb").read()).hexdigest(), " artifacts/run/receptor.pdb")\''.replace("<plugin-root>", str(plugin_root)) in command:
                             digest = result.stdout.split()[0]
                         if index == 3 and " wait " in f" {command} ":
                             terminal = json.loads((work / "artifacts/run/terminal.json").read_text())
