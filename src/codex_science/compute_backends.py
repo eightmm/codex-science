@@ -15,15 +15,22 @@ import os
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Protocol
+from typing import Any, Iterator, Mapping, Protocol
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 from codex_science.artifact_store import describe_directory, stream_sha256
 from codex_science.source_snapshot import (
@@ -472,6 +479,89 @@ def validate_job_state(payload: Mapping[str, Any]) -> None:
         raise ValueError("job state fingerprint mismatch")
 
 
+def _read_job_state(job_dir: Path) -> dict[str, Any]:
+    try:
+        return _read_json(job_dir / "state.json")
+    except FileNotFoundError:
+        script = job_dir / "job.sh"
+        if not (job_dir / "spec.json").is_file() or not script.is_file():
+            raise
+        prefix = "#SBATCH --job-name="
+        name = next(
+            (line[len(prefix):] for line in script.read_text(encoding="utf-8").splitlines() if line.startswith(prefix)),
+            "<unavailable>",
+        )
+        raise ValueError(
+            f"Slurm job directory {job_dir} has no state.json; submission may have reached the scheduler. "
+            f"Look up {prefix}{name} with squeue/sacct before retrying."
+        ) from None
+
+
+@contextmanager
+def _job_state_lock(job_dir: Path) -> Iterator[None]:
+    if fcntl is None:
+        raise ValueError("job state publication requires POSIX file locking")
+    lock_path = job_dir / ".state.lock"
+    # This inode must survive every atomic state replacement and every caller.
+    # Closing the descriptor releases the lock even on a failed publication.
+    try:
+        descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    except OSError as error:
+        raise ValueError(f"job state lock must be a regular non-symlink file: {lock_path}") from error
+    try:
+        try:
+            opened = os.fstat(descriptor)
+            if not stat.S_ISREG(opened.st_mode):
+                raise ValueError(f"job state lock must be a regular non-symlink file: {lock_path}")
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            current = lock_path.stat(follow_symlinks=False)
+            if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+                raise ValueError(f"job state lock changed during acquisition: {lock_path}")
+        except OSError as error:
+            raise ValueError(f"cannot acquire job state lock: {lock_path}") from error
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def _publish_job_state(
+    job_dir: Path, payload: Mapping[str, Any], *, collection: bool = False
+) -> dict[str, Any]:
+    with _job_state_lock(job_dir):
+        return _publish_job_state_locked(job_dir, payload, collection=collection)
+
+
+def _publish_job_state_locked(
+    job_dir: Path, payload: Mapping[str, Any], *, collection: bool = False
+) -> dict[str, Any]:
+    validate_job_state(payload)
+    try:
+        current = _read_json(job_dir / "state.json")
+    except FileNotFoundError:
+        current = None
+    if current is not None:
+        validate_job_state(current)
+        if collection:
+            updated = dict(current)
+            updated["outputs"] = payload["outputs"]
+            if "source_collection_error" in payload:
+                updated["source_collection_error"] = payload["source_collection_error"]
+            updated["updated_at"] = _now()
+            updated.pop("fingerprint", None)
+            updated["fingerprint"] = _fingerprint(updated)
+            payload = updated
+        elif current["state"] in TERMINAL_STATES or (
+            current["state"] == "running" and payload["state"] == "submitted"
+        ):
+            return current
+        elif payload["state"] == "lost" and (
+            not current.get("worker_pid") or _process_alive(int(current["worker_pid"]))
+        ):
+            return current
+    _atomic_json(job_dir / "state.json", payload)
+    return dict(payload)
+
+
 def _source_preflight(spec: JobSpec) -> dict[str, Any] | None:
     if spec.source_snapshot is None:
         return None
@@ -615,22 +705,23 @@ class LocalBackend:
             submitted_at=submitted_at,
             **source_update,
         )
-        _atomic_json(job_dir / "state.json", initial)
         worker_environment = os.environ.copy()
         source_root = str(Path(__file__).resolve().parents[1])
         existing_pythonpath = worker_environment.get("PYTHONPATH", "")
         worker_environment["PYTHONPATH"] = source_root + (
             os.pathsep + existing_pythonpath if existing_pythonpath else ""
         )
-        process = subprocess.Popen(
-            [sys.executable, "-m", "codex_science.compute_backends", "_worker", str(job_dir)],
-            env=worker_environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            close_fds=True,
-        )
+        with _job_state_lock(job_dir):
+            _publish_job_state_locked(job_dir, initial)
+            process = subprocess.Popen(
+                [sys.executable, "-m", "codex_science.compute_backends", "_worker", str(job_dir)],
+                env=worker_environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                close_fds=True,
+            )
         _LOCAL_PROCESSES[process.pid] = process
         current = _read_json(job_dir / "state.json")
         submitted_receipt = _state_material(
@@ -643,12 +734,12 @@ class LocalBackend:
             **source_update,
         )
         if current.get("state") == "submitted":
-            _atomic_json(job_dir / "state.json", submitted_receipt)
+            _publish_job_state(job_dir, submitted_receipt)
         return submitted_receipt
 
     def status(self, job_id: str) -> dict[str, Any]:
         job_dir = self._job_dir(job_id)
-        state = _read_json(job_dir / "state.json")
+        state = _read_job_state(job_dir)
         validate_job_state(state)
         if state["state"] in TERMINAL_STATES and state.get("worker_pid"):
             _reap_local_process(int(state["worker_pid"]))
@@ -671,7 +762,7 @@ class LocalBackend:
                     message="local worker exited without a terminal receipt",
                     **_source_state_update(state),
                 )
-                _atomic_json(job_dir / "state.json", state)
+                state = _publish_job_state(job_dir, state)
         return state
 
     def wait(self, job_id: str, *, timeout_seconds: float, poll_seconds: float = 0.2) -> dict[str, Any]:
@@ -688,30 +779,38 @@ class LocalBackend:
 
     def cancel(self, job_id: str) -> dict[str, Any]:
         job_dir = self._job_dir(job_id)
-        state = self.status(job_id)
+        state = _read_job_state(job_dir)
+        validate_job_state(state)
         if state["state"] in TERMINAL_STATES:
             return state
-        pid = int(state.get("worker_pid") or 0)
-        if pid > 0 and _process_alive(pid):
-            try:
-                os.killpg(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
-        cancelled = _state_material(
-            spec,
-            job_id=job_id,
-            state="cancelled",
-            submitted_at=str(state["submitted_at"]),
-            started_at=state.get("started_at"),
-            finished_at=_now(),
-            worker_pid=pid or None,
-            failure_class="user-cancelled",
-            message="job cancelled",
-            **_source_state_update(state),
-        )
-        _atomic_json(job_dir / "state.json", cancelled)
-        return cancelled
+        with _job_state_lock(job_dir):
+            state = _read_job_state(job_dir)
+            validate_job_state(state)
+            if state["state"] in TERMINAL_STATES:
+                return state
+            pid = int(state.get("worker_pid") or 0)
+            spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
+            # Signal the group even if its leader has exited but children remain.
+            if pid > 0:
+                try:
+                    os.killpg(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                except OSError as error:
+                    raise ValueError(f"local cancellation failed: {error}") from error
+            cancelled = _state_material(
+                spec,
+                job_id=job_id,
+                state="cancelled",
+                submitted_at=str(state["submitted_at"]),
+                started_at=state.get("started_at"),
+                finished_at=_now(),
+                worker_pid=pid or None,
+                failure_class="user-cancelled",
+                message="job cancelled",
+                **_source_state_update(state),
+            )
+            return _publish_job_state_locked(job_dir, cancelled)
 
     def collect(self, job_id: str) -> dict[str, Any]:
         job_dir = self._job_dir(job_id)
@@ -765,8 +864,7 @@ class LocalBackend:
             state["source_collection_error"] = source_collection_error
         state["updated_at"] = _now()
         state["fingerprint"] = _fingerprint(state)
-        _atomic_json(job_dir / "state.json", state)
-        return state
+        return _publish_job_state(job_dir, state, collection=True)
 
 
 def _worker(job_dir: Path) -> int:
@@ -786,7 +884,9 @@ def _worker(job_dir: Path) -> int:
         message="command running",
         **_source_state_update(initial),
     )
-    _atomic_json(job_dir / "state.json", running)
+    running = _publish_job_state(job_dir, running)
+    if running["state"] in TERMINAL_STATES:
+        return 0 if running["state"] == "completed" else 1
     environment = os.environ.copy() if spec.inherit_environment else {}
     environment.update(spec.environment)
     stdout_path = job_dir / "stdout.log"
@@ -852,8 +952,8 @@ def _worker(job_dir: Path) -> int:
         message=message,
         **_source_state_update(initial),
     )
-    _atomic_json(job_dir / "state.json", final)
-    return 0 if state == "completed" else 1
+    final = _publish_job_state(job_dir, final)
+    return 0 if final["state"] == "completed" else 1
 
 
 class SlurmBackend:
@@ -1077,29 +1177,29 @@ class SlurmBackend:
             encoding="utf-8",
         )
         script_path.chmod(0o700)
-        completed = subprocess.run(["sbatch", "--parsable", str(script_path)], text=True, capture_output=True, check=False)
-        if completed.returncode != 0:
-            raise ValueError(f"sbatch failed: {completed.stderr.strip() or completed.stdout.strip()}")
-        scheduler_job_id = completed.stdout.strip().split(";", 1)[0]
-        if not scheduler_job_id:
-            raise ValueError("sbatch returned no scheduler job ID")
-        submitted_at = _now()
-        source_update = {} if source_receipt is None else {"source_receipt": source_receipt}
-        state = _state_material(
-            spec,
-            job_id=job_id,
-            state="submitted",
-            submitted_at=submitted_at,
-            scheduler_job_id=scheduler_job_id,
-            message="submitted to Slurm",
-            **source_update,
-        )
-        _atomic_json(job_dir / "state.json", state)
-        return state
+        with _job_state_lock(job_dir):
+            completed = subprocess.run(["sbatch", "--parsable", str(script_path)], text=True, capture_output=True, check=False)
+            if completed.returncode != 0:
+                raise ValueError(f"sbatch failed: {completed.stderr.strip() or completed.stdout.strip()}")
+            scheduler_job_id = completed.stdout.strip().split(";", 1)[0]
+            if not scheduler_job_id:
+                raise ValueError("sbatch returned no scheduler job ID")
+            submitted_at = _now()
+            source_update = {} if source_receipt is None else {"source_receipt": source_receipt}
+            state = _state_material(
+                spec,
+                job_id=job_id,
+                state="submitted",
+                submitted_at=submitted_at,
+                scheduler_job_id=scheduler_job_id,
+                message="submitted to Slurm",
+                **source_update,
+            )
+            return _publish_job_state_locked(job_dir, state)
 
     def status(self, job_id: str) -> dict[str, Any]:
         job_dir = self._job_dir(job_id)
-        state = _read_json(job_dir / "state.json")
+        state = _read_job_state(job_dir)
         validate_job_state(state)
         if state["state"] in TERMINAL_STATES:
             return state
@@ -1137,8 +1237,7 @@ class SlurmBackend:
             message=f"Slurm state {raw_state}",
             **_source_state_update(state),
         )
-        _atomic_json(job_dir / "state.json", updated)
-        return updated
+        return _publish_job_state(job_dir, updated)
 
     def cancel(self, job_id: str) -> dict[str, Any]:
         job_dir = self._job_dir(job_id)
@@ -1161,8 +1260,7 @@ class SlurmBackend:
             message="Slurm job cancellation requested",
             **_source_state_update(state),
         )
-        _atomic_json(job_dir / "state.json", cancelled)
-        return cancelled
+        return _publish_job_state(job_dir, cancelled)
 
     def collect(self, job_id: str) -> dict[str, Any]:
         # Shared-filesystem Slurm output collection uses the same hash contract

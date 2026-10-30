@@ -10,6 +10,7 @@ import io
 import json
 import os
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
@@ -36,6 +37,7 @@ DEFAULT_KINDS = {
 }
 EXCLUDED_NAMES = {"manifest.json", "checkpoint.json", "deterministic-review.json", "index.md", "index.html", "workbench.html", "execution-log.jsonl", "review.json", "review-packet.json", "review-response.json", "review-checklist.md"}
 REVIEW_KINDS = {"review-receipt", "review-receipt-v2", "review-packet", "review-packet-v1", "review-response", "review-response-v1"}
+_OPERATIONAL_LOCK_NAMES = {".state.lock", ".resolutions.lock"}
 
 
 def _sha(path: Path) -> str:
@@ -324,6 +326,17 @@ def _kind(path: str, overrides: list[tuple[str, str]], default_kind: str | None 
     if name in DEFAULT_KINDS:
         return DEFAULT_KINDS[name]
     return default_kind
+
+
+def _is_operational_lock(run_dir: Path, path: Path) -> bool:
+    if path.name not in _OPERATIONAL_LOCK_NAMES:
+        return False
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != 0:
+        return False
+    if path.name == ".state.lock":
+        return any((path.parent / name).is_file() for name in ("state.json", "spec.json"))
+    return path.parent == run_dir / "annotations"
 
 
 def _is_deterministic_review_file(path: Path) -> bool:
@@ -880,6 +893,8 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         relative = target.relative_to(run_dir).as_posix()
         canonical = _canonical_relative(relative)
         _inside(run_dir, canonical)
+        if _is_operational_lock(run_dir, target):
+            continue
         if "__pycache__" in PurePosixPath(canonical).parts or target.suffix == ".pyc":
             continue
         if (

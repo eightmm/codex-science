@@ -1,3 +1,4 @@
+import fcntl
 import hashlib
 import json
 import os
@@ -7,7 +8,9 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from unittest import mock
@@ -91,6 +94,502 @@ def local_spec(working: Path, *, command: list[str], outputs: list[str], timeout
 
 
 class ComputeBackendTests(unittest.TestCase):
+    def test_submit_preserves_worker_completion_during_stale_read(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(
+                root, command=[sys.executable, "-c", "from pathlib import Path; Path('result.txt').write_text('ok')"],
+                outputs=["result.txt"],
+            )
+            read_json = compute_backends_module._read_json
+            popen = subprocess.Popen
+            intercepted = False
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+
+            def finish_worker_before_read_returns(path: Path) -> dict:
+                nonlocal intercepted
+                state = read_json(path)
+                if path.name == "state.json" and not intercepted:
+                    intercepted = True
+                    with popen(
+                        [sys.executable, "-m", "codex_science.compute_backends", "_worker", str(path.parent)],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    ) as worker:
+                        _, stderr = worker.communicate(timeout=call_timeout)
+                        self.assertEqual(0, worker.returncode, stderr.decode())
+                    self.assertEqual("completed", read_json(path)["state"])
+                return state
+
+            try:
+                with mock.patch.object(compute_backends_module.subprocess, "Popen") as launch, mock.patch.object(
+                    compute_backends_module, "_read_json", side_effect=finish_worker_before_read_returns
+                ):
+                    launch.return_value.pid = 99999999
+                    submitted = backend.submit(spec)
+                with mock.patch.object(compute_backends_module, "_process_alive", return_value=False):
+                    self.assertEqual("completed", backend.status(submitted["job_id"])["state"])
+                    self.assertEqual("completed", backend.status(submitted["job_id"])["state"])
+                self.assertEqual("ok", (root / "result.txt").read_text())
+            finally:
+                compute_backends_module._LOCAL_PROCESSES.pop(99999999, None)
+
+    def test_lost_promotion_preserves_concurrent_worker_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            job_dir = backend._job_dir("racing-worker")
+            job_dir.mkdir(parents=True)
+            compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+            state_material = compute_backends_module._state_material
+            initial = state_material(
+                spec, job_id=job_dir.name, state="running", submitted_at="2026-01-01T00:00:00Z",
+                worker_pid=99999999,
+            )
+            compute_backends_module._atomic_json(job_dir / "state.json", initial)
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+
+            def finish_worker_before_lost_receipt(*args: object, **kwargs: object) -> dict:
+                if kwargs.get("state") == "lost":
+                    worker = subprocess.run(
+                        [sys.executable, "-m", "codex_science.compute_backends", "_worker", str(job_dir)],
+                        capture_output=True, timeout=call_timeout,
+                    )
+                    self.assertEqual(0, worker.returncode, worker.stderr.decode())
+                return state_material(*args, **kwargs)
+
+            with mock.patch.object(compute_backends_module, "_state_material", side_effect=finish_worker_before_lost_receipt), mock.patch.object(
+                compute_backends_module, "_process_alive", return_value=False
+            ), mock.patch.object(compute_backends_module.time, "sleep"):
+                self.assertEqual("completed", backend.status(job_dir.name)["state"])
+            self.assertEqual("completed", backend.status(job_dir.name)["state"])
+
+    def test_slurm_missing_receipt_reports_recovery_without_scheduler_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = SlurmBackend(root / "state")
+            spec = replace(local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[]), backend="slurm")
+            atomic_json = compute_backends_module._atomic_json
+
+            def crash_before_receipt(path: Path, payload: dict) -> None:
+                if path.name == "state.json":
+                    raise RuntimeError("interrupted after sbatch")
+                atomic_json(path, payload)
+
+            with mock.patch.object(backend, "preflight", return_value={"ready": True}), mock.patch.object(
+                compute_backends_module.subprocess, "run",
+                return_value=subprocess.CompletedProcess(["sbatch"], 0, "42;fixture-cluster\n", ""),
+            ) as submit, mock.patch.object(compute_backends_module, "_atomic_json", side_effect=crash_before_receipt):
+                with self.assertRaisesRegex(RuntimeError, "interrupted after sbatch"):
+                    backend.submit(spec, approval=build_approval_receipt(spec, approved_by="fixture", target="fixture"))
+                self.assertEqual("sbatch", submit.call_args.args[0][0])
+                self.assertEqual(1, submit.call_count)
+            job_dir, = backend.jobs_dir.iterdir()
+            local = LocalBackend(backend.state_dir)
+            with mock.patch.object(compute_backends_module.subprocess, "run") as scheduler:
+                for operation in (
+                    lambda: backend.status(job_dir.name), lambda: backend.cancel(job_dir.name),
+                    lambda: local.wait(job_dir.name, timeout_seconds=1),
+                ):
+                    with self.subTest(operation=operation):
+                        with self.assertRaises(ValueError) as raised:
+                            operation()
+                        message = str(raised.exception)
+                        for detail in (str(job_dir), "#SBATCH --job-name=fixture-job", "squeue", "sacct"):
+                            self.assertIn(detail, message)
+                scheduler.assert_not_called()
+            self.assertFalse((job_dir / "state.json").exists())
+
+    def test_state_publications_hold_one_stable_lock_and_preserve_terminal_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            atomic_json = compute_backends_module._atomic_json
+            lock_inode = None
+
+            def assert_locked_publication(path: Path, payload: dict) -> None:
+                nonlocal lock_inode
+                lock_path = root / ".state.lock"
+                with lock_path.open("a") as contender:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                inode = lock_path.stat().st_ino
+                if lock_inode is None:
+                    lock_inode = inode
+                self.assertEqual(lock_inode, inode)
+                atomic_json(path, payload)
+
+            def receipt(state: str, **updates: object) -> dict:
+                return compute_backends_module._state_material(
+                    spec, job_id="publication", state=state, submitted_at="2026-01-01T00:00:00Z", **updates,
+                )
+
+            with mock.patch.object(compute_backends_module, "_atomic_json", side_effect=assert_locked_publication):
+                compute_backends_module._publish_job_state(root, receipt("submitted"))
+                self.assertEqual("", (root / ".state.lock").read_text())
+                (root / ".state.lock").write_text("preserve lock contents")
+                running = compute_backends_module._publish_job_state(root, receipt("running", worker_pid=123))
+                self.assertEqual(running, compute_backends_module._publish_job_state(root, receipt("submitted")))
+                for current in sorted(compute_backends_module.TERMINAL_STATES):
+                    original = receipt(current, message="original terminal receipt")
+                    atomic_json(root / "state.json", original)
+                    before = (root / "state.json").read_bytes()
+                    for incoming in sorted(compute_backends_module.ALL_STATES):
+                        with self.subTest(current=current, incoming=incoming):
+                            self.assertEqual(original, compute_backends_module._publish_job_state(root, receipt(incoming)))
+                            self.assertEqual(before, (root / "state.json").read_bytes())
+                stale = receipt("lost", message="stale", outputs=[{"path": "result.txt"}])
+                collected = compute_backends_module._publish_job_state(root, stale, collection=True)
+                self.assertEqual("original terminal receipt", collected["message"])
+                self.assertEqual(original["state"], collected["state"])
+                self.assertEqual(stale["outputs"], collected["outputs"])
+                compute_backends_module.validate_job_state(collected)
+                self.assertEqual("preserve lock contents", (root / ".state.lock").read_text())
+            with (root / ".state.lock").open("a") as released:
+                fcntl.flock(released, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+            for kind in ("symlink", "directory", "fifo"):
+                with self.subTest(lock_type=kind):
+                    job_dir = root / kind
+                    job_dir.mkdir()
+                    state_path = job_dir / "state.json"
+                    atomic_json(state_path, receipt("submitted"))
+                    before = state_path.read_bytes()
+                    lock_path = job_dir / ".state.lock"
+                    fifo_guard = None
+                    if kind == "symlink":
+                        lock_path.symlink_to("state.json")
+                    elif kind == "directory":
+                        lock_path.mkdir()
+                    else:
+                        os.mkfifo(lock_path)
+                        fifo_guard = os.open(lock_path, os.O_RDWR | os.O_NONBLOCK)
+                    try:
+                        probe = subprocess.run(
+                            [sys.executable, "-c", "\n".join((
+                                "import sys",
+                                "from pathlib import Path",
+                                "import codex_science.compute_backends as module",
+                                "job_dir = Path(sys.argv[1])",
+                                "payload = module._read_json(job_dir / 'state.json')",
+                                "try:",
+                                "    module._publish_job_state(job_dir, payload)",
+                                "except ValueError as error:",
+                                "    assert 'job state lock' in str(error), str(error)",
+                                "else:",
+                                "    raise AssertionError('unsafe lock was accepted')",
+                            )), str(job_dir)],
+                            capture_output=True, text=True, timeout=call_timeout,
+                        )
+                        self.assertEqual(0, probe.returncode, probe.stderr)
+                        self.assertEqual(before, state_path.read_bytes())
+                    finally:
+                        if fifo_guard is not None:
+                            os.close(fifo_guard)
+
+            state_path = root / "state.json"
+            before = state_path.read_bytes()
+            flock = fcntl.flock
+
+            for change in ("replace", "remove"):
+                with self.subTest(lock_change=change):
+                    def change_lock_during_acquisition(descriptor: int, operation: int) -> None:
+                        flock(descriptor, operation)
+                        (root / ".state.lock").unlink()
+                        if change == "replace":
+                            (root / ".state.lock").touch()
+
+                    with mock.patch.object(fcntl, "flock", side_effect=change_lock_during_acquisition):
+                        with self.assertRaisesRegex(ValueError, "job state lock"):
+                            compute_backends_module._publish_job_state(root, receipt("running"))
+                    self.assertEqual(before, state_path.read_bytes())
+
+    def test_cancel_signals_under_lock_before_publication_so_status_cannot_mark_worker_lost(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            job_dir = backend._job_dir("cancel-race")
+            job_dir.mkdir(parents=True)
+            compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+            state = compute_backends_module._state_material(
+                spec, job_id=job_dir.name, state="running", submitted_at="2026-01-01T00:00:00Z", worker_pid=123,
+            )
+            compute_backends_module._atomic_json(job_dir / "state.json", state)
+            alive = True
+            lost_attempted = threading.Event()
+            worker_attempted = threading.Event()
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+            publish = compute_backends_module._publish_job_state
+            contenders = []
+
+            def attempt_publication(path: Path, payload: dict, **kwargs: object) -> dict:
+                if payload["state"] == "lost":
+                    lost_attempted.set()
+                elif payload["state"] == "completed":
+                    worker_attempted.set()
+                return publish(path, payload, **kwargs)
+
+            def signal_worker(pid: int, operation: int) -> None:
+                nonlocal alive
+                self.assertEqual(123, pid)
+                self.assertEqual(compute_backends_module.signal.SIGTERM, operation)
+                self.assertEqual("running", compute_backends_module._read_json(job_dir / "state.json")["state"])
+                alive = False
+                with (job_dir / ".state.lock").open("a") as contender:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                contenders.append(executor.submit(backend.status, job_dir.name))
+                contenders.append(executor.submit(
+                    compute_backends_module._publish_job_state, job_dir, refingerprint({**state, "state": "completed"})
+                ))
+                self.assertTrue(lost_attempted.wait(call_timeout))
+                self.assertTrue(worker_attempted.wait(call_timeout))
+                self.assertTrue(all(not future.done() for future in contenders))
+
+            with ThreadPoolExecutor(max_workers=2) as executor, mock.patch.object(
+                compute_backends_module, "_publish_job_state", side_effect=attempt_publication
+            ), mock.patch.object(compute_backends_module, "_process_alive", side_effect=lambda pid: alive), mock.patch.object(
+                compute_backends_module.os, "killpg", side_effect=signal_worker
+            ) as signal_worker_call, mock.patch.object(compute_backends_module.time, "sleep") as sleep:
+                cancelled = backend.cancel(job_dir.name)
+                self.assertEqual("cancelled", cancelled["state"])
+                for future in contenders:
+                    self.assertEqual(cancelled, future.result(timeout=call_timeout))
+                signal_worker_call.assert_called_once()
+                sleep.assert_called_once_with(0.05)
+            self.assertEqual("cancelled", backend.status(job_dir.name)["state"])
+
+            compute_backends_module._atomic_json(job_dir / "state.json", state)
+            completed = refingerprint({**state, "state": "completed"})
+            read_state = compute_backends_module._read_job_state
+
+            def complete_after_unlocked_read(path: Path) -> dict:
+                current = read_state(path)
+                if current["state"] == "running":
+                    compute_backends_module._atomic_json(path / "state.json", completed)
+                return current
+
+            with mock.patch.object(compute_backends_module, "_read_job_state", side_effect=complete_after_unlocked_read), mock.patch.object(
+                compute_backends_module, "_process_alive", return_value=True
+            ), mock.patch.object(compute_backends_module.os, "killpg") as signal_worker_call:
+                self.assertEqual(completed, backend.cancel(job_dir.name))
+                signal_worker_call.assert_not_called()
+            self.assertEqual(completed, backend.status(job_dir.name))
+
+    def test_cancel_signal_failure_preserves_receipt_and_retry_signals_again(self) -> None:
+        for error in (PermissionError("refused"), OSError("signal failed"), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                backend = LocalBackend(root / "state")
+                spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+                job_dir = backend._job_dir("signal-failure")
+                job_dir.mkdir(parents=True)
+                compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+                initial = compute_backends_module._state_material(
+                    spec, job_id=job_dir.name, state="running", submitted_at="2026-01-01T00:00:00Z",
+                    worker_pid=123,
+                )
+                state_path = job_dir / "state.json"
+                compute_backends_module._atomic_json(state_path, initial)
+                before = state_path.read_bytes()
+                with mock.patch.object(compute_backends_module, "_process_alive", return_value=True), mock.patch.object(
+                    compute_backends_module.os, "killpg", side_effect=error
+                ) as send:
+                    expected = KeyboardInterrupt if isinstance(error, KeyboardInterrupt) else ValueError
+                    with self.assertRaises(expected) as raised:
+                        backend.cancel(job_dir.name)
+                    if expected is ValueError:
+                        self.assertIn("local cancellation failed:", str(raised.exception))
+                    self.assertEqual(before, state_path.read_bytes())
+                    send.assert_called_once_with(123, compute_backends_module.signal.SIGTERM)
+                    send.side_effect = ProcessLookupError()
+                    self.assertEqual("cancelled", backend.cancel(job_dir.name)["state"])
+                    self.assertEqual(2, send.call_count)
+
+    def test_terminal_cancel_retry_never_signals_or_rewrites_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            job_dir = backend._job_dir("cancelled-retry")
+            job_dir.mkdir(parents=True)
+            for state in sorted(compute_backends_module.TERMINAL_STATES):
+                for pid in (None, "", 0, -1, 1, 123, "malformed"):
+                    with self.subTest(state=state, pid=pid):
+                        receipt = compute_backends_module._state_material(
+                            spec, job_id=job_dir.name, state=state, submitted_at="2026-01-01T00:00:00Z",
+                            worker_pid=pid,
+                        )
+                        state_path = job_dir / "state.json"
+                        compute_backends_module._atomic_json(state_path, receipt)
+                        before = state_path.read_bytes()
+                        with mock.patch.object(compute_backends_module, "_process_alive", return_value=True) as alive, mock.patch.object(
+                            compute_backends_module.os, "killpg"
+                        ) as send, mock.patch.object(compute_backends_module, "_atomic_json") as write:
+                            self.assertEqual(receipt, backend.cancel(job_dir.name))
+                            self.assertEqual(receipt, backend.cancel(job_dir.name))
+                            alive.assert_not_called()
+                            send.assert_not_called()
+                            write.assert_not_called()
+                        self.assertEqual(before, state_path.read_bytes())
+
+    def test_submit_requires_lock_before_launch_and_holds_it_through_publication(self) -> None:
+        for backend_type in (LocalBackend, SlurmBackend):
+            for locking in ("unavailable", "refused", "available"):
+                with self.subTest(backend=backend_type.__name__, locking=locking), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    backend = backend_type(root / "state")
+                    spec = replace(
+                        local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[]),
+                        backend="local" if backend_type is LocalBackend else "slurm",
+                    )
+                    approval = build_approval_receipt(spec, approved_by="fixture", target="fixture")
+                    flock = fcntl.flock
+
+                    def launch(command: list[str], **kwargs: object) -> object:
+                        job_dir = Path(command[-1]).parent if backend_type is SlurmBackend else Path(command[-1])
+                        with (job_dir / ".state.lock").open("a") as contender:
+                            with self.assertRaises(BlockingIOError):
+                                flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        if backend_type is SlurmBackend:
+                            self.assertFalse((job_dir / "state.json").exists())
+                            return subprocess.CompletedProcess(command, 0, "42;fixture\n", "")
+                        self.assertEqual("submitted", compute_backends_module._read_json(job_dir / "state.json")["state"])
+                        return mock.Mock(pid=99999999)
+
+                    try:
+                        with mock.patch.object(backend, "preflight", return_value={"ready": True}), mock.patch.object(
+                            compute_backends_module, "fcntl", None if locking == "unavailable" else fcntl
+                        ), mock.patch.object(
+                            fcntl, "flock", side_effect=OSError("locking refused") if locking == "refused" else flock
+                        ), mock.patch.object(compute_backends_module.subprocess, "run", side_effect=launch) as scheduler, mock.patch.object(
+                            compute_backends_module.subprocess, "Popen", side_effect=launch
+                        ) as worker:
+                            if locking == "available":
+                                submitted = backend.submit(spec, approval=approval)
+                                self.assertEqual("submitted", submitted["state"])
+                                saved = compute_backends_module._read_json(backend._job_dir(submitted["job_id"]) / "state.json")
+                                self.assertEqual(submitted, saved)
+                            else:
+                                with self.assertRaisesRegex(ValueError, "POSIX file locking|cannot acquire job state lock"):
+                                    backend.submit(spec, approval=approval)
+                                scheduler.assert_not_called()
+                                worker.assert_not_called()
+                                self.assertFalse(list(backend.jobs_dir.glob("*/state.json")))
+                    finally:
+                        compute_backends_module._LOCAL_PROCESSES.pop(99999999, None)
+
+    def test_import_without_fcntl_preserves_reads_and_refuses_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            job_dir = backend._job_dir("without-posix-locks")
+            job_dir.mkdir(parents=True)
+            compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+            state = compute_backends_module._state_material(
+                spec, job_id=job_dir.name, state="completed", submitted_at="2026-01-01T00:00:00Z",
+            )
+            compute_backends_module._atomic_json(job_dir / "state.json", state)
+            before = (job_dir / "state.json").read_bytes()
+            probe = subprocess.run(
+                [sys.executable, "-c", "\n".join((
+                    "import runpy, sys",
+                    "from pathlib import Path",
+                    "sys.modules['fcntl'] = None",
+                    "import codex_science.compute_backends as module",
+                    "assert module.fcntl is None",
+                    "job_dir = Path(sys.argv[1])",
+                    "script = sys.argv[2]",
+                    "backend = module.LocalBackend(job_dir.parent.parent)",
+                    "spec = module.load_spec(job_dir / 'spec.json')",
+                    "assert backend.preflight(spec)['ready']",
+                    "assert backend.status(job_dir.name)['state'] == 'completed'",
+                    "assert backend.wait(job_dir.name, timeout_seconds=1)['state'] == 'completed'",
+                    "assert backend.cancel(job_dir.name)['state'] == 'completed'",
+                    "preview = module.SlurmBackend(backend.state_dir)",
+                    "from dataclasses import replace",
+                    "assert '#SBATCH --job-name=' in preview.render_script(replace(spec, backend='slurm'), job_id='preview')",
+                    "try:",
+                    "    module._publish_job_state(job_dir, backend.status(job_dir.name))",
+                    "except ValueError as error:",
+                    "    assert str(error) == 'job state publication requires POSIX file locking', str(error)",
+                    "else:",
+                    "    raise AssertionError('publication did not require locking')",
+                    "sys.argv = [script, '--help']",
+                    "try:",
+                    "    runpy.run_path(script, run_name='__main__')",
+                    "except SystemExit as error:",
+                    "    assert error.code == 0, error.code",
+                )), str(job_dir), str(Path(__file__).resolve().parents[1] / "scripts" / "science_job.py")],
+                capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")),
+            )
+            self.assertEqual(0, probe.returncode, probe.stderr)
+            self.assertIn("usage: science_job.py", probe.stdout)
+            self.assertEqual(before, (job_dir / "state.json").read_bytes())
+            self.assertFalse((job_dir / ".state.lock").exists())
+
+    def test_lost_publication_rechecks_current_worker_and_rejects_invalid_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            lost = compute_backends_module._state_material(
+                spec, job_id="recheck", state="lost", submitted_at="2026-01-01T00:00:00Z", worker_pid=99999999,
+            )
+            for pid, alive, expected in ((None, False, "running"), (0, False, "running"), (123, True, "running"), (123, False, "lost")):
+                with self.subTest(pid=pid, alive=alive):
+                    current = refingerprint({**lost, "state": "running", "worker_pid": pid})
+                    compute_backends_module._atomic_json(root / "state.json", current)
+                    with mock.patch.object(compute_backends_module, "_process_alive", return_value=alive) as probe:
+                        result = compute_backends_module._publish_job_state(root, lost)
+                    self.assertEqual(expected, result["state"])
+                    if pid:
+                        probe.assert_called_once_with(pid)
+                    else:
+                        probe.assert_not_called()
+            before = (root / "state.json").read_bytes()
+            for malformed in ({}, {**lost, "state": 0}, {**lost, "state": "unknown"}, {**lost, "fingerprint": ""}):
+                with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                    compute_backends_module._publish_job_state(root, malformed)
+                self.assertEqual(before, (root / "state.json").read_bytes())
+            (root / "state.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "invalid job state record"):
+                compute_backends_module._publish_job_state(root, lost)
+            self.assertEqual("{}", (root / "state.json").read_text())
+            with (root / ".state.lock").open("a") as released:
+                fcntl.flock(released, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_worker_preserves_terminal_receipts_before_and_during_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            for terminal_state in sorted(compute_backends_module.TERMINAL_STATES):
+                for phase in ("before", "during"):
+                    with self.subTest(state=terminal_state, phase=phase):
+                        job_dir = backend._job_dir(f"{terminal_state}-{phase}")
+                        job_dir.mkdir(parents=True)
+                        compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+                        terminal = compute_backends_module._state_material(
+                            spec, job_id=job_dir.name, state=terminal_state, submitted_at="2026-01-01T00:00:00Z",
+                        )
+                        initial = terminal if phase == "before" else refingerprint({**terminal, "state": "submitted"})
+                        compute_backends_module._atomic_json(job_dir / "state.json", initial)
+
+                        def finish_during_command(*args: object, **kwargs: object) -> subprocess.CompletedProcess:
+                            compute_backends_module._atomic_json(job_dir / "state.json", terminal)
+                            return subprocess.CompletedProcess(spec.command, 0)
+
+                        with mock.patch.object(compute_backends_module.subprocess, "run", side_effect=finish_during_command) as command:
+                            result = compute_backends_module._worker(job_dir)
+                        self.assertEqual(0 if terminal_state == "completed" else 1, result)
+                        self.assertEqual(0 if phase == "before" else 1, command.call_count)
+                        self.assertEqual(terminal, compute_backends_module._read_json(job_dir / "state.json"))
+
     def test_legacy_job_spec_serialization_and_fingerprint_remain_stable(self) -> None:
         spec = JobSpec.from_payload(
             {

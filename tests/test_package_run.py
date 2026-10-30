@@ -1223,6 +1223,64 @@ class PackageRunTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("escapes run directory", result.stderr)
 
+    def test_refresh_skips_only_empty_operational_locks_in_owning_locations(self) -> None:
+        self._make_unreviewed_run()
+        kinds = []
+        locks = []
+        for name, receipts in (("both", ("state.json", "spec.json")),
+                               ("state-only", ("state.json",)), ("spec-only", ("spec.json",))):
+            job_dir = self.run_dir / "jobs" / "jobs" / name
+            job_dir.mkdir(parents=True)
+            for filename in (*receipts, "stdout.log", "stderr.log"):
+                path = job_dir / filename
+                path.write_text("{}\n" if filename.endswith(".json") else "")
+                kinds.extend(("--kind", f"{path.relative_to(self.run_dir).as_posix()}=job-record"))
+            locks.append(job_dir / ".state.lock")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), *kinds)
+        self.assertEqual(0, result.returncode, result.stderr)
+        annotation_dir = self.run_dir / "annotations"
+        annotation_dir.mkdir()
+        locks.append(annotation_dir / ".resolutions.lock")
+        for path in locks:
+            path.touch()
+        inodes = {path: path.stat().st_ino for path in locks}
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), *kinds)
+        self.assertEqual(0, result.returncode, result.stderr)
+        manifest = json.loads((self.run_dir / "manifest.json").read_text())
+        registered = {item["path"] for item in manifest["artifacts"]}
+        for path in locks:
+            self.assertNotIn(path.relative_to(self.run_dir).as_posix(), registered)
+            self.assertEqual(b"", path.read_bytes())
+            self.assertEqual(inodes[path], path.stat().st_ino)
+
+        job_dir = locks[0].parent
+        cases = (
+            (locks[0], "nonempty"), (locks[0], "symlink"),
+            (self.run_dir / "orphan" / ".state.lock", "empty"),
+            (job_dir / ".other.lock", "empty"),
+            (self.run_dir / "nested" / "annotations" / ".resolutions.lock", "empty"),
+            (job_dir / ".resolutions.lock", "empty"),
+            (locks[-1], "nonempty"), (locks[-1], "symlink"),
+            (annotation_dir / ".state.lock", "empty"),
+        )
+        for path, kind in cases:
+            with self.subTest(path=path.relative_to(self.run_dir).as_posix(), kind=kind):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.unlink(missing_ok=True)
+                if kind == "symlink":
+                    path.symlink_to(job_dir / "stdout.log")
+                else:
+                    path.write_bytes(b"x" if kind == "nonempty" else b"")
+                before = self._snapshot()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), *kinds)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("Unclassified files:", result.stderr)
+                self.assertIn(path.relative_to(self.run_dir).as_posix(), result.stderr)
+                self.assertEqual(before, self._snapshot())
+                path.unlink()
+                if path in locks:
+                    path.touch()
+
     def test_lane_output_hash_refresh(self) -> None:
         lane_path = self.run_dir / "lanes" / "pubmed-search.json"
         lane = json.loads(lane_path.read_text())
