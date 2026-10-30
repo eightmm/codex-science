@@ -6,6 +6,7 @@ import json
 import os
 import stat
 import tempfile
+import unicodedata
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -75,13 +76,54 @@ def preflight_output_paths(
 ) -> None:
     """Reject destination conflicts, input replacement and protected-tree writes.
 
-    Trees use resolved containment only, without listing descendants or detecting
-    their external hardlinks. This does not reserve paths against concurrent
-    changes or make a group of writes transactional.
+    Trees use resolved containment and identities from resolved ancestry, without
+    listing descendants or detecting their external hardlinks. Portable keys use
+    canonical caseless components after resolving the deepest existing entry.
+    This does not reserve paths against concurrent changes or make writes
+    transactional.
     """
-    sources = [(path, resolve_input_path(path)) for path in inputs]
-    directories = [(path, resolve_input_path(path)) for path in protected_dirs]
-    checked: list[tuple[Path, Path]] = []
+    def identity(entry: Path) -> tuple[int, int] | None:
+        try:
+            info = os.stat(entry)
+        except OSError:
+            return None
+        return info.st_dev, info.st_ino
+
+    def component_key(name: str) -> str:
+        """Unicode D145 canonical caseless matching, without compatibility folding."""
+        return unicodedata.normalize("NFD", unicodedata.normalize("NFD", name).casefold())
+
+    def portable_key(path: Path) -> tuple[str, ...]:
+        return tuple(component_key(component) for component in path.parts)
+
+    def resolved_state(ancestor: Path, remaining: tuple[str, ...] = ()):
+        prefix = Path(os.path.realpath(ancestor))
+        resolved = prefix.joinpath(*remaining)
+        ancestor_id = None
+        suffix = ()
+        existing = []
+        # Lexical ancestors above a symlink may belong to a tree it escapes.
+        for entry in (prefix, *prefix.parents):
+            entry_id = identity(entry)
+            if entry_id is not None:
+                existing.append(entry_id)
+                if ancestor_id is None:
+                    ancestor_id = entry_id
+                    suffix = portable_key(resolved.relative_to(entry))
+        return portable_key(resolved), ancestor_id, suffix, existing
+
+    def is_prefix(parent: tuple[str, ...], child: tuple[str, ...]) -> bool:
+        return child[:len(parent)] == parent
+
+    sources = []
+    for source in inputs:
+        source_key, source_id, source_suffix, _ = resolved_state(resolve_input_path(source))
+        sources.append((source, source_key, source_id, source_suffix))
+    directories = []
+    for directory in protected_dirs:
+        directory_resolved = Path(os.path.realpath(resolve_input_path(directory)))
+        directories.append((directory, portable_key(directory_resolved), identity(directory_resolved)))
+    checked = []
     for path in paths:
         if path is None:
             continue
@@ -89,38 +131,44 @@ def preflight_output_paths(
             raise ValueError(f"invalid output path: parent component is not allowed: {path}")
         for entry in (*reversed(path.parents), path):
             try:
-                mode = os.lstat(entry).st_mode
+                info = os.lstat(entry)
             except FileNotFoundError:
                 continue
-            if stat.S_ISLNK(mode):
+            if stat.S_ISLNK(info.st_mode):
                 try:
-                    mode = os.stat(entry).st_mode
+                    info = os.stat(entry)
                 except OSError as error:
                     raise ValueError(f"invalid output path: {entry}: {error}") from error
             if entry == path:
-                if stat.S_ISDIR(mode):
+                if stat.S_ISDIR(info.st_mode):
                     raise ValueError(f"output destination is a directory: {path}")
-            elif not stat.S_ISDIR(mode):
+            elif not stat.S_ISDIR(info.st_mode):
                 raise ValueError(f"output ancestor is not a directory: {entry}")
-        try:
-            resolved = path.resolve()
-        except RuntimeError as error:
-            raise ValueError(f"invalid output path: {path}: {error}") from error
-        for source, source_resolved in sources:
-            if resolved == source_resolved or _same_file(path, source):
+            ancestor = entry
+            remaining = path.relative_to(entry).parts
+        portable, ancestor_id, suffix, existing = resolved_state(ancestor, remaining)
+        for source, source_key, source_id, source_suffix in sources:
+            same_ancestor = source_id is not None and ancestor_id == source_id
+            if (portable == source_key or _same_file(path, source)
+                    or (same_ancestor and suffix == source_suffix)):
                 raise ValueError(f"output path would overwrite input: {source}: {path}")
-            if resolved in source_resolved.parents:
+            if (is_prefix(portable, source_key)
+                    or (same_ancestor and is_prefix(suffix, source_suffix))):
                 raise ValueError(f"output path is an input ancestor: {source}: {path}")
-        for directory, directory_resolved in directories:
-            if (resolved == directory_resolved or directory_resolved in resolved.parents
-                    or resolved in directory_resolved.parents):
+        for directory, directory_key, directory_id in directories:
+            if (is_prefix(directory_key, portable) or is_prefix(portable, directory_key)
+                    or (directory_id is not None and directory_id in existing)):
                 raise ValueError(f"output path overlaps protected directory: {directory}: {path}")
-        for previous, previous_resolved in checked:
-            if resolved == previous_resolved or _same_file(path, previous):
+        for previous, previous_key, previous_id, previous_suffix in checked:
+            same_ancestor = ancestor_id is not None and ancestor_id == previous_id
+            if (portable == previous_key or _same_file(path, previous)
+                    or (same_ancestor and suffix == previous_suffix)):
                 raise ValueError(f"output paths refer to the same file: {previous} and {path}")
-            if resolved in previous_resolved.parents or previous_resolved in resolved.parents:
+            if (is_prefix(portable, previous_key) or is_prefix(previous_key, portable)
+                    or (same_ancestor and (is_prefix(suffix, previous_suffix)
+                                          or is_prefix(previous_suffix, suffix)))):
                 raise ValueError(f"output paths overlap: {previous} and {path}")
-        checked.append((path, resolved))
+        checked.append((path, portable, ancestor_id, suffix))
 
 
 def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:

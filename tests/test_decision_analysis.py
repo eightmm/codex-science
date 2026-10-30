@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from codex_science.decision_analysis import (
     render_decision_analysis,
@@ -673,6 +674,208 @@ class DecisionAnalysisTests(unittest.TestCase):
                     preflight_output_paths(first, second)
             with self.assertRaisesRegex(ValueError, "overlap"):
                 preflight_output_paths(directory_link / "new" / "result", child)
+
+    def test_output_preflight_portable_aliases(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            for first, second, message in (
+                ("Result.json", "result.json", "output paths refer to the same file"),
+                ("\u00e9.json", "e\u0301.json", "output paths refer to the same file"),
+                ("Stra\u00dfe.json", "STRASSE.json", "output paths refer to the same file"),
+                ("\u0390.json", "\u0399\u0308\u0301.json", "output paths refer to the same file"),
+                ("\u03b9\u0308\u0301.json", "\u0399\u0308\u0301.json", "output paths refer to the same file"),
+                ("\u1e9e.json", "ss.json", "output paths refer to the same file"),
+                ("out/\u0390", "out/\u0399\u0308\u0301/report.md", "output paths overlap"),
+                ("out/\u03b9\u0308\u0301", "out/\u0399\u0308\u0301/report.md", "output paths overlap"),
+                ("out/\u1e9e", "out/ss/report.md", "output paths overlap"),
+                ("out/A/x.json", "out/a/x.json", "output paths refer to the same file"),
+                ("out/A", "out/a/x.json", "output paths overlap"),
+            ):
+                for left, right in ((first, second), (second, first)):
+                    with self.subTest(first=left, second=right), self.assertRaisesRegex(ValueError, message):
+                        preflight_output_paths(root / left, root / right)
+            preflight_output_paths(root / "result.json", root / "result.json.md")
+            preflight_output_paths(root / "\uff21.json", root / "A.json")
+            preflight_output_paths(root / "\u2460.json", root / "1.json")
+            preflight_output_paths(None, root / "0", root / "00")
+            preflight_output_paths()
+            for name in ("first", "second"):
+                (root / name).mkdir()
+            preflight_output_paths(root / "first" / "result.json", root / "second" / "result.json")
+            with self.assertRaisesRegex(ValueError, "invalid output path"):
+                preflight_output_paths(root / "out" / ".." / "result.json")
+            self.assertEqual({"first", "second"}, {path.name for path in root.iterdir()})
+
+    def test_output_preflight_aliases_with_existing_parents(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            for present, absent in (("src", "SRC"), ("out/A", "out/a"), ("\u00e9", "e\u0301")):
+                (root / present).mkdir(parents=True)
+                before = set(root.rglob("*"))
+                for first, second, message in (
+                    ("new/result.json", "new/result.json", "output paths refer to the same file"),
+                    ("new", "new/report.md", "output paths overlap"),
+                ):
+                    paths = (root / present / first, root / absent / second)
+                    for pair in (paths, paths[::-1]):
+                        with self.subTest(paths=pair), self.assertRaisesRegex(ValueError, message):
+                            preflight_output_paths(*pair)
+                preflight_output_paths(root / present / "new/result.json", root / absent / "new/result.json.md")
+                self.assertEqual(before, set(root.rglob("*")))
+
+    def test_output_preflight_symlinked_ancestor_aliases(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir).resolve()
+            target = root / "usr" / "bin"
+            target.mkdir(parents=True)
+            link = root / "bin"
+            link.symlink_to(target, target_is_directory=True)
+            directory = root / "data"
+            directory.mkdir()
+            shortcut = root / "shortcut"
+            shortcut.symlink_to(directory, target_is_directory=True)
+            before = set(root.rglob("*"))
+            for first, second in ((link, root / "usr" / "BIN"), (shortcut, root / "DATA")):
+                for left, right, message in (
+                    (first / "Result.json", second / "result.json", "output paths refer to the same file"),
+                    (first / "new", second / "NEW" / "report.md", "output paths overlap"),
+                ):
+                    for pair in ((left, right), (right, left)):
+                        with self.subTest(paths=pair), self.assertRaisesRegex(ValueError, message):
+                            preflight_output_paths(*pair)
+                preflight_output_paths(first / "result.json", second / "result.json.md")
+            self.assertEqual(before, set(root.rglob("*")))
+
+    def test_output_preflight_distinct_symlink_and_directory(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir).resolve()
+            target = root / "target"
+            target.mkdir()
+            link = root / "link"
+            link.symlink_to(target, target_is_directory=True)
+            separate = root / "LINK"
+            if separate.exists():
+                self.skipTest("requires case-sensitive directory names")
+            separate.mkdir()
+            before = set(root.rglob("*"))
+            for left, right in (
+                (link / "result.json", separate / "result.json"),
+                (link / "new", separate / "new" / "report.md"),
+            ):
+                for first, second in ((left, right), (right, left)):
+                    with self.subTest(first=first, second=second, kind="outputs"):
+                        preflight_output_paths(first, second)
+                    with self.subTest(first=first, second=second, kind="input"):
+                        preflight_output_paths(first, inputs=[second])
+            preflight_output_paths(link / "output.json", protected_dirs=[separate])
+            preflight_output_paths(separate / "output.json", protected_dirs=[link])
+            with mock.patch("codex_science.cli_io.os.stat", side_effect=PermissionError("identity unavailable")):
+                preflight_output_paths(separate / "output.json", inputs=[target / "input.json"])
+            self.assertEqual(before, set(root.rglob("*")))
+
+    def test_output_preflight_portable_input_and_tree_containment(self) -> None:
+        from codex_science import cli_io
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir).resolve()
+            directory = root / "data"
+            directory.mkdir()
+            link = root / "shortcut"
+            link.symlink_to(directory, target_is_directory=True)
+            for output, protected in (
+                (root / "DATA" / "descriptor.json", directory),
+                (link / "descriptor.json", root / "DATA"),
+                (root / "DATA" / "missing", directory / "missing" / "tree"),
+                (root / "DATA" / "tree", directory / "tree"),
+                (directory / "\u0399\u0308\u0301" / "descriptor.json", directory / "\u0390"),
+            ):
+                with self.subTest(protected=protected), self.assertRaisesRegex(
+                    ValueError, "output path overlaps protected directory"
+                ):
+                    preflight_output_paths(output, protected_dirs=[protected])
+            for output, source, message in (
+                (root / "DATA" / "input.json", directory / "Input.json", "output path would overwrite input"),
+                (root / "DATA" / "missing", directory / "missing" / "input.json", "output path is an input ancestor"),
+            ):
+                with self.subTest(source=source), self.assertRaisesRegex(ValueError, message):
+                    preflight_output_paths(output, inputs=[source])
+            preflight_output_paths(root / "DATA" / "child.json", inputs=[directory])
+            preflight_output_paths(root / "database" / "output.json", protected_dirs=[directory])
+            mirror = root / "mirror"
+            mirror.mkdir()
+            original_stat = cli_io.os.stat
+            original_lstat = cli_io.os.lstat
+
+            def alias_stat(path, *args, **kwargs):
+                return original_stat(directory if Path(path) == mirror else path, *args, **kwargs)
+
+            def alias_lstat(path, *args, **kwargs):
+                return original_lstat(directory if Path(path) == mirror else path, *args, **kwargs)
+
+            # A bind-style alias retains its resolved spelling but shares directory identity.
+            with mock.patch.object(cli_io.os, "stat", alias_stat), mock.patch.object(cli_io.os, "lstat", alias_lstat):
+                with self.assertRaisesRegex(ValueError, "output paths refer to the same file"):
+                    preflight_output_paths(mirror / "Result.json", directory / "result.json")
+                with self.assertRaisesRegex(ValueError, "output path overlaps protected directory"):
+                    preflight_output_paths(mirror / "output.json", protected_dirs=[directory])
+                with self.assertRaisesRegex(ValueError, "output path is an input ancestor"):
+                    preflight_output_paths(mirror / "missing", inputs=[directory / "missing" / "input.json"])
+            self.assertEqual([], list(directory.iterdir()))
+
+    def test_output_preflight_directory_identities(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir).resolve()
+            directory = root / "data"
+            directory.mkdir()
+            alias = root / "data-alias"
+            alias.symlink_to(directory, target_is_directory=True)
+            original_resolve = Path.resolve
+
+            def preserve_alias(path, *args, **kwargs):
+                # Bind mounts and filesystem case aliases retain different resolved spellings.
+                if path == alias or alias in path.parents:
+                    return path
+                return original_resolve(path, *args, **kwargs)
+
+            with mock.patch.object(Path, "resolve", preserve_alias):
+                with self.assertRaisesRegex(ValueError, "output paths refer to the same file"):
+                    preflight_output_paths(alias / "Result.json", directory / "result.json")
+                for protected in (directory, alias):
+                    destination = alias if protected == directory else directory
+                    with self.subTest(protected=protected), self.assertRaisesRegex(
+                        ValueError, "output path overlaps protected directory"
+                    ):
+                        preflight_output_paths(destination / "descriptor.json", protected_dirs=[protected])
+                with self.assertRaisesRegex(ValueError, "output path is an input ancestor"):
+                    preflight_output_paths(alias / "missing", inputs=[directory / "missing" / "input.json"])
+                preflight_output_paths(alias / "other.json", inputs=[directory / "missing" / "input.json"])
+                preflight_output_paths(root / "other.json", protected_dirs=[directory / "absent"])
+            self.assertEqual([], list(directory.iterdir()))
+
+    def test_cli_refuses_portable_output_aliases_before_writing(self) -> None:
+        for first, second in (("Result.json", "result.json"), ("\u00e9.json", "e\u0301.json")):
+            with self.subTest(first=first), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                result = subprocess.run(
+                    [str(ROOT / "scripts" / "python_runtime.sh"),
+                     str(ROOT / "scripts" / "run_decision_analysis.py"), str(FIXTURE),
+                     "--output", str(root / first), "--report", str(root / second)],
+                    cwd=ROOT, capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("output paths refer to the same file", result.stderr)
+                self.assertEqual([], list(root.iterdir()))
 
     def test_cli_refuses_nested_outputs_before_writing(self) -> None:
         for output_is_parent in (True, False):

@@ -846,6 +846,43 @@ class ArtifactIndexTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "overlaps protected directory"):
                     preflight_output_paths(tree / "index.md", protected_dirs=[tree])
 
+    def test_preflight_symlink_containment_uses_resolved_ancestry(self) -> None:
+        from codex_science.cli_io import preflight_output_paths
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir).resolve()
+            tree = root / "protected"
+            tree.mkdir()
+            outside = root / "outside"
+            outside.mkdir()
+            escape = tree / "escape"
+            escape.symlink_to(outside, target_is_directory=True)
+            entrance = outside / "entrance"
+            entrance.symlink_to(tree, target_is_directory=True)
+            before = set(root.rglob("*"))
+            with mock.patch.object(Path, "iterdir", side_effect=AssertionError("preflight must not list trees")):
+                with self.subTest(shape="output escapes protected tree"):
+                    preflight_output_paths(escape / "report.json", protected_dirs=[tree])
+                with self.subTest(shape="output enters protected tree"), self.assertRaisesRegex(
+                    ValueError, "output path overlaps protected directory"
+                ):
+                    preflight_output_paths(entrance / "report.json", protected_dirs=[tree])
+                with self.subTest(shape="escaping output is unrelated to input"):
+                    preflight_output_paths(escape / "future", inputs=[tree / "future" / "input.json"])
+                with self.subTest(shape="entering output is an input ancestor"), self.assertRaisesRegex(
+                    ValueError, "output path is an input ancestor"
+                ):
+                    preflight_output_paths(entrance / "future", inputs=[tree / "future" / "input.json"])
+                with self.subTest(shape="input escapes into output ancestry"), self.assertRaisesRegex(
+                    ValueError, "output path is an input ancestor"
+                ):
+                    preflight_output_paths(outside / "future", inputs=[escape / "future" / "input.json"])
+                with self.subTest(shape="input enters unrelated tree"):
+                    preflight_output_paths(outside / "future", inputs=[entrance / "future" / "input.json"])
+                with mock.patch("codex_science.cli_io.os.stat", side_effect=PermissionError("identity unavailable")):
+                    preflight_output_paths(outside / "0.json", tree / "1.json")
+            self.assertEqual(before, set(root.rglob("*")))
+
     def setUp(self) -> None:
         self.repository_root = Path(__file__).resolve().parents[1]
         self.script = self.repository_root / "scripts" / "render_artifact_index.py"
