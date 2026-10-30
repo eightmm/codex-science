@@ -70,9 +70,11 @@ def _validated_bundle(
 
 def _claim_rows(manifest: dict[str, Any], sidecars: dict[str, Any]) -> list[dict[str, Any]]:
     claim_register = sidecars.get("claim_register")
-    if claim_register is not None:
-        return list(claim_register["claims"])
-    return list(manifest["claims"])
+    claims = list(claim_register["claims"] if claim_register is not None else manifest["claims"])
+    for claim in claims:
+        if not isinstance(claim.get("evidence", []), list):
+            raise ValueError(f"Claim evidence must be a list: {claim.get('id', 'claim')}")
+    return claims
 
 
 def _claim_edge_counts(sidecars: dict[str, Any]) -> dict[str, Counter[str]]:
@@ -174,7 +176,11 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
     completed_steps = sum(
         1 for step in plan if _text(step.get("status", "")).lower() in {"complete", "completed"}
     )
-    review_status = _status_label(manifest["review"].get("status", "unknown"))
+    saved_review_status = manifest["review"].get("status", "unknown")
+    review_status = _status_label(saved_review_status)
+    digest_findings = sidecars.get("digest_findings", [])
+    if digest_findings:
+        review_status = f"⚠️ Stale (recorded: {_text(saved_review_status)})"
     plan_status = f"{completed_steps}/{len(plan)} complete" if plan else "No recorded plan"
     lines = [
         f"# {_markdown_text(manifest['question'])}",
@@ -190,9 +196,16 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
             f"{len(claims)} | {len(artifacts)} |"
         ),
         "",
-        "## Results",
-        "",
     ]
+    if digest_findings:
+        lines.extend(["### Current integrity findings", "", "Saved review status is stale.", ""])
+        for finding in digest_findings:
+            lines.append(
+                f"- **{_markdown_text(finding['severity'])} — {_markdown_text(finding['code'])}:** "
+                f"{_markdown_text(finding['message'])}"
+            )
+        lines.append("")
+    lines.extend(["## Results", ""])
     runtime_history = manifest.get("runtime_history", [])
     runtime_line = ""
     if isinstance(runtime_history, list) and runtime_history:
@@ -405,6 +418,21 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
 
 def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
     artifacts, sidecars = _validated_bundle(manifest, run_dir)
+    review_status = _text(manifest["review"].get("status", "unknown"))
+    integrity_notice = ""
+    digest_findings = sidecars.get("digest_findings", [])
+    if digest_findings:
+        review_status = f"Stale (recorded: {review_status})"
+        findings = "".join(
+            f"<li><strong>{html.escape(_text(finding['severity']))} — "
+            f"{html.escape(_text(finding['code']))}:</strong> "
+            f"{html.escape(_text(finding['message']))}</li>"
+            for finding in digest_findings
+        )
+        integrity_notice = (
+            '<section class="warning"><h2>Current integrity findings</h2>'
+            f"<p>Saved review status is stale.</p><ul>{findings}</ul></section>"
+        )
     plan = "".join(
         f"<li><strong>{html.escape(_text(step.get('status', 'unknown')))}</strong>: "
         f"{html.escape(_plan_step_text(step))}</li>"
@@ -505,8 +533,8 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
 <style>body{{font:16px/1.5 system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;color:#18202a}}img{{max-width:100%;height:auto;border:1px solid #ccd3db}}code{{background:#eef1f4;padding:.1rem .3rem}}section{{margin:2rem 0}}figcaption,small{{color:#52606d}}.warning{{border-left:.3rem solid #c97a00;background:#fff7e6;padding:.75rem 1rem}}</style></head>
 <body><h1>Scientific run: {html.escape(_text(manifest['run_id']))}</h1>
 <p><strong>Question:</strong> {html.escape(_text(manifest['question']))}</p>
-<p><strong>Review:</strong> {html.escape(_text(manifest['review'].get('status', 'unknown')))}</p>
-{runtime_notice}
+<p><strong>Review:</strong> {html.escape(review_status)}</p>
+{integrity_notice}{runtime_notice}
 <section><h2>Plan</h2><ul>{plan}</ul></section>
 <section><h2>Claims</h2><ul>{claims}</ul></section>
 {graph_section}{lanes_section}{query_section}

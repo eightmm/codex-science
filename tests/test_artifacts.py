@@ -1042,6 +1042,120 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertEqual(0o600, stat.S_IMODE((manifest.parent / "index.md").stat().st_mode))
             self.assertEqual(0o600, stat.S_IMODE((manifest.parent / "index.html").stat().st_mode))
 
+    def test_renderer_marks_changed_code_review_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run = Path(tempdir)
+            source = run / "analysis.py"
+            source.write_bytes(b"original code\n")
+            manifest = new_manifest("integrity", "Is the recorded review current?", [])
+            manifest.pop("runtime_history", None)
+            manifest.pop("runtime_span", None)
+            manifest["code"] = [{
+                "path": source.name,
+                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            }]
+            manifest["review"] = {"status": "passed", "findings": []}
+            manifest_path = run / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            clean_hashes = {
+                render_markdown: "a22c1923fd8904bdd93a789b1f9f375859d5280e8e31c04b0664c939dd6156b2",
+                render_html: "6165fa2a7eae7497487e0491461871fb5f767d9519b961ec67890bf35c40f813",
+            }
+            for renderer, expected in clean_hashes.items():
+                self.assertEqual(expected, hashlib.sha256(
+                    renderer(manifest, run).encode("utf-8")
+                ).hexdigest())
+            for content in (b"changed code\n", b""):
+                with self.subTest(content=content):
+                    source.write_bytes(content)
+                    findings = validate_bundle(manifest, run)["digest_findings"]
+                    self.assertEqual(["code-digest-mismatch"], [item["code"] for item in findings])
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-S", str(self.script), str(manifest_path), "--html"],
+                        capture_output=True, text=True, check=False,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    for name in ("index.md", "index.html"):
+                        rendered = (run / name).read_text(encoding="utf-8")
+                        self.assertIn("Stale (recorded:", rendered)
+                        self.assertIn("Current integrity findings", rendered)
+                        for finding in findings:
+                            self.assertIn(finding["code"], rendered)
+                            self.assertIn(finding["severity"], rendered)
+                            self.assertIn(finding["message"], rendered)
+                    self.assertEqual("passed", manifest["review"]["status"])
+            source.write_bytes(b"original code\n")
+            for renderer, expected in clean_hashes.items():
+                self.assertEqual(expected, hashlib.sha256(
+                    renderer(manifest, run).encode("utf-8")
+                ).hexdigest())
+
+    def test_renderer_lists_lane_digest_findings(self) -> None:
+        import shutil
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            run = Path(tempdir) / "run"
+            shutil.copytree(self.repository_root / "examples/literature-review-reviewed-run", run)
+            manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+            lane_path = run / "lanes/pubmed-search.json"
+            lane = json.loads(lane_path.read_text(encoding="utf-8"))
+            lane["output_sha256"] = {"./report.md": "0" * 64, "studies.json": "0" * 64}
+            lane_path.write_text(json.dumps(lane), encoding="utf-8")
+            record = next(item for item in manifest["artifacts"] if item["path"] == "lanes/pubmed-search.json")
+            record["sha256"] = hashlib.sha256(lane_path.read_bytes()).hexdigest()
+            findings = validate_bundle(manifest, run)["digest_findings"]
+            self.assertEqual(["lane-output-digest-mismatch"] * 2, [item["code"] for item in findings])
+            for renderer in (render_markdown, render_html):
+                with self.subTest(renderer=renderer.__name__):
+                    rendered = renderer(manifest, run)
+                    self.assertIn("Stale (recorded:", rendered)
+                    for finding in findings:
+                        self.assertIn(finding["code"], rendered)
+                        self.assertIn(finding["severity"], rendered)
+                        self.assertIn(finding["message"], rendered)
+
+    def test_renderer_rejects_malformed_claim_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run = Path(tempdir)
+            manifest = new_manifest("claim-shape", "A claim", [])
+            manifest["claims"] = [{"id": "C1", "text": "a claim"}]
+            manifest_path = run / "manifest.json"
+            for evidence in (None, 0, False, "", "report.md", {}, {"path": "report.md"}):
+                for existing_outputs in (False, True):
+                    with self.subTest(evidence=evidence, existing_outputs=existing_outputs):
+                        manifest["claims"][0]["evidence"] = evidence
+                        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                        for name in ("index.md", "index.html"):
+                            if existing_outputs:
+                                (run / name).write_bytes(b"existing index\n")
+                            else:
+                                (run / name).unlink(missing_ok=True)
+                        result = subprocess.run(
+                            [sys.executable, "-I", "-S", str(self.script), str(manifest_path), "--html"],
+                            capture_output=True, text=True, check=False,
+                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                        )
+                        self.assertEqual(1, result.returncode)
+                        self.assertEqual("", result.stdout)
+                        self.assertIn("error: Claim evidence must be a list: C1", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        for name in ("index.md", "index.html"):
+                            if existing_outputs:
+                                self.assertEqual(b"existing index\n", (run / name).read_bytes())
+                            else:
+                                self.assertFalse((run / name).exists())
+                        for renderer in (render_markdown, render_html):
+                            with self.assertRaisesRegex(ValueError, "Claim evidence must be a list: C1"):
+                                renderer(manifest, run)
+            for evidence in ([], ["report.md"]):
+                manifest["claims"][0]["evidence"] = evidence
+                for renderer in (render_markdown, render_html):
+                    self.assertIn("a claim", renderer(manifest, run))
+            manifest["claims"][0].pop("evidence")
+            for renderer in (render_markdown, render_html):
+                self.assertIn("a claim", renderer(manifest, run))
+
     def test_markdown_index_summarizes_claims_runtime_actions_and_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             manifest_path = self._make_run(Path(tempdir))
