@@ -28,14 +28,25 @@ ROB_JUDGMENTS = {"low", "some-concerns", "high", "unclear", "not-applicable"}
 class UnionFind:
     def __init__(self, values: Iterable[str]) -> None:
         self.parent = {value: value for value in values}
+        self.rank = dict.fromkeys(self.parent, 0)
     def find(self, value: str) -> str:
-        if self.parent[value] != value:
-            self.parent[value] = self.find(self.parent[value])
-        return self.parent[value]
+        root = value
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while value != root:
+            parent = self.parent[value]
+            self.parent[value] = root
+            value = parent
+        return root
     def union(self, left: str, right: str) -> None:
         a, b = self.find(left), self.find(right)
-        if a != b:
-            self.parent[b] = a
+        if a == b:
+            return
+        if self.rank[a] < self.rank[b]:
+            a, b = b, a
+        self.parent[b] = a
+        if self.rank[a] == self.rank[b]:
+            self.rank[a] += 1
 
 
 def normalize_identifier(value: str) -> str:

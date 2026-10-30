@@ -7,12 +7,12 @@ import json
 import os
 import re
 import stat
+from collections import defaultdict, deque
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from codex_science.connector_contract import canonical_json_bytes
-from codex_science.evidence_graph_v2 import impacted_nodes
 
 ANNOTATION_TYPES = {"question", "finding", "decision", "note", "correction"}
 ANNOTATION_STATUSES = {"open", "resolved", "dismissed", "stale-anchor"}
@@ -339,27 +339,47 @@ def selective_rerun_plan(
 ) -> dict[str, Any]:
     changed_nodes = list(changed_nodes)
     steps = list(steps)
-    impacted = impacted_nodes(changed_nodes, edges)
-    impacted_set = set(impacted)
-    while True:
-        selected: list[dict[str, Any]] = []
-        outputs = set(impacted_set)
-        for step in steps:
-            produced = set(map(str, step.get("produces", [])))
-            consumes = set(map(str, step.get("consumes", [])))
-            if produced & impacted_set or consumes & impacted_set:
-                outputs.update(produced)
-                selected.append({
-                    "id": step.get("id"),
-                    "description": step.get("description", step.get("id")),
-                    "requires_approval": bool(step.get("requires_approval", False)),
-                    "consumes": sorted(consumes),
-                    "produces": sorted(produced),
-                })
-        impacted = impacted_nodes(outputs, edges)
-        if set(impacted) == impacted_set:
-            break
-        impacted_set = set(impacted)
+    forward: dict[str, set[str]] = defaultdict(set)
+    for edge in edges:
+        relation = edge.get("relation")
+        if relation in {"supports", "contradicts", "training_overlap"}:
+            forward[str(edge["source"])].add(str(edge["target"]))
+        if relation in {"depends_on", "derived_from", "propagated_from", "training_overlap"}:
+            forward[str(edge["target"])].add(str(edge["source"]))
+    readers: dict[str, list[int]] = defaultdict(list)
+    normalized = []
+    for index, step in enumerate(steps):
+        produced = set(map(str, step.get("produces", [])))
+        consumes = set(map(str, step.get("consumes", [])))
+        normalized.append((consumes, produced))
+        for node in consumes | produced:
+            readers[node].append(index)
+    queue = deque(set(map(str, changed_nodes)))
+    impacted_set = set(queue)
+    selected_indices: set[int] = set()
+    while queue:
+        node = queue.popleft()
+        neighbors = set(forward.get(node, ()))
+        for index in readers.get(node, ()):
+            if index not in selected_indices:
+                selected_indices.add(index)
+                neighbors.update(normalized[index][1])
+        for neighbor in neighbors:
+            if neighbor not in impacted_set:
+                impacted_set.add(neighbor)
+                queue.append(neighbor)
+    impacted = sorted(impacted_set)
+    selected = []
+    for index, step in enumerate(steps):
+        if index in selected_indices:
+            consumes, produced = normalized[index]
+            selected.append({
+                "id": step.get("id"),
+                "description": step.get("description", step.get("id")),
+                "requires_approval": bool(step.get("requires_approval", False)),
+                "consumes": sorted(consumes),
+                "produces": sorted(produced),
+            })
     return {
         "schema_version": 1,
         "changed_nodes": sorted(set(map(str, changed_nodes))),

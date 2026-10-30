@@ -19,7 +19,7 @@ from codex_science.collaboration import (
     validate_annotation,
     validate_resolution_event,
 )
-from codex_science.literature_v2 import normalize_identifier, resolve_study_families, validate_risk_of_bias
+from codex_science.literature_v2 import UnionFind, normalize_identifier, resolve_study_families, validate_risk_of_bias
 
 
 class CollaborationAndLiteratureV2Tests(unittest.TestCase):
@@ -373,6 +373,24 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                     review_paths=iter(["review.json", "review.json"]),
                 ))
         self.assertEqual(original, steps)
+
+    def test_selective_rerun_visits_chain_steps_once(self) -> None:
+        class CountedStep(dict):
+            reads = 0
+
+            def get(self, key, default=None):
+                type(self).reads += 1
+                return super().get(key, default)
+
+        for size in (0, 1, 256):
+            with self.subTest(size=size):
+                CountedStep.reads = 0
+                steps = [CountedStep(id=i, consumes=[str(i)], produces=[str(i + 1)])
+                         for i in reversed(range(size))]
+                plan = selective_rerun_plan(changed_nodes=["0"], edges=[], steps=steps)
+                self.assertEqual([str(i) for i in sorted(range(size + 1), key=str)], plan["impacted_nodes"])
+                self.assertEqual(list(reversed(range(size))), [step["id"] for step in plan["rerun_steps"]])
+                self.assertLessEqual(CountedStep.reads, 8 * size)
 
     def test_selective_rerun_cli_reaches_real_shape_dependencies_and_step_outputs(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -745,6 +763,27 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         self.assertEqual(1, len(families))
         self.assertEqual("correction", families[0]["canonical_study_id"])
         self.assertIn("doi:10.1000/abc", families[0]["persistent_ids"])
+
+    def test_study_families_handle_deep_unions_without_recursion(self) -> None:
+        size = 1100
+        records = [{"study_id": str(i), "doi": "10.1000/shared"} for i in range(size)]
+        families = resolve_study_families(records)
+        self.assertEqual(1, len(families))
+        self.assertEqual(sorted(str(i) for i in range(size)), families[0]["study_ids"])
+        self.assertEqual(resolve_study_families(records[:1])[0]["family_id"], families[0]["family_id"])
+        balanced = UnionFind(str(i) for i in range(size))
+        for i in range(1, size):
+            balanced.union(str(i), str(i - 1))
+        for value in balanced.parent:
+            depth, node = 0, value
+            while balanced.parent[node] != node:
+                depth, node = depth + 1, balanced.parent[node]
+            self.assertLessEqual(depth, size.bit_length())
+        union = UnionFind(str(i) for i in range(size))
+        for i in range(size - 1):
+            union.parent[str(i)] = str(i + 1)
+        self.assertEqual(str(size - 1), union.find("0"))
+        self.assertTrue(all(parent == str(size - 1) for parent in union.parent.values()))
 
     def test_study_families_reject_duplicate_ids_without_losing_unique_records(self) -> None:
         first = {"study_id": "S1", "persistent_id": "doi:10.1000/one"}

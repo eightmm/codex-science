@@ -39,8 +39,9 @@ def _components(ids, wins):
                 adjacency[loser].add(winner)
     components = []
     unseen = set(ids)
-    while unseen:
-        root = min(unseen)
+    for root in sorted(ids):
+        if root not in unseen:
+            continue
         stack, found = [root], set()
         while stack:
             node = stack.pop()
@@ -57,6 +58,11 @@ def _strongly_connected(component, wins):
     """Check reachability along directed winner-to-loser edges in both directions."""
     if len(component) < 2:
         return True
+    incoming = {candidate: set() for candidate in component}
+    for winner in component:
+        for loser, count in wins[winner].items():
+            if count:
+                incoming[loser].add(winner)
     for reverse in (False, True):
         seen, pending = set(), [component[0]]
         while pending:
@@ -65,9 +71,9 @@ def _strongly_connected(component, wins):
                 continue
             seen.add(candidate)
             if reverse:
-                neighbors = [other for other in component if other != candidate and wins[other][candidate] > 0]
+                neighbors = incoming[candidate]
             else:
-                neighbors = [other for other in component if other != candidate and wins[candidate][other] > 0]
+                neighbors = (other for other, count in wins[candidate].items() if count > 0)
             pending.extend(other for other in neighbors if other not in seen)
         if len(seen) != len(component):
             return False
@@ -76,9 +82,15 @@ def _strongly_connected(component, wins):
 
 def _rank(comparisons):
     ids = sorted({item["winner"] for item in comparisons} | {item["loser"] for item in comparisons})
-    wins = {candidate: {other: 0 for other in ids if other != candidate} for candidate in ids}
+    wins = {candidate: {} for candidate in ids}
+    losses = dict.fromkeys(ids, 0)
+    games = {candidate: {} for candidate in ids}
     for item in comparisons:
-        wins[item["winner"]][item["loser"]] += 1
+        winner, loser = item["winner"], item["loser"]
+        wins[winner][loser] = wins[winner].get(loser, 0) + 1
+        losses[loser] += 1
+        games[winner][loser] = games[winner].get(loser, 0) + 1
+        games[loser][winner] = games[loser].get(winner, 0) + 1
     components = _components(ids, wins)
     warnings = [{"code": "not_strongly_connected", "component": component}
                 for component in components if not _strongly_connected(component, wins)]
@@ -87,15 +99,14 @@ def _rank(comparisons):
     for candidate in ids:
         result["candidates"].append({"candidate_id": candidate,
                                      "wins": sum(wins[candidate].values()),
-                                     "losses": sum(wins[other][candidate] for other in ids if other != candidate)})
+                                     "losses": losses[candidate]})
     if len(components) != 1:
         result["ranking"] = None
         return result
     has_mle = not warnings
     opponents = {
-        candidate: [(other, wins[candidate][other] + wins[other][candidate])
-                    for other in ids if other != candidate
-                    and wins[candidate][other] + wins[other][candidate] > 0]
+        # Keep the dense loop's sorted summation order for identical floats.
+        candidate: sorted(games[candidate].items())
         for candidate in ids
     }
     numerators = {candidate: sum(wins[candidate].values()) for candidate in ids}

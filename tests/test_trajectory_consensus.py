@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tracemalloc
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -86,6 +87,19 @@ def dense_rank_reference(comparisons):
 
 
 class ConsensusTests(unittest.TestCase):
+    def test_sparse_disconnected_rank_uses_bounded_memory(self):
+        size = 512
+        comparisons = [{"winner": str(i), "loser": str(i + 1)} for i in range(0, size, 2)]
+        tracemalloc.start()
+        try:
+            result = trajectory_consensus._rank(comparisons)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertIsNone(result["ranking"])
+        self.assertEqual(size // 2, len(result["disconnected_components"]))
+        self.assertLess(peak, size * 4096)
+
     def test_rank_matches_dense_reference(self):
         cases = [
             [{"winner": "a", "loser": "b"}, {"winner": "b", "loser": "c"},
