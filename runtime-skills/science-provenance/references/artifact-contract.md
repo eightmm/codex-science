@@ -44,6 +44,16 @@ Store these as ordinary manifest artifacts. The `kind` controls schema validatio
 
 Other artifacts may use descriptive kinds such as `protocol`, `decision-log`, `environment`, `execution-log`, `metrics`, `pose-table`, `report`, or `literature-snapshot-diff`; they remain hashed and navigable even when no specialized schema validator applies.
 
+### Domain records and the claim-register sidecar
+
+Domain evidence records keep their own status vocabulary and are registered as ordinary hashed artifacts with a descriptive kind. A nested `claim_register` in such a record is not a `claim-register` sidecar. The sidecar is a separate, explicitly adjudicated record whose claim IDs match the manifest and corresponding domain claims; preserve the original domain artifact and all counterevidence links.
+
+The claim-register sidecar statuses are: planned, supported, replicated, suggestive, conflicting, unsupported, withdrawn, or unavailable.
+
+For the same bounded claim, domain `supported` can become `supported` subject to the existing support requirements; it never automatically becomes `replicated`. Use `unavailable` when required evidence is unavailable. Domain `contradicted` can become `conflicting` when unresolved contradictory evidence is recorded; retain the contradiction links. Domain `inconclusive` has no universal mapping: insufficient positive support may warrant `suggestive`, while no supporting groups may warrant `unsupported`, consistent with the sufficiency recommendation for supported or replicated claims. Otherwise adjudicate case by case, recording rationale and follow-up in `uncertainty` and `next_action` and retaining evidence links.
+
+Run packaging defaults the basename `claims.json` to `claim-register`, including nested paths such as `gromacs/claims.json`, subject to explicit overrides and directory-specific classifications. Do not name a domain record `claims.json` unless it is a valid sidecar.
+
 ## Bundle validation
 
 ```bash

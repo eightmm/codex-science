@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.evidence import CLAIM_STATUSES
+from codex_science.run_packaging import DEFAULT_KINDS, _kind
 from codex_science.rigor import CLAIM_STRENGTHS, TIERS, classify_rigor
 from codex_science.mcp_server import CodexScienceMCP
 from codex_science.skill_maturity import audit_native_skills
@@ -279,6 +280,19 @@ class NativeSkillQualityTests(unittest.TestCase):
                 "Once the independent review has no open critical/major findings, record remaining minor findings in the receipt and proceed to the `--require-passed-review` validation and `complete`.",
                 text,
             )
+
+    def test_artifact_contract_claim_register_boundary(self) -> None:
+        contract = (ROOT / "runtime-skills/science-provenance/references/artifact-contract.md").read_text(encoding="utf-8")
+        section = contract.split("### Domain records and the claim-register sidecar", 1)[1].split("\n##", 1)[0]
+        match = re.search(r"^The claim-register sidecar statuses are: (.+)\.$", section, re.MULTILINE)
+        self.assertIsNotNone(match)
+        statuses = {item.strip().removeprefix("or ") for item in match.group(1).split(",")}
+        self.assertEqual(CLAIM_STATUSES, statuses)
+        names = [name for name, kind in DEFAULT_KINDS.items() if kind == "claim-register"]
+        self.assertEqual(1, len(names))
+        self.assertIn(f"basename `{names[0]}` to `claim-register`", section)
+        self.assertIn(f"`gromacs/{names[0]}`", section)
+        self.assertEqual("claim-register", _kind(f"gromacs/{names[0]}", []))
 
     def test_native_skill_standard_and_roadmap_are_present(self) -> None:
         standard = (ROOT / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")

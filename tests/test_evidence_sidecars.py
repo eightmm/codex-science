@@ -30,6 +30,17 @@ class EvidenceSidecarTests(unittest.TestCase):
         self.repository_root = Path(__file__).resolve().parents[1]
         self.example = self.repository_root / "examples" / "literature-review-reviewed-run"
 
+    def test_domain_contradicted_status_rejected_as_claim_register(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            path = run_dir / "claims.json"
+            claims = json.loads(path.read_text(encoding="utf-8"))
+            claims["claims"][0]["status"] = "contradicted"
+            path.write_text(json.dumps(claims), encoding="utf-8")
+            self._rehash(manifest, run_dir, "claims.json")
+            with self.assertRaisesRegex(ValueError, "Invalid claim status.*contradicted"):
+                validate_bundle(manifest, run_dir)
+
     def test_native_standard_lane_example_validates_through_cli(self) -> None:
         text = (self.repository_root / "docs" / "NATIVE_SKILL_STANDARD.md").read_text(encoding="utf-8")
         section = text.split("Each lane returns", 1)[1]

@@ -129,6 +129,8 @@ Assign stable claim IDs before final synthesis. Record:
 
 Confidence cannot exceed the weakest essential evidence link. Missing, filtered, stale, unavailable, and negative evidence are distinct states.
 
+For domain records and sidecar adjudication, see [Domain records and the claim-register sidecar](../runtime-skills/science-provenance/references/artifact-contract.md#domain-records-and-the-claim-register-sidecar).
+
 ## Evidence lanes
 
 A conductor creates only lanes that can be evaluated independently. Shared entity normalization, dependency deduplication, contradiction resolution, and final synthesis remain centralized.
