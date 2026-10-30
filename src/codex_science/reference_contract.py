@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from .cli_io import resolve_input_path
+
 INDEX_NAME = "index.json"
 REFERENCE_SECTION_RE = re.compile(r"^##\s+Reference (?:usage|map)\s*$", re.I | re.M)
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)]+)\)")
@@ -79,6 +81,13 @@ def _sha256(path: Path) -> str:
         while chunk := handle.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _reference_path(skill_dir: Path, relative: str) -> Path:
+    path = resolve_input_path(skill_dir / relative)
+    if not path.is_relative_to(resolve_input_path(skill_dir)):
+        raise ValueError(f"reference path must stay inside the skill directory: {relative}")
+    return path
 
 
 def _text(value: Any, label: str) -> str:
@@ -249,12 +258,21 @@ def validate_reference_index(skill_dir: Path, *, strict: bool = False) -> dict[s
         raise ValueError(f"missing SKILL.md: {skill_dir}")
     skill_text = skill_path.read_text(encoding="utf-8")
     references_dir = skill_dir / "references"
+    findings: list[dict[str, str]] = []
+    try:
+        _reference_path(skill_dir, "references")
+    except (OSError, ValueError) as exc:
+        findings.append({
+            "code": "invalid-reference-directory",
+            "severity": "major",
+            "message": str(exc),
+        })
+        return {"skill": skill_dir.name, "index": None, "findings": findings, "references": []}
     files = sorted(
         path
         for path in references_dir.glob("*")
         if path.is_file() and path.name != INDEX_NAME and not path.name.startswith(".")
     ) if references_dir.is_dir() else []
-    findings: list[dict[str, str]] = []
     try:
         index = load_reference_index(skill_dir)
     except (OSError, ValueError) as exc:
@@ -300,14 +318,26 @@ def validate_reference_index(skill_dir: Path, *, strict: bool = False) -> dict[s
             "severity": "major" if strict else "minor",
             "message": f"reference file is not indexed: {path}",
         })
+    reference_hashes: dict[str, str | None] = {}
     for entry in index.references:
-        path = skill_dir / entry.path
-        if path.is_file() and len(path.read_text(encoding="utf-8")) > 12000 and not entry.search_patterns:
+        reference_hashes[entry.path] = None
+        try:
+            path = _reference_path(skill_dir, entry.path)
+        except ValueError as error:
             findings.append({
-                "code": "large-reference-without-search-patterns",
-                "severity": "minor",
-                "message": f"large reference needs search_patterns: {entry.path}",
+                "code": "invalid-reference-file",
+                "severity": "major",
+                "message": str(error),
             })
+        else:
+            if path.is_file():
+                if len(path.read_text(encoding="utf-8")) > 12000 and not entry.search_patterns:
+                    findings.append({
+                        "code": "large-reference-without-search-patterns",
+                        "severity": "minor",
+                        "message": f"large reference needs search_patterns: {entry.path}",
+                    })
+                reference_hashes[entry.path] = _sha256(path)
         if entry.path not in linked:
             findings.append({
                 "code": "reference-not-linked-from-skill",
@@ -321,7 +351,7 @@ def validate_reference_index(skill_dir: Path, *, strict: bool = False) -> dict[s
         "references": [
             {
                 **entry.to_dict(),
-                "sha256": _sha256(skill_dir / entry.path) if (skill_dir / entry.path).is_file() else None,
+                "sha256": reference_hashes[entry.path],
             }
             for entry in index.references
         ],
@@ -365,7 +395,8 @@ def build_reference_use_receipt(
     search_terms: Iterable[str] = (),
     loaded_at: str | None = None,
 ) -> ReferenceUseReceipt:
-    path = skill_dir / entry.path
+    _reference_path(skill_dir, "references")
+    path = _reference_path(skill_dir, entry.path)
     if not path.is_file():
         raise ValueError(f"reference file is missing: {entry.path}")
     return ReferenceUseReceipt(
@@ -424,7 +455,8 @@ def validate_reference_use_receipt(payload: Mapping[str, Any]) -> None:
     for field in ("skill", "reference_id", "path", "sha256", "read_reason", "loaded_at"):
         _text(payload.get(field), field)
     reference_path = PurePosixPath(str(payload["path"]))
-    if reference_path.is_absolute() or ".." in reference_path.parts or reference_path.parts[0] != "references":
+    if (reference_path.is_absolute() or ".." in reference_path.parts
+            or len(reference_path.parts) < 2 or reference_path.parts[0] != "references"):
         raise ValueError(
             f"reference use receipt path must stay under references/: "
             f"{_bounded_item_repr(payload, 'path')}; "

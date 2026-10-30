@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from codex_science.cli_io import write_text_atomic  # noqa: E402
 from codex_science.reference_contract import audit_reference_roots  # noqa: E402
 
 STRICT_SKILLS = {
@@ -38,15 +39,14 @@ def main() -> int:
         )
         if args.require_clean and report["summary"]["skills"] == 0:
             raise ValueError("no skills audited; --require-clean requires at least one skill")
+        text = json.dumps(report, indent=2, sort_keys=True) + "\n"
+        if args.output:
+            write_text_atomic(args.output, text)
+        else:
+            print(text, end="")
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    text = json.dumps(report, indent=2, sort_keys=True) + "\n"
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text, encoding="utf-8")
-    else:
-        print(text, end="")
     summary = report["summary"]
     print(
         "reference audit: "

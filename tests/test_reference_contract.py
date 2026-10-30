@@ -10,6 +10,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from codex_science.artifacts import add_artifact, new_manifest, validate_bundle
 from codex_science.reference_contract import (
     _bounded_field_repr,
     _bounded_item_repr,
@@ -23,10 +24,186 @@ from codex_science.reference_contract import (
     select_references,
     validate_reference_index,
     validate_reference_use_ledger,
+    validate_reference_use_receipt,
 )
 
 
 class ReferenceContractTests(unittest.TestCase):
+    def test_audit_cli_preserves_report_on_output_failure(self):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        script = Path(__file__).resolve().parents[1] / "scripts/audit_skill_references.py"
+        command = [str(script), "--root", str(directory)]
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        baseline = subprocess.run([sys.executable, *command], capture_output=True, timeout=timeout)
+        self.assertEqual(0, baseline.returncode, baseline.stderr)
+        size = len(baseline.stdout)
+        output = directory / "report.json"
+        runner = (
+            "import resource, runpy, signal, sys; "
+            "limit = int(sys.argv.pop(1)); "
+            "signal.signal(signal.SIGXFSZ, signal.SIG_IGN); "
+            "resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit)); "
+            "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
+        )
+        for limit in (0, 100, size - 1, size, size + 1):
+            with self.subTest(limit=limit):
+                output.write_bytes(b"prior report\n")
+                result = subprocess.run(
+                    [sys.executable, "-B", "-c", runner, str(limit), *command, "--output", str(output)],
+                    capture_output=True, text=True, timeout=timeout,
+                )
+                self.assertEqual(1 if limit < size else 0, result.returncode, result.stderr)
+                self.assertEqual(b"prior report\n" if limit < size else baseline.stdout, output.read_bytes())
+                self.assertNotIn("Traceback", result.stderr)
+                if limit < size:
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                self.assertEqual([output], list(directory.iterdir()))
+        output.unlink()
+        output.mkdir()
+        result = subprocess.run([sys.executable, *command, "--output", str(output)],
+                                capture_output=True, text=True, timeout=timeout)
+        self.assertEqual(1, result.returncode)
+        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual([], list(output.iterdir()))
+        self.assertEqual([output], list(directory.iterdir()))
+
+    def test_index_audit_refuses_escaped_and_looping_references_before_io(self):
+        for target in ("outside", "loop", "inside-empty"):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = self._skill(root)
+                reference = skill / "references/study-identity.md"
+                reference.unlink()
+                destination = (root if target == "outside" else skill) / "target.md"
+                destination.write_bytes(b"" if target == "inside-empty" else b"\xff")
+                reference.symlink_to(reference.name if target == "loop" else destination)
+                report = validate_reference_index(skill, strict=True)
+                if target == "inside-empty":
+                    self.assertEqual([], report["findings"])
+                    self.assertEqual(hashlib.sha256(b"").hexdigest(), report["references"][0]["sha256"])
+                else:
+                    self.assertTrue(any(f["code"] == "invalid-reference-file" and f["severity"] == "major"
+                                        for f in report["findings"]), report)
+                    self.assertIsNone(report["references"][0]["sha256"])
+
+    def test_audit_refuses_invalid_reference_directories_without_an_index(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/audit_skill_references.py"
+        for target in ("loop", "outside", "outside-missing", "absent", "empty", "inside-empty"):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = self._skill(root / "authored-skills")
+                references = skill / "references"
+                shutil.rmtree(references)
+                if target == "loop":
+                    references.symlink_to("references")
+                elif target.startswith("outside"):
+                    destination = root / "external"
+                    if target == "outside":
+                        destination.mkdir()
+                    references.symlink_to(destination)
+                elif target == "empty":
+                    references.mkdir()
+                elif target == "inside-empty":
+                    (skill / "empty").mkdir()
+                    references.symlink_to("empty")
+                invalid = target in ("loop", "outside", "outside-missing")
+                for strict in (False, True):
+                    with self.subTest(operation="validate", strict=strict):
+                        report = validate_reference_index(skill, strict=strict)
+                        self.assertIsNone(report["index"])
+                        self.assertEqual([], report["references"])
+                        self.assertEqual(["invalid-reference-directory"] if invalid else [],
+                                         [f["code"] for f in report["findings"]])
+                        if invalid:
+                            self.assertEqual("major", report["findings"][0]["severity"])
+                with self.subTest(operation="cli"):
+                    result = subprocess.run(
+                        [sys.executable, str(script), "--root", str(root), "--require-clean"],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1 if invalid else 0, result.returncode, result.stdout + result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    summary = json.loads(result.stdout)["summary"]
+                    self.assertEqual(1, summary["skills"])
+                    self.assertEqual(1 if invalid else 0, summary["major_findings"])
+
+    def test_receipt_builder_and_lookup_refuse_escaped_and_looping_references(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/reference_lookup.py"
+        for target in ("outside", "outside-return", "loop", "inside-empty"):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                skill = self._skill(root)
+                index = load_reference_index(skill)
+                reference = skill / index.references[0].path
+                reference.unlink()
+                destination = (root if target == "outside" else skill) / "target.md"
+                destination.write_bytes(b"")
+                if target == "outside-return":
+                    (skill / "references").rename(root / "external")
+                    (skill / "references").symlink_to(root / "external", target_is_directory=True)
+                reference.symlink_to(reference.name if target == "loop" else destination)
+                with self.subTest(operation="builder"):
+                    if target == "inside-empty":
+                        receipt = build_reference_use_receipt(skill, index.references[0], read_reason="test", used_for=[])
+                        self.assertEqual(hashlib.sha256(b"").hexdigest(), receipt.sha256)
+                    else:
+                        message = "inside the skill directory" if target.startswith("outside") else "invalid protected input path"
+                        with self.assertRaisesRegex(ValueError, message):
+                            build_reference_use_receipt(skill, index.references[0], read_reason="test", used_for=[])
+                for existing in (False, True):
+                    receipts = root / ("existing" if existing else "new")
+                    if existing:
+                        receipts.mkdir()
+                        (receipts / "prior.json").write_bytes(b"prior receipt\n")
+                    with self.subTest(operation="lookup", existing=existing):
+                        result = subprocess.run(
+                            [sys.executable, str(script), str(skill), "--receipt-dir", str(receipts)],
+                            capture_output=True, text=True,
+                            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                        )
+                        self.assertEqual(0 if target == "inside-empty" else 1, result.returncode, result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        if target != "inside-empty":
+                            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                            self.assertIn(message, result.stderr)
+                            self.assertEqual("", result.stdout)
+                            if existing:
+                                self.assertEqual(["prior.json"], [p.name for p in receipts.iterdir()])
+                            else:
+                                self.assertFalse(receipts.exists())
+                        if existing:
+                            self.assertEqual(b"prior receipt\n", (receipts / "prior.json").read_bytes())
+
+    def test_receipt_paths_require_a_file_component(self):
+        receipt = {"schema_version": 1, "skill": "s", "reference_id": "r", "path": "references/r.md",
+                   "sha256": "a" * 64, "read_reason": "why", "loaded_at": "now"}
+        for path in ("", ".", "references", "references/.", "../r.md", "/references/r.md", 0):
+            with self.subTest(path=path):
+                changed = {**receipt, "path": path}
+                with self.assertRaises(ValueError):
+                    validate_reference_use_receipt(changed)
+                with self.assertRaises(ValueError):
+                    validate_reference_use_ledger({"schema_version": 1, "uses": [changed]})
+        for path in ("references/r.md", "references/nested/r.md"):
+            validate_reference_use_receipt({**receipt, "path": path})
+
+    def test_bundle_reports_receipt_paths_without_a_file_as_value_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "reference-use-ledger.json"
+            for relative in (".", "references"):
+                with self.subTest(path=relative):
+                    path.write_text(json.dumps({"schema_version": 1, "uses": [{
+                        "schema_version": 1, "skill": "s", "reference_id": "r", "path": relative,
+                        "sha256": "a" * 64, "read_reason": "why", "loaded_at": "now"}]}))
+                    manifest = new_manifest("test", "test receipt validation", [])
+                    add_artifact(manifest, path.name, kind="reference-use-ledger",
+                                 sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+                    with self.assertRaisesRegex(ValueError, "reference use receipt path must stay under references/"):
+                        validate_bundle(manifest, root)
+
     def test_audit_cli_refuses_invalid_roots_without_writing(self) -> None:
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         empty_file = directory / "empty-file"
