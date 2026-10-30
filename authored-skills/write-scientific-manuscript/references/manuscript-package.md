@@ -49,6 +49,19 @@ itself avoids a circular digest.
 
 Do not use a clean validator result as a substitute for independent review.
 
+Receipts may use package-relative paths or run-relative paths when exactly one
+ancestor of the package resolves all required package files in the receipt.
+Coverage matching collapses `.` and repeated `/` separators in listed and
+receipt paths as the producer does, while preserving receipt keys and treating
+backslashes literally.
+Package-relative coverage uses only the current listed-file hashes; hashing
+finding evidence cannot admit an unlisted covered artifact.
+Every covered artifact and every finding-evidence artifact cited with a digest
+must match its current bytes or directory-tree digest inside the selected
+package or run root, including run artifacts outside the package; run-level
+directory digests use the producer's tree-safety checks, and missing or unsafe evidence
+paths, mixed package-file bases, and ambiguous ancestors are refused.
+
 ## Compatibility note
 
 Schema version `1` remains readable, but readiness validation is intentionally

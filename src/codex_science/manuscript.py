@@ -11,8 +11,9 @@ from typing import Any, Mapping
 from codex_science.advanced_sidecars import review_advanced_sidecars
 from codex_science.safe_expression import _required_text
 from codex_science.artifacts import validate_bundle
+from codex_science.artifact_store import describe_directory
 from codex_science.review import review_manifest
-from codex_science.review_receipts import review_receipt_findings
+from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 from codex_science.reviewer_runtime import (
     build_review_packet,
     finalize_review_response,
@@ -670,7 +671,93 @@ def _validate_submission_review(
     if not isinstance(receipt, dict):
         findings.append(_finding("invalid-review-receipt", "Review receipt must be a JSON object"))
         return
-    receipt_findings = review_receipt_findings(receipt, current_hashes)
+    try:
+        validate_review_receipt(receipt)
+    except ValueError as error:
+        findings.append(_finding("invalid-review-receipt", str(error), severity="critical"))
+        return
+    raw_covered_paths = {item["path"] for item in receipt["covered_artifacts"]}
+    covered_paths = {
+        PurePosixPath(relative).as_posix()
+        for relative in raw_covered_paths
+        if _relative_path(relative) is not None
+    }
+    required_paths = {
+        PurePosixPath(relative).as_posix() for relative in listed_paths
+    } - {PurePosixPath(receipt_path).as_posix()}
+    receipt_hashes = dict(current_hashes)
+    hash_root = root
+    paths_to_hash: set[str] = set()
+    if not required_paths.issubset(covered_paths):
+        candidates = [
+            (ancestor, PurePosixPath(root.relative_to(ancestor).as_posix()))
+            for ancestor in root.parents
+            if all(
+                (root.relative_to(ancestor) / relative).as_posix() in covered_paths
+                for relative in required_paths
+            )
+        ]
+        if len(candidates) == 1:
+            ancestor, prefix = candidates[0]
+            receipt_hashes = {}
+            hash_root = ancestor
+            paths_to_hash.update(raw_covered_paths)
+            covered_paths = {
+                path.relative_to(prefix).as_posix()
+                for relative in covered_paths
+                if (path := PurePosixPath(relative)).is_relative_to(prefix)
+            }
+        elif len(candidates) > 1:
+            findings.append(_finding(
+                "incomplete-review-artifact-coverage",
+                "Review receipt package paths match more than one ancestor",
+            ))
+    evidence_paths: set[str] = set()
+    for finding in receipt.get("findings", []):
+        evidence = finding.get("evidence", [])
+        if not isinstance(evidence, list):
+            continue
+        for entry in evidence:
+            if not isinstance(entry, Mapping) or "artifact_sha256" not in entry:
+                continue
+            relative = _relative_path(entry.get("artifact_path"))
+            if relative is None:
+                findings.append(_finding(
+                    "stale-review-receipt", "Review receipt cites an unsafe finding evidence path",
+                ))
+            else:
+                evidence_paths.add(relative)
+    # Finding evidence need not be covered_artifacts. Missing evidence needs an
+    # explicit finding because review_receipt_findings skips absent hash keys.
+    for relative in paths_to_hash | evidence_paths:
+        receipt_hashes.pop(relative, None)
+        if _relative_path(relative) is not None:
+            target = hash_root / relative
+            try:
+                if target.resolve().is_relative_to(hash_root):
+                    if target.is_dir():
+                        receipt_hashes[relative] = describe_directory(target).root_sha256
+                    elif target.is_file():
+                        receipt_hashes[relative] = _sha256(target)
+            except (OSError, RuntimeError, ValueError):
+                pass
+        if relative in evidence_paths and relative not in receipt_hashes:
+            findings.append(_finding(
+                "stale-review-receipt",
+                f"Review receipt cites unavailable or unsafe finding evidence: {relative}",
+            ))
+    if hash_root == root:
+        # Evidence hashing must not admit unlisted package coverage. Aliases
+        # still use the authoritative listed-file hashes, without rereading.
+        for relative in raw_covered_paths:
+            receipt_hashes.pop(relative, None)
+            if _relative_path(relative) is not None:
+                canonical = PurePosixPath(relative).as_posix()
+                if relative in current_hashes:
+                    receipt_hashes[relative] = current_hashes[relative]
+                elif canonical in current_hashes:
+                    receipt_hashes[relative] = current_hashes[canonical]
+    receipt_findings = review_receipt_findings(receipt, receipt_hashes)
     receipt_findings.extend(_review_receipt_contract_findings(receipt))
     for item in receipt_findings:
         findings.append(
@@ -691,8 +778,7 @@ def _validate_submission_review(
                 f"Review receipt omits required modes: {', '.join(missing_modes)}",
             )
         )
-    covered_paths = {str(item["path"]) for item in receipt.get("covered_artifacts", [])}
-    missing_paths = sorted((listed_paths - {receipt_path}) - covered_paths)
+    missing_paths = sorted(required_paths - covered_paths)
     if missing_paths:
         findings.append(
             _finding(

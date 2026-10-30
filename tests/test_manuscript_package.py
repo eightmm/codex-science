@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 
@@ -15,12 +16,19 @@ from codex_science.manuscript import (  # noqa: E402
     _relative_path,
     _resolve_json_pointer,
     _scalar_appears_in_text,
+    _validate_submission_review,
     build_acceptance_package,
     validate_manuscript_package,
 )
 from codex_science.review_receipts import (  # noqa: E402
     build_review_receipt,
     canonical_sha256,
+)
+from codex_science.artifacts import add_artifact, new_manifest, write_manifest  # noqa: E402
+from codex_science.artifact_store import describe_directory  # noqa: E402
+from codex_science.reviewer_runtime import (  # noqa: E402
+    build_review_packet,
+    finalize_review_response,
 )
 
 
@@ -61,6 +69,72 @@ class ManuscriptPackageTests(unittest.TestCase):
         else:
             self.fail(f"submission package does not list {relative}")
         self.rewrite_json(submission_path.name, submission)
+
+    def make_run_submission_ready(self) -> dict:
+        run = Path(self.tempdir.name) / "run"
+        run.mkdir()
+        nested = run / "manuscript"
+        self.package.rename(nested)
+        self.package = nested
+        submission = json.loads((nested / "submission-package.json").read_text())
+        trace = json.loads((nested / "claim-citation-map.json").read_text())
+        manifest = new_manifest("manuscript-review", "Is the package ready?", [])
+        manifest["claims"] = [
+            {"id": claim["claim_id"], "text": claim["text"], "evidence": []}
+            for claim in trace["claims"] if claim.get("material") is True
+        ]
+        for item in submission["files"]:
+            add_artifact(
+                manifest, f"manuscript/{item['path']}",
+                kind="manuscript-package-file", sha256=item["sha256"],
+            )
+        context = run / "analysis.txt"
+        context.write_bytes(b"run context\n")
+        add_artifact(
+            manifest, context.name, kind="analysis",
+            sha256=hashlib.sha256(context.read_bytes()).hexdigest(),
+        )
+        manifest_path = run / "manifest.json"
+        write_manifest(manifest, manifest_path)
+        receipt = self.run_review_receipt(manifest_path)
+        self.make_submission_ready()
+        self.replace_submission_receipt(receipt)
+        return receipt
+
+    def run_review_receipt(self, manifest_path: Path) -> dict:
+        packet = build_review_packet(
+            manifest_path, review_modes=["record", "source", "method"],
+        )
+        receipt = finalize_review_response(packet, {
+            "review_task_id": packet["review_task_id"],
+            "packet_fingerprint": packet["fingerprint"],
+            "reviewer": "independent-test-reviewer",
+            "independent": True,
+            "review_modes": packet["review_modes"],
+            "reviewed_claim_ids": packet["material_claim_ids"],
+            "reviewed_artifacts": packet["artifacts"],
+            "findings": [],
+            "limitations": ["Synthetic review; no scientific peer review."],
+            "status": "passed",
+        })
+        self.assertEqual("passed", receipt["status"])
+        return receipt
+
+    def replace_submission_receipt(self, receipt: dict) -> None:
+        receipt = deepcopy(receipt)
+        receipt.pop("fingerprint", None)
+        receipt["fingerprint"] = canonical_sha256(receipt)
+        self.rewrite_json("review-receipt.json", receipt)
+        self.refresh_submission_hash("review-receipt.json")
+        submission = json.loads((self.package / "submission-package.json").read_text())
+        submission["review"]["receipt"]["sha256"] = hashlib.sha256(
+            (self.package / "review-receipt.json").read_bytes()
+        ).hexdigest()
+        self.rewrite_json("submission-package.json", submission)
+
+    def assert_package_passes(self) -> None:
+        result = validate_manuscript_package(self.package)
+        self.assertEqual("passed", result["status"], result["findings"])
 
     def make_submission_ready(
         self,
@@ -733,6 +807,74 @@ class ManuscriptPackageTests(unittest.TestCase):
             validate_manuscript_package(self.package)["status"],
         )
 
+        receipt = json.loads((self.package / "review-receipt.json").read_text())
+        submission = json.loads((self.package / "submission-package.json").read_text())
+        tex = next(item for item in submission["files"] if item["path"] == "manuscript.tex")
+        submission["files"].append({**tex, "path": "./manuscript.tex"})
+        self.rewrite_json("submission-package.json", submission)
+        receipt["covered_artifacts"].append({"path": "./manuscript.tex", "sha256": tex["sha256"]})
+        self.replace_submission_receipt(receipt)
+        self.assert_package_passes()
+        for spelling in ("manuscript.tex", "./manuscript.tex", "././manuscript.tex"):
+            with self.subTest(package_alias=spelling):
+                changed = deepcopy(receipt)
+                changed["covered_artifacts"] = [
+                    item for item in changed["covered_artifacts"]
+                    if item["path"] not in {"manuscript.tex", "./manuscript.tex"}
+                ]
+                changed["covered_artifacts"].append({"path": spelling, "sha256": tex["sha256"]})
+                self.replace_submission_receipt(changed)
+                self.assert_package_passes()
+        self.replace_submission_receipt(receipt)
+        supplement = self.package / "supplement"
+        supplement.mkdir()
+        unlisted = supplement / "extra.txt"
+        for contents in (None, b"", b"unlisted content\n"):
+            if contents is None:
+                relative = supplement.name
+                digest = describe_directory(supplement).root_sha256
+            else:
+                unlisted.write_bytes(contents)
+                relative = unlisted.relative_to(self.package).as_posix()
+                digest = hashlib.sha256(contents).hexdigest()
+            for cited in (False, True):
+                with self.subTest(contents=contents, finding_evidence=cited):
+                    changed = deepcopy(receipt)
+                    changed["covered_artifacts"].append({"path": relative, "sha256": digest})
+                    if cited:
+                        changed["findings"] = [{
+                            "id": "F-supplement", "severity": "minor", "code": "supplement-checked",
+                            "message": "The supplement was checked.", "resolution_status": "resolved",
+                            "evidence": [{"artifact_path": relative, "artifact_sha256": digest}],
+                        }]
+                    self.replace_submission_receipt(changed)
+                    self.assertIn("stale-review-receipt", self.findings())
+        unlisted.unlink()
+        supplement.rmdir()
+        self.replace_submission_receipt(receipt)
+        self.assert_package_passes()
+
+        run = Path(self.tempdir.name) / "run"
+        run.mkdir()
+        nested = run / "manuscript"
+        self.package.rename(nested)
+        self.package = nested
+        run_receipt = deepcopy(receipt)
+        for item in run_receipt["covered_artifacts"]:
+            item["path"] = "manuscript/" + item["path"]
+        self.replace_submission_receipt(run_receipt)
+        self.assert_package_passes()
+        for spelling in ("manuscript/manuscript.tex", "manuscript/./manuscript.tex"):
+            with self.subTest(run_alias=spelling):
+                changed = deepcopy(run_receipt)
+                changed["covered_artifacts"] = [
+                    item for item in changed["covered_artifacts"]
+                    if item["path"] not in {"manuscript/manuscript.tex", "manuscript/./manuscript.tex"}
+                ]
+                changed["covered_artifacts"].append({"path": spelling, "sha256": tex["sha256"]})
+                self.replace_submission_receipt(changed)
+                self.assert_package_passes()
+
         manuscript = self.package / "manuscript.md"
         manuscript.write_text(
             manuscript.read_text(encoding="utf-8") + "\nChanged after review.\n",
@@ -740,6 +882,327 @@ class ManuscriptPackageTests(unittest.TestCase):
         )
         self.refresh_submission_hash(manuscript.name)
         self.assertIn("stale-review-receipt", self.findings())
+
+    def test_generic_run_receipt_accepts_nested_package(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        manifest_path = self.package.parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        for transform in (
+            lambda path: "./" + path,
+            lambda path: path.replace("/", "//"),
+        ):
+            changed = deepcopy(manifest)
+            for item in changed["artifacts"]:
+                item["path"] = transform(item["path"])
+            write_manifest(changed, manifest_path)
+            self.replace_submission_receipt(self.run_review_receipt(manifest_path))
+            self.assert_package_passes()
+            package_receipt = deepcopy(receipt)
+            package_receipt["covered_artifacts"] = [
+                {**item, "path": transform(item["path"].removeprefix("manuscript/"))}
+                for item in receipt["covered_artifacts"]
+                if item["path"].startswith("manuscript/")
+            ]
+            self.replace_submission_receipt(package_receipt)
+            self.assert_package_passes()
+        for path in (
+            "manuscript/../manuscript/manuscript.md",
+            "manuscript\\manuscript.md",
+            "manuscript\\..\\manuscript.md",
+        ):
+            with self.subTest(unsafe_path=path):
+                changed = deepcopy(manifest)
+                changed["artifacts"][0]["path"] = path
+                with self.assertRaises(ValueError):
+                    write_manifest(changed, manifest_path)
+                    self.run_review_receipt(manifest_path)
+                changed_receipt = deepcopy(receipt)
+                changed_receipt["covered_artifacts"][0]["path"] = path
+                self.replace_submission_receipt(changed_receipt)
+                self.assertIn("incomplete-review-artifact-coverage", self.findings())
+        write_manifest(manifest, manifest_path)
+        self.replace_submission_receipt(receipt)
+        # A second reader sees the same bytes and result.
+        before = {path: path.read_bytes() for path in self.package.parent.rglob("*")
+                  if path.is_file()}
+        self.assert_package_passes()
+        self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+        # A run root can also be more than one level above the package.
+        self.package.parent.rename(self.package.parent.with_name("archive"))
+        self.package = self.package.parent.with_name("archive") / self.package.name
+        for item in receipt["covered_artifacts"]:
+            item["path"] = "archive/" + item["path"]
+        self.replace_submission_receipt(receipt)
+        self.assert_package_passes()
+
+    def test_run_receipt_rejects_changed_package_bytes(self) -> None:
+        self.make_run_submission_ready()
+        self.assert_package_passes()
+        path = self.package / "manuscript.md"
+        path.write_bytes(path.read_bytes() + b"\nAnother package revision.\n")
+        self.refresh_submission_hash(path.name)
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+
+    def test_run_receipt_requires_complete_single_path_basis(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        for basis in ("package", "run", "mixed", "unmatched"):
+            with self.subTest(basis=basis):
+                changed = deepcopy(receipt)
+                covered = changed["covered_artifacts"]
+                if basis == "package":
+                    covered[:] = [
+                        {**item, "path": item["path"].removeprefix("manuscript/")}
+                        for item in covered if item["path"].startswith("manuscript/")
+                    ]
+                if basis in {"package", "run"}:
+                    covered[:] = [item for item in covered
+                                  if item["path"] not in {"manuscript.md", "manuscript/manuscript.md"}]
+                elif basis == "mixed":
+                    for item in covered:
+                        if item["path"] == "manuscript/manuscript.md":
+                            item["path"] = "manuscript.md"
+                else:
+                    for item in covered:
+                        item["path"] = "unmatched/" + item["path"]
+                self.replace_submission_receipt(changed)
+                self.assertIn("incomplete-review-artifact-coverage", self.findings())
+
+    def test_run_receipt_rejects_ambiguous_ancestors(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        receipt["covered_artifacts"].extend([
+            {**item, "path": "run/" + item["path"]}
+            for item in receipt["covered_artifacts"]
+        ])
+        self.replace_submission_receipt(receipt)
+        self.assertIn("incomplete-review-artifact-coverage", self.findings())
+
+    def test_run_receipt_checks_nonpackage_artifacts(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        tree = self.package.parent / "tree"
+        tree.mkdir()
+        member = tree / "member.txt"
+        member.write_bytes(b"tree member\n")
+        manifest_path = self.package.parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        add_artifact(
+            manifest, tree.name, kind="dataset", artifact_type="directory-tree",
+            sha256=describe_directory(tree).root_sha256,
+        )
+        write_manifest(manifest, manifest_path)
+        tree_receipt = self.run_review_receipt(manifest_path)
+        self.replace_submission_receipt(tree_receipt)
+        self.assert_package_passes()
+        member.write_bytes(b"changed member\n")
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        member.unlink()
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        manifest["artifacts"][-1]["sha256"] = describe_directory(tree).root_sha256
+        write_manifest(manifest, manifest_path)
+        tree_receipt = self.run_review_receipt(manifest_path)
+        self.replace_submission_receipt(tree_receipt)
+        self.assert_package_passes()
+        # Tree safety also forbids links to other artifacts inside the run.
+        member.symlink_to(self.package.parent / "analysis.txt")
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        member.unlink()
+        tree.rmdir()
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        inside_tree = self.package.parent / "inside-tree"
+        inside_tree.mkdir()
+        tree.symlink_to(inside_tree, target_is_directory=True)
+        self.assert_package_passes()
+        tree.unlink()
+        outside_tree = Path(self.tempdir.name) / "outside-tree"
+        outside_tree.mkdir()
+        tree.symlink_to(outside_tree, target_is_directory=True)
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        tree.unlink()
+        self.replace_submission_receipt(receipt)
+        context = self.package.parent / "analysis.txt"
+        # Empty files are current only when their empty-byte digest matches.
+        context.write_bytes(b"")
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        receipt["covered_artifacts"][-1]["sha256"] = hashlib.sha256(b"").hexdigest()
+        self.replace_submission_receipt(receipt)
+        self.assert_package_passes()
+        context.unlink()
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+
+        # Generic reviewers can cite evidence without marking it reviewed.
+        context.write_bytes(b"")
+        receipt["covered_artifacts"] = [
+            item for item in receipt["covered_artifacts"] if item["path"] != context.name
+        ]
+        receipt["findings"] = [{
+            "id": "F-context", "severity": "minor", "code": "context-reviewed",
+            "message": "The recorded context was checked.", "resolution_status": "resolved",
+            "evidence": [{"artifact_path": context.name,
+                          "artifact_sha256": hashlib.sha256(b"").hexdigest()}],
+        }]
+        self.replace_submission_receipt(receipt)
+        self.assert_package_passes()
+        context.write_bytes(b"changed\n")
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        context.unlink()
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+
+        outside = Path(self.tempdir.name) / "outside.txt"
+        outside.write_bytes(b"")
+        context.symlink_to(outside)
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        context.unlink()
+        context.symlink_to(context.name)
+        self.assertEqual({"stale-review-receipt"}, self.findings())
+        context.unlink()
+        inside = self.package.parent / "inside.txt"
+        inside.write_bytes(b"")
+        context.symlink_to(inside.name)
+        self.assert_package_passes()
+
+        for relative in (
+            "../outside.txt", str(outside), "folder/../analysis.txt", "", ".", "\0", 0, None, [], {},
+        ):
+            with self.subTest(evidence_path=relative):
+                changed = deepcopy(receipt)
+                changed["findings"][0]["evidence"][0]["artifact_path"] = relative
+                self.replace_submission_receipt(changed)
+                self.assertEqual({"stale-review-receipt"}, self.findings())
+        self.assertEqual(b"", outside.read_bytes())
+
+    def test_package_receipt_rejects_missing_or_unsafe_finding_evidence(self) -> None:
+        self.make_submission_ready()
+        receipt = json.loads((self.package / "review-receipt.json").read_text())
+        manuscript = self.package / "manuscript.md"
+        receipt["findings"] = [{
+            "id": "F-context", "severity": "minor", "code": "context-reviewed",
+            "message": "The recorded context was checked.", "resolution_status": "resolved",
+            "evidence": [{"artifact_path": manuscript.name,
+                          "artifact_sha256": hashlib.sha256(manuscript.read_bytes()).hexdigest()}],
+        }]
+        self.replace_submission_receipt(receipt)
+        self.assert_package_passes()
+        outside = Path(self.tempdir.name) / "outside.txt"
+        outside.write_bytes(manuscript.read_bytes())
+        for relative in ("missing.txt", "../outside.txt", str(outside), "", ".", "\0", 0, None):
+            with self.subTest(evidence_path=relative):
+                changed = deepcopy(receipt)
+                changed["findings"][0]["evidence"][0]["artifact_path"] = relative
+                self.replace_submission_receipt(changed)
+                self.assertEqual({"stale-review-receipt"}, self.findings())
+        changed = deepcopy(receipt)
+        entry = changed["findings"][0]["evidence"][0]
+        entry["artifact_path"] = "missing.txt"
+        entry.pop("artifact_sha256")
+        self.replace_submission_receipt(changed)
+        self.assert_package_passes()
+
+    def test_run_receipt_rejects_unsafe_covered_paths(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        outside = Path(self.tempdir.name) / "outside.txt"
+        outside.write_bytes(b"outside\n")
+        for relative in (
+            str(outside), "../outside.txt", "data/../../outside.txt", "", ".", "\0", 0, None,
+        ):
+            with self.subTest(path=relative):
+                changed = deepcopy(receipt)
+                changed["covered_artifacts"].append({
+                    "path": relative,
+                    "sha256": hashlib.sha256(outside.read_bytes()).hexdigest(),
+                })
+                self.replace_submission_receipt(changed)
+                self.assertNotEqual(set(), self.findings())
+
+    def test_run_receipt_rejects_symlink_escape_and_loop(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        run = self.package.parent
+        context = run / "analysis.txt"
+        original = context.read_bytes()
+        inside = run / "inside.txt"
+        inside.write_bytes(original)
+        context.unlink()
+        context.symlink_to(inside.name)
+        self.assert_package_passes()
+        outside = Path(self.tempdir.name) / "outside.txt"
+        outside.write_bytes(original)
+        context.unlink()
+        context.symlink_to(outside)
+        self.assertIn("stale-review-receipt", self.findings())
+        context.unlink()
+        context.symlink_to(context.name)
+        self.assertIn("stale-review-receipt", self.findings())
+        self.assertEqual(original, outside.read_bytes())
+
+    def test_run_receipt_keeps_review_validation(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        for key, value, code in (
+            ("independent", False, "review-not-independent"),
+            ("review_modes", ["record"], "incomplete-review-mode-coverage"),
+            ("covered_claim_ids", [], "incomplete-review-claim-coverage"),
+            ("limitations", [], "review-receipt-limitations-missing"),
+            ("covered_artifacts", [], "invalid-review-receipt"),
+            ("covered_artifacts", None, "invalid-review-receipt"),
+        ):
+            with self.subTest(key=key, value=value):
+                changed = {**receipt, key: value}
+                self.replace_submission_receipt(changed)
+                self.assertIn(code, self.findings())
+
+    def test_submission_receipt_may_cover_root_manifest(self) -> None:
+        receipt = self.make_run_submission_ready()
+        self.assert_package_passes()
+        submission = json.loads((self.package / "submission-package.json").read_text())
+        # A root-manifest digest and its receipt reference form a cycle in a
+        # full package. Test the review check with a separately bound reference.
+        root_manifest = self.package / "submission-package.json"
+        for basis in ("run", "package"):
+            with self.subTest(basis=basis):
+                changed = deepcopy(receipt)
+                if basis == "package":
+                    changed["covered_artifacts"] = [
+                        {**item, "path": item["path"].removeprefix("manuscript/")}
+                        for item in changed["covered_artifacts"]
+                        if item["path"].startswith("manuscript/")
+                    ]
+                prefix = "manuscript/" if basis == "run" else ""
+                changed["covered_artifacts"].append({
+                    "path": prefix + root_manifest.name,
+                    "sha256": hashlib.sha256(root_manifest.read_bytes()).hexdigest(),
+                })
+                changed.pop("fingerprint")
+                changed["fingerprint"] = canonical_sha256(changed)
+                self.rewrite_json("review-receipt.json", changed)
+                review = deepcopy(submission["review"])
+                review["receipt"]["sha256"] = hashlib.sha256(
+                    (self.package / "review-receipt.json").read_bytes()
+                ).hexdigest()
+                findings = []
+                current_hashes = {item["path"]: item["sha256"] for item in submission["files"]}
+                if basis == "package":
+                    current_hashes[root_manifest.name] = hashlib.sha256(root_manifest.read_bytes()).hexdigest()
+                _validate_submission_review(
+                    self.package, review,
+                    {item["path"] for item in submission["files"]},
+                    current_hashes,
+                    set(receipt["covered_claim_ids"]), findings,
+                )
+                self.assertEqual([], findings)
+                if basis == "package":
+                    current_hashes.pop(root_manifest.name)
+                    findings = []
+                    _validate_submission_review(
+                        self.package, review,
+                        {item["path"] for item in submission["files"]},
+                        current_hashes, set(receipt["covered_claim_ids"]), findings,
+                    )
+                    self.assertIn("stale-review-receipt", {item["code"] for item in findings})
 
     def test_submission_ready_rejects_incomplete_or_nonindependent_review(self) -> None:
         self.make_submission_ready(
