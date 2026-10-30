@@ -7,9 +7,11 @@ validated reusable method.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -20,6 +22,7 @@ from codex_science.review import review_manifest
 
 
 SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+URL_USERINFO_RE = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://[^/?#\s:]*:)[^/?#\s]*@")
 SECRET_ARGUMENT_FLAGS = {
     "--token",
     "--password",
@@ -65,26 +68,47 @@ def _text(value: Any, label: str) -> str:
     return text
 
 
+def _normalize_spelling(value: str) -> str:
+    return value.lower().replace("-", "_")
+
+
 def _redact_mapping(value: Any) -> Any:
     if isinstance(value, Mapping):
         result: dict[str, Any] = {}
         for key, item in value.items():
             key_text = str(key)
-            if any(fragment in key_text.lower() for fragment in SECRET_KEY_FRAGMENTS):
+            if any(fragment in _normalize_spelling(key_text) for fragment in SECRET_KEY_FRAGMENTS):
                 result[key_text] = "[REDACTED]"
             else:
                 result[key_text] = _redact_mapping(item)
         return result
     if isinstance(value, list):
         return [_redact_mapping(item) for item in value]
+    if isinstance(value, str):
+        return URL_USERINFO_RE.sub(r"\1[REDACTED]@", value)
     return value
 
 
 def _validate_command(command: list[str], index: int) -> None:
     for argument in command:
-        lower = argument.lower()
-        if any(lower == flag or lower.startswith(flag + "=") for flag in SECRET_ARGUMENT_FLAGS):
+        lower = _normalize_spelling(argument)
+        if any(
+            lower == flag or lower.startswith(flag + "=")
+            for flag in map(_normalize_spelling, SECRET_ARGUMENT_FLAGS)
+        ):
             raise ValueError(f"command_contract[{index}] contains a credential-bearing argument")
+        # Header content may follow any tool's attached option prefix.
+        # Exclude URL authorities so hostnames before ports are not header fields.
+        header_text = _normalize_spelling(
+            re.sub(r"(?<=:)//[^/?#\s]*", "", argument)
+        )
+        for field in re.findall(r"([!#$%&'*+.^_`|~0-9a-z]+)\s*:", header_text):
+            if field.endswith(("cookie", "x_auth")) or any(
+                fragment in field for fragment in SECRET_KEY_FRAGMENTS
+            ):
+                raise ValueError(f"command_contract[{index}] contains a credential-bearing argument")
+        if URL_USERINFO_RE.search(argument):
+            raise ValueError(f"command_contract[{index}] contains a credential-bearing URL")
         if "://" in argument and any(
             token in lower
             for token in (
@@ -101,9 +125,8 @@ def _validate_command(command: list[str], index: int) -> None:
             raise ValueError(f"command_contract[{index}] contains a credential-bearing URL")
 
 
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+def _json_text(payload: Any) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
 def _artifact_summary(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -376,9 +399,6 @@ def compile_pipeline_draft(
     output_dir = output_dir.resolve()
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError(f"output directory is not empty: {output_dir}")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    references = output_dir / "references"
-    references.mkdir()
     manifest_sha, _size = stream_sha256(manifest_path)
     commands = command_contract or []
     for index, command in enumerate(commands):
@@ -390,14 +410,11 @@ def compile_pipeline_draft(
         "External sources, models, weights, databases, and endpoints may drift.",
         "The draft contains no automatic activation or remote/write permission."
     ]
-    (output_dir / "SKILL.md").write_text(
-        _skill_text(name, description, str(manifest.get("run_id", "unknown")), [dict(item) for item in manifest.get("plan", []) if isinstance(item, Mapping)]),
-        encoding="utf-8",
-    )
-    _write_json(output_dir / "input.schema.json", _schema_inputs(manifest))
-    _write_json(output_dir / "output.schema.json", _schema_outputs())
-    (references / "pipeline.md").write_text(
-        _reference_text(
+    rendered = {
+        "SKILL.md": _skill_text(name, description, str(manifest.get("run_id", "unknown")), [dict(item) for item in manifest.get("plan", []) if isinstance(item, Mapping)]),
+        "input.schema.json": _json_text(_schema_inputs(manifest)),
+        "output.schema.json": _json_text(_schema_outputs()),
+        "references/pipeline.md": _reference_text(
             name=name,
             source_manifest_path=manifest_path,
             source_manifest_sha256=manifest_sha,
@@ -405,28 +422,26 @@ def compile_pipeline_draft(
             command_contract=commands,
             limitations=limit_values,
         ),
-        encoding="utf-8",
-    )
-    _write_json(
-        references / "index.json",
-        {
-            "schema_version": 1,
-            "skill": name,
-            "references": [
-                {
-                    "id": "pipeline",
-                    "path": "references/pipeline.md",
-                    "purpose": "Exact generated workflow shape, input/output schemas, promotion path, failure handling, and source lineage.",
-                    "read_when": ["before using the generated draft", "before reconstructing commands", "before validating or promoting the draft"],
-                    "required_before": ["executing any promoted command", "declaring the draft reusable", "adding it to an audited catalog"],
-                    "search_patterns": ["## Command contract", "## Output contract", "## Validation and promotion", "## Failure handling"],
-                    "authority": "Generated from a hash-validated Codex Science run",
-                    "version": "1",
-                    "evidence_boundary": "The generated reference preserves workflow structure but is not evidence for a new run."
-                }
-            ]
-        },
-    )
+        "references/index.json": _json_text(
+            {
+                "schema_version": 1,
+                "skill": name,
+                "references": [
+                    {
+                        "id": "pipeline",
+                        "path": "references/pipeline.md",
+                        "purpose": "Exact generated workflow shape, input/output schemas, promotion path, failure handling, and source lineage.",
+                        "read_when": ["before using the generated draft", "before reconstructing commands", "before validating or promoting the draft"],
+                        "required_before": ["executing any promoted command", "declaring the draft reusable", "adding it to an audited catalog"],
+                        "search_patterns": ["## Command contract", "## Output contract", "## Validation and promotion", "## Failure handling"],
+                        "authority": "Generated from a hash-validated Codex Science run",
+                        "version": "1",
+                        "evidence_boundary": "The generated reference preserves workflow structure but is not evidence for a new run."
+                    }
+                ]
+            },
+        ),
+    }
     promotion_material = {
         "schema_version": 1,
         "status": "draft",
@@ -451,5 +466,20 @@ def compile_pipeline_draft(
         ]
     }
     promotion = {**promotion_material, "fingerprint": _fingerprint(promotion_material)}
-    _write_json(output_dir / "promotion.json", promotion)
+    rendered["promotion.json"] = _json_text(promotion)
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    # A directory rename publishes every file together and refuses a nonempty winner.
+    # TemporaryDirectory cleans only this private tree, without following symlinks.
+    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as temporary:
+        staging = Path(temporary)
+        for relative, content in rendered.items():
+            path = staging / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        try:
+            staging.rename(output_dir)
+        except OSError as error:
+            if error.errno in (errno.EEXIST, errno.ENOTEMPTY):
+                raise ValueError(f"output directory is not empty: {output_dir}") from error
+            raise
     return promotion

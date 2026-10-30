@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from codex_science.artifact_store import describe_file
 from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, write_manifest
@@ -36,6 +37,107 @@ def reviewed_run(root: Path, *, review_status: str = "passed") -> Path:
 
 
 class PipelineCompilerTests(unittest.TestCase):
+    def test_write_failure_preserves_destination_and_retry_succeeds(self) -> None:
+        for existing in (False, True):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                manifest = reviewed_run(root)
+                output = root / "draft"
+                if existing:
+                    output.mkdir()
+                keep = root / "keep.txt"
+                keep.write_text("preserved")
+                before = set(root.iterdir())
+                original = Path.write_text
+
+                def fail_write(path, text, *args, **kwargs):
+                    if path.name == "input.schema.json":
+                        original(path, text[:5], *args, **kwargs)
+                        (path.parent / "external").symlink_to(keep)
+                        raise OSError("File too large")
+                    return original(path, text, *args, **kwargs)
+
+                with patch.object(Path, "write_text", fail_write):
+                    with self.assertRaisesRegex(OSError, "File too large"):
+                        compile_pipeline_draft(
+                            manifest_path=manifest, output_dir=output,
+                            name="fixture-pipeline", description="Fixture.",
+                        )
+                self.assertEqual(before, set(root.iterdir()))
+                self.assertEqual(existing, output.exists())
+                self.assertEqual("preserved", keep.read_text())
+                if existing:
+                    self.assertEqual([], list(output.iterdir()))
+                compile_pipeline_draft(
+                    manifest_path=manifest, output_dir=output,
+                    name="fixture-pipeline", description="Fixture.",
+                )
+                self.assertEqual(6, sum(path.is_file() for path in output.rglob("*")))
+                self.assertEqual(before | {output}, set(root.iterdir()))
+
+    def test_publish_failure_cleans_only_staging(self) -> None:
+        for existing in (False, True):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                manifest = reviewed_run(root)
+                output = root / "draft"
+                if existing:
+                    output.mkdir()
+                before = set(root.iterdir())
+                with patch.object(Path, "rename", side_effect=OSError("publish failed")):
+                    with self.assertRaisesRegex(OSError, "publish failed"):
+                        compile_pipeline_draft(
+                            manifest_path=manifest, output_dir=output,
+                            name="fixture-pipeline", description="Fixture.",
+                        )
+                self.assertEqual(before, set(root.iterdir()))
+                if existing:
+                    self.assertEqual([], list(output.iterdir()))
+
+    def test_concurrent_publisher_preserves_complete_winner(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            output = root / "draft"
+            original = Path.rename
+
+            def publish_second(staging, destination):
+                self.assertEqual(6, sum(path.is_file() for path in staging.rglob("*")))
+                self.assertEqual(output.parent, staging.parent)
+                self.assertEqual(0o700, staging.stat().st_mode & 0o777)
+                with patch.object(Path, "rename", original):
+                    compile_pipeline_draft(
+                        manifest_path=manifest, output_dir=output,
+                        name="winning-pipeline", description="Winning fixture.",
+                    )
+                return original(staging, destination)
+
+            with patch.object(Path, "rename", publish_second):
+                with self.assertRaisesRegex(ValueError, "not empty"):
+                    compile_pipeline_draft(
+                        manifest_path=manifest, output_dir=output,
+                        name="fixture-pipeline", description="Fixture.",
+                    )
+            self.assertEqual("winning-pipeline", json.loads((output / "promotion.json").read_text())["skill"])
+            self.assertEqual(6, sum(path.is_file() for path in output.rglob("*")))
+            self.assertEqual({manifest.parent, output}, set(root.iterdir()))
+
+    def test_invalid_commands_and_render_failures_create_no_output(self) -> None:
+        for commands, error in (([[]], ValueError), ([[0]], ValueError),
+                                ([[""]], ValueError), (["malformed"], ValueError), ([], TypeError)):
+            with self.subTest(commands=commands), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                manifest = reviewed_run(root)
+                output = root / "missing" / "draft"
+                before = set(root.iterdir())
+                with self.assertRaises(error):
+                    compile_pipeline_draft(
+                        manifest_path=manifest, output_dir=output,
+                        name="fixture-pipeline", description="Fixture.", command_contract=commands,
+                        generated_at=object() if error is TypeError else None,
+                    )
+                self.assertEqual(before, set(root.iterdir()))
+
     def test_cli_protects_numeric_manifest_paths_before_creating_draft(self) -> None:
         for field in ("path", "descriptor_path", "input"):
             for value in (0, 123):
