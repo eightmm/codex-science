@@ -92,6 +92,12 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         record = json.dumps(event).encode() + b"\n"
         oversized = b"9" * 5000
         nested = b"[" * 10000 + b"]" * 10000
+        try:
+            json.loads(nested)
+        except RecursionError:
+            nested_message = "invalid resolution event at line 2"
+        else:
+            nested_message = "resolution event at line 2 must be an object"
         for prefix, prior_events in ((b"", []), (record, [event]),
                                      (record[:-1] + b"\r", [event]),
                                      ((record[:-1] + b"\r") * 2, [event, event]),
@@ -126,7 +132,7 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                                                (b"{\r", "invalid resolution event at line 2"),
                                                (b"{\r\n", "invalid resolution event at line 2"),
                                                (oversized + b"\n", "invalid resolution event at line 2"),
-                                               (nested + b"\n", "invalid resolution event at line 2"),
+                                               (nested + b"\n", nested_message),
                                                (b"\xe2\n", "invalid resolution event at line 2"),
                                                (b"\xe2\r", "invalid resolution event at line 2"),
                                                (b"\xe2\r\n", "invalid resolution event at line 2"),
@@ -139,11 +145,18 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
 
     def test_resolution_parser_limits_have_clean_cli_refusals(self) -> None:
         script = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"
+        nested = b"[" * 10000 + b"]" * 10000
+        try:
+            json.loads(nested)
+        except RecursionError:
+            nested_message = "invalid resolution event at line 1"
+        else:
+            nested_message = "resolution event at line 1 must be an object"
         with tempfile.TemporaryDirectory() as temporary:
             root = self.annotation_run(Path(temporary))
             ledger = root / "annotations/resolutions.jsonl"
             timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
-            for tail in (b"9" * 5000, b"[" * 10000 + b"]" * 10000, b"\xe2"):
+            for tail in (b"9" * 5000, nested, b"\xe2"):
                 for command in (["list"], ["resolve", "--id", "A-1", "--status", "resolved",
                                            "--resolver", "reviewer"]):
                     with self.subTest(tail=tail[:20], command=command[0]):
@@ -152,7 +165,9 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                         result = subprocess.run([sys.executable, str(script), str(root), *command],
                                                 capture_output=True, text=True, timeout=timeout)
                         self.assertEqual(2, result.returncode, result.stderr)
-                        self.assertIn("invalid resolution event at line 1", result.stderr)
+                        message = nested_message if tail == nested else "invalid resolution event at line 1"
+                        self.assertIn(message, result.stderr)
+                        self.assertEqual("", result.stdout)
                         self.assertNotIn("Traceback", result.stderr)
                         self.assertEqual(original, ledger.read_bytes())
                         self.assertEqual([], list(ledger.parent.glob("resolutions.jsonl.torn-*")))

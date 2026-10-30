@@ -256,6 +256,19 @@ class MCPServerTests(unittest.TestCase):
                    '"params":{"name":"science_query_source_v2",'
                    '"arguments":{"source":"eqtl_catalogue","parameters":{"query":'
                    + nested + '}}}}\n')
+        try:
+            decoded = json.loads(request)
+        except RecursionError:
+            decoded = None
+        else:
+            tool_error = {
+                "jsonrpc": "2.0", "id": 43,
+                "result": {"content": [{"type": "text", "text": "Connector error: maximum recursion depth exceeded"}],
+                           "isError": True},
+            }
+            with patch("codex_science.mcp_server.execute_connector") as execute:
+                self.assertEqual(tool_error, self.server.handle(decoded))
+                execute.assert_not_called()
         completed = subprocess.run(
             [sys.executable, "scripts/science_mcp.py", "--inventory", str(self.inventory)],
             cwd=Path(__file__).resolve().parents[1],
@@ -264,9 +277,13 @@ class MCPServerTests(unittest.TestCase):
             timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")),
         )
         self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertEqual("", completed.stderr)
         responses = [json.loads(line) for line in completed.stdout.splitlines()]
         self.assertEqual(2, len(responses))
-        self.assertEqual(-32700, responses[0]["error"]["code"])
+        if decoded is None:
+            self.assertEqual(-32700, responses[0]["error"]["code"])
+        else:
+            self.assertEqual(tool_error, responses[0])
         self.assertEqual({"jsonrpc": "2.0", "id": 44, "result": {}}, responses[1])
 
     def test_stdio_bounds_frames_and_recovers_in_real_process(self) -> None:

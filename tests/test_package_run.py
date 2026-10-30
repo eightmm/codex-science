@@ -708,10 +708,17 @@ class PackageRunTests(unittest.TestCase):
                         self.assertEqual(list(run_dir.iterdir()), [journal])
 
     def test_exec_refuses_undecodable_journal_before_running(self) -> None:
+        nested = b"[" * 10000 + b"]" * 10000
+        try:
+            json.loads(nested)
+        except RecursionError:
+            nesting_message = "excessive nesting"
+        else:
+            nesting_message = "execution record must be a JSON object"
         prefixes = [(b"", 1), (b"{}\n\n", 3)]
         prefixes.extend((f"{{}}{separator}{{}}\n".encode("utf-8"), 3) for separator in ("\u2028", "\u0085", "\v"))
         for prefix, line_number in prefixes:
-            for value in (b"{", b"null{}", b"\xff", b"1" * 5000, b"[" * 10000 + b"]" * 10000):
+            for value in (b"{", b"null{}", b"\xff", b"1" * 5000, nested):
                 with self.subTest(prefix=prefix, value_start=value[:8], size=len(value)), tempfile.TemporaryDirectory() as directory:
                     run_dir = Path(directory)
                     journal = run_dir / "execution-log.jsonl"
@@ -726,7 +733,7 @@ class PackageRunTests(unittest.TestCase):
                     self.assertIn(f"execution-log.jsonl line {line_number}", result.stderr)
                     self.assertNotIn("Traceback", result.stderr)
                     if value.startswith(b"["):
-                        self.assertIn("excessive nesting", result.stderr)
+                        self.assertIn(nesting_message, result.stderr)
                     self.assertEqual(result.stdout, "")
                     self.assertEqual(journal.read_bytes(), content)
                     self.assertEqual(list(run_dir.iterdir()), [journal])

@@ -760,17 +760,26 @@ class QuantitativeInputTypeTests(unittest.TestCase):
                         output.unlink(missing_ok=True)
 
     def test_cli_refuses_excessive_json_nesting_without_traceback(self):
+        import json
         import os
         from pathlib import Path
         import subprocess
         import sys
         import tempfile
 
+        content = '{"x":' + '[' * 10000 + '0' + ']' * 10000 + '}'
+        try:
+            json.loads(content)
+        except RecursionError:
+            message = "excessive nesting"
+        else:
+            message = "unsupported dimension-check input schema"
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tempdir:
             source = Path(tempdir) / "nested.json"
             output = Path(tempdir) / "output.json"
-            source.write_text('{"x":' + '[' * 10000 + '0' + ']' * 10000 + '}')
+            source.write_text(content)
+            before = source.read_bytes()
             for exists in (False, True):
                 if exists:
                     output.write_text("keep")
@@ -783,8 +792,9 @@ class QuantitativeInputTypeTests(unittest.TestCase):
                     self.assertEqual(1, completed.returncode)
                     self.assertEqual("", completed.stdout)
                     self.assertTrue(completed.stderr.startswith("error: "), completed.stderr)
-                    self.assertIn("excessive nesting", completed.stderr)
+                    self.assertIn(message, completed.stderr)
                     self.assertNotIn("Traceback", completed.stderr)
+                    self.assertEqual(before, source.read_bytes())
                     self.assertEqual(output.exists(), exists)
                     if exists:
                         self.assertEqual("keep", output.read_text())
