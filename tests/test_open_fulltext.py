@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 from unittest.mock import MagicMock, Mock
@@ -20,9 +21,65 @@ import codex_science.open_fulltext as open_fulltext
 from codex_science.open_fulltext import _EuropePMCRedirectHandler, fetch_fulltext, identifiers_from_run
 from codex_science.citation_trace import trace_citations
 from codex_science.evidence import _validate_query_records
+from test_transport_v3 import local_chunked_response, local_redirect_server
 
 
 class OpenFulltextTests(unittest.TestCase):
+    def test_final_request_time_exhaustion_reports_cap(self):
+        for elapsed in (0.5, 1, 2):
+            with self.subTest(elapsed=elapsed):
+                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=1,
+                                        clock=Mock(side_effect=[0, 0, elapsed]),
+                                        fetch=Mock(return_value=(200, b'{"resultList":{"result":[]}}')))
+                self.assertEqual(elapsed >= 1, result["cap_reached"])
+        for value in (0, -1, None, True, "1", float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "max_seconds"):
+                fetch_fulltext([], self.run, execute=True, max_seconds=value)
+
+    def test_slow_trailers_obey_fulltext_wall_budget(self):
+        for mode in ("opener", "http-error", "injected"):
+            with self.subTest(mode=mode), local_chunked_response(
+                status=503 if mode == "http-error" else 200,
+            ) as response:
+                opener = Mock()
+                if mode == "http-error":
+                    opener.open.side_effect = urllib.error.HTTPError(
+                        open_fulltext.BASE + "/search", 503, "Test", response.headers, response)
+                else:
+                    opener.open.return_value = response
+                with patch.object(open_fulltext.urllib.request, "build_opener", return_value=opener):
+                    started = time.monotonic()
+                    result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=0.05,
+                                            fetch=(lambda *_args, **_kwargs: response) if mode == "injected" else None)
+                    elapsed = time.monotonic() - started
+                self.assertTrue(result["cap_reached"])
+                self.assertEqual("unavailable", result["results"][0]["status"])
+                self.assertLess(elapsed, 0.3)
+                self.assertTrue(response.isclosed())
+
+        with local_redirect_server() as (_url, seen, build_opener), patch.object(
+            open_fulltext.urllib.request, "build_opener", side_effect=build_opener,
+        ):
+            started = time.monotonic()
+            result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=0.05)
+            elapsed = time.monotonic() - started
+            self.assertTrue(result["cap_reached"])
+            self.assertEqual("unavailable", result["results"][0]["status"])
+            self.assertLess(elapsed, 0.3)
+            self.assertEqual(1, len(seen))
+            self.assertIn("/search?", seen[0])
+
+        for hop in ("initial", "redirect", "target", "status", "tls"):
+            with self.subTest(slow_headers=hop), local_redirect_server(trailers=0, slow_headers=hop) as (
+                _url, seen, build_opener,
+            ), patch.object(open_fulltext.urllib.request, "build_opener", side_effect=build_opener):
+                started = time.monotonic()
+                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_seconds=0.05)
+                self.assertLess(time.monotonic() - started, 0.3)
+                self.assertTrue(result["cap_reached"])
+                self.assertEqual("unavailable", result["results"][0]["status"])
+                self.assertEqual(2 if hop == "target" else 1, len(seen))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.run = Path(self.temp.name)

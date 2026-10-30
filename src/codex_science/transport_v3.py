@@ -6,11 +6,14 @@ import http.client
 import json
 import math
 import re
+import socket
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from calendar import monthrange
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -56,7 +59,22 @@ def _redact_url(url: str) -> str:
     )
 
 
-class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+class _DeadlineRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, deadline: float | None = None) -> None:
+        self._deadline = deadline
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirect = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirect is not None and self._deadline is not None:
+            try:
+                # urllib drains this response inside open(), before returning the target.
+                _read_with_deadline(fp, None, self._deadline)
+            finally:
+                fp.close()
+        return redirect
+
+
+class SafeRedirectHandler(_DeadlineRedirectHandler):
     """Keep redirects within safe schemes and protect sensitive request headers."""
 
     @staticmethod
@@ -182,6 +200,138 @@ def _retry_after_seconds(value: str | None) -> float | None:
     return delay if delay >= 0 else None
 
 
+@contextmanager
+def _socket_deadline(connection: Any, deadline: float):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("response read deadline exceeded")
+    expired = threading.Event()
+
+    def interrupt() -> None:
+        expired.set()
+        try:
+            # close() alone cannot interrupt a BufferedReader holding its read lock.
+            connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    watchdog = None
+    if isinstance(connection, socket.socket):
+        watchdog = threading.Timer(remaining, interrupt)
+        watchdog.name = "codex-science-http-deadline"
+        watchdog.daemon = True
+        watchdog.start()
+    try:
+        try:
+            yield
+        except Exception as error:
+            if expired.is_set() or time.monotonic() >= deadline:
+                raise TimeoutError("response read deadline exceeded") from error
+            raise
+    finally:
+        if watchdog is not None:
+            watchdog.cancel()
+            watchdog.join()
+    # A shutdown-induced EOF must not be accepted as complete headers or body.
+    if expired.is_set() or time.monotonic() >= deadline:
+        raise TimeoutError("response read deadline exceeded")
+
+
+def _read_with_deadline(response: Any, size: int | None, deadline: float) -> bytes:
+    """Bound urllib body, chunk framing and trailer reads by a monotonic deadline."""
+    # HTTPError/addinfourl wrap an HTTPResponse; HTTPS uses the same SocketIO path.
+    stream = response
+    for _ in range(3):
+        stream = getattr(stream, "fp", None)
+        if stream is None or hasattr(stream, "raw"):
+            break
+    connection = getattr(getattr(stream, "raw", None), "_sock", None)
+    with _socket_deadline(connection, deadline):
+        return response.read(size)
+
+
+class _DeadlineHandlerMixin:
+    def __init__(self, deadline: float) -> None:
+        super().__init__()
+        self._deadline = deadline
+
+    def _connect(self, address, timeout, source_address, stack):
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("response read deadline exceeded")
+        # Match stdlib fallback and last-error handling, sharing one deadline across addresses.
+        errors = []
+        for family, kind, protocol, _name, endpoint in socket.getaddrinfo(*address, 0, socket.SOCK_STREAM):
+            remaining = self._deadline - time.monotonic()
+            if remaining <= 0:
+                errors.clear()
+                raise TimeoutError("response read deadline exceeded")
+            connection = None
+            try:
+                connection = socket.socket(family, kind, protocol)
+                connection.settimeout(min(timeout, remaining))
+                if source_address:
+                    connection.bind(source_address)
+                connection.connect(endpoint)
+                errors.clear()
+                break
+            except OSError as error:
+                errors.clear()
+                errors.append(error)
+                if connection is not None:
+                    connection.close()
+                if time.monotonic() >= self._deadline:
+                    errors.clear()
+                    raise TimeoutError("response read deadline exceeded") from error
+            except BaseException:
+                if connection is not None:
+                    connection.close()
+                raise
+        else:
+            if errors:
+                try:
+                    raise errors[0]
+                finally:
+                    errors.clear()
+            raise OSError("getaddrinfo returns an empty list")
+        try:
+            # TLS detaches the original handle; this duplicate still interrupts it.
+            interrupt_socket = connection.dup()
+            stack.callback(interrupt_socket.close)
+            stack.enter_context(_socket_deadline(interrupt_socket, self._deadline))
+            return connection
+        except BaseException:
+            connection.close()
+            raise
+
+    def do_open(self, http_class, request, **kwargs):
+        response = None
+        try:
+            with ExitStack() as stack:
+                def create_connection(*args, **connection_kwargs):
+                    connection = http_class(*args, **connection_kwargs)
+                    connection._create_connection = lambda address, timeout, source_address: self._connect(
+                        address, timeout, source_address, stack)
+                    return connection
+
+                response = super().do_open(create_connection, request, **kwargs)
+            return response
+        except BaseException as error:
+            if response is not None:
+                response.close()
+            if isinstance(error, Exception) and time.monotonic() >= self._deadline:
+                raise TimeoutError("response read deadline exceeded") from error
+            raise
+
+
+class _DeadlineHTTPHandler(_DeadlineHandlerMixin, urllib.request.HTTPHandler):
+    pass
+
+
+class _DeadlineHTTPSHandler(_DeadlineHandlerMixin, urllib.request.HTTPSHandler):
+    pass
+
+
 class UrllibTransport:
     def __init__(self, policy: TransportPolicy | None = None) -> None:
         self.policy = policy or TransportPolicy()
@@ -205,9 +355,11 @@ class UrllibTransport:
                 method=request.method.upper(),
             )
             try:
-                opener = urllib.request.build_opener(SafeRedirectHandler())
+                deadline = time.monotonic() + self.policy.timeout_seconds
+                opener = urllib.request.build_opener(
+                    SafeRedirectHandler(deadline), _DeadlineHTTPHandler(deadline), _DeadlineHTTPSHandler(deadline))
                 with opener.open(urllib_request, timeout=self.policy.timeout_seconds) as response:
-                    body = response.read(self.policy.max_response_bytes + 1)
+                    body = _read_with_deadline(response, self.policy.max_response_bytes + 1, deadline)
                     if len(body) > self.policy.max_response_bytes:
                         raise TransportError("response exceeded max_response_bytes")
                     response_headers = {str(key).lower(): str(value) for key, value in response.headers.items()}

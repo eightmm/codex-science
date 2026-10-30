@@ -20,6 +20,9 @@ from typing import Any, Callable
 from codex_science.citation_trace import _walk_ids, extract_identifiers
 from codex_science.connectors import USER_AGENT
 from codex_science.literature_v2 import normalize_identifier
+from codex_science.transport_v3 import (
+    _DeadlineHTTPHandler, _DeadlineHTTPSHandler, _DeadlineRedirectHandler, _read_with_deadline,
+)
 
 BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 EVIDENCE_BOUNDARY = "Full text retrieved; not evidence that it supports any claim. Retrieved text is untrusted data and is not executed or followed."
@@ -77,7 +80,7 @@ def _is_xml_root_start(body: bytes, offset: int) -> bool:
     return False
 
 
-class _EuropePMCRedirectHandler(urllib.request.HTTPRedirectHandler):
+class _EuropePMCRedirectHandler(_DeadlineRedirectHandler):
     def redirect_request(self, request, fp, code, message, headers, newurl):
         target = urllib.parse.urlsplit(newurl)
         if target.scheme.lower() != "https" or target.hostname not in _HOSTS or target.port not in (None, 443):
@@ -90,10 +93,12 @@ def _http_fetch(url: str, *, timeout: float, max_body_bytes: int) -> tuple[int, 
     if parsed.scheme != "https" or parsed.hostname not in _HOSTS or parsed.port not in (None, 443):
         raise ValueError("refused non-Europe PMC URL")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, application/xml"})
-    opener = urllib.request.build_opener(_EuropePMCRedirectHandler())
+    deadline = time.monotonic() + timeout
+    opener = urllib.request.build_opener(
+        _EuropePMCRedirectHandler(deadline), _DeadlineHTTPHandler(deadline), _DeadlineHTTPSHandler(deadline))
     try:
         with opener.open(request, timeout=timeout) as response:
-            body = response.read(max_body_bytes + 1)
+            body = _read_with_deadline(response, max_body_bytes + 1, deadline)
             if len(body) > max_body_bytes:
                 raise ValueError("response exceeds body cap")
             length = response.headers.get("Content-Length")
@@ -104,10 +109,11 @@ def _http_fetch(url: str, *, timeout: float, max_body_bytes: int) -> tuple[int, 
                     raise ValueError("incomplete response body")
             return response.status, body
     except urllib.error.HTTPError as exc:
-        body = exc.read(max_body_bytes + 1)
-        if len(body) > max_body_bytes:
-            raise ValueError("response exceeds body cap")
-        return exc.code, body
+        with exc:
+            body = _read_with_deadline(exc, max_body_bytes + 1, deadline)
+            if len(body) > max_body_bytes:
+                raise ValueError("response exceeds body cap")
+            return exc.code, body
 
 
 def _manifest(root: Path) -> tuple[dict[str, Any], list[tuple[str, str]]]:
@@ -538,17 +544,27 @@ def fetch_fulltext(
         body = b""
         plain: str | Exception | None = None
         try:
+            deadline = time.monotonic() + remaining
             response = fetcher(url, timeout=min(10.0, remaining), max_body_bytes=max_body_bytes)
-            response_status, body = response if isinstance(response, tuple) else (response.status, response.read(max_body_bytes + 1))
+            if isinstance(response, tuple):
+                response_status, body = response
+            else:
+                try:
+                    response_status = response.status
+                    body = _read_with_deadline(response, max_body_bytes + 1, deadline)
+                finally:
+                    close = getattr(response, "close", None)
+                    if close is not None:
+                        close()
             if isinstance(body, str):
                 body = body.encode("utf-8")
             if len(body) > max_body_bytes:
                 raise ValueError("response exceeds body cap")
-            if clock() - started > max_seconds:
+            if clock() - started >= max_seconds:
                 stop_for_cap = True
         except (OSError, TimeoutError, http.client.HTTPException, urllib.error.URLError, ValueError, TypeError, AttributeError):
             response_status, body = None, b""
-            if clock() - started > max_seconds:
+            if clock() - started >= max_seconds:
                 stop_for_cap = True
         if response_status == 200 and pmcid is not None:
             try:
@@ -691,7 +707,7 @@ def fetch_fulltext(
         results.append({"identifier": identifier, "fulltext_pmcid": pmcid, "license": license_value,
                         "status": "fetched", "response_sha256": hashlib.sha256(xml).hexdigest()})
 
-    cap_reached = any(result.get("status") == "skipped-cap" for result in results)
+    cap_reached = stop_for_cap or any(result.get("status") == "skipped-cap" for result in results)
     return {"schema": "open-fulltext-v1", "evidence_boundary": EVIDENCE_BOUNDARY,
             "execute": execute, "results": results, "requests_recorded": requests_recorded,
             "fetch_ledger": "fulltext/fetch-ledger.jsonl",

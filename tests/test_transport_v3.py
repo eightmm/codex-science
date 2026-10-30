@@ -1,15 +1,22 @@
 import hashlib
+import errno
 import http.client
 import io
 import json
+import os
+import socket
 import tempfile
+import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
 from urllib.parse import parse_qs, urlsplit
 from datetime import datetime, timezone
 from email.message import Message
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, call, patch
 
 from codex_science.connector_contract import QueryRequest, classify_drift, execute_connector, sha256_json
@@ -30,6 +37,168 @@ from codex_science.transport_v3 import (
     execute_paginated,
     replay_snapshot_directory,
 )
+
+
+@contextmanager
+def local_chunked_response(body=b'{"resultList":{"result":[]}}', *, trailers=60, status=200,
+                           phase="trailers"):
+    """Drip HTTP bytes locally so each operation beats an inactivity timeout."""
+    rx, tx = socket.socketpair()
+    stopped = threading.Event()
+    call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+    rx.settimeout(call_timeout)
+    if phase == "body":
+        tx.sendall(f"HTTP/1.1 {status} Test\r\nContent-Length: {trailers}\r\n\r\n".encode())
+        piece, ending = b"x", b""
+    else:
+        tx.sendall(f"HTTP/1.1 {status} Test\r\nTransfer-Encoding: chunked\r\n\r\n".encode())
+        if body:
+            tx.sendall(f"{len(body):x}\r\n".encode() + body + b"\r\n")
+        tx.sendall(b"0;" if phase == "framing" else b"0\r\n")
+        piece, ending = (b"x", b"\r\n\r\n") if phase == "framing" else (b"X-T: 1\r\n", b"\r\n")
+
+    def send_trailers():
+        try:
+            for _ in range(trailers):
+                if stopped.wait(0.01):
+                    return
+                tx.sendall(piece)
+            tx.sendall(ending)
+        except OSError:
+            pass
+
+    sender = threading.Thread(target=send_trailers)
+    response = http.client.HTTPResponse(rx, url="https://example.org")
+    try:
+        response.begin()
+        response.url = "https://example.org"
+        sender.start()
+        yield response
+    finally:
+        stopped.set()
+        response.close()
+        rx.close()
+        tx.close()
+        if sender.ident is not None:
+            sender.join(call_timeout)
+            if sender.is_alive():
+                raise AssertionError("local trailer sender leaked")
+
+
+@contextmanager
+def local_redirect_server(*, trailers=60, body=b"{}", malformed=False, slow_headers=None):
+    stopped = threading.Event()
+    seen = []
+    errors = []
+    call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            seen.append(self.path)
+            try:
+                if slow_headers == "status":
+                    self.wfile.write(b"HTTP/1.1 200 ")
+                    self.wfile.flush()
+                    for _ in range(60):
+                        if stopped.wait(0.01):
+                            return
+                        self.wfile.write(b"X")
+                        self.wfile.flush()
+                    self.wfile.write(b"\r\nContent-Length: " + str(len(body)).encode()
+                                     + b"\r\nConnection: close\r\n\r\n" + body)
+                    return
+                redirect = self.path != "/target" and slow_headers != "initial"
+                self.send_response(302 if redirect else 200)
+                if slow_headers == "initial" or slow_headers == ("redirect" if redirect else "target"):
+                    self.flush_headers()
+                    for _ in range(60):
+                        if stopped.wait(0.01):
+                            return
+                        self.send_header("X-H", "1")
+                        self.flush_headers()
+                if not redirect:
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_header("Location", "/target")
+                self.send_header("Transfer-Encoding", "chunked")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                if malformed:
+                    self.wfile.write(b"invalid\r\n")
+                    return
+                if body:
+                    self.wfile.write(f"{len(body):x}\r\n".encode() + body + b"\r\n")
+                self.wfile.write(b"0\r\n")
+                self.wfile.flush()
+                for _ in range(trailers):
+                    if stopped.wait(0.01):
+                        return
+                    self.wfile.write(b"X-T: 1\r\n")
+                    self.wfile.flush()
+                self.wfile.write(b"\r\n")
+            except (BrokenPipeError, ConnectionResetError):
+                # Deadline shutdown intentionally disconnects the streaming client.
+                pass
+            except OSError as error:
+                errors.append(error)
+
+    class Server(HTTPServer):
+        def finish_request(self, request, client_address):
+            if slow_headers == "tls":
+                seen.append("tls")
+                try:
+                    request.recv(1)
+                    stopped.wait(call_timeout)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                except OSError as error:
+                    errors.append(error)
+            else:
+                super().finish_request(request, client_address)
+
+    server = Server(("127.0.0.1", 0), Handler)
+    server.socket.settimeout(call_timeout)
+    worker = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01))
+    original_builder = urllib.request.build_opener
+
+    def connect(_host, **kwargs):
+        connection_class = http.client.HTTPSConnection if slow_headers == "tls" else http.client.HTTPConnection
+        return connection_class(*server.server_address, **kwargs)
+
+    class LoopbackHTTPSHandler(urllib.request.HTTPSHandler):
+        def https_open(self, request):
+            # Keep Europe PMC URL validation and redirects; route only the connection.
+            return self.do_open(connect, request, **({"context": self._context} if slow_headers == "tls" else {}))
+
+    def build_opener(*handlers):
+        local_handlers = [handler for handler in handlers if isinstance(handler, urllib.request.HTTPSHandler)]
+        if local_handlers:
+            for handler in local_handlers:
+                handler.https_open = lambda request, handler=handler: handler.do_open(
+                    connect, request, **({"context": handler._context} if slow_headers == "tls" else {}))
+            return original_builder(urllib.request.ProxyHandler({}), *handlers)
+        return original_builder(urllib.request.ProxyHandler({}), LoopbackHTTPSHandler(), *handlers)
+
+    worker.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}", seen, build_opener
+    finally:
+        stopped.set()
+        server.shutdown()
+        server.server_close()
+        worker.join(call_timeout)
+        if worker.is_alive():
+            raise AssertionError("local redirect server leaked")
+        if errors:
+            raise AssertionError("local redirect server socket operation failed") from errors[0]
 
 
 class FakeTransport:
@@ -60,6 +229,220 @@ class FakeTransport:
 
 
 class TransportV3Tests(unittest.TestCase):
+    def test_slow_trailers_obey_attempt_deadline(self):
+        timers = []
+        duplicates = []
+        timer_factory = threading.Timer
+        duplicate_socket = socket.socket.dup
+
+        def tracked_timer(*args, **kwargs):
+            timer = timer_factory(*args, **kwargs)
+            timers.append(timer)
+            return timer
+
+        def tracked_duplicate(connection):
+            duplicate = duplicate_socket(connection)
+            duplicates.append(duplicate)
+            return duplicate
+
+        duplicate_patch = patch.object(socket.socket, "dup", tracked_duplicate)
+        duplicate_patch.start()
+        self.addCleanup(lambda: self.assertTrue(all(connection.fileno() == -1 for connection in duplicates)))
+        self.addCleanup(duplicate_patch.stop)
+        self.addCleanup(lambda: self.assertTrue(all(not timer.is_alive() for timer in timers)))
+        timer_patch = patch("threading.Timer", side_effect=tracked_timer)
+        timer_patch.start()
+        self.addCleanup(timer_patch.stop)
+        for phase, trailers in (("trailers", 10), ("trailers", 30), ("trailers", 60),
+                                ("framing", 60), ("body", 60)):
+            with self.subTest(phase=phase, trailers=trailers), local_chunked_response(
+                trailers=trailers, phase=phase,
+            ) as response:
+                opener = MagicMock()
+                opener.open.return_value = response
+                with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener):
+                    started = time.monotonic()
+                    with self.assertRaises(TransportError) as raised:
+                        UrllibTransport(TransportPolicy(timeout_seconds=0.05, max_attempts=1)).send(
+                            PageRequest("GET", "https://example.org", {}))
+                    elapsed = time.monotonic() - started
+                self.assertTrue(raised.exception.retryable)
+                self.assertIn("deadline", str(raised.exception))
+                self.assertLess(elapsed, 0.3)
+                self.assertTrue(response.isclosed())
+                self.assertTrue(all(not timer.is_alive() for timer in timers))
+
+        # A quick or empty response at the byte limit keeps its exact body.
+        for body in (b"", b"{}"):
+            with self.subTest(body=body), local_chunked_response(body, trailers=0) as response:
+                opener = MagicMock()
+                opener.open.return_value = response
+                with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener):
+                    result = UrllibTransport(TransportPolicy(max_response_bytes=max(1, len(body)))).send(
+                        PageRequest("GET", "https://example.org", {}))
+                self.assertEqual(body, result.body)
+                self.assertTrue(response.isclosed())
+                self.assertTrue(all(not timer.is_alive() for timer in timers))
+
+        # The remaining deadline includes time already spent opening the response.
+        with local_chunked_response() as response:
+            opener = MagicMock()
+            opener.open.return_value = response
+            with patch("codex_science.transport_v3.urllib.request.build_opener", return_value=opener), patch(
+                "codex_science.transport_v3.time.monotonic", side_effect=[0, 0.05],
+            ), self.assertRaisesRegex(TransportError, "deadline"):
+                UrllibTransport(TransportPolicy(timeout_seconds=0.05, max_attempts=1)).send(
+                    PageRequest("GET", "https://example.org", {}))
+            self.assertTrue(response.isclosed())
+
+        with local_redirect_server() as (url, seen, build_opener), patch(
+            "codex_science.transport_v3.urllib.request.build_opener", side_effect=build_opener,
+        ):
+            started = time.monotonic()
+            with self.assertRaisesRegex(TransportError, "deadline") as raised:
+                UrllibTransport(TransportPolicy(timeout_seconds=0.05, max_attempts=1)).send(
+                    PageRequest("GET", url + "/redirect", {}))
+            elapsed = time.monotonic() - started
+            self.assertTrue(raised.exception.retryable)
+            self.assertLess(elapsed, 0.3)
+            self.assertEqual(["/redirect"], seen)
+            self.assertTrue(all(not timer.is_alive() for timer in timers))
+
+        for body in (b"", b"{}"):
+            with self.subTest(redirect_body=body), local_redirect_server(trailers=0, body=body) as (
+                url, seen, build_opener,
+            ), patch("codex_science.transport_v3.urllib.request.build_opener", side_effect=build_opener):
+                result = UrllibTransport(TransportPolicy(max_attempts=1)).send(
+                    PageRequest("GET", url + "/redirect", {}))
+                self.assertEqual(body, result.body)
+                self.assertEqual(["/redirect", "/target"], seen)
+                self.assertTrue(all(not timer.is_alive() for timer in timers))
+
+        with local_redirect_server(malformed=True) as (url, seen, build_opener), patch(
+            "codex_science.transport_v3.urllib.request.build_opener", side_effect=build_opener,
+        ), self.assertRaises(TransportError):
+            UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", url + "/redirect", {}))
+        self.assertEqual(["/redirect"], seen)
+
+        baseline = sum(thread.name == "codex-science-http-deadline" for thread in threading.enumerate())
+        for hop in ("initial", "redirect", "target", "status", "tls"):
+            with self.subTest(slow_headers=hop), local_redirect_server(trailers=0, slow_headers=hop) as (
+                url, seen, build_opener,
+            ), patch("codex_science.transport_v3.urllib.request.build_opener", side_effect=build_opener):
+                started = time.monotonic()
+                with self.assertRaisesRegex(TransportError, "deadline") as raised:
+                    UrllibTransport(TransportPolicy(timeout_seconds=0.05, max_attempts=1)).send(
+                        PageRequest("GET", (url.replace("http:", "https:") if hop == "tls" else url)
+                                    + "/redirect", {}))
+                self.assertLess(time.monotonic() - started, 0.3)
+                self.assertTrue(raised.exception.retryable)
+                self.assertEqual(["/redirect", "/target"] if hop == "target"
+                                 else (["tls"] if hop == "tls" else ["/redirect"]), seen)
+                self.assertEqual(baseline, sum(thread.name == "codex-science-http-deadline"
+                                               for thread in threading.enumerate()))
+
+        with local_redirect_server(trailers=0) as (url, _seen, build_opener), patch(
+            "codex_science.transport_v3.urllib.request.build_opener", side_effect=build_opener,
+        ):
+            port = int(url.rsplit(":", 1)[1])
+            addresses = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", candidate))
+                         for candidate in (0, port)]
+            with patch("codex_science.transport_v3.socket.getaddrinfo", return_value=addresses):
+                result = UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", url + "/target", {}))
+                self.assertEqual(b"{}", result.body)
+            socket_class = socket.socket
+            families = []
+
+            class FamilySocket(socket_class):
+                def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+                    if fileno is None:
+                        families.append(family)
+                        if family == socket.AF_INET6:
+                            raise OSError(errno.EAFNOSUPPORT, "unsupported address family")
+                    super().__init__(family, type, proto, fileno)
+
+            unsupported = (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::1", port, 0, 0))
+            with patch("codex_science.transport_v3.socket.getaddrinfo", return_value=[unsupported, addresses[1]]), \
+                    patch("codex_science.transport_v3.socket.socket", FamilySocket):
+                with socket.create_connection(("127.0.0.1", port),
+                                              timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))):
+                    pass
+                self.assertEqual([socket.AF_INET6, socket.AF_INET], families)
+                families.clear()
+                result = UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", url + "/target", {}))
+                self.assertEqual(b"{}", result.body)
+                self.assertEqual([socket.AF_INET6, socket.AF_INET], families)
+                families.clear()
+                with patch("codex_science.transport_v3.socket.getaddrinfo", return_value=[unsupported]), \
+                        self.assertRaisesRegex(TransportError, "unsupported address family"):
+                    UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", url + "/target", {}))
+                self.assertEqual([socket.AF_INET6], families)
+            for answers in ([], addresses[:1]):
+                with self.subTest(addresses=answers), patch(
+                    "codex_science.transport_v3.socket.getaddrinfo", return_value=answers,
+                ), self.assertRaises(TransportError):
+                    UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", url + "/target", {}))
+            with patch("codex_science.transport_v3.socket.getaddrinfo", side_effect=socket.gaierror("bad address")), \
+                    self.assertRaisesRegex(TransportError, "bad address"):
+                UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", url + "/target", {}))
+            self.assertEqual(baseline, sum(thread.name == "codex-science-http-deadline"
+                                           for thread in threading.enumerate()))
+            self.assertTrue(all(not timer.is_alive() for timer in timers))
+
+            from codex_science.transport_v3 import _DeadlineHTTPHandler
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+            attempts = []
+            failed_sockets = []
+            exhaust_budget = True
+
+            class SlowSocket(socket_class):
+                def connect(self, _endpoint):
+                    attempts.append(self.gettimeout())
+                    failed_sockets.append(self)
+                    threading.Event().wait(self.gettimeout() if exhaust_budget else 0.001)
+                    raise TimeoutError(f"slow address {len(attempts)}")
+
+            with patch("codex_science.transport_v3.socket.getaddrinfo", return_value=[addresses[0]] * 3), \
+                    patch("codex_science.transport_v3.socket.socket", SlowSocket):
+                started = time.monotonic()
+                with ExitStack() as stack, self.assertRaises(TimeoutError):
+                    _DeadlineHTTPHandler(started + 0.04)._connect(("127.0.0.1", port), 1, None, stack)
+                elapsed = time.monotonic() - started
+                self.assertEqual(1, len(attempts))
+                self.assertLess(elapsed, 0.1)
+                self.assertTrue(all(connection.fileno() == -1 for connection in failed_sockets))
+                attempts.clear()
+                failed_sockets.clear()
+                exhaust_budget = False
+                with ExitStack() as stack, self.assertRaisesRegex(TimeoutError, "slow address 3"):
+                    _DeadlineHTTPHandler(time.monotonic() + call_timeout)._connect(
+                        ("127.0.0.1", port), call_timeout, None, stack)
+                self.assertEqual(3, len(attempts))
+                self.assertTrue(all(connection.fileno() == -1 for connection in failed_sockets))
+            with ExitStack() as stack:
+                connection = _DeadlineHTTPHandler(time.monotonic() + call_timeout)._connect(
+                    ("127.0.0.1", port), call_timeout, ("127.0.0.1", 0), stack)
+                try:
+                    self.assertEqual("127.0.0.1", connection.getsockname()[0])
+                finally:
+                    connection.close()
+            for deadline in (0, -1):
+                with self.subTest(deadline=deadline), ExitStack() as stack, patch(
+                    "codex_science.transport_v3.socket.getaddrinfo", return_value=addresses,
+                ), patch("codex_science.transport_v3.time.monotonic", return_value=0), \
+                        self.assertRaisesRegex(TimeoutError, "deadline"):
+                    _DeadlineHTTPHandler(deadline)._connect(("127.0.0.1", port), 1, None, stack)
+
+        # Preserve unrelated read errors and retire the watchdog on that path too.
+        with local_chunked_response(trailers=0) as response:
+            opener = MagicMock()
+            opener.open.return_value = response
+            with patch.object(response, "read", side_effect=OSError("broken read")), patch(
+                "codex_science.transport_v3.urllib.request.build_opener", return_value=opener,
+            ), self.assertRaisesRegex(TransportError, "broken read"):
+                UrllibTransport(TransportPolicy(max_attempts=1)).send(PageRequest("GET", "https://example.org", {}))
+            self.assertTrue(response.isclosed())
+
     def test_short_http_bodies_are_transport_failures(self):
         payload = b'{"esearchresult":{"count":"1","idlist":["1"]}}'
 
