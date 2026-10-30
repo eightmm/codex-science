@@ -332,6 +332,99 @@ attrition. Separate idea quality, implementation success, scientific result,
 novelty, and review quality. The repository does not claim this benchmark has
 been run.
 
+The literature-review preregistration is executable as a **dry-run planner**:
+
+```bash
+mkdir -p artifacts
+python3 scripts/plan_matched_baseline.py --out artifacts/matched-baseline-plan \
+  --model MODEL_VERSION --repetitions 3 --seed 20261030
+```
+
+Replace `MODEL_VERSION` with one exact model/version shared by all conditions.
+The planner writes `plan.json` and `summary.md` without launching Codex,
+reading the user's configuration or credentials, or accessing the network.
+It has no `--execute` option. Real runs require separate user approval of the
+task count and per-task time cap. GPT-Rosalind is excluded (approved
+institutions only).
+
+The three conditions are A, plain Codex without codex-science plugins or
+skills; B, plain Codex with OpenAI's official AlphaFold, PubMed, UniProt and
+PRIDE plugins, without codex-science; and C, Codex with codex-science. Each uses
+the same six frozen tasks in `benchmarks/literature-review/tasks.json`, the
+same model/version and cap, and at least three repetitions per task. Task
+blocks are shuffled per repetition and A/B/C are shuffled within each block
+using the recorded seed. The default `--timeout-seconds 1800` gives
+**3 x 6 x 3 = 54 runs**, with a serial task wall-clock ceiling of **97,200
+seconds (27 hours)**, excluding setup, grading and queue waits. A smaller
+positive cap is allowed; caps above the frozen 1800-second limit are refused.
+`--tasks` selects a digest-validated six-task set; do not mix task-set versions.
+
+The JSON records task and grader file hashes, run IDs, order, environment,
+per-task caps, budgets, command blockers and dated local evidence. `frozen_files`
+is the sorted scoring closure: an AST walk follows transitive `codex_science`
+imports from the frozen runner/report scripts, citation tracer and evaluation
+report module, including package initializers and imports inside functions or
+conditional branches. Every file under `benchmarks/literature-review/` is also
+hashed recursively. Source files are parsed, never imported or executed to
+discover dependencies. `grader.sources` lists this inventory and
+`grader.sha256` hashes its canonical path/hash records; `summary.md` reports
+the closure size and digest. Missing entry points or local modules and malformed
+source refuse planning before outputs are created. The closure covers static
+local imports and benchmark files; it does not fingerprint the Python runtime,
+third-party packages, dynamic imports, provider behavior or external data.
+Condition C includes exact existing-runner plan-only invocations using `--plugin`,
+`--timeout-seconds` and optional `--codex-home`, plus per-run Codex argv built
+with the runner's existing command builder and an explicit model. The runner
+script paths are anchored to the repository root. Task-set, shared-home and
+output/run paths are expanded and made absolute, preserving symlink spelling
+as the existing runner does, so recorded argv remains valid from a run's
+project directory even when the planner receives a relative `--out`.
+The runner plan-only commands themselves do not pin the model; **do not append
+`--execute`** to them. `--plugin codex-science@MARKETPLACE` selects C's build;
+`--codex-home` describes a shared existing home, never an isolated home created
+by this planner. Loaded plugin/runtime versions, shared tools/data access,
+hooks, skills, memory and instructions must be audited before actual runs.
+
+Two execution decisions remain explicit. Local Codex 0.166.0 help confirms
+per-invocation `-c` configuration overrides and `--ignore-user-config`, but does
+not establish a complete plugin-and-host-skill exclusion mechanism for A/B.
+The existing runner always requests `$codex-science` and accepts only
+codex-science marketplace selectors; it cannot run an unmodified plain
+baseline. Its execution tests also forbid `--ignore-user-config`. The plan
+records candidate mechanisms and side effects rather than changing global
+config or creating an isolated `CODEX_HOME`. See the local evidence and
+[runner constraints](EVALUATION.md#stage-78-proportional-rigor-and-measured-completion).
+
+The inspected local personal marketplace and cache directory names did not
+establish official life-science identifiers or a marketplace. B therefore has
+four `unverified_placeholder` entries. Supply explicit selectors with repeated
+`--life-science-plugin NAME=PLUGIN@MARKETPLACE` flags, where `NAME` is
+`alphafold`, `pubmed`, `uniprot` or `pride`. Supplied identifiers remain
+operator assertions until official provenance and installed versions are
+verified. A/B command emission stays blocked by unresolved isolation and
+runner adaptation, even after all four selectors are supplied.
+
+Keep the shared grader unchanged: all-criteria completion, citation tracing,
+equal-weight rubric partial credit, wall seconds and available token usage.
+Missing tracing/usage stays unknown. Frozen checkpoint/artifact criteria can
+favor C's workflow; this comparison does not establish general scientific
+quality or semantic citation support. Independent reviewers receive anonymized
+outputs with the same frozen criteria. Retain invalid, missing, unsure and
+failed slots in the planned denominator and report attrition separately from
+valid-receipt summaries. Only evidenced provider-capacity failures may receive
+one linked rerun per slot, after the original grid, with a separately approved
+additional budget (up to 54 more attempts, 54 task-hours combined by default).
+Policy blocks count as failures without retry or rephrasing; timeouts and
+implementation errors also remain failures. Never replace failed attempts
+silently or change the evaluator after seeing outcomes.
+
+Output directories are reserved exclusively: a second or concurrent call using
+the same `--out` fails without overwriting it. The parent directory must exist.
+The summary is written first and JSON last; interruption can leave a partial
+bundle. A complete bundle requires parseable JSON and a matching
+`summary_sha256`; inspect partial output and choose a new directory for another
+plan. Planning creates no run directories or receipts and implies no approval.
+
 ## Limitations
 
 RDL structures reasoning and evidence; it cannot guarantee a good idea, prove
