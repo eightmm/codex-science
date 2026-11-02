@@ -918,6 +918,74 @@ class ArtifactRuntimeValidatorTests(unittest.TestCase):
             {**self.selection, "reason": "tampered"},
         )
 
+    def refingerprinted(self, payload: dict, id_field: str, prefix: str, **changes) -> dict:
+        material = {**payload, **changes}
+        material.pop("fingerprint")
+        material.pop(id_field)
+        fingerprint = _fingerprint(material)
+        return {**material, id_field: f"{prefix}-{fingerprint[:20]}", "fingerprint": fingerprint}
+
+    def test_unsafe_relative_paths_are_refused_with_labels(self) -> None:
+        for bad in (".", "a\\..\\b", "..\\etc", "a\x00b", "a\nb", "x/", "a/b/", "", "/abs", "../x"):
+            with self.subTest(path=bad), self.assertRaisesRegex(ValueError, "affected step must be a safe relative path"):
+                build_transform_proposal(
+                    self.selection, operation="op", parameters={}, reason="why",
+                    affected_steps=[bad], expected_outputs=[], proposed_by="analyst")
+        with self.assertRaisesRegex(ValueError, "expected output must be a safe relative path"):
+            build_transform_proposal(
+                self.selection, operation="op", parameters={}, reason="why",
+                affected_steps=["a"], expected_outputs=["x/"], proposed_by="analyst")
+        with self.assertRaisesRegex(ValueError, "artifact_path must be a safe relative path"):
+            describe_runtime(Path(self._tmp.name) / "data.txt", artifact_path="x/", kind="text")
+
+    def test_non_canonical_artifact_path_is_refused_by_validators(self) -> None:
+        for bad in ("a/./j.json", "./j.json", "a//j.json"):
+            with self.subTest(path=bad):
+                selection = self.refingerprinted(self.selection, "selection_id", "selection", artifact_path=bad)
+                self.assertRefused(validate_selection, selection, "artifact_path must be a canonical relative path")
+                self.assertRefused(stale_selection, selection, "artifact_path must be a canonical relative path", {})
+                descriptor = {**self.descriptor, "artifact_path": bad}
+                descriptor.pop("fingerprint")
+                descriptor["fingerprint"] = _fingerprint(descriptor)
+                self.assertRefused(validate_runtime_descriptor, descriptor,
+                                   "artifact_path must be a canonical relative path")
+                proposal = self.refingerprinted(self.proposal, "proposal_id", "transform", artifact_path=bad)
+                self.assertRefused(validate_transform_proposal, proposal, "artifact_path must be a canonical relative path")
+
+    def test_selection_anchor_is_canonicalised_identically_by_both_validators(self) -> None:
+        upper = self.selection["artifact_sha256"].upper()
+        selection = self.refingerprinted(self.selection, "selection_id", "selection", artifact_sha256=upper)
+        for hashes in ({"data.txt": self.selection["artifact_sha256"]}, {"data.txt": upper}):
+            with self.subTest(hashes=hashes):
+                validate_selection(selection, hashes)
+                validate_selection(self.selection, hashes)
+                self.assertEqual("active", stale_selection(selection, hashes)["status"])
+                self.assertEqual("active", stale_selection(self.selection, hashes)["status"])
+        self.assertEqual("stale-anchor", stale_selection(selection, {"data.txt": "0" * 64})["status"])
+        with self.assertRaisesRegex(ValueError, "stale artifact selection anchor"):
+            validate_selection(selection, {"data.txt": "0" * 64})
+
+    def test_proposal_validator_runs_builder_checks(self) -> None:
+        cases = [
+            ({"affected_steps": ["../x"]}, "affected_steps must be a safe relative path"),
+            ({"affected_steps": ["a/./b"]}, "affected_steps must be a canonical relative path"),
+            ({"affected_steps": ["a\\b"]}, "affected_steps must be a safe relative path"),
+            ({"affected_steps": [3]}, "affected_steps must be a string"),
+            ({"expected_outputs": [1]}, "expected_outputs must be a string"),
+            ({"expected_outputs": ["x/"]}, "expected_outputs must be a safe relative path"),
+            ({"requires_approval": "yes"}, "requires_approval must be a boolean"),
+            ({"requires_approval": None}, "requires_approval must be a boolean"),
+            ({"parameters": {"k": "x" * (64 * 1024)}}, "parameters exceed the runtime limit"),
+            ({"parameters": {"k": {1: "v"}}}, "object keys must be strings"),
+            ({"reason": "x" * (MAX_REASON_CHARACTERS + 1)}, "reason is too long"),
+        ]
+        for changes, message in cases:
+            with self.subTest(changes=list(changes)):
+                proposal = self.refingerprinted(self.proposal, "proposal_id", "transform", **changes)
+                self.assertRefused(validate_transform_proposal, proposal, message)
+        validate_transform_proposal(self.refingerprinted(
+            self.proposal, "proposal_id", "transform", requires_approval=False, expected_outputs=[]))
+
     def test_render_html_validates_first_and_renders_metadata(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported artifact viewer"):
             render_runtime_html({**self.descriptor, "viewer": "nope"})
@@ -935,6 +1003,72 @@ class ArtifactRuntimeValidatorTests(unittest.TestCase):
         self.assertIn("<li>&lt;b&gt;x&lt;/b&gt;</li>", rendered)
         self.assertIn("&lt;i&gt;v&lt;/i&gt;", rendered)
         self.assertNotIn("<i>v</i>", rendered)
+
+
+class ArtifactRuntimeCliWriteTests(unittest.TestCase):
+    script = Path(__file__).resolve().parents[1] / "scripts" / "render_artifact_runtime.py"
+
+    def run_cli(self, *argv: str) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, str(self.script), *argv], capture_output=True, text=True,
+                              timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+
+    def test_output_may_not_replace_any_input(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            artifact = root / "data.txt"
+            artifact.write_text("hello\n", encoding="utf-8")
+            descriptor_path = root / "data.runtime.json"
+            self.assertEqual(0, self.run_cli("describe", str(artifact), "--artifact-path", "data.txt", "--kind", "text",
+                                             "--max-bytes", "1024", "--max-records", "10",
+                                             "--output", str(descriptor_path)).returncode)
+            selection_path = root / "data.selection.json"
+            self.assertEqual(0, self.run_cli("select", str(descriptor_path), "--selector-type", "line",
+                                             "--selector", '{"line":1}', "--selected-by", "r", "--reason", "x",
+                                             "--output", str(selection_path)).returncode)
+            attempts = {
+                "describe": ["describe", str(artifact), "--artifact-path", "data.txt", "--kind", "text",
+                             "--max-bytes", "1024", "--max-records", "10"],
+                "render": ["render", str(descriptor_path)],
+                "select": ["select", str(descriptor_path), "--selector-type", "line", "--selector", '{"line":1}',
+                           "--selected-by", "r", "--reason", "x"],
+                "propose": ["propose", str(selection_path), "--operation", "o", "--parameters", "{}", "--reason", "x",
+                            "--affected-step", "s", "--proposed-by", "p"],
+            }
+            inputs = {"describe": artifact, "render": descriptor_path, "select": descriptor_path, "propose": selection_path}
+            for name, argv in attempts.items():
+                with self.subTest(command=name):
+                    before = inputs[name].read_bytes()
+                    result = self.run_cli(*argv, "--output", str(inputs[name]))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual(before, inputs[name].read_bytes())
+
+    def test_failed_validation_creates_no_output_or_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            bad = root / "bad.json"
+            bad.write_text("{}", encoding="utf-8")
+            output = root / "new" / "out.html"
+            result = self.run_cli("render", str(bad), "--output", str(output))
+            self.assertEqual(1, result.returncode)
+            self.assertFalse((root / "new").exists())
+
+    def test_write_is_atomic_and_leaves_no_temporary_file(self) -> None:
+        import importlib.util
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("render_artifact_runtime_under_test", self.script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as scratch:
+            output = Path(scratch) / "sub" / "out.json"
+            module._write_text(output, "old\n")
+            with patch.object(module.os, "replace", side_effect=OSError("interrupted")):
+                with self.assertRaises(OSError):
+                    module._write_text(output, "new\n")
+            self.assertEqual("old\n", output.read_text())
+            self.assertEqual(["out.json"], sorted(item.name for item in output.parent.iterdir()))
+            module._write_text(output, "new\n")
+            self.assertEqual("new\n", output.read_text())
+            self.assertEqual(["out.json"], sorted(item.name for item in output.parent.iterdir()))
 
 
 if __name__ == "__main__":

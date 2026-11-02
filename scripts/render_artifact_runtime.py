@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -40,9 +42,24 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _write_json(path: Path, payload: Any) -> None:
+def _write_text(path: Path, text: str) -> None:
+    """Replace ``path`` atomically; an interrupted write leaves the old file or none, plus at most a stray temp file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(temporary, 0o666 & ~umask)
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    _write_text(path, json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
     print(f"Success! Data written to: {path.resolve()}")
 
 
@@ -74,8 +91,7 @@ def command_render(args: argparse.Namespace) -> None:
     descriptor = _read_json(args.descriptor)
     validate_runtime_descriptor(descriptor)
     rendered = render_runtime_html(descriptor, title=args.title)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(rendered, encoding="utf-8")
+    _write_text(args.output, rendered)
     print(f"Success! Runtime view written to: {args.output.resolve()}")
 
 
@@ -162,9 +178,10 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        source = getattr(args, "artifact", None) or getattr(args, "descriptor", None) or args.selection
-        source = resolve_input_path(source)
-        preflight_output_paths(args.output, inputs=[source],
+        # Each command reads exactly one input file (or the described tree).
+        inputs = [resolve_input_path(item) for item in (getattr(args, name, None) for name in ("artifact", "descriptor", "selection")) if item is not None]
+        source = inputs[0]
+        preflight_output_paths(args.output, inputs=inputs,
                                protected_dirs=[source] if args.command == "describe" and source.is_dir() else [])
         args.handler(args)
     except (OSError, ValueError, json.JSONDecodeError) as error:

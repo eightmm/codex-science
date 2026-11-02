@@ -8,6 +8,7 @@ from typing import Any
 
 from codex_science.artifact_store import validate_descriptor
 from codex_science.artifact_runtime import (
+    selection_region_error,
     stale_selection,
     validate_runtime_descriptor,
     validate_selection,
@@ -216,6 +217,24 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
                 "message": (
                     f"Artifact selection {selection.get('selection_id')} points to "
                     "changed or missing bytes."
+                ),
+            })
+    for selection in sidecars.get("artifact_selections", []):
+        if selection.get("status") == "stale-anchor":
+            continue  # already reported above; stale coordinates are not inspected
+        matches = [
+            item for item in sidecars.get("runtime_descriptors", [])
+            if item.get("artifact_path") == selection.get("artifact_path")
+            and str(item.get("artifact_sha256")).lower() == str(selection.get("artifact_sha256")).lower()
+        ]
+        errors = [selection_region_error(selection, item) for item in matches]
+        if errors and all(errors):
+            findings.append({
+                "code": "unresolved-artifact-selection",
+                "severity": "minor",
+                "message": (
+                    f"Artifact selection {selection.get('selection_id')} does not resolve in the "
+                    f"matching runtime descriptor preview: {errors[0]}"
                 ),
             })
     selection_ids = {

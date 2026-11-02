@@ -387,6 +387,39 @@ class ArtifactRuntimeSidecarTests(unittest.TestCase):
                 build_selection(BASE_STORED_COORDINATES["zero.txt"]["descriptor"], selector_type="line",
                                 selector={"line": 0}, selected_by="reviewer", reason="Create a new selection.")
 
+    def test_selection_that_does_not_resolve_in_matching_descriptor_is_reported(self) -> None:
+        for include_descriptor in (True, False):
+            with self.subTest(include_descriptor=include_descriptor), tempfile.TemporaryDirectory() as scratch:
+                run_dir = Path(scratch)
+                data = run_dir / "metrics.csv"
+                data.write_text("metric,value\nrmsd,2.4\n", encoding="utf-8")
+                descriptor = describe_runtime(data, artifact_path="metrics.csv", kind="metrics", max_bytes=1024,
+                                              max_records=20, generated_at="2026-07-21T00:00:00Z").to_dict()
+                selection = build_selection(descriptor, selector_type="cell", selector={"row": 1, "column": "value"},
+                                            selected_by="reviewer", reason="Inspect.", created_at="2026-07-21T00:01:00Z")
+                material = {**selection, "selector": {"row": 99, "column": "value"}}
+                material.pop("fingerprint")
+                material.pop("selection_id")
+                fingerprint = runtime._fingerprint(material)
+                bad = {**material, "selection_id": f"selection-{fingerprint[:20]}", "fingerprint": fingerprint}
+                manifest = new_manifest("unresolved-run", "Does the selector resolve?", [])
+                add_artifact(manifest, data.name, kind="metrics", sha256=digest(data))
+                for name, kind, payload in (("good.selection.json", "artifact-selection", selection),
+                                            ("bad.selection.json", "artifact-selection", bad),
+                                            ("metrics.runtime.json", "artifact-runtime-descriptor", descriptor)):
+                    if kind == "artifact-runtime-descriptor" and not include_descriptor:
+                        continue
+                    path = run_dir / name
+                    path.write_text(json.dumps(payload), encoding="utf-8")
+                    add_artifact(manifest, name, kind=kind, sha256=digest(path))
+                sidecars = validate_bundle(manifest, run_dir)
+                findings = [item for item in sidecars["advanced_findings"] if item["code"] == "unresolved-artifact-selection"]
+                if include_descriptor:
+                    self.assertEqual(1, len(findings), sidecars["advanced_findings"])
+                    self.assertIn(bad["selection_id"], findings[0]["message"])
+                else:
+                    self.assertEqual([], findings)
+
     def test_missing_verified_sidecar_path_is_labelled(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             with self.assertRaisesRegex(ValueError, r"\(artifact-selection\).*path"):

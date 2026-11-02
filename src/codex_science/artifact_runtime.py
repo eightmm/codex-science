@@ -78,9 +78,29 @@ def _fingerprint(value: Mapping[str, Any]) -> str:
 
 def _safe_relative(value: str, label: str = "path") -> str:
     pure = PurePosixPath(value)
-    if not value or pure.is_absolute() or ".." in pure.parts:
-        raise ValueError(f"{label} must be a safe relative path: {value}")
+    if (not value or pure.is_absolute() or ".." in pure.parts or pure.as_posix() == "."
+            or "\\" in value or value.endswith("/") or any(ord(c) < 32 or ord(c) == 127 for c in value)):
+        raise ValueError(f"{label} must be a safe relative path "
+                         f"(no backslash, control character, trailing slash or bare \".\"): {value!r}")
     return pure.as_posix()
+
+
+def _canonical_path(value: Any, label: str) -> str:
+    """A stored path must already equal its normalised form (no ``./``, ``//`` or ``a/./b``)."""
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+    if _safe_relative(value, label) != value:
+        raise ValueError(f"{label} must be a canonical relative path: {value!r}")
+    return value
+
+
+def _anchor(path: Any, sha: Any) -> tuple[str, str]:
+    return _canonical_path(path, "artifact_path"), _sha256(sha, "artifact_sha256")
+
+
+def _anchor_matches(artifact_hashes: Mapping[str, str], path: str, sha: str) -> bool:
+    known = {PurePosixPath(str(key)).as_posix(): str(value).strip().lower() for key, value in artifact_hashes.items()}
+    return known.get(path) == sha
 
 
 def _sha256(value: Any, label: str) -> str:
@@ -650,8 +670,7 @@ def describe_runtime(
 def validate_runtime_descriptor(payload: Mapping[str, Any]) -> None:
     if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported artifact runtime descriptor schema")
-    _safe_relative(str(payload.get("artifact_path", "")), "artifact_path")
-    _sha256(payload.get("artifact_sha256"), "artifact_sha256")
+    _anchor(str(payload.get("artifact_path", "")), payload.get("artifact_sha256"))
     viewer = str(payload.get("viewer", ""))
     if viewer not in VIEWER_SELECTIONS:
         raise ValueError(f"unsupported artifact viewer: {viewer}")
@@ -886,8 +905,7 @@ def build_selection(
 def validate_selection(payload: Mapping[str, Any], artifact_hashes: Mapping[str, str] | None = None) -> None:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported artifact selection schema")
-    artifact_path = _safe_relative(str(payload.get("artifact_path", "")), "artifact_path")
-    artifact_sha = _sha256(payload.get("artifact_sha256"), "artifact_sha256")
+    artifact_path, artifact_sha = _anchor(str(payload.get("artifact_path", "")), payload.get("artifact_sha256"))
     viewer = str(payload.get("viewer", ""))
     selector_type = str(payload.get("selector_type", ""))
     if viewer not in VIEWER_SELECTIONS or selector_type not in VIEWER_SELECTIONS[viewer]:
@@ -904,16 +922,46 @@ def validate_selection(payload: Mapping[str, Any], artifact_hashes: Mapping[str,
         raise ValueError("artifact selection fingerprint mismatch")
     if str(payload["selection_id"]) != f"selection-{fingerprint[:20]}":
         raise ValueError("artifact selection ID does not match fingerprint")
-    if artifact_hashes is not None and artifact_hashes.get(artifact_path) != artifact_sha:
+    if artifact_hashes is not None and not _anchor_matches(artifact_hashes, artifact_path, artifact_sha):
         raise ValueError("stale artifact selection anchor")
+
+
+def selection_region_error(selection: Mapping[str, Any], descriptor: Mapping[str, Any]) -> str | None:
+    """Return why the stored selector does not resolve in the descriptor preview, or None."""
+    if selection.get("viewer") != descriptor.get("viewer"):
+        return f"selection viewer {selection.get('viewer')!r} differs from descriptor viewer {descriptor.get('viewer')!r}"
+    try:
+        _validate_selection_region(selection, descriptor)
+    except (ValueError, KeyError, TypeError, IndexError) as exc:
+        return str(exc) or type(exc).__name__
+    return None
 
 
 def stale_selection(payload: Mapping[str, Any], artifact_hashes: Mapping[str, str]) -> dict[str, Any]:
     validate_selection(payload)
     result = dict(payload)
-    if artifact_hashes.get(str(payload["artifact_path"])) != str(payload["artifact_sha256"]).lower():
+    if not _anchor_matches(artifact_hashes, *_anchor(str(payload["artifact_path"]), payload["artifact_sha256"])):
         result["status"] = "stale-anchor"
     return result
+
+
+def _check_proposal_body(parameters: Any, reason: str, steps: Any, outputs: Any, requires_approval: Any) -> None:
+    if not isinstance(parameters, Mapping):
+        raise ValueError("parameters must be an object")
+    _json_value(dict(parameters), "parameters")
+    if len(reason) > MAX_REASON_CHARACTERS:
+        raise ValueError("proposal reason is too long")
+    if len(_canonical_bytes(parameters)) > MAX_PROPOSAL_PARAMETER_BYTES:
+        raise ValueError("proposal parameters exceed the runtime limit")
+    for field, items in (("affected_steps", steps), ("expected_outputs", outputs)):
+        if not isinstance(items, list):
+            raise ValueError(f"{field} must be a list")
+        for item in items:
+            _canonical_path(item, field)
+    if not steps:
+        raise ValueError("affected_steps must be non-empty")
+    if not isinstance(requires_approval, bool):
+        raise ValueError("requires_approval must be a boolean")
 
 
 def build_transform_proposal(
@@ -932,17 +980,9 @@ def build_transform_proposal(
     validate_selection(selection)
     if not operation.strip() or not reason.strip() or not proposed_by.strip():
         raise ValueError("operation, reason, and proposed_by are required")
-    if not isinstance(parameters, Mapping):
-        raise ValueError("parameters must be an object")
-    _json_value(dict(parameters), "parameters")
-    if len(reason) > MAX_REASON_CHARACTERS:
-        raise ValueError("proposal reason is too long")
-    if len(_canonical_bytes(parameters)) > MAX_PROPOSAL_PARAMETER_BYTES:
-        raise ValueError("proposal parameters exceed the runtime limit")
     steps = sorted({_safe_relative(str(item), "affected step") for item in affected_steps})
     outputs = sorted({_safe_relative(str(item), "expected output") for item in expected_outputs})
-    if not steps:
-        raise ValueError("affected_steps must be non-empty")
+    _check_proposal_body(parameters, reason, steps, outputs, requires_approval)
     material = {
         "schema_version": 1,
         "selection_id": selection["selection_id"],
@@ -972,8 +1012,7 @@ def validate_transform_proposal(payload: Mapping[str, Any], selection: Mapping[s
     for field in ("proposal_id", "selection_id", "selection_fingerprint", "artifact_path", "artifact_sha256", "operation", "reason", "proposed_by", "approval_boundary", "created_at", "status", "evidence_boundary"):
         if not str(payload.get(field, "")).strip():
             raise ValueError(f"transform proposal {field} is required")
-    _safe_relative(str(payload["artifact_path"]), "artifact_path")
-    _sha256(payload["artifact_sha256"], "artifact_sha256")
+    _anchor(str(payload["artifact_path"]), payload["artifact_sha256"])
     _sha256(payload["selection_fingerprint"], "selection_fingerprint")
     if payload.get("executed") is not False or payload.get("status") != "proposed":
         raise ValueError("a transform proposal must remain non-executing and proposed")
@@ -982,6 +1021,8 @@ def validate_transform_proposal(payload: Mapping[str, Any], selection: Mapping[s
             raise ValueError(f"{field} must be a {'non-empty ' if field == 'affected_steps' else ''}list")
     if not isinstance(payload.get("parameters"), Mapping):
         raise ValueError("transform proposal parameters must be an object")
+    _check_proposal_body(payload["parameters"], str(payload["reason"]), payload["affected_steps"],
+                         payload["expected_outputs"], payload.get("requires_approval"))
     material = dict(payload)
     fingerprint = _sha256(material.pop("fingerprint", ""), "transform fingerprint")
     material.pop("proposal_id", None)
