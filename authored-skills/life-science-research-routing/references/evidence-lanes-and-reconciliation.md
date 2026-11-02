@@ -12,6 +12,21 @@ Pin each source, version/release, access date, exact query, inclusion/exclusion 
 
 Create lanes only for questions that can be evaluated independently. Each receipt links claim IDs to exact retrieved and excluded records, artifacts, dependencies, limitations, confidence, and unresolved questions. Keep normalization, dependency deduplication, and final claim status in the coordinator; route cross-lane conflict reconciliation to `$cx-biomedical-evidence-reconciliation`. Do not pass the intended conclusion to an independent reviewer lane.
 
+## Planner lane vocabulary
+
+`science_plan_life_science_research` emits at most four of these lane names. Lanes come from keyword matches; a recognized variant (rsID or `CHR:POS-REF-ALT`, colon or dash separated) forces `human_genetics`, and "across" plus "cohort" forces `phewas_replication`. Lane names are routing hints, not evidence or claim classes; refine or drop a lane that cannot answer a distinct, material question.
+
+| Lane | Meaning | Route to |
+| --- | --- | --- |
+| `human_genetics` | Variant, locus, GWAS, ancestry, or cohort genetics | `$cx-variant-evidence-synthesis`, `$cx-locus-to-gene-prioritization`; gnomAD, dbSNP, ClinVar, GWAS Catalog |
+| `phewas_replication` | Phenotype-wide or cross-cohort replication of one variant | `$cx-phewas-replication-analysis`; FinnGen, BioBank Japan, UKB/TOPMed |
+| `expression_cell_context` | Tissue, cell-type, single-cell, or eQTL context | `$cx-expression-cell-context`; GTEx, HPA, Bgee, eQTL Catalogue |
+| `structure_mechanism` | Protein structure, domain, or mechanism | `$cx-alphafold-structure-analysis`, `$cx-pdb-search`; UniProt, InterPro, EMDB |
+| `chemistry_pharmacology` | Ligands, compounds, drugs, or metabolites | `$cx-translational-pharmacology-evidence`; ChEMBL, PubChem, BindingDB, ChEBI |
+| `clinical_translational` | Clinical, trial, patient, cancer, or therapy evidence | `$cx-translational-pharmacology-evidence`, `$cx-cancer-genomics-evidence`; ClinicalTrials.gov, openFDA, cBioPortal |
+| `public_dataset_discovery` | Reusable datasets, archives, and omics studies | `$cx-public-omics-dataset-discovery`, `$cx-metabolomics-proteomics-context`; GEO, ArrayExpress, PRIDE, MetaboLights, MGnify |
+| `literature_evidence` | Fallback when no keyword lane matches; also kept beside a forced `human_genetics` lane | `$cx-literature-review`; PubMed, Europe PMC, OpenAlex |
+
 ## Uncertainty
 
 Record the source of uncertainty: sampling, measurement, missingness, confounding, mapping, model, publication, retrieval, or interpretation. Use intervals or calibration only when the method and target population justify them; otherwise use a qualitative level and concrete rationale. Preserve conflicting estimates and their denominators rather than averaging incompatible populations or endpoints. Separate uncertainty within a study from uncertainty about transport to the target domain. State whether a negative finding had enough sensitivity, power, coverage, and measurement quality to test the claim; otherwise mark it inconclusive or unavailable.

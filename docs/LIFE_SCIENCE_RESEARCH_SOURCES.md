@@ -41,8 +41,11 @@ When the MCP server is not running, run `"<plugin-root>/scripts/python_runtime.s
 | `science_search_ukb_topmed` | [UKB/TOPMed PheWeb](https://pheweb.org/UKB-TOPMed/) | PheWAS | Verify build and phenotype definition |
 | `science_plan_life_science_research` | Local deterministic planner | Entity/lane/provenance plan | Planning does not retrieve evidence |
 
-These extend the original 15 bundled public tools, for 36 total MCP tools:
-34 public sources, local catalog search, and the planner.
+These extend the original 15 bundled public tools to the 34 legacy public-source
+tools. The MCP server now registers 54 tools: 49 public-source search tools,
+local catalog search, the planner, `science_query_source_v2`,
+`science_query_source_v3`, and `science_list_source_contracts`. The planner
+accepts the shared `limit` argument but ignores it.
 
 ## Availability- or terms-gated sources
 

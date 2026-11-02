@@ -142,6 +142,14 @@ class MCPServerTests(unittest.TestCase):
         payload = json.loads(response["result"]["content"][0]["text"])
         self.assertIn("human_genetics", payload["lanes"])
         self.assertIn("record_fields", payload)
+        listed = {tool["name"]: tool for tool in self.server.handle({"id": 21, "method": "tools/list"})["result"]["tools"]}
+        planner = listed["science_plan_life_science_research"]
+        self.assertIn("limit", planner["inputSchema"]["properties"])
+        self.assertIn("limit argument has no effect", planner["description"])
+        blank = self.server.handle({"id": 22, "method": "tools/call", "params": {
+            "name": "science_plan_life_science_research", "arguments": {"query": "\u200b\ufeff"},
+        }})
+        self.assertEqual(-32602, blank["error"]["code"])
 
     def test_search_skill_tool_returns_only_catalog_matches(self) -> None:
         response = self.server.handle(

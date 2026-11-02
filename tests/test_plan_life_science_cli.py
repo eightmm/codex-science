@@ -37,7 +37,7 @@ class PlanLifeScienceCliTests(unittest.TestCase):
         self.assertEqual(plan_life_science_research(question), json.loads(result.stdout))
 
     def test_empty_question_exits_2_without_traceback(self) -> None:
-        for args in ((), ("  ",)):
+        for args in ((), ("  ",), ("\u200b",), ("--question", "\u200b \ufeff")):
             result = run(*args)
             self.assertEqual(2, result.returncode)
             self.assertNotIn("Traceback", result.stderr)

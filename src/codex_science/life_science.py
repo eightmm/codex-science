@@ -6,7 +6,17 @@ import re
 from typing import Any
 
 
-VARIANT_RE = re.compile(r"\brs\d+\b|\b(?:chr)?[0-9XYM]+:\d+[-:][ACGT]+[-:][ACGT]+\b", re.I)
+# Nuclear positions need at least three digits so clock times such as 10:30-A-C are not
+# variants; 100 keeps short connector fixtures such as 1:100-A-G while staying inside the
+# unassembled first 10 kb of GRCh37/GRCh38 nuclear chromosomes. Mitochondrial positions start at 1.
+VARIANT_RE = re.compile(
+    r"\brs\d+\b"
+    r"|\b(?:chr)?(?:(?:1[0-9]|2[0-2]|[1-9]|X|Y)[:-][1-9]\d{2,}|MT?[:-][1-9]\d*)[:-][ACGT]+[:-][ACGT]+\b",
+    re.I,
+)
+ZERO_WIDTH_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff]")
+NON_RESEARCH_PHRASES_RE = re.compile(r"\bpublic domain\b")
+MAX_LANES = 4
 
 LANES = (
     (
@@ -61,23 +71,40 @@ LANES = (
 )
 
 
+def _has_term(text: str, term: str) -> bool:
+    """Hangul terms match inside words; ASCII terms match whole words with an optional plural."""
+    if not term.isascii():
+        return term in text
+    return re.search(rf"(?<![a-z0-9]){re.escape(term)}(?:e?s)?(?![a-z0-9])", text) is not None
+
+
 def plan_life_science_research(question: str) -> dict[str, Any]:
+    if not isinstance(question, str):
+        raise ValueError("Question must be a string of 1 to 500 characters")
     question = question.strip()
-    if not question or len(question) > 500:
+    if not ZERO_WIDTH_RE.sub("", question).strip() or len(question) > 500:
         raise ValueError("Question must contain 1 to 500 characters")
-    lowered = question.lower()
+    lowered = NON_RESEARCH_PHRASES_RE.sub(" ", question.lower())
     ranked: list[tuple[int, str]] = []
     for lane, terms in LANES:
-        score = sum(term in lowered for term in terms)
+        score = sum(_has_term(lowered, term) for term in terms)
         if score:
             ranked.append((score, lane))
     ranked.sort(key=lambda item: (-item[0], item[1]))
-    lanes = [lane for _, lane in ranked[:4]] or ["literature_evidence"]
-    if VARIANT_RE.search(question) and "human_genetics" not in lanes:
-        lanes.insert(0, "human_genetics")
-    if "across" in lowered and "cohort" in lowered and "phewas_replication" not in lanes:
-        lanes.append("phewas_replication")
-    lanes = lanes[:4]
+    forced: set[str] = set()
+    if VARIANT_RE.search(question):
+        forced.add("human_genetics")
+    if _has_term(lowered, "across") and _has_term(lowered, "cohort"):
+        forced.add("phewas_replication")
+    # Forced lanes keep their ranked position when already selected; otherwise they
+    # displace the lowest-ranked keyword lanes so the cap never drops them.
+    kept = [lane for _, lane in ranked[:MAX_LANES]] or ["literature_evidence"]
+    missing = [lane for lane in ("human_genetics", "phewas_replication") if lane in forced and lane not in kept]
+    while len(kept) + len(missing) > MAX_LANES:
+        kept.pop(max(index for index, lane in enumerate(kept) if lane not in forced))
+    front = ["human_genetics"] if "human_genetics" in missing else []
+    back = ["phewas_replication"] if "phewas_replication" in missing else []
+    lanes = [*front, *kept, *back]
     entities = []
     for match in VARIANT_RE.finditer(question):
         entities.append({"kind": "variant", "value": match.group(0), "normalization": "assembly-and-allele-required"})

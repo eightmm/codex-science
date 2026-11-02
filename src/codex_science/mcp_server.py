@@ -108,7 +108,8 @@ def _contracts_tool() -> dict[str, Any]:
 TOOLS = (
     _legacy_tool("science_search_skills", "Search the audited local scientific skill catalog."),
     *(_legacy_tool(spec.tool_name, spec.description) for spec in SOURCE_SPECS),
-    _legacy_tool("science_plan_life_science_research", "Plan bounded normalization, evidence lanes, provenance, and synthesis."),
+    _legacy_tool("science_plan_life_science_research", "Plan bounded normalization, evidence lanes, provenance, and synthesis. "
+                 "The limit argument has no effect for this tool."),
     _v2_tool(),
     _v3_tool(),
     _contracts_tool(),

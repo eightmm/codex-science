@@ -1305,7 +1305,7 @@ numbers in run records.
   check preserves the last-known-good runtime.
 - Plugin, three registered skills, and all 284 internal wrapper schemas validate.
 - All 132 Codex-native source skills validate and include `agents/openai.yaml` UI metadata.
-- The bundled read-only MCP exposes 34 public-source tools plus local catalog
+- The bundled read-only MCP exposes 49 public-source tools plus local catalog
   search and deterministic life-science planning; new source families have
   parser tests and representative live smoke coverage.
 - Local compute probing is read-only and excludes hostnames, environment variables, and credentials.
