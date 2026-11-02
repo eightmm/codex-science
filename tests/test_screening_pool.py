@@ -128,6 +128,29 @@ class BuildCandidatePoolTests(RunDirCase):
         self.ledger({"query_id": "q1"}, "[1]")
         self.assertRefused("queries.jsonl line 2 must be an object")
 
+    def test_ledger_tolerates_blank_lines_and_unicode_line_separators(self):
+        self.write("raw/q1.json", {"records": [{"source": "MED", "id": "1", "title": "a\u2028b"}]})
+        self.write("raw/q2.json", {"records": [{"source": "MED", "id": "2"}]})
+        rows = [json.dumps({"query_id": "q1", "note": "x\u2028y", "result_path": "raw/q1.json"}, ensure_ascii=False),
+                "", "   ", json.dumps({"query_id": "q2", "result_path": "raw/q2.json"}) + "\r"]
+        self.write("queries.jsonl", "\n".join(rows) + "\n")
+        self.assertEqual(2, build_candidate_pool(self.root)["unique_records"])
+        (self.root / "candidates.json").unlink()
+        self.write("queries.jsonl", "\n\n{bad\n")
+        self.assertRefused("invalid queries.jsonl JSON at line 3")
+
+    def test_pool_reports_merge_ambiguity_without_payload_change(self):
+        self.write("raw/q1.json", {"records": [
+            {"source": "MED", "id": "1", "pmid": "1", "doi": "10.1/x", "title": "One", "year": "2020"},
+            {"source": "MED", "id": "2", "pmid": "2", "doi": "10.1/x", "title": "Two", "year": "2021"}]})
+        self.ledger({"query_id": "q1", "result_path": "raw/q1.json"})
+        warnings = []
+        pool = build_candidate_pool(self.root, warnings)
+        self.assertEqual(1, pool["unique_records"])
+        self.assertEqual(3, len(warnings), warnings)
+        self.assertTrue(all("med:1" in item for item in warnings))
+        self.assertFalse(build_candidate_pool(self.root, []) != pool)
+
     def test_invalid_query_id_and_result_path(self):
         for query_id in (None, "", "  ", 7):
             self.ledger({"query_id": query_id, "result_path": "r.json"})

@@ -62,7 +62,10 @@ reported as errors. Replace the example record IDs with IDs from candidates.json
     args = parser.parse_args(argv)
     try:
         if args.command == "pool":
-            result = build_candidate_pool(args.run_dir)
+            warnings: list[str] = []
+            result = build_candidate_pool(args.run_dir, warnings)
+            for warning in warnings:
+                print(f"warning: {warning}", file=sys.stderr)
             output = args.run_dir / "candidates.json"
         else:
             result = apply_screening_decisions(args.run_dir, args.decisions)

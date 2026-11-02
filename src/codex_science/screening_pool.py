@@ -82,12 +82,52 @@ def _identifiers(record: dict[str, Any]) -> set[str]:
     return values
 
 
+def _merge_warnings(record_id: str, identifiers: list[str], titles: list[str], dates: list[str], years: list[str]) -> list[str]:
+    found = []
+    by_namespace: dict[str, list[str]] = defaultdict(list)
+    for value in identifiers:
+        by_namespace[value.partition(":")[0]].append(value)
+    for namespace, values in sorted(by_namespace.items()):
+        if len(values) > 1:
+            found.append(f"candidate {record_id} merges several {namespace} identifiers: {', '.join(values)}")
+    distinct_titles = {" ".join(title.split()).casefold() for title in titles}
+    if len(distinct_titles) > 1:
+        found.append(f"candidate {record_id} merges conflicting titles: {' | '.join(titles)}")
+    distinct_years = {date[:4] for date in dates} | set(years)
+    if len(distinct_years) > 1:
+        found.append(f"candidate {record_id} merges conflicting years: {', '.join(sorted(distinct_years))}")
+    return found
+
+
 def _refuse_input_overwrite(output: Path, inputs: set[Path]) -> None:
     if output.resolve() in {path.resolve() for path in inputs}:
         raise ValueError("output file must not replace a consumed input or evidence file, or an excerpt source")
 
 
-def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
+def _ledger_lines(text: str) -> list[tuple[int, str]]:
+    """Split on LF only (a raw U+2028 may sit inside a JSON string); drop blank lines."""
+    return [(number, line.removesuffix("\r")) for number, line in enumerate(text.split("\n"), 1) if line.strip()]
+
+
+def ledger_result_paths(root: Path) -> list[str]:
+    """Best-effort result_path values named by queries.jsonl; unusable rows are ignored."""
+    try:
+        text = (root / "queries.jsonl").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return []
+    values = []
+    for _, line in _ledger_lines(text):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and isinstance(row.get("result_path"), str) and row["result_path"]:
+            values.append(row["result_path"])
+    return values
+
+
+def build_candidate_pool(run_dir: str | Path, warnings: list[str] | None = None) -> dict[str, Any]:
+    """Merge query results into candidates.json; merge ambiguities are appended to warnings, not the payload."""
     root_arg = Path(run_dir).absolute()
     if root_arg.is_symlink() or not root_arg.is_dir():
         raise ValueError("run directory must be an existing, non-symlink directory")
@@ -97,7 +137,7 @@ def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
     consumed = {ledger_path}
     rows: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
-    for line_number, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in _ledger_lines(ledger_path.read_text(encoding="utf-8")):
         try:
             row = json.loads(line)
         except json.JSONDecodeError as error:
@@ -183,6 +223,8 @@ def build_candidate_pool(run_dir: str | Path) -> dict[str, Any]:
             "abstract_artifact": None,
             "abstract_sha256": None,
         }
+        if warnings is not None:
+            warnings.extend(_merge_warnings(record_id, all_ids, titles, dates, years))
         if dates:
             candidate["publication_date"] = dates[0]
         elif years:

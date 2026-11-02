@@ -86,6 +86,17 @@ class ScreenCandidatesTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         return json.loads((self.root / "candidates.json").read_text(encoding="utf-8"))
 
+    def test_pool_warns_on_conflicting_merged_identifiers(self):
+        self.add_result("q9", {"records": [
+            {"id": "20001", "source": "MED", "pmid": "20001", "doi": "10.9/z", "title": "First", "year": "2019"},
+            {"id": "20002", "source": "MED", "pmid": "20002", "doi": "10.9/z", "title": "Second", "year": "2020"}]})
+        result = self.run_cli("pool", "--run-dir", self.root)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("warning: candidate med:20001 merges several pmid identifiers", result.stderr)
+        self.assertIn("conflicting titles", result.stderr)
+        self.assertIn("conflicting years", result.stderr)
+        self.assertNotIn("warning", json.dumps(json.loads((self.root / "candidates.json").read_text())))
+
     def test_pool_merges_identifier_chains_and_is_deterministic(self):
         pubmed_records = PubMedSearchV3().normalize({"esearchresult": {"idlist": ["10001"]}})
         result_path = self.root / "raw/queries/q3/result.json"

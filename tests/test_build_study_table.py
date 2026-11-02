@@ -645,6 +645,55 @@ class BuildStudyTableTests(unittest.TestCase):
             build_study_table(self.root, self.extraction, "sources/24390308.abstract.txt")
         self.assertEqual(original, source_path.read_bytes())
 
+    def test_output_cannot_replace_ledger_results_fulltext_or_decisions(self):
+        (self.root / "queries.jsonl").write_text(json.dumps({"query_id": "q-1", "result_path": "raw/r.json"}) + "\n", encoding="utf-8")
+        (self.root / "raw").mkdir(exist_ok=True)
+        (self.root / "raw/r.json").write_text("{}", encoding="utf-8")
+        (self.root / "fulltext").mkdir(exist_ok=True)
+        (self.root / "fulltext/notes.txt").write_text("keep", encoding="utf-8")
+        decisions = self.root / "decisions.json"
+        decisions.write_text("{}", encoding="utf-8")
+        screening = json.loads((self.root / "screening.json").read_text())
+        screening["decisions_sha256"] = hashlib.sha256(decisions.read_bytes()).hexdigest()
+        (self.root / "screening.json").write_text(json.dumps(screening), encoding="utf-8")
+        (self.root / "alias.json").symlink_to(self.root / "queries.jsonl")
+        for target in ("queries.jsonl", "raw/r.json", "fulltext/notes.txt", "sources/new.txt", "decisions.json",
+                       "alias.json", "raw/../queries.jsonl", "screening.json", "candidates.json"):
+            with self.subTest(target=target):
+                before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+                with self.assertRaises(ValueError):
+                    build_study_table(self.root, self.extraction, target)
+                self.assertEqual(before, {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
+        build_study_table(self.root, self.extraction, "out/studies.json")
+
+    def test_sample_size_and_standard_error_ranges(self):
+        extraction = json.loads(self.extraction.read_text())
+        for fields, ok in (({"sample_size": -5}, False), ({"sample_size": 2.5}, False), ({"sample_size": 10.0}, False),
+                           ({"sample_size": True}, False), ({"standard_error": -1.0}, False),
+                           ({"arms": [{"sample_size": -1}]}, False), ({"sample_size": 0, "standard_error": 0}, True),
+                           ({"sample_size": "NR", "standard_error": "NR"}, True)):
+            with self.subTest(fields=fields):
+                extraction["studies"][0]["fields"] = fields
+                self.extraction.write_text(json.dumps(extraction))
+                if ok:
+                    build_study_table(self.root, self.extraction)
+                else:
+                    (self.root / "studies.json").unlink(missing_ok=True)
+                    with self.assertRaisesRegex(ValueError, "non-negative|boolean"):
+                        build_study_table(self.root, self.extraction)
+                    self.assertFalse((self.root / "studies.json").exists())
+
+    def test_colliding_default_study_ids_name_both_records(self):
+        records, candidates, studies = [], [], []
+        for record_id in ("med:1_2", "med:12"):
+            number = record_id.split(":")[1]
+            records.append(dict(self.record, record_id=record_id, identifiers=["pmid:" + number]))
+            candidates.append(dict(self.candidate, record_id=record_id, identifiers=["pmid:" + number]))
+            studies.append({"record_id": record_id, "evidence_type": "primary"})
+        self._write_inputs(records, candidates, {"schema": "study-extraction-v1", "studies": studies})
+        with self.assertRaisesRegex(ValueError, r"Smed12.*med:1_2.*med:12"):
+            build_study_table(self.root, self.extraction)
+
     def test_excerpt_locator_line_accepts_occurrence_spans_and_ignores_nonintegers(self):
         excerpt = "This exact source excerpt is long enough for validation."
         source_path = self.root / "sources/24390308.abstract.txt"

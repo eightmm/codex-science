@@ -36,7 +36,13 @@ Screening title, identifiers and query_ids must match the candidate record.
 Every included record's supplied screening evidence must retain its hash,
 including not_extracted records. Integer locator lines follow splitlines()
 boundaries, including CR and CRLF. Output cannot replace consumed inputs or
-evidence files, even when there are no excerpts.
+evidence files, even when there are no excerpts; it also cannot replace
+queries.jsonl, a result file it names, anything under sources/ or fulltext/,
+or the screening decisions file (matched by the hash in screening.json).
+fields.sample_size must be a non-negative integer and fields.standard_error
+non-negative when numeric; strings such as "NR" are accepted.
+Distinct studies must have distinct study_id; two records whose default ids
+collide (med:1_2 and med:12) need explicit study_id values.
 On any problem nothing is written and all problems are listed in one error.
 """
 

@@ -9,14 +9,16 @@ import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from codex_science.cli_io import write_json_atomic
+from codex_science.cli_io import preflight_output_paths, write_json_atomic
 from codex_science.evidence import (
     EVIDENCE_TYPES, _candidate_metadata_errors, _fetch_identity_errors, _identity_field_matches, _normalise_excerpt,
     _support_source_path, _validate_study_table,
 )
 from codex_science.literature_v2 import normalize_identifier
 from codex_science.open_fulltext import MAX_BODY_BYTES, _plain_text
-from codex_science.screening_pool import _load_snapshot, _refuse_input_overwrite, _relative_path, _safe_file
+from codex_science.screening_pool import (
+    _load_snapshot, _refuse_input_overwrite, _relative_path, _safe_file, ledger_result_paths,
+)
 
 
 def _input_file(root: Path, value: str | Path, label: str) -> Path:
@@ -47,6 +49,12 @@ def _validate_extraction_numbers(value: Any, label: str, field: str = "") -> Non
         raise ValueError(f"{label} must not be boolean")
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError(f"{label} must be finite")
+    # Strings such as "NR" stay allowed: no documented contract requires these fields to be numeric.
+    if field == "sample_size" and isinstance(value, (int, float)) and not isinstance(value, bool):
+        if not isinstance(value, int) or value < 0:
+            raise ValueError(f"{label} must be a non-negative integer")
+    if field == "standard_error" and isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0:
+        raise ValueError(f"{label} must be non-negative")
     if isinstance(value, dict):
         for key, item in value.items():
             _validate_extraction_numbers(item, f"{label}.{key}", key)
@@ -247,6 +255,7 @@ def build_study_table(
             problems.append(str(error))
         screening_sources[record_id] = evidence_path, content
     assigned: dict[str, dict[str, Any] | None] = {}
+    study_id_owner: dict[str, str] = {}
     for kind, items in (("study", rows), ("not_extracted", not_extracted)):
         for index, item in enumerate(items):
             if not isinstance(item, dict) or not isinstance(item.get("record_id"), str) or not item["record_id"].strip():
@@ -297,6 +306,10 @@ def build_study_table(
         if not isinstance(study_id, str) or not study_id.strip():
             problems.append(f"{record_id}: study_id must be a non-empty string")
             continue
+        if study_id in study_id_owner:
+            problems.append(f"study_id {study_id} is used by both {study_id_owner[study_id]} and {record_id}; set distinct study_id values")
+            continue
+        study_id_owner[study_id] = record_id
         evidence_type = item.get("evidence_type")
         if not isinstance(evidence_type, str) or evidence_type not in EVIDENCE_TYPES:
             problems.append(f"{record_id}: evidence_type must be one of {sorted(EVIDENCE_TYPES)}")
@@ -440,6 +453,18 @@ def build_study_table(
         for study in studies for excerpt in study["support_excerpts"]
     }
     _refuse_input_overwrite(output_path, consumed | excerpt_source_paths)
+    ledger_inputs = {root / "queries.jsonl"}
+    for value in ledger_result_paths(root):
+        try:
+            ledger_inputs.add(root / Path(*_relative_path(value, "result_path").parts))
+        except ValueError:
+            continue
+    preflight_output_paths(
+        output_path, inputs=consumed | excerpt_source_paths | ledger_inputs,
+        protected_dirs=[root / "sources", root / "fulltext"],
+    )
+    if output_path.is_file() and not output_path.is_symlink() and screening.get("decisions_sha256") == hashlib.sha256(output_path.read_bytes()).hexdigest():
+        raise ValueError("output file must not replace the screening decisions file")
     write_json_atomic(output_path, payload)
     return {"schema": "study-table-build-v1", "output": output_path.relative_to(root).as_posix(),
             "counts": {"studies": len(studies), "not_extracted": len(not_extracted), "excerpts": sum(len(s["support_excerpts"]) for s in studies)},
