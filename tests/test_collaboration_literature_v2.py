@@ -914,8 +914,20 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         from codex_science.project_store import ProjectStore
         from tests.test_project_store import make_run
 
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path, _ = make_run(root, "legacy", "Claim", 0.5)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["claims"] = [{"id": 7, "text": "legacy"}]
+            write_manifest(manifest, manifest_path)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="project", title="Legacy", question="Compare?")
+            before = store.summary(project_id="project")
+            # Import now refuses what compare would refuse, before writing anything.
+            with self.assertRaisesRegex(ValueError, "claim id must be a non-empty string"):
+                store.import_run(project_id="project", manifest_path=manifest_path)
+            self.assertEqual(before, store.summary(project_id="project"))
         cases = (
-            ("claims", [{"id": 7, "text": "legacy"}], "claim id must be a non-empty string"),
             ("inputs", [{"identifier": "data"}, {"identifier": "data"}], "duplicate input identity: data"),
         )
         for field, records, message in cases:
