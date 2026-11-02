@@ -270,12 +270,58 @@ def _validate(payload: Any) -> dict[str, Any]:
     }
 
 
-# "and" before an age or size bound ("aged 18 and over") qualifies one population rather than listing another.
-_POPULATION_SEPARATOR = re.compile(r"[,;/]|\band\b(?!\s+(?:over|older|above|under|younger|below)\b)")
+_POPULATION_SEPARATOR = re.compile(r"[,;/]|\band\b")
+# A separator followed by one of these continues the same population ("aged 18 and over",
+# "adults, aged 18-65", "between 18 and 65") instead of listing another. Lexically identical
+# phrasings ("with diabetes and hypertension") are still read as lists.
+_POPULATION_QUALIFIER = re.compile(
+    r"\s*(?:\d|(?:aged?|ages|with|without|who|whose|in|from|having|between|over|under|older|younger|"
+    r"above|below|up|greater|less|more|fewer|than|years?|months?|old|at|of|on|plus)\b)"
+)
 
 
 def _population_components(population: str) -> list[str]:
-    return [item.strip() for item in _POPULATION_SEPARATOR.split(population.casefold()) if item.strip()]
+    components, start = [], 0
+    for separator in _POPULATION_SEPARATOR.finditer(population):
+        if not _POPULATION_QUALIFIER.match(population, separator.end()):
+            components.append(population[start:separator.start()])
+            start = separator.end()
+    components.append(population[start:])
+    return [item.strip() for item in components if item.strip()]
+
+
+def _population_narrows(target: str, population: str) -> bool:
+    """Whether target is population followed only by qualifiers, not further list items."""
+    if not (target.startswith(population) and len(target) > len(population)
+            and not target[len(population)].isalnum()):
+        return False
+    rest = target[len(population):]
+    return all(_POPULATION_QUALIFIER.match(rest, separator.end())
+               for separator in _POPULATION_SEPARATOR.finditer(rest))
+
+
+def _population_is_bare(component: str) -> bool:
+    return not any(_POPULATION_QUALIFIER.fullmatch(word) or word[:1].isdigit() for word in component.split())
+
+
+def _population_covered(target: str, populations: list[str]) -> bool:
+    if any(target == population or target in _population_components(population)
+           or _population_narrows(target, population) for population in populations):
+        return True
+    # Lists may be reordered or spread across studies. A study's trailing qualifier may apply to
+    # every listed group ("men and women aged 50-70"), so components of a qualified study list
+    # only match exactly.
+    candidates = []
+    for population in populations:
+        components = _population_components(population)
+        bare = all(_population_is_bare(component) for component in components)
+        candidates.extend((component, bare) for component in components)
+    targets = _population_components(target)
+    return bool(targets) and all(
+        any(item == component or (bare and _population_narrows(item, component))
+            for component, bare in candidates)
+        for item in targets
+    )
 
 
 def structured_review_findings(payload: Any) -> list[dict[str, str]]:
@@ -296,28 +342,12 @@ def structured_review_findings(payload: Any) -> list[dict[str, str]]:
             })
 
         if "population" in claim:
-            targets = _population_components(claim["population"])
             declared_populations = [
-                study["population"]
+                study["population"].casefold().strip()
                 for study in supporting
                 if "population" in study
             ]
-            populations = [
-                component for population in declared_populations
-                for component in _population_components(population)
-            ]
-            covered = bool(targets) and all(
-                any(
-                    target == population
-                    or (
-                        target.startswith(population)
-                        and len(target) > len(population)
-                        and not target[len(population)].isalnum()
-                    )
-                    for population in populations
-                )
-                for target in targets
-            )
+            covered = _population_covered(claim["population"].casefold().strip(), declared_populations)
             if declared_populations and not covered:
                 findings.append({
                     "code": "population-overreach",

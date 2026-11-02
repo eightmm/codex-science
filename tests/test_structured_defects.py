@@ -125,6 +125,9 @@ class StructuredDefectTests(unittest.TestCase):
             ("children and adults", ["adults"], True),
             ("adults aged 18-65 and children", ["adults"], True),
             ("adults 65 and older and children", ["adults"], True),
+            ("men aged 20-30", ["men and women aged 50-70"], True),
+            ("men in europe", ["men and women with diabetes"], True),
+            ("adults aged between 18 and 65 and children", ["adults"], True),
             ("adults and children and infants", ["adults", "children"], True),
             ("children", [", ; / and "], True),
             (", ; / and ", ["adults"], True),
@@ -158,6 +161,13 @@ class StructuredDefectTests(unittest.TestCase):
             ("patients aged 18 and over", ["patients"]),
             ("adults 65 and older", ["adults"]),
             ("children aged 5 and under", ["children and adults"]),
+            ("adults aged between 18 and 65", ["adults"]),
+            ("adults, aged 18-65", ["adults"]),
+            ("patients aged 18 and up", ["patients"]),
+            ("patients aged 65 years and greater", ["patients"]),
+            ("men", ["men and women aged 50-70"]),
+            ("women aged 50-70 and men", ["men and women aged 50-70"]),
+            ("adults aged between 18 and 65 and children", ["children and adults"]),
         ):
             with self.subTest(target=target, populations=populations):
                 self._assert_population_coverage(target, populations, False)
