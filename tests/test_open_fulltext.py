@@ -25,6 +25,9 @@ from codex_science.evidence import _validate_query_records
 from test_transport_v3 import local_chunked_response, local_redirect_server
 
 
+PMC_FRONT = b'<front><article-meta><article-id pub-id-type="pmc">PMC12345</article-id></article-meta></front>'
+
+
 class OpenFulltextTests(unittest.TestCase):
     def test_final_request_time_exhaustion_reports_cap(self):
         for elapsed in (0.5, 1, 2):
@@ -126,7 +129,7 @@ class OpenFulltextTests(unittest.TestCase):
                 self.assertFalse(list(output.glob("*.txt")))
                 rows = [json.loads(line) for line in (output / "fetch-ledger.jsonl").read_text().splitlines()]
                 self.assertEqual(["complete", "unavailable"], [row["status"] for row in rows])
-        for ids in (b'', b'<article-id pub-id-type="pmc">12345</article-id>',
+        for ids in (b'<article-id pub-id-type="pmc">12345</article-id>',
                     b'<article-id pub-id-type="pmcid">pmc12345</article-id><article-id pub-id-type="pmid">12345</article-id>'):
             with self.subTest(ids=ids):
                 xml = b'<article xmlns="urn:jats"><front><article-meta>' + ids + b'</article-meta></front><p>Text</p><ref-list><article-id pub-id-type="pmc">99999</article-id></ref-list></article>'
@@ -215,14 +218,14 @@ class OpenFulltextTests(unittest.TestCase):
             with self.subTest(license_value=license_value), tempfile.TemporaryDirectory() as temp:
                 metadata = {"resultList": {"result": [{"pmid": "12345", "pmcid": "PMC12345",
                     "source": "MED", "isOpenAccess": "Y", "license": license_value}]}}
-                fetch = Mock(side_effect=[(200, json.dumps(metadata).encode()), (200, b"<article><p>Text</p></article>")])
+                fetch = Mock(side_effect=[(200, json.dumps(metadata).encode()), (200, b"<article>" + PMC_FRONT + b"<p>Text</p></article>")])
                 result = fetch_fulltext(["pmid:12345"], temp, execute=True, fetch=fetch)
                 self.assertEqual(expected, result["results"][0]["status"])
                 self.assertEqual(2 if expected == "fetched" else 1, fetch.call_count)
                 self.assertEqual(expected == "fetched", (Path(temp) / "fulltext/PMC12345.xml").exists())
 
     def test_open_access_writes_xml_text_and_request_ledger(self):
-        xml = b"<article><title>A title</title><body><sec><title>Methods</title><p>Useful text.</p></sec></body></article>"
+        xml = b"<article>" + PMC_FRONT + b"<title>A title</title><body><sec><title>Methods</title><p>Useful text.</p></sec></body></article>"
         requests = []
         def fetch(url, *, timeout, max_body_bytes):
             requests.append(url)
@@ -287,7 +290,7 @@ class OpenFulltextTests(unittest.TestCase):
 
         def run(label):
             worker.label = label
-            xml = f"<article><p>{label} response</p></article>".encode()
+            xml = f"<article>{PMC_FRONT.decode()}<p>{label} response</p></article>".encode()
             transport = self._article_fetch(xml)
 
             def fetch(url, **kwargs):
@@ -335,10 +338,11 @@ class OpenFulltextTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("fetch_open_fulltext_cli", script)
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
+        ledger_failures = {"lock", "ledger", "ledger-write"}
         for prior in (None, b"", b"<article><p>Old response</p></article>"):
             for failure in ("xml-create", "text-create", "xml-write", "text-write", "xml-sync",
                             "text-sync", "replace", "lock", "ledger", "initial-ledger", "initial-lock",
-                            "initial-ledger-missing", "initial-lock-missing"):
+                            "initial-ledger-missing", "initial-lock-missing", "ledger-write"):
                 with self.subTest(prior=prior, failure=failure), tempfile.TemporaryDirectory() as temp:
                     output = Path(temp) / "fulltext"
                     output.mkdir()
@@ -368,12 +372,32 @@ class OpenFulltextTests(unittest.TestCase):
                             raise OSError("fixture lock failure")
                         return original_flock(descriptor, operation)
 
+                    class FailingWrite:
+                        def __init__(self, stream):
+                            self.stream = stream
+
+                        def __enter__(self):
+                            self.stream.__enter__()
+                            return self
+
+                        def __exit__(self, *exc):
+                            return self.stream.__exit__(*exc)
+
+                        def __getattr__(self, attribute):
+                            return getattr(self.stream, attribute)
+
+                        def write(self, data):
+                            raise OSError("fixture ledger write failure")
+
                     def open_file(path, *args, **kwargs):
                         if path.name == "fetch-ledger.jsonl" and (
                             failure.startswith("initial-ledger") or (failure == "ledger" and response_received)
                         ):
                             raise OSError("fixture ledger failure")
-                        return original_open(path, *args, **kwargs)
+                        stream = original_open(path, *args, **kwargs)
+                        if path.name == "fetch-ledger.jsonl" and failure == "ledger-write" and response_received:
+                            return FailingWrite(stream)
+                        return stream
 
                     def write_bytes(path, data):
                         if failure == "xml-write" and path.suffix == ".xml":
@@ -406,7 +430,7 @@ class OpenFulltextTests(unittest.TestCase):
                     ), patch.object(open_fulltext.fcntl, "flock", flock), patch.object(
                         Path, "open", open_file,
                     ), patch.object(tempfile, "mkstemp", mkstemp):
-                        xml = b"<article><p>New response</p></article>"
+                        xml = b"<article>" + PMC_FRONT + b"<p>New response</p></article>"
                         transport = self._article_fetch(xml)
 
                         def fetch(url, **kwargs):
@@ -414,7 +438,7 @@ class OpenFulltextTests(unittest.TestCase):
                             response_received = "search?" not in url
                             return transport(url, **kwargs)
 
-                        ids = ["pmid:12345", "pmid:67890"] if initial_failure or failure in {"lock", "ledger"} else ["pmid:12345"]
+                        ids = ["pmid:12345", "pmid:67890"] if initial_failure or failure in ledger_failures else ["pmid:12345"]
                         if initial_failure:
                             stdout = io.StringIO()
                             with patch.object(open_fulltext, "_http_fetch", fetch), redirect_stdout(stdout):
@@ -440,10 +464,10 @@ class OpenFulltextTests(unittest.TestCase):
                     self.assertEqual(names, {path.name for path in output.iterdir()})
                     ledger = output / "fetch-ledger.jsonl"
                     rows = [json.loads(line) for line in ledger.read_text().splitlines()] if ledger.exists() else []
-                    expected_requests = 0 if initial_failure else (1 if failure in {"lock", "ledger"} else 2)
+                    expected_requests = 0 if initial_failure else (1 if failure in ledger_failures else 2)
                     self.assertEqual(expected_requests, result["requests_recorded"])
                     self.assertEqual(expected_requests, len(rows))
-                    if initial_failure or failure in {"lock", "ledger"}:
+                    if initial_failure or failure in ledger_failures:
                         self.assertEqual(1 if initial_failure else 2, transport.call_count)
                         self.assertEqual(["write-failed", "write-failed"],
                                          [row["status"] for row in result["results"]])
@@ -455,7 +479,7 @@ class OpenFulltextTests(unittest.TestCase):
         ledger = output / "fetch-ledger.jsonl"
         raw = self.run / "raw"
         raw.mkdir()
-        xml = b"<article><p>Response</p></article>"
+        xml = b"<article>" + PMC_FRONT + b"<p>Response</p></article>"
         original_replace = os.replace
 
         def replace(source, destination):
@@ -508,7 +532,7 @@ class OpenFulltextTests(unittest.TestCase):
         )]
         for path in unrelated:
             path.write_bytes(b"keep")
-        xml = b"<article><p>Response</p></article>"
+        xml = b"<article>" + PMC_FRONT + b"<p>Response</p></article>"
         for during_fetch in (False, True):
             with self.subTest(during_fetch=during_fetch):
                 if not during_fetch:
@@ -605,8 +629,121 @@ class OpenFulltextTests(unittest.TestCase):
 
     def test_non_utf8_xml_encoding_declaration_is_refused(self):
         xml = b'<?xml version="1.0" encoding="ISO-8859-1"?><article><p>Text</p></article>'
-        with self.assertRaises(ValueError):
+        with self.assertRaises(open_fulltext._Refusal) as raised:
             open_fulltext._plain_text(xml)
+        self.assertEqual("unsupported-encoding", raised.exception.reason)
+
+    def test_ascii_xml_encoding_declaration_is_accepted(self):
+        for label in (b"US-ASCII", b"ascii"):
+            xml = b'<?xml version="1.0" encoding="' + label + b'"?><article><p>Text</p></article>'
+            self.assertEqual("Text", open_fulltext._plain_text(xml))
+        with self.assertRaises(open_fulltext.ET.ParseError):
+            open_fulltext._plain_text('<?xml version="1.0" encoding="US-ASCII"?><article><p>é</p></article>'.encode())
+
+    def _reason_for(self, body, *, max_body_bytes=open_fulltext.MAX_BODY_BYTES, front=False):
+        metadata = b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
+        fetch = Mock(side_effect=[(200, metadata), (200, body)])
+        result = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=fetch, max_body_bytes=max_body_bytes)
+        rows = [json.loads(line) for line in (self.run / "fulltext" / "fetch-ledger.jsonl").read_text().splitlines()]
+        return result["results"][0], rows
+
+    def test_distinct_reasons_for_empty_deep_and_oversized_responses(self):
+        result, _ = self._reason_for(b"")
+        self.assertEqual("empty-body", result["reason"])
+        result, _ = self._reason_for(b"  \n")
+        self.assertEqual("empty-body", result["reason"])
+        result, _ = self._reason_for(b"<article>" + PMC_FRONT + b"<x>" * 5000 + b"</x>" * 5000 + b"</article>")
+        self.assertEqual("xml-too-deep", result["reason"])
+        body = b"<article>" + PMC_FRONT + b"<p>Text</p></article>"
+        result, rows = self._reason_for(body, max_body_bytes=len(body))
+        self.assertEqual("fetched", result["status"])
+        result, rows = self._reason_for(body, max_body_bytes=len(body) - 1)
+        self.assertEqual("response-too-large", result["reason"])
+        self.assertIsNone(rows[-1]["response_sha256"])
+        self.assertEqual("unavailable", rows[-1]["status"])
+
+    def test_oversized_search_response_reports_response_too_large(self):
+        result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_body_bytes=2,
+                                fetch=lambda *args, **kwargs: (200, b"{}x"))
+        self.assertEqual("response-too-large", result["results"][0]["reason"])
+
+    def test_http_fetch_oversize_body_is_reported_as_response_too_large(self):
+        for status in (200, 503):
+            with self.subTest(status=status), local_chunked_response(body=b"x" * 20, trailers=0, status=status) as response:
+                opener = Mock()
+                if status == 200:
+                    opener.open.return_value = response
+                else:
+                    opener.open.side_effect = urllib.error.HTTPError(
+                        open_fulltext.BASE + "/search", status, "Test", response.headers, response)
+                with patch.object(open_fulltext.urllib.request, "build_opener", return_value=opener):
+                    with self.assertRaises(open_fulltext._BodyTooLarge):
+                        open_fulltext._http_fetch(open_fulltext.BASE + "/search", timeout=5, max_body_bytes=10)
+        with local_chunked_response(body=b"x" * 20, trailers=0) as response:
+            opener = Mock()
+            opener.open.return_value = response
+            with patch.object(open_fulltext.urllib.request, "build_opener", return_value=opener):
+                result = fetch_fulltext(["pmid:12345"], self.run, execute=True, max_body_bytes=10)
+        self.assertEqual("response-too-large", result["results"][0]["reason"])
+
+    def test_unhandled_elements_keep_their_text_without_duplication(self):
+        xml = (b"<article><front><journal-meta><journal-title>Journal Name</journal-title></journal-meta>"
+               b"<article-meta><kwd-group><kwd>front keyword</kwd></kwd-group></article-meta></front>"
+               b"<body>lead<kwd-group><kwd>alpha <italic>beta</italic></kwd><kwd>gamma</kwd></kwd-group>"
+               b"<disp-quote>quoted <p>inner</p> after</disp-quote> tail<p>Body <term>t</term></p>"
+               b"<sec>sec text<title>T</title><p>P</p>sec tail</sec></body>"
+               b"<back><fn-group><fn>note <sup>1</sup>text</fn></fn-group><ref-list><ref>skip me</ref></ref-list></back></article>")
+        plain = open_fulltext._plain_text(xml)
+        self.assertIn("alpha beta", plain)
+        self.assertIn("note 1text", plain)
+        for expected in ("gamma", "lead", "quoted", "inner", "after", "tail", "sec text", "sec tail"):
+            self.assertIn(expected, plain)
+        for once in ("alpha", "beta", "gamma", "quoted", "inner", "Body", "sec text", "note"):
+            self.assertEqual(1, plain.count(once), (once, plain))
+        for absent in ("Journal Name", "front keyword", "skip me"):
+            self.assertNotIn(absent, plain)
+
+    def test_article_must_carry_requested_identity(self):
+        body = b"<article><p>Text</p></article>"
+        result, rows = self._reason_for(body)
+        self.assertEqual("article-id-missing", result["reason"])
+        self.assertEqual(["complete", "unavailable"], [row["status"] for row in rows])
+        self.assertFalse(list((self.run / "fulltext").glob("*.xml")))
+        pmid_only = b'<article><front><article-meta><article-id pub-id-type="pmid">12345</article-id></article-meta></front><p>Text</p></article>'
+        result, _ = self._reason_for(pmid_only)
+        self.assertEqual("article-id-missing", result["reason"])
+
+    def test_doi_request_requires_matching_xml_doi_case_insensitively(self):
+        record = {"pmcid": "PMC12345", "doi": "10.1234/Article", "pmid": "12345",
+                  "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}
+        def run(doi_xml):
+            xml = (b'<article><front><article-meta><article-id pub-id-type="pmc">PMC12345</article-id>'
+                   + doi_xml + b'</article-meta></front><p>Text</p></article>')
+            fetch = Mock(side_effect=[(200, json.dumps({"resultList": {"result": [record]}}).encode()), (200, xml)])
+            with tempfile.TemporaryDirectory() as temp:
+                return fetch_fulltext(["doi:10.1234/article"], temp, execute=True, fetch=fetch)["results"][0]
+        self.assertEqual("fetched", run(b'<article-id pub-id-type="doi">10.1234/ARTICLE</article-id>')["status"])
+        for form in (b"https://doi.org/10.1234/Article", b"http://dx.doi.org/10.1234/ARTICLE", b"doi:10.1234/article"):
+            self.assertEqual("fetched", run(b'<article-id pub-id-type="doi">' + form + b'</article-id>')["status"], form)
+        self.assertEqual("fetched", run(b"")["status"])
+        wrong = run(b'<article-id pub-id-type="doi">10.1234/other</article-id>')
+        self.assertEqual(("unavailable", "xml-parse-error"), (wrong["status"], wrong["reason"]))
+
+    def test_short_pmids_are_accepted_and_malformed_ones_refused(self):
+        self.assertEqual(["pmid:1", "pmid:1234", "pmid:123456789"],
+                         open_fulltext._normalize_ids(["pmid:1234", "pmid:1", "pmid:123456789"]))
+        for bad in ("pmid:", "pmid:1234567890", "pmid:12a", "pmid:0", "pmid:01234", "pmid:000000001"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                open_fulltext._normalize_ids([bad])
+
+    def test_failed_publication_is_never_recorded_as_complete(self):
+        xml = b"<article>" + PMC_FRONT + b"<p>Response</p></article>"
+        with patch.object(os, "fsync", side_effect=OSError("fixture sync failure")):
+            result = fetch_fulltext(["pmid:12345"], self.run, execute=True, fetch=self._article_fetch(xml))
+        self.assertEqual("write-failed", result["results"][0]["status"])
+        rows = [json.loads(line) for line in (self.run / "fulltext" / "fetch-ledger.jsonl").read_text().splitlines()]
+        self.assertEqual(["complete", "unavailable"], [row["status"] for row in rows])
+        self.assertEqual(["fetch-ledger.jsonl"], [path.name for path in (self.run / "fulltext").iterdir()])
 
     def test_xml_refusal_results_include_machine_readable_reason(self):
         def fetch(url, **kwargs):
@@ -679,7 +816,7 @@ class OpenFulltextTests(unittest.TestCase):
             if "search?" in url:
                 return 200, json.dumps({"resultList": {"result": [
                     {"pmcid": "PMC4159349", "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}]}}).encode()
-            return 200, b"<article><p>text</p></article>"
+            return 200, b"<article>" + PMC_FRONT + b"<p>text</p></article>"
         fetch_fulltext(["pmcid:PMC4159349"], self.run, execute=True, fetch=fetch)
         self.assertFalse(any("EXT_ID" in urllib.parse.unquote(url) for url in calls))
 
@@ -863,7 +1000,7 @@ class OpenFulltextTests(unittest.TestCase):
             calls.append(url)
             if "search?" in url:
                 return 200, b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
-            return 200, b"<article><p>Body</p></article>"
+            return 200, b"<article>" + PMC_FRONT + b"<p>Body</p></article>"
         original = Path.write_bytes
         def fail_xml(path, data):
             if path.name.endswith(".xml"):
@@ -997,7 +1134,7 @@ class OpenFulltextTests(unittest.TestCase):
             open_fulltext._plain_text(hidden)
 
     def test_elapsed_wall_cap_marks_remaining_skipped(self):
-        for xml, expected in ((b"<article><p>Text</p></article>", "fetched"),
+        for xml, expected in ((b"<article>" + PMC_FRONT + b"<p>Text</p></article>", "fetched"),
                               (b"<article/>", "unavailable")):
             with self.subTest(xml=xml):
                 times = iter([0, 0, 0, 0, 2])
@@ -1024,7 +1161,8 @@ class OpenFulltextTests(unittest.TestCase):
                 pmid = query.split(":", 1)[1].split()[0]
                 return 200, json.dumps({"resultList": {"result": [{"pmcid": "PMC" + pmid, "pmid": pmid,
                     "source": "MED", "isOpenAccess": "Y", "license": "CC BY"}]}}).encode()
-            return 200, b"<article><p>text</p></article>"
+            pmcid = urllib.parse.urlsplit(url).path.split("/")[-2]
+            return 200, b"<article>" + PMC_FRONT.replace(b"PMC12345", pmcid.encode()) + b"<p>text</p></article>"
         result = fetch_fulltext([f"pmid:{10000+i}" for i in range(10)], self.run,
                                 execute=True, fetch=fetch, max_fetches=10)
         self.assertEqual(10, sum(item["status"] == "fetched" for item in result["results"]))
@@ -1038,7 +1176,7 @@ class OpenFulltextTests(unittest.TestCase):
             if "search?" in url:
                 return 200, json.dumps({"resultList": {"result": [record]}}).encode()
             fulltext_calls.append(url)
-            return 200, b"<article><p>text</p></article>"
+            return 200, b"<article>" + PMC_FRONT + b"<p>text</p></article>"
         result = fetch_fulltext(["doi:10.1234/article", "pmid:12345", "pmcid:PMC12345"], self.run,
                                 execute=True, fetch=fetch)
         self.assertEqual(1, len(fulltext_calls))

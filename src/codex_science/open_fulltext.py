@@ -52,6 +52,24 @@ _XML_ENCODING = re.compile(
     br"\bencoding[ \t\r\n]*=[ \t\r\n]*(['\"])([A-Za-z][A-Za-z0-9._-]*)\1"
 )
 _XML_PROLOG_WHITESPACE = frozenset(b" \t\r\n")
+_XML_ASCII_ENCODINGS = {b"us-ascii", b"ascii"}
+
+
+class _Refusal(ValueError):
+    """A refusal carrying the machine-readable reason reported to the caller."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+class _BodyTooLarge(_Refusal):
+    def __init__(self) -> None:
+        super().__init__("response-too-large", "response exceeds body cap")
+
+
+def _doi_key(value: str) -> str:
+    return re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", value.strip(), flags=re.IGNORECASE).casefold()
 
 
 def _skip_xml_prolog_misc(body: bytes, offset: int) -> int | None:
@@ -108,7 +126,7 @@ def _http_fetch(url: str, *, timeout: float, max_body_bytes: int) -> tuple[int, 
         with opener.open(request, timeout=timeout) as response:
             body = _read_with_deadline(response, max_body_bytes + 1, deadline)
             if len(body) > max_body_bytes:
-                raise ValueError("response exceeds body cap")
+                raise _BodyTooLarge()
             length = response.headers.get("Content-Length")
             if length is not None and "chunked" not in response.headers.get("Transfer-Encoding", "").lower():
                 if not re.fullmatch(r"[0-9]+", length.strip()):
@@ -120,7 +138,7 @@ def _http_fetch(url: str, *, timeout: float, max_body_bytes: int) -> tuple[int, 
         with exc:
             body = _read_with_deadline(exc, max_body_bytes + 1, deadline)
             if len(body) > max_body_bytes:
-                raise ValueError("response exceeds body cap")
+                raise _BodyTooLarge()
             return exc.code, body
 
 
@@ -284,7 +302,7 @@ def _normalize_ids(ids: list[str]) -> list[str]:
             raise ValueError(f"unsupported identifier: {item}")
         if normalized.startswith("doi:") and (not re.fullmatch(r"doi:10\.\d{4,9}/\S+", normalized) or '"' in normalized):
             raise ValueError(f"malformed DOI: {item}")
-        if normalized.startswith("pmid:") and not re.fullmatch(r"pmid:\d{5,9}", normalized):
+        if normalized.startswith("pmid:") and not re.fullmatch(r"pmid:[1-9]\d{0,8}", normalized):
             raise ValueError(f"malformed PMID: {item}")
         if normalized.startswith("pmcid:") and not re.fullmatch(r"pmcid:PMC\d+", normalized):
             raise ValueError(f"malformed PMCID: {item}")
@@ -316,6 +334,8 @@ def _record_matches(record: dict[str, Any], identifier: str) -> bool:
 def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> str:
     # UTF-16/32 can hide markup from the byte-level declaration checks.
     body = xml.removeprefix(b"\xef\xbb\xbf")
+    if not body.strip():
+        raise _Refusal("empty-body", "response body is empty")
     if b"\x00" in body:
         raise ValueError("XML declarations and non-UTF-8-compatible bytes are not allowed")
     try:
@@ -327,8 +347,12 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
         declaration_end = body.find(b"?>", xml_declaration.end())
         if declaration_end >= 0:
             encoding = _XML_ENCODING.search(body, xml_declaration.end(), declaration_end)
-            if encoding is not None and encoding.group(2).lower() not in {b"utf-8", b"utf8"}:
-                raise ValueError("XML declarations and non-UTF-8-compatible bytes are not allowed")
+            declared = encoding.group(2).lower() if encoding is not None else b"utf-8"
+            if declared in _XML_ASCII_ENCODINGS:
+                if not body.isascii():
+                    raise ET.ParseError("non-ASCII bytes in a document declared as US-ASCII")
+            elif declared not in {b"utf-8", b"utf8"}:
+                raise _Refusal("unsupported-encoding", f"unsupported XML encoding: {declared.decode('ascii')}")
     leading = body.lstrip()
     if not leading.startswith(b"<") or _ENTITY.search(body):
         raise ValueError("XML declarations are not allowed")
@@ -354,6 +378,7 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
     # Alias extraction also checks metadata-only XML; fetch callers pass expected_ids.
     if expected_ids is not None and name(root) != "article":
         raise ET.ParseError("expected an article document")
+    seen_kinds: set[str] = set()
     if expected_ids:
         metadata = [root]
         metadata.extend(meta for meta in root if name(meta) == "article-meta")
@@ -370,8 +395,13 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
                 value = "".join(node.itertext()).strip().upper()
                 if kind == "pmc" and value.isdigit():
                     value = "PMC" + value
-                if value and value != expected_ids[kind].upper():
+                if kind == "doi":
+                    value = _doi_key(value)
+                expected = _doi_key(expected_ids[kind]) if kind == "doi" else expected_ids[kind].upper()
+                if value and value != expected:
                     raise ET.ParseError("article identity conflicts with request")
+                if value:
+                    seen_kinds.add(kind)
 
     block_tags = {
         "abstract", "caption", "fig", "list", "list-item", "p", "sec",
@@ -401,10 +431,13 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
         caption = next((text(child) for child in node if name(child) == "caption"), "")
         return " ".join(part for part in (label, caption) if part)
 
+    structural_tags = block_tags | {"ref-list", "article-title", "ack", "app", "boxed-text"}
+    in_text_zone = False
+
     def mixed_content(node: ET.Element) -> None:
         pending = [node.text or ""]
         for child in node:
-            if any(name(item) in block_tags for item in child.iter()):
+            if any(name(item) in structural_tags for item in child.iter()):
                 emit("".join(pending))
                 pending = []
                 walk(child)
@@ -413,7 +446,15 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
             pending.append(child.tail or "")
         emit("".join(pending))
 
+    def walk_children(node: ET.Element, skip: frozenset[str] = frozenset()) -> None:
+        emit(node.text or "")
+        for child in node:
+            if name(child) not in skip:
+                walk(child)
+            emit(child.tail or "")
+
     def walk(node: ET.Element) -> None:
+        nonlocal in_text_zone
         tag = name(node)
         if tag == "ref-list":
             return
@@ -425,9 +466,7 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
             return
         if tag in {"fig", "table-wrap"}:
             emit(caption_block(node))
-            for child in node:
-                if name(child) not in {"label", "caption"}:
-                    walk(child)
+            walk_children(node, frozenset({"label", "caption"}))
             return
         if tag == "supplementary-material":
             emit(caption_block(node))
@@ -435,15 +474,20 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
         if tag in {"sec", "ack", "app", "boxed-text"}:
             title = next((text(child) for child in node if name(child) == "title"), "")
             emit(title)
-            for child in node:
-                if name(child) != "title":
-                    walk(child)
+            walk_children(node, frozenset({"title"}))
             return
         if tag == "tr":
             emit(" | ".join(text(cell) for cell in node if name(cell) in {"td", "th"}))
             return
         if tag == "title":
             emit(text(node))
+            return
+        if tag in {"body", "back"} or in_text_zone:
+            outer, in_text_zone = in_text_zone, True
+            try:
+                mixed_content(node)
+            finally:
+                in_text_zone = outer
             return
         for child in node:
             walk(child)
@@ -452,6 +496,8 @@ def _plain_text(xml: bytes, *, expected_ids: dict[str, str] | None = None) -> st
     plain = "\n\n".join(pieces)
     if expected_ids is not None and not plain:
         raise ET.ParseError("article contains no extracted text")
+    if expected_ids and "pmc" in expected_ids and "pmc" not in seen_kinds:
+        raise _Refusal("article-id-missing", "article does not carry the requested PMCID")
     return plain
 
 
@@ -488,8 +534,8 @@ def _remove_publication_temporaries(output_dir: Path) -> None:
             path.unlink()
 
 
-def _publish_pair(output_dir: Path, pmcid: str, xml: bytes, plain: str) -> None:
-    """Stage both artifacts before exposing either; caller holds the ledger lock."""
+def _stage_pair(output_dir: Path, xml: bytes, plain: str) -> list[Path]:
+    """Write and fsync both artifacts as temporaries; caller holds the ledger lock."""
     _remove_publication_temporaries(output_dir)
     staged: list[Path] = []
     try:
@@ -503,11 +549,23 @@ def _publish_pair(output_dir: Path, pmcid: str, xml: bytes, plain: str) -> None:
         for path in staged:
             with path.open("rb") as stream:
                 os.fsync(stream.fileno())
+    except BaseException:
+        _discard_staged(staged)
+        raise
+    return staged
+
+
+def _discard_staged(staged: list[Path]) -> None:
+    for path in staged:
+        path.unlink(missing_ok=True)
+
+
+def _commit_pair(output_dir: Path, pmcid: str, staged: list[Path]) -> None:
+    try:
         os.replace(staged[0], output_dir / f"{pmcid}.xml")
         os.replace(staged[1], output_dir / f"{pmcid}.txt")
     finally:
-        for path in staged:
-            path.unlink(missing_ok=True)
+        _discard_staged(staged)
 
 
 def _prepare_output_paths(root: Path, ids: list[str]) -> tuple[Path, Path]:
@@ -602,33 +660,48 @@ def fetch_fulltext(
             if isinstance(body, str):
                 body = body.encode("utf-8")
             if len(body) > max_body_bytes:
-                raise ValueError("response exceeds body cap")
+                raise _BodyTooLarge()
             if clock() - started >= max_seconds:
                 stop_for_cap = True
-        except (OSError, TimeoutError, http.client.HTTPException, urllib.error.URLError, ValueError, TypeError, AttributeError):
+        except (OSError, TimeoutError, http.client.HTTPException, urllib.error.URLError, ValueError, TypeError, AttributeError) as error:
             response_status, body = None, b""
+            if isinstance(error, _Refusal):
+                plain = error
             if clock() - started >= max_seconds:
                 stop_for_cap = True
         if response_status == 200 and pmcid is not None:
             try:
                 plain = _plain_text(body, expected_ids=expected_ids)
-            except (ET.ParseError, ValueError, RecursionError) as error:
+            except (ET.ParseError, ValueError) as error:
                 plain = error
+            except RecursionError:
+                plain = _Refusal("xml-too-deep", "XML is nested too deeply")
         row = {
             "query_id": "fulltext-" + uuid.uuid4().hex,
             "source": "europepmc",
             "query": query,
             "url": url,
             "accessed_at": datetime.now(timezone.utc).isoformat(),
-            "status": "complete" if response_status == 200 and not isinstance(plain, Exception) else "unavailable",
+            "status": "unavailable",
             "response_sha256": hashlib.sha256(body).hexdigest() if response_status is not None else None,
             "fulltext_pmcid": pmcid,
             "license": license_value,
         }
         row_recorded = False
+        published = True
+        staged: list[Path] = []
         try:
             with ledger_path.open("a+b") as stream:
                 fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                # Order: stage + fsync, append the row, then rename into place. A failed append
+                # leaves any existing pair untouched; "complete" is recorded only once staging worked.
+                if pmcid is not None and response_status == 200 and isinstance(plain, str):
+                    try:
+                        staged = _stage_pair(output_dir, body, plain)
+                    except OSError:
+                        published = False
+                if response_status == 200 and not isinstance(plain, Exception) and published:
+                    row["status"] = "complete"
                 stream.seek(0, 2)
                 prefix = b""
                 if stream.tell():
@@ -639,13 +712,22 @@ def fetch_fulltext(
                 stream.flush()
                 requests_recorded += 1
                 row_recorded = True
-                if pmcid is not None and response_status == 200 and isinstance(plain, str):
-                    _publish_pair(output_dir, pmcid, body, plain)
+                if staged:
+                    try:
+                        _commit_pair(output_dir, pmcid, staged)
+                    except OSError:
+                        published = False
         except OSError:
+            _discard_staged(staged)
             if not row_recorded:
                 ledger_failed = True
             return response_status, body, False, True, plain
-        return response_status, body, True, True, plain
+        return response_status, body, published, True, plain
+
+    def failure_reason(status: int | None, error: Any) -> str:
+        if isinstance(error, _Refusal) and status is None:
+            return error.reason
+        return f"http-{status}" if status is not None else "request-failed"
 
     for identifier in normalized:
         if not execute:
@@ -661,7 +743,7 @@ def fetch_fulltext(
         query = _search_query(identifier)
         params = urllib.parse.urlencode({"query": query, "resultType": "core", "format": "json"})
         core_url = f"{BASE}/search?{params}"
-        status, body, ledger_ok, did_request, _ = request(core_url, query)
+        status, body, ledger_ok, did_request, failure = request(core_url, query)
         if not did_request:
             results.append({"identifier": identifier, "status": "skipped-cap"})
             continue
@@ -669,8 +751,8 @@ def fetch_fulltext(
             results.append({"identifier": identifier, "status": "write-failed"})
             continue
         if status != 200:
-            reason = f"http-{status}" if status is not None else "request-failed"
-            results.append({"identifier": identifier, "status": "unavailable", "reason": reason})
+            results.append({"identifier": identifier, "status": "unavailable",
+                            "reason": failure_reason(status, failure)})
             continue
         try:
             payload = json.loads(body.decode("utf-8"))
@@ -718,6 +800,8 @@ def fetch_fulltext(
         pmid = identifier.split(":", 1)[1] if identifier.startswith("pmid:") else record.get("pmid")
         if isinstance(pmid, (str, int)) and not isinstance(pmid, bool) and str(pmid):
             expected_ids["pmid"] = str(pmid)
+        if identifier.startswith("doi:"):
+            expected_ids["doi"] = identifier.split(":", 1)[1]
         status, xml, ledger_ok, did_request, plain = request(
             full_url, f"PMCID:{pmcid} fullTextXML", pmcid, license_value, expected_ids)
         if not did_request:
@@ -732,7 +816,7 @@ def fetch_fulltext(
         if status != 200:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "unavailable",
-                            "reason": f"http-{status}" if status is not None else "request-failed"})
+                            "reason": failure_reason(status, plain)})
             continue
         try:
             if isinstance(plain, Exception):
@@ -741,10 +825,10 @@ def fetch_fulltext(
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "unavailable", "reason": "xml-parse-error"})
             continue
-        except (ValueError, RecursionError):
+        except ValueError as error:
             results.append({"identifier": identifier, "fulltext_pmcid": pmcid,
                             "license": license_value, "status": "unavailable",
-                            "reason": "xml-declaration-refused"})
+                            "reason": error.reason if isinstance(error, _Refusal) else "xml-declaration-refused"})
             continue
         results.append({"identifier": identifier, "fulltext_pmcid": pmcid, "license": license_value,
                         "status": "fetched", "response_sha256": hashlib.sha256(xml).hexdigest()})

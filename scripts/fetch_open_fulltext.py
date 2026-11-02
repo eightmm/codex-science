@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--id", dest="ids", action="append", default=[],
                         help="PMCID, PMID or DOI to fetch; repeatable, added to run-directory identifiers")
     parser.add_argument("--execute", action="store_true", help="allow Europe PMC network requests (default: only plan, no network)")
-    parser.add_argument("--max-fetches", type=int, default=10, help="maximum Europe PMC requests (0-10)")
+    parser.add_argument("--max-fetches", type=int, default=10, help="maximum Europe PMC full-text fetches (0-10); search lookups are not counted")
     parser.add_argument("--max-seconds", type=float, default=60, help="total time budget in seconds (above 0, at most 60)")
     parser.add_argument("--max-body-bytes", type=int, default=8 * 1024 * 1024,
                         help="maximum response body size in bytes (0 to 8 MiB)")

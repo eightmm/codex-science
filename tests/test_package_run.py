@@ -419,7 +419,7 @@ class PackageRunTests(unittest.TestCase):
         raw = self.run_dir / "raw"
         raw_before = {path.relative_to(raw): path.read_bytes() for path in raw.rglob("*") if path.is_file()}
         metadata = b'{"resultList":{"result":[{"pmcid":"PMC12345","pmid":"12345","source":"MED","isOpenAccess":"Y","license":"CC BY"}]}}'
-        xml = b"<article><p>Fetched response</p></article>"
+        xml = b'<article><front><article-meta><article-id pub-id-type="pmc">PMC12345</article-id></article-meta></front><p>Fetched response</p></article>'
         for retry in (False, True):
             with self.subTest(retry=retry):
                 if retry:
