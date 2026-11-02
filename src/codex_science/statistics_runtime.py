@@ -495,10 +495,69 @@ def validate_statistical_analysis(payload: Mapping[str, Any]) -> None:
         raise ValueError("analysis receipt requires an explicit integer seed")
     if not isinstance(payload.get("limitations"), list) or not payload.get("limitations"):
         raise ValueError("analysis receipt requires limitations")
+    _validate_statistical_consistency(payload)
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:
         raise ValueError("statistical-analysis fingerprint mismatch")
+
+
+def _validate_statistical_consistency(payload: Mapping[str, Any]) -> None:
+    """Refuse receipts whose numbers contradict what run_statistical_analysis computes.
+
+    The receipt stores no observations, so only relations that hold for every
+    emitted receipt are checked. A percentile bootstrap interval need not contain
+    the point estimate, so that relation is deliberately not enforced.
+    """
+    analysis_type, estimand = payload["analysis_type"], payload["estimand"]
+    if analysis_type not in {"independent", "paired"}:
+        raise ValueError("analysis_type must be independent or paired")
+    if estimand not in {"mean-difference", "median-difference"}:
+        raise ValueError("estimand must be mean-difference or median-difference")
+    if payload.get("alternative") not in {"two-sided", "greater", "less"}:
+        raise ValueError("alternative must be two-sided, greater, or less")
+    effect, interval, test, sample = payload["effect"], payload["interval"], payload["test"], payload["sample"]
+    expected_measure = "hedges-g" if analysis_type == "independent" else "paired-standardized-mean"
+    if effect.get("standardized_measure") != expected_measure:
+        raise ValueError(f"effect.standardized_measure must be {expected_measure} for {analysis_type} analysis")
+    if estimand == "median-difference" and effect.get("standardized_estimate") is not None:
+        raise ValueError("standardized_estimate must be null for median-difference")
+    raw, missing, units = sample["raw_counts"], sample["missing_counts"], sample["experimental_units"]
+    groups = set(raw)
+    if len(groups) != 2 or set(missing) != groups or set(units) != groups:
+        raise ValueError("sample counts must cover the same two groups")
+    first, second = sorted(groups)
+    if payload["contrast"] not in {f"{second} - {first}", f"{first} - {second}"}:
+        raise ValueError("contrast must name the two sample groups")
+    for group in sorted(groups):
+        if missing[group] > raw[group]:
+            raise ValueError(f"sample.missing_counts.{group} exceeds sample.raw_counts.{group}")
+        if units[group] > raw[group]:
+            raise ValueError(f"sample.experimental_units.{group} exceeds sample.raw_counts.{group}")
+    if analysis_type == "paired" and units[first] != units[second]:
+        raise ValueError("paired analysis requires equal experimental_units per group")
+    if interval.get("method") != "deterministic-percentile-bootstrap":
+        raise ValueError("interval.method must be deterministic-percentile-bootstrap")
+    if interval["replicates"] > MAX_REPLICATES:
+        raise ValueError(f"interval.replicates exceeds {MAX_REPLICATES}")
+    exact = test.get("exact")
+    if not isinstance(exact, bool):
+        raise ValueError("test.exact must be a boolean")
+    if test.get("method") != ("exact-randomization" if exact else "monte-carlo-randomization"):
+        raise ValueError("test.method does not match test.exact")
+    permutations, p_value = test["permutations"], float(test["p_value"])
+    if permutations > (MAX_EXACT_PERMUTATIONS if exact else MAX_REPLICATES):
+        raise ValueError("test.permutations exceeds the randomization limit")
+    # Exact p = extreme/total; Monte Carlo p = (extreme + 1)/(total + 1).
+    denominator = permutations if exact else permutations + 1
+    count = p_value * denominator
+    if denominator and (abs(count - round(count)) > 1e-6 or round(count) < 1):
+        raise ValueError("p_value is not a randomization count over test.permutations")
+    hypotheses = payload["multiplicity"]["hypotheses"]
+    if hypotheses:
+        recomputed = benjamini_hochberg([{"id": item.get("id"), "p_value": item.get("p_value")} for item in hypotheses])
+        if any(not isinstance(item.get("id"), str) for item in hypotheses) or recomputed != [dict(item) for item in hypotheses]:
+            raise ValueError("multiplicity.hypotheses q_value does not match Benjamini-Hochberg adjustment")
 
 
 def review_statistical_analysis(payload: Mapping[str, Any]) -> list[dict[str, str]]:

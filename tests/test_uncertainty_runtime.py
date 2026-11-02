@@ -160,6 +160,58 @@ class UncertaintyValidityTests(unittest.TestCase):
                 self.assertEqual("invalid-uncertainty-propagation", findings[0]["code"])
                 self.assertEqual("critical", findings[0]["severity"])
 
+    def test_receipt_refuses_internally_inconsistent_numbers(self):
+        base = self.propagate("x*y", [("x", 2, 0.1), ("y", 3, 0.2)], samples=1000,
+                              covariance=[{"left": "x", "right": "y", "value": 0.005}])
+        validate_uncertainty_propagation(base)
+        mean = base["monte_carlo"]["mean"]
+        reach = base["monte_carlo"]["standard_uncertainty"] * math.sqrt(999)
+
+        def put(path, value):
+            def mutate(item):
+                *parents, field = path
+                for parent in parents:
+                    item = item[parent]
+                item[field] = value
+            return mutate
+
+        cases = [
+            (put(("linear", "variance"), 1e6), "linear.variance and linear.standard_uncertainty"),
+            (put(("linear", "standard_uncertainty"), 1000.0), "linear.variance and linear.standard_uncertainty"),
+            (put(("linear", "gradient", 0), 30.0), "linear.variance"),
+            (put(("linear", "sensitivities", 0, "derivative"), 30.0), r"linear.sensitivities\[0\] does not match"),
+            (put(("linear", "sensitivities", 1, "diagonal_variance_contribution"), 0.5), r"linear.sensitivities\[1\] does not match"),
+            (put(("linear", "sensitivities", 0, "fraction_of_linear_variance"), None), r"linear.sensitivities\[0\] does not match"),
+            (put(("linear", "sensitivities", 1, "name"), "x"), r"linear.sensitivities\[1\].name does not match"),
+            (put(("inputs", 0, "standard_uncertainty"), 0.2), r"covariance\[0\]\[0\] does not match"),
+            (put(("inputs", 0, "standard_uncertainty"), 1e200), "outside floating-point range"),
+            (put(("inputs", 0, "mean"), math.inf), "must be finite"),
+            (put(("inputs",), None), "inputs must list one object per gradient entry"),
+            (put(("inputs",), [None, None]), "inputs must list one object per gradient entry"),
+            (put(("covariance",), [[0.01, 0.005]]), "covariance must be a square matrix"),
+            (put(("covariance", 0, 1), 0.004), "covariance must be symmetric"),
+            (put(("covariance", 0, 1), "0.005"), "must be numeric"),
+            (put(("monte_carlo", "interval"), [1000, 1001]), "monte_carlo.interval lies outside"),
+            (put(("monte_carlo", "interval"), [mean - 1.01 * reach, mean]), "monte_carlo.interval lies outside"),
+            (put(("nonlinearity", "relative_uncertainty_discrepancy"), 1.5), "cannot exceed 1"),
+        ]
+        for mutate, message in cases:
+            forged = copy.deepcopy(base)
+            mutate(forged)
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_uncertainty_propagation(forged)
+                self.assertEqual("invalid-uncertainty-propagation", review_uncertainty_propagation(forged)[0]["code"])
+        for interval, discrepancy in (([mean - reach * 0.999, mean + reach * 0.999], 1), ([mean, mean], 0)):
+            edge = copy.deepcopy(base)
+            edge["monte_carlo"]["interval"] = interval
+            edge["nonlinearity"]["relative_uncertainty_discrepancy"] = discrepancy
+            edge.pop("fingerprint")
+            edge["fingerprint"] = canonical_sha256(edge)
+            validate_uncertainty_propagation(edge)
+
     def test_receipt_validation_preserves_valid_method_boundaries(self):
         for method in ("linear", "monte-carlo", "both"):
             for uncertainty in (0, 1):

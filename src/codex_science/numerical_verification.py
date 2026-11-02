@@ -318,10 +318,96 @@ def validate_numerical_verification(payload: Mapping[str, Any]) -> None:
         raise ValueError("numerical verification needs at least two refinements")
     if not isinstance(findings, list) or not all(isinstance(item, Mapping) for item in findings):
         raise ValueError("findings must be a list of objects")
+    for item in findings:
+        for field in ("code", "severity", "message"):
+            _required_text(item.get(field), f"finding.{field}")
+        if item["severity"] not in {"critical", "major", "minor", "suggestion"}:
+            raise ValueError("invalid numerical finding severity")
+    if payload["status"] == "findings" and not any(item["severity"] in {"critical", "major"} for item in findings):
+        raise ValueError("findings status requires a critical or major finding")
+    _validate_numerical_consistency(payload)
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:
         raise ValueError("numerical-verification fingerprint mismatch")
+
+
+def _nonnegative(value: Any, label: str) -> float:
+    number = _finite(value, label)
+    if number < 0:
+        raise ValueError(f"{label} must be non-negative")
+    return number
+
+
+def _optional_nonnegative(value: Any, label: str) -> float | None:
+    return None if value is None else _nonnegative(value, label)
+
+
+def _require_number(value: Any, expected: float | None, label: str) -> None:
+    if expected is None:
+        matches = value is None
+    else:
+        matches = not isinstance(value, bool) and isinstance(value, (int, float)) and value == expected
+    if not matches:
+        raise ValueError(f"{label} does not match the recorded values it summarizes")
+
+
+def _validate_numerical_consistency(payload: Mapping[str, Any]) -> None:
+    """Recompute the summaries run_numerical_verification derives from stored records.
+
+    Observed orders are not recomputed: reviewers must still see receipts whose
+    refinement series was truncated after the orders were recorded.
+    """
+    if payload.get("reference_value") is not None:
+        _finite(payload["reference_value"], "reference_value")
+    errors: list[float | None] = []
+    residuals: list[float] = []
+    deviations: list[float] = []
+    for index, record in enumerate(payload["refinements"]):
+        if not isinstance(record, Mapping):
+            raise ValueError(f"refinements[{index}] must be an object")
+        if _finite(record.get("resolution"), f"refinements[{index}].resolution") <= 0:
+            raise ValueError(f"refinements[{index}].resolution must be positive")
+        _finite(record.get("estimate"), f"refinements[{index}].estimate")
+        errors.append(_optional_nonnegative(record.get("error"), f"refinements[{index}].error"))
+        residual = _optional_nonnegative(record.get("residual"), f"refinements[{index}].residual")
+        if residual is not None:
+            residuals.append(residual)
+        invariants = record.get("invariants")
+        if not isinstance(invariants, Mapping):
+            raise ValueError(f"refinements[{index}].invariants must be an object")
+        for name, deviation in invariants.items():
+            deviations.append(_nonnegative(deviation, f"refinements[{index}].invariants.{name}"))
+    orders = payload.get("observed_orders")
+    if not isinstance(orders, list):
+        raise ValueError("observed_orders must be a list")
+    for index, order in enumerate(orders):
+        _finite(order, f"observed_orders[{index}]")
+    _require_number(payload.get("minimum_observed_order"), min(orders) if orders else None, "minimum_observed_order")
+    monotone = payload.get("error_monotone")
+    if monotone is not None:
+        if not isinstance(monotone, bool) or any(error is None for error in errors):
+            raise ValueError("error_monotone requires a boolean and an error at every refinement")
+        if monotone != all(errors[index + 1] <= errors[index] for index in range(len(errors) - 1)):
+            raise ValueError("error_monotone does not match refinement errors")
+    for field, values in (("maximum_residual", residuals), ("maximum_invariant_deviation", deviations)):
+        _optional_nonnegative(payload.get(field), field)
+        _require_number(payload.get(field), max(values) if values else None, field)
+    cross_method = payload.get("cross_method")
+    if not isinstance(cross_method, list) or not all(isinstance(item, Mapping) for item in cross_method):
+        raise ValueError("cross_method must be a list of objects")
+    for index, item in enumerate(cross_method):
+        _required_text(item.get("method"), f"cross_method[{index}].method")
+        _finite(item.get("estimate"), f"cross_method[{index}].estimate")
+        _nonnegative(item.get("uncertainty"), f"cross_method[{index}].uncertainty")
+        if index == 0:
+            continue
+        baseline = cross_method[0]
+        combined = math.hypot(baseline["uncertainty"], item["uncertainty"])
+        difference = abs(baseline["estimate"] - item["estimate"])
+        z_score = math.inf if combined == 0 and difference > 0 else (0.0 if combined == 0 else difference / combined)
+        _require_number(item.get("difference_from_first"), difference, f"cross_method[{index}].difference_from_first")
+        _require_number(item.get("combined_uncertainty_z"), z_score, f"cross_method[{index}].combined_uncertainty_z")
 
 
 def review_numerical_verification(payload: Mapping[str, Any]) -> list[dict[str, str]]:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -33,10 +34,32 @@ ADVANCED_KINDS = {
 }
 
 
+def _finite_json_number(literal: str) -> float:
+    value = float(literal)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite number {literal}")
+    return value
+
+
+def _infinite_json_constant(literal: str) -> float:
+    # Receipt writers emit infinity only as these constants; validators decide
+    # which fields may hold it. NaN never encodes a valid quantity.
+    if literal == "Infinity":
+        return math.inf
+    if literal == "-Infinity":
+        return -math.inf
+    raise ValueError(f"non-finite number {literal}")
+
+
 def _load(path: Path, label: str) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
+        payload = json.loads(
+            path.read_text(encoding="utf-8"),
+            parse_float=_finite_json_number, parse_constant=_infinite_json_constant,
+        )
+    except RecursionError as error:
+        raise ValueError(f"invalid JSON in {label}: {path.name}: nesting is too deep") from error
+    except ValueError as error:
         raise ValueError(f"invalid JSON in {label}: {path.name}: {error}") from error
     if not isinstance(payload, dict):
         raise ValueError(f"{label} must be an object")

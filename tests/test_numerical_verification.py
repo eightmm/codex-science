@@ -1,7 +1,10 @@
 import copy
+import hashlib
 import math
 import struct
+import tempfile
 import unittest
+from pathlib import Path
 
 from codex_science.numerical_verification import (
     MAX_REFINEMENTS,
@@ -171,6 +174,133 @@ class NumericalVerificationContractTests(unittest.TestCase):
                 with self.assertRaises(ValueError) as caught:
                     validate_numerical_verification(changed)
                 self.assertIn(message, str(caught.exception))
+
+    def forge(self, receipt: dict, mutate) -> dict:
+        from codex_science.safe_expression import canonical_sha256
+        forged = copy.deepcopy(receipt)
+        mutate(forged)
+        forged.pop("fingerprint")
+        forged["fingerprint"] = canonical_sha256(forged)
+        return forged
+
+    def test_runtime_receipts_validate_including_infinite_agreement(self) -> None:
+        for payload in (
+            self.payload(),
+            self.payload(refinements=self.payload()["refinements"][:2], thresholds={"minimum_order": 1.8}),
+            self.payload(reference_value=None, solver={}, cross_method=[]),
+            self.payload(refinements=[{"resolution": 1, "estimate": 2, "error": 0.5}, {"resolution": 0.5, "estimate": 1.5}]),
+            self.payload(cross_method=[{"method": "a", "estimate": 0, "uncertainty": 0},
+                                       {"method": "b", "estimate": 1, "uncertainty": 0},
+                                       {"method": "c", "estimate": 0, "uncertainty": 0}]),
+        ):
+            receipt = run_numerical_verification(payload)
+            with self.subTest(status=receipt["status"], orders=receipt["observed_orders"]):
+                validate_numerical_verification(receipt)
+        self.assertEqual(math.inf, receipt["cross_method"][1]["combined_uncertainty_z"])
+
+    def test_sidecar_loader_keeps_infinite_agreement_and_refuses_nan_and_overflow(self) -> None:
+        from codex_science.advanced_sidecars import validate_advanced_sidecars
+        from codex_science.cli_io import write_json_atomic
+
+        receipt = run_numerical_verification(self.payload(cross_method=[
+            {"method": "a", "estimate": 0, "uncertainty": 0},
+            {"method": "b", "estimate": 1, "uncertainty": 0},
+        ]))
+        self.assertEqual(math.inf, receipt["cross_method"][1]["combined_uncertainty_z"])
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+
+            def validate(name: str, content: bytes | None = None) -> dict:
+                path = root / f"{name}.json"
+                if content is None:
+                    write_json_atomic(path, receipt)
+                else:
+                    path.write_bytes(content)
+                manifest = {"artifacts": [{"kind": "numerical-verification", "path": path.name,
+                                           "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}]}
+                return validate_advanced_sidecars(manifest, root, {path.name: path})
+
+            self.assertEqual([receipt], validate("infinite-agreement")["numerical_verifications"])
+            written = (root / "infinite-agreement.json").read_text(encoding="utf-8")
+            self.assertIn('"combined_uncertainty_z": Infinity', written)
+            for literal in ("-Infinity", "1e308"):
+                with self.subTest(loaded_then_refused=literal):
+                    forged = written.replace('"combined_uncertainty_z": Infinity', f'"combined_uncertainty_z": {literal}')
+                    with self.assertRaisesRegex(ValueError, r"^forged\.json \(numerical-verification\): .*combined_uncertainty_z"):
+                        validate("forged", forged.encode())
+            residual = written.replace('"maximum_residual": 0.064', '"maximum_residual": Infinity')
+            self.assertNotEqual(written, residual)
+            with self.assertRaisesRegex(ValueError, "maximum_residual must be finite"):
+                validate("residual", residual.encode())
+            documents = {
+                "nan": written.replace('"combined_uncertainty_z": Infinity', '"combined_uncertainty_z": NaN'),
+                "overflow": written.replace('"maximum_residual": 0.064', '"maximum_residual": 1e999'),
+                "negative-overflow": written.replace('"maximum_residual": 0.064', '"maximum_residual": -1e999'),
+                "nested": "[" * 100_000 + "]" * 100_000,
+                "syntax": "{",
+            }
+            for name, content in documents.items():
+                self.assertNotEqual(written, content)
+                with self.subTest(document=name):
+                    with self.assertRaisesRegex(ValueError, f"^invalid JSON in numerical-verification: {name}.json: "):
+                        validate(name, content.encode())
+            with self.assertRaisesRegex(ValueError, "^invalid JSON in numerical-verification: encoding.json: "):
+                validate("encoding", b"\xff")
+
+    def test_validator_refuses_inconsistent_or_nonfinite_numbers(self) -> None:
+        receipt = run_numerical_verification(self.payload())
+        validate_numerical_verification(receipt)
+
+        def put(path, value):
+            def mutate(item):
+                for key in path[:-1]:
+                    item = item[key]
+                item[path[-1]] = value
+            return mutate
+
+        cases = [
+            (put(("findings",), [{}]), "finding.code is required"),
+            (put(("findings",), [{"code": "c", "severity": "major", "message": ""}]), "finding.message is required"),
+            (put(("findings",), [{"code": "c", "severity": "fatal", "message": "m"}]), "invalid numerical finding severity"),
+            (put(("status",), "findings"), "findings status requires"),
+            (put(("reference_value",), math.nan), "reference_value must be finite"),
+            (put(("refinements", 0, "error"), math.inf), r"refinements\[0\].error must be finite"),
+            (put(("refinements", 0, "error"), math.nan), r"refinements\[0\].error must be finite"),
+            (put(("refinements", 0, "error"), -0.1), r"refinements\[0\].error must be non-negative"),
+            (put(("refinements", 0, "resolution"), 0), "resolution must be positive"),
+            (put(("refinements", 0, "estimate"), None), "estimate must be numeric"),
+            (put(("refinements", 0, "residual"), math.inf), "residual must be finite"),
+            (put(("refinements", 0, "invariants"), []), "invariants must be an object"),
+            (put(("refinements", 0, "invariants", "mass"), None), "invariants.mass must be numeric"),
+            (put(("refinements", 1), 5), r"refinements\[1\] must be an object"),
+            (put(("maximum_residual",), math.inf), "maximum_residual must be finite"),
+            (put(("maximum_residual",), 0.0064), "maximum_residual does not match"),
+            (put(("maximum_residual",), None), "maximum_residual does not match"),
+            (put(("maximum_invariant_deviation",), 1.0), "maximum_invariant_deviation does not match"),
+            (put(("observed_orders",), None), "observed_orders must be a list"),
+            (put(("observed_orders",), [math.nan]), "must be finite"),
+            (put(("minimum_observed_order",), 9.0), "minimum_observed_order does not match"),
+            (put(("minimum_observed_order",), True), "minimum_observed_order does not match"),
+            (put(("error_monotone",), False), "error_monotone does not match"),
+            (put(("error_monotone",), "yes"), "error_monotone requires a boolean"),
+            (put(("refinements", 1, "error"), None), "error at every refinement"),
+            (put(("cross_method",), None), "cross_method must be a list"),
+            (put(("cross_method", 1, "combined_uncertainty_z"), 0.1), "combined_uncertainty_z does not match"),
+            (put(("cross_method", 1, "difference_from_first"), 5.0), "difference_from_first does not match"),
+            (put(("cross_method", 1, "uncertainty"), -0.01), "uncertainty must be non-negative"),
+        ]
+        for mutate, message in cases:
+            forged = self.forge(receipt, mutate)
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_numerical_verification(forged)
+                self.assertEqual("invalid-numerical-verification", review_numerical_verification(forged)[0]["code"])
+        for findings in ([5], [{}], [{"code": "c"}]):
+            with self.subTest(findings=findings):
+                review = review_numerical_verification(self.forge(receipt, put(("findings",), findings)))
+                self.assertEqual(["invalid-numerical-verification"], [item["code"] for item in review])
+        suggestion = self.forge(receipt, put(("findings",), [{"code": "c", "severity": "suggestion", "message": "m"}]))
+        validate_numerical_verification(suggestion)
 
     def test_estimate_differences_without_reference_report_order(self) -> None:
         payload = self.payload(

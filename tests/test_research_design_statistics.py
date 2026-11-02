@@ -610,6 +610,7 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         self.assertTrue(result["test"]["exact"])
         self.assertEqual(16, result["test"]["permutations"])
         self.assertAlmostEqual(2 / 16, result["test"]["p_value"])
+        validate_statistical_analysis(result)
 
     def test_benjamini_hochberg_is_monotone_in_rank(self) -> None:
         adjusted = benjamini_hochberg(
@@ -741,6 +742,7 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         self.assertEqual(200, result["test"]["permutations"])
         self.assertEqual(1, result["sample"]["incomplete_pairs_excluded"])
         self.assertEqual(17, result["sample"]["experimental_units"]["before"])
+        validate_statistical_analysis(result)
 
     def test_independent_monte_carlo_is_seeded_and_reports_replicate_count(self) -> None:
         payload = self.independent_input()
@@ -754,6 +756,7 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         self.assertFalse(first["test"]["exact"])
         self.assertEqual("monte-carlo-randomization", first["test"]["method"])
         self.assertEqual(200, first["test"]["permutations"])
+        validate_statistical_analysis(first)
 
     def test_analysis_median_output_adjusts_hypotheses_and_records_missing_data(self) -> None:
         payload = self.independent_input()
@@ -786,6 +789,74 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         findings = review_statistical_analysis(broken)
         self.assertEqual("invalid-statistical-analysis", findings[0]["code"])
         self.assertIn("interval lower exceeds upper", findings[0]["message"])
+
+    def test_receipt_refuses_internally_inconsistent_numbers(self) -> None:
+        exact = run_statistical_analysis(self.independent_input())
+        payload = self.independent_input()
+        payload["hypotheses"] = [{"id": "h1", "p_value": 0.01}, {"id": "h2", "p_value": 0.04}]
+        adjusted = run_statistical_analysis(payload)
+        payload = self.analysis_input(list(range(12)), [value + 0.5 for value in range(12)])
+        payload["permutation_replicates"] = 200
+        monte_carlo = run_statistical_analysis(payload)
+        paired = run_statistical_analysis(self.analysis_input([0, 1, 2], [1, 3, 2], paired=True))
+        for receipt in (exact, adjusted, monte_carlo, paired):
+            validate_statistical_analysis(receipt)
+        self.assertFalse(monte_carlo["test"]["exact"])
+
+        def set_path(path, value):
+            def mutate(receipt):
+                target = receipt
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+            return mutate
+
+        cases = [
+            (exact, set_path(("sample", "missing_counts", "control"), 5), "missing_counts.control exceeds"),
+            (exact, set_path(("sample", "experimental_units", "treatment"), 5), "experimental_units.treatment exceeds"),
+            (exact, set_path(("sample", "missing_counts"), {"control": 0, "other": 0}), "same two groups"),
+            (exact, set_path(("contrast",), "other - control"), "contrast must name"),
+            (exact, set_path(("analysis_type",), "crossover"), "analysis_type must be"),
+            (exact, set_path(("estimand",), "ratio"), "estimand must be"),
+            (exact, set_path(("alternative",), None), "alternative must be"),
+            (exact, set_path(("effect", "standardized_measure"), "cohen-d"), "standardized_measure"),
+            (exact, set_path(("estimand",), "median-difference"), "standardized_estimate must be null"),
+            (exact, set_path(("interval", "method"), "bca"), "interval.method"),
+            (exact, set_path(("interval", "replicates"), 100_001), "interval.replicates exceeds"),
+            (exact, set_path(("test", "exact"), 1), "test.exact must be a boolean"),
+            (exact, set_path(("test", "method"), "monte-carlo-randomization"), "test.method does not match"),
+            (exact, set_path(("test", "permutations"), 100_001), "test.permutations exceeds"),
+            (exact, set_path(("test", "p_value"), 0.123), "randomization count"),
+            (exact, set_path(("test", "p_value"), 0), "randomization count"),
+            (monte_carlo, set_path(("test", "p_value"), 1 / 202), "randomization count"),
+            (monte_carlo, set_path(("test", "permutations"), 100_001), "test.permutations exceeds"),
+            (paired, set_path(("sample", "experimental_units", "control"), 2), "equal experimental_units"),
+            (adjusted, set_path(("multiplicity", "hypotheses", 0, "q_value"), 0.005), "Benjamini-Hochberg"),
+            (adjusted, set_path(("multiplicity", "hypotheses", 1, "q_value"), 0.02), "Benjamini-Hochberg"),
+            (adjusted, set_path(("multiplicity", "hypotheses", 0, "id"), 1), "Benjamini-Hochberg"),
+            (adjusted, set_path(("multiplicity", "hypotheses", 1, "id"), "h1"), "unique"),
+        ]
+        for receipt, mutate, message in cases:
+            broken = copy.deepcopy(receipt)
+            mutate(broken)
+            broken.pop("fingerprint")
+            broken["fingerprint"] = canonical_sha256(broken)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                validate_statistical_analysis(broken)
+            self.assertEqual("invalid-statistical-analysis", review_statistical_analysis(broken)[0]["code"])
+        for receipt, path, value in (
+            (exact, ("sample", "missing_counts", "control"), 4),
+            (exact, ("sample", "experimental_units", "control"), 4),
+            (exact, ("test", "p_value"), 1),
+            (monte_carlo, ("test", "p_value"), 1 / 201),
+            (adjusted, ("contrast",), "control - treatment"),
+        ):
+            edge = copy.deepcopy(receipt)
+            set_path(path, value)(edge)
+            edge.pop("fingerprint")
+            edge["fingerprint"] = canonical_sha256(edge)
+            with self.subTest(edge=path):
+                validate_statistical_analysis(edge)
 
     def test_receipt_validation_names_required_fields_and_fingerprint_mismatch(self) -> None:
         receipt = run_statistical_analysis(self.independent_input())

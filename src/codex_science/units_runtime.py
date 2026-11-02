@@ -463,6 +463,28 @@ def validate_dimension_check(payload: Mapping[str, Any]) -> None:
         raise ValueError("invalid dimension-check status")
     if not isinstance(payload.get("equations"), list) or not isinstance(payload.get("findings"), list):
         raise ValueError("equations and findings must be lists")
+    findings = payload["findings"]
+    for item in findings:
+        if not isinstance(item, Mapping):
+            raise ValueError("findings must contain objects")
+        for field in ("code", "severity", "message"):
+            _required_text(item.get(field), f"finding.{field}")
+        if item["severity"] not in {"critical", "major", "minor", "suggestion"}:
+            raise ValueError("invalid dimension-check finding severity")
+    if payload["status"] == "findings" and not findings:
+        raise ValueError("findings status requires at least one finding")
+    # Equation records stay unchecked here so review can still report forged ones.
+    conversions = payload.get("conversions", [])
+    if not isinstance(conversions, list) or not all(isinstance(item, Mapping) for item in conversions):
+        raise ValueError("conversions must be a list of objects")
+    for index, item in enumerate(conversions):
+        _finite_real(item.get("value"), f"conversions[{index}].value")
+        if (item.get("converted") is None) == (item.get("error") is None):
+            raise ValueError(f"conversions[{index}] must record exactly one of converted or error")
+        if item.get("converted") is not None:
+            _finite_real(item["converted"], f"conversions[{index}].converted")
+        else:
+            _required_text(item.get("error"), f"conversions[{index}].error")
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:

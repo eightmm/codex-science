@@ -454,10 +454,67 @@ def validate_uncertainty_propagation(payload: Mapping[str, Any]) -> None:
             _required_text(item.get(field), f"finding.{field}")
         if item["severity"] not in {"critical", "major", "minor", "suggestion"}:
             raise ValueError("invalid uncertainty finding severity")
+    _validate_uncertainty_consistency(payload)
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:
         raise ValueError("uncertainty-propagation fingerprint mismatch")
+
+
+def _validate_uncertainty_consistency(payload: Mapping[str, Any]) -> None:
+    """Recompute the linear result from stored inputs and bound the Monte Carlo summary.
+
+    Monte Carlo samples are not stored and can be expensive to regenerate, so
+    only relations every sample set satisfies are checked.
+    """
+    inputs, covariance, linear = payload.get("inputs"), payload.get("covariance"), payload["linear"]
+    gradient, sensitivities = linear["gradient"], linear["sensitivities"]
+    size = len(gradient)
+    if not isinstance(inputs, list) or len(inputs) != size or not all(isinstance(item, Mapping) for item in inputs):
+        raise ValueError("inputs must list one object per gradient entry")
+    if (not isinstance(covariance, list) or len(covariance) != size
+            or not all(isinstance(row, list) and len(row) == size for row in covariance)):
+        raise ValueError("covariance must be a square matrix matching the inputs")
+    uncertainties: list[float] = []
+    for index, item in enumerate(inputs):
+        name = _required_text(item.get("name"), f"inputs[{index}].name")
+        if sensitivities[index].get("name") != name:
+            raise ValueError(f"linear.sensitivities[{index}].name does not match inputs")
+        _finite(item.get("mean"), f"inputs[{index}].mean")
+        uncertainty = _finite(item.get("standard_uncertainty"), f"inputs[{index}].standard_uncertainty")
+        try:
+            diagonal = uncertainty ** 2
+        except OverflowError as error:
+            raise ValueError(f"inputs[{index}].standard_uncertainty variance is outside floating-point range") from error
+        if uncertainty < 0 or covariance[index][index] != diagonal:
+            raise ValueError(f"covariance[{index}][{index}] does not match inputs[{index}].standard_uncertainty")
+        uncertainties.append(uncertainty)
+    for row in range(size):
+        for column in range(size):
+            value = covariance[row][column]
+            _finite(value, f"covariance[{row}][{column}]")
+            if value != covariance[column][row]:
+                raise ValueError("covariance must be symmetric")
+    variance = _variance(gradient, covariance, uncertainties=uncertainties)
+    if linear["variance"] != variance or linear["standard_uncertainty"] != math.sqrt(variance):
+        raise ValueError("linear.variance and linear.standard_uncertainty do not match the gradient and covariance")
+    for index, item in enumerate(sensitivities):
+        contribution = gradient[index] * covariance[index][index] * gradient[index]
+        if (item["derivative"] != gradient[index] or item["diagonal_variance_contribution"] != contribution
+                or item.get("fraction_of_linear_variance") != (None if variance == 0 else contribution / variance)):
+            raise ValueError(f"linear.sensitivities[{index}] does not match the gradient and covariance")
+    monte_carlo = payload.get("monte_carlo")
+    if isinstance(monte_carlo, Mapping):
+        mean, spread = monte_carlo["mean"], monte_carlo["standard_uncertainty"]
+        # Every sample, hence every interpolated quantile, lies within
+        # stdev*sqrt(n - 1) of the sample mean.
+        reach = spread * math.sqrt(monte_carlo["accepted_samples"] - 1) * (1 + 1e-9)
+        for bound in monte_carlo["interval"]:
+            slack = 4 * math.ulp(max(abs(bound), abs(mean)))
+            if abs(bound - mean) > reach + slack:
+                raise ValueError("monte_carlo.interval lies outside the reach of the Monte Carlo mean and standard uncertainty")
+    if payload["method"] == "both" and payload["nonlinearity"]["relative_uncertainty_discrepancy"] > 1:
+        raise ValueError("nonlinearity.relative_uncertainty_discrepancy cannot exceed 1")
 
 
 def review_uncertainty_propagation(payload: Mapping[str, Any]) -> list[dict[str, str]]:

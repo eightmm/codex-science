@@ -3,7 +3,9 @@ import unittest
 from unittest.mock import patch
 
 from codex_science.safe_expression import canonical_sha256
-from codex_science.units_runtime import convert_value, parse_unit, review_dimension_check, run_dimension_check
+from codex_science.units_runtime import (
+    convert_value, parse_unit, review_dimension_check, run_dimension_check, validate_dimension_check,
+)
 
 
 class UnitsScaleValidityTests(unittest.TestCase):
@@ -67,6 +69,47 @@ class UnitsScaleValidityTests(unittest.TestCase):
                 "codex_science.units_runtime.infer_dimension", side_effect=AssertionError("historical recomputation"),
             ):
                 self.assertEqual([], review_dimension_check(recorded))
+
+    def test_validator_refuses_malformed_findings_and_conversions(self):
+        receipt = run_dimension_check({
+            "schema_version": 1, "check_id": "d", "claim_id": "c", "variables": {"x": "m"},
+            "equations": [{"left": "x", "right": "x"}],
+            "conversions": [{"value": 1, "from": "m", "to": "cm"}, {"value": 1, "from": "m", "to": "s"}],
+        })
+        self.assertEqual("findings", receipt["status"])
+        validate_dimension_check(receipt)
+        for payload in (
+            {"variables": {"x": "m"}},
+            {"variables": {"x": "m"}, "conversions": [{"value": 0, "from": "m", "to": "cm"}]},
+            {"variables": {"x": "m", "t": "s"}, "equations": [{"left": "x", "right": "t"}]},
+        ):
+            validate_dimension_check(run_dimension_check({"schema_version": 1, "check_id": "d", "claim_id": "c", **payload}))
+        cases = (
+            (lambda r: r.update(findings=[{}]), "finding.code is required"),
+            (lambda r: r.update(findings=[5]), "findings must contain objects"),
+            (lambda r: r["findings"][0].update(severity="fatal"), "invalid dimension-check finding severity"),
+            (lambda r: r["findings"][0].update(message=" "), "finding.message is required"),
+            (lambda r: r.update(findings=[]), "findings status requires at least one finding"),
+            (lambda r: r.update(conversions=None), "conversions must be a list of objects"),
+            (lambda r: r.update(conversions=[5]), "conversions must be a list of objects"),
+            (lambda r: r["conversions"][0].update(converted=float("inf")), r"conversions\[0\].converted must be finite"),
+            (lambda r: r["conversions"][0].update(value=float("nan")), r"conversions\[0\].value must be finite"),
+            (lambda r: r["conversions"][0].update(converted=None), "exactly one of converted or error"),
+            (lambda r: r["conversions"][1].update(converted=1.0), "exactly one of converted or error"),
+            (lambda r: r["conversions"][1].update(error=7), r"conversions\[1\].error is required"),
+        )
+        for mutate, message in cases:
+            forged = copy.deepcopy(receipt)
+            mutate(forged)
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_dimension_check(forged)
+                self.assertEqual(
+                    [("invalid-dimension-check", "critical")],
+                    [(item["code"], item["severity"]) for item in review_dimension_check(forged)],
+                )
 
     def test_cancelled_scale_underflow_is_recovered(self) -> None:
         expression = "nm^20*nm^20/nm^20/nm^20"
