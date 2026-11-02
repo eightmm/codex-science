@@ -303,8 +303,13 @@ def _population_narrows(target: str, population: str) -> bool:
         if stripped == continuation:
             break
         continuation = stripped
-    added = _POPULATION_SEPARATOR.split(continuation)[1:]
-    return not any(word in _POPULATION_NOUNS for item in added for word in re.findall(r"[^\W\d_]+(?:-[^\W\d_]+)*", item))
+    first, *added = [set(re.findall(r"[^\W\d_]+(?:-[^\W\d_]+)*", item))
+                     for item in _POPULATION_SEPARATOR.split(continuation)]
+    # A group noun in the first qualifier ("parents of children and adolescents") takes the
+    # coordination that follows, so later nouns describe the qualifier, not added groups.
+    if first & _POPULATION_NOUNS:
+        return True
+    return not any(words & _POPULATION_NOUNS for words in added)
 
 
 def _population_covered(target: str, populations: list[str]) -> bool:
@@ -312,7 +317,8 @@ def _population_covered(target: str, populations: list[str]) -> bool:
            or _population_narrows(target, population) for population in populations):
         return True
     # Reordered lists, or groups reported by different studies, match component by component
-    # exactly; a qualifier shared by a study list ("men and women aged 50-70") is never dropped.
+    # exactly, so a multi-item claim keeps the qualifier a study list shares ("men and women
+    # aged 50-70"); a single list member ("men") still matches that list as before.
     available = {item for population in populations for item in _population_components(population)}
     targets = _population_components(target)
     return bool(targets) and all(item in available for item in targets)
