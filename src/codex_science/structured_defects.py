@@ -271,7 +271,9 @@ def _validate(payload: Any) -> dict[str, Any]:
 
 
 _POPULATION_SEPARATOR = re.compile(r"[,;/]|\band\b")
-# Nouns that name a population group. A study population followed by a separator and an item
+# Nouns that name a population group; singulars usually used as modifiers ("glycaemic control",
+# "subject to", "animal allergy", "mostly elderly") are left out, and hyphenated compounds such as
+# "patient-reported" count as one word. A study population followed by a separator and an item
 # containing one of these ("adults and children aged 5-12") lists another group; other
 # continuations ("aged 18 and over", "male and female", "current or former smokers") and
 # bracketed descriptions ("(men and women)") are read as narrowing qualifiers, as before.
@@ -279,11 +281,9 @@ _POPULATION_NOUNS = frozenset({
     "adult", "adults", "adolescent", "adolescents", "teenager", "teenagers", "youth", "youths",
     "child", "children", "kid", "kids", "infant", "infants", "newborn", "newborns", "neonate",
     "neonates", "toddler", "toddlers", "boy", "boys", "girl", "girls", "man", "men", "woman",
-    "women", "elderly", "senior", "seniors", "people", "person", "persons", "individual",
-    "individuals", "patient", "patients", "subject", "subjects", "participant", "participants",
-    "volunteer", "volunteers", "control", "controls", "caregiver", "caregivers", "carer", "carers",
-    "student", "students", "worker", "workers", "veteran", "veterans",
-    "mouse", "mice", "rat", "rats", "animal", "animals",
+    "women", "seniors", "people", "persons", "individuals", "patients", "subjects",
+    "participants", "volunteers", "controls", "caregivers", "carers", "students", "workers",
+    "veterans", "parents", "partners", "families", "mice", "rats", "animals",
 })
 _BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
 
@@ -304,7 +304,7 @@ def _population_narrows(target: str, population: str) -> bool:
             break
         continuation = stripped
     added = _POPULATION_SEPARATOR.split(continuation)[1:]
-    return not any(word in _POPULATION_NOUNS for item in added for word in re.findall(r"[^\W\d_]+", item))
+    return not any(word in _POPULATION_NOUNS for item in added for word in re.findall(r"[^\W\d_]+(?:-[^\W\d_]+)*", item))
 
 
 def _population_covered(target: str, populations: list[str]) -> bool:
