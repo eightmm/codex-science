@@ -373,10 +373,16 @@ def _evaluate_exact_expression(source: str | ParsedExpression, variables: Mappin
     return result
 
 
+_VARIABLE_KEYS = frozenset({"name", "values", "integer_range", "float_grid"})
+
+
 def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tuple[Any, ...], bool]:
     name = str(payload.get("name", "")).strip()
     if not name.isidentifier() or keyword.iskeyword(name) or name in _ALLOWED_FUNCTIONS or name in _ALLOWED_CONSTANTS:
         raise ValueError(f"variables[{index}].name must be a safe unique identifier")
+    extra = sorted(str(key) for key in set(payload) - _VARIABLE_KEYS)
+    if extra:
+        raise ValueError(f"variables[{index}] has unknown keys: {', '.join(extra)}")
     modes = sum(key in payload for key in ("values", "integer_range", "float_grid"))
     if modes != 1:
         raise ValueError(f"variable {name} requires exactly one domain declaration")
@@ -590,7 +596,7 @@ def validate_counterexample_receipt(payload: Mapping[str, Any]) -> None:
     if unknown:
         raise ValueError(f"counterexample receipt has unknown keys: {', '.join(map(str, unknown))}")
     for index, entry in enumerate(payload["variables"]):
-        extra = sorted(set(entry) - {"name", "values", "integer_range", "float_grid"})
+        extra = sorted(str(key) for key in set(entry) - _VARIABLE_KEYS)
         if extra:
             raise ValueError(f"counterexample receipt variables[{index}] has unknown keys: {', '.join(map(str, extra))}")
     # The unchanged producer is deterministic. Canonical comparison also keeps

@@ -492,6 +492,14 @@ class CounterexampleNumericValidityTests(unittest.TestCase):
         labelled["fingerprint"] = canonical_sha256(labelled)
         validate_counterexample_receipt(labelled)
 
+    def test_search_refuses_variable_keys_its_receipt_validator_refuses(self):
+        payload = {
+            "schema_version": 1, "claim_id": "c", "statement": "s", "scope": "finite",
+            "variables": [{"name": "x", "values": [1, 2], "description": "d"}], "conclusion": "x > 0",
+        }
+        with self.assertRaisesRegex(ValueError, r"variables\[0\] has unknown keys: description"):
+            search_counterexample(payload)
+
     def test_failing_grid_point_names_the_assignment(self):
         with self.assertRaisesRegex(ExpressionError, r"function sqrt failed.*conclusion 'sqrt\(x\) >= 0'.*x=-1"):
             self.search({"values": [-1, 4]}, "sqrt(x) >= 0")

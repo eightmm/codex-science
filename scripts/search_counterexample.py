@@ -19,7 +19,7 @@ input JSON keys (schema_version must be 1):
                            exhaustive finite-domain result path
   variables                required non-empty list (at most 64) of {name (unique identifier
                            that is not a Python keyword), and
-                           exactly one domain key:
+                           exactly one domain key (no other keys):
                              values: non-empty list of finite numbers or booleans
                              integer_range: {start, stop (required integers),
                                step (default 1, nonzero); stop is included}
