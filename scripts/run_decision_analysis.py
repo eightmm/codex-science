@@ -40,6 +40,14 @@ input JSON keys (schema_version must be 1):
   values                   required list of {action, state, value (finite number)};
                            exactly one entry per action/state pair
   assumptions              optional list of non-empty strings
+  experiments              optional list (max 64) of {id (unique), label (optional),
+                           cost_in_scale_units (number >= 0, default 0), outcomes (non-empty list, max 256,
+                           of {id (unique), likelihoods: {state id: number in [0, 1]} naming every state)};
+                           likelihoods over outcomes must sum to 1 for every state; requires
+                           an expected-value criterion
+  sensitivity              optional object {two_state_prior: {state_id, minimum (default 0),
+                           maximum (default 1)}}; requires an expected-value criterion
+                           and exactly two states
   tie_tolerance            optional, in (0, 0.001]; default 1e-12
 """
 

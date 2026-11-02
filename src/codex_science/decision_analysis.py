@@ -21,6 +21,9 @@ DEFAULT_TIE_TOLERANCE = 1e-12
 # Priors lie in [0, 1], so eight epsilons * max(1, abs(p)) is constant.
 # This coordinate rounding allowance is independent of consequence units.
 PRIOR_ROUNDING_TOLERANCE = 8.0 * math.ulp(1.0)
+# Floating-point noise allowance for comparing computed scores, relative to
+# the magnitude of the compared values.
+SCORE_NOISE_ULPS = 16.0
 
 EXPECTED_CRITERIA = {"bayes-risk", "expected-utility", "expected-payoff"}
 ALLOWED_CRITERIA = {
@@ -89,6 +92,15 @@ def _probability(value: Any, label: str) -> float:
 
 def _normalize_zero(value: float, tolerance: float = DEFAULT_TIE_TOLERANCE) -> float:
     return 0.0 if abs(value) <= tolerance else value
+
+
+def _one_line(value: Any) -> str:
+    return " ".join(str(value).split())
+
+
+def _reported(value: float, tolerance: float) -> float:
+    """Zero only rounding noise; tie_tolerance decides ties, not reported values."""
+    return _normalize_zero(value, min(tolerance, DEFAULT_TIE_TOLERANCE))
 
 
 def _normalize_named_items(
@@ -406,18 +418,21 @@ def _optimal_actions(
     scores: Mapping[str, float],
     direction: str,
     tolerance: float,
+    computed: bool = False,
 ) -> tuple[list[str], float]:
     if not scores:
         raise ValueError("cannot choose from an empty score table")
     for action, value in scores.items():
         _finite(value, f"action {action} score")
     target = min(scores.values()) if direction == "minimize" else max(scores.values())
+    # Only computed sums carry rounding error; exact table values use tolerance alone.
+    noise = SCORE_NOISE_ULPS * math.ulp(1.0) if computed else 0.0
     selected = sorted(
         action
         for action, value in scores.items()
-        if math.isclose(value, target, rel_tol=0.0, abs_tol=tolerance)
+        if abs(value - target) <= max(tolerance, noise * max(abs(value), abs(target)))
     )
-    return selected, _normalize_zero(target, tolerance)
+    return selected, _reported(target, tolerance)
 
 
 def _result_for_scores(
@@ -425,13 +440,14 @@ def _result_for_scores(
     scores: Mapping[str, float],
     direction: str,
     tolerance: float,
+    computed: bool = False,
 ) -> dict[str, Any]:
-    selected, target = _optimal_actions(scores, direction, tolerance)
+    selected, target = _optimal_actions(scores, direction, tolerance, computed)
     return {
         "criterion": criterion,
         "direction": direction,
         "scores": [
-            {"action": action, "value": _normalize_zero(scores[action], tolerance)}
+            {"action": action, "value": _reported(scores[action], tolerance)}
             for action in sorted(scores)
         ],
         "optimal_actions": selected,
@@ -468,7 +484,7 @@ def _regret_table(
         for action in actions:
             raw = values[(action, state)] - best if direction == "minimize" else best - values[(action, state)]
             _finite(raw, f"regret for action {action} state {state}")
-            regrets[(action, state)] = max(0.0, _normalize_zero(raw, tolerance))
+            regrets[(action, state)] = max(0.0, _reported(raw, tolerance))
     maximum = {action: max(regrets[(action, state)] for state in states) for action in actions}
     return regrets, maximum
 
@@ -521,13 +537,13 @@ def _criterion_results(
             "utility": "expected-utility",
             "payoff": "expected-payoff",
         }[kind]
-        results[expected_name] = _result_for_scores(expected_name, expected, direction, tolerance)
+        results[expected_name] = _result_for_scores(expected_name, expected, direction, tolerance, True)
         if offset:
             result = results[expected_name]
             target = min(expected.values()) if direction == "minimize" else max(expected.values())
-            result["optimal_value"] = _normalize_zero(_finite(target + offset, "optimal expected value"), tolerance)
+            result["optimal_value"] = _reported(_finite(target + offset, "optimal expected value"), tolerance)
             for score in result["scores"]:
-                score["value"] = _normalize_zero(_finite(expected[score["action"]] + offset, "expected score"), tolerance)
+                score["value"] = _reported(_finite(expected[score["action"]] + offset, "expected score"), tolerance)
     if kind == "loss":
         worst_loss = {action: max(values[(action, state)] for state in states) for action in actions}
         results["minimax-loss"] = _result_for_scores(
@@ -546,19 +562,16 @@ def _information_value(
     states: list[str],
     values: Mapping[tuple[str, str], float],
     priors: Mapping[str, float],
-    baseline: Mapping[str, Any],
     direction: str,
     tolerance: float,
 ) -> dict[str, Any] | None:
     experiments = problem.get("experiments", [])
     if not experiments:
         return None
-    # Keep the legacy arithmetic route for ordinary stored receipts.
     values, offset = _center_values(values)
-    baseline_value = float(baseline["optimal_value"])
-    if offset:
-        baseline_scores = _expected_scores(actions, states, values, priors)
-        baseline_value = min(baseline_scores.values()) if direction == "minimize" else max(baseline_scores.values())
+    # Sums use unrounded values; tolerance never rounds them.
+    baseline_scores = _expected_scores(actions, states, values, priors)
+    baseline_value = min(baseline_scores.values()) if direction == "minimize" else max(baseline_scores.values())
     if direction == "minimize":
         perfect_value = _finite_sum(
             (priors[state] * min(values[(action, state)] for action in actions) for state in states),
@@ -571,7 +584,7 @@ def _information_value(
             "perfect information value",
         )
         evpi = perfect_value - baseline_value
-    evpi = max(0.0, _normalize_zero(_finite(evpi, "EVPI"), tolerance))
+    evpi = max(0.0, _reported(_finite(evpi, "EVPI"), tolerance))
     experiment_results: list[dict[str, Any]] = []
     for experiment in experiments:
         outcome_results: list[dict[str, Any]] = []
@@ -614,9 +627,8 @@ def _information_value(
             posterior_total = math.fsum(posterior.values())
             posterior = {state: posterior[state] / posterior_total for state in states}
             scores = _expected_scores(actions, states, values, posterior)
-            selected, optimal_value = _optimal_actions(scores, direction, tolerance)
-            if offset:
-                optimal_value = min(scores.values()) if direction == "minimize" else max(scores.values())
+            selected, _ = _optimal_actions(scores, direction, tolerance, True)
+            optimal_value = min(scores.values()) if direction == "minimize" else max(scores.values())
             preposterior_terms.append(marginal * optimal_value)
             outcome_results.append(
                 {
@@ -625,7 +637,7 @@ def _information_value(
                     "status": "reachable",
                     "posterior": posterior,
                     "optimal_actions": selected,
-                    "optimal_value": _normalize_zero(_finite(optimal_value + offset, "posterior optimal value"), tolerance),
+                    "optimal_value": _reported(_finite(optimal_value + offset, "posterior optimal value"), tolerance),
                 }
             )
         preposterior_value = _finite_sum(preposterior_terms, "preposterior value")
@@ -637,11 +649,11 @@ def _information_value(
         _finite(gross, "gross EVSI")
         if gross < -max(tolerance, PROBABILITY_TOLERANCE):
             raise ValueError(f"experiment {experiment['id']} produced negative information value")
-        gross = max(0.0, _normalize_zero(gross, tolerance))
+        gross = max(0.0, _reported(gross, tolerance))
         if gross > evpi + max(tolerance, PROBABILITY_TOLERANCE):
             raise ValueError(f"experiment {experiment['id']} exceeds perfect information value")
         cost = float(experiment["cost_in_scale_units"])
-        net = _normalize_zero(_finite(gross - cost, "net EVSI"), tolerance)
+        net = _reported(_finite(gross - cost, "net EVSI"), tolerance)
         if net > tolerance:
             decision = "worth-cost"
         elif net < -tolerance:
@@ -727,7 +739,7 @@ def _prior_sensitivity(
     raw_regions: list[dict[str, Any]] = []
     for lower, upper in zip(unique_points, unique_points[1:]):
         midpoint = (lower + upper) / 2.0
-        selected, _ = _optimal_actions(scores_at(midpoint), direction, tolerance)
+        selected, _ = _optimal_actions(scores_at(midpoint), direction, tolerance, True)
         raw_regions.append(
             {
                 "minimum": lower,
@@ -749,13 +761,13 @@ def _prior_sensitivity(
     boundary_candidates: list[dict[str, Any]] = []
     for point in unique_points:
         scores = scores_at(point)
-        selected, _ = _optimal_actions(scores, direction, tolerance)
+        selected, _ = _optimal_actions(scores, direction, tolerance, True)
         value = min(scores.values()) if direction == "minimize" else max(scores.values())
         boundary_candidates.append(
             {
                 "prior": point,
                 "optimal_actions": selected,
-                "optimal_value": _normalize_zero(_finite(value + offset, "sensitivity optimal value"), tolerance),
+                "optimal_value": _reported(_finite(value + offset, "sensitivity optimal value"), tolerance),
             }
         )
     boundaries: list[dict[str, Any]] = []
@@ -802,7 +814,7 @@ def run_decision_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
     selected = criteria[str(problem["criterion"])]
     dominated = _dominance(actions, states, values, direction, tolerance)
     information = _information_value(
-        problem, actions, states, values, priors, selected, direction, tolerance
+        problem, actions, states, values, priors, direction, tolerance
     )
     sensitivity = _prior_sensitivity(problem, actions, states, values, direction, tolerance)
     if sensitivity and sensitivity["decision_changes_within_range"]:
@@ -831,7 +843,7 @@ def run_decision_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
             {
                 "action": action,
                 "state": state,
-                "regret": _normalize_zero(regrets[(action, state)], tolerance),
+                "regret": _reported(regrets[(action, state)], tolerance),
             }
             for action in actions
             for state in states
@@ -900,76 +912,96 @@ def render_decision_analysis(payload: Mapping[str, Any]) -> str:
     validate_decision_analysis(payload)
     recommendation = payload["recommendation"]
     problem = payload["problem"]
-    labels = {item["id"]: item["label"] for item in problem["actions"]}
-    chosen = ", ".join(labels.get(action, action) for action in recommendation["optimal_actions"])
+    unit = _one_line(problem["scale"]["unit"])
+    labels = {item["id"]: _one_line(item["label"]) for item in problem["actions"]}
+    selected = next(
+        (item for item in payload["criterion_results"] if item["criterion"] == payload["selected_criterion"]),
+        None,
+    )
+    priors = ", ".join(
+        f"P({_one_line(item['id'])})={item['prior']:.12g}"
+        for item in problem["states"]
+        if "prior" in item
+    )
+    chosen = ", ".join(labels.get(action, _one_line(action)) for action in recommendation["optimal_actions"])
     lines = [
         "# Statistical decision analysis",
         "",
-        f"- Question: {payload['question']}",
-        f"- Criterion: `{payload['selected_criterion']}` ({problem['criterion_rationale']})",
+        f"- Question: {_one_line(payload['question'])}",
+        f"- Criterion: `{_one_line(payload['selected_criterion'])}` ({_one_line(problem['criterion_rationale'])})",
         f"- Conditional action set: **{chosen}**",
-        f"- Criterion value: {recommendation['optimal_value']:.12g} {problem['scale']['unit']}",
+        f"- Criterion value: {recommendation['optimal_value']:.12g} {unit}",
         f"- Status: `{payload['status']}`",
-        f"- Applicability: {problem['applicability']}",
+    ]
+    if payload["status"] == "decision-sensitive":
+        lines.append("  - The optimal action set changes within the analysed prior range; see Prior sensitivity.")
+    elif payload["status"] == "multiple-optima":
+        lines.append("  - Several actions tie within the tie tolerance or floating-point noise, so the optimum is not unique.")
+    if selected is not None:
+        lines.append(f"- Optimisation direction: {selected['direction']}")
+    lines.extend([
+        f"- Priors: {priors or 'none recorded'}",
+        f"- Tie tolerance: {problem['tie_tolerance']:.12g}",
+        f"- Applicability: {_one_line(problem['applicability'])}",
         "",
         "## Criterion comparison",
         "",
-    ]
+    ])
     for result in payload["criterion_results"]:
-        optimal = ", ".join(labels.get(action, action) for action in result["optimal_actions"])
+        optimal = ", ".join(labels.get(action, _one_line(action)) for action in result["optimal_actions"])
         lines.append(
-            f"- `{result['criterion']}`: {optimal} at {result['optimal_value']:.12g} {problem['scale']['unit']}"
+            f"- `{_one_line(result['criterion'])}`: {optimal} at {result['optimal_value']:.12g} {unit}"
         )
     dominated = payload.get("dominated_actions", [])
     if dominated:
         lines.extend(["", "## Dominance", ""])
         for item in dominated:
-            action = labels.get(item["action"], item["action"])
+            action = labels.get(item["action"], _one_line(item["action"]))
             dominators = ", ".join(
-                labels.get(dominator, dominator) for dominator in item["dominated_by"]
+                labels.get(dominator, _one_line(dominator)) for dominator in item["dominated_by"]
             )
             lines.append(f"- {action} is weakly dominated by: {dominators}.")
     information = payload.get("information_value")
     if isinstance(information, Mapping):
-        lines.extend(["", "## Information value", "", f"- EVPI: {information['evpi']:.12g} {problem['scale']['unit']}"])
+        lines.extend(["", "## Information value", "", f"- EVPI: {information['evpi']:.12g} {unit}"])
         for experiment in information["experiments"]:
             lines.append(
-                f"- `{experiment['experiment']}`: gross EVSI {experiment['gross_evsi']:.12g}, "
+                f"- `{_one_line(experiment['experiment'])}`: gross EVSI {experiment['gross_evsi']:.12g}, "
                 f"cost {experiment['cost_in_scale_units']:.12g}, net EVSI {experiment['net_evsi']:.12g} "
-                f"{problem['scale']['unit']} (`{experiment['decision']}`)"
+                f"{unit} (`{_one_line(experiment['decision'])}`)"
             )
             for outcome in experiment["outcome_policy"]:
                 if outcome["status"] == "unreachable":
                     lines.append(
-                        f"  - Outcome `{outcome['outcome']}`: unreachable; posterior policy undefined."
+                        f"  - Outcome `{_one_line(outcome['outcome'])}`: unreachable; posterior policy undefined."
                     )
                     continue
                 outcome_actions = ", ".join(
-                    labels.get(action, action) for action in outcome["optimal_actions"]
+                    labels.get(action, _one_line(action)) for action in outcome["optimal_actions"]
                 )
                 posterior = ", ".join(
-                    f"P({state})={probability:.12g}"
+                    f"P({_one_line(state)})={probability:.12g}"
                     for state, probability in sorted(outcome["posterior"].items())
                 )
                 lines.append(
-                    f"  - Outcome `{outcome['outcome']}` (P={outcome['probability']:.12g}): "
+                    f"  - Outcome `{_one_line(outcome['outcome'])}` (P={outcome['probability']:.12g}): "
                     f"{outcome_actions}; posterior {posterior}."
                 )
     sensitivity = payload.get("sensitivity")
     if isinstance(sensitivity, Mapping):
         lines.extend(["", "## Prior sensitivity", ""])
         for region in sensitivity["regions"]:
-            actions = ", ".join(labels.get(action, action) for action in region["optimal_actions"])
+            actions = ", ".join(labels.get(action, _one_line(action)) for action in region["optimal_actions"])
             lines.append(
-                f"- P({sensitivity['state_id']}) in ({region['minimum']:.12g}, {region['maximum']:.12g}): {actions}"
+                f"- P({_one_line(sensitivity['state_id'])}) in ({region['minimum']:.12g}, {region['maximum']:.12g}): {actions}"
             )
         lines.append("- Exact evaluated boundaries:")
         for boundary in sensitivity["boundaries"]:
             boundary_actions = ", ".join(
-                labels.get(action, action) for action in boundary["optimal_actions"]
+                labels.get(action, _one_line(action)) for action in boundary["optimal_actions"]
             )
             lines.append(
-                f"  - P({sensitivity['state_id']})={boundary['prior']:.12g}: {boundary_actions}"
+                f"  - P({_one_line(sensitivity['state_id'])})={boundary['prior']:.12g}: {boundary_actions}"
             )
     lines.extend(
         [

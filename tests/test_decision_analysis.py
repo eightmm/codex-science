@@ -354,6 +354,74 @@ class DecisionAnalysisTests(unittest.TestCase):
             self.assertEqual(-0.5, result["experiments"][0]["net_evsi"])
             self.assertEqual("not-worth-cost", result["experiments"][0]["decision"])
 
+    def test_large_scale_exact_tie_is_multiple_optima(self) -> None:
+        scale = 1e10
+        expected = 0.7 * 36 * scale + 0.1 * 9 * scale + 0.2 * 4 * scale
+        problem = table_problem({"a": [expected] * 3, "b": [36 * scale, 9 * scale, 4 * scale]})
+        problem["criterion"] = "expected-payoff"
+        problem["scale"] = {"kind": "payoff", "unit": "u", "risk_attitude": "risk-neutral"}
+        problem["states"] = [
+            {"id": state, "prior": prior} for state, prior in zip("stu", (0.7, 0.1, 0.2))
+        ]
+        problem["values"] = [
+            {"action": action, "state": state, "value": value}
+            for action, row in {"a": [expected] * 3, "b": [36 * scale, 9 * scale, 4 * scale]}.items()
+            for state, value in zip("stu", row)
+        ]
+        receipt = run_decision_analysis(problem)
+        self.assertEqual(["a", "b"], criteria_by_name(receipt)["expected-payoff"]["optimal_actions"])
+        self.assertEqual("multiple-optima", receipt["status"])
+        # A gap well above rounding noise still selects a unique optimum.
+        for item in problem["values"][:3]:
+            item["value"] = expected + 1e-3 * scale
+        self.assertEqual("completed", run_decision_analysis(problem)["status"])
+
+    def test_exact_table_criteria_ignore_relative_noise_allowance(self) -> None:
+        gap = 4 * math.ulp(1e6)
+        receipt = run_decision_analysis(table_problem({"a": [1e6, 0.0], "b": [1e6 + gap, 0.0]}))
+        results = criteria_by_name(receipt)
+        self.assertEqual(["a"], results["minimax-loss"]["optimal_actions"])
+        self.assertEqual(["a"], results["minimax-regret"]["optimal_actions"])
+        self.assertEqual([{"action": "b", "dominated_by": ["a"]}], receipt["dominated_actions"])
+
+    def test_information_value_uses_unrounded_values_with_tie_tolerance(self) -> None:
+        experiment = {"id": "e", "cost_in_scale_units": 0.0, "outcomes": [
+            {"id": "u", "likelihoods": {"s": 1.0, "t": 0.0}},
+            {"id": "v", "likelihoods": {"s": 0.0, "t": 1.0}},
+        ]}
+        problem = table_problem(
+            {"a": [0.0, 0.0008], "b": [0.0008, 0.0]},
+            experiments=[experiment],
+            tie_tolerance=1e-3,
+        )
+        problem["scale"] = {"kind": "loss", "unit": "u", "risk_attitude": "encoded-in-loss"}
+        problem["criterion"] = "bayes-risk"
+        receipt = run_decision_analysis(problem)
+        result = receipt["information_value"]
+        self.assertAlmostEqual(0.0004, receipt["recommendation"]["optimal_value"], places=12)
+        self.assertEqual(0.0, result["perfect_information_value"])
+        self.assertAlmostEqual(
+            receipt["recommendation"]["optimal_value"] - result["perfect_information_value"],
+            result["evpi"],
+            places=12,
+        )
+        self.assertAlmostEqual(0.0004, result["evpi"], places=12)
+        self.assertAlmostEqual(0.0004, result["experiments"][0]["gross_evsi"], places=12)
+
+    def test_report_collapses_free_text_and_states_conditions(self) -> None:
+        problem = load_fixture()
+        problem["question"] = "Which action?\n## Injected heading"
+        receipt = run_decision_analysis(problem)
+        rendered = render_decision_analysis(receipt)
+        self.assertNotIn("\n## Injected", rendered)
+        self.assertIn("Which action? ## Injected heading", rendered)
+        self.assertIn("- Optimisation direction: minimize", rendered)
+        self.assertIn("- Priors: P(", rendered)
+        self.assertIn("- Tie tolerance: 1e-12", rendered)
+        tied = run_decision_analysis(table_problem({"a": [1.0, 2.0], "b": [1.0, 2.0]}))
+        self.assertEqual("multiple-optima", tied["status"])
+        self.assertIn("tie within the tie tolerance", render_decision_analysis(tied))
+
     def test_overflow_is_refused_before_cli_json_write(self) -> None:
         problem = table_problem(
             {"a": [-1e308, 1.7e308], "b": [1e308, -1e308]},

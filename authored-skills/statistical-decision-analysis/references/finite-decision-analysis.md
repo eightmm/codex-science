@@ -64,7 +64,7 @@ The command writes files atomically. Standard output contains only the output lo
 }
 ```
 
-IDs must be unique. `state_model` must be `exogenous`; action-dependent state probabilities require another model. Every value must use one consequence horizon and unit. The table must contain exactly one finite value for every action-state pair. Priors are all-or-none and must sum to one. For each experiment and state, likelihoods over all outcomes must sum to one. Experiment cost is expressed on the same scale as the table.
+IDs must be unique. `state_model` must be `exogenous`; action-dependent state probabilities require another model. Every value must use one consequence horizon and unit. The table must contain exactly one finite value for every action-state pair. Priors are all-or-none and must sum to one within an absolute tolerance of 1e-9; priors inside that tolerance are silently renormalised to sum exactly to one, so the receipt records the renormalised values. For each experiment and state, likelihoods over all outcomes must sum to one. Experiment cost is expressed on the same scale as the table.
 
 `schema_version` must be the integer `1`, not a boolean or floating-point value. Required prose fields must be non-empty strings; objects, lists, numbers and booleans are rejected rather than stringified. Identifiers and optional labels retain the runtime's existing string coercion.
 
@@ -80,9 +80,11 @@ For prior probabilities `p(s)` and table value `v(a,s)`, expected criteria use `
 
 The receipt computes every criterion supported by the supplied scale and prior, but only the preregistered `criterion` controls the conditional action set. Differences between Bayes and minimax results are reported rather than reconciled automatically.
 
-Weak dominance requires one action to be no worse in every state and strictly better in at least one state, within `tie_tolerance`. Dominated actions remain in the receipt for auditability but cannot become uniquely optimal under a compatible criterion.
+Weak dominance requires one action to be no worse in every state and strictly better in at least one state, judged on exact table values within `tie_tolerance` alone. Dominated actions remain in the receipt for auditability but cannot become uniquely optimal under a compatible criterion.
 
 ## Information value
+
+Expected scores (including posterior scores) are computed sums, so ties among them also absorb a floating-point noise allowance of `16 * ulp(1.0)` times the larger compared magnitude. Ties among exact table criteria (`minimax-loss`, `minimax-regret`) and dominance use `tie_tolerance` alone. `tie_tolerance` decides only which actions tie and the net-EVSI decision. Every reported numeric value (scores, optimal values including posterior and sensitivity values, regrets, EVPI, gross and net EVSI) is computed unrounded and reported as zero only within `min(tie_tolerance, 1e-12)`, so reported values stay consistent with each other; the net-EVSI decision (`worth-cost`, `not-worth-cost`, `indifferent-within-tolerance`) uses `tie_tolerance`.
 
 Experiments are allowed only with `bayes-risk`, `expected-utility`, or `expected-payoff` and a complete prior.
 
@@ -96,7 +98,7 @@ Expected-action comparisons and information improvements use a common centred co
 
 ## Prior sensitivity
 
-`sensitivity.two_state_prior` is available only for two-state expected criteria. It varies the named state's prior over the declared interval, sets the other prior to its complement, splits the range at exact action-score crossings, and reports positive-width optimal regions and decision-relevant boundary ties. To suppress floating-point artifacts at coincident crossings or range endpoints, crossing coordinates within `8 * ulp(1.0)` (about `1.78e-15` on `[0,1]`) are coalesced; endpoints take precedence. No region is narrower than that coordinate allowance, and a requested range narrower than it is refused. This rounding rule is independent of `tie_tolerance`, which is measured in consequence units. Region action sets are evaluated at interval midpoints; they do not describe tolerance bands near the crossings. Near an exact crossing, direct evaluation reports tied actions whenever their score difference is within `tie_tolerance`; the existing boundary entry lists both actions at the crossing. Crossings between actions that are never optimal are omitted. `decision-sensitive` means the interior-optimal policy changes within that range; a tie only at one exact boundary is not presented as a robust action reversal.
+`sensitivity.two_state_prior` is available only for two-state expected criteria. It varies the named state's prior over the declared interval, sets the other prior to its complement, splits the range at exact action-score crossings, and reports positive-width optimal regions and decision-relevant boundary ties. To suppress floating-point artifacts at coincident crossings or range endpoints, crossing coordinates within `8 * ulp(1.0)` (about `1.78e-15` on `[0,1]`) are coalesced; endpoints take precedence. No region is narrower than that coordinate allowance, and a requested range narrower than it is refused. This rounding rule is independent of `tie_tolerance`, which is measured in consequence units. Region action sets are evaluated at interval midpoints; they do not describe tolerance bands near the crossings. Near an exact crossing, direct evaluation reports tied actions whenever their expected-score difference is within `tie_tolerance` or within a floating-point noise allowance of `16 * ulp(1.0)` times the larger compared magnitude; the existing boundary entry lists both actions at the crossing. Crossings between actions that are never optimal are omitted. `decision-sensitive` means the interior-optimal policy changes within that range; a tie only at one exact boundary is not presented as a robust action reversal.
 
 Do not choose the sensitivity range after finding a desired conclusion. For more than two states, supply preregistered scenarios and analyze them separately; the bounded runtime does not invent a path through a probability simplex.
 
