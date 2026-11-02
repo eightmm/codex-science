@@ -151,6 +151,21 @@ class ConsensusTests(unittest.TestCase):
         self.assertIn("half", contested)
         self.assertEqual(result["singleton_claims"][0]["key"], "rare")
 
+    def test_statuses_differing_only_in_form_still_agree(self):
+        claims = ["Supported", " supported ", "Supp\u006frted", "not  supported"]
+        result = build_consensus({"schema": "trajectory-set-v1", "trajectories": [
+            {"id": f"t{i}", "claims": [{"key": "k", "statement": "s", "status": status}]}
+            for i, status in enumerate(claims[:3])]})
+        self.assertEqual(["k"], [x["key"] for x in result["consensus_claims"]])
+        self.assertEqual({"supported": ["t0", "t1", "t2"]}, result["consensus_claims"][0]["statuses"])
+        nfd = build_consensus({"schema": "trajectory-set-v1", "trajectories": [
+            {"id": "a", "claims": [{"key": "k", "statement": "s", "status": "r\u00e9fut\u00e9"}]},
+            {"id": "b", "claims": [{"key": "k", "statement": "s", "status": "re\u0301fute\u0301"}]},
+            {"id": "c", "claims": [{"key": "k", "statement": "s", "status": "not   supported"}]},
+            {"id": "d", "claims": [{"key": "k", "statement": "s", "status": "Not supported"}]}]})
+        self.assertEqual({"r\u00e9fut\u00e9": ["a", "b"], "not supported": ["c", "d"]},
+                         nfd["contested_claims"][0]["statuses"])
+
     def test_agreeing_statuses_reach_consensus_and_threshold_is_strict(self):
         def payload(**extra):
             return {"schema": "trajectory-set-v1", **extra, "trajectories": [
@@ -175,12 +190,12 @@ class ConsensusTests(unittest.TestCase):
     def test_tied_scores_and_candidate_id_collisions_warn(self):
         cycle = self._bt([{"winner": "a", "loser": "b"}, {"winner": "b", "loser": "c"},
                           {"winner": "c", "loser": "a"}])
-        self.assertIn({"code": "tied_scores", "candidates": ["a", "b", "c"]}, cycle["warnings"])
+        self.assertIn({"code": "tied_scores", "component": ["a", "b", "c"]}, cycle["warnings"])
         clear = self._bt([{"winner": "s", "loser": "w"}] * 3 + [{"winner": "w", "loser": "s"}])
         self.assertEqual(clear["warnings"], [])
         collide = self._bt([{"winner": "A", "loser": "a"}, {"winner": "a", "loser": " A "},
                             {"winner": "A", "loser": "a"}])
-        self.assertIn({"code": "candidate_id_collision", "candidates": [" A ", "A", "a"]},
+        self.assertIn({"code": "candidate_id_collision", "component": [" A ", "A", "a"]},
                       collide["warnings"])
         self.assertEqual(sum(x["wins"] for x in collide["candidates"]), 3)
 

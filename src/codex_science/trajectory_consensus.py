@@ -27,7 +27,7 @@ def _ranking_warnings(result):
         groups.setdefault(_normalise_key(entry["candidate_id"]), []).append(entry["candidate_id"])
     for ids in groups.values():
         if len(ids) > 1:
-            warnings.append({"code": "candidate_id_collision", "candidates": sorted(ids)})
+            warnings.append({"code": "candidate_id_collision", "component": sorted(ids)})
     ranking = result["ranking"] or []
     run = ranking[:1]
     for entry in ranking[1:] + [None]:
@@ -35,7 +35,7 @@ def _ranking_warnings(result):
             run.append(entry)
             continue
         if len(run) > 1:
-            warnings.append({"code": "tied_scores", "candidates": sorted(x["candidate_id"] for x in run)})
+            warnings.append({"code": "tied_scores", "component": sorted(x["candidate_id"] for x in run)})
         run = [entry] if entry is not None else []
     return warnings
 
@@ -214,7 +214,7 @@ def build_consensus(payload):
                 row["statement"] = claim["statement"].strip()
                 row["statement_id"] = tid
             row["supporters"].append(tid)
-            status = claim["status"].strip().casefold()
+            status = _normalise_key(claim["status"])
             row["statuses"].setdefault(status, []).append(tid)
     consensus, contested, singleton = [], [], []
     for key, row in sorted(claims.items()):
