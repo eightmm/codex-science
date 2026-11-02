@@ -219,6 +219,7 @@ class UncertaintyValidityTests(unittest.TestCase):
         linear["standard_uncertainty"] = math.nextafter(linear["standard_uncertainty"], 0.0)
         for item in linear["sensitivities"]:
             item["fraction_of_linear_variance"] = math.nextafter(item["fraction_of_linear_variance"], 0.0)
+            item["diagonal_variance_contribution"] = math.nextafter(item["diagonal_variance_contribution"], math.inf)
         rounded.pop("fingerprint")
         rounded["fingerprint"] = canonical_sha256(rounded)
         validate_uncertainty_propagation(rounded)

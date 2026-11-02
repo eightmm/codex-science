@@ -725,13 +725,17 @@ class MathResearchRuntimeTests(unittest.TestCase):
     def test_quantitative_review_flags_dangling_claims_and_duplicate_ids(self) -> None:
         def codes(sidecars):
             return [item["code"] for item in review_quantitative_sidecars(sidecars)]
+        claim = {"claim_id": "C1"}
         for key, record in (
             ("numerical_verifications", {"verification_id": "V", "claim_id": "ghost"}),
             ("statistical_analyses", {"analysis_id": "S", "design_id": "D", "claim_id": "ghost"}),
+            ("dimension_checks", {"check_id": "K", "claim_id": "ghost"}),
+            ("uncertainty_propagations", {"propagation_id": "U", "claim_id": "ghost"}),
         ):
             with self.subTest(key=key):
-                self.assertIn("quantitative-claim-missing", codes({key: [record]}))
-        claim = {"claim_id": "C1"}
+                self.assertIn("quantitative-claim-missing", codes({"mathematical_claims": [claim], key: [record]}))
+                # Receipts recorded before any claim sidecar exists are not cross-checked.
+                self.assertNotIn("quantitative-claim-missing", codes({key: [record]}))
         self.assertIn("quantitative-claim-missing", codes({
             "mathematical_claims": [claim], "decision_analyses": [{"analysis_id": "X", "claim_id": "ghost"}],
         }))

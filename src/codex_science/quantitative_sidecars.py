@@ -213,8 +213,10 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
         ("numerical verification", numerical),
         ("dimension check", dimensions),
         ("uncertainty propagation", uncertainty),
+        ("decision analysis", decisions),
     ):
-        for item in collection:
+        # Receipts are accepted without claim sidecars; references are cross-checked once claims exist.
+        for item in collection if claims else []:
             claim_id = str(item.get("claim_id", ""))
             if claim_id not in claim_ids:
                 findings.append({
@@ -222,15 +224,6 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
                     "severity": "major",
                     "message": f"{collection_name.title()} {item.get('analysis_id') or item.get('verification_id') or item.get('check_id') or item.get('propagation_id')} references missing mathematical claim {claim_id}.",
                 })
-    # Decision-analysis receipts are accepted without a claim sidecar; they are cross-checked only once claims exist.
-    for item in decisions if claims else []:
-        claim_id = str(item.get("claim_id", ""))
-        if claim_id not in claim_ids:
-            findings.append({
-                "code": "quantitative-claim-missing",
-                "severity": "major",
-                "message": f"Decision Analysis {item.get('analysis_id')} references missing mathematical claim {claim_id}.",
-            })
     for claim in claims:
         for receipt_id in _id_list(claim, "proof_receipt_ids", findings):
             if str(receipt_id) not in proof_ids:

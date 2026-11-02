@@ -505,7 +505,7 @@ def _validate_uncertainty_consistency(payload: Mapping[str, Any]) -> None:
         raise ValueError("linear.variance and linear.standard_uncertainty do not match the gradient and covariance")
     for index, item in enumerate(sensitivities):
         contribution = gradient[index] * covariance[index][index] * gradient[index]
-        if (item["derivative"] != gradient[index] or item["diagonal_variance_contribution"] != contribution
+        if (item["derivative"] != gradient[index] or not _same(item["diagonal_variance_contribution"], contribution)
                 or not (item.get("fraction_of_linear_variance") is None if variance == 0
                         else _same(item.get("fraction_of_linear_variance"), contribution / variance))):
             raise ValueError(f"linear.sensitivities[{index}] does not match the gradient and covariance")
