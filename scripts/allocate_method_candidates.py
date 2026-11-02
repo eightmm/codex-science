@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.cli_io import load_json_object, write_json_atomic  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, write_json_atomic  # noqa: E402
 from codex_science.method_landscape import allocate_methods  # noqa: E402
 
 
@@ -20,6 +20,7 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path, help="allocation artifact path")
     args = parser.parse_args()
     try:
+        preflight_output_paths(args.output, inputs=[args.input])
         result = allocate_methods(load_json_object(args.input))
         write_json_atomic(args.output, result)
     except (OSError, UnicodeError, ValueError, RecursionError) as error:

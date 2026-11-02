@@ -120,6 +120,26 @@ class MethodLandscapeTests(unittest.TestCase):
             self.assertEqual(0, run.returncode, run.stderr)
             self.assertEqual(first, output.read_bytes())
 
+    def test_cli_refuses_input_as_output(self):
+        for alias in (False, True):
+            with self.subTest(symlink=alias), tempfile.TemporaryDirectory() as tmp:
+                source = Path(tmp) / "in.json"
+                original = json.dumps(payload()).encode("utf-8")
+                source.write_bytes(original)
+                output = Path(tmp) / "alias.json" if alias else source
+                if alias:
+                    output.symlink_to(source.name)
+                run = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/allocate_method_candidates.py"),
+                     "--input", str(source), "--output", str(output)],
+                    capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                self.assertEqual(original, source.read_bytes())
+                self.assertEqual(2, run.returncode, run.stdout + run.stderr)
+                self.assertIn("output path would overwrite input", run.stderr)
+                if alias:
+                    self.assertTrue(output.is_symlink())
+
     def test_research_discovery_guidance_mentions_literature_and_paired_gate(self):
         text = (ROOT / "authored-skills/research-discovery/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("allocate_method_candidates.py", text)

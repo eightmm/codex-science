@@ -308,6 +308,56 @@ print(json.dumps(result, sort_keys=True))
             self.assertEqual(proc.returncode, 2)
             self.assertEqual(json.loads(proc.stdout)["error"]["code"], "output_write_failed")
 
+    def test_cli_refuses_input_as_output(self):
+        for alias in (False, True):
+            with self.subTest(symlink=alias), tempfile.TemporaryDirectory() as tmp:
+                source = Path(tmp) / "in.json"
+                original = json.dumps({"hard_cap": 500, "checkpoints": curve()}).encode("utf-8")
+                source.write_bytes(original)
+                output = Path(tmp) / "alias.json" if alias else source
+                if alias:
+                    output.symlink_to(source.name)
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/estimate_saturation.py"),
+                     "--input", str(source), "--output", str(output)],
+                    capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                self.assertEqual(original, source.read_bytes())
+                self.assertEqual(2, proc.returncode, proc.stdout + proc.stderr)
+                self.assertIn("output path would overwrite input",
+                              json.loads(proc.stdout)["error"]["message"])
+                if alias:
+                    self.assertTrue(output.is_symlink())
+
+    def test_cli_threshold_boundary_matches_help(self):
+        script = ROOT / "scripts/estimate_saturation.py"
+        payload = json.dumps({"hard_cap": 500, "checkpoints": curve()})
+        remaining = estimate_saturation(curve(), hard_cap=500)["predicted_remaining"]
+        self.assertGreater(remaining, 0)
+        for threshold, status, recommendation in (
+            ("0", 0, "continue"),
+            (str(math.nextafter(remaining, 0)), 0, "continue"),
+            (str(remaining), 0, "continue"),
+            (str(math.nextafter(remaining, math.inf)), 0, "stop_saturated"),
+            ("", 2, None), ("bad", 2, None),
+        ):
+            with self.subTest(threshold=threshold):
+                proc = subprocess.run(
+                    [sys.executable, str(script), "--input", "-",
+                     "--remaining-threshold", threshold],
+                    input=payload, capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+                self.assertEqual(status, proc.returncode, proc.stdout + proc.stderr)
+                if status:
+                    self.assertIn("invalid float value", proc.stderr)
+                else:
+                    self.assertEqual(recommendation, json.loads(proc.stdout)["recommendation"])
+        help_result = subprocess.run(
+            [sys.executable, str(script), "--help"], capture_output=True, text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")))
+        self.assertEqual(0, help_result.returncode, help_result.stderr)
+        self.assertIn("strictly below", " ".join(help_result.stdout.split()))
+
     def test_cli_rejects_absurd_evaluated_count(self):
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)

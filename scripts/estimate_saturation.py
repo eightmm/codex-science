@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, write_json_atomic
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, preflight_output_paths, write_json_atomic
 from codex_science.literature_saturation import estimate_saturation
 
 
@@ -18,11 +18,20 @@ def main():
     parser.add_argument("--hard-cap", type=int,
                         help="stop once this many records are evaluated (positive integer; required here or as hard_cap in the input)")
     parser.add_argument("--remaining-threshold", type=float,
-                        help="predicted remaining relevant records at or below which to stop (default: 1.0)")
+                        help="stop when predicted remaining relevant records are strictly below this threshold (default: 1.0)")
     parser.add_argument("--min-evaluated", type=int,
                         help="minimum evaluated records before fitting (default: 30)")
     parser.add_argument("--output", help="also write the result JSON atomically to this path; untouched on error (exit 2)")
     args = parser.parse_args()
+    if args.output:
+        try:
+            preflight_output_paths(Path(args.output),
+                                   inputs=[] if args.input == "-" else [Path(args.input)])
+        except (OSError, ValueError) as exc:
+            print(json.dumps({"schema": "saturation-estimate-error-v1",
+                              "error": {"code": "output_write_failed",
+                                        "message": f"cannot write {args.output}: {exc}"}}, sort_keys=True))
+            return 2
     try:
         if args.input == "-":
             # Count characters; decoded text may occupy a few times as many bytes.
