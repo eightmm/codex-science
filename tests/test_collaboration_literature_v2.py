@@ -550,13 +550,27 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
         plan = selective_rerun_plan(changed_nodes=["bam"], edges=[], steps=steps)
         self.assertEqual(["call"], [step["id"] for step in plan["rerun_steps"]])
         self.assertEqual(["bam", "vcf"], plan["impacted_nodes"])
-        # A changed node that is also reached through an edge is derived: its producer reruns.
+        # align reruns because it consumes the changed reads, not because it produces bam.
         edges = [{"source": "reads", "target": "bam", "relation": "supports"}]
         plan = selective_rerun_plan(changed_nodes=["reads", "bam"], edges=edges, steps=steps)
         self.assertEqual(["align", "call", "qcrep"], [step["id"] for step in plan["rerun_steps"]])
         # A node impacted through a selected step selects its other producers.
         plan = selective_rerun_plan(changed_nodes=["reads"], edges=[], steps=steps + [{"id": "late", "produces": ["bam"]}])
         self.assertEqual(["align", "call", "qcrep", "late"], [step["id"] for step in plan["rerun_steps"]])
+        # Edges leading back to a changed node never select its producer.
+        pipeline = [{"id": "fetch", "consumes": ["raw"], "produces": ["X"]},
+                    {"id": "use", "consumes": ["X"], "produces": ["out"]}]
+        for edges in ([], [{"source": "X", "target": "Y", "relation": "training_overlap"}],
+                      [{"source": "X", "target": "Y", "relation": "supports"},
+                       {"source": "Y", "target": "X", "relation": "supports"}]):
+            with self.subTest(edges=edges):
+                plan = selective_rerun_plan(changed_nodes=["X"], edges=edges, steps=pipeline)
+                self.assertEqual(["use"], [step["id"] for step in plan["rerun_steps"]])
+                self.assertEqual(sorted(["X", "out"] + (["Y"] if edges else [])), plan["impacted_nodes"])
+        # A step that consumes an impacted node reruns even though it produces the changed node.
+        cycle = [{"id": "A", "consumes": ["X"], "produces": ["Y"]}, {"id": "B", "consumes": ["Y"], "produces": ["X"]}]
+        plan = selective_rerun_plan(changed_nodes=["X"], edges=[], steps=cycle)
+        self.assertEqual(["A", "B"], [step["id"] for step in plan["rerun_steps"]])
 
     def test_selective_rerun_cli_refuses_steps_object_without_steps_list(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

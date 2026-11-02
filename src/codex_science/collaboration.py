@@ -403,11 +403,12 @@ def selective_rerun_plan(
         normalized.append((consumes, produced))
         for node in consumes | produced:
             readers[node].append(index)
-    queue = deque(set(map(str, changed_nodes)))
-    impacted_set = set(queue)
-    # Nodes reached through graph edges or selected steps. A node the caller
-    # named as changed is not rebuilt, so its producers rerun only when it is
-    # also reached this way.
+    changed = set(map(str, changed_nodes))
+    queue = deque(changed)
+    impacted_set = set(changed)
+    # Nodes reached through graph edges or selected steps; their producers rerun.
+    # A node the caller named as changed is never derived, whatever edges or
+    # steps lead back to it, so no step reruns only because it produces one.
     derived: set[str] = set()
     selected_indices: set[int] = set()
     while queue:
@@ -421,7 +422,7 @@ def selective_rerun_plan(
                 neighbors.update(normalized[index][1])
         for neighbor in neighbors:
             impacted_set.add(neighbor)
-            if neighbor not in derived:
+            if neighbor not in derived and neighbor not in changed:
                 derived.add(neighbor)
                 queue.append(neighbor)
     impacted = sorted(impacted_set)
@@ -438,7 +439,7 @@ def selective_rerun_plan(
             })
     return {
         "schema_version": 1,
-        "changed_nodes": sorted(set(map(str, changed_nodes))),
+        "changed_nodes": sorted(changed),
         "impacted_nodes": impacted,
         "rerun_steps": selected,
         "invalidated_review_receipts": sorted(set(map(str, review_paths))) if impacted else [],

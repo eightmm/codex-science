@@ -27,8 +27,10 @@ steps JSON: a list of step objects, or an object whose steps[] is used (required
   description         optional (default: the id)
   requires_approval   optional (default: false)
 A step is selected when it consumes an impacted id, or produces an id impacted
-through graph edges or other selected steps. A producer of a node named by
---changed is not selected only for that reason (the changed node is kept as is).
+through graph edges or other selected steps. Ids named by --changed never count
+as reached through edges or steps, so a step is not selected only because it
+produces one, whatever edges lead back to it; a step that consumes an impacted
+id is still selected even if it also produces a --changed id.
 Selected steps' produces ids become impacted, propagating through graph edges
 and further steps until no additional nodes are impacted; input step order is kept.
 Output keys: changed_nodes, impacted_nodes, rerun_steps, invalidated_review_receipts,

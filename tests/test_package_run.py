@@ -1517,6 +1517,54 @@ class PackageRunTests(unittest.TestCase):
         self.assertEqual(manifest["review"]["status"], "pending")
         self.assertNotIn("receipt", manifest["review"])
 
+    def test_register_receipt_hashes_cited_evidence_outside_manifest(self) -> None:
+        report_hash = hashlib.sha256((self.run_dir / "report.md").read_bytes()).hexdigest()
+        (self.run_dir / "notes").mkdir()
+        cited = self.run_dir / "notes" / "extra.txt"
+        cited.write_text("reviewed evidence\n")
+        outside = Path(self.temp.name) / "outside.txt"
+        outside.write_text("reviewed evidence\n")
+        (self.run_dir / "notes" / "link.txt").symlink_to(outside)
+        digest = hashlib.sha256(cited.read_bytes()).hexdigest()
+        manifest_path = self.run_dir / "manifest.json"
+        self.assertNotIn("notes/extra.txt", {item["path"] for item in json.loads(manifest_path.read_text())["artifacts"]})
+        receipt_path = self.run_dir / "final-review.json"
+
+        def write_receipt(cited_path: str) -> list[dict]:
+            findings = [{"id": "f1", "severity": "minor", "resolution_status": "resolved",
+                         "evidence": [{"artifact_path": cited_path, "artifact_sha256": digest}]}]
+            source = {
+                "schema_version": 1, "review_id": "review-test", "reviewer": "fixture-reviewer",
+                "independent": True, "review_modes": ["record"], "status": "passed",
+                "covered_artifacts": [{"path": "report.md", "sha256": report_hash}],
+                "covered_claim_ids": [], "findings": findings, "limitations": ["fixture only"],
+                "review_task_id": "review-task-test", "packet_fingerprint": "a" * 64,
+            }
+            source["fingerprint"] = canonical_sha256(source)
+            receipt_path.write_text(json.dumps(source))
+            return findings
+
+        before = manifest_path.read_bytes()
+        for case, cited_path, prepare in (("changed", "notes/extra.txt", lambda: cited.write_text("changed evidence\n")),
+                                          ("deleted", "notes/extra.txt", cited.unlink),
+                                          ("symlink-outside-run", "notes/link.txt", lambda: None),
+                                          ("escaping-path", "../outside.txt", lambda: None)):
+            with self.subTest(case=case):
+                write_receipt(cited_path)
+                prepare()
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("stale-review-receipt", result.stderr)
+                self.assertEqual(manifest_path.read_bytes(), before)
+
+        cited.write_text("reviewed evidence\n")
+        findings = write_receipt("notes/extra.txt")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--register-receipt", "final-review.json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual(manifest["review"]["receipt"], "final-review.json")
+        self.assertEqual(manifest["review"]["findings"], findings)
+
     def test_register_receipt_updates_prelisted_artifact_and_is_idempotent(self) -> None:
         report_hash = hashlib.sha256((self.run_dir / "report.md").read_bytes()).hexdigest()
         source = {

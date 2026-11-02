@@ -63,15 +63,16 @@ class DiscoveryEvidenceTests(unittest.TestCase):
         result = assess_cycle(load_cycle(self.root), self.root, {"review_refs": [ref]})
         self.assertEqual("pending", result["review_axes"]["method"]["status"])
 
-    def covering_receipt(self, name, extra, upper=False):
+    def covering_receipt(self, name, extra=None, upper=False, findings=()):
         manifest = attach_cycle(self.root)
         covered = [{"path": item["path"], "sha256": item["sha256"]} for item in manifest["artifacts"]]
-        covered.append(extra)
+        if extra:
+            covered.append(extra)
         if upper:
             covered = [{"path": item["path"], "sha256": item["sha256"].upper()} for item in covered]
         receipt = build_review_receipt(review_id=name, reviewer="separate reviewer", independent=True,
                                        review_modes=["method"], status="passed", covered_artifacts=covered,
-                                       covered_claim_ids=[], findings=[])
+                                       covered_claim_ids=[], findings=list(findings))
         return write_ref(self.root, name + ".json", receipt)
 
     def test_changed_covered_file_makes_one_receipt_stale_not_the_assessment_fatal(self):
@@ -88,6 +89,22 @@ class DiscoveryEvidenceTests(unittest.TestCase):
         (self.root / "extra.json").unlink()
         result = assess_cycle(cycle, self.root, {"review_refs": [stale]})
         self.assertFalse(result["review_axes"]["method"]["receipts"][0]["qualified_coverage"])
+        # Finding evidence outside the manifest and the covered files is hashed too.
+        cited = write_ref(self.root, "cited.json", {"v": 1})
+        finding = {"id": "f1", "severity": "minor", "resolution_status": "resolved",
+                   "evidence": [{"artifact_path": cited["path"], "artifact_sha256": cited["sha256"]}]}
+        evidence = self.covering_receipt("evidence-one", findings=[finding])
+        self.assertNotIn("cited.json", {item["path"] for item in attach_cycle(self.root)["artifacts"]})
+        entry = assess_cycle(cycle, self.root, {"review_refs": [evidence]})["review_axes"]["method"]["receipts"][0]
+        self.assertTrue(entry["qualified_coverage"])
+        for change in (lambda: (self.root / "cited.json").write_text(json.dumps({"v": 2})),
+                       (self.root / "cited.json").unlink):
+            change()
+            result = assess_cycle(cycle, self.root, {"review_refs": [evidence, good]})
+            receipts = {item["review_id"]: item for item in result["review_axes"]["method"]["receipts"]}
+            self.assertFalse(receipts["evidence-one"]["qualified_coverage"])
+            self.assertIn("stale-review-receipt", {item["code"] for item in receipts["evidence-one"]["integrity_findings"]})
+            self.assertTrue(receipts["good-one"]["qualified_coverage"])
 
     def test_uppercase_covered_digests_are_compared_case_insensitively(self):
         cycle = self.start()
