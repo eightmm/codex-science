@@ -16,7 +16,7 @@ from .cli_io import resolve_input_path
 
 INDEX_NAME = "index.json"
 REFERENCE_SECTION_RE = re.compile(r"^##\s+Reference (?:usage|map)\s*$", re.I | re.M)
-MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)#\s]+)[^)]*\)")
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)#\s]++)[^)]*\)")
 _USER_VALUE_REPR = reprlib.Repr()
 _USER_VALUE_REPR.maxlevel = 4
 _USER_VALUE_REPR.maxstring = 80

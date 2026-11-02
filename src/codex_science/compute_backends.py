@@ -608,7 +608,7 @@ def _publish_job_state_locked(
             current["state"] == "running" and payload["state"] == "submitted"
         ):
             return current
-        elif payload["state"] == "lost" and not current.get("scheduler_job_id") and (
+        elif payload["state"] == "lost" and (
             not current.get("worker_pid") or _process_alive(int(current["worker_pid"]))
         ):
             return current
