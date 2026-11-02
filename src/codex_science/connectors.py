@@ -6,18 +6,25 @@ import json
 import html
 import math
 import re
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from typing import Any
 
-from codex_science.transport_v3 import SafeRedirectHandler
+from codex_science.transport_v3 import (
+    SafeRedirectHandler,
+    _DeadlineHTTPHandler,
+    _DeadlineHTTPSHandler,
+    _read_with_deadline,
+)
 from codex_science.connector_contract import _record_counts
 
 
 USER_AGENT = "codex-science/0.1 (+https://github.com/)"
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+RESPONSE_DEADLINE_SECONDS = 30
 
 
 def _received_records(items: Any) -> Any:
@@ -39,13 +46,18 @@ def _graphql_data(payload: Any, source: str) -> dict[str, Any]:
     return data
 
 
-def _open(request: urllib.request.Request):
-    opener = urllib.request.build_opener(SafeRedirectHandler())
-    return opener.open(request, timeout=20)
-
-
-def _read_limited(response) -> bytes:
-    body = response.read(MAX_RESPONSE_BYTES + 1)
+def _fetch_bytes(request: urllib.request.Request) -> bytes:
+    """Send the request and read the body under one wall-clock deadline."""
+    deadline = time.monotonic() + RESPONSE_DEADLINE_SECONDS
+    opener = urllib.request.build_opener(
+        SafeRedirectHandler(deadline), _DeadlineHTTPHandler(deadline), _DeadlineHTTPSHandler(deadline)
+    )
+    try:
+        with opener.open(request, timeout=20) as response:
+            body = _read_with_deadline(response, MAX_RESPONSE_BYTES + 1, deadline)
+    except TimeoutError as error:
+        host = urllib.parse.urlsplit(request.full_url).hostname
+        raise TimeoutError(f"{host} response not received within {RESPONSE_DEADLINE_SECONDS} s") from error
     if len(body) > MAX_RESPONSE_BYTES:
         raise ValueError("response exceeded 16 MiB limit")
     return body
@@ -57,6 +69,8 @@ def _validate(query: str, limit: int) -> tuple[str, int]:
         raise ValueError("Query must not be empty")
     if len(query) > 500:
         raise ValueError("Query must be at most 500 characters")
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise ValueError("Limit must be an integer")
     if not 1 <= limit <= 10:
         raise ValueError("Limit must be between 1 and 10")
     return query, limit
@@ -64,8 +78,7 @@ def _validate(query: str, limit: int) -> tuple[str, int]:
 
 def fetch_json(url: str) -> Any:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    with _open(request) as response:
-        return json.loads(_read_limited(response).decode("utf-8"))
+    return json.loads(_fetch_bytes(request).decode("utf-8"))
 
 
 def post_json(url: str, payload: dict[str, Any]) -> Any:
@@ -75,14 +88,12 @@ def post_json(url: str, payload: dict[str, Any]) -> Any:
         headers={"User-Agent": USER_AGENT, "Accept": "application/json", "Content-Type": "application/json"},
         method="POST",
     )
-    with _open(request) as response:
-        return json.loads(_read_limited(response).decode("utf-8"))
+    return json.loads(_fetch_bytes(request).decode("utf-8"))
 
 
 def fetch_text(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/atom+xml"})
-    with _open(request) as response:
-        return _read_limited(response).decode("utf-8")
+    return _fetch_bytes(request).decode("utf-8")
 
 
 def raise_esearch_error(payload: Any) -> None:
@@ -112,6 +123,11 @@ def parse_esearch_ids(payload: Any) -> list[str]:
     ids = result["idlist"]
     if not isinstance(ids, list):
         raise ValueError("NCBI ESearch esearchresult.idlist must be a list")
+    for identifier in ids:
+        if isinstance(identifier, bool) or not (
+            (isinstance(identifier, str) and identifier.strip()) or isinstance(identifier, int)
+        ):
+            raise ValueError("NCBI ESearch esearchresult.idlist must contain non-empty string or integer identifiers")
     return [str(identifier) for identifier in ids]
 
 
@@ -132,7 +148,7 @@ class PubMedConnector:
         ]
 
 
-_ARXIV_FIELD = re.compile(r"(?:^|[\s(])(?:ti|au|abs|co|jr|cat|rn|all|id):", re.IGNORECASE)
+_ARXIV_FIELD = re.compile(r"(?:^|[\s(])(?:ti|au|abs|co|jr|cat|rn|all|id):")
 _ARXIV_ID = re.compile(
     r"(?:(?:arxiv|id):)?\s*((?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Za-z]{2})?/\d{7})(?:v\d+)?)",
     re.IGNORECASE,
@@ -153,8 +169,11 @@ class ArxivConnector:
         else:
             selector = {"search_query": f"all:{query}"}
         params = urllib.parse.urlencode({**selector, "start": 0, "max_results": limit})
+        document = self._fetch_text(f"https://export.arxiv.org/api/query?{params}")
+        if "<!DOCTYPE" in document.upper() or "<!ENTITY" in document.upper():
+            raise ValueError("arXiv response must not declare a DTD or entities")
         try:
-            root = ET.fromstring(self._fetch_text(f"https://export.arxiv.org/api/query?{params}"))
+            root = ET.fromstring(document)
         except ET.ParseError as exc:
             raise ValueError("arXiv response must be an Atom feed") from exc
         if root.tag != "{http://www.w3.org/2005/Atom}feed":
@@ -191,7 +210,9 @@ class UniProtConnector:
         payload = self._fetch_json(f"https://rest.uniprot.org/uniprotkb/search?{params}")
         results: list[dict[str, str]] = []
         for item in _received_records(payload.get("results", []))[:limit]:
-            accession = str(item.get("primaryAccession", ""))
+            accession = item.get("primaryAccession") if isinstance(item, dict) else None
+            if not isinstance(accession, str) or not accession:
+                continue
             description = item.get("proteinDescription", {})
             title = (
                 description.get("recommendedName", {}).get("fullName", {}).get("value")
@@ -824,7 +845,7 @@ class ProteomeXchangeConnector:
             f"{urllib.parse.quote(accession)}"
         )
         if not isinstance(payload, dict):
-            return []
+            raise ValueError("ProteomeXchange response must be a JSON object")
 
         identifiers = payload.get("identifiers", [])
         returned_accessions = {
@@ -941,7 +962,7 @@ class _PheWASConnector:
             f"{self.base_url}/api/variant/{urllib.parse.quote(canonical, safe=':-')}"
         )
         if not isinstance(payload, dict):
-            return []
+            raise ValueError("PheWAS response must be a JSON object")
         expected = (chromosome, position, reference, alternate)
         if self._response_variant(payload) != expected:
             raise ValueError("PheWAS response variant did not match normalized query")

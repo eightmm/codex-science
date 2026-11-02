@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Mapping
 
 from codex_science.artifacts import validate_bundle
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, resolve_input_path
 from codex_science.collaboration import _resolve_json_pointer, diff_runs
 from codex_science.connector_contract import canonical_json_bytes
 
@@ -70,12 +72,32 @@ def _json_object(value: Any, label: str) -> dict[str, Any]:
     return payload
 
 
+def _finite(value: Any, label: str) -> None:
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                              or isinstance(value, float) and not math.isfinite(value)):
+        raise ValueError(f"{label} must be a finite number")
+
+
+def _manifest_records(manifest: Mapping[str, Any], section: str, field: str, label: str) -> dict[str, dict[str, Any]]:
+    # Mirrors collaboration._diff_record_map so imported runs stay comparable.
+    records = {}
+    for item in manifest.get(section, []):
+        if not isinstance(item, Mapping):
+            continue
+        identity = item.get(field)
+        if not isinstance(identity, str) or not identity.strip():
+            raise ValueError(f"{label} must be a non-empty string")
+        records[PurePosixPath(identity).as_posix() if section == "artifacts" else identity] = dict(item)
+    return records
+
+
 def _manifest_claims(manifest: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    return {str(item["id"]): dict(item) for item in manifest.get("claims", []) if isinstance(item, Mapping) and item.get("id")}
+    return _manifest_records(manifest, "claims", "id", "claim id")
 
 
 def _manifest_artifacts(manifest: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    return {str(item["path"]): dict(item) for item in manifest.get("artifacts", []) if isinstance(item, Mapping) and item.get("path")}
+    # Keyed like validate_manifest so "./a" and "a" name the same artifact.
+    return _manifest_records(manifest, "artifacts", "path", "artifact path")
 
 
 @dataclass(frozen=True)
@@ -273,6 +295,31 @@ class ProjectStore:
         )
         return digest
 
+    def _verify_event_chain(self, connection: sqlite3.Connection, project_id: str) -> None:
+        previous = None
+        rows = connection.execute("SELECT * FROM events WHERE project_id=? ORDER BY sequence", (project_id,))
+        for expected, row in enumerate(rows, start=1):
+            sequence = int(row["sequence"])
+            if sequence != expected:
+                raise ValueError(f"project event chain is broken at event {expected}: sequence {sequence} follows {expected - 1}")
+            if row["previous_event_sha256"] != previous:
+                raise ValueError(f"project event chain is broken at event {sequence}: previous digest does not match")
+            try:
+                payload = json.loads(row["payload_json"])
+            except ValueError as error:
+                raise ValueError(f"project event chain is broken at event {sequence}: payload is not JSON") from error
+            material = {
+                "project_id": project_id,
+                "sequence": sequence,
+                "event_type": row["event_type"],
+                "payload": payload,
+                "previous_event_sha256": previous,
+                "created_at": row["created_at"],
+            }
+            if _sha256_json(material) != row["event_sha256"]:
+                raise ValueError(f"project event chain is broken at event {sequence}: event digest does not match")
+            previous = row["event_sha256"]
+
     def create_project(self, *, project_id: str, title: str, question: str) -> dict[str, Any]:
         self.initialize()
         project_id = _text(project_id, "project_id")
@@ -303,12 +350,22 @@ class ProjectStore:
         self.initialize()
         project_id = _text(project_id, "project_id")
         branch_name = _text(branch_name, "branch_name")
-        manifest_path = manifest_path.resolve()
-        manifest_bytes = manifest_path.read_bytes()
-        manifest = json.loads(manifest_bytes.decode("utf-8"))
+        manifest_path = resolve_input_path(manifest_path)
+        with manifest_path.open("rb") as stream:
+            manifest_bytes = stream.read(DEFAULT_MAX_JSON_BYTES + 1)
+        if len(manifest_bytes) > DEFAULT_MAX_JSON_BYTES:
+            raise ValueError(f"run manifest exceeds {DEFAULT_MAX_JSON_BYTES} bytes: {manifest_path}")
+        try:
+            manifest = json.loads(manifest_bytes.decode("utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError(f"invalid JSON in {manifest_path}: {error}") from error
+        except RecursionError as error:
+            raise ValueError(f"invalid JSON in {manifest_path}: excessive nesting") from error
         if not isinstance(manifest, dict):
             raise ValueError("run manifest must be an object")
         validate_bundle(manifest, manifest_path.parent)
+        artifacts = _manifest_artifacts(manifest)
+        claims = _manifest_claims(manifest)
         run_id = _text(manifest.get("run_id"), "manifest run_id")
         digest = hashlib.sha256(manifest_bytes).hexdigest()
         question = _text(manifest.get("question"), "manifest question")
@@ -324,6 +381,10 @@ class ProjectStore:
             if existing is not None:
                 if existing["manifest_sha256"] != digest:
                     raise ValueError(f"run ID already exists with different manifest bytes: {run_id}")
+                if existing["branch_name"] != branch_name:
+                    raise ValueError(f"run ID already imported on branch {existing['branch_name']}: {run_id}")
+                if parent_run_id is not None and existing["parent_run_id"] != parent_run_id:
+                    raise ValueError(f"run ID already imported with parent {existing['parent_run_id']}: {run_id}")
                 return ImportedRun(
                     project_id, run_id, str(existing["branch_name"]), existing["parent_run_id"],
                     str(existing["manifest_path"]), digest, str(existing["review_status"]), str(existing["imported_at"]),
@@ -335,7 +396,7 @@ class ProjectStore:
                 "INSERT INTO runs(project_id, run_id, branch_name, parent_run_id, manifest_path, manifest_sha256, question, review_status, imported_at) VALUES(?,?,?,?,?,?,?,?,?)",
                 (project_id, run_id, branch_name, parent_run_id, str(manifest_path), digest, question, review_status, imported_at),
             )
-            for artifact_path, artifact in sorted(_manifest_artifacts(manifest).items()):
+            for artifact_path, artifact in sorted(artifacts.items()):
                 connection.execute(
                     "INSERT INTO run_artifacts(project_id, run_id, artifact_path, sha256, kind, artifact_type, payload_json) VALUES(?,?,?,?,?,?,?)",
                     (
@@ -344,7 +405,7 @@ class ProjectStore:
                         json.dumps(artifact, sort_keys=True),
                     ),
                 )
-            for claim_id, claim in sorted(_manifest_claims(manifest).items()):
+            for claim_id, claim in sorted(claims.items()):
                 connection.execute(
                     "INSERT INTO run_claims(project_id, run_id, claim_id, payload_json) VALUES(?,?,?,?)",
                     (project_id, run_id, claim_id, json.dumps(claim, sort_keys=True)),
@@ -411,6 +472,8 @@ class ProjectStore:
         if polarity not in POLARITIES:
             raise ValueError(f"invalid assertion polarity: {polarity}")
         locator_payload = _json_object(locator, "locator")
+        if locator_payload.get("artifact_path") is None:
+            raise ValueError("locator artifact_path is required")
         artifact_path = _relative(locator_payload.get("artifact_path"), "locator artifact_path")
         artifact_sha = _sha(locator_payload.get("artifact_sha256"), "locator artifact_sha256")
         has_other_locator = any(locator_payload.get(field) not in (None, "") for field in ("page", "table", "figure", "cell", "line_range", "record_id"))
@@ -420,6 +483,8 @@ class ProjectStore:
         locator_payload["artifact_sha256"] = artifact_sha
         if sample_size is not None and (isinstance(sample_size, bool) or sample_size < 0):
             raise ValueError("sample_size must be a non-negative integer")
+        for value, label in ((estimate, "estimate"), (interval_low, "interval_low"), (interval_high, "interval_high")):
+            _finite(value, label)
         if (interval_low is None) != (interval_high is None):
             raise ValueError("both interval bounds must be provided together")
         if interval_low is not None and interval_high is not None and interval_low > interval_high:
@@ -488,6 +553,9 @@ class ProjectStore:
         return {**material, "assertion_id": assertion_id, "fingerprint": fingerprint}
 
     def _load_manifest_for_run(self, connection: sqlite3.Connection, project_id: str, run_id: str) -> dict[str, Any]:
+        return self._load_bundle_for_run(connection, project_id, run_id)[0]
+
+    def _load_bundle_for_run(self, connection: sqlite3.Connection, project_id: str, run_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
         row = self._require_run(connection, project_id, run_id)
         path = Path(str(row["manifest_path"]))
         manifest_bytes = path.read_bytes()
@@ -497,8 +565,7 @@ class ProjectStore:
         payload = json.loads(manifest_bytes.decode("utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"run manifest is not an object: {run_id}")
-        validate_bundle(payload, path.parent)
-        return payload
+        return payload, validate_bundle(payload, path.parent)
 
     def compare_runs(self, *, project_id: str, previous_run_id: str, current_run_id: str) -> dict[str, Any]:
         self.initialize()
@@ -525,8 +592,7 @@ class ProjectStore:
             for row in rows:
                 if run_id is not None and str(row["run_id"]) != run_id:
                     continue
-                manifest = self._load_manifest_for_run(connection, project_id, str(row["run_id"]))
-                sidecars = validate_bundle(manifest, Path(str(row["manifest_path"])).parent)
+                _manifest, sidecars = self._load_bundle_for_run(connection, project_id, str(row["run_id"]))
                 cycles = sidecars.get("research_cycles", [])
                 if cycles:
                     runs.append({"run_id": str(row["run_id"]), "cycles": cycles})
@@ -536,14 +602,21 @@ class ProjectStore:
     def prepare_merge_plan(self, *, project_id: str, source_branch: str, target_branch: str) -> dict[str, Any]:
         self.initialize()
         project_id = _text(project_id, "project_id")
+        if source_branch == target_branch:
+            raise ValueError(f"merge plan needs two different branches: {source_branch}")
         created_at = _now()
         with self.connect() as connection:
             source = self._require_branch(connection, project_id, source_branch)
             target = self._require_branch(connection, project_id, target_branch)
+            self._verify_event_chain(connection, project_id)
             source_run = str(source["head_run_id"])
             target_run = str(target["head_run_id"])
             base_candidates = {str(source["base_run_id"]), str(target["base_run_id"])}
-            if str(source["base_run_id"]) == str(target["base_run_id"]):
+            common = self._common_ancestor(connection, project_id, source_run, target_run)
+            if common is not None:
+                base_run = common
+                base_candidates = {common}
+            elif str(source["base_run_id"]) == str(target["base_run_id"]):
                 base_run = str(source["base_run_id"])
             elif str(source["base_run_id"]) == target_run:
                 base_run = target_run
@@ -603,12 +676,25 @@ class ProjectStore:
             self._append_event(connection, project_id, "merge-plan-created", {"plan_id": plan_id, "source_branch": source_branch, "target_branch": target_branch, "fingerprint": fingerprint})
         return {**payload, "plan_id": plan_id, "fingerprint": fingerprint}
 
+    def _common_ancestor(self, connection: sqlite3.Connection, project_id: str, source_run: str, target_run: str) -> str | None:
+        def lineage(run_id: str | None) -> Iterator[str]:
+            seen: set[str] = set()
+            while run_id is not None and run_id not in seen:
+                seen.add(run_id)
+                yield run_id
+                row = connection.execute("SELECT parent_run_id FROM runs WHERE project_id=? AND run_id=?", (project_id, run_id)).fetchone()
+                run_id = None if row is None or row["parent_run_id"] is None else str(row["parent_run_id"])
+
+        source_lineage = set(lineage(source_run))
+        return next((run_id for run_id in lineage(target_run) if run_id in source_lineage), None)
+
     def summary(self, *, project_id: str) -> dict[str, Any]:
         self.initialize()
         with self.connect() as connection:
             project = connection.execute("SELECT * FROM projects WHERE project_id=?", (project_id,)).fetchone()
             if project is None:
                 raise ValueError(f"unknown project: {project_id}")
+            self._verify_event_chain(connection, project_id)
             branches = [dict(row) for row in connection.execute("SELECT * FROM branches WHERE project_id=? ORDER BY branch_name", (project_id,))]
             runs = [dict(row) for row in connection.execute("SELECT run_id, branch_name, parent_run_id, manifest_sha256, review_status, imported_at FROM runs WHERE project_id=? ORDER BY imported_at, run_id", (project_id,))]
             assertion_count = int(connection.execute("SELECT COUNT(*) AS n FROM assertions WHERE project_id=?", (project_id,)).fetchone()["n"])

@@ -446,6 +446,209 @@ class ProjectStoreTests(unittest.TestCase):
                     independence_group="cohort",
                 )
 
+    def _counts(self, store):
+        with store.connect() as connection:
+            return tuple(connection.execute(
+                "SELECT (SELECT COUNT(*) FROM runs), (SELECT COUNT(*) FROM assertions),"
+                " (SELECT COUNT(*) FROM merge_plans), (SELECT COUNT(*) FROM events)"
+            ).fetchone())
+
+    def test_import_refuses_claim_ids_and_artifact_paths_that_are_not_strings(self) -> None:
+        cases = [("claims", "id", value, "claim id") for value in (7, 0, None, True, "  ")]
+        cases.append(("artifacts", "path", 7, "artifact path"))
+        for section, field, value, label in cases:
+            with self.subTest(section=section, value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                store = ProjectStore(root / "project.sqlite")
+                store.create_project(project_id="p", title="P", question="Q")
+                path, _ = make_run(root, "run", "Claim", 1)
+                manifest = json.loads(path.read_bytes())
+                manifest[section][0][field] = value
+                if section == "artifacts":
+                    (path.parent / "7").write_bytes((path.parent / "metrics.json").read_bytes())
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+                with self.assertRaises(ValueError) as caught:
+                    store.import_run(project_id="p", manifest_path=path)
+                if value != "  ":
+                    self.assertIn(f"{label} must be a non-empty string", str(caught.exception))
+                self.assertEqual((0, 0, 0, 1), self._counts(store))
+
+    def test_assertion_refuses_non_finite_or_non_numeric_estimates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="p", title="P", question="Q")
+            path, digest = make_run(root, "run", "Claim", 1)
+            store.import_run(project_id="p", manifest_path=path)
+            arguments = dict(
+                project_id="p", run_id="run", claim_id="C1", source_id="study", polarity="supports",
+                locator={"artifact_path": "metrics.json", "artifact_sha256": digest, "json_pointer": "/value"},
+                independence_group="cohort",
+            )
+            before = self._counts(store)
+            for field in ("estimate", "interval_low", "interval_high"):
+                for bad in (float("nan"), float("inf"), float("-inf"), True, "1"):
+                    with self.subTest(field=field, value=bad):
+                        values = {"estimate": 0.5} if field == "estimate" else {"interval_low": -1.0, "interval_high": 1.0}
+                        values[field] = bad
+                        with self.assertRaisesRegex(ValueError, f"{field} must be a finite number"):
+                            store.add_assertion(**arguments, **values)
+                        self.assertEqual(before, self._counts(store))
+            recorded = store.add_assertion(**arguments, estimate=0, interval_low=0.0, interval_high=0.0)
+            self.assertEqual((0, 0.0, 0.0), (recorded["estimate"], recorded["interval_low"], recorded["interval_high"]))
+
+    def test_dot_spelled_artifacts_are_citable_and_locators_need_an_artifact_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="p", title="P", question="Q")
+            path, digest = make_run(root, "run", "Claim", 1)
+            manifest = json.loads(path.read_bytes())
+            manifest["artifacts"][0]["path"] = "./metrics.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            store.import_run(project_id="p", manifest_path=path)
+            arguments = dict(project_id="p", run_id="run", claim_id="C1", source_id="study",
+                             polarity="supports", independence_group="cohort")
+            for spelling in ("./metrics.json", "metrics.json"):
+                locator = {"artifact_path": spelling, "artifact_sha256": digest, "json_pointer": "/value"}
+                self.assertEqual("metrics.json", store.add_assertion(**arguments, locator=locator)["locator"]["artifact_path"])
+            before = self._counts(store)
+            for locator in ({"artifact_sha256": digest, "page": 1}, {"artifact_path": None, "artifact_sha256": digest, "page": 1}):
+                with self.assertRaisesRegex(ValueError, "locator artifact_path is required"):
+                    store.add_assertion(**arguments, locator=locator)
+            self.assertEqual(before, self._counts(store))
+
+    def _forked_store(self, root):
+        store = ProjectStore(root / "project.sqlite")
+        store.create_project(project_id="p", title="P", question="Q")
+        for run_id, branch in (("base", "main"), ("a", "main"), ("c", "main"), ("b", "fork")):
+            if run_id == "c":
+                store.fork_branch(project_id="p", source_run_id="a", branch_name="fork")
+            path, _ = make_run(root, run_id, "Claim", 1)
+            store.import_run(project_id="p", manifest_path=path, branch_name=branch)
+        return store
+
+    def test_summary_and_merge_plan_verify_the_event_chain(self) -> None:
+        tampering = (
+            ("UPDATE events SET payload_json='{}' WHERE sequence=2", 2),
+            ("UPDATE events SET payload_json='not json' WHERE sequence=2", 2),
+            ("UPDATE events SET event_sha256=? WHERE sequence=3", 3),
+            ("UPDATE events SET previous_event_sha256=? WHERE sequence=4", 4),
+            ("DELETE FROM events WHERE sequence=2", 2),
+            ("UPDATE events SET sequence=0 WHERE sequence=1", 1),
+        )
+        for statement, broken in tampering:
+            with self.subTest(statement=statement), tempfile.TemporaryDirectory() as temporary:
+                store = self._forked_store(Path(temporary))
+                with store.connect() as connection:
+                    connection.execute(statement, ("f" * 64,) if "?" in statement else ())
+                before = self._counts(store)
+                with self.assertRaisesRegex(ValueError, f"event chain is broken at event {broken}:"):
+                    store.summary(project_id="p")
+                with self.assertRaisesRegex(ValueError, f"event chain is broken at event {broken}:"):
+                    store.prepare_merge_plan(project_id="p", source_branch="fork", target_branch="main")
+                self.assertEqual(before, self._counts(store))
+
+    def test_merge_plan_uses_parent_lineage_and_refuses_one_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = self._forked_store(root)
+            for source, target in (("fork", "main"), ("main", "fork")):
+                plan = store.prepare_merge_plan(project_id="p", source_branch=source, target_branch=target)
+                self.assertEqual(("a", False), (plan["base_run_id"], plan["base_ambiguity"]))
+            before = self._counts(store)
+            with self.assertRaisesRegex(ValueError, "merge plan needs two different branches: main"):
+                store.prepare_merge_plan(project_id="p", source_branch="main", target_branch="main")
+            self.assertEqual(before, self._counts(store))
+            path, _ = make_run(root, "island", "Claim", 1)
+            store.import_run(project_id="p", manifest_path=path, branch_name="island")
+            plan = store.prepare_merge_plan(project_id="p", source_branch="island", target_branch="main")
+            self.assertEqual(("island", False), (plan["base_run_id"], plan["base_ambiguity"]))
+            plan = store.prepare_merge_plan(project_id="p", source_branch="fork", target_branch="island")
+            self.assertEqual(("a", True), (plan["base_run_id"], plan["base_ambiguity"]))
+
+    def test_import_refuses_oversized_deeply_nested_or_looping_manifests(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="p", title="P", question="Q")
+            path, _ = make_run(root, "run", "Claim", 1)
+            size = len(path.read_bytes())
+            with patch("codex_science.project_store.DEFAULT_MAX_JSON_BYTES", size - 1):
+                with self.assertRaisesRegex(ValueError, f"run manifest exceeds {size - 1} bytes"):
+                    store.import_run(project_id="p", manifest_path=path)
+            self.assertEqual((0, 0, 0, 1), self._counts(store))
+            deep = root / "deep.json"
+            deep.write_text("[" * 200000 + "]" * 200000, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid JSON in .*deep.json: excessive nesting"):
+                store.import_run(project_id="p", manifest_path=deep)
+            empty = root / "empty.json"
+            empty.write_bytes(b"")
+            with self.assertRaisesRegex(ValueError, "invalid JSON in .*empty.json"):
+                store.import_run(project_id="p", manifest_path=empty)
+            loop = root / "loop.json"
+            loop.symlink_to(loop)
+            with self.assertRaisesRegex(ValueError, "invalid protected input path"):
+                store.import_run(project_id="p", manifest_path=loop)
+            self.assertEqual((0, 0, 0, 1), self._counts(store))
+            with patch("codex_science.project_store.DEFAULT_MAX_JSON_BYTES", size):
+                self.assertEqual("run", store.import_run(project_id="p", manifest_path=path).run_id)
+
+    def test_reimport_refuses_a_different_branch_or_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="p", title="P", question="Q")
+            base_path, _ = make_run(root, "base", "Claim", 1)
+            store.import_run(project_id="p", manifest_path=base_path)
+            path, _ = make_run(root, "next", "Claim", 2)
+            imported = store.import_run(project_id="p", manifest_path=path)
+            self.assertEqual(imported, store.import_run(project_id="p", manifest_path=path, branch_name="main", parent_run_id="base"))
+            before = self._counts(store)
+            with self.assertRaisesRegex(ValueError, "already imported on branch main: next"):
+                store.import_run(project_id="p", manifest_path=path, branch_name="other")
+            with self.assertRaisesRegex(ValueError, "already imported with parent base: next"):
+                store.import_run(project_id="p", manifest_path=path, parent_run_id="next")
+            with self.assertRaisesRegex(ValueError, "already imported with parent None: base"):
+                store.import_run(project_id="p", manifest_path=base_path, parent_run_id="next")
+            self.assertEqual(before, self._counts(store))
+            self.assertEqual(["main"], [row["branch_name"] for row in store.summary(project_id="p")["branches"]])
+
+    def test_runs_stored_with_non_string_claim_ids_refuse_reimport_and_review(self) -> None:
+        def tolerant_claims(manifest):
+            return {str(item["id"]): dict(item) for item in manifest.get("claims", []) if item.get("id")}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="p", title="P", question="Q")
+            path, _ = make_run(root, "legacy", "Claim", 1)
+            manifest = json.loads(path.read_bytes())
+            manifest["claims"][0]["id"] = 7
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with patch("codex_science.project_store._manifest_claims", tolerant_claims):
+                store.import_run(project_id="p", manifest_path=path)
+            store.fork_branch(project_id="p", source_run_id="legacy", branch_name="fork")
+            before = self._counts(store)
+            with self.assertRaisesRegex(ValueError, "claim id must be a non-empty string"):
+                store.import_run(project_id="p", manifest_path=path)
+            with self.assertRaisesRegex(ValueError, "claim id must be a non-empty string"):
+                store.compare_runs(project_id="p", previous_run_id="legacy", current_run_id="legacy")
+            with self.assertRaisesRegex(ValueError, "claim id must be a non-empty string"):
+                store.prepare_merge_plan(project_id="p", source_branch="fork", target_branch="main")
+            self.assertEqual(before, self._counts(store))
+
+    def test_discovery_history_validates_each_bundle_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            store = ProjectStore(root / "project.sqlite")
+            store.create_project(project_id="p", title="P", question="Q")
+            path, _ = make_run(root, "run", "Claim", 1)
+            store.import_run(project_id="p", manifest_path=path)
+            with patch("codex_science.project_store.validate_bundle", side_effect=validate_bundle) as validator:
+                store.discovery_history(project_id="p")
+            self.assertEqual(1, validator.call_count)
+
 
 if __name__ == "__main__":
     unittest.main()

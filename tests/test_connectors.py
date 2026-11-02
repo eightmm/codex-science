@@ -406,7 +406,9 @@ class ConnectorTests(unittest.TestCase):
             'ti:"Scaling Laws" AND au:kaplan': ("search_query", 'ti:"Scaling Laws" AND au:kaplan'),
             "(cat:cs.LG OR cat:stat.ML)": ("search_query", "(cat:cs.LG OR cat:stat.ML)"),
             "au:hinton": ("search_query", "au:hinton"),
-            "AU:Hinton": ("search_query", "AU:Hinton"),
+            "AU:Hinton": ("search_query", "all:AU:Hinton"),
+            "Ti:Sapphire laser": ("search_query", "all:Ti:Sapphire laser"),
+            "Au:Pd nanoparticles": ("search_query", "all:Au:Pd nanoparticles"),
             "2203.15556": ("id_list", "2203.15556"),
             " arXiv:2203.15556v2 ": ("id_list", "2203.15556v2"),
             "ID:1501.0001": ("id_list", "1501.0001"),
@@ -779,6 +781,87 @@ class ConnectorTests(unittest.TestCase):
             connector.search("TP53")
         with self.assertRaisesRegex(ValueError, "did not match"):
             connector.search("PXD000001")
+
+    def test_legacy_connectors_refuse_non_object_and_malformed_payloads(self) -> None:
+        for payload in ([], "oops", [{"error": "x"}], None):
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(ValueError, "ProteomeXchange response must be a JSON object"):
+                    ProteomeXchangeConnector(fetch_json=lambda _url, p=payload: p).search("PXD000001")
+                with self.assertRaisesRegex(ValueError, "PheWAS response must be a JSON object"):
+                    FinnGenConnector(fetch_json=lambda _url, p=payload: p).search("1:100-A-G")
+        for bad in (None, 1.5, {"a": 1}, [1], True, "", "  "):
+            with self.subTest(identifier=bad):
+                payload = {"esearchresult": {"idlist": ["1", bad]}}
+                with self.assertRaisesRegex(ValueError, "non-empty string or integer identifiers"):
+                    parse_esearch_ids(payload)
+                with self.assertRaisesRegex(ValueError, "non-empty string or integer identifiers"):
+                    PubMedConnector(fetch_json=lambda _url, p=payload: p).search("x")
+        self.assertEqual(["7", "8"], parse_esearch_ids({"esearchresult": {"idlist": ["7", 8]}}))
+        self.assertEqual([], parse_esearch_ids({"esearchresult": {"idlist": []}}))
+
+    def test_uniprot_skips_items_without_a_string_accession(self) -> None:
+        payload = {"results": [{"primaryAccession": ""}, {}, {"primaryAccession": None}, {"primaryAccession": 5},
+                               {"primaryAccession": "P00001", "uniProtkbId": "FAKE_HUMAN"}]}
+        results = UniProtConnector(fetch_json=lambda _url: payload).search("fake")
+        self.assertEqual(["P00001"], [item["id"] for item in results])
+
+    def test_limit_must_be_a_non_boolean_integer(self) -> None:
+        connector = PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": []}})
+        for limit in (True, 2.5, "3", None):
+            with self.subTest(limit=limit), self.assertRaisesRegex(ValueError, "Limit must be an integer"):
+                connector.search("x", limit=limit)
+        self.assertEqual([], connector.search("x", limit=10))
+
+    def test_arxiv_refuses_documents_declaring_a_dtd_or_entities(self) -> None:
+        bodies = (
+            '<!DOCTYPE feed [<!ENTITY a "aaaa">]><feed xmlns="http://www.w3.org/2005/Atom">&a;</feed>',
+            '<!ENTITY a "b"><feed xmlns="http://www.w3.org/2005/Atom"/>',
+        )
+        for body in bodies:
+            with self.subTest(body=body[:20]), self.assertRaisesRegex(ValueError, "DTD or entities"):
+                ArxivConnector(fetch_text=lambda _url, b=body: b).search("x")
+
+    def test_fetch_enforces_a_wall_clock_deadline_on_slow_bodies(self) -> None:
+        import time
+
+        class SlowResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _size: int) -> bytes:
+                time.sleep(0.3)
+                return b"{}"
+
+        class FakeOpener:
+            def open(self, _request, timeout):
+                return SlowResponse()
+
+        with patch("codex_science.connectors.urllib.request.build_opener", return_value=FakeOpener()), patch(
+            "codex_science.connectors.RESPONSE_DEADLINE_SECONDS", 0.05
+        ):
+            with self.assertRaisesRegex(TimeoutError, "example.org response not received"):
+                fetch_json("https://example.org/data")
+
+    def test_smoke_records_connector_value_errors_as_failures(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+        from scripts.public_smoke import run_checks
+
+        class Broken:
+            def search(self, _query, *, limit):
+                raise json.JSONDecodeError("bad", "x", 0)
+
+        class Fine:
+            def search(self, _query, *, limit):
+                return [{"id": "ok"}]
+
+        with redirect_stdout(io.StringIO()) as out, self.assertRaises(SystemExit) as raised:
+            run_checks((("first", Broken(), "x"), ("second", Fine(), "x")))
+        self.assertIn("first: invalid response", str(raised.exception))
+        self.assertIn("second: ok (ok)", out.getvalue())
 
     def test_parse_esearch_ids_raises_on_error_payload(self) -> None:
         with self.assertRaisesRegex(ValueError, "NCBI ESearch error: Empty term"):

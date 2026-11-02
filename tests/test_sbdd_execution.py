@@ -308,9 +308,8 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
         for record in self.payload["records"]:
             for key in ("active", "score", "pose_delta"):
                 record.pop(key)
-        poses, metrics, _leakage = compute_acceptance(self.payload)
-        self.assertTrue(all(pose["active"] is False and pose["score"] == 0.0 for pose in poses))
-        self.assertEqual(0.0, next(item["value"] for item in metrics if item["name"] == "pr_auc"))
+        with self.assertRaisesRegex(ValueError, "control-redock-1.*pose_delta"):
+            compute_acceptance(self.payload)
 
     def test_record_numbers_must_be_finite_reals_before_output(self) -> None:
         for index in range(len(self.payload["records"])):
@@ -521,6 +520,69 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
             self.assertEqual("findings", review["status"])
             self.assertIn("acceptance-metric-failed", {item["code"] for item in review["findings"]})
             self.assertNotIn("computed-claim-without-execution", {item["code"] for item in review["findings"]})
+
+    def test_missing_or_mistyped_record_fields_are_refused_before_output(self) -> None:
+        pose_keys = ("pose_delta", "reference_interactions", "predicted_interactions", "symmetry_permutations", "reference_coords", "starting_coords")
+        for key in pose_keys:
+            payload = copy.deepcopy(self.payload)
+            del payload["records"][0][key]
+            with self.subTest(missing=key):
+                self._assert_rejected_before_output(payload, payload["records"][0]["complex_id"] + ".*" + key)
+        screening = next(i for i, r in enumerate(self.payload["records"]) if r["task"] == "screening")
+        for key in ("score", "active"):
+            payload = copy.deepcopy(self.payload)
+            del payload["records"][screening][key]
+            with self.subTest(missing=key):
+                self._assert_rejected_before_output(payload, payload["records"][screening]["complex_id"] + ".*" + key)
+        for key, values in (
+            ("symmetry_permutations", (None, 7, [[0, 1, 2.0]], [[True, 0, 1]], [0, 1, 2])),
+            ("reference_interactions", (5, None, "ASP1:N1", [1], {})),
+            ("predicted_interactions", ("N1:ASP1", None, [None])),
+        ):
+            for value in values:
+                payload = copy.deepcopy(self.payload)
+                payload["records"][1][key] = value
+                with self.subTest(key=key, value=value):
+                    self._assert_rejected_before_output(payload, payload["records"][1]["complex_id"] + ".*" + key)
+
+    def test_null_run_id_and_registry_without_baseline_are_refused(self) -> None:
+        payload = copy.deepcopy(self.payload)
+        payload["run_id"] = None
+        self._assert_rejected_before_output(payload, "run_id must be a string")
+        with tempfile.TemporaryDirectory() as tempdir:
+            registry = json.loads((self.root / "models" / "registry-v2.json").read_text(encoding="utf-8"))
+            registry["models"] = [m for m in registry["models"] if m.get("id") != "deterministic-translation-baseline"]
+            path = Path(tempdir) / "registry.json"
+            path.write_text(json.dumps(registry), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "deterministic-translation-baseline"):
+                execute_acceptance(self.input_path, Path(tempdir) / "run", registry_path=path)
+            self.assertFalse((Path(tempdir) / "run").exists())
+
+    def test_oversized_input_is_refused_before_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "input.json"
+            path.write_bytes(b" " * (64 * 1024 * 1024 + 1))
+            with self.assertRaisesRegex(ValueError, "exceeds"):
+                execute_acceptance(path, Path(tempdir) / "run", registry_path=self.root / "models" / "registry-v2.json")
+
+    def test_minor_leakage_findings_reach_review_and_custom_registry_is_recorded(self) -> None:
+        payload = copy.deepcopy(self.payload)
+        payload["records"][2]["model_training_overlap"] = "unknown"
+        with tempfile.TemporaryDirectory() as tempdir:
+            temporary = Path(tempdir)
+            source, output = temporary / "input.json", temporary / "run"
+            source.write_text(json.dumps(payload), encoding="utf-8")
+            registry = temporary / "registry.json"
+            registry.write_bytes((self.root / "models" / "registry-v2.json").read_bytes())
+            execute_acceptance(source, output, registry_path=registry)
+            receipt = json.loads((output / "review_receipt.json").read_text(encoding="utf-8"))
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("unresolved-training-overlap", [f["code"] for f in receipt["findings"]])
+            self.assertIn("unresolved-training-overlap", [f["code"] for f in manifest["review"]["findings"]])
+            self.assertIn(f"--registry {registry}", manifest["executions"][0]["command"])
+            plain = temporary / "plain"
+            execute_acceptance(self.input_path, plain, registry_path=self.root / "models" / "registry-v2.json")
+            self.assertNotIn("--registry", json.loads((plain / "manifest.json").read_text(encoding="utf-8"))["executions"][0]["command"])
 
     def test_acceptance_receipts_describe_the_actual_local_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

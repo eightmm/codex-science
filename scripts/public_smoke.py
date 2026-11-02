@@ -151,6 +151,9 @@ def run_checks(
                 continue
             failures.append(f"{name}: unreachable ({error.reason})")
             continue
+        except ValueError as error:
+            failures.append(f"{name}: invalid response ({error})")
+            continue
         if not results:
             failures.append(f"{name}: no results")
             continue

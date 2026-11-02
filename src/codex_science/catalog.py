@@ -40,13 +40,14 @@ CREDENTIAL_RE = re.compile(
     r"\b(?:api key|credentials?) (?:is |are )?required\b|\brequires? an api key\b",
     re.IGNORECASE,
 )
+SHELL_AFTER_PIPE_RE = re.compile(r"\s*(?:ba)?sh\b", re.IGNORECASE)
+DOWNLOADER_RE = re.compile(r"(?:curl|wget)\b", re.IGNORECASE)
 UNSAFE_PATTERNS = (
-    re.compile(r"curl\b[^\n|]*\|\s*(?:ba)?sh\b", re.IGNORECASE),
-    re.compile(r"wget\b[^\n|]*\|\s*(?:ba)?sh\b", re.IGNORECASE),
     re.compile(r"\brm\s+-rf\b", re.IGNORECASE),
     re.compile(r"\bignore (?:all )?(?:previous|prior) instructions\b", re.IGNORECASE),
     re.compile(r"\b(?:upload|send|exfiltrate)\b[^\n]{0,60}\b(?:secret|credential|token|key)s?\b", re.IGNORECASE),
 )
+SHORT_LICENSE_MARKER_LENGTH = 3
 EXECUTABLE_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1"}
 SOURCE_DIGEST_EXCLUDES = frozenset({".git", ".omc", "__pycache__"})
 
@@ -136,6 +137,25 @@ def parse_frontmatter(path: Path) -> dict[str, str]:
     return fields
 
 
+def _pipes_download_to_shell(text: str) -> bool:
+    """Linear form of `(curl|wget)\\b[^\\n|]*\\|\\s*(?:ba)?sh\\b`.
+
+    The gap cannot hold a pipe or newline, so only the text after the last
+    newline of the segment before each pipe can hold the downloader.
+    """
+    segments = text.split("|")
+    return any(
+        SHELL_AFTER_PIPE_RE.match(after) and DOWNLOADER_RE.search(before.rpartition("\n")[2])
+        for before, after in zip(segments, segments[1:])
+    )
+
+
+def _license_marker_present(marker: str, normalized: str) -> bool:
+    if len(marker) > SHORT_LICENSE_MARKER_LENGTH:
+        return marker in normalized
+    return re.search(rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])", normalized) is not None
+
+
 def _license_reason(license_name: str | None, policy: CatalogPolicy) -> str | None:
     if not license_name:
         return "unknown-license"
@@ -147,7 +167,7 @@ def _license_reason(license_name: str | None, policy: CatalogPolicy) -> str | No
     restricted = ("proprietary", "non-commercial", "noncommercial", "by-nc", "nc-sa", "gpl")
     if any(marker in normalized for marker in restricted):
         return "restricted-license"
-    if not any(marker in normalized for marker in policy.permissive_license_markers):
+    if not any(_license_marker_present(marker, normalized) for marker in policy.permissive_license_markers):
         return "unknown-license"
     return None
 
@@ -214,7 +234,7 @@ def audit_skill(
         reasons.append("executable-content")
     if CREDENTIAL_RE.search(text):
         reasons.append("credentials-required")
-    if any(pattern.search(text) for pattern in UNSAFE_PATTERNS):
+    if _pipes_download_to_shell(text) or any(pattern.search(text) for pattern in UNSAFE_PATTERNS):
         reasons.append("unsafe-instruction")
     lowered_name = name.lower()
     if any(marker in lowered_name for marker in policy.high_stakes_name_markers):
@@ -352,6 +372,12 @@ def audit_sources(
             raise ValueError(f"Source {index} exclude must be a list or string")
         for item in [exclude] if isinstance(exclude, str) else exclude:
             _required_text(item, f"Source {index} exclude entry", allow_empty=True)
+        for field in ("repository", "commit", "kind"):
+            if field in source:
+                _required_text(source[field], f"Source {index} {field}", allow_empty=True)
+        if "content_sha256" in source:
+            _required_text(source["content_sha256"], f"Source {index} content_sha256", allow_empty=True)
+    resolved_root = root.resolve()
     all_records: list[dict[str, Any]] = []
     source_meta: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -359,6 +385,8 @@ def audit_sources(
         key = str(source["key"])
         catalog_path = str(source["catalog_path"])
         catalog_root = (root / catalog_path).resolve()
+        if not catalog_root.is_relative_to(resolved_root):
+            raise ValueError(f"Source catalog_path resolves outside the root: {catalog_path}")
         if not catalog_root.is_dir():
             raise ValueError(f"Catalog directory not found: {catalog_root}")
         records = _audit_records(
@@ -368,7 +396,7 @@ def audit_sources(
             name_prefix=str(source.get("name_prefix", key)),
             source_key=key,
             default_license=source.get("default_license"),
-            exclude=frozenset(source.get("exclude", [])),
+            exclude=frozenset(str(item) for item in source.get("exclude", [])),
         )
         for record in records:
             if record["name"] in seen:

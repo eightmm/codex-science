@@ -71,6 +71,34 @@ class SBDDAcceptanceTests(unittest.TestCase):
         self.assertFalse(benchmark_passes(self.seeded))
 
 
+    def test_audit_cli_refuses_input_overwrite_symlink_output_and_deep_nesting(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/audit_sbdd_benchmark.py"
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "benchmark.json"
+            source.write_text(json.dumps(self.valid), encoding="utf-8")
+            before = source.read_bytes()
+            target = root / "target.json"
+            target.write_bytes(b"keep")
+            link = root / "link.json"
+            link.symlink_to(target)
+            deep = root / "deep.json"
+            deep.write_text("[" * 200000 + "]" * 200000, encoding="utf-8")
+            result = subprocess.run([sys.executable, str(script), str(source), "--output", str(source)], capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertEqual(before, source.read_bytes())
+            result = subprocess.run([sys.executable, str(script), str(source), "--output", str(link)], capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(b"keep", target.read_bytes())
+            self.assertFalse(link.is_symlink())
+            result = subprocess.run([sys.executable, str(script), str(deep)], capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, result.returncode)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+
     def test_execution_cli_refuses_output_symlink_loop(self) -> None:
         import tempfile
         from loader_cases import assert_refused

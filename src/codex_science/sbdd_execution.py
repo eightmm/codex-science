@@ -10,10 +10,14 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Iterable
 
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES
 from codex_science.artifacts import add_artifact, new_manifest, validate_manifest
 from codex_science.model_registry_v2 import build_model_receipt_v2, load_registry_v2, registry_sha256, validate_registry_v2
 from codex_science.review_receipts import build_review_receipt
 from codex_science.sbdd import audit_sbdd_benchmark
+
+
+DEFAULT_REGISTRY = Path(__file__).resolve().parents[2] / "models" / "registry-v2.json"
 
 
 def canonical_sha256(value: Any) -> str:
@@ -107,8 +111,15 @@ def symmetry_rmsd(reference: list[list[float]], predicted: list[list[float]], pe
     return _finite_real(best, "rmsd")
 
 
+def _interactions(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{label} must be a list of strings")
+    return value
+
+
 def interaction_recovery(reference: Iterable[str], predicted: Iterable[str]) -> float:
-    reference_set, predicted_set = set(map(str, reference)), set(map(str, predicted))
+    reference_set = set(_interactions(reference, "reference_interactions"))
+    predicted_set = set(_interactions(predicted, "predicted_interactions"))
     value = 1.0 if not reference_set else len(reference_set & predicted_set) / len(reference_set)
     return _finite_real(value, "interaction_recovery")
 
@@ -183,6 +194,20 @@ def _metric(name: str, value: float, unit: str, operator: str, threshold: float,
     }
 
 
+def _permutations(value: Any) -> list[list[int]]:
+    if not isinstance(value, list) or not all(
+        isinstance(row, list) and all(isinstance(item, int) and not isinstance(item, bool) for item in row) for row in value
+    ):
+        raise ValueError("symmetry_permutations must be a list of integer lists")
+    return value
+
+
+def _require_keys(record: dict[str, Any], keys: Iterable[str]) -> None:
+    missing = [key for key in keys if key not in record]
+    if missing:
+        raise ValueError(f"{record['complex_id']} is missing required field(s): {', '.join(missing)}")
+
+
 def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     leakage_findings = audit_sbdd_benchmark(payload)
     blocking = [item for item in leakage_findings if item["severity"] in {"critical", "major"}]
@@ -198,12 +223,15 @@ def compute_acceptance(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], l
     labels: list[bool] = []
     scores: list[int | float] = []
     for record in payload["records"]:
+        _require_keys(record, ("reference_coords", "starting_coords", "pose_delta", "symmetry_permutations", "reference_interactions", "predicted_interactions"))
+        if record["task"] == "screening":
+            _require_keys(record, ("score", "active"))
         reference = _coords(record["reference_coords"], f"{record['complex_id']} reference_coords")
         starting = _coords(record["starting_coords"], f"{record['complex_id']} starting_coords")
         try:
-            predicted = generate_pose(starting, record.get("pose_delta", [0, 0, 0]))
-            pose_rmsd = _finite_real(symmetry_rmsd(reference, predicted, record.get("symmetry_permutations", [])), "symmetry_rmsd_angstrom")
-            recovery = _finite_real(interaction_recovery(record.get("reference_interactions", []), record.get("predicted_interactions", [])), "interaction_recovery")
+            predicted = generate_pose(starting, record["pose_delta"])
+            pose_rmsd = _finite_real(symmetry_rmsd(reference, predicted, _permutations(record["symmetry_permutations"])), "symmetry_rmsd_angstrom")
+            recovery = _finite_real(interaction_recovery(record["reference_interactions"], record["predicted_interactions"]), "interaction_recovery")
         except ValueError as exc:
             raise ValueError(f"{record['complex_id']} {exc}") from exc
         raw_score = record.get("score", 0.0)
@@ -261,12 +289,16 @@ def _validate_destinations(input_path: Path, output_dir: Path, paths: Iterable[P
 
 
 def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Path) -> Path:
+    if input_path.is_file() and input_path.stat().st_size > DEFAULT_MAX_JSON_BYTES:
+        raise ValueError(f"input JSON exceeds {DEFAULT_MAX_JSON_BYTES} bytes: {input_path}")
     input_bytes = input_path.read_bytes()
     input_digest = hashlib.sha256(input_bytes).hexdigest()
     payload = json.loads(input_bytes.decode("utf-8"))
     poses, metrics, leakage_findings = compute_acceptance(payload)
     registry = load_registry_v2(registry_path)
     models = validate_registry_v2(registry)
+    if "deterministic-translation-baseline" not in models:
+        raise ValueError(f"model registry has no deterministic-translation-baseline entry: {registry_path}")
     model = models["deterministic-translation-baseline"]
     artifacts: dict[Path, bytes] = {}
     poses_path, metrics_path = output_dir / "poses.json", output_dir / "metrics.json"
@@ -328,6 +360,9 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         }
         for item in metrics
         if not item["passed"]
+    ] + [
+        {"code": item["code"], "severity": item["severity"], "message": item["message"], "resolution_status": "open"}
+        for item in leakage_findings
     ]
     review_receipt = build_review_receipt(
         review_id="review-sbdd-acceptance", reviewer="deterministic-contract-checker", independent=False,
@@ -338,7 +373,10 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     )
     review_path = output_dir / "review_receipt.json"
     artifacts[review_path] = _json_bytes(review_receipt)
-    manifest = new_manifest(str(payload.get("run_id", "sbdd-executable-acceptance")), "Does the deterministic SBDD baseline satisfy prespecified pose and ranking acceptance thresholds?", [
+    run_id = payload.get("run_id", "sbdd-executable-acceptance")
+    if not isinstance(run_id, str):
+        raise ValueError("run_id must be a string")
+    manifest = new_manifest(run_id, "Does the deterministic SBDD baseline satisfy prespecified pose and ranking acceptance thresholds?", [
         {"id": "validate-input", "description": "Validate input states and leakage contract", "status": "completed"},
         {"id": "generate-poses", "description": "Generate deterministic poses", "status": "completed"},
         {"id": "compute-metrics", "description": "Compute RMSD, interaction recovery, and PR-AUC", "status": "completed"},
@@ -348,7 +386,7 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
     manifest["code"] = [{"module": "codex_science.sbdd_execution", "revision": "deterministic-translation-baseline-v1"}]
     manifest["executions"] = [{
         "id": "execution-sbdd-baseline",
-        "command": f"python scripts/run_sbdd_acceptance.py {input_path} {output_dir}",
+        "command": f"python scripts/run_sbdd_acceptance.py {input_path} {output_dir}" + ("" if registry_path.resolve() == DEFAULT_REGISTRY else f" --registry {registry_path}"),
         "exit_code": 0,
         "outputs": [
             "poses.json", "metrics.json", "claims.json", "evidence_graph.json",

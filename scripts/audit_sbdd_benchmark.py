@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from codex_science.cli_io import preflight_output_paths, write_text_atomic  # noqa: E402
 from codex_science.sbdd import audit_sbdd_benchmark  # noqa: E402
 
 
@@ -21,6 +22,7 @@ def main() -> int:
     parser.add_argument("--allow-findings", action="store_true")
     args = parser.parse_args()
     try:
+        preflight_output_paths(args.output, inputs=[args.benchmark])
         benchmark = json.loads(args.benchmark.read_text(encoding="utf-8"))
         findings = audit_sbdd_benchmark(benchmark)
         payload = {
@@ -29,11 +31,10 @@ def main() -> int:
         }
         rendered = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
         if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(rendered, encoding="utf-8")
+            write_text_atomic(args.output, rendered)
         else:
             print(rendered, end="")
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     if findings and not args.allow_findings:

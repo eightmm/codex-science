@@ -18,12 +18,15 @@ DEFAULT_OUTPUT = ROOT / "catalog" / "inventory.json"
 
 def current_commit(catalog: Path) -> str:
     repository = catalog.parent
-    result = subprocess.run(
-        ["git", "-C", str(repository), "rev-parse", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"Cannot read the catalog commit (pass --commit): {error.stderr.strip()}") from error
     return result.stdout.strip()
 
 
