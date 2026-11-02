@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from codex_science.artifact_store import describe_directory, stream_sha256
-from codex_science.artifacts import validate_bundle, validate_manifest
+from codex_science.artifacts import manifest_provenance_paths, validate_bundle, validate_manifest
 from codex_science.cli_io import write_json_atomic
 from codex_science.review_receipts import (
     SEVERITIES,
@@ -84,7 +84,12 @@ def _sha(value: Any, label: str) -> str:
     return text
 
 
-def _redact(value: Any) -> Any:
+MAX_REDACT_DEPTH = 100
+
+
+def _redact(value: Any, _depth: int = 0) -> Any:
+    if _depth > MAX_REDACT_DEPTH and isinstance(value, (Mapping, list)):
+        raise ValueError(f"review packet source field has excessive nesting (more than {MAX_REDACT_DEPTH} levels)")
     if isinstance(value, Mapping):
         result: dict[str, Any] = {}
         for key, item in value.items():
@@ -95,10 +100,10 @@ def _redact(value: Any) -> Any:
             if any(fragment in normalized for fragment in SENSITIVE_FRAGMENTS):
                 result[key_text] = "[REDACTED]"
             else:
-                result[key_text] = _redact(item)
+                result[key_text] = _redact(item, _depth + 1)
         return result
     if isinstance(value, list):
-        return [_redact(item) for item in value]
+        return [_redact(item, _depth + 1) for item in value]
     if isinstance(value, str) and "://" in value:
         try:
             parsed = urllib.parse.urlsplit(value)
@@ -367,10 +372,15 @@ def validate_review_packet(payload: Mapping[str, Any]) -> None:
         _text(payload.get(field), field)
     _sha(payload.get("source_manifest_sha256"), "source_manifest_sha256")
     modes = payload.get("review_modes")
-    if not isinstance(modes, list) or not modes or set(modes) - REVIEW_MODES:
+    if not isinstance(modes, list) or not modes or any(not isinstance(mode, str) for mode in modes) or set(modes) - REVIEW_MODES:
         raise ValueError("invalid review packet modes")
     if not isinstance(payload.get("artifacts"), list) or not isinstance(payload.get("material_claim_ids"), list):
         raise ValueError("review packet artifacts and material_claim_ids must be lists")
+    for index, item in enumerate(payload["artifacts"]):
+        if not isinstance(item, Mapping):
+            raise ValueError(f"review packet artifact {index} must be an object")
+        _text(item.get("path"), f"review packet artifact {index} path")
+        _sha(item.get("sha256"), f"review packet artifact {index} sha256")
     if "review_priority" in payload:
         rows = payload["review_priority"]
         if not isinstance(rows, list) or any(not isinstance(row, Mapping) or set(row) != {"claim_id", "basis", "priority"} or row.get("basis") not in REVIEW_PRIORITY_POLICY["order"] or type(row.get("priority")) is not int or row.get("priority") != REVIEW_PRIORITY_POLICY["order"].index(row["basis"]) + 1 for row in rows):
@@ -586,7 +596,8 @@ def respond_to_review(
     Artifact types come from the source manifest; changed manifests require matching
     packet artifact digests. Artifact and declared descriptor paths in the packet
     or current manifest reserve their entire output subtrees, even without packet
-    type metadata or a current filesystem object.
+    type metadata or a current filesystem object. Recorded code and execution-log
+    paths, execution-log.jsonl and the run packaging bookkeeping files are also refused.
     Raises one ValueError listing every input problem and writes nothing on failure.
     """
     task_path = Path(task_path)
@@ -608,11 +619,13 @@ def respond_to_review(
         problems.append(f"packet artifact path unavailable or invalid: {error}")
     source_manifest = Path(str(packet["source_manifest_path"]))
     artifact_types: dict[str, str] = {}
+    manifest_loaded = False
     try:
         manifest_bytes = source_manifest.read_bytes()
         manifest_matches_packet = hashlib.sha256(manifest_bytes).hexdigest() == str(packet["source_manifest_sha256"]).lower()
         manifest = json.loads(manifest_bytes)
         validate_manifest(manifest)
+        manifest_loaded = True
         protected_artifact_paths.update(
             _resolve_review_path(run_dir / str(item[field]))
             for item in manifest["artifacts"]
@@ -723,6 +736,18 @@ def respond_to_review(
         resolved = _resolve_review_path(destination)
         if not resolved.is_relative_to(run_dir):
             problems.append(f"output is outside the run directory: {destination}")
+        from codex_science.run_packaging import EXCLUDED_NAMES
+
+        protected_artifact_paths.update(_resolve_review_path(run_dir / name) for name in EXCLUDED_NAMES)
+        if manifest_loaded:
+            protected_artifact_paths.update(_resolve_review_path(path) for path in manifest_provenance_paths(manifest, run_dir))
+            # manifest_provenance_paths skips records without a digest; recorded files stay protected regardless.
+            protected_artifact_paths.update(
+                _resolve_review_path(run_dir / record[key])
+                for field, key in (("code", "path"), ("executions", "log_path"), ("superseded_executions", "log_path"))
+                for record in manifest.get(field, [])
+                if isinstance(record, dict) and isinstance(record.get(key), str) and record[key] and "://" not in record[key]
+            )
         protected = {_resolve_review_path(task_path), run_dir / "manifest.json", run_dir / source_manifest.name, _resolve_review_path(source_manifest), *(_resolve_review_path(run_dir / path) for path in packet_hashes)}
         if resolved in protected:
             problems.append(f"output would overwrite a packet or manifest file: {destination}")

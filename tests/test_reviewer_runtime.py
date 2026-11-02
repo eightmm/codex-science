@@ -593,6 +593,35 @@ class ReviewerRuntimeRejectionTests(unittest.TestCase):
         validate_review_packet(self.packet)
         self.assertEqual("passed", finalize_review_response(self.packet, valid_response(self.packet))["status"])
 
+    def test_packet_artifact_and_mode_shapes_are_labelled_errors(self) -> None:
+        cases = [
+            (["evidence.json"], "artifact 0 must be an object"),
+            ([{"path": "evidence.json"}], "artifact 0 sha256 is required"),
+            ([{"path": "evidence.json", "sha256": "abc"}], "artifact 0 sha256 must be a SHA-256 digest"),
+            ([{"path": " ", "sha256": "0" * 64}], "artifact 0 path is required"),
+            ([{"path": ["evidence.json"], "sha256": "0" * 64}], "artifact 0 path is required"),
+        ]
+        for artifacts, message in cases:
+            with self.subTest(artifacts=artifacts):
+                self.assertPacketRejected(lambda m, v=artifacts: m.__setitem__("artifacts", v), message)
+        for modes in ([["record"]], [1], [None], [], "record"):
+            with self.subTest(modes=modes):
+                self.assertPacketRejected(lambda m, v=modes: m.__setitem__("review_modes", v), "invalid review packet modes")
+
+    def test_excessive_manifest_nesting_is_a_labelled_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = make_reviewed_run(Path(directory))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            deep: dict = {}
+            cursor = deep
+            for _ in range(1200):
+                cursor["a"] = {}
+                cursor = cursor["a"]
+            manifest["environment"] = deep
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "excessive nesting"):
+                build_review_packet(manifest_path, review_modes=["record"])
+
     def test_packet_schema_version_must_be_one(self) -> None:
         for version in (2, 0, None, "1"):
             with self.subTest(version=version):
@@ -1269,6 +1298,21 @@ class RespondToReviewRejectionTests(unittest.TestCase):
         for fragment in ("reviewed paths not in packet: ghost.json", "modes not in packet: source", "claims not in packet: C9", "findings file unreadable"):
             self.assertIn(fragment, str(caught.exception))
         self.assertFalse(self.response_path.exists())
+
+    def test_recorded_code_logs_and_journals_are_not_output_targets(self) -> None:
+        manifest_path = self.task.parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["executions"] = [{"command": "python analysis.py", "exit_code": 0, "log_path": "logs/run.log"}]
+        write_manifest(manifest, manifest_path)
+        self.task.write_text(json.dumps(build_review_packet(manifest_path, review_modes=["record"])), encoding="utf-8")
+        for name in ("analysis.py", "logs/run.log", "execution-log.jsonl", "checkpoint.json"):
+            target = self.task.parent / name
+            target.parent.mkdir(exist_ok=True)
+            target.write_text("original\n", encoding="utf-8")
+            with self.subTest(output=name):
+                self.assertRefused("output would overwrite", output=target)
+                self.assertEqual("original\n", target.read_text(encoding="utf-8"))
+        self.assertEqual("passed", self.respond(output=self.task.parent / "other.json")["effective_status"])
 
 
 if __name__ == "__main__":
