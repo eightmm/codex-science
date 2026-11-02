@@ -80,6 +80,10 @@ SLURM_STATE_MAP = {
     "PENDING": "submitted",
     "CONFIGURING": "submitted",
     "COMPLETING": "running",
+    "REQUEUED": "submitted",
+    "RESIZING": "running",
+    "REVOKED": "cancelled",
+    "SUSPENDED": "running",
 }
 
 
@@ -636,6 +640,16 @@ def _load_source_receipt(job_dir: Path, spec: JobSpec, state: Mapping[str, Any])
 def _process_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    process = _LOCAL_PROCESSES.get(pid)
+    if process is not None:
+        return process.poll() is None
+    try:
+        waited_pid, status = os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        pass
+    else:
+        if waited_pid == pid:
+            return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -658,7 +672,13 @@ class LocalBackend:
 
     def preflight(self, spec: JobSpec) -> dict[str, Any]:
         spec.validate()
-        executable = shutil.which(spec.command[0]) if not Path(spec.command[0]).is_absolute() else spec.command[0]
+        working = Path(spec.working_directory)
+        command = spec.command[0]
+        candidates = (
+            [working / command] if os.path.dirname(command)
+            else [working / entry / command for entry in os.get_exec_path(_job_environment(spec))]
+        )
+        executable = next((found for candidate in candidates if (found := shutil.which(str(candidate))) is not None), None)
         checks = [
             {
                 "name": "working-directory",
@@ -883,6 +903,68 @@ class LocalBackend:
         return _publish_job_state(job_dir, state, collection=True)
 
 
+def _job_environment(spec: JobSpec) -> dict[str, str]:
+    environment = os.environ.copy() if spec.inherit_environment else {}
+    environment.update(spec.environment)
+    return environment
+
+
+def _stop_local_command(pid: int) -> None:
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    time.sleep(0.2)
+    # The leader may have exited while descendants ignored TERM.
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _timeout_local_group(job_dir: Path, final: Mapping[str, Any], started_monotonic: float) -> None:
+    try:
+        helper_pid = os.fork()
+    except OSError:
+        return
+    if helper_pid:
+        _, status = os.waitpid(helper_pid, 0)
+        # Only failed isolation returns publication to the surviving worker.
+        if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 125:
+            return
+        os._exit(1)
+    try:
+        os.setsid()
+    except OSError:
+        os._exit(125)
+    try:
+        # Keep status from publishing lost while group cleanup kills the worker.
+        with _job_state_lock(job_dir):
+            _stop_local_command(int(final["worker_pid"]))
+            receipt = dict(final)
+            receipt["finished_at"] = _now()
+            receipt["updated_at"] = _now()
+            receipt["resource_usage"] = {"wall_seconds": round(time.monotonic() - started_monotonic, 6)}
+            receipt.pop("fingerprint", None)
+            receipt["fingerprint"] = _fingerprint(receipt)
+            _publish_job_state_locked(job_dir, receipt)
+    except BaseException:
+        os._exit(1)
+    os._exit(0)
+
+
+def _timeout_local_group_fallback(job_dir: Path, final: Mapping[str, Any], started_monotonic: float) -> None:
+    worker_pid = int(final["worker_pid"])
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    try:
+        with _job_state_lock(job_dir):
+            os.killpg(worker_pid, signal.SIGTERM)
+            time.sleep(0.2)
+    finally:
+        # Status records worker loss only after this cleanup ends the worker.
+        os.killpg(worker_pid, signal.SIGKILL)
+
+
 def _worker(job_dir: Path) -> int:
     spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
     initial = _read_json(job_dir / "state.json")
@@ -903,8 +985,7 @@ def _worker(job_dir: Path) -> int:
     running = _publish_job_state(job_dir, running)
     if running["state"] in TERMINAL_STATES:
         return 0 if running["state"] == "completed" else 1
-    environment = os.environ.copy() if spec.inherit_environment else {}
-    environment.update(spec.environment)
+    environment = _job_environment(spec)
     stdout_path = job_dir / "stdout.log"
     stderr_path = job_dir / "stderr.log"
     started_monotonic = time.monotonic()
@@ -968,6 +1049,10 @@ def _worker(job_dir: Path) -> int:
         message=message,
         **_source_state_update(initial),
     )
+    if state == "timed-out":
+        _timeout_local_group(job_dir, final, started_monotonic)
+        _timeout_local_group_fallback(job_dir, final, started_monotonic)
+        return 1
     final = _publish_job_state(job_dir, final)
     return 0 if final["state"] == "completed" else 1
 
@@ -1161,6 +1246,16 @@ class SlurmBackend:
                 'builtin umask "$saved_umask"',
                 f"builtin cd {shlex.quote(str(snapshot_cwd))}",
             ]
+        invocation = f"{timeout_command} --signal=TERM {spec.timeout_seconds}s {command}"
+        if not spec.inherit_environment:
+            exports = ""
+            # A fixed executable ends env's assignment parsing before job argv.
+            invocation = shlex.join([
+                _required_tool("env"), "-i", "--",
+                *(f"{key}={value}" for key, value in sorted(spec.environment.items())),
+                _required_tool("timeout"), "--signal=TERM", f"{spec.timeout_seconds}s",
+                *spec.command,
+            ])
         return "\n".join([
             shebang,
             *directives,
@@ -1168,7 +1263,7 @@ class SlurmBackend:
             shell_options,
             *setup,
             exports,
-            f"{timeout_command} --signal=TERM {spec.timeout_seconds}s {command}",
+            invocation,
             "",
         ])
 
@@ -1227,7 +1322,8 @@ class SlurmBackend:
             first = next((line for line in completed.stdout.splitlines() if line.strip()), "")
             if first:
                 fields = first.split("|")
-                raw_state = fields[0].split("+", 1)[0].strip().upper()
+                parts = fields[0].split()
+                raw_state = parts[0].split("+", 1)[0].upper() if parts else ""
                 if len(fields) > 1 and fields[1]:
                     try:
                         exit_code = int(fields[1].split(":", 1)[0])
@@ -1238,7 +1334,9 @@ class SlurmBackend:
             raw_state = completed.stdout.strip().splitlines()[0].upper() if completed.stdout.strip() else ""
         if not raw_state:
             return state
-        mapped = SLURM_STATE_MAP.get(raw_state, "running")
+        mapped = SLURM_STATE_MAP.get(raw_state)
+        if mapped is None:
+            return state
         spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
         updated = _state_material(
             spec,

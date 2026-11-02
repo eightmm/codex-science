@@ -2,6 +2,7 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 import shutil
 import stat
 import subprocess
@@ -9,6 +10,7 @@ import sys
 import tarfile
 import tempfile
 import threading
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -94,6 +96,568 @@ def local_spec(working: Path, *, command: list[str], outputs: list[str], timeout
 
 
 class ComputeBackendTests(unittest.TestCase):
+    def test_process_alive_reaps_children_and_preserves_worker_returncode(self) -> None:
+        for pid in (0, -1):
+            with self.subTest(pid=pid), mock.patch.object(compute_backends_module.os, "waitpid") as waitpid, mock.patch.object(
+                compute_backends_module.os, "kill",
+            ) as kill:
+                self.assertFalse(compute_backends_module._process_alive(pid))
+                waitpid.assert_not_called()
+                kill.assert_not_called()
+
+        for code in (None, 0, 7, -signal.SIGKILL):
+            with self.subTest(registered_returncode=code):
+                process = mock.Mock()
+                process.poll.return_value = code
+                with mock.patch.dict(compute_backends_module._LOCAL_PROCESSES, {123: process}, clear=True), mock.patch.object(
+                    compute_backends_module.os, "waitpid",
+                ) as waitpid, mock.patch.object(compute_backends_module.os, "kill") as kill:
+                    self.assertEqual(code is None, compute_backends_module._process_alive(123))
+                process.poll.assert_called_once_with()
+                waitpid.assert_not_called()
+                kill.assert_not_called()
+
+        for status in (0, 7 << 8, signal.SIGKILL):
+            with self.subTest(unregistered_status=status), mock.patch.dict(compute_backends_module._LOCAL_PROCESSES, {}, clear=True), mock.patch.object(
+                compute_backends_module.os, "waitpid", return_value=(123, status),
+            ) as waitpid, mock.patch.object(compute_backends_module.os, "kill") as kill:
+                self.assertFalse(compute_backends_module._process_alive(123))
+                waitpid.assert_called_once_with(123, os.WNOHANG)
+                kill.assert_not_called()
+
+        for child in (True, False):
+            for error, expected in ((None, True), (ProcessLookupError(), False), (PermissionError(), True)):
+                with self.subTest(child=child, error=type(error).__name__), mock.patch.object(
+                    compute_backends_module.os, "waitpid", return_value=(0, 0), side_effect=None if child else ChildProcessError(),
+                ) as waitpid, mock.patch.object(compute_backends_module.os, "kill", side_effect=error) as kill:
+                    self.assertEqual(expected, compute_backends_module._process_alive(123))
+                    waitpid.assert_called_once_with(123, os.WNOHANG)
+                    kill.assert_called_once_with(123, 0)
+
+        call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+        for iteration in range(16):
+            with self.subTest(concurrent_iteration=iteration), subprocess.Popen(
+                [sys.executable, "-c", "raise SystemExit(7)"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ) as process:
+                deadline = time.monotonic() + call_timeout
+                while Path(f"/proc/{process.pid}/stat").read_text().split(")", 1)[1].split()[0] != "Z":
+                    self.assertLess(time.monotonic(), deadline, "failing child did not exit")
+                    time.sleep(0.01)
+                reaped = threading.Event()
+                wait_started = threading.Event()
+                wait_finished = threading.Event()
+                waitpid = os.waitpid
+                handle_exit = process._handle_exitstatus
+
+                def synchronize_waitpid(pid: int, flags: int):
+                    result = waitpid(pid, flags)
+                    if pid == process.pid and result[0] == pid:
+                        serialized = process._waitpid_lock.locked()
+                        reaped.set()
+                        if not serialized:
+                            self.assertTrue(wait_finished.wait(call_timeout), "concurrent wait did not finish")
+                    return result
+
+                def synchronize_exit(status: int) -> None:
+                    reaped.set()
+                    self.assertTrue(wait_started.wait(call_timeout), "concurrent wait did not start")
+                    handle_exit(status)
+
+                def check_alive() -> bool:
+                    try:
+                        return compute_backends_module._process_alive(process.pid)
+                    finally:
+                        reaped.set()
+
+                def wait_child() -> int:
+                    self.assertTrue(reaped.wait(call_timeout), "liveness check did not observe exit")
+                    wait_started.set()
+                    try:
+                        return process.wait(timeout=call_timeout)
+                    finally:
+                        wait_finished.set()
+
+                with mock.patch.dict(compute_backends_module._LOCAL_PROCESSES, {process.pid: process}), mock.patch.object(
+                    compute_backends_module.os, "waitpid", side_effect=synchronize_waitpid,
+                ), mock.patch.object(process, "_handle_exitstatus", side_effect=synchronize_exit), ThreadPoolExecutor(max_workers=2) as executor:
+                    waiting = executor.submit(wait_child)
+                    checking = executor.submit(check_alive)
+                    self.assertFalse(checking.result(timeout=call_timeout))
+                    self.assertEqual(7, waiting.result(timeout=call_timeout))
+                    self.assertEqual(7, process.returncode)
+                    self.assertEqual(7, process.poll())
+
+    def test_status_reaps_externally_killed_worker_in_submitting_process(self) -> None:
+        call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+
+        def wait_for(condition) -> None:
+            deadline = time.monotonic() + call_timeout
+            while not condition():
+                self.assertLess(time.monotonic(), deadline, "worker did not reach the observed condition")
+                time.sleep(0.01)
+
+        def reset_signals() -> None:
+            for signum in (signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
+                signal.signal(signum, signal.SIG_DFL)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(
+                root, command=[sys.executable, "-c", "import time; from pathlib import Path; Path('ready').touch(); time.sleep(30)"],
+                outputs=[], timeout=max(1, int(call_timeout)),
+            )
+            popen = subprocess.Popen
+            with mock.patch.object(
+                compute_backends_module.subprocess, "Popen",
+                side_effect=lambda *args, **kwargs: popen(*args, preexec_fn=reset_signals, **kwargs),
+            ):
+                submitted = backend.submit(spec)
+            worker_pid = submitted["worker_pid"]
+            worker = compute_backends_module._LOCAL_PROCESSES[worker_pid]
+            try:
+                wait_for(lambda: (root / "ready").exists())
+                os.kill(worker_pid, signal.SIGKILL)
+                wait_for(lambda: Path(f"/proc/{worker_pid}/stat").read_text().split(")", 1)[1].split()[0] == "Z")
+                terminal = backend.status(submitted["job_id"])
+                self.assertEqual("lost", terminal["state"])
+                self.assertEqual("worker-lost", terminal["failure_class"])
+                self.assertEqual(-signal.SIGKILL, worker.poll())
+                self.assertEqual(-signal.SIGKILL, worker.wait(timeout=call_timeout))
+                self.assertEqual(terminal, backend.wait(submitted["job_id"], timeout_seconds=call_timeout))
+                self.assertEqual(terminal, backend.cancel(submitted["job_id"]))
+                self.assertNotIn(worker_pid, compute_backends_module._LOCAL_PROCESSES)
+            finally:
+                try:
+                    os.killpg(worker_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                worker.wait(timeout=call_timeout)
+                compute_backends_module._LOCAL_PROCESSES.pop(worker_pid, None)
+
+    def test_local_timeout_and_cancel_stop_descendants(self) -> None:
+        call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+
+        def wait_for(condition) -> None:
+            deadline = time.monotonic() + call_timeout
+            while not condition():
+                self.assertLess(time.monotonic(), deadline, "process tree did not settle")
+                time.sleep(0.01)
+
+        def stopped(pid: int) -> bool:
+            try:
+                return Path(f"/proc/{pid}/stat").read_text().split(")", 1)[1].split()[0] == "Z"
+            except FileNotFoundError:
+                return True
+
+        def reset_signals() -> None:
+            for signum in (signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
+                signal.signal(signum, signal.SIG_DFL)
+
+        for action in ("timeout", "timeout-resistant", "cancel", "kill-worker-cancel"):
+            with self.subTest(action=action), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                backend = LocalBackend(root / "state")
+                descendant = (
+                    "import os, signal, time; from pathlib import Path; "
+                    + ("signal.signal(signal.SIGTERM, signal.SIG_IGN); " if action.startswith("timeout") else "")
+                    + "Path('child.pid').write_text(str(os.getpid())); "
+                    "time.sleep(2); Path('late.txt').write_text('escaped')"
+                )
+                command = (
+                    "import os, signal, subprocess, sys; from pathlib import Path; "
+                    + ("signal.signal(signal.SIGTERM, signal.SIG_IGN); " if action == "timeout-resistant" else "")
+                    + "Path('command.pid').write_text(str(os.getpid())); "
+                    + f"subprocess.Popen([sys.executable, '-c', {descendant!r}]).wait()"
+                )
+                spec = local_spec(
+                    root, command=[sys.executable, "-c", command], outputs=[],
+                    timeout=1 if action.startswith("timeout") else max(1, int(call_timeout)),
+                )
+                popen = subprocess.Popen
+                with mock.patch.object(
+                    compute_backends_module.subprocess, "Popen",
+                    side_effect=lambda *args, **kwargs: popen(*args, preexec_fn=reset_signals, **kwargs),
+                ):
+                    submitted = backend.submit(spec)
+                child_pid = None
+                command_pid = None
+                try:
+                    wait_for(lambda: (root / "child.pid").exists())
+                    child_pid = int((root / "child.pid").read_text())
+                    command_pid = int((root / "command.pid").read_text())
+                    if action == "kill-worker-cancel":
+                        os.kill(submitted["worker_pid"], signal.SIGKILL)
+                        compute_backends_module._LOCAL_PROCESSES[submitted["worker_pid"]].wait(timeout=call_timeout)
+                    if action.endswith("cancel"):
+                        self.assertEqual("cancelled", backend.cancel(submitted["job_id"])["state"])
+                    terminal = backend.wait(
+                        submitted["job_id"], timeout_seconds=call_timeout, poll_seconds=0.01,
+                    )
+                    self.assertEqual("cancelled" if action.endswith("cancel") else "timed-out", terminal["state"])
+                    wait_for(lambda: stopped(child_pid))
+                    wait_for(lambda: stopped(command_pid))
+                    self.assertFalse((root / "late.txt").exists())
+                    worker = compute_backends_module._LOCAL_PROCESSES.get(submitted["worker_pid"])
+                    if worker is not None:
+                        worker.wait(timeout=call_timeout)
+                    self.assertEqual(terminal, backend.status(submitted["job_id"]))
+                finally:
+                    backend.cancel(submitted["job_id"])
+                    if child_pid is not None and not stopped(child_pid):
+                        os.kill(child_pid, signal.SIGKILL)
+                    if command_pid is not None and not stopped(command_pid):
+                        os.kill(command_pid, signal.SIGKILL)
+
+    def test_local_preflight_uses_job_directory_and_effective_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            (root / "bin").mkdir()
+            runner = root / "bin" / "runner"
+            runner.write_text("#!/bin/sh\nprintf ready\n")
+            runner.chmod(0o700)
+            (root / "runner").symlink_to("bin/runner")
+            backend = LocalBackend(root / "state")
+            spec = local_spec(root, command=["./bin/runner"], outputs=[])
+            cases = (
+                ("./bin/runner", {}, False, True),
+                (str(runner), {}, False, True),
+                ("runner", {"PATH": "bin"}, False, True),
+                ("runner", {"PATH": "bin"}, True, True),
+                ("runner", {"PATH": ""}, False, True),
+                ("runner", {"PATH": ":"}, False, True),
+                ("runner", {}, False, False),
+                ("missing", {"PATH": "bin"}, False, False),
+                ("./bin", {}, False, False),
+                ("runner", {"PATH": "missing:bin"}, False, True),
+                ("bin/runner", {"PATH": "missing"}, False, True),
+                ("bin/runner", {"PATH": "0"}, False, True),
+                ("runner", {"PATH": "0"}, False, False),
+                ("./bin/missing", {}, False, False),
+            )
+            for executable, environment, inherit, ready in cases:
+                with self.subTest(command=executable, environment=environment, inherit=inherit):
+                    candidate = replace(spec, command=(executable,), environment=environment, inherit_environment=inherit)
+                    self.assertEqual(ready, backend.preflight(candidate)["ready"])
+            runner.chmod(0o600)
+            self.assertFalse(backend.preflight(spec)["ready"])
+            self.assertFalse(backend.preflight(replace(spec, command=(str(runner),)))["ready"])
+            runner.chmod(0o700)
+            submitted = backend.submit(spec)
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+            self.assertEqual("completed", backend.wait(submitted["job_id"], timeout_seconds=call_timeout)["state"])
+
+    def test_timeout_helper_preserves_receipts_and_setup_failures(self) -> None:
+        def leave(code: int) -> None:
+            raise SystemExit(code)
+
+        for missing_signal in (None, signal.SIGTERM, signal.SIGKILL):
+            with self.subTest(missing_signal=missing_signal):
+                def send(group: int, signum: int) -> None:
+                    if signum == missing_signal:
+                        raise ProcessLookupError
+
+                with mock.patch.object(compute_backends_module.os, "killpg", side_effect=send) as killpg, mock.patch.object(
+                    compute_backends_module.time, "sleep",
+                ) as grace:
+                    compute_backends_module._stop_local_command(123)
+                expected = [mock.call(123, signal.SIGTERM)]
+                if missing_signal != signal.SIGTERM:
+                    expected.append(mock.call(123, signal.SIGKILL))
+                    grace.assert_called_once_with(0.2)
+                else:
+                    grace.assert_not_called()
+                self.assertEqual(expected, killpg.call_args_list)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+            compute_backends_module._atomic_json(root / "spec.json", spec.to_dict())
+            final = compute_backends_module._state_material(
+                spec, job_id="timeout-helper", state="timed-out", submitted_at="2026-01-01T00:00:00Z", worker_pid=123,
+            )
+            for current in ("running", *sorted(compute_backends_module.TERMINAL_STATES)):
+                with self.subTest(current=current):
+                    state = refingerprint({**final, "state": current})
+                    compute_backends_module._atomic_json(root / "state.json", state)
+                    before = (root / "state.json").read_bytes()
+
+                    def stop_under_lock(pid: int) -> None:
+                        self.assertEqual(123, pid)
+                        self.assertEqual(before, (root / "state.json").read_bytes())
+                        with (root / ".state.lock").open("a") as contender:
+                            with self.assertRaises(BlockingIOError):
+                                fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                    with mock.patch.object(compute_backends_module.os, "fork", return_value=0), mock.patch.object(
+                        compute_backends_module.os, "setsid",
+                    ) as isolate, mock.patch.object(compute_backends_module, "_stop_local_command", side_effect=stop_under_lock) as stop, mock.patch.object(
+                        compute_backends_module.os, "_exit", side_effect=leave,
+                    ), self.assertRaises(SystemExit) as exited:
+                        compute_backends_module._timeout_local_group(root, final, time.monotonic())
+                    self.assertEqual(0, exited.exception.code)
+                    isolate.assert_called_once_with()
+                    stop.assert_called_once_with(123)
+                    actual = compute_backends_module._read_job_state(root)
+                    self.assertEqual("timed-out" if current == "running" else current, actual["state"])
+                    compute_backends_module.validate_job_state(actual)
+                    if current in compute_backends_module.TERMINAL_STATES:
+                        self.assertEqual(before, (root / "state.json").read_bytes())
+
+            with mock.patch.object(compute_backends_module.os, "fork", return_value=0), mock.patch.object(
+                compute_backends_module.os, "setsid", side_effect=OSError("isolation refused"),
+            ), mock.patch.object(compute_backends_module.os, "_exit", side_effect=leave), mock.patch.object(
+                compute_backends_module, "_stop_local_command",
+            ) as stop, self.assertRaises(SystemExit) as exited:
+                compute_backends_module._timeout_local_group(root, final, time.monotonic())
+            self.assertEqual(125, exited.exception.code)
+            stop.assert_not_called()
+
+            with mock.patch.object(compute_backends_module.os, "fork", return_value=0), mock.patch.object(
+                compute_backends_module.os, "setsid",
+            ), mock.patch.object(compute_backends_module, "_stop_local_command", side_effect=OSError("cleanup refused")), mock.patch.object(
+                compute_backends_module.os, "_exit", side_effect=leave,
+            ), self.assertRaises(SystemExit) as exited:
+                compute_backends_module._timeout_local_group(root, final, time.monotonic())
+            self.assertEqual(1, exited.exception.code)
+
+            for status in (0, signal.SIGKILL):
+                with self.subTest(helper_status=status), mock.patch.object(compute_backends_module.os, "fork", return_value=123), mock.patch.object(
+                    compute_backends_module.os, "waitpid", return_value=(123, status),
+                ), mock.patch.object(compute_backends_module.os, "_exit", side_effect=leave), self.assertRaises(SystemExit) as exited:
+                    compute_backends_module._timeout_local_group(root, final, time.monotonic())
+                self.assertEqual(1, exited.exception.code)
+
+            for failure in ("fork", "setsid"):
+                with self.subTest(failure=failure):
+                    state = refingerprint({**final, "state": "submitted"})
+                    compute_backends_module._atomic_json(root / "state.json", state)
+                    events = []
+                    publish = compute_backends_module._publish_job_state_locked
+
+                    def signal_group(pid: int, signum: int) -> None:
+                        self.assertEqual(os.getpid(), pid)
+                        events.append(signum)
+                        self.assertEqual("running", compute_backends_module._read_job_state(root)["state"])
+
+                    def publish_nonterminal(path: Path, payload: dict, **kwargs: object) -> dict:
+                        self.assertNotIn(payload["state"], compute_backends_module.TERMINAL_STATES)
+                        return publish(path, payload, **kwargs)
+
+                    with mock.patch.object(compute_backends_module.subprocess, "run", side_effect=subprocess.TimeoutExpired(spec.command, 1)), mock.patch.object(
+                        compute_backends_module.os, "fork", side_effect=OSError("fork refused") if failure == "fork" else None, return_value=123,
+                    ), mock.patch.object(compute_backends_module.os, "waitpid", return_value=(123, 125 << 8)), mock.patch.object(
+                        compute_backends_module.signal, "signal",
+                    ) as disposition, mock.patch.object(compute_backends_module.os, "killpg", side_effect=signal_group), mock.patch.object(
+                        compute_backends_module.time, "sleep", side_effect=lambda duration: events.append(duration),
+                    ), mock.patch.object(compute_backends_module, "_publish_job_state_locked", side_effect=publish_nonterminal):
+                        self.assertEqual(1, compute_backends_module._worker(root))
+                    disposition.assert_called_once_with(signal.SIGTERM, signal.SIG_IGN)
+                    self.assertEqual([signal.SIGTERM, 0.2, signal.SIGKILL], events)
+                    actual = compute_backends_module._read_job_state(root)
+                    self.assertEqual("running", actual["state"])
+
+            for current in ("running", *sorted(compute_backends_module.TERMINAL_STATES)):
+                with self.subTest(fallback_current=current):
+                    state = refingerprint({**final, "state": current})
+                    compute_backends_module._atomic_json(root / "state.json", state)
+                    before = (root / "state.json").read_bytes()
+                    with mock.patch.object(compute_backends_module.signal, "signal"), mock.patch.object(
+                        compute_backends_module.os, "killpg",
+                    ) as killpg, mock.patch.object(compute_backends_module.time, "sleep"), mock.patch.object(
+                        compute_backends_module, "_publish_job_state_locked",
+                    ) as publication:
+                        compute_backends_module._timeout_local_group_fallback(root, final, time.monotonic())
+                    self.assertEqual([mock.call(123, signal.SIGTERM), mock.call(123, signal.SIGKILL)], killpg.call_args_list)
+                    publication.assert_not_called()
+                    actual = compute_backends_module._read_job_state(root)
+                    self.assertEqual(current, actual["state"])
+                    compute_backends_module.validate_job_state(actual)
+                    self.assertEqual(before, (root / "state.json").read_bytes())
+
+            before = (root / "state.json").read_bytes()
+            with mock.patch.object(compute_backends_module.signal, "signal"), mock.patch.object(
+                compute_backends_module.os, "killpg",
+            ) as killpg, mock.patch.object(compute_backends_module.time, "sleep", side_effect=OSError("grace refused")), self.assertRaisesRegex(
+                OSError, "grace refused",
+            ):
+                compute_backends_module._timeout_local_group_fallback(root, final, time.monotonic())
+            self.assertEqual([mock.call(123, signal.SIGTERM), mock.call(123, signal.SIGKILL)], killpg.call_args_list)
+            self.assertEqual(before, (root / "state.json").read_bytes())
+            with (root / ".state.lock").open("a") as released:
+                fcntl.flock(released, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+
+        def wait_for(condition) -> None:
+            deadline = time.monotonic() + call_timeout
+            while not condition():
+                self.assertLess(time.monotonic(), deadline, "fallback process tree did not settle")
+                time.sleep(0.01)
+
+        def stopped(pid: int) -> bool:
+            try:
+                return Path(f"/proc/{pid}/stat").read_text().split(")", 1)[1].split()[0] == "Z"
+            except FileNotFoundError:
+                return True
+
+        def reset_signals() -> None:
+            for signum in (signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
+                signal.signal(signum, signal.SIG_DFL)
+
+        for failure in ("fork", "setsid"):
+            with self.subTest(descendant_cleanup=failure), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                backend = LocalBackend(root / "state")
+                descendant = (
+                    "import os, signal, time; from pathlib import Path; "
+                    "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                    "Path('child.pid').write_text(str(os.getpid())); "
+                    "time.sleep(2); Path('late.txt').write_text('escaped')"
+                )
+                command = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {descendant!r}]).wait()"
+                spec = local_spec(root, command=[sys.executable, "-c", command], outputs=[], timeout=1)
+                popen = subprocess.Popen
+                worker_script = "\n".join((
+                    "import sys; from pathlib import Path; from unittest import mock",
+                    "import codex_science.compute_backends as module",
+                    "send = module.os.killpg",
+                    "def record_before_kill(pid, signum):",
+                    "    if signum == module.signal.SIGKILL:",
+                    "        Path(sys.argv[2], 'before-kill.txt').write_text(module._read_job_state(Path(sys.argv[1]))['state'])",
+                    "    send(pid, signum)",
+                    f"with mock.patch.object(module.os, {failure!r}, side_effect=OSError('setup refused')), mock.patch.object(module.os, 'killpg', side_effect=record_before_kill):",
+                    "    raise SystemExit(module._worker(Path(sys.argv[1])))",
+                ))
+
+                def launch_worker(argv, **kwargs):
+                    return popen([sys.executable, "-c", worker_script, argv[-1], str(root)], preexec_fn=reset_signals, **kwargs)
+
+                with mock.patch.object(compute_backends_module.subprocess, "Popen", side_effect=launch_worker):
+                    submitted = backend.submit(spec)
+                worker_pid = submitted["worker_pid"]
+                worker = compute_backends_module._LOCAL_PROCESSES[worker_pid]
+                child_pid = None
+                try:
+                    wait_for(lambda: (root / "child.pid").exists())
+                    child_pid = int((root / "child.pid").read_text())
+                    wait_for(lambda: stopped(worker_pid))
+                    self.assertEqual("running", (root / "before-kill.txt").read_text())
+                    self.assertEqual("running", compute_backends_module._read_job_state(backend._job_dir(submitted["job_id"]))["state"])
+                    terminal = backend.status(submitted["job_id"])
+                    self.assertEqual("lost", terminal["state"])
+                    self.assertEqual("worker-lost", terminal["failure_class"])
+                    wait_for(lambda: stopped(child_pid))
+                    self.assertFalse((root / "late.txt").exists())
+                    self.assertEqual(-signal.SIGKILL, worker.poll())
+                    self.assertEqual(terminal, backend.wait(submitted["job_id"], timeout_seconds=call_timeout))
+                    self.assertEqual(terminal, backend.cancel(submitted["job_id"]))
+                finally:
+                    backend.cancel(submitted["job_id"])
+                    if child_pid is not None and not stopped(child_pid):
+                        os.kill(child_pid, signal.SIGKILL)
+                    worker.wait(timeout=call_timeout)
+                    compute_backends_module._LOCAL_PROCESSES.pop(worker_pid, None)
+
+    def test_slurm_render_clears_only_command_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = SlurmBackend(root / "state")
+            command = [sys.executable, "-c", "import json, os; print(json.dumps(dict(os.environ), sort_keys=True))"]
+            spec = replace(local_spec(root, command=command, outputs=[]), backend="slurm", inherit_environment=False)
+            call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+            for environment in ({}, {"VALUE": ""}, {"VALUE": "0"}, {"VALUE": "space ' $value", "PATH": "missing"}):
+                with self.subTest(environment=environment):
+                    candidate = replace(spec, environment=environment)
+                    expected = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=call_timeout)
+                    rendered = backend.render_script(candidate, job_id="environment")
+                    actual = subprocess.run(
+                        ["bash"], input=rendered, env={"PATH": os.defpath, "SUBMISSION_SENTINEL": "inherited"},
+                        capture_output=True, text=True, timeout=call_timeout,
+                    )
+                    self.assertEqual(0, actual.returncode, actual.stderr)
+                    self.assertEqual(expected.stdout, actual.stdout)
+            runner = root / "run=42" / "runner"
+            runner.parent.mkdir()
+            runner.write_text('#!/bin/sh\nprintf "<%s>" "$@"\n')
+            runner.chmod(0o700)
+            for executable, environment in (
+                (str(runner), {}), ("./run=42/runner", {}), ("runner", {"PATH": "run=42"}),
+            ):
+                with self.subTest(executable=executable, environment=environment):
+                    candidate = replace(spec, command=(executable, "executed", "arg=0", ""), environment=environment)
+                    actual = subprocess.run(
+                        ["bash"], input=backend.render_script(candidate, job_id="equals-path"),
+                        capture_output=True, text=True, timeout=call_timeout,
+                    )
+                    self.assertEqual(0, actual.returncode, actual.stderr)
+                    self.assertEqual("<executed><arg=0><>", actual.stdout)
+            for executable in (str(runner.parent / "missing"), "./run=42/missing"):
+                with self.subTest(missing_executable=executable):
+                    actual = subprocess.run(
+                        ["bash"], input=backend.render_script(replace(spec, command=(executable,)), job_id="missing-equals-path"),
+                        capture_output=True, text=True, timeout=call_timeout,
+                    )
+                    self.assertNotEqual(0, actual.returncode, actual.stdout)
+            for command, expected_code in (([sys.executable, "-c", "raise SystemExit(7)"], 7), (["./missing"], 127)):
+                with self.subTest(command=command):
+                    actual = subprocess.run(
+                        ["bash"], input=backend.render_script(replace(spec, command=tuple(command)), job_id="failure"),
+                        capture_output=True, text=True, timeout=call_timeout,
+                    )
+                    self.assertEqual(expected_code, actual.returncode)
+            working, commit = initialize_repo(root)
+            strict = replace(spec, working_directory=str(working), source_snapshot={"mode": "git-archive", "commit": commit})
+            job_dir = backend._job_dir("strict-environment")
+            receipt = create_git_source_bundle(
+                working_directory=working, commit=commit, inputs=(), job_spec_sha256=strict.fingerprint, job_dir=job_dir,
+            )
+            expected = subprocess.run(strict.command, env=strict.environment, capture_output=True, text=True, timeout=call_timeout)
+            actual = subprocess.run(
+                ["bash"], input=backend.render_script(strict, job_id=job_dir.name, source_receipt=receipt),
+                env={"PATH": os.defpath, "SUBMISSION_SENTINEL": "inherited"},
+                capture_output=True, text=True, timeout=call_timeout,
+            )
+            self.assertEqual(0, actual.returncode, actual.stderr)
+            self.assertEqual(expected.stdout, actual.stdout)
+
+    def test_slurm_status_normalizes_documented_states_and_preserves_unknown(self) -> None:
+        cases = {
+            "CANCELLED by 1000": "cancelled", "CANCELLED+ by 1000": "cancelled",
+            "REVOKED": "cancelled", "COMPLETED": "completed", "TIMEOUT": "timed-out",
+            "FAILED": "failed", "NODE_FAIL": "failed", "OUT_OF_MEMORY": "failed",
+            "PREEMPTED": "failed", "BOOT_FAIL": "failed", "DEADLINE": "timed-out",
+            "RUNNING": "running", "PENDING": "submitted", "CONFIGURING": "submitted",
+            "COMPLETING": "running", "SUSPENDED": "running", "RESIZING": "running",
+            "REQUEUED": "submitted",
+            "": None, " ": None, "0": None, "MALFORMED": None,
+        }
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = SlurmBackend(root / "state")
+            spec = replace(local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[]), backend="slurm")
+            job_dir = backend._job_dir("states")
+            job_dir.mkdir(parents=True)
+            compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+            for previous in ("submitted", "running"):
+                for raw, expected in cases.items():
+                    with self.subTest(previous=previous, raw=raw):
+                        initial = compute_backends_module._state_material(
+                            spec, job_id="states", state=previous, submitted_at="2026-01-01T00:00:00Z",
+                            scheduler_job_id="42",
+                        )
+                        compute_backends_module._atomic_json(job_dir / "state.json", initial)
+                        before = (job_dir / "state.json").read_bytes()
+                        with mock.patch.object(compute_backends_module.shutil, "which", side_effect=lambda name: name if name == "sacct" else None), mock.patch.object(
+                            compute_backends_module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, f"{raw}|0:0|00:01|\n", ""),
+                        ):
+                            actual = backend.status("states")
+                        effective = previous if previous == "running" and expected == "submitted" else expected or previous
+                        self.assertEqual(effective, actual["state"])
+                        if expected is None:
+                            self.assertEqual(initial, actual)
+                            self.assertEqual(before, (job_dir / "state.json").read_bytes())
+
     def test_submit_preserves_worker_completion_during_stale_read(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
