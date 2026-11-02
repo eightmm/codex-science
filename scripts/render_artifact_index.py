@@ -55,8 +55,8 @@ def main() -> int:
                     raise ValueError(f"Artifact resolves outside the run bundle: {record['path']}")
                 trees.append(artifact)
         preflight_output_paths(markdown_path, html_path, inputs=inputs, protected_dirs=trees)
-        markdown = render_markdown(manifest, run_dir)
-        html = render_html(manifest, run_dir) if args.html else None
+        markdown = render_markdown(manifest, run_dir, manifest_path.name)
+        html = render_html(manifest, run_dir, manifest_path.name) if args.html else None
         _write(markdown_path, markdown)
         outputs = [f"Markdown: {markdown_path}"]
         if html_path is not None:

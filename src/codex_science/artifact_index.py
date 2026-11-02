@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import re
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -22,10 +23,14 @@ PRIMARY_KIND_TERMS = (
     "notebook",
     "manuscript",
 )
+COMPLETED_STATUSES = frozenset({"complete", "completed", "done"})
+BLOCKING_SEVERITIES = frozenset({"major", "critical"})
+RESOLVED_FINDING_STATUSES = frozenset({"resolved", "not-applicable"})
 STATUS_LABELS = {
     "passed": "✅ Passed",
     "complete": "✅ Complete",
     "completed": "✅ Complete",
+    "done": "✅ Complete",
     "supported": "✅ Supported",
     "replicated": "✅ Replicated",
     "in_progress": "🟡 In progress",
@@ -40,8 +45,17 @@ STATUS_LABELS = {
 }
 
 
+def _escape_invisible(character: str) -> str:
+    if unicodedata.category(character) in {"Cc", "Cf"}:
+        return f"U+{ord(character):04X}"
+    return character
+
+
 def _text(value: Any) -> str:
-    return " ".join(str(value).split())
+    # Whitespace (including control whitespace) collapses first; any remaining
+    # control or format character, such as a bidi or zero-width mark, is shown
+    # as a visible escape so distinct names stay distinguishable.
+    return "".join(map(_escape_invisible, " ".join(str(value).split())))
 
 
 def _markdown_text(value: Any) -> str:
@@ -68,13 +82,84 @@ def _validated_bundle(
     return list(manifest["artifacts"]), sidecars
 
 
-def _claim_rows(manifest: dict[str, Any], sidecars: dict[str, Any]) -> list[dict[str, Any]]:
+def _claim_rows(
+    manifest: dict[str, Any], sidecars: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Return rendered claims and, by id, manifest claims the register disagrees with."""
     claim_register = sidecars.get("claim_register")
     claims = list(claim_register["claims"] if claim_register is not None else manifest["claims"])
     for claim in claims:
+        if not isinstance(claim, dict):
+            raise ValueError("Claim records must be objects")
         if not isinstance(claim.get("evidence", []), list):
             raise ValueError(f"Claim evidence must be a list: {claim.get('id', 'claim')}")
-    return claims
+    disagreements: dict[str, dict[str, Any]] = {}
+    if claim_register is not None:
+        recorded = {
+            str(item.get("id", "")).strip(): item
+            for item in manifest["claims"]
+            if isinstance(item, dict)
+        }
+        for claim in claims:
+            claim_id = str(claim.get("id", "")).strip()
+            other = recorded.get(claim_id)
+            if other is not None and any(
+                _text(other.get(field, "")) != _text(claim.get(field, ""))
+                for field in ("status", "text")
+            ):
+                disagreements[claim_id] = other
+    return claims, disagreements
+
+
+def _manifest_difference(claim: dict[str, Any], recorded: dict[str, Any] | None) -> str:
+    if recorded is None:
+        return ""
+    parts = [
+        f'{field} "{_text(recorded.get(field, ""))}"'
+        for field in ("status", "text")
+        if _text(recorded.get(field, "")) != _text(claim.get(field, ""))
+    ]
+    return (
+        "The manifest records a different " + " and ".join(
+            field for field in ("status", "text")
+            if _text(recorded.get(field, "")) != _text(claim.get(field, ""))
+        ) + " for this claim (" + "; ".join(parts) + "); the claim register values are shown."
+    )
+
+
+def _plan_steps(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    plan = list(manifest["plan"])
+    for index, step in enumerate(plan, start=1):
+        if not isinstance(step, dict):
+            raise ValueError(
+                f"Plan step {index} must be an object, not {type(step).__name__}"
+            )
+    return plan
+
+
+def _unresolved_blocking_findings(manifest: dict[str, Any]) -> int:
+    findings = manifest["review"].get("findings", [])
+    if not isinstance(findings, list):
+        raise ValueError("Review findings must be a list")
+    count = 0
+    for index, finding in enumerate(findings, start=1):
+        if not isinstance(finding, dict):
+            raise ValueError(
+                f"Review finding {index} must be an object, not {type(finding).__name__}"
+            )
+        if finding.get("severity") in BLOCKING_SEVERITIES and finding.get(
+            "resolution_status", "open"
+        ) not in RESOLVED_FINDING_STATUSES:
+            count += 1
+    return count
+
+
+def _normalized_status(value: Any) -> str:
+    return _text(value).lower().replace("-", "_").replace(" ", "_")
+
+
+def _blocking_phrase(count: int) -> str:
+    return _count_phrase(count, "unresolved blocking finding")
 
 
 def _claim_edge_counts(sidecars: dict[str, Any]) -> dict[str, Counter[str]]:
@@ -93,7 +178,7 @@ def _human_label(value: Any) -> str:
 def _status_label(value: Any, *, default: str = "Recorded") -> str:
     if value is None:
         return default
-    normalized = _text(value).lower().replace("-", "_").replace(" ", "_")
+    normalized = _normalized_status(value)
     if not normalized:
         return default
     return STATUS_LABELS.get(normalized, _human_label(normalized))
@@ -149,38 +234,52 @@ def _relationship_link_phrases(relationships: Counter[str]) -> list[str]:
     ]
 
 
+def _kind_rank(kind: Any) -> int | None:
+    tokens = set(re.split(r"[^a-z0-9]+", _text(kind).lower()))
+    for index, term in enumerate(PRIMARY_KIND_TERMS):
+        if term in tokens or f"{term}s" in tokens:
+            return index
+    return None
+
+
 def _primary_artifacts(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    def priority(record: dict[str, Any]) -> tuple[int, str]:
-        kind = _text(record.get("kind", "artifact")).lower()
-        rank = next(
-            (index for index, term in enumerate(PRIMARY_KIND_TERMS) if term in kind),
-            len(PRIMARY_KIND_TERMS),
-        )
-        return rank, _text(record.get("path", ""))
-
-    selected = [
-        record
+    ranked = [
+        (rank, _text(record.get("path", "")), record)
         for record in artifacts
-        if any(
-            term in _text(record.get("kind", "")).lower()
-            for term in PRIMARY_KIND_TERMS
-        )
+        if (rank := _kind_rank(record.get("kind", ""))) is not None
     ]
-    return sorted(selected, key=priority)
+    ranked.sort(key=lambda item: item[:2])
+    return [record for _, _, record in ranked]
 
 
-def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
+def _manifest_link(manifest_name: str) -> str:
+    return f"[{_markdown_text(manifest_name)}]({_href(manifest_name)})"
+
+
+def _manifest_code(manifest_name: str) -> str:
+    name = _text(manifest_name)
+    return f"`{name}`" if re.fullmatch(r"[\w. -]+", name) else _markdown_text(name)
+
+
+def render_markdown(
+    manifest: dict[str, Any], run_dir: Path, manifest_name: str = "manifest.json"
+) -> str:
     artifacts, sidecars = _validated_bundle(manifest, run_dir)
-    claims = _claim_rows(manifest, sidecars)
-    plan = list(manifest["plan"])
+    claims, disagreements = _claim_rows(manifest, sidecars)
+    plan = _plan_steps(manifest)
     completed_steps = sum(
-        1 for step in plan if _text(step.get("status", "")).lower() in {"complete", "completed"}
+        1 for step in plan if _normalized_status(step.get("status", "")) in COMPLETED_STATUSES
     )
     saved_review_status = manifest["review"].get("status", "unknown")
     review_status = _status_label(saved_review_status)
+    unresolved = _unresolved_blocking_findings(manifest)
     digest_findings = sidecars.get("digest_findings", [])
     if digest_findings:
         review_status = f"⚠️ Stale (recorded: {_text(saved_review_status)})"
+    elif unresolved and _normalized_status(saved_review_status) == "passed":
+        review_status = "⚠️ Recorded as passed"
+    if unresolved:
+        review_status += f"; {_blocking_phrase(unresolved)} recorded"
     plan_status = f"{completed_steps}/{len(plan)} complete" if plan else "No recorded plan"
     lines = [
         f"# {_markdown_text(manifest['question'])}",
@@ -215,7 +314,7 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
                     (
                         "> ⚠️ **Runtime changed during this run.** "
                         f"{len(runtime_history)} verified runtime identities wrote durable state; "
-                        "compare steps cautiously and see `manifest.json` for the exact record."
+                        f"compare steps cautiously and see {_manifest_code(manifest_name)} for the exact record."
                     ),
                     "",
                 ]
@@ -244,6 +343,9 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
                     _markdown_text(claim.get("text", "")),
                 ]
             )
+            difference = _manifest_difference(claim, disagreements.get(claim_id.strip()))
+            if difference:
+                lines.append(f"- **Note:** {_markdown_text(difference)}")
             if claim.get("permitted_inference"):
                 lines.append(
                     f"- **Inference boundary:** {_markdown_text(claim['permitted_inference'])}"
@@ -407,18 +509,25 @@ def render_markdown(manifest: dict[str, Any], run_dir: Path) -> str:
     lines.extend(
         [
             "",
-            "Full artifact metadata and SHA-256 checksums are in [manifest.json](manifest.json).",
+            "Full artifact metadata and SHA-256 checksums are in "
+            f"{_manifest_link(manifest_name)}.",
             "",
-            "_Generated from `manifest.json` and validated hashed sidecars; this index is a derived view, not evidence._",
+            f"_Generated from {_manifest_code(manifest_name)} and validated hashed sidecars; this index is a derived view, not evidence._",
             "",
         ]
     )
     return "\n".join(lines)
 
 
-def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
+def render_html(
+    manifest: dict[str, Any], run_dir: Path, manifest_name: str = "manifest.json"
+) -> str:
     artifacts, sidecars = _validated_bundle(manifest, run_dir)
+    plan_steps = _plan_steps(manifest)
+    claim_rows, disagreements = _claim_rows(manifest, sidecars)
     review_status = _text(manifest["review"].get("status", "unknown"))
+    unresolved = _unresolved_blocking_findings(manifest)
+    manifest_code = f"<code>{html.escape(_text(manifest_name))}</code>"
     integrity_notice = ""
     digest_findings = sidecars.get("digest_findings", [])
     if digest_findings:
@@ -433,15 +542,19 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
             '<section class="warning"><h2>Current integrity findings</h2>'
             f"<p>Saved review status is stale.</p><ul>{findings}</ul></section>"
         )
+    elif unresolved and _normalized_status(review_status) == "passed":
+        review_status = "Recorded as passed"
+    if unresolved:
+        review_status += f"; {_blocking_phrase(unresolved)} recorded"
     plan = "".join(
         f"<li><strong>{html.escape(_text(step.get('status', 'unknown')))}</strong>: "
         f"{html.escape(_plan_step_text(step))}</li>"
-        for step in manifest["plan"]
+        for step in plan_steps
     ) or "<li>No plan steps recorded.</li>"
 
     edge_counts = _claim_edge_counts(sidecars)
     claim_items: list[str] = []
-    for claim in _claim_rows(manifest, sidecars):
+    for claim in claim_rows:
         claim_id = str(claim.get("id", "claim"))
         detail_parts: list[str] = []
         if claim.get("status"):
@@ -449,13 +562,19 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
         if claim.get("permitted_inference"):
             detail_parts.append(f"inference={_text(claim['permitted_inference'])}")
         detail_parts.extend(
-            f"{relation}={count}"
+            f"{_text(relation)}={count}"
             for relation, count in sorted(edge_counts.get(claim_id, {}).items())
         )
         detail = f" <small>({' ; '.join(map(html.escape, detail_parts))})</small>" if detail_parts else ""
+        difference = _manifest_difference(claim, disagreements.get(claim_id.strip()))
+        note = (
+            f" <small><strong>Note:</strong> {html.escape(difference)}</small>"
+            if difference
+            else ""
+        )
         claim_items.append(
             f"<li><strong>{html.escape(_text(claim_id))}</strong>: "
-            f"{html.escape(_text(claim.get('text', '')))}{detail}</li>"
+            f"{html.escape(_text(claim.get('text', '')))}{detail}{note}</li>"
         )
     claims = "".join(claim_items) or "<li>No claims recorded.</li>"
 
@@ -464,7 +583,7 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
     if graph is not None:
         relations = Counter(str(edge["relation"]) for edge in graph["edges"])
         summary = ", ".join(
-            f"{html.escape(relation)}={count}" for relation, count in sorted(relations.items())
+            f"{html.escape(_text(relation))}={count}" for relation, count in sorted(relations.items())
         )
         graph_section = (
             f"<section><h2>Evidence graph</h2><p>Nodes: {len(graph['nodes'])}; "
@@ -487,7 +606,7 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
     if query_records:
         statuses = Counter(str(record["status"]) for record in query_records)
         summary = ", ".join(
-            f"{html.escape(status)}={count}" for status, count in sorted(statuses.items())
+            f"{html.escape(_text(status))}={count}" for status, count in sorted(statuses.items())
         )
         query_section = (
             f"<section><h2>Query ledger</h2><p>Queries: {len(query_records)}; {summary}</p></section>"
@@ -513,7 +632,7 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
             runtime_notice = (
                 '<p class="warning"><strong>Runtime changed during this run.</strong> '
                 f'{len(runtime_history)} verified runtime identities wrote durable state; '
-                'see <code>manifest.json</code>.</p>'
+                f'see {manifest_code}.</p>'
             )
         else:
             identity = runtime_history[0]
@@ -540,5 +659,5 @@ def render_html(manifest: dict[str, Any], run_dir: Path) -> str:
 {graph_section}{lanes_section}{query_section}
 <section><h2>Visual results</h2>{images}</section>
 <section><h2>Files</h2><ul>{files}</ul></section>
-<p><em>Generated from <code>manifest.json</code> and validated hashed sidecars; this index is a derived view, not evidence.</em></p>
+<p><em>Generated from {manifest_code} and validated hashed sidecars; this index is a derived view, not evidence.</em></p>
 </body></html>\n"""

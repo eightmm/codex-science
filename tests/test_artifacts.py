@@ -674,6 +674,177 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertTrue((manifest_path.parent / "index.md").is_file())
             self.assertTrue((manifest_path.parent / "index.html").is_file())
 
+    def _render_cli(self, manifest_path: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(self.script), str(manifest_path), "--html"],
+            capture_output=True, text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+
+    def _edited_run(self, root: Path, edit) -> Path:
+        manifest_path = self._make_run(root)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        edit(manifest)
+        write_manifest(manifest, manifest_path)
+        return manifest_path
+
+    def test_renderer_refuses_malformed_plan_steps_and_review_findings_with_labelled_errors(self) -> None:
+        cases = (
+            ("plan", ["step text"], "Plan step 1 must be an object"),
+            ("plan", [{"id": "ok", "status": "done"}, 7], "Plan step 2 must be an object"),
+            ("plan", [None], "Plan step 1 must be an object"),
+            ("plan", [["nested"]], "Plan step 1 must be an object"),
+            ("findings", "report.md", "Review findings must be a list"),
+            ("findings", ["finding text"], "Review finding 1 must be an object"),
+        )
+        for field, value, message in cases:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as tempdir:
+                def edit(manifest: dict, field=field, value=value) -> None:
+                    if field == "plan":
+                        manifest["plan"] = value
+                    else:
+                        manifest["review"]["findings"] = value
+                manifest_path = self._edited_run(Path(tempdir), edit)
+                run = manifest_path.parent
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                for renderer in (render_markdown, render_html):
+                    with self.assertRaisesRegex(ValueError, message):
+                        renderer(manifest, run)
+                result = self._render_cli(manifest_path)
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("error: ", result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual([], sorted(run.glob("index.*")))
+
+    def test_renderer_shows_register_values_with_note_when_manifest_claim_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest_path = self._make_run(Path(tempdir))
+            run = manifest_path.parent
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            claim = manifest["claims"][0]
+            claim["status"] = "supported"
+            claim["text"] = "Manifest says <b>bold</b> | claim"
+            register = {**claim, "status": "suggestive", "text": "Register text.",
+                        "falsifier": "A rerun disagrees."}
+            (run / "claims.json").write_text(
+                json.dumps({"schema_version": 1, "claims": [register]}), encoding="utf-8")
+            add_artifact(manifest, "claims.json", kind="claim-register",
+                         sha256=hashlib.sha256((run / "claims.json").read_bytes()).hexdigest())
+            write_manifest(manifest, manifest_path)
+            markdown = render_markdown(manifest, run)
+            rendered_html = render_html(manifest, run)
+            self.assertIn("Register text.", markdown)
+            self.assertIn("Register text.", rendered_html)
+            self.assertIn("Suggestive", markdown)
+            self.assertIn("**Note:** The manifest records a different status and text for this claim", markdown)
+            self.assertIn('status "supported"', markdown)
+            self.assertIn("&lt;b&gt;bold&lt;/b&gt; \\| claim", markdown)
+            self.assertIn("<strong>Note:</strong> The manifest records a different status and text", rendered_html)
+            self.assertIn("&lt;b&gt;bold&lt;/b&gt; | claim", rendered_html)
+            self.assertNotIn("<b>", rendered_html)
+            # Only the differing field is named, and agreeing claims get no note.
+            claim["text"] = register["text"]
+            write_manifest(manifest, manifest_path)
+            self.assertIn("different status for this claim", render_markdown(manifest, run))
+            claim["status"] = "suggestive"
+            write_manifest(manifest, manifest_path)
+            for output in (render_markdown(manifest, run), render_html(manifest, run)):
+                self.assertNotIn("manifest records a different", output.lower())
+
+    def test_renderer_reports_unresolved_blocking_findings_beside_passed_status(self) -> None:
+        blocking = [
+            {"code": "x", "severity": "major", "message": "m"},
+            {"code": "y", "severity": "critical", "message": "m", "resolution_status": "open"},
+        ]
+        ignored = [
+            {"code": "r", "severity": "major", "message": "m", "resolution_status": "resolved"},
+            {"code": "n", "severity": "critical", "message": "m", "resolution_status": "not-applicable"},
+            {"code": "s", "severity": "minor", "message": "m"},
+        ]
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest_path = self._edited_run(
+                Path(tempdir), lambda m: m["review"].__setitem__("findings", blocking + ignored))
+            run = manifest_path.parent
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            markdown = render_markdown(manifest, run)
+            rendered_html = render_html(manifest, run)
+            self.assertNotIn("✅ Passed", markdown)
+            self.assertIn("Recorded as passed; 2 unresolved blocking findings recorded", markdown)
+            self.assertIn("<strong>Review:</strong> Recorded as passed; 2 unresolved blocking findings recorded", rendered_html)
+            manifest["review"]["findings"] = blocking[:1]
+            self.assertIn("1 unresolved blocking finding recorded", render_markdown(manifest, run))
+            manifest["review"]["findings"] = ignored
+            clean = render_markdown(manifest, run)
+            self.assertIn("✅ Passed", clean)
+            self.assertNotIn("unresolved", clean)
+            self.assertNotIn("unresolved", render_html(manifest, run))
+            manifest["review"] = {"status": "findings", "findings": blocking}
+            self.assertIn("Needs attention; 2 unresolved blocking findings recorded", render_markdown(manifest, run))
+
+    def test_footer_links_the_manifest_file_that_was_rendered(self) -> None:
+        for name, href in (("run-two.json", "run-two.json"), ("my run (1).json", "my%20run%20%281%29.json")):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tempdir:
+                manifest_path = self._make_run(Path(tempdir))
+                other = manifest_path.with_name(name)
+                other.write_bytes(manifest_path.read_bytes())
+                result = self._render_cli(other)
+                self.assertEqual(0, result.returncode, result.stderr)
+                markdown = (other.parent / "index.md").read_text(encoding="utf-8")
+                rendered_html = (other.parent / "index.html").read_text(encoding="utf-8")
+                self.assertIn(f"[{name}]({href})", markdown)
+                self.assertNotIn("manifest.json", markdown)
+                self.assertNotIn("manifest.json", rendered_html)
+                self.assertIn(f"<code>{name}</code>", rendered_html)
+
+    def test_renderer_shows_control_and_format_characters_as_escapes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest_path = self._make_run(root)
+            run = manifest_path.parent
+            hidden = run / "report\u200b.md"
+            hidden.write_text("hidden-name report\n", encoding="utf-8")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            add_artifact(manifest, hidden.name, kind="report\u202e", sha256=hashlib.sha256(hidden.read_bytes()).hexdigest())
+            manifest["claims"][0]["text"] = "bell\x07 and bom\ufeffhere"
+            manifest["question"] = "soft\u00adhyphen?"
+            write_manifest(manifest, manifest_path)
+            for output in (render_markdown(manifest, run), render_html(manifest, run)):
+                for character in ("\u200b", "\u202e", "\x07", "\ufeff", "\u00ad"):
+                    self.assertNotIn(character, output)
+                for escape in ("U+200B", "U+202E", "U+0007", "U+FEFF", "U+00AD"):
+                    self.assertIn(escape, output)
+                self.assertIn("report%E2%80%8B.md", output)
+                self.assertNotIn("U+200B.md)", output.replace("report.md", ""))
+            markdown = render_markdown(manifest, run)
+            self.assertIn("[report.md](report.md)", markdown)
+            self.assertIn("[reportU+200B.md](report%E2%80%8B.md)", markdown)
+
+    def test_renderer_counts_completed_statuses_consistently_and_matches_kinds_by_token(self) -> None:
+        def edit(manifest: dict) -> None:
+            manifest["plan"] = [
+                {"id": "a", "description": "First", "status": "done"},
+                {"id": "b", "description": "Second", "status": " Completed "},
+                {"id": "c", "description": "Third", "status": "in-progress"},
+                {"id": "d", "description": "Fourth", "status": "complete"},
+            ]
+            manifest["artifacts"][0]["kind"] = "unreported-raw-data"
+            manifest["artifacts"][1]["kind"] = "metrics"
+            manifest["artifacts"][2]["kind"] = "Result_Table"
+        with tempfile.TemporaryDirectory() as tempdir:
+            manifest_path = self._edited_run(Path(tempdir), edit)
+            run = manifest_path.parent
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            markdown = render_markdown(manifest, run)
+            self.assertIn("3/4 complete", markdown)
+            self.assertIn("- **✅ Complete:** First", markdown)
+            primary = markdown.split("## Primary files")[1].split("## Details")[0]
+            self.assertNotIn("figures/result.png", primary)
+            self.assertIn("tables/result.csv", primary)
+            self.assertIn("report.md", primary)
+            manifest["artifacts"][0]["kind"] = "figure"
+            self.assertIn("figures/result.png", render_markdown(manifest, run).split("## Primary files")[1])
+
     def test_cli_protects_numeric_manifest_paths_before_writing_indexes(self) -> None:
         for field in ("path", "descriptor_path"):
             for value in (0, 123):
