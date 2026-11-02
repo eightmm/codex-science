@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import itertools
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -32,6 +35,13 @@ def change(item_id, path, t=1.0):
     body = {"type": "item.completed", "item": {"id": item_id, "type": "file_change",
                                                "changes": [{"path": path, "kind": "update"}]}}
     return json.dumps({"t": t, "event": body})
+
+
+def wrap(script):
+    """A command as Codex records it: `/bin/bash -lc "<script>"`."""
+    for char in '\\"$`':
+        script = script.replace(char, "\\" + char)
+    return f'/bin/bash -lc "{script}"'
 
 
 TURN_DONE = json.dumps({"t": 99, "event": {"type": "turn.completed"}})
@@ -137,6 +147,34 @@ class DiagnoseTest(unittest.TestCase):
         edits = result["manifest_hand_edits"]
         self.assertEqual(sorted(r["item_id"] for r in edits["examples"]), ["a", "b", "c", "g"])
         self.assertEqual(edits["count"], 4)
+
+    def test_manifest_writes_past_the_word_split_cap_are_detected(self):
+        filler = "x = 1\n" * (eval_trace_diagnosis._MAX_SCAN_CHARS // 6)
+        writes = ["open('run/manifest.json', 'w').write('{}')", "Path('run/manifest.json').write_text('{}')",
+                  "sed -i 's/a/b/' run/manifest.json", "echo {} | tee run/manifest.json", "echo {} > run/manifest.json"]
+        lines = [cmd(f"w{n}", wrap(f"python3 - <<'PY'\n{filler}PY\n{write}" if n > 1
+                                    else f"python3 - <<'PY'\n{filler}{write}\nPY"))
+                 for n, write in enumerate(writes)]
+        lines.append(cmd("r", wrap(f"python3 - <<'PY'\n{filler}print(open('run/manifest.json').read())\nPY")))
+        result = self.run_events(lines)
+        self.assertGreater(len(json.loads(lines[0])["event"]["item"]["command"]), eval_trace_diagnosis._MAX_SCAN_CHARS)
+        self.assertEqual(sorted(r["item_id"] for r in result["manifest_hand_edits"]["examples"]),
+                         ["w0", "w1", "w2", "w3", "w4"])
+
+    def test_manifest_write_matching_equals_one_search_per_pattern(self):
+        patterns = [re.compile(p) for p in (
+            r"\bsed\b[^|;&\n]*\s-[A-Za-z]*i[^|;&\n]*manifest\.json",
+            r">>?\s*['\"]?[^\s'\"<>|;&]*manifest\.json",
+            r"\btee\b[^|;&\n]*manifest\.json",
+            r"open\([^)\n]*manifest\.json[^)\n]*['\"][wax]\+?b?['\"]",
+            r"manifest\.json['\"]?\s*\)\s*\.write_(?:text|bytes)\(")]
+        atoms = ["sed", "tee", " ", "\n", "-i", "-n", ";", "|", ")", "open(", "manifest.json", "'w'", ">",
+                 ".write_text("]
+        for size in range(1, 5):
+            for parts in itertools.product(atoms, repeat=size):
+                text = "".join(parts)
+                self.assertEqual(eval_trace_diagnosis._writes_manifest(text),
+                                 any(p.search(text) for p in patterns), repr(text))
 
     def test_bare_and_wrapped_lines_and_malformed_tolerated(self):
         bad_event_type = json.dumps({"type": []})
@@ -363,9 +401,12 @@ class DiagnoseTest(unittest.TestCase):
             cmd("d", f"cat {runtime}"),
             cmd("e", f"/bin/bash -lc \"nl -ba {CACHE}/src/codex_science/mod.py | sed -n '1,20p'\""),
             cmd("f", f"rg -n pattern {CACHE}/scripts"),
-            cmd("g", f"rg -n pattern {CACHE}/scripts/build.py {CACHE}/src")])
+            cmd("g", f"rg -n pattern {CACHE}/scripts/build.py {CACHE}/src"),
+            cmd("h", wrap(f"cat > f.py <<'PY'\nprint(open('{CACHE}/scripts/build.py').read())\nPY\npython f.py"), 1),
+            cmd("i", wrap(f"cat > f.sh <<'SH'\ncat {runtime}\nSH\nsh f.sh"))])
         reads = [r["item_id"] for r in result["plugin_source_reads"]["examples"]]
         self.assertEqual(reads, ["d", "e", "g"])
+        self.assertEqual([r["item_id"] for r in result["failed_tool_use"]["other"]["examples"]], ["h"])
 
     def test_plugin_paths_are_normalized_in_every_example(self):
         script = f"{CACHE}/scripts/package_run.py"
@@ -448,7 +489,11 @@ class DiagnoseTest(unittest.TestCase):
     def test_long_commands_are_scanned_in_bounded_time(self):
         size = 200_000
         commands = ["a" * size, "$" * size, "sed " * (size // 4), "open(" * (size // 5), "> " * (size // 2),
-                    "/" * size, "x/plugins/cache/" * (size // 16), "a=" * (size // 2)]
+                    "/" * size, "x/plugins/cache/" * (size // 16), "a=" * (size // 2),
+                    "sed " * (size // 4) + "manifest.json", "sed manifest.json" + " -i" * (size // 3),
+                    "tee " * (size // 4) + "manifest.json", "open(" + "manifest.json" * (size // 13),
+                    "cat <<A\n" * (size // 8), "<<'" * (size // 3), 'bash -c "' * (size // 9),
+                    wrap("x <<'P'\n" * (size // 8))]
         start = time.monotonic()
         result = self.run_events([cmd(f"i{n}", text, 1) for n, text in enumerate(commands)])
         self.assertLess(time.monotonic() - start, 30)
@@ -469,6 +514,38 @@ class DiagnoseTest(unittest.TestCase):
         self.assertEqual(_strip_heredocs("cat <<EOF\nscripts/x.py\nEOF\nls"), "cat <<EOF\nls")
         self.assertEqual(_strip_heredocs("x=$(cat <<'E'\nbody\nE\n)\nls"), "x=$(cat <<'E'\n)\nls")
         self.assertEqual(_strip_heredocs(""), "")
+        quoted = 'echo "cat <<EOF\nscripts/x.py\nEOF"\nls'  # a quoted argument, not shell code
+        self.assertEqual(_strip_heredocs(quoted), quoted)
+        for first in ('grep x <<< "$v"', 'echo "a << b"', "echo 'a << b'", "echo $((1 << 2))",
+                      "cat <<EOF # unterminated"):
+            text = wrap(f"{first}\npython scripts/b.py")
+            self.assertEqual(_strip_heredocs(text), text, first)
+        self.assertEqual(_strip_heredocs(wrap("cat <<EOF\nscripts/x.py\nEOF\nls")), wrap("cat <<EOF\nls"))
+
+    def test_heredocs_inside_a_shell_c_argument_are_dropped(self):
+        # the terminator is usually glued to the closing quote; the quote stays
+        self.assertEqual(_strip_heredocs(wrap("python3 - <<'PY'\nopen('scripts/x.py')\nPY")), wrap("python3 - <<'PY'"))
+        self.assertEqual(_strip_heredocs("sh -c 'cat <<E\nscripts/x.py\nE'"), "sh -c 'cat <<E'")
+        joined = "/bin/bash -lc 'python3 - <<'\"'\"'PY'\"'\"'\nscripts/x.py\nPY\nls'"  # '...'"'"'...' quoting
+        self.assertEqual(_strip_heredocs(joined), "/bin/bash -lc 'python3 - <<'\"'\"'PY'\"'\"'\nls'")
+        spanning = "/bin/bash -lc \"cat <<'EOF'\nscripts/x.py\"'\nEOF\nls'"  # the body crosses a quote change
+        self.assertEqual(shlex.split(_strip_heredocs(spanning)), ["/bin/bash", "-lc", "cat <<'EOF'\nls"])
+        text = wrap("python3 - <<'PY'\nimport x\nopen('/p/scripts/foo.py').read()\nPY\ncat /a/b.txt")
+        self.assertEqual(_strip_heredocs(text), wrap("python3 - <<'PY'\ncat /a/b.txt"))
+        result = self.run_events([cmd(f"c{n}", text, 1) for n in range(3)])
+        self.assertEqual(result["failed_tool_use"]["other"]["count"], 3)
+        self.assertEqual(result["repeated_exploration"]["file_reads"]["examples"], [{"path": "/a/b.txt", "count": 3}])
+
+    def test_word_split_cap_keeps_a_cut_wrapped_word(self):
+        cap = eval_trace_diagnosis._MAX_SCAN_CHARS
+        head, tail = "/bin/bash -lc \"cd x; rg foo . -g '", "'\""
+        for extra in (0, 1, 2):  # equal to the cap, then cut inside the outer and the inner quote
+            text = head + "a" * (cap - len(head) - len(tail) + extra) + tail
+            self.assertEqual(len(text), cap + extra)
+            failed = self.run_events([cmd("a", text, 1)])["failed_tool_use"]
+            self.assertEqual(failed["benign_search_miss"]["count"], 1, extra)
+        failed = self.run_events([cmd("a", '/bin/bash -lc "rg foo .', 1)])["failed_tool_use"]  # malformed, not cut
+        self.assertEqual(failed["other"]["count"], 1)
 
     def test_output_is_dropped_and_ids_and_phases_are_bounded(self):
         parsed = collect_items([cmd("a", "ls", output="x" * 1000).encode()])

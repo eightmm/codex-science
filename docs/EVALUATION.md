@@ -1259,15 +1259,18 @@ reads, manifest hand edits, lost artifacts, premature closure and `phase_seconds
 
 The events file must be a regular file (not a symlink, FIFO or device), at most 64 MiB in total
 and 1 MiB per line; an oversized line counts as malformed and a larger file is refused. At most
-8192 characters of each command are pattern-matched (repeat grouping compares the full text), and `phase_seconds` lists at most 5 scripts
-(first use first). Items are keyed on `(type, id)` with the id's JSON type, so `1` and `"1"` or a
-command and a file change sharing an id stay separate; an item without an id is merged with its
+8192 characters of each command, after heredoc bodies are dropped, are split into shell words (a
+quoted word left open at that cut ends there); patterns match the whole command in linear time,
+repeat grouping compares the full text, and `phase_seconds` lists at most 5 scripts (first use
+first). Items are keyed on `(type, id)` with the id's JSON type, so `1` and `"1"` or a command
+and a file change sharing an id stay separate; an item without an id is merged with its
 `item.started` only when the two lines are adjacent and carry the same non-empty command.
-Heredoc bodies are dropped, but `<<<`, quoted or arithmetic `<<` and a delimiter that never
-terminates are not heredocs. `--output` is refused (exit 2) when it resolves, through symlinks or
-hard links, to `events.jsonl`, `receipt.json` or `last.md`, or through symlinks to a
-`project/` `manifest.json`; write failures are reported as labelled errors and the replace
-stays atomic.
+Heredoc bodies are dropped, also inside the shell code a `bash`/`sh`/`zsh`/`dash` `-c` argument
+quotes (Codex records commands as `/bin/bash -lc "..."`), but `<<<`, `<<` quoted in an ordinary
+argument or inside `((...))` and a delimiter that never terminates are not heredocs. `--output`
+is refused (exit 2) when it resolves, through symlinks or hard links, to `events.jsonl`,
+`receipt.json` or `last.md`, or through symlinks to a `project/` `manifest.json`; write failures
+are reported as labelled errors and the replace stays atomic.
 
 ### Reviewer seeded-defect probe
 

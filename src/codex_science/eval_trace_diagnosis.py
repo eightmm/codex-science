@@ -5,6 +5,7 @@ trace is executed and trace content is treated as untrusted text.
 """
 from __future__ import annotations
 
+import bisect
 import json
 import math
 import os
@@ -23,27 +24,37 @@ REPEAT_THRESHOLD = 3
 _MAX_LINE_BYTES = 1 << 20
 _MAX_FILE_BYTES = 64 << 20
 _MAX_MANIFESTS = 200
-_MAX_SCAN_CHARS = 8192  # per command, bounds the regex work done on untrusted text
+_MAX_SCAN_CHARS = 8192  # per command: shell-word splitting is pure Python, so only this much is split
 EVIDENCE_BOUNDARY = (
     "Counts are pattern matches over recorded commands, not judgments of scientific quality; "
     "regexes can miss shell indirection (variables, eval, scripts that run other commands).")
 
 _SCRIPT_RE = re.compile(r"(?:(?<=/)|(?<![\w.-]))scripts/(?P<name>[\w.-]+\.py)(?![\w.-])")
 _SOURCE_TAIL = r"/(?:scripts|src)/[^\s\"'<>;|&]+"
+_MANIFEST = "manifest.json"
+# Linear as written; the sed, tee and open( patterns are matched per run in _writes_manifest.
 _MANIFEST_WRITE_RES = tuple(re.compile(pattern) for pattern in (
-    r"\bsed\b[^|;&\n]*\s-[A-Za-z]*i[^|;&\n]*manifest\.json",
     r">>?\s*['\"]?[^\s'\"<>|;&]*manifest\.json",
-    r"\btee\b[^|;&\n]*manifest\.json",
-    r"open\([^)\n]*manifest\.json[^)\n]*['\"][wax]\+?b?['\"]",
     r"manifest\.json['\"]?\s*\)\s*\.write_(?:text|bytes)\(",
 ))
+_SED_RE = re.compile(r"\bsed\b")
+_SED_IN_PLACE_RE = re.compile(r"\s-[A-Za-z]*?i")
+_TEE_RE = re.compile(r"\btee\b")
+_WRITE_MODE_RE = re.compile(r"['\"][wax]\+?b?['\"]")
+_RUN_END_RE = re.compile(r"[|;&\n]")
+_OPEN_RUN_END_RE = re.compile(r"[)\n]")
 _SHELLS = {"bash", "sh", "zsh", "dash"}
 _SEGMENT_SPLIT = {";", "&&", "||", "|", "&"}
 
 
 _PLUGIN_ROOT_RE = re.compile(
     r"(?<![^\s\"'<>;|&=:])[^\s\"'<>;|&=:]*plugins/cache/[A-Za-z0-9][A-Za-z0-9._-]*/codex-science/[^/\\\s\"'<>;|&]+(?=/|$|[\\\s\"'<>;|&])")
-_HEREDOC_RE = re.compile(r"-?\s*(?:'([^']+)'|\"([^\"]+)\"|\\?([\w.-]+))")
+_HEREDOC_RE = re.compile(r"-?[^\S\n]*(?:'([^'\n]+)'|\"([^\"\n]+)\"|\\?([\w.-]+))")
+_SHELL_ACTIVE_RE = re.compile(r"[\\'\"#()<;&|\s]")
+_DOUBLE_QUOTE_STOP_RE = re.compile(r'[\\"]')
+_DOUBLE_QUOTE_ESCAPE_RE = re.compile(r'\\([\\"$`\n])|\\.', re.DOTALL)
+_PLAIN_RE = re.compile(r"[^'\"\\\s;&|()<>]+")
+_C_FLAG_RE = re.compile(r"-[A-Za-z]*c[A-Za-z]*")
 _REDIRECT_RE = re.compile(r"^\d*(?:>>?|<)")
 _FD_DUP_RE = re.compile(r"\d*>&(?:\d+|-)|&>>?")
 
@@ -61,64 +72,245 @@ def _normalize(command: str) -> str:
     return " ".join(_plugin_relative(command).split())
 
 
-def _heredoc_delimiters(line: str) -> list[str]:
-    """Delimiters of real heredoc operators: not `<<<`, not quoted, not inside `((...))`."""
-    found: list[str] = []
-    stack: list[bool] = []  # open parentheses; True marks an arithmetic `((`
-    quote = ""
-    index, size = 0, len(line)
+def _double_quoted_end(text: str, index: int) -> int:
+    """Index of the `"` closing a double-quoted word whose text starts at `index` (or len(text))."""
+    while True:
+        found = _DOUBLE_QUOTE_STOP_RE.search(text, index)
+        if found is None:
+            return len(text)
+        if found.group() == '"':
+            return found.start()
+        index = found.start() + 2
+
+
+def _payload(text: str, quote: int, depth: int) -> tuple[list[tuple[int, int]], int]:
+    """Heredoc cuts inside the shell code of the word starting at `text[quote]`, and the index after it.
+
+    The word is decoded as the shell would (quoted and unquoted parts joined, as in `'a'"'"'b'`)
+    and each cut removes only the decoded characters it covers, so the quotes stay balanced.
+    """
+    parts: list[str] = []
+    # (decoded start, decoded length, raw start with any escaping backslash, raw start, raw end)
+    pieces: list[tuple[int, int, int, int, int]] = []
+    decoded = 0
+
+    def take(start: int, end: int, prefix: int = 0) -> None:
+        nonlocal decoded
+        if end > start:
+            pieces.append((decoded, end - start, start - prefix, start, end))
+            parts.append(text[start:end])
+            decoded += end - start
+
+    index, size = quote, len(text)
     while index < size:
-        char = line[index]
-        if quote:
-            if char == "\\" and quote == '"':
-                index += 1
-            elif char == quote:
-                quote = ""
+        char = text[index]
+        if char == "'":
+            end = text.find("'", index + 1)
+            end = size if end < 0 else end
+            take(index + 1, end)
+        elif char == '"':
+            end = _double_quoted_end(text, index + 1)
+            chunk = index + 1
+            for escape in _DOUBLE_QUOTE_ESCAPE_RE.finditer(text, index + 1, end):
+                if escape.group(1) is not None:
+                    take(chunk, escape.start())
+                    if escape.group(1) == "\n":  # a line continuation decodes to nothing
+                        pieces.append((decoded, 0, escape.start(), escape.end(), escape.end()))
+                    else:
+                        take(escape.start() + 1, escape.end(), 1)
+                    chunk = escape.end()
+            take(chunk, end)
         elif char == "\\":
-            index += 1
-        elif char in "'\"":
-            quote = char
-        elif char == "#" and (index == 0 or line[index - 1].isspace()):
-            break
-        elif char == "(":
-            stack.append(index > 0 and line[index - 1] == "(")
-        elif char == ")":
-            if stack:
-                stack.pop()
-        elif char == "<" and line.startswith("<<", index):
-            if index > 0 and line[index - 1] == "<" or line.startswith("<<<", index):
-                index += 3 if line.startswith("<<<", index) else 2
+            end = index + 1
+            if end == size:  # a trailing backslash stays literal
+                take(index, end)
+            elif text[end] == "\n":
+                pieces.append((decoded, 0, index, end + 1, end + 1))
+            else:
+                take(end, end + 1, 1)
+        else:
+            plain = _PLAIN_RE.match(text, index)
+            if plain is None:
+                break
+            take(index, plain.end())
+            index = plain.end()
+            continue
+        index = end + 1
+    keys = [piece[0] for piece in pieces]
+    cuts: list[tuple[int, int]] = []
+    for low, high in _heredoc_cuts("".join(parts), depth):
+        for position in range(max(bisect.bisect_right(keys, low) - 1, 0), len(pieces)):
+            at, length, outer, inner, stop = pieces[position]
+            if at >= high:
+                break
+            first, last = max(low, at), min(high, at + length)
+            if length == 0 and low < at:
+                cut = (outer, stop)
+            elif first < last:
+                cut = (outer if first == at else inner + first - at, stop if last == at + length else inner + last - at)
+            else:
                 continue
-            match = _HEREDOC_RE.match(line, index + 2)
-            if match and not any(stack):
-                found.append(next(g for g in match.groups() if g))
+            if cuts and cuts[-1][1] == cut[0]:
+                cuts[-1] = (cuts[-1][0], cut[1])
+            else:
+                cuts.append(cut)
+    return cuts, min(index, size)
+
+
+def _heredoc_end(text: str, lines: tuple[list[int], dict[str, list[int]]], newline: int,
+                 delimiters: list[str]) -> int | None:
+    """End of the terminator line of the heredocs opened before `newline`; None if one never terminates."""
+    starts, by_content = lines
+    number = bisect.bisect_right(starts, newline)
+    for delimiter in delimiters:
+        found = by_content.get(delimiter, [])
+        position = bisect.bisect_left(found, number)
+        if position == len(found):
+            return None
+        number = found[position] + 1
+    return starts[number] - 1 if number < len(starts) else len(text)
+
+
+def _heredoc_cuts(text: str, depth: int = 0) -> list[tuple[int, int]]:
+    """Spans of heredoc bodies with their terminator lines, also inside a shell's `-c` code.
+
+    Not heredocs: `<<<`, quoted `<<` in an ordinary argument, `<<` inside `((...))`, and a
+    delimiter that never terminates (its lines stay).
+    """
+    cuts: list[tuple[int, int]] = []
+    pending: list[str] = []
+    stack: list[bool] = []  # open parentheses; True marks an arithmetic `((`
+    first = previous = None  # first and last complete word of the current simple command
+    word = -1  # start of the word being read
+    lines: tuple[list[int], dict[str, list[int]]] | None = None
+    index, size = 0, len(text)
+    while index < size:
+        found = _SHELL_ACTIVE_RE.search(text, index)
+        if found is None:
+            break
+        if word < 0 and found.start() > index:
+            word = index
+        index = found.start()
+        char = text[index]
+        if char in "'\"":
+            if word < 0:
+                word = index
+                if (depth < 3 and first is not None and os.path.basename(first) in _SHELLS
+                        and _C_FLAG_RE.fullmatch(previous or "")):
+                    inner, index = _payload(text, index, depth + 1)
+                    cuts.extend(inner)
+                    continue
+            end = text.find("'", index + 1) if char == "'" else _double_quoted_end(text, index + 1)
+            index = (size if end < 0 else end) + 1
+            continue
+        if char == "\\":
+            word = index if word < 0 else word
             index += 2
             continue
+        if char == "#":
+            if word >= 0:
+                index += 1
+                continue
+            index = text.find("\n", index)
+            if index < 0:
+                break
+            continue
+        if word >= 0:
+            if first is None:
+                first = text[word:index]
+            previous = text[word:index]
+            word = -1
+        if char == "<":
+            if index > 0 and text[index - 1] == "<" or text.startswith("<<<", index):
+                index += 3 if text.startswith("<<<", index) else 2
+            elif text.startswith("<<", index):
+                match = _HEREDOC_RE.match(text, index + 2)
+                if match and not any(stack):
+                    pending.append(next(g for g in match.groups() if g))
+                    index = match.end()
+                else:
+                    index += 2
+            else:
+                index += 1
+            continue
+        if char == "\n":
+            first = previous = None
+            if pending:
+                if lines is None:
+                    starts = [0, *(m.end() for m in re.finditer("\n", text))]
+                    by_content: dict[str, list[int]] = {}
+                    for number, line in enumerate(text.split("\n")):
+                        by_content.setdefault(line.strip(), []).append(number)
+                    lines = (starts, by_content)
+                end = _heredoc_end(text, lines, index, pending)
+                pending = []
+                if end is not None:
+                    cuts.append((index, end))
+                    index = end
+                    continue
+        elif char in ";&|()":
+            first = previous = None
+            if char == "(":
+                stack.append(index > 0 and text[index - 1] == "(")
+            elif char == ")" and stack:
+                stack.pop()
         index += 1
-    return found
+    return cuts
 
 
 def _strip_heredocs(command: str) -> str:
-    """Drop heredoc bodies (data written by the command, not commands it runs).
-
-    A delimiter that never terminates is not a heredoc: its lines stay.
-    """
-    lines = command.split("\n")
+    """Drop heredoc bodies (data written by the command, not commands it runs)."""
     kept: list[str] = []
-    delimiters: list[str] = []
-    body_start = 0
-    for number, line in enumerate(lines):
-        if delimiters:
-            if line.strip() == delimiters[0]:
-                delimiters.pop(0)
-            continue
-        kept.append(line)
-        delimiters.extend(_heredoc_delimiters(line))
-        if delimiters:
-            body_start = number + 1
-    if delimiters:
-        kept.extend(lines[body_start:])
-    return "\n".join(kept)
+    index = 0
+    for start, end in _heredoc_cuts(command):
+        kept.append(command[index:start])
+        index = end
+    kept.append(command[index:])
+    return "".join(kept)
+
+
+def _runs(text: str, separator: re.Pattern[str]) -> Iterable[tuple[int, int, str]]:
+    """(start, end, separator) of each stretch of `text` between separator characters."""
+    start = 0
+    while True:
+        found = separator.search(text, start)
+        end = found.start() if found else len(text)
+        yield start, end, found.group() if found else ""
+        if found is None:
+            return
+        start = end + 1
+
+
+def _writes_manifest(text: str) -> bool:
+    """Whether `text` writes a manifest.json by redirect, tee, sed -i, open(..., 'w') or write_text.
+
+    Matches what one regex search per pattern would, in linear time: within a run without a
+    separator only the first keyword matters, since a match from a later one is also a match from it.
+    """
+    if _MANIFEST not in text:
+        return False
+    if any(pattern.search(text) for pattern in _MANIFEST_WRITE_RES):
+        return True
+    sed_before = False  # the run before, ended by a newline, has `sed` (a newline can be the `\s` before `-i`)
+    for start, end, separator in _runs(text, _RUN_END_RE):
+        sed = _SED_RE.search(text, start, end)
+        flag = None
+        if sed_before and text.startswith("-", start):
+            flag = _SED_IN_PLACE_RE.match(text, start - 1, end)
+        if flag is None and sed is not None:
+            flag = _SED_IN_PLACE_RE.search(text, sed.end(), end)
+        if flag is not None and text.find(_MANIFEST, flag.end(), end) >= 0:
+            return True
+        tee = _TEE_RE.search(text, start, end)
+        if tee is not None and text.find(_MANIFEST, tee.end(), end) >= 0:
+            return True
+        sed_before = sed is not None and separator == "\n"
+    for start, end, _ in _runs(text, _OPEN_RUN_END_RE):
+        opened = text.find("open(", start, end)
+        named = text.find(_MANIFEST, opened + 5, end) if opened >= 0 else -1
+        if named >= 0 and _WRITE_MODE_RE.search(text, named + len(_MANIFEST), end):
+            return True
+    return False
 
 
 def _strip_redirects(segment: list[str]) -> list[str]:
@@ -189,21 +381,28 @@ def _regular_text(path: Path) -> str | None:
         return None
 
 
-def _tokens(command: str) -> list[str]:
+def _tokens(command: str, cut: bool = False) -> list[str]:
+    """Shell words; when `command` was cut short, a word left open at the cut ends there."""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+    lexer.whitespace_split = True
+    tokens: list[str] = []
     try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
-        lexer.whitespace_split = True
-        return list(lexer)
+        for token in lexer:
+            tokens.append(token)
     except ValueError:
-        return command.split()
+        if not cut:
+            return command.split()
+        if lexer.token:
+            tokens.append(lexer.token)
+    return tokens
 
 
-def _segments(command: str, depth: int = 0) -> list[list[str]]:
+def _segments(command: str, depth: int = 0, cut: bool = False) -> list[list[str]]:
     """Split a command into simple-command token lists, unwrapping `bash -lc '...'`."""
     result: list[list[str]] = []
     current: list[str] = []
     command = _FD_DUP_RE.sub(" ", _strip_heredocs(command)).replace("\n", ";")
-    for token in _tokens(command) + [";"]:
+    for token in _tokens(command, cut) + [";"]:
         if token in _SEGMENT_SPLIT or set(token) <= set(";&|"):
             current = _strip_redirects(current)
             if current:
@@ -218,16 +417,16 @@ def _segments(command: str, depth: int = 0) -> list[list[str]]:
             inner = next((segment[i + 1] for i, arg in enumerate(segment[:-1])
                           if arg.startswith("-") and "c" in arg[1:] and not arg.startswith("--")), None)
             if inner is not None:
-                expanded.extend(_segments(inner, depth + 1))
+                expanded.extend(_segments(inner, depth + 1, cut))
                 continue
         expanded.append(segment)
     return expanded
 
 
-def _read_paths(command: str) -> list[str]:
+def _read_paths(command: str, cut: bool = False) -> list[str]:
     """Operands of read commands (cat, head, tail, sed, nl, less, rg, grep, awk) outside heredoc bodies."""
     paths: list[str] = []
-    for segment in _segments(command):
+    for segment in _segments(command, cut=cut):
         name = os.path.basename(segment[0])
         args = segment[1:]
         if name == "cat":
@@ -493,14 +692,14 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
     command_counts: dict[str, list[Any]] = {}
     for item in commands:
         raw = item["command"]
-        command = _strip_heredocs(raw)[:_MAX_SCAN_CHARS]
-        scanned = raw[:_MAX_SCAN_CHARS]
+        command = _strip_heredocs(raw)
+        words, cut = command[:_MAX_SCAN_CHARS], len(command) > _MAX_SCAN_CHARS
         names = [m.group("name") for m in _SCRIPT_RE.finditer(command)]
         norm = _normalize(raw)
         command_counts.setdefault(norm, []).append(item)
         exit_code = item["exit_code"]
         if exit_code not in (None, 0) or item.get("status") == "failed":
-            segments = _segments(command)
+            segments = _segments(words, cut=cut)
             last = os.path.basename(segments[-1][0]) if segments else ""
             if exit_code == 1 and last in {"rg", "grep"}:
                 failed["benign_search_miss"].append(_example(raw, item, exit_code=exit_code))
@@ -514,15 +713,15 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
                 span[0] = item["t"] if span[0] is None else min(span[0], item["t"])
             if item["last_t"] is not None:
                 span[1] = item["last_t"] if span[1] is None else max(span[1], item["last_t"])
-        for path in _read_paths(command):
+        for path in _read_paths(words, cut):
             reads.setdefault(_plugin_relative(path), []).append(item)
         if not _is_help(command):
-            read_set = set(_read_paths(command))
+            read_set = set(_read_paths(words, cut))
             for source in _plugin_source_paths(command):
                 if any(source in path for path in read_set):
                     plugin_reads.append(_example(raw, item, path=_short(source)))
                     break
-        if not names and any(r.search(scanned) for r in _MANIFEST_WRITE_RES):
+        if not names and _writes_manifest(raw):
             manifest_edits.append(_example(raw, item, via="command"))
     for item in items:
         if item["type"] != "file_change":
