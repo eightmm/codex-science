@@ -22,12 +22,18 @@ input JSON keys (schema_version must be 1):
   reference_value   optional finite number; default: none
   thresholds        optional object; each threshold is checked only when set:
                     max_residual, max_invariant_deviation, minimum_order (no default);
-                    max_cross_method_z (default 3.0, must be > 0)
+                    max_cross_method_z (default 3.0, must be > 0); other keys are refused
   solver            optional object: precision (absence is a minor finding);
-                    absolute_tolerance or relative_tolerance (absence of both is a minor finding)
-  cross_method      optional list of {method (non-empty), estimate (finite),
-                    uncertainty (finite; sign ignored)}; the first entry is the
-                    baseline; default: none
+                    absolute_tolerance or relative_tolerance (absence of both is a minor finding);
+                    a finite absolute_tolerance is the noise floor: an observed order computed
+                    from an error or successive difference at or below it is a major finding
+  cross_method      optional list of at most 100 {method (non-empty), estimate (finite),
+                    uncertainty (finite; sign ignored)}; every pair is compared and
+                    difference_from_first is recorded against the first entry; default: none
+
+An explicit error differing from |estimate - reference_value| by more than a relative
+1e-9 and more than four ulps of the operands is a major finding.
+Derived errors, successive differences or observed orders that overflow are refused.
 """
 
 

@@ -426,5 +426,257 @@ class NumericalVerificationContractTests(unittest.TestCase):
             self.assertEqual(status, result["status"])
 
 
+    def honest_payloads(self) -> list[dict]:
+        import json
+        root = Path(__file__).resolve().parents[1]
+        example = json.loads((root / "examples/numerical-analysis-error-control/input.json").read_text(encoding="utf-8"))
+        quantitative = json.loads((root / "examples/quantitative-research/input.json").read_text(encoding="utf-8"))
+        seeded = []
+        for path, value in ((("refinements", 1, "resolution"), 0.4), (("refinements", 1, "estimate"), 1.2),
+                            (("refinements", 1, "residual"), 0.02), (("cross_method", 1, "estimate"), 1.02)):
+            changed = copy.deepcopy(example)
+            target = changed
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            seeded.append(changed)
+        refinements = self.payload()["refinements"]
+        return [
+            example, quantitative["numerical_verification"], *seeded,
+            self.payload(),
+            self.payload(refinements=refinements[:2], thresholds={}),
+            self.payload(refinements=refinements[:2], thresholds={"minimum_order": 1.8}),
+            self.payload(reference_value=None, solver={}, cross_method=[]),
+            self.payload(refinements=[{"resolution": 1, "estimate": 2, "error": 0.5}, {"resolution": 0.5, "estimate": 1.5}]),
+            self.payload(refinements=[{"resolution": h, "estimate": 1.0} for h in (0.4, 0.2, 0.1)]),
+            self.payload(cross_method=[{"method": "a", "estimate": 0, "uncertainty": 0},
+                                       {"method": "b", "estimate": 1, "uncertainty": 0}]),
+            self.payload(reference_value=None, thresholds={"minimum_order": 2},
+                         refinements=[{"resolution": h, "estimate": h} for h in (1.0302, 1.01, 1)]),
+            self.payload(thresholds={"minimum_order": 1.8}, refinements=[
+                {"resolution": h, "estimate": q} for h, q in ((1, 1.16), (0.5, 1.04), (0.25, 1.01), (0.125, 1.01))]),
+        ]
+
+    def test_runtime_receipts_review_without_inconsistency(self) -> None:
+        import json
+        statuses = set()
+        for payload in self.honest_payloads():
+            receipt = json.loads(json.dumps(run_numerical_verification(payload)))
+            statuses.add(receipt["status"])
+            codes = [item["code"] for item in review_numerical_verification(receipt)]
+            with self.subTest(status=receipt["status"], codes=codes):
+                if receipt["status"] == "passed":
+                    self.assertEqual(sorted(item["code"] for item in receipt["findings"]), codes)
+                else:
+                    self.assertTrue({item["code"] for item in receipt["findings"]} <= set(codes))
+                    self.assertFalse({"numerical-receipt-inconsistent", "unsafe-numerical-pass",
+                                      "invalid-numerical-verification"} & set(codes))
+        self.assertEqual({"passed", "findings"}, statuses)
+
+    def test_review_rederives_outcome_from_recorded_inputs(self) -> None:
+        receipt = run_numerical_verification(self.payload())
+
+        def set_threshold(item):
+            item["thresholds"]["minimum_order"] = 5.0
+
+        def repeat_resolution(item):
+            item["refinements"][1]["resolution"] = item["refinements"][0]["resolution"]
+
+        def drop_finding(item):
+            item["findings"] = []
+            item["status"] = "passed"
+
+        def unknown_threshold(item):
+            item["thresholds"]["bogus_limit"] = 1.0
+
+        def disagreeing_third_method(item):
+            item["cross_method"].append({"method": "c", "estimate": 9.0, "uncertainty": 0.01,
+                                         "difference_from_first": 8.0, "combined_uncertainty_z": 8.0 / math.hypot(0.01, 0.01)})
+
+        failing = run_numerical_verification(self.payload(refinements=[
+            {**record, "resolution": 0.4} for record in self.payload()["refinements"]]))
+        cases = ((receipt, set_threshold), (receipt, repeat_resolution), (failing, drop_finding),
+                 (receipt, unknown_threshold), (receipt, disagreeing_third_method))
+        for source, mutate in cases:
+            forged = self.forge(source, mutate)
+            with self.subTest(mutation=mutate.__name__):
+                validate_numerical_verification(forged)
+                review = review_numerical_verification(forged)
+                inconsistent = [item for item in review if item["code"] == "numerical-receipt-inconsistent"]
+                self.assertEqual(1, len(inconsistent), review)
+                self.assertEqual("critical", inconsistent[0]["severity"])
+
+    def test_order_claim_underidentified_requires_declared_minimum_order(self) -> None:
+        two_levels = self.payload()["refinements"][:2]
+        for thresholds, flagged in (({}, False), ({"minimum_order": None}, False), ({"minimum_order": 1.8}, True)):
+            receipt = run_numerical_verification(self.payload(refinements=two_levels, thresholds=thresholds))
+            self.assertIsNotNone(receipt["minimum_observed_order"])
+            codes = {item["code"] for item in review_numerical_verification(receipt)}
+            with self.subTest(thresholds=thresholds):
+                self.assertEqual(flagged, "order-claim-underidentified" in codes)
+                self.assertEqual(flagged, receipt["status"] == "findings")
+
+    def test_overflowing_derived_quantities_are_refused(self) -> None:
+        def levels(*pairs, key="estimate"):
+            return [{"resolution": h, key: value} for h, value in pairs]
+
+        cases = (
+            (self.payload(reference_value=None, refinements=levels((0.4, 1e308), (0.2, -1e308), (0.1, 0.0))),
+             "successive difference in refinements[0] to refinements[2] is not finite"),
+            (self.payload(reference_value=-1e308, refinements=levels((0.4, 1e308), (0.2, 0.0), (0.1, 0.0))),
+             r"refinements[0].error derived from reference_value is not finite"),
+            (self.payload(reference_value=None, refinements=[
+                {"resolution": h, "estimate": 1.0, "error": e} for h, e in ((0.4, 1e300), (0.2, 1e-300), (0.1, 1e-301))]),
+             "error ratio between refinements[0] and refinements[1] is not a finite positive number"),
+            (self.payload(reference_value=None, refinements=[
+                {"resolution": h, "estimate": 1.0, "error": e} for h, e in ((0.4, 1e-300), (0.2, 1e300), (0.1, 1.0))]),
+             "error ratio between refinements[0] and refinements[1] is not a finite positive number"),
+            (self.payload(reference_value=None, refinements=[
+                {"resolution": h, "estimate": 1.0, "error": e} for h, e in ((1e300, 1.0), (1e-300, 0.5))]),
+             "resolution ratio between refinements[0] and refinements[1] is not finite"),
+            (self.payload(reference_value=None, refinements=levels((0.4, 1e300), (0.2, 0.0), (0.1, -1e-300))),
+             "successive difference ratio in refinements[0] to refinements[2] is not a finite positive number"),
+            (self.payload(cross_method=[{"method": "a", "estimate": 1e308, "uncertainty": 1},
+                                        {"method": "b", "estimate": -1e308, "uncertainty": 1}]),
+             "cross_method[0] and cross_method[1] estimate difference is not finite"),
+        )
+        for payload, message in cases:
+            with self.subTest(message=message):
+                self.assertRefusedWithoutMutation(payload, message)
+        largest = run_numerical_verification(self.payload(
+            reference_value=None, thresholds={"minimum_order": 0.9},
+            refinements=levels((0.4, 1e308), (0.2, 5e307), (0.1, 2.5e307))))
+        self.assertEqual(("passed", [1.0]), (largest["status"], largest["observed_orders"]))
+
+    def test_cli_refuses_overflowing_order_without_writing(self) -> None:
+        import json
+        import os
+        import subprocess
+        import sys
+
+        root = Path(__file__).resolve().parents[1]
+        payload = self.payload(reference_value=None, refinements=[
+            {"resolution": h, "estimate": q} for h, q in ((0.4, 1e308), (0.2, -1e308), (0.1, 0.0))])
+        with tempfile.TemporaryDirectory() as tempdir:
+            source, output = Path(tempdir) / "input.json", Path(tempdir) / "output.json"
+            source.write_text(json.dumps(payload), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(root / "scripts" / "verify_numerical_result.py"), str(source), "--output", str(output)],
+                capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+            self.assertEqual(1, completed.returncode)
+            self.assertEqual("", completed.stdout)
+            self.assertTrue(completed.stderr.startswith("error: "), completed.stderr)
+            self.assertIn("not finite", completed.stderr)
+            self.assertFalse(output.exists())
+
+    def test_order_from_errors_at_or_below_absolute_tolerance_is_noise(self) -> None:
+        near_one = [{"resolution": h, "estimate": 1 + e} for h, e in ((0.4, 3.6e-15), (0.2, 9e-16), (0.1, 2.3e-16))]
+        exact = [{"resolution": h, "estimate": 1.0, "error": e} for h, e in ((0.4, 4e-12), (0.2, 2e-12), (0.1, 1e-12))]
+        above = [{"resolution": h, "estimate": 1.0, "error": e} for h, e in ((0.4, 4e-12), (0.2, 2e-12), (0.1, 1.0001e-12))]
+        zero = [{"resolution": h, "estimate": 1.0} for h in (0.4, 0.2, 0.1)]
+        differences = [{"resolution": h, "estimate": q} for h, q in ((0.4, 5e-12), (0.2, 1e-12), (0.1, 0.0))]
+        cases = (
+            (near_one, 1.0, {"absolute_tolerance": 1e-12}, True),
+            (exact, None, {"absolute_tolerance": 1e-12}, True),
+            (above, None, {"absolute_tolerance": 1e-12}, False),
+            (near_one, 1.0, {"absolute_tolerance": 0}, False),
+            (near_one, 1.0, {"relative_tolerance": 1e-12}, False),
+            (near_one, 1.0, {"absolute_tolerance": "1e-12"}, False),
+            (near_one, 1.0, {"absolute_tolerance": True}, False),
+            (zero, 1.0, {"absolute_tolerance": 1e-12}, False),
+            (differences, None, {"absolute_tolerance": 1e-12}, True),
+        )
+        for refinements, reference, solver, noisy in cases:
+            receipt = run_numerical_verification(self.payload(
+                reference_value=reference, refinements=refinements,
+                thresholds={"minimum_order": 0.5} if refinements is not zero else {},
+                solver={"precision": "binary64", **solver}, cross_method=[]))
+            codes = {item["code"] for item in receipt["findings"]}
+            with self.subTest(solver=solver, first=refinements[0]):
+                self.assertEqual(noisy, "order-below-noise-floor" in codes)
+                if noisy:
+                    self.assertEqual("findings", receipt["status"])
+                    self.assertTrue(receipt["observed_orders"])
+        self.assertEqual("passed", run_numerical_verification(self.payload(
+            refinements=zero, thresholds={}, cross_method=[]))["status"])
+
+    def test_cross_method_agreement_compares_every_pair(self) -> None:
+        methods = [{"method": "a", "estimate": 0.0, "uncertainty": 1.0},
+                   {"method": "b", "estimate": 2.9, "uncertainty": 0.0},
+                   {"method": "c", "estimate": -2.9, "uncertainty": 0.0}]
+        receipt = run_numerical_verification(self.payload(cross_method=methods))
+        disagreements = [item["message"] for item in receipt["findings"] if item["code"] == "cross-method-disagreement"]
+        self.assertEqual(["Methods b and c disagree by inf combined standard uncertainties."], disagreements)
+        self.assertEqual("findings", receipt["status"])
+        self.assertEqual([2.9, 2.9], [item["difference_from_first"] for item in receipt["cross_method"][1:]])
+        validate_numerical_verification(receipt)
+        for cross_method in ([], methods[:1], methods[:2], [methods[0], methods[1], {**methods[1], "method": "d"}]):
+            with self.subTest(methods=[item["method"] for item in cross_method]):
+                self.assertEqual("passed", run_numerical_verification(self.payload(cross_method=cross_method))["status"])
+
+    def test_explicit_error_must_match_reference_value(self) -> None:
+        def levels(*errors):
+            return [{"resolution": h, "estimate": q, "error": e}
+                    for (h, q), e in zip(((0.4, 1.16), (0.2, 1.04), (0.1, 1.01)), errors)]
+
+        for reference, errors, flagged in (
+            (1.0, (0.5, 0.1, 0.02), True),
+            (1.0, (0.16, 0.04, 0.0), True),
+            (1.0, (abs(1.16 - 1.0), abs(1.04 - 1.0), abs(1.01 - 1.0)), False),
+            (None, (0.5, 0.1, 0.02), False),
+        ):
+            receipt = run_numerical_verification(self.payload(
+                reference_value=reference, refinements=levels(*errors), thresholds={}))
+            with self.subTest(reference=reference, errors=errors):
+                self.assertEqual(flagged, "error-reference-mismatch" in {item["code"] for item in receipt["findings"]})
+                self.assertEqual("findings" if flagged else "passed", receipt["status"])
+        rounded = 0.1 + 0.2
+        self.assertNotEqual(0.3, rounded)
+        for first_error, flagged in ((0.0, False), (abs(rounded - 0.3), False), (1e-15, True)):
+            receipt = run_numerical_verification(self.payload(
+                reference_value=0.3, thresholds={}, refinements=[
+                    {"resolution": 0.2, "estimate": rounded, "error": first_error},
+                    {"resolution": 0.1, "estimate": 0.3, "error": 0.0}]))
+            with self.subTest(rounded_first_error=first_error):
+                self.assertEqual(flagged, "error-reference-mismatch" in {item["code"] for item in receipt["findings"]})
+                self.assertEqual("findings" if flagged else "passed", receipt["status"])
+
+    def test_review_refuses_receipt_without_minimum_observed_order(self) -> None:
+        from codex_science.quantitative_sidecars import review_quantitative_sidecars
+
+        receipt = run_numerical_verification(self.payload(
+            reference_value=None, thresholds={}, refinements=self.payload()["refinements"][:2]))
+        self.assertIsNone(receipt["minimum_observed_order"])
+        self.assertEqual([], [item for item in review_numerical_verification(receipt) if item["severity"] != "minor"])
+        forged = self.forge(receipt, lambda item: item.pop("minimum_observed_order"))
+        with self.assertRaisesRegex(ValueError, "minimum_observed_order is required"):
+            validate_numerical_verification(forged)
+        self.assertEqual(["invalid-numerical-verification"], [item["code"] for item in review_numerical_verification(forged)])
+        codes = {item["code"] for item in review_quantitative_sidecars({"numerical_verifications": [forged]})}
+        self.assertIn("invalid-numerical-verification", codes)
+
+    def test_cross_method_entry_count_is_bounded(self) -> None:
+        from codex_science import numerical_verification
+
+        limit = numerical_verification.MAX_CROSS_METHODS
+        agreeing = [{"method": f"method-{index}", "estimate": 1.0, "uncertainty": 0.01} for index in range(limit)]
+        receipt = run_numerical_verification(self.payload(cross_method=agreeing))
+        self.assertEqual(("passed", limit), (receipt["status"], len(receipt["cross_method"])))
+        for extra in (agreeing[:1], [{}]):
+            with self.subTest(extra=extra):
+                self.assertRefusedWithoutMutation(
+                    self.payload(cross_method=agreeing + extra), f"cross_method must contain at most {limit} entries")
+
+    def test_unknown_threshold_keys_are_refused(self) -> None:
+        for thresholds in ({"minimum_orders": 1.8}, {"max_cross_method_z": 3.0, "max_resid": 0.1}):
+            with self.subTest(thresholds=thresholds):
+                self.assertRefusedWithoutMutation(
+                    self.payload(thresholds=thresholds),
+                    "allowed: max_cross_method_z, max_invariant_deviation, max_residual, minimum_order")
+        for thresholds in ({}, {"minimum_order": 1.8, "max_residual": 0.1, "max_invariant_deviation": 0.1,
+                                "max_cross_method_z": 3.0}):
+            self.assertEqual("passed", run_numerical_verification(self.payload(thresholds=thresholds))["status"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -198,13 +198,15 @@ def run(input_path: Path, output: Path) -> Path:
 
     report_path = output / "report.md"
     effect = statistical["effect"]["estimate"]
+    minimum_order = numerical["minimum_observed_order"]
+    minimum_order_text = "not available" if minimum_order is None else f"{minimum_order:.6g}"
     interval = statistical["interval"]
     report_path.write_text(
         "# Quantitative research acceptance\n\n"
         f"- Statistical effect: {effect:.6g}; {interval['confidence_level']:.0%} bootstrap interval "
         f"[{interval['lower']:.6g}, {interval['upper']:.6g}]\n"
         f"- Randomization p-value: {statistical['test']['p_value']:.6g} ({statistical['test']['method']})\n"
-        f"- Minimum observed numerical order: {numerical['minimum_observed_order']:.6g}\n"
+        f"- Minimum observed numerical order: {minimum_order_text}\n"
         f"- Dimension audit: {dimension['status']}\n"
         f"- Linear standard uncertainty: {uncertainty['linear']['standard_uncertainty']:.6g}\n"
         f"- Counterexample: {json.dumps(false_search['counterexample'], sort_keys=True)}\n"

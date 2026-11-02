@@ -23,7 +23,9 @@ Declare thresholds only for quantities that are available at every required leve
 
 Record solver precision plus absolute or relative tolerance. A receipt without these may remain usable for exploration but receives an audit finding.
 
-Threshold values must be finite numbers, not strings or booleans; `max_cross_method_z` must also be positive.
+Threshold values must be finite numbers, not strings or booleans; `max_cross_method_z` must also be positive. Other threshold keys are refused with an error naming the four allowed keys.
+
+When both an explicit `error` and `reference_value` are supplied, an error differing from `|estimate - reference_value|` by more than a relative `1e-9` and more than four ulps of the larger of `|estimate|` and `|reference_value|` receives `error-reference-mismatch`.
 
 ## Observed order
 
@@ -37,6 +39,10 @@ Without a reference, the runtime estimates order from three successive solutions
 
 The validator reports non-refining sequences, incomplete errors, nonmonotone error, unavailable order, and order below threshold. Zero error or coincident solutions may make an order undefined; do not invent one.
 
+A derived error, successive difference, resolution or error ratio, or observed order that overflows to a non-finite value is refused with a labelled error, so no receipt is written.
+
+When `solver.absolute_tolerance` is a finite number it is the noise floor: an order computed from an error or successive difference at or below it receives `order-below-noise-floor` (major), because the solver cannot resolve that difference. The order is still recorded. Zero errors and coincident solutions keep the undefined-order treatment above. The tolerance is compared with errors and differences in the units of the computed quantity, so an `absolute_tolerance` stated in residual units can trigger `order-below-noise-floor`; record the tolerance on the scale of the estimate or omit it.
+
 When `minimum_order` is declared, every adjacent error pair or successive solution triple must support an order estimate. A partly defined series receives `observed-order-series-incomplete`; a wholly undefined series receives `observed-order-unavailable`. A convergent prefix cannot hide a stalled tail.
 
 ## Residuals and invariants
@@ -49,9 +55,13 @@ Residual is not forward error. Conservation and positivity checks may reveal def
 
 ## Cross-method agreement
 
-Each cross-method estimate includes a standard uncertainty. The runtime compares subsequent methods with the first in combined standard-uncertainty units, using `sqrt(u_A^2 + u_B^2)`. This denominator is valid only when zero covariance between method errors is justified. If methods share calibration, data, code, or model assumptions, do not report agreement from this check alone: compute `u(A-B)^2 = u_A^2 + u_B^2 - 2 Cov(A,B)` externally, or treat the comparison as not independent replication, and record the dependence. This covariance propagation follows JCGM 100:2008 (GUM), §5.2.2, equation (13). A discrepancy above `max_cross_method_z` is a finding.
+Each cross-method estimate includes a standard uncertainty. At most 100 cross-method entries are accepted. The runtime compares every pair of methods in combined standard-uncertainty units, using `sqrt(u_A^2 + u_B^2)`; `difference_from_first` and `combined_uncertainty_z` record the comparison with the first entry only. This denominator is valid only when zero covariance between method errors is justified. If methods share calibration, data, code, or model assumptions, do not report agreement from this check alone: compute `u(A-B)^2 = u_A^2 + u_B^2 - 2 Cov(A,B)` externally, or treat the comparison as not independent replication, and record the dependence. This covariance propagation follows JCGM 100:2008 (GUM), §5.2.2, equation (13). A discrepancy above `max_cross_method_z` for any pair is a finding.
 
 Shared code, data, discretization, boundary conditions, or libraries may induce correlated errors. Record those dependencies in the evidence graph; recording them does not make the runtime's zero-covariance comparison valid.
+
+## Receipt review
+
+Review first validates the fingerprint and the stored summaries (maximum residual, maximum invariant deviation, error monotonicity, minimum observed order and the cross-method comparisons with the first entry). It then re-runs the receipt's recorded refinements, `reference_value`, `thresholds`, `solver` and cross-method inputs through the same runtime and reports `numerical-receipt-inconsistent` (critical) when the recorded status, finding codes and severities, observed orders or minimum observed order differ, or when the recorded inputs are refused. A receipt missing the `minimum_observed_order` key (it is `null` when no order was observed) is refused as `invalid-numerical-verification`. A receipt that declares `thresholds.minimum_order` with fewer than three refinement levels also receives `order-claim-underidentified`; a receipt without a declared `minimum_order` does not.
 
 ## Stop and downgrade
 

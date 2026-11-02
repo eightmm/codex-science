@@ -72,6 +72,26 @@ class QuantitativeAcceptanceTests(unittest.TestCase):
             report = (output / "report.md").read_text(encoding="utf-8")
             self.assertIn("No p-value, convergence plot, or bounded search is promoted", report)
 
+    def test_report_marks_unavailable_numerical_order(self) -> None:
+        from importlib.util import module_from_spec, spec_from_file_location
+
+        script = ROOT / "scripts" / "run_quantitative_acceptance.py"
+        spec = spec_from_file_location("run_quantitative_acceptance_no_order", script)
+        assert spec is not None and spec.loader is not None
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fixture = json.loads((ROOT / "examples" / "quantitative-research" / "input.json").read_text(encoding="utf-8"))
+        numerical = fixture["numerical_verification"]
+        numerical["reference_value"] = None
+        numerical["refinements"] = numerical["refinements"][:2]
+        numerical["thresholds"].pop("minimum_order")
+        with tempfile.TemporaryDirectory() as tempdir:
+            source = Path(tempdir) / "input.json"
+            source.write_text(json.dumps(fixture), encoding="utf-8")
+            module.run(source, Path(tempdir) / "run")
+            report = (Path(tempdir) / "run" / "report.md").read_text(encoding="utf-8")
+            self.assertIn("- Minimum observed numerical order: not available\n", report)
+
     def test_changed_quantitative_artifact_invalidates_bundle(self) -> None:
         from importlib.util import module_from_spec, spec_from_file_location
 
