@@ -70,7 +70,7 @@ Evidence entries require safe relative paths and SHA-256 digests. Bundle validat
 
 ## Sidecar shapes
 
-Minimal valid sidecars; register each under its artifact kind in the run manifest. `statement_sha256` is the SHA-256 hex of the UTF-8 `statement` text with leading and trailing whitespace removed; builders and validators apply the same normalization, preserving hashes for already-trimmed statements. `fingerprint` is optional; when present it must equal the canonical SHA-256 of the object without it. Receipts link to the claim by `claim_id` and `statement_sha256`.
+Minimal valid sidecars; register each under its artifact kind in the run manifest. `statement_sha256` is the SHA-256 hex of the UTF-8 `statement` text with leading and trailing whitespace removed; builders and validators apply the same normalization, preserving hashes for already-trimmed statements. The hash covers the exact characters that remain after trimming and applies no Unicode normalization, so a claim and its receipts must use the same normalization form (for example NFC) to match. `fingerprint` is optional; when present it must equal the canonical SHA-256 of the object without it. Receipts link to the claim by `claim_id` and `statement_sha256`.
 
 `mathematical-claim` (`status`: `conjecture`, `tested`, `proved-finite`, `proved-deductive`, `proved-formal`, `disproved`, `conditional`, `unavailable`; `proved-*` needs non-empty `assumptions` or `quantifiers`):
 
