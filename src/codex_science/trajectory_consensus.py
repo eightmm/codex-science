@@ -3,17 +3,41 @@ from __future__ import annotations
 
 import math
 import random
+import unicodedata
 
 EVIDENCE_BOUNDARY = (
     "Trajectory agreement and pairwise preferences summarize supplied records; "
-    "they do not establish truth, independence, causal validity, or scientific replication."
+    "they do not establish truth, independence, causal validity, or scientific replication. "
+    "When a not_strongly_connected warning is present the maximum-likelihood scores do not "
+    "exist and the reported scores are iteration artefacts, not estimates."
 )
 _MAX_ITERATIONS = 10_000
 _TOLERANCE = 1e-12
 
 
 def _normalise_key(key: str) -> str:
-    return " ".join(key.casefold().split())
+    return " ".join(unicodedata.normalize("NFC", key).casefold().split())
+
+
+def _ranking_warnings(result):
+    """Warn about tied adjacent scores and candidate ids that collide after key normalisation."""
+    warnings = []
+    groups = {}
+    for entry in result["candidates"]:
+        groups.setdefault(_normalise_key(entry["candidate_id"]), []).append(entry["candidate_id"])
+    for ids in groups.values():
+        if len(ids) > 1:
+            warnings.append({"code": "candidate_id_collision", "candidates": sorted(ids)})
+    ranking = result["ranking"] or []
+    run = ranking[:1]
+    for entry in ranking[1:] + [None]:
+        if entry is not None and abs(entry["score"] - run[-1]["score"]) < _TOLERANCE:
+            run.append(entry)
+            continue
+        if len(run) > 1:
+            warnings.append({"code": "tied_scores", "candidates": sorted(x["candidate_id"] for x in run)})
+        run = [entry] if entry is not None else []
+    return warnings
 
 
 def plan_comparisons(candidate_ids, max_pairs=300, seed=0):
@@ -152,6 +176,9 @@ def build_consensus(payload):
     A claim supported by one trajectory is listed only in ``singleton_claims``.
     Statements and normalized statuses are selected from the trajectory with the
     lexicographically smallest ID that mentions the normalized claim key.
+    Consensus needs strictly more than ``min_support_fraction`` of trajectories
+    (so the fraction must be below 1) and no status disagreement; claims whose
+    trajectories disagree on status are listed in ``contested_claims``.
     """
     if not isinstance(payload, dict) or payload.get("schema") != "trajectory-set-v1":
         raise ValueError("schema must be trajectory-set-v1")
@@ -159,8 +186,9 @@ def build_consensus(payload):
     if not isinstance(trajectories, list) or not trajectories:
         raise ValueError("trajectories must be a nonempty list")
     threshold = payload.get("min_support_fraction", 0.5)
-    if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold) or not 0 <= threshold <= 1:
-        raise ValueError("min_support_fraction must be finite and between 0 and 1")
+    if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold) or not 0 <= threshold < 1:
+        raise ValueError("min_support_fraction must be finite, at least 0 and below 1; "
+                         "consensus needs strictly more than this fraction of trajectories")
     trajectory_ids, claims = set(), {}
     for trajectory in trajectories:
         if not isinstance(trajectory, dict) or not isinstance(trajectory.get("id"), str) or not trajectory["id"]:
@@ -199,7 +227,8 @@ def build_consensus(payload):
         if count == 1:
             singleton.append(item)
         else:
-            (consensus if fraction > threshold else contested).append(item)
+            agreed = fraction > threshold and not item["status_disagreement"]
+            (consensus if agreed else contested).append(item)
     comparisons = payload.get("comparisons", [])
     if not isinstance(comparisons, list):
         raise ValueError("comparisons must be a list")
@@ -212,5 +241,7 @@ def build_consensus(payload):
               "contested_claims": contested, "singleton_claims": singleton,
               "evidence_boundary": EVIDENCE_BOUNDARY}
     if clean:
-        result["bradley_terry"] = _rank(clean)
+        ranked = _rank(clean)
+        ranked["warnings"].extend(_ranking_warnings(ranked))
+        result["bradley_terry"] = ranked
     return result

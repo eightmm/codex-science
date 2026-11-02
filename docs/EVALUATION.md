@@ -1197,6 +1197,17 @@ or correctness.
 Bradley-Terry strengths. Agreement and preferences do not establish truth,
 independence, causal validity, or replication.
 
+A claim is consensus only when strictly more than `min_support_fraction` of
+trajectories (default 0.5; values of 1 or more are refused) mention it and
+their statuses agree; claims with `status_disagreement` are listed as
+contested. Claim keys are compared after Unicode NFC normalisation, case
+folding and whitespace collapsing. Bradley-Terry warnings include
+`tied_scores` (adjacent scores equal within 1e-12, so their order is only an
+id tie-break) and `candidate_id_collision` (ids that are equal after the same
+key normalisation but counted as distinct candidates). When
+`not_strongly_connected` is present the maximum-likelihood scores do not
+exist and the reported scores are iteration artefacts, not estimates.
+
 ### Claim evidence sufficiency
 
 `scripts/check_claim_sufficiency.py` counts distinct included study groups linked

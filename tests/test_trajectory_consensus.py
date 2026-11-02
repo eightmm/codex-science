@@ -144,12 +144,49 @@ class ConsensusTests(unittest.TestCase):
 
     def test_majority_is_strict_and_status_disagreement_is_reported(self):
         result = build_consensus({"schema": "trajectory-set-v1", "trajectories": trajectories()})
-        self.assertEqual([x["key"] for x in result["consensus_claims"]], ["shared claim"])
-        shared = result["consensus_claims"][0]
-        self.assertEqual(shared["support_fraction"], 1)
-        self.assertTrue(shared["status_disagreement"])
-        self.assertIn("half", [x["key"] for x in result["contested_claims"]])
+        self.assertEqual(result["consensus_claims"], [])
+        contested = {x["key"]: x for x in result["contested_claims"]}
+        self.assertEqual(contested["shared claim"]["support_fraction"], 1)
+        self.assertTrue(contested["shared claim"]["status_disagreement"])
+        self.assertIn("half", contested)
         self.assertEqual(result["singleton_claims"][0]["key"], "rare")
+
+    def test_agreeing_statuses_reach_consensus_and_threshold_is_strict(self):
+        def payload(**extra):
+            return {"schema": "trajectory-set-v1", **extra, "trajectories": [
+                {"id": f"t{i}", "claims": [{"key": "k", "statement": "s", "status": "supported"}]}
+                for i in range(2)]}
+        self.assertEqual(len(build_consensus(payload())["consensus_claims"]), 1)
+        self.assertEqual(len(build_consensus(payload(min_support_fraction=0.99))["consensus_claims"]), 1)
+        for bad in (1, 1.0, 2):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "below 1"):
+                build_consensus(payload(min_support_fraction=bad))
+
+    def test_nfc_and_nfd_keys_are_one_claim(self):
+        result = build_consensus({"schema": "trajectory-set-v1", "trajectories": [
+            {"id": "a", "claims": [{"key": "caf\u00e9", "statement": "s", "status": "supported"}]},
+            {"id": "b", "claims": [{"key": "cafe\u0301", "statement": "s", "status": "supported"}]}]})
+        self.assertEqual([x["support_count"] for x in result["consensus_claims"]], [2])
+
+    def _bt(self, comparisons):
+        return build_consensus({"schema": "trajectory-set-v1", "trajectories": trajectories(),
+                                "comparisons": comparisons})["bradley_terry"]
+
+    def test_tied_scores_and_candidate_id_collisions_warn(self):
+        cycle = self._bt([{"winner": "a", "loser": "b"}, {"winner": "b", "loser": "c"},
+                          {"winner": "c", "loser": "a"}])
+        self.assertIn({"code": "tied_scores", "candidates": ["a", "b", "c"]}, cycle["warnings"])
+        clear = self._bt([{"winner": "s", "loser": "w"}] * 3 + [{"winner": "w", "loser": "s"}])
+        self.assertEqual(clear["warnings"], [])
+        collide = self._bt([{"winner": "A", "loser": "a"}, {"winner": "a", "loser": " A "},
+                            {"winner": "A", "loser": "a"}])
+        self.assertIn({"code": "candidate_id_collision", "candidates": [" A ", "A", "a"]},
+                      collide["warnings"])
+        self.assertEqual(sum(x["wins"] for x in collide["candidates"]), 3)
+
+    def test_unconnected_ranking_boundary_text(self):
+        self.assertIn("iteration artefacts", build_consensus(
+            {"schema": "trajectory-set-v1", "trajectories": trajectories()})["evidence_boundary"])
 
     def test_bradley_terry_recovers_order_and_ties(self):
         comparisons = ([{"winner": "strong", "loser": "weak"}] * 20 +
