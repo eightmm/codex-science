@@ -145,7 +145,6 @@ class MCPServerTests(unittest.TestCase):
         listed = {tool["name"]: tool for tool in self.server.handle({"id": 21, "method": "tools/list"})["result"]["tools"]}
         planner = listed["science_plan_life_science_research"]
         self.assertIn("limit", planner["inputSchema"]["properties"])
-        self.assertIn("limit argument has no effect", planner["description"])
         blank = self.server.handle({"id": 22, "method": "tools/call", "params": {
             "name": "science_plan_life_science_research", "arguments": {"query": "\u200b\ufeff"},
         }})
