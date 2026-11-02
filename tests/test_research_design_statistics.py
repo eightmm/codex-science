@@ -204,6 +204,102 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, "pair_id.*exactly one unit per group"):
                 run_statistical_analysis(payload)
 
+    def test_text_fields_are_not_coerced(self) -> None:
+        for field, value in (("pair_id", None), ("pair_id", 1), ("pair_id", " ")):
+            payload = self.analysis_input([0, 1, 2], [3, 4, 5], paired=True)
+            payload["data"][0][field] = payload["data"][3][field] = value
+            with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "pair_id is required"):
+                run_statistical_analysis(payload)
+        for value in (1, True, None):
+            payload = self.analysis_input([0, 1], [3, 4])
+            payload["group_labels"] = [str(value), "treatment"]
+            for row in payload["data"][:2]:
+                row["group"] = value
+            with self.subTest(group=value), self.assertRaisesRegex(ValueError, "group is not one of group_labels"):
+                run_statistical_analysis(payload)
+        for value in (None, 1, "", " "):
+            payload = self.independent_input()
+            payload["hypotheses"] = [{"id": value, "p_value": 0.1}]
+            with self.subTest(hypothesis_id=value), self.assertRaisesRegex(ValueError, r"hypotheses\[0\]\.id"):
+                run_statistical_analysis(payload)
+
+    def test_non_object_payload_is_refused_with_a_label(self) -> None:
+        for value in ([], None, "x", 1):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "must be a JSON object"):
+                run_statistical_analysis(value)
+
+    def test_explicit_unit_id_cannot_equal_another_rows_default(self) -> None:
+        for explicit_first in (False, True):
+            payload = self.analysis_input([0, 1, 2], [3, 4, 5])
+            rows = payload["data"]
+            if explicit_first:
+                del rows[1]["unit_id"]
+                rows[0]["unit_id"] = "row-1"
+            else:
+                del rows[0]["unit_id"]
+                rows[1]["unit_id"] = "row-0"
+            with self.subTest(explicit_first=explicit_first), self.assertRaisesRegex(
+                ValueError, r"data\[\d\]\.unit_id 'row-\d' equals the default unit_id of data\[\d\]"
+            ):
+                run_statistical_analysis(payload)
+        payload = self.analysis_input([0, 1, 2], [3, 4, 5])
+        payload["data"][0]["unit_id"] = "row-0"
+        self.assertEqual({"control": 3, "treatment": 3}, run_statistical_analysis(payload)["sample"]["experimental_units"])
+
+    def test_receipt_refuses_counts_and_labels_the_runtime_never_emits(self) -> None:
+        exact = run_statistical_analysis(self.independent_input())
+        monte_carlo = run_statistical_analysis({**self.independent_input(), "data": [
+            {"unit_id": f"{group}{index}", "group": group, "value": float(index)}
+            for group in ("control", "treatment") for index in range(10)
+        ]})
+        self.assertFalse(monte_carlo["test"]["exact"])
+        cases = [
+            (exact, lambda r: r["sample"]["experimental_units"].update(control=0), "experimental_units"),
+            (exact, lambda r: r["sample"]["experimental_units"].update(control=1), "experimental_units"),
+            (exact, lambda r: r["interval"].update(replicates=0), "interval.replicates"),
+            (exact, lambda r: r["interval"].update(replicates=199), "interval.replicates"),
+            (exact, lambda r: r["test"].update(permutations=0, p_value=0.5), "test.permutations"),
+            (exact, lambda r: r.update(status="free text"), "status"),
+            (exact, lambda r: r.update(status="passed"), "status"),
+            (exact, lambda r: r["sample"].update(within_unit_aggregation="mode"), "within_unit_aggregation"),
+            (exact, lambda r: r["sample"].update(within_unit_aggregation=""), "within_unit_aggregation"),
+            (monte_carlo, lambda r: r["test"].update(permutations=199, p_value=1.0), "test.permutations"),
+        ]
+        for receipt, mutate, message in cases:
+            broken = copy.deepcopy(receipt)
+            mutate(broken)
+            broken.pop("fingerprint")
+            broken["fingerprint"] = canonical_sha256(broken)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                validate_statistical_analysis(broken)
+        for receipt in (exact, monte_carlo):
+            validate_statistical_analysis(receipt)
+        edge = copy.deepcopy(exact)
+        edge["interval"]["replicates"] = 200
+        edge["sample"]["experimental_units"] = {"control": 2, "treatment": 2}
+        edge["sample"].pop("within_unit_aggregation")
+        edge.pop("fingerprint")
+        edge["fingerprint"] = canonical_sha256(edge)
+        validate_statistical_analysis(edge)
+
+    def test_cli_refuses_output_replacing_input_or_with_parent_component(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = base / "input.json"
+            text = json.dumps(self.independent_input())
+            source.write_text(text, encoding="utf-8")
+            (base / "sub").mkdir()
+            for output in (source, base / "sub" / ".." / "input.json", base / "sub" / ".." / "out.json"):
+                command = [sys.executable, str(root / "scripts" / "run_statistical_analysis.py"), str(source), "--output", str(output)]
+                with self.subTest(output=str(output.relative_to(base))):
+                    result = subprocess.run(command, capture_output=True, text=True, check=False)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("error:", result.stderr)
+                    self.assertEqual(text, source.read_text(encoding="utf-8"))
+                    self.assertFalse((base / "out.json").exists())
+                    self.assertEqual(["input.json", "sub"], sorted(path.name for path in base.iterdir()))
+
     def test_paired_units_are_aggregated_and_cannot_span_pair_ids(self) -> None:
         for aggregation in ("mean", "median"):
             payload = self.analysis_input([0, 3], [2, 9], paired=True)
@@ -534,11 +630,7 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
                 validate_statistical_analysis(broken)
         for value in (0, 1):
             boundary = copy.deepcopy(receipt)
-            boundary["test"]["p_value"] = value
-            boundary["test"]["permutations"] = value
-            boundary["interval"]["replicates"] = value
-            for field in ("experimental_units", "raw_counts", "missing_counts"):
-                boundary["sample"][field]["control"] = value
+            boundary["sample"]["missing_counts"]["control"] = value
             boundary["sample"]["duplicate_observations_aggregated"] = value
             boundary["sample"]["incomplete_pairs_excluded"] = value
             boundary["multiplicity"]["hypotheses"][0].update(p_value=value, q_value=value)

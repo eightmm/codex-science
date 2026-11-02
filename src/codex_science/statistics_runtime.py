@@ -23,6 +23,7 @@ from codex_science.safe_expression import (
 )
 
 MAX_ROWS = 100_000
+MIN_REPLICATES = 200
 MAX_REPLICATES = 100_000
 MAX_EXACT_PERMUTATIONS = 100_000
 
@@ -211,9 +212,9 @@ def _permutation_paired(
 def benjamini_hochberg(hypotheses: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     parsed: list[tuple[str, float]] = []
     for index, item in enumerate(hypotheses):
-        identifier = str(item.get("id", "")).strip()
-        if not identifier:
-            raise ValueError(f"hypotheses[{index}].id is required")
+        identifier = _required_text(
+            item.get("id"), f"hypotheses[{index}].id", error=f"hypotheses[{index}].id is required and must be a string",
+        )
         p_value = _finite(item.get("p_value"), f"hypotheses[{index}].p_value")
         if not 0 <= p_value <= 1:
             raise ValueError("p-values must be between 0 and 1")
@@ -252,12 +253,16 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
     values_by_unit: dict[tuple[str, str], list[float]] = defaultdict(list)
     units_by_pair: dict[str, dict[str, str]] = defaultdict(dict)
     pair_by_unit: dict[str, str] = {}
+    default_unit_rows: dict[str, int] = {}
+    explicit_unit_rows: dict[str, int] = {}
     missing_by_group = {group_a_label: 0, group_b_label: 0}
     raw_counts = {group_a_label: 0, group_b_label: 0}
     for index, row in enumerate(rows):
         if not isinstance(row, Mapping):
             raise ValueError(f"data[{index}] must be an object")
-        group = str(row.get("group", "")).strip()
+        group = _required_text(
+            row.get("group"), f"data[{index}].group", error=f"data[{index}].group is not one of group_labels",
+        )
         if group not in {group_a_label, group_b_label}:
             raise ValueError(f"data[{index}].group is not one of group_labels")
         raw_counts[group] += 1
@@ -265,10 +270,21 @@ def _prepare_rows(payload: Mapping[str, Any]) -> tuple[str, str, list[float], li
             row.get("unit_id", f"row-{index}"), f"data[{index}].unit_id",
             error=f"data[{index}].unit_id is empty or is not a string",
         )
+        if "unit_id" in row:
+            other = default_unit_rows.get(unit_id)
+            if other is not None and other != index:
+                raise ValueError(f"data[{index}].unit_id {unit_id!r} equals the default unit_id of data[{other}]")
+            explicit_unit_rows.setdefault(unit_id, index)
+        else:
+            default_unit_rows[unit_id] = index
+            other = explicit_unit_rows.get(unit_id)
+            if other is not None:
+                raise ValueError(f"data[{other}].unit_id {unit_id!r} equals the default unit_id of data[{index}]")
         if analysis_type == "paired":
-            pair_id = str(row.get("pair_id", "")).strip()
-            if not pair_id:
-                raise ValueError(f"data[{index}].pair_id is required for paired analysis")
+            pair_id = _required_text(
+                row.get("pair_id"), f"data[{index}].pair_id",
+                error=f"data[{index}].pair_id is required for paired analysis",
+            )
             if unit_id in pair_by_unit and pair_by_unit[unit_id] != pair_id:
                 raise ValueError("unit_id appears under more than one pair_id")
             pair_by_unit[unit_id] = pair_id
@@ -328,6 +344,8 @@ def run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        raise ValueError("statistical-analysis input must be a JSON object")
     if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported statistical-analysis input schema")
     analysis_id = _required_text(payload.get("analysis_id"), "analysis_id", error="analysis_id, claim_id, and design_id are required")
@@ -347,10 +365,10 @@ def _run_statistical_analysis(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("seed must be an explicit integer")
     bootstrap_replicates = _integer(payload.get("bootstrap_replicates", 5000), "bootstrap_replicates")
     permutation_replicates = _integer(payload.get("permutation_replicates", 10_000), "permutation_replicates")
-    if not 200 <= bootstrap_replicates <= MAX_REPLICATES:
-        raise ValueError(f"bootstrap_replicates must be between 200 and {MAX_REPLICATES}")
-    if not 200 <= permutation_replicates <= MAX_REPLICATES:
-        raise ValueError(f"permutation_replicates must be between 200 and {MAX_REPLICATES}")
+    if not MIN_REPLICATES <= bootstrap_replicates <= MAX_REPLICATES:
+        raise ValueError(f"bootstrap_replicates must be between {MIN_REPLICATES} and {MAX_REPLICATES}")
+    if not MIN_REPLICATES <= permutation_replicates <= MAX_REPLICATES:
+        raise ValueError(f"permutation_replicates must be between {MIN_REPLICATES} and {MAX_REPLICATES}")
     group_a_label, group_b_label, values_a, values_b, sample_summary, differences = _prepare_rows(payload)
     randomizer = random.Random(seed)
     analysis_type = str(payload.get("analysis_type", "independent"))
@@ -451,6 +469,8 @@ def validate_statistical_analysis(payload: Mapping[str, Any]) -> None:
         raise ValueError("unsupported statistical-analysis receipt schema")
     for field in ("analysis_id", "claim_id", "design_id", "analysis_type", "estimand", "contrast", "status"):
         _required_text(payload.get(field), field)
+    if payload["status"] != "completed":
+        raise ValueError("status must be completed")
     effect = payload.get("effect")
     interval = payload.get("interval")
     test = payload.get("test")
@@ -534,29 +554,41 @@ def _validate_statistical_consistency(payload: Mapping[str, Any]) -> None:
             raise ValueError(f"sample.missing_counts.{group} exceeds sample.raw_counts.{group}")
         if units[group] > raw[group]:
             raise ValueError(f"sample.experimental_units.{group} exceeds sample.raw_counts.{group}")
+        if units[group] < 2:
+            raise ValueError(f"sample.experimental_units.{group} must be at least 2")
     if analysis_type == "paired" and units[first] != units[second]:
         raise ValueError("paired analysis requires equal experimental_units per group")
     if interval.get("method") != "deterministic-percentile-bootstrap":
         raise ValueError("interval.method must be deterministic-percentile-bootstrap")
     if interval["replicates"] > MAX_REPLICATES:
         raise ValueError(f"interval.replicates exceeds {MAX_REPLICATES}")
+    if interval["replicates"] < MIN_REPLICATES:
+        raise ValueError(f"interval.replicates is below the runtime minimum of {MIN_REPLICATES}")
+    if "within_unit_aggregation" in sample and sample["within_unit_aggregation"] not in {"mean", "median"}:
+        raise ValueError("sample.within_unit_aggregation must be mean or median")
     exact = test.get("exact")
     if not isinstance(exact, bool):
         raise ValueError("test.exact must be a boolean")
     if test.get("method") != ("exact-randomization" if exact else "monte-carlo-randomization"):
         raise ValueError("test.method does not match test.exact")
     permutations, p_value = test["permutations"], float(test["p_value"])
+    # The smallest exact state space is 2 ** 2 sign flips (paired) or C(4, 2) splits.
     if permutations > (MAX_EXACT_PERMUTATIONS if exact else MAX_REPLICATES):
         raise ValueError("test.permutations exceeds the randomization limit")
+    smallest = 4 if exact else MIN_REPLICATES
+    if permutations < smallest:
+        raise ValueError(f"test.permutations is below the runtime minimum of {smallest}")
     # Exact p = extreme/total; Monte Carlo p = (extreme + 1)/(total + 1).
     denominator = permutations if exact else permutations + 1
     count = p_value * denominator
-    if denominator and (abs(count - round(count)) > 1e-6 or round(count) < 1):
+    if abs(count - round(count)) > 1e-6 or round(count) < 1:
         raise ValueError("p_value is not a randomization count over test.permutations")
     hypotheses = payload["multiplicity"]["hypotheses"]
     if hypotheses:
+        if any(not isinstance(item.get("id"), str) for item in hypotheses):
+            raise ValueError("multiplicity.hypotheses q_value does not match Benjamini-Hochberg adjustment")
         recomputed = benjamini_hochberg([{"id": item.get("id"), "p_value": item.get("p_value")} for item in hypotheses])
-        if any(not isinstance(item.get("id"), str) for item in hypotheses) or recomputed != [dict(item) for item in hypotheses]:
+        if recomputed != [dict(item) for item in hypotheses]:
             raise ValueError("multiplicity.hypotheses q_value does not match Benjamini-Hochberg adjustment")
 
 
@@ -578,6 +610,4 @@ def review_statistical_analysis(payload: Mapping[str, Any]) -> list[dict[str, st
         findings.append({"code": "multiplicity-uncontrolled", "severity": "major", "message": "Multiple hypotheses lack adjusted q-values."})
     if int(sample.get("duplicate_observations_aggregated", 0)) > 0 and not str(sample.get("within_unit_aggregation", "")):
         findings.append({"code": "experimental-unit-aggregation-missing", "severity": "critical", "message": "Repeated observations were not reduced to declared experimental units."})
-    if payload.get("status") == "passed":
-        findings.append({"code": "statistical-significance-presented-as-review-pass", "severity": "major", "message": "A statistical computation receipt must not use passed as a scientific conclusion status."})
     return findings
