@@ -493,7 +493,8 @@ class DiagnoseTest(unittest.TestCase):
                     "sed " * (size // 4) + "manifest.json", "sed manifest.json" + " -i" * (size // 3),
                     "tee " * (size // 4) + "manifest.json", "open(" + "manifest.json" * (size // 13),
                     "cat <<A\n" * (size // 8), "<<'" * (size // 3), 'bash -c "' * (size // 9),
-                    wrap("x <<'P'\n" * (size // 8))]
+                    wrap("x <<'P'\n" * (size // 8)),
+                    "".join(f"cat plugins/cache/m{n}/codex-science/1/src/a.py; " for n in range(size // 48))]
         start = time.monotonic()
         result = self.run_events([cmd(f"i{n}", text, 1) for n, text in enumerate(commands)])
         self.assertLess(time.monotonic() - start, 30)
@@ -522,6 +523,14 @@ class DiagnoseTest(unittest.TestCase):
             self.assertEqual(_strip_heredocs(text), text, first)
         self.assertEqual(_strip_heredocs(wrap("cat <<EOF\nscripts/x.py\nEOF\nls")), wrap("cat <<EOF\nls"))
 
+    def test_plugin_source_scan_is_one_pass_over_many_marketplaces(self):
+        text = "".join(f"cat plugins/cache/m{n}/codex-science/1/src/a.py; " for n in range(20_000))
+        start = time.monotonic()
+        paths = eval_trace_diagnosis._plugin_source_paths(text)
+        self.assertLess(time.monotonic() - start, 3)  # one pattern per marketplace took about 12 s here
+        self.assertEqual(len(paths), 20_000)
+        self.assertEqual(paths[:2], ["plugins/cache/m0/codex-science/1/src/a.py", "plugins/cache/m1/codex-science/1/src/a.py"])
+
     def test_heredocs_inside_a_shell_c_argument_are_dropped(self):
         # the terminator is usually glued to the closing quote; the quote stays
         self.assertEqual(_strip_heredocs(wrap("python3 - <<'PY'\nopen('scripts/x.py')\nPY")), wrap("python3 - <<'PY'"))
@@ -532,6 +541,9 @@ class DiagnoseTest(unittest.TestCase):
         self.assertEqual(shlex.split(_strip_heredocs(spanning)), ["/bin/bash", "-lc", "cat <<'EOF'\nls"])
         text = wrap("python3 - <<'PY'\nimport x\nopen('/p/scripts/foo.py').read()\nPY\ncat /a/b.txt")
         self.assertEqual(_strip_heredocs(text), wrap("python3 - <<'PY'\ncat /a/b.txt"))
+        # behind a wrapper word the -c argument is not decoded, so its heredoc body stays (documented limit)
+        wrapped = "timeout 60 " + wrap("python3 - <<'PY'\nscripts/x.py\nPY")
+        self.assertEqual(_strip_heredocs(wrapped), wrapped)
         result = self.run_events([cmd(f"c{n}", text, 1) for n in range(3)])
         self.assertEqual(result["failed_tool_use"]["other"]["count"], 3)
         self.assertEqual(result["repeated_exploration"]["file_reads"]["examples"], [{"path": "/a/b.txt", "count": 3}])

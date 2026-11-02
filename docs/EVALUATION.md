@@ -1266,7 +1266,8 @@ first). Items are keyed on `(type, id)` with the id's JSON type, so `1` and `"1"
 and a file change sharing an id stay separate; an item without an id is merged with its
 `item.started` only when the two lines are adjacent and carry the same non-empty command.
 Heredoc bodies are dropped, also inside the shell code a `bash`/`sh`/`zsh`/`dash` `-c` argument
-quotes (Codex records commands as `/bin/bash -lc "..."`), but `<<<`, `<<` quoted in an ordinary
+quotes when that shell is the command word (Codex records commands as `/bin/bash -lc "..."`; behind
+`timeout`, `env` or a variable assignment the argument is not decoded and its heredoc body is kept), but `<<<`, `<<` quoted in an ordinary
 argument or inside `((...))` and a delimiter that never terminates are not heredocs. `--output`
 is refused (exit 2) when it resolves, through symlinks or hard links, to `events.jsonl`,
 `receipt.json` or `last.md`, or through symlinks to a `project/` `manifest.json`; write failures

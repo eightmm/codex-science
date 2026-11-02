@@ -15,7 +15,7 @@ import stat
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from .literature_evaluation_runner import _ANY_PLUGIN_CACHE_PATH, _plugin_cache_patterns
+from .literature_evaluation_runner import _ANY_PLUGIN_CACHE_PATH
 
 SCHEMA_VERSION = 1
 MAX_EXAMPLES = 5
@@ -458,14 +458,19 @@ def _read_paths(command: str, cut: bool = False) -> list[str]:
     return paths
 
 
+_PLUGIN_SOURCE_RE = re.compile(_ANY_PLUGIN_CACHE_PATH.pattern + _SOURCE_TAIL)
+
+
 def _plugin_source_paths(text: str) -> list[str]:
-    """Plugin-cache scripts/ or src/ paths named in `text`."""
-    found: list[str] = []
-    for marketplace in sorted({m.group("marketplace") for m in _ANY_PLUGIN_CACHE_PATH.finditer(text)}):
-        version_re, _ = _plugin_cache_patterns(f"codex-science@{marketplace}")
-        pattern = re.compile(version_re.pattern + _SOURCE_TAIL)
-        found.extend(m.group(0) for m in pattern.finditer(text))
-    return found
+    """Distinct plugin-cache scripts/ or src/ paths named in `text`, grouped by marketplace.
+
+    One pass over `text`: a pattern per named marketplace made the scan quadratic.
+    """
+    matches = sorted(
+        ((m.group("marketplace"), m.group(0)) for m in _PLUGIN_SOURCE_RE.finditer(text)),
+        key=lambda pair: pair[0],
+    )
+    return list(dict.fromkeys(path for _, path in matches))
 
 
 def _is_help(command: str) -> bool:
