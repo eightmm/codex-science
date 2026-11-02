@@ -435,7 +435,12 @@ def write_inventory(inventory: dict[str, Any], path: Path) -> None:
 
 
 def load_inventory(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except RecursionError as error:
+        raise ValueError(f"Inventory is too deeply nested: {path}") from error
+    except ValueError as error:
+        raise ValueError(f"Inventory is not valid UTF-8 JSON: {path}: {error}") from error
     if not isinstance(payload, dict):
         raise ValueError(f"Inventory must be an object: {path}")
     version = payload.get("schema_version")

@@ -423,6 +423,66 @@ class ModelRegistryTests(unittest.TestCase):
                 for candidate in (path, Path(directory)):
                     assert_refused(self, "validate_models.py", [option, candidate], 1)
 
+    def test_receipt_model_ids_compare_and_review_through_registry_normalization(self) -> None:
+        arguments = dict(
+            code_revision="c", weight_revision="w", database_revisions={},
+            configuration_sha256="a" * 64, input_sha256="b" * 64,
+        )
+        for raw_id in (7, " autodock-vina "):
+            model = dict(copy.deepcopy(self.models["autodock-vina"]), id=raw_id)
+            with self.subTest(model_id=raw_id):
+                validate_model_receipt(build_model_receipt(model, **arguments), model)
+        receipt = build_model_receipt(self.models["autodock-vina"], **arguments)
+        receipt["model_id"] = " autodock-vina "
+        receipt["fingerprint"] = model_module._canonical_sha256(model_module._receipt_material(receipt))
+        validate_model_receipt(receipt, self.models["autodock-vina"])
+        self.assertEqual([], review_model_receipt(receipt))
+        receipt["model_id"] = "diffdock"
+        receipt["fingerprint"] = model_module._canonical_sha256(model_module._receipt_material(receipt))
+        with self.assertRaisesRegex(ValueError, "wrong registry model"):
+            validate_model_receipt(receipt, self.models["autodock-vina"])
+
+    def test_receipt_database_revisions_are_stripped_like_code_revision(self) -> None:
+        model = self.models["autodock-vina"]
+        arguments = dict(
+            code_revision=" c ", weight_revision="w",
+            configuration_sha256="a" * 64, input_sha256="b" * 64,
+        )
+        padded = build_model_receipt(model, database_revisions={"db": " v1 "}, **arguments)
+        plain = build_model_receipt(model, database_revisions={"db": "v1"}, **arguments)
+        self.assertEqual({"db": "v1"}, padded["database_revisions"])
+        self.assertEqual("c", padded["code_revision"])
+        self.assertEqual(plain["fingerprint"], padded["fingerprint"])
+
+    def test_receipt_schema_version_must_be_integer_one(self) -> None:
+        receipt = build_model_receipt(
+            self.models["autodock-vina"], code_revision="c", weight_revision="w",
+            database_revisions={}, configuration_sha256="a" * 64, input_sha256="b" * 64,
+        )
+        validate_model_receipt(receipt)
+        for value in (True, 1.0, "1", None, 0, 2):
+            with self.subTest(schema_version=value), self.assertRaisesRegex(ValueError, "schema version"):
+                validate_model_receipt(dict(receipt, schema_version=value))
+
+    def test_registry_text_errors_keep_the_original_reason(self) -> None:
+        for value, reason in ((True, "must be finite scalar text"), (" ", "must be a non-empty string")):
+            registry = copy.deepcopy(self.registry)
+            registry["models"][0]["id"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, f"model record 0 id {reason}"):
+                validate_registry(registry)
+
+    def test_registry_loader_names_path_for_undecodable_or_deep_json(self) -> None:
+        from loader_cases import assert_refused
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            for contents, message in ((b"[" * 100000, "too deeply nested"), (b"\xff", "UTF-8"), (b"{", "JSON")):
+                path.write_bytes(contents)
+                with self.subTest(contents=contents[:4]):
+                    with self.assertRaisesRegex(ValueError, message) as caught:
+                        load_registry(path)
+                    self.assertIn(str(path), str(caught.exception))
+                    assert_refused(self, "validate_models.py", ["--registry", path], 1)
+
     def test_registry_required_text_and_schema_are_typed(self) -> None:
         for value in (None, True, [], {}, float("nan"), float("inf"), "", " ", "\ud800"):
             for field in ("registry_revision", "id", "skill"):

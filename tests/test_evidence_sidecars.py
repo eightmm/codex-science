@@ -1089,6 +1089,117 @@ class EvidenceSidecarTests(unittest.TestCase):
             sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
             self.assertNotIn("protocol_commitment_context", sidecars)
 
+    def _ledger_error(self, run_dir, manifest, procedure, ledger_update=None, report=None):
+        if report is not None:
+            (run_dir / "report.md").write_bytes(report if isinstance(report, bytes) else report.encode("utf-8"))
+            self._rehash(manifest, run_dir, "report.md")
+        ledger = {"schema_version": 1, "procedures": [procedure], **(ledger_update or {})}
+        self._write_ledger(manifest, run_dir, ledger)
+        try:
+            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+        except ValueError as exc:
+            return str(exc)
+        return None
+
+    def _deviation_procedure(self, **deviation):
+        procedure = self._ledger_procedure()
+        procedure.update(completed=[], completed_count=0, deviation={"reason": "Source access was limited.", **deviation})
+        return procedure
+
+    def test_commitment_ledger_study_block_names_remedy(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            self._write_screening(manifest, run_dir, [{"record_id": "R1", "decision": "include"}])
+            message = self._ledger_error(run_dir, manifest, self._ledger_procedure())
+            self.assertIn("record-unit target_set", message)
+            self.assertIn("extract every included record", message)
+
+    def test_commitment_ledger_limitation_ignores_hidden_report_text(self):
+        limitation = "Backward reference screening covered 0 of 1 included studies."
+        hidden = (f"<!-- {limitation} -->", f"<!--\n{limitation}\n-->", f"```\n{limitation}\n```",
+                  f"~~~text\n{limitation}\n~~~", f"```\n{limitation}\n", f"<!-- {limitation}")
+        visible = (f"A <!-- note --> {limitation}", f"```\ncode\n```\n{limitation}", f"~~~\nx\n~~~\n\n{limitation}")
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._deviation_procedure(
+                affected_claims=[{"claim_id": "claim-method-effect", "limitation": limitation}])
+            for report in hidden:
+                with self.subTest(report=report):
+                    self.assertIn("does not appear in report.md", self._ledger_error(run_dir, manifest, procedure, report=report + "\n"))
+            for report in visible:
+                with self.subTest(report=report):
+                    self.assertIsNone(self._ledger_error(run_dir, manifest, procedure, report=report + "\n"))
+
+    def test_commitment_ledger_limitation_matches_after_nfc_normalisation(self):
+        composed, decomposed = "Caf\u00e9 records covered 0 of 1", "Cafe\u0301 records covered 0 of 1"
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            for limitation, report in ((composed, decomposed), (decomposed, composed)):
+                with self.subTest(limitation=limitation):
+                    procedure = self._deviation_procedure(
+                        affected_claims=[{"claim_id": "claim-method-effect", "limitation": limitation}])
+                    self.assertIsNone(self._ledger_error(run_dir, manifest, procedure, report=report + "\n"))
+
+    def test_commitment_ledger_rejects_non_one_schema_version_and_bad_shapes(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            for version in (True, 1.0, "1", None):
+                with self.subTest(version=version):
+                    self.assertIn("schema_version", self._ledger_error(
+                        run_dir, manifest, self._ledger_procedure(), {"schema_version": version}))
+            for value in ({"claim_id": "claim-method-effect"}, "claim-method-effect"):
+                with self.subTest(affected_claims=value):
+                    procedure = self._deviation_procedure(affected_claims=value, no_claim_impact_reason="No claim depends on it.")
+                    self.assertIn("deviation.affected_claims must be a list", self._ledger_error(run_dir, manifest, procedure))
+            procedure = self._deviation_procedure(affected_claims=None, no_claim_impact_reason="No claim depends on it.")
+            self.assertIsNone(self._ledger_error(run_dir, manifest, procedure))
+
+    def test_commitment_ledger_errors_bound_ids_and_use_set_membership(self):
+        huge = "x" * 200_000
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            cases = []
+            procedure = self._ledger_procedure()
+            procedure["completed"] = [{"target_id": huge + "\nline", "evidence_artifact": "studies.json"}]
+            cases.append(procedure)
+            procedure = self._ledger_procedure()
+            procedure["id"] = huge
+            procedure["target_ids"] = ["wrong\n" + huge]
+            cases.append(procedure)
+            cases.append(self._deviation_procedure(
+                affected_claims=[{"claim_id": huge, "limitation": "A limitation sentence"}]))
+            procedure = self._ledger_procedure()
+            procedure["completed"][0]["evidence_artifact"] = huge
+            cases.append(procedure)
+            for procedure in cases:
+                message = self._ledger_error(run_dir, manifest, procedure)
+                self.assertIsNotNone(message)
+                self.assertLess(len(message), 2000)
+                self.assertNotIn("\n", message)
+
+    def test_commitment_ledger_wraps_non_utf8_report(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._deviation_procedure(
+                affected_claims=[{"claim_id": "claim-method-effect", "limitation": "A limitation sentence"}])
+            message = self._ledger_error(run_dir, manifest, procedure, report=b"\xff\xfe not utf-8\n")
+            self.assertIn("test-procedure", message)
+            self.assertIn("report.md is not valid UTF-8", message)
+
+    def test_commitment_ledger_target_set_extras_must_be_scalar(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            for value in ({"a": {"b": 1}}, ["x"], {}, []):
+                with self.subTest(value=value):
+                    procedure = self._ledger_procedure()
+                    procedure["target_set"]["note"] = value
+                    self.assertIn("target_set.note must be a scalar", self._ledger_error(run_dir, manifest, procedure))
+            for value in ("text", 3, True, None):
+                with self.subTest(value=value):
+                    procedure = self._ledger_procedure()
+                    procedure["target_set"]["note"] = value
+                    self.assertIsNone(self._ledger_error(run_dir, manifest, procedure))
+
     def test_commitment_ledger_study_membership_requires_explicit_true(self):
         studies = [{"study_id": "included", "included": True}, {"study_id": "missing"}]
         studies.extend({"study_id": str(index), "included": value}

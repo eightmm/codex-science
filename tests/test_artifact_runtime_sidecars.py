@@ -502,5 +502,18 @@ class ArtifactRuntimeSidecarTests(unittest.TestCase):
                     validate_advanced_sidecars({"artifacts": [{"kind": "artifact-selection", "sha256": "0" * 64, **fields}]},
                                               Path(scratch), {})
 
+    def test_transform_proposal_errors_are_labelled_with_their_path(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            first, second = Path(scratch) / "empty.proposal.json", Path(scratch) / "partial.proposal.json"
+            first.write_text("{}", encoding="utf-8")
+            second.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+            manifest = {"artifacts": [{"path": path.name, "kind": "transform-proposal", "sha256": "0" * 64}
+                                      for path in (first, second)]}
+            with self.assertRaisesRegex(ValueError, r"^empty\.proposal\.json \(transform-proposal\): unsupported"):
+                validate_advanced_sidecars(manifest, Path(scratch), {path.name: path for path in (first, second)})
+            manifest["artifacts"].reverse()
+            with self.assertRaisesRegex(ValueError, r"^partial\.proposal\.json \(transform-proposal\): "):
+                validate_advanced_sidecars(manifest, Path(scratch), {path.name: path for path in (first, second)})
+
 if __name__ == "__main__":
     unittest.main()

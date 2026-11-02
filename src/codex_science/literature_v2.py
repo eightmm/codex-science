@@ -176,9 +176,10 @@ def validate_risk_of_bias(payload: dict[str, Any]) -> None:
     for index, domain in enumerate(domains):
         if not isinstance(domain, dict) or not isinstance(domain.get("name"), str) or not domain["name"].strip():
             raise ValueError(f"risk-of-bias domain {index} is invalid")
-        if domain.get("judgment") not in ROB_JUDGMENTS:
+        if not isinstance(domain.get("judgment"), str) or domain["judgment"] not in ROB_JUDGMENTS:
             raise ValueError(f"risk-of-bias domain {index} has invalid judgment")
         if not isinstance(domain.get("rationale"), str) or not domain["rationale"].strip():
             raise ValueError(f"risk-of-bias domain {index} needs rationale")
-    if payload.get("overall_judgment") not in ROB_JUDGMENTS:
+    overall = payload.get("overall_judgment")
+    if not isinstance(overall, str) or overall not in ROB_JUDGMENTS:
         raise ValueError("invalid overall risk-of-bias judgment")

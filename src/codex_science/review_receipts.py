@@ -9,6 +9,7 @@ REVIEW_MODES = {"record", "source", "method", "reproduction"}
 REVIEW_STATUSES = {"passed", "findings", "blocked", "superseded"}
 SEVERITIES = {"critical", "major", "minor", "suggestion"}
 RESOLUTION_STATUSES = {"open", "resolved", "accepted-risk", "not-applicable"}
+RESOLVED_STATUSES = frozenset({"resolved", "not-applicable"})
 
 
 def _text(value: Any, label: str) -> str:
@@ -153,8 +154,7 @@ def review_receipt_findings(
         findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} covers a different model registry."})
     if payload.get("status") == "passed" and any(
         str(item.get("severity", "")).strip() in {"critical", "major"}
-        and item.get("resolution_status", "open")
-        not in {"resolved", "not-applicable"}
+        and item.get("resolution_status", "open") not in RESOLVED_STATUSES
         for item in payload.get("findings", [])
     ):
         findings.append({"code": "unsafe-review-pass", "severity": "critical", "message": f"Review receipt {payload['review_id']} is passed with unresolved blocking findings."})

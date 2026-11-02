@@ -23,10 +23,7 @@ REVISION_POLICIES = {"pin-required", "not-applicable"}
 
 
 def _text(value: Any, label: str) -> str:
-    try:
-        return _required_text(value, label).strip()
-    except ValueError as error:
-        raise ValueError(f"{label} is required") from error
+    return _required_text(value, label).strip()
 
 
 def _mapping(value: Any, label: str) -> dict[str, Any]:
@@ -43,10 +40,12 @@ def _revision(value: Any, label: str) -> str:
 
 def _revision_mapping(value: Any) -> dict[str, str]:
     revisions = _mapping(value, "database_revisions")
-    for name, revision in revisions.items():
+    for name in revisions:
         _text(name, "database revision name")
-        _revision(revision, f"database revision {name}")
-    return revisions
+    return {
+        name: _revision(revision, f"database revision {name}")
+        for name, revision in revisions.items()
+    }
 
 
 def _list(value: Any, label: str) -> list[Any]:
@@ -129,7 +128,12 @@ def validate_registry(registry: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def load_registry(path: Path | None = None) -> dict[str, Any]:
     registry_path = path or default_registry_path()
-    payload = json.loads(registry_path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(registry_path.read_text(encoding="utf-8"))
+    except RecursionError as error:
+        raise ValueError(f"Model registry is too deeply nested: {registry_path}") from error
+    except ValueError as error:
+        raise ValueError(f"Model registry is not valid UTF-8 JSON: {registry_path}: {error}") from error
     validate_registry(payload)
     return payload
 
@@ -184,7 +188,7 @@ def validate_model_receipt(
 ) -> None:
     if not isinstance(receipt, dict):
         raise ValueError("Model receipt must be an object")
-    if receipt.get("schema_version") != 1:
+    if type(receipt.get("schema_version")) is not int or receipt.get("schema_version") != 1:
         raise ValueError("Unsupported model receipt schema version")
     _text(receipt.get("model_id"), "model receipt model_id")
     contract_revision = receipt.get("registry_contract_revision")
@@ -204,7 +208,8 @@ def validate_model_receipt(
     if expected != str(receipt["fingerprint"]).lower():
         raise ValueError("Model receipt fingerprint mismatch")
     if model is not None:
-        if receipt["model_id"] != model["id"]:
+        receipt_model_id = _text(receipt["model_id"], "model receipt model_id")
+        if receipt_model_id != _text(model.get("id"), "model id"):
             raise ValueError("Model receipt references the wrong registry model")
         if receipt["registry_contract_revision"] != model["contract_revision"]:
             raise ValueError("Model receipt contract revision is stale")
@@ -236,7 +241,7 @@ def review_model_receipt(receipt: dict[str, Any]) -> list[dict[str, str]]:
 
     registry = load_registry(path)
     models = validate_registry(registry)
-    model = models.get(str(receipt["model_id"]))
+    model = models.get(_text(receipt["model_id"], "model receipt model_id"))
     if model is None:
         findings.append(
             {

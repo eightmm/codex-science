@@ -25,6 +25,10 @@ def _invalid(label: str, value: Any, allowed: set[str]) -> ValueError:
     return ValueError(f"{label} is invalid: {value!r} (expected one of: {', '.join(sorted(allowed))})")
 
 
+def _member(value: Any, allowed: set[str]) -> bool:
+    return isinstance(value, str) and value in allowed
+
+
 def _object(value: Any, field: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{field} must be an object")
@@ -35,12 +39,14 @@ def _id_list(value: Any, field: str, available: set[str]) -> list[str]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"{field} must be a non-empty list")
     identifiers: list[str] = []
+    seen: set[str] = set()
     for item in value:
         identifier = _text(item, f"{field} item")
-        if identifier in identifiers:
+        if identifier in seen:
             raise ValueError(f"duplicate {field} id: {identifier}")
         if identifier not in available:
             raise ValueError(f"{field} references unknown id: {identifier}")
+        seen.add(identifier)
         identifiers.append(identifier)
     return identifiers
 
@@ -63,9 +69,9 @@ def _assumptions(problem: Mapping[str, Any], root: Path | None) -> set[str]:
             raise ValueError(f"duplicate problem assumption id: {identifier}")
         identifiers.add(identifier)
         _text(item.get("statement"), "problem assumption statement")
-        if item.get("category") not in ASSUMPTION_CATEGORIES:
+        if not _member(item.get("category"), ASSUMPTION_CATEGORIES):
             raise _invalid("problem assumption category", item.get("category"), ASSUMPTION_CATEGORIES)
-        if item.get("status") not in ASSUMPTION_STATUSES:
+        if not _member(item.get("status"), ASSUMPTION_STATUSES):
             raise _invalid("problem assumption status", item.get("status"), ASSUMPTION_STATUSES)
         if item.get("status") == "tested" and "evidence_refs" not in item:
             raise ValueError("tested problem assumption requires evidence_refs")
@@ -100,7 +106,7 @@ def _method_design(
         _id_list(design["hypothesis_ids"], "method design hypothesis_ids", hypotheses)
     if "assumption_ids" in design:
         _id_list(design["assumption_ids"], "method design assumption_ids", assumptions)
-    if "operator" in design and design["operator"] not in OPERATORS:
+    if "operator" in design and not _member(design["operator"], OPERATORS):
         raise _invalid("method design operator", design["operator"], OPERATORS)
     for key in ("inputs", "outputs", "computation", "complexity", "applicability", "predictions", "baseline_difference"):
         if key in design:

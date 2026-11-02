@@ -1155,6 +1155,16 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                 validate_risk_of_bias(payload)
                 self.assertEqual(original, payload)
 
+    def test_risk_of_bias_judgments_must_be_known_strings(self) -> None:
+        for field in ("judgment", "overall_judgment"):
+            for value in (None, 0, [], {}, ["low"], {"low": 1}, "LOW", ""):
+                with self.subTest(field=field, value=value):
+                    payload = self.risk_of_bias_payload()
+                    target = payload if field == "overall_judgment" else payload["domains"][0]
+                    target[field] = value
+                    with self.assertRaisesRegex(ValueError, "invalid.*judgment|judgment.*invalid"):
+                        validate_risk_of_bias(payload)
+
     def test_risk_of_bias_cli_rejects_null_required_fields(self) -> None:
         from codex_science.artifacts import add_artifact, new_manifest
 

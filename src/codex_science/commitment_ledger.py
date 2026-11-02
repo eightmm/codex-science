@@ -1,6 +1,8 @@
 """Optional protocol commitment ledger validation (v1)."""
 from __future__ import annotations
 
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +70,8 @@ def validate_ledger(
     """Check closure using validated payloads bound to their verified artifact paths."""
     context_procedures: list[dict[str, Any]] = []
 
-    if ledger.get("schema_version") != 1:
+    version = ledger.get("schema_version")
+    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
         raise ValueError(
             f"commitment_ledger schema_version must be 1: expected: 1; actual: {_bounded_repr(ledger.get('schema_version'))}"
         )
@@ -86,12 +89,13 @@ def validate_ledger(
     for index, procedure in enumerate(procedures):
         if not isinstance(procedure, dict):
             raise ValueError(f"procedure index {index}: must be an object; actual: {type(procedure).__name__}")
-        label = f"procedure {procedure.get('id', f'index {index}')}"
+        raw_id = procedure.get("id", f"index {index}")
+        label = f"procedure {_bounded_repr(raw_id)[1:-1] if isinstance(raw_id, str) else _bounded_repr(raw_id)}"
         proc_id = procedure.get("id") if isinstance(procedure.get("id"), str) and procedure.get("id", "").strip() else None
         if proc_id is None:
             raise ValueError(f"{label}: id must be a non-empty string; expected: non-empty string; actual: {_bounded_repr(procedure.get('id'))}")
         if proc_id in procedure_ids:
-            raise ValueError(f"{label}: duplicate procedure id: {proc_id}; expected: unique; actual: duplicate of {proc_id}")
+            raise ValueError(f"{label}: duplicate procedure id; expected: unique; actual: duplicate of {_bounded_repr(proc_id)}")
         procedure_ids.add(proc_id)
 
         target_set = procedure.get("target_set")
@@ -107,8 +111,15 @@ def validate_ledger(
             or (unit, source, selection) not in SUPPORTED_TARGET_SETS
         ):
             raise ValueError(
-                f"{label}: unsupported target_set; expected: one of {sorted({str(s) for s in SUPPORTED_TARGET_SETS})}; actual: (unit={unit}, source_artifact={source}, selection={selection}); {_supported_target_set_message()}"
+                f"{label}: unsupported target_set; expected: one of {sorted({str(s) for s in SUPPORTED_TARGET_SETS})}; actual: (unit={_bounded_repr(unit)}, source_artifact={_bounded_repr(source)}, selection={_bounded_repr(selection)}); {_supported_target_set_message()}"
             )
+
+        for extra_key, extra_value in target_set.items():
+            if isinstance(extra_value, (dict, list)):
+                raise ValueError(
+                    f"{label}: target_set.{_bounded_repr(extra_key)[1:-1]} must be a scalar; expected: string, number, boolean or null; "
+                    f"actual: {type(extra_value).__name__}; field: target_set"
+                )
 
         target_ids_raw = procedure.get("target_ids")
         denominator_raw = procedure.get("denominator")
@@ -143,13 +154,14 @@ def validate_ledger(
             unextracted = sorted(included_screen_ids - extracted_ids)
             if unextracted:
                 raise ValueError(
-                    f"{label}: study denominator blocked by unextracted included records in screening.json: {unextracted}; "
-                    "expected: all included screening records extracted in studies.json; field: denominator"
+                    f"{label}: study denominator blocked by unextracted included records in screening.json: {_bounded_repr(unextracted)}; "
+                    "expected: all included screening records extracted in studies.json; "
+                    "remedy: use a record-unit target_set, or extract every included record in studies.json; field: denominator"
                 )
 
         if sorted(target_ids) != sorted(resolved_ids):
             raise ValueError(
-                f"{label}: target_ids does not match resolved membership from source_artifact; expected: {sorted(resolved_ids)}; actual: {sorted(target_ids)}; field: target_ids"
+                f"{label}: target_ids does not match resolved membership from source_artifact; expected: {_bounded_repr(sorted(resolved_ids))}; actual: {_bounded_repr(sorted(target_ids))}; field: target_ids"
             )
 
         if isinstance(denominator_raw, bool):
@@ -175,6 +187,7 @@ def validate_ledger(
             )
         completed_items = []
         completed_target_ids = set()
+        target_id_set = set(target_ids)
         for c_index, c_item in enumerate(completed_raw):
             c_label = f"{label} completed[{c_index}]"
             if not isinstance(c_item, dict):
@@ -184,13 +197,13 @@ def validate_ledger(
             if not isinstance(target_id, str) or not target_id.strip():
                 raise ValueError(f"{c_label}: target_id must be a non-empty string; expected: non-empty string; actual: {_bounded_repr(target_id)}")
             target_id = target_id.strip()
-            if target_id not in target_ids:
+            if target_id not in target_id_set:
                 raise ValueError(
-                    f"{c_label}: target_id is not a member of target_ids; expected: one of {sorted(target_ids)}; actual: {target_id}; field: completed[].target_id"
+                    f"{c_label}: target_id is not a member of target_ids; expected: one of {_bounded_repr(sorted(target_ids))}; actual: {_bounded_repr(target_id)}; field: completed[].target_id"
                 )
             if target_id in completed_target_ids:
                 raise ValueError(
-                    f"{c_label}: duplicate target_id in completed; expected: unique; actual: duplicate of {target_id}"
+                    f"{c_label}: duplicate target_id in completed; expected: unique; actual: duplicate of {_bounded_repr(target_id)}"
                 )
             completed_target_ids.add(target_id)
             if not isinstance(evidence_artifact, str) or not evidence_artifact.strip():
@@ -199,11 +212,11 @@ def validate_ledger(
                 )
             if evidence_artifact not in artifact_paths:
                 raise ValueError(
-                    f"{c_label}: evidence_artifact is not a registered, hash-verified artifact path; expected: one of {sorted(artifact_paths)}; actual: {evidence_artifact}; field: completed[].evidence_artifact"
+                    f"{c_label}: evidence_artifact is not a registered, hash-verified artifact path; expected: one of {_bounded_repr(sorted(artifact_paths))}; actual: {_bounded_repr(evidence_artifact)}; field: completed[].evidence_artifact"
                 )
             if evidence_artifact == protocol_artifact:
                 raise ValueError(
-                    f"{c_label}: evidence_artifact must not be the declaring protocol artifact {protocol_artifact}; expected: an artifact other than the protocol that declares this ledger; actual: {evidence_artifact}; field: completed[].evidence_artifact"
+                    f"{c_label}: evidence_artifact must not be the declaring protocol artifact {_bounded_repr(protocol_artifact)[1:-1]}; expected: an artifact other than the protocol that declares this ledger; actual: {_bounded_repr(evidence_artifact)}; field: completed[].evidence_artifact"
                 )
             completed_items.append({"target_id": target_id, "evidence_artifact": evidence_artifact})
 
@@ -225,7 +238,7 @@ def validate_ledger(
         deviation = procedure.get("deviation")
         if completed_count < denominator and deviation is None:
             raise ValueError(
-                f"{label}: deviation is required when completed_count < denominator; missing target ids: {sorted(set(target_ids) - completed_target_ids)}; expected: non-empty deviation object; actual: missing; field: deviation"
+                f"{label}: deviation is required when completed_count < denominator; missing target ids: {_bounded_repr(sorted(target_id_set - completed_target_ids))}; expected: non-empty deviation object; actual: missing; field: deviation"
             )
         if deviation is not None:
             if not isinstance(deviation, dict):
@@ -238,6 +251,10 @@ def validate_ledger(
                     f"{label}: deviation reason must be a non-empty string; expected: non-empty text; actual: {_bounded_repr(reason)}; field: deviation.reason"
                 )
             affected_claims = deviation.get("affected_claims")
+            if affected_claims is not None and not isinstance(affected_claims, list):
+                raise ValueError(
+                    f"{label}: deviation.affected_claims must be a list; expected: list; actual: {type(affected_claims).__name__}; field: deviation.affected_claims"
+                )
             no_claim_impact_reason = deviation.get("no_claim_impact_reason")
             has_affected = isinstance(affected_claims, list) and len(affected_claims) > 0
             has_no_impact = isinstance(no_claim_impact_reason, str) and no_claim_impact_reason.strip()
@@ -256,13 +273,13 @@ def validate_ledger(
                         raise ValueError(f"{claim_label}: claim_id must be a non-empty string; expected: non-empty string; actual: {_bounded_repr(claim_id)}")
                     claim_id = claim_id.strip()
                     if claim_id not in claim_ids:
-                        known_claims_text = sorted(claim_ids) or "none registered"
+                        known_claims_text = _bounded_repr(sorted(claim_ids)) if claim_ids else "none registered"
                         raise ValueError(
-                            f"{claim_label}: claim_id {claim_id} does not exist in claims.json or manifest; expected: one of {known_claims_text}; actual: {claim_id}; field: deviation.affected_claims[].claim_id"
+                            f"{claim_label}: claim_id {_bounded_repr(claim_id)[1:-1]} does not exist in claims.json or manifest; expected: one of {known_claims_text}; actual: {_bounded_repr(claim_id)}; field: deviation.affected_claims[].claim_id"
                         )
                     if not isinstance(limitation, str) or not limitation.strip():
                         raise ValueError(f"{claim_label}: limitation must be a non-empty string; expected: non-empty text; actual: {_bounded_repr(limitation)}; field: deviation.affected_claims[].limitation")
-                    collapsed_limitation = _collapse_whitespace(limitation)
+                    collapsed_limitation = _collapse_whitespace(unicodedata.normalize("NFC", limitation))
                     if len(collapsed_limitation.replace(" ", "")) < MIN_LIMITATION_CHARS:
                         raise ValueError(
                             f"{claim_label}: limitation must contain at least {MIN_LIMITATION_CHARS} non-space characters; expected: a specific limitation sentence; actual: {_bounded_repr(limitation)}; field: deviation.affected_claims[].limitation"
@@ -270,10 +287,13 @@ def validate_ledger(
                     if report_path is None:
                         raise ValueError(f"{claim_label}: limitation requires a registered, hash-verified report.md")
                     if report_text is None:
-                        report_text = report_path.read_text(encoding="utf-8")
-                    if collapsed_limitation not in _collapse_whitespace(report_text):
+                        try:
+                            report_text = _visible_report_text(report_path.read_text(encoding="utf-8"))
+                        except UnicodeDecodeError as exc:
+                            raise ValueError(f"{claim_label}: report.md is not valid UTF-8; expected: UTF-8 text; actual: {exc.reason}") from exc
+                    if collapsed_limitation not in report_text:
                         raise ValueError(
-                            f"{claim_label}: limitation text does not appear in report.md (compared case-sensitively after collapsing whitespace); expected: text present in report.md; actual: missing; field: deviation.affected_claims[].limitation"
+                            f"{claim_label}: limitation text does not appear in report.md (compared case-sensitively after NFC normalisation, collapsing whitespace and ignoring HTML comments and fenced code blocks); expected: text present in report.md; actual: missing; field: deviation.affected_claims[].limitation"
                         )
 
         proc_context: dict[str, Any] = {
@@ -301,6 +321,21 @@ def validate_ledger(
         context_procedures.append(proc_context)
 
     return {"procedures": context_procedures}
+
+
+_HIDDEN_REPORT_TEXT = re.compile(
+    r"(?P<comment><!--(?:-?>|.*?(?:-->|\Z)))"
+    r"|^ {0,3}(?P<bt>`{3,})[^`\n]*(?:\n.*?)?(?:\n {0,3}(?P=bt)`*[ \t]*(?=\n|\Z)|\Z)"
+    r"|^ {0,3}(?P<td>~{3,})[^\n]*(?:\n.*?)?(?:\n {0,3}(?P=td)~*[ \t]*(?=\n|\Z)|\Z)",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def _visible_report_text(text: str) -> str:
+    """Report text a reader sees: NFC, without HTML comments or fenced code, whitespace collapsed."""
+    text = unicodedata.normalize("NFC", text)
+    text = _HIDDEN_REPORT_TEXT.sub(lambda m: "" if m.group("comment") else "\n", text)
+    return _collapse_whitespace(text)
 
 
 def _collapse_whitespace(text: str) -> str:

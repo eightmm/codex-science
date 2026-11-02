@@ -586,6 +586,10 @@ class ProjectStoreTests(unittest.TestCase):
             empty.write_bytes(b"")
             with self.assertRaisesRegex(ValueError, "invalid JSON in .*empty.json"):
                 store.import_run(project_id="p", manifest_path=empty)
+            latin = root / "latin.json"
+            latin.write_bytes(b'{"run_id": "caf\xe9"}')
+            with self.assertRaisesRegex(ValueError, "run manifest is not valid UTF-8: .*latin.json"):
+                store.import_run(project_id="p", manifest_path=latin)
             loop = root / "loop.json"
             loop.symlink_to(loop)
             with self.assertRaisesRegex(ValueError, "invalid protected input path"):

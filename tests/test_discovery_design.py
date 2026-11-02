@@ -5,6 +5,7 @@ import json
 import re
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from codex_science.discovery_design import OPERATORS, audit_design, validate_design
@@ -131,6 +132,44 @@ class DiscoveryDesignTests(unittest.TestCase):
             broken["problem"]["assumptions"][0]["evidence_refs"] = [{"path": "../escape", "sha256": "0" * 64}]
             with self.assertRaisesRegex(ValueError, "escapes"):
                 validate_design(broken, temporary)
+
+    def test_unhashable_enum_values_raise_labelled_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cycle = self.designed(Path(temporary))
+            for bad in (["data"], {"k": "v"}, 7):
+                for label, path in (
+                    ("problem assumption category", ("problem", "assumptions", 0, "category")),
+                    ("problem assumption status", ("problem", "assumptions", 0, "status")),
+                    ("method design operator", ("methods", 0, "design", "operator")),
+                ):
+                    broken = copy.deepcopy(cycle)
+                    target = broken
+                    for step in path[:-1]:
+                        target = target[step]
+                    target[path[-1]] = bad
+                    with self.subTest(label=label, bad=bad):
+                        with self.assertRaisesRegex(ValueError, label + " is invalid"):
+                            validate_design(broken, temporary)
+                        messages = [f["message"] for f in audit_design(broken, temporary)["findings"]]
+                        self.assertTrue(any(label in m for m in messages), messages)
+
+    def test_id_list_checks_duplicates_without_pairwise_comparison(self) -> None:
+        from codex_science.discovery_design import _id_list
+        calls = [0]
+
+        class Counted(str):
+            def __eq__(self, other):
+                calls[0] += 1
+                return str.__eq__(self, other)
+
+            __hash__ = str.__hash__
+
+        ids = [Counted(f"id{n}") for n in range(300)]
+        with unittest.mock.patch("codex_science.discovery_design._text", lambda item, field: item):
+            self.assertEqual(list(ids), _id_list(list(ids), "field", set(ids)))
+            self.assertLess(calls[0], 3000)
+            with self.assertRaisesRegex(ValueError, "duplicate field id: id5"):
+                _id_list(ids + ["id5"], "field", set(ids))
 
     def test_transfer_requires_complete_mapping_and_outer_code_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

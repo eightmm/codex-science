@@ -86,20 +86,26 @@ def validate_typed_graph(nodes: dict[str, dict[str, Any]], edges: list[dict[str,
         if edge["relation"] in ACYCLIC_RELATIONS:
             directed[str(edge["source"])].append(str(edge["target"]))
     state: dict[str, int] = {}
-    def visit(node: str, stack: list[str]) -> None:
-        state[node] = 1
-        stack.append(node)
-        for neighbour in directed.get(node, []):
-            if state.get(neighbour) == 1:
-                cycle = stack[stack.index(neighbour):] + [neighbour]
-                findings.append({"code": "evidence-dependency-cycle", "severity": "major", "message": "Evidence dependency cycle: " + " -> ".join(cycle)})
-            elif state.get(neighbour, 0) == 0:
-                visit(neighbour, stack)
-        stack.pop()
-        state[node] = 2
-    for node in sorted(nodes):
-        if state.get(node, 0) == 0:
-            visit(node, [])
+    # Explicit stack: long derived_from chains must not exhaust the interpreter recursion limit.
+    for root in sorted(nodes):
+        if state.get(root, 0) != 0:
+            continue
+        state[root] = 1
+        path = [root]
+        pending = [iter(directed.get(root, []))]
+        while pending:
+            for neighbour in pending[-1]:
+                if state.get(neighbour) == 1:
+                    cycle = path[path.index(neighbour):] + [neighbour]
+                    findings.append({"code": "evidence-dependency-cycle", "severity": "major", "message": "Evidence dependency cycle: " + " -> ".join(cycle)})
+                elif state.get(neighbour, 0) == 0:
+                    state[neighbour] = 1
+                    path.append(neighbour)
+                    pending.append(iter(directed.get(neighbour, [])))
+                    break
+            else:
+                pending.pop()
+                state[path.pop()] = 2
     unique = {(item["code"], item["message"]): item for item in findings}
     return sorted(unique.values(), key=lambda item: (item["code"], item["message"]))
 
@@ -122,10 +128,19 @@ def independence_components(nodes: dict[str, dict[str, Any]], edges: list[dict[s
     return {node: canonical[union.find(node)] for node in evidence}
 
 
-def independent_support_groups(claim_id: str, nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]) -> set[str]:
+def support_groups_by_claim(nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]) -> dict[str, set[str]]:
+    """Independence components of each claim's supporting sources, computed in one pass."""
     components = independence_components(nodes, edges)
-    sources = {str(edge["source"]) for edge in edges if edge.get("relation") == "supports" and str(edge.get("target")) == claim_id}
-    return {components.get(source, source) for source in sources}
+    groups: dict[str, set[str]] = defaultdict(set)
+    for edge in edges:
+        if edge.get("relation") == "supports":
+            source = str(edge["source"])
+            groups[str(edge.get("target"))].add(components.get(source, source))
+    return dict(groups)
+
+
+def independent_support_groups(claim_id: str, nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]) -> set[str]:
+    return set(support_groups_by_claim(nodes, edges).get(claim_id, set()))
 
 
 def impacted_nodes(changed: Iterable[str], edges: list[dict[str, Any]]) -> list[str]:

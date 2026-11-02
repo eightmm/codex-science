@@ -257,6 +257,121 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reviewer is required"):
             validate_review_receipt(receipt)
 
+    def test_review_receipt_kind_skips_only_legacy_shapes_without_review_id(self) -> None:
+        from codex_science.advanced_sidecars import validate_advanced_sidecars
+
+        receipt = build_review_receipt(
+            review_id="review-1", reviewer="reviewer", independent=True, review_modes=["record"],
+            status="findings", covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+            covered_claim_ids=[], findings=[{"severity": "critical", "message": "Open blocker."}],
+        )
+        receipt["status"] = "passed"
+        del receipt["review_id"]
+        legacy = {"status": "passed", "reviewer": "reviewer", "independent": True,
+                  "review_modes": ["record"], "findings": []}
+        refused = {
+            "full": receipt,
+            "schema_version": {**legacy, "schema_version": 1},
+            "null fingerprint": {**legacy, "fingerprint": None},
+            "covered_artifacts": {**legacy, "covered_artifacts": []},
+            "blank review_id": {**receipt, "review_id": ""},
+            "review_id only": {**legacy, "review_id": "review-1"},
+        }
+        skipped = {"legacy": legacy, "legacy blank review_id": {**legacy, "review_id": ""}, "empty": {}}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "review.json"
+            manifest = {"artifacts": [{"path": "review.json", "kind": "review-receipt", "sha256": "b" * 64}]}
+            for label, payload in {**refused, **skipped}.items():
+                with self.subTest(label=label):
+                    path.write_text(json.dumps(payload), encoding="utf-8")
+                    if label in refused:
+                        with self.assertRaisesRegex(ValueError, r"^review\.json \(review-receipt\): "):
+                            validate_advanced_sidecars(manifest, Path(temporary), {"review.json": path})
+                    else:
+                        sidecars = validate_advanced_sidecars(manifest, Path(temporary), {"review.json": path})
+                        self.assertEqual([], sidecars["review_receipts"])
+
+    def test_forwarded_receipt_findings_are_normalised_strings(self) -> None:
+        from codex_science.advanced_sidecars import review_advanced_sidecars
+
+        cases = [
+            ({"severity": "major"}, "review-receipt-finding", "Review receipt review-1 finding 0 is unresolved."),
+            ({"severity": "major", "id": "F1", "code": None, "message": ""},
+             "review-receipt-finding", "Review receipt review-1 finding F1 is unresolved."),
+            ({"severity": "major", "code": ["x"], "message": ["y"], "id": ["z"]},
+             "review-receipt-finding", "Review receipt review-1 finding 0 is unresolved."),
+            ({"severity": "major", "code": 5, "message": "Kept.", "claim_id": ["c"]}, "review-receipt-finding", "Kept."),
+            ({"severity": "major", "code": "  ", "message": "Kept."}, "review-receipt-finding", "Kept."),
+        ]
+        for finding, code, message in cases:
+            with self.subTest(finding=finding):
+                receipt = build_review_receipt(
+                    review_id="review-1", reviewer="reviewer", independent=True, review_modes=["record"],
+                    status="findings", covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+                    covered_claim_ids=[], findings=[
+                        finding, {"severity": "major", "code": "z", "message": "Other.", "claim_id": "C1"}],
+                )
+                reviewed = review_advanced_sidecars({"artifact_hashes": {"metrics.json": "a" * 64},
+                                                     "review_receipts": [receipt]})
+                self.assertEqual([
+                    {"code": code, "severity": "major", "message": message},
+                    {"code": "z", "severity": "major", "message": "Other.", "claim_id": "C1"},
+                ], reviewed)
+
+    def test_not_applicable_receipt_findings_are_resolved_when_not_passed(self) -> None:
+        from codex_science.advanced_sidecars import review_advanced_sidecars
+
+        for status, expected in (("not-applicable", ["review-receipt-not-passed"]), ("resolved", ["review-receipt-not-passed"]),
+                                 ("accepted-risk", ["kept"]), ("open", ["kept"])):
+            with self.subTest(status=status):
+                receipt = build_review_receipt(
+                    review_id="review-1", reviewer="reviewer", independent=True, review_modes=["record"],
+                    status="findings", covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}],
+                    covered_claim_ids=[], findings=[
+                        {"severity": "major", "code": "kept", "message": "M.", "resolution_status": status}],
+                )
+                reviewed = review_advanced_sidecars({"artifact_hashes": {"metrics.json": "a" * 64},
+                                                     "review_receipts": [receipt]})
+                self.assertEqual(expected, [item["code"] for item in reviewed])
+
+    def test_long_derived_from_chain_is_checked_without_recursion(self) -> None:
+        count = 1500
+        graph = {"schema_version": 2, "nodes": [{"id": f"s{i:04d}", "type": "study"} for i in range(count)],
+                 "edges": [{"source": f"s{i:04d}", "target": f"s{i + 1:04d}", "relation": "derived_from"}
+                           for i in range(count - 1)]}
+        self.assertEqual([], validate_graph_payload(graph)[2])
+        graph["edges"].append({"source": f"s{count - 1:04d}", "target": "s0000", "relation": "derived_from"})
+        findings = validate_graph_payload(graph)[2]
+        chain = [f"s{i:04d}" for i in range(count)] + ["s0000"]
+        self.assertEqual([{"code": "evidence-dependency-cycle", "severity": "major",
+                           "message": "Evidence dependency cycle: " + " -> ".join(chain)}], findings)
+
+    def test_replicated_claims_share_one_independence_computation(self) -> None:
+        from unittest import mock
+
+        from codex_science import evidence_graph_v2
+        from codex_science.advanced_sidecars import review_advanced_sidecars
+
+        nodes, edges, _ = validate_graph_payload({"schema_version": 2, "nodes": [
+            {"id": "A", "type": "study"}, {"id": "B", "type": "study"}, {"id": "D", "type": "study"},
+            {"id": "C1", "type": "claim"}, {"id": "C2", "type": "claim"}, {"id": "C3", "type": "claim"}], "edges": [
+            {"source": "A", "target": "C1", "relation": "supports"}, {"source": "B", "target": "C1", "relation": "supports"},
+            {"source": "A", "target": "C2", "relation": "supports"}, {"source": "D", "target": "C2", "relation": "supports"},
+            {"source": "A", "target": "D", "relation": "shares_cohort"}]})
+        claims = {name: {"status": "replicated"} for name in ("C1", "C2", "C3", "C4")}
+        claims["C5"] = {"status": "supported"}
+        with mock.patch.object(evidence_graph_v2, "independence_components",
+                               wraps=evidence_graph_v2.independence_components) as components:
+            reviewed = review_advanced_sidecars({"graph_v2_nodes": nodes, "graph_v2_edges": edges,
+                                                 "base_sidecars": {"claim_by_id": claims}})
+        self.assertEqual(1, components.call_count)
+        self.assertEqual(["C2", "C3", "C4"], [item["claim_id"] for item in reviewed])
+        self.assertEqual({"dependent-evidence-v2"}, {item["code"] for item in reviewed})
+        with mock.patch.object(evidence_graph_v2, "independence_components") as components:
+            review_advanced_sidecars({"graph_v2_nodes": nodes, "graph_v2_edges": edges,
+                                      "base_sidecars": {"claim_by_id": {"C5": {"status": "supported"}}}})
+        self.assertEqual(0, components.call_count)
+
     def test_seeded_reviewer_benchmark_has_zero_unsafe_passes(self) -> None:
         cases = load_cases(self.root / "benchmarks" / "reviewer")
         report = score_cases(cases)

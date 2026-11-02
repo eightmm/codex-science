@@ -123,6 +123,34 @@ class WrapperRenderingTests(unittest.TestCase):
         self.assertIn("Inspect its headings first", wrapper)
         self.assertIn("only the sections relevant", wrapper)
 
+    def test_license_cannot_leave_its_code_span(self) -> None:
+        cases = {
+            "MIT`\n\n# Injected": "``MIT` # Injected``",
+            "`": "`` ` ``",
+            "a ``b``\r\nc": "```a ``b`` c```",
+            "MIT": "`MIT`",
+        }
+        for license_name, expected in cases.items():
+            with self.subTest(license=license_name):
+                wrapper = render_skill_wrapper(dict(make_record("demo"), license=license_name))
+                lines = [line for line in wrapper.splitlines() if line.startswith("- Upstream license: ")]
+                self.assertEqual([f"- Upstream license: {expected}"], lines)
+                self.assertNotIn("\n# Injected", wrapper)
+
+    def test_malformed_record_fields_are_refused(self) -> None:
+        for description in ("<>", " < > ", ">"):
+            with self.subTest(description=description), self.assertRaisesRegex(ValueError, "demo has no description"):
+                render_skill_wrapper(dict(make_record("demo"), description=description))
+        for value in ("false", "true", 0, 1, None, []):
+            with self.subTest(physical_lab=value), self.assertRaisesRegex(ValueError, "demo has invalid physical_lab"):
+                render_skill_wrapper(dict(make_record("demo"), physical_lab=value))
+        legacy = make_record("demo")
+        del legacy["physical_lab"], legacy["instruction_line_count"]
+        wrapper = render_skill_wrapper(legacy)
+        self.assertNotIn("real laboratory hardware", wrapper)
+        self.assertNotIn("Progressive loading", wrapper)
+        self.assertNotIn("real laboratory hardware", render_skill_wrapper(make_record("demo")))
+
 
 class WrapperGenerationTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -174,6 +202,8 @@ class WrapperGenerationTests(unittest.TestCase):
         for name in (
             "", ".", "..", "../escaped", "a/b", "a\\b", "/escaped",
             ".hidden", "bad\x00name", None, 0, [],
+            "a b", "a:b", "a;b", "a`b", "$(x)", "a\n", "-lead", "_lead", "\u00e9", "a" * 101,
+            "0", "1e3", "9lives", "null", "True", "no", "OFF", "y",
         ):
             record = make_record("safe")
             record["name"] = name
@@ -185,6 +215,43 @@ class WrapperGenerationTests(unittest.TestCase):
                             operation({"skills": [record]}, output)
                         self.assertFalse(output.exists())
                         self.assertFalse((Path(temporary) / "escaped").exists())
+        for name in ("a" * 100, "A.b_c-9", "nullable", "yes-no"):
+            with self.subTest(accepted=name):
+                wrapper = render_skill_wrapper(make_record(name))
+                self.assertIn(f"\nname: {name}\n", wrapper)
+                self.assertIn(f"--name {name}` and", wrapper)
+
+    def test_refused_record_writes_no_file_under_a_missing_root(self) -> None:
+        output = self.root / "missing" / "out"
+        inventory = {"skills": [make_record("a-first"), make_record("b" * 300)]}
+        with self.assertRaisesRegex(ValueError, "unsafe name"):
+            generate_wrappers(inventory, output)
+        self.assertFalse((self.root / "missing").exists())
+
+    def test_check_names_a_non_utf8_wrapper(self) -> None:
+        generate_wrappers(self.inventory, self.output)
+        path = self.output / "sympy" / "SKILL.md"
+        path.write_bytes(b"\xff\xfe")
+
+        errors = check_wrappers(self.inventory, self.output)
+
+        self.assertIn(f"sympy/SKILL.md is not valid UTF-8: {path.resolve()}", errors)
+
+    def test_cli_names_inventory_path_for_undecodable_or_deep_json(self) -> None:
+        from loader_cases import assert_refused
+        path = self.root / "inventory.json"
+        for contents in (b"[" * 100000, b"\xff", b"{"):
+            path.write_bytes(contents)
+            for flags in ([], ["--check"]):
+                with self.subTest(contents=contents[:4], flags=flags):
+                    assert_refused(self, "generate_wrappers.py", ["--inventory", path, "--output", self.output, *flags], 1, self.output)
+                    result = subprocess.run(
+                        [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "generate_wrappers.py"),
+                         "--inventory", str(path), "--output", str(self.output), *flags],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")),
+                    )
+                    self.assertIn(str(path), result.stderr)
 
     def test_symlink_destinations_are_refused_before_any_write(self) -> None:
         record = make_record("z-linked")

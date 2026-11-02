@@ -533,6 +533,16 @@ class CatalogAuditTests(unittest.TestCase):
             with self.subTest(contents=contents), self.assertRaises(ValueError):
                 load_inventory(path)
 
+    def test_inventory_loader_names_path_for_undecodable_or_deep_json(self) -> None:
+        path = self.root / "inventory.json"
+        for contents, message in ((b"[" * 100000, "too deeply nested"), (b"\xff", "UTF-8"), (b"{", "JSON")):
+            path.write_bytes(contents)
+            with self.subTest(contents=contents[:4]):
+                with self.assertRaisesRegex(ValueError, message) as caught:
+                    load_inventory(path)
+                self.assertIn(str(path), str(caught.exception))
+                self.assertNotIsInstance(caught.exception, RecursionError)
+
     def test_source_fields_are_validated_before_audit(self) -> None:
         make_skill(self.root, "demo", license_name="MIT")
         base = {"key": "demo", "catalog_path": "."}

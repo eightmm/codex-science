@@ -357,6 +357,8 @@ class ProjectStore:
             raise ValueError(f"run manifest exceeds {DEFAULT_MAX_JSON_BYTES} bytes: {manifest_path}")
         try:
             manifest = json.loads(manifest_bytes.decode("utf-8"))
+        except UnicodeDecodeError as error:
+            raise ValueError(f"run manifest is not valid UTF-8: {manifest_path}: {error.reason}") from error
         except json.JSONDecodeError as error:
             raise ValueError(f"invalid JSON in {manifest_path}: {error}") from error
         except RecursionError as error:

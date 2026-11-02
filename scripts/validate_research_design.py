@@ -44,6 +44,10 @@ input JSON keys (schema_version must be 1; required unless marked optional):
   identification_assumptions   optional list of non-empty strings
   outcome.subjective, blinding   optional; blinding is an optional object
   fingerprint              optional; removed on input and recomputed on output
+
+unit names (experimental_unit, observational_unit, analysis.aggregation_unit) are
+compared exactly after trimming whitespace; the comparison is case-sensitive, so
+"Sample" and "sample" are different units.
 """
 
 
@@ -64,8 +68,18 @@ def main() -> int:
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
+    except RecursionError:
+        print("error: research design is nested too deeply to process", file=sys.stderr)
+        return 1
     print(f"Success! Data written to: {args.output.resolve()}")
-    return 1 if args.require_clean and result["audit_status"] != "passed" else 0
+    if args.require_clean and result["audit_status"] != "passed":
+        print(
+            f"error: --require-clean: audit_status is {result['audit_status']!r} "
+            f"with {len(result['audit_findings'])} finding(s)",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

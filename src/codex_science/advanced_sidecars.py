@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from codex_science.artifact_store import validate_descriptor
 from codex_science.artifact_runtime import (
@@ -16,7 +16,7 @@ from codex_science.artifact_runtime import (
     validate_transform_proposal,
 )
 from codex_science.collaboration import stale_annotations, validate_annotation
-from codex_science.evidence_graph_v2 import independent_support_groups, validate_graph_payload
+from codex_science.evidence_graph_v2 import support_groups_by_claim, validate_graph_payload
 from codex_science.literature_v2 import validate_risk_of_bias
 from codex_science.model_registry_v2 import load_registry_v2, validate_model_receipt_v2
 from codex_science.quantitative_sidecars import (
@@ -26,7 +26,7 @@ from codex_science.quantitative_sidecars import (
     validate_quantitative_sidecar,
 )
 from codex_science.reference_contract import validate_reference_use_ledger
-from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
+from codex_science.review_receipts import RESOLVED_STATUSES, review_receipt_findings, validate_review_receipt
 
 ADVANCED_KINDS = {
     "evidence-graph-v2", "review-receipt", "review-receipt-v2", "annotation",
@@ -34,6 +34,10 @@ ADVANCED_KINDS = {
     "artifact-runtime-descriptor", "artifact-selection", "transform-proposal",
     *QUANTITATIVE_KINDS,
 }
+# Legacy review-receipt records predate these keys; a payload carrying any of
+# them is a schema receipt and must validate even when review_id is missing.
+RECEIPT_SCHEMA_MARKERS = ("schema_version", "fingerprint", "covered_artifacts")
+FORWARDED_FINDING_CODE = "review-receipt-finding"
 
 
 def _finite_json_number(literal: str) -> float:
@@ -95,7 +99,7 @@ def validate_advanced_sidecars(
     }
     seen_graph = False
     selections_by_id: dict[str, dict[str, Any]] = {}
-    pending_proposals: list[dict[str, Any]] = []
+    pending_proposals: list[tuple[str, dict[str, Any]]] = []
     for record in manifest.get("artifacts", []):
         kind, relative = str(record.get("kind", "")), str(record.get("path", ""))
         if kind not in ADVANCED_KINDS:
@@ -106,7 +110,11 @@ def validate_advanced_sidecars(
         if not path.is_file():
             raise ValueError(f"advanced sidecar must be a file: {relative}")
         payload = _load(path, kind)
-        if kind == "review-receipt" and not payload.get("review_id"):
+        if (
+            kind == "review-receipt"
+            and not payload.get("review_id")
+            and not any(key in payload for key in RECEIPT_SCHEMA_MARKERS)
+        ):
             continue
         result["advanced_paths"].setdefault(kind, []).append(relative)
         try:
@@ -150,19 +158,37 @@ def validate_advanced_sidecars(
                 result["artifact_selections"].append(selection)
                 selections_by_id[str(selection["selection_id"])] = payload
             elif kind == "transform-proposal":
-                pending_proposals.append(payload)
+                pending_proposals.append((relative, payload))
             elif kind in QUANTITATIVE_KINDS:
                 validate_quantitative_sidecar(kind, payload, result, bundle_root=run_dir)
         except ValueError as exc:
             raise ValueError(f"{relative} ({kind}): {exc}") from exc
-    for proposal in pending_proposals:
+    for relative, proposal in pending_proposals:
         selection = selections_by_id.get(str(proposal.get("selection_id", "")))
-        validate_transform_proposal(proposal, selection)
+        try:
+            validate_transform_proposal(proposal, selection)
+        except ValueError as exc:
+            raise ValueError(f"{relative} (transform-proposal): {exc}") from exc
         result["transform_proposals"].append(proposal)
     result["annotations"] = stale_annotations(result["annotations"], result["artifact_hashes"])
     if base_sidecars:
         result["base_sidecars"] = base_sidecars
     return result
+
+
+def _forwarded_finding(receipt: dict[str, Any], index: int, item: Mapping[str, Any]) -> dict[str, str]:
+    code, message, claim_id = item.get("code"), item.get("message"), item.get("claim_id")
+    if not isinstance(message, str) or not message.strip():
+        label = item.get("id") if isinstance(item.get("id"), str) else index
+        message = f"Review receipt {receipt.get('review_id')} finding {label} is unresolved."
+    finding = {
+        "code": code if isinstance(code, str) and code.strip() else FORWARDED_FINDING_CODE,
+        "severity": str(item.get("severity", "")),
+        "message": message,
+    }
+    if isinstance(claim_id, str) and claim_id:
+        finding["claim_id"] = claim_id
+    return finding
 
 
 def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | None = None) -> list[dict[str, str]]:
@@ -180,9 +206,9 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
         findings.extend(review_receipt_findings(receipt, artifact_hashes, registry_sha256=registry_digest))
         if receipt.get("status") != "passed":
             unresolved = [
-                item
-                for item in receipt.get("findings", [])
-                if item.get("resolution_status", "open") != "resolved"
+                _forwarded_finding(receipt, index, item)
+                for index, item in enumerate(receipt.get("findings", []))
+                if isinstance(item, Mapping) and str(item.get("resolution_status", "open")) not in RESOLVED_STATUSES
             ]
             if unresolved:
                 findings.extend(unresolved)
@@ -256,8 +282,10 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
     base = sidecars.get("base_sidecars", {})
     claims = base.get("claim_by_id", {}) if isinstance(base, dict) else {}
     nodes, edges = sidecars.get("graph_v2_nodes", {}), sidecars.get("graph_v2_edges", [])
-    for claim_id, claim in claims.items():
-        if claim.get("status") == "replicated" and len(independent_support_groups(claim_id, nodes, edges)) < 2:
+    replicated = [claim_id for claim_id, claim in claims.items() if claim.get("status") == "replicated"]
+    support_groups = support_groups_by_claim(nodes, edges) if replicated else {}
+    for claim_id in replicated:
+        if len(support_groups.get(claim_id, ())) < 2:
             findings.append({
                 "code": "dependent-evidence-v2",
                 "severity": "major",

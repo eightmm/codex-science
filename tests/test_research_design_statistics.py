@@ -128,6 +128,37 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
                 self.assertEqual("passed", build_research_design(payload)["audit_status"])
                 self.assertEqual(original, payload)
 
+    def test_design_cli_reports_failed_clean_gate_and_deep_nesting(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/validate_research_design.py"
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            broken = self.valid_design()
+            broken["locked_before_outcomes"] = False
+            source = root / "broken.json"
+            source.write_text(json.dumps(broken))
+            result = subprocess.run([sys.executable, str(script), str(source), "--require-clean",
+                "--output", str(root / "out.json")], capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("Success!", result.stdout)
+            self.assertRegex(result.stderr, r"--require-clean.*'failed'|--require-clean.*audit_status")
+            self.assertRegex(result.stderr, r"\d+ finding")
+            self.assertTrue((root / "out.json").exists())
+            deep = self.valid_design()
+            text = '{"a":' * 1000 + '1' + '}' * 1000
+            source.write_text(json.dumps(deep)[:-1] + ', "extra": ' + text + "}")
+            result = subprocess.run([sys.executable, str(script), str(source),
+                "--output", str(root / "deep.json")], capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_design_cli_help_states_unit_names_are_case_sensitive(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/validate_research_design.py"
+        result = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+        self.assertIn("case-sensitive", result.stdout)
+
     def test_design_cli_help_describes_strict_unit_strings(self) -> None:
         script = Path(__file__).resolve().parents[1] / "scripts/validate_research_design.py"
         result = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True,
