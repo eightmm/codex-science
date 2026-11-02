@@ -29,7 +29,7 @@ For material work, record the reference hash with `"<plugin-root>/scripts/python
 
 ## Outputs
 
-- `research-design` with deterministic audit and fingerprint;
+- `research-design` with deterministic audit and an unkeyed tamper-evidence fingerprint digest (not authentication; validators also check internal consistency);
 - `statistical-analysis` with effect, interval, randomization result, unit counts, seed, and limitations;
 - data/source hashes and preprocessing records;
 - diagnostics and sensitivity analyses;

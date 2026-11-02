@@ -1,7 +1,8 @@
 """Validation and cross-link review for quantitative research sidecars."""
 from __future__ import annotations
 
-from collections import defaultdict
+import json
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -121,18 +122,56 @@ def _validate_quantitative_sidecar(
         raise ValueError(f"unsupported quantitative sidecar kind: {kind}")
 
 
+def _invalid(message: str) -> dict[str, str]:
+    return {"code": "quantitative-sidecar-invalid", "severity": "critical", "message": message}
+
+
+def _id_list(owner: Mapping[str, Any], key: str, findings: list[dict[str, str]]) -> list[Any]:
+    value = owner.get(key, [])
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    findings.append(_invalid(f"Mathematical claim {owner.get('claim_id')} has malformed {key}: expected a list, got {type(value).__name__}."))
+    return []
+
+
+def _duplicate_id_findings(label: str, key: str, items: list[Mapping[str, Any]]) -> list[dict[str, str]]:
+    # Byte-identical re-registration of one sidecar is idempotent; only conflicting payloads share an id wrongly.
+    distinct = {(str(item[key]), json.dumps(item, sort_keys=True, default=str)) for item in items if item.get(key) is not None}
+    counts = Counter(value for value, _ in distinct)
+    return [
+        {
+            "code": "quantitative-duplicate-id",
+            "severity": "major",
+            "message": f"{label} {key} {value} is used by {count} sidecars; ids must be unique within a sidecar kind.",
+        }
+        for value, count in sorted(counts.items())
+        if count > 1
+    ]
+
+
 def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    designs = [item for item in sidecars.get("research_designs", []) if isinstance(item, Mapping)]
-    claims = [item for item in sidecars.get("mathematical_claims", []) if isinstance(item, Mapping)]
-    proofs = [item for item in sidecars.get("proof_receipts", []) if isinstance(item, Mapping)]
-    counters = [item for item in sidecars.get("counterexample_receipts", []) if isinstance(item, Mapping)]
-    graphs = [item for item in sidecars.get("proof_obligation_graphs", []) if isinstance(item, Mapping)]
-    analyses = [item for item in sidecars.get("statistical_analyses", []) if isinstance(item, Mapping)]
-    decisions = [item for item in sidecars.get("decision_analyses", []) if isinstance(item, Mapping)]
-    numerical = [item for item in sidecars.get("numerical_verifications", []) if isinstance(item, Mapping)]
-    dimensions = [item for item in sidecars.get("dimension_checks", []) if isinstance(item, Mapping)]
-    uncertainty = [item for item in sidecars.get("uncertainty_propagations", []) if isinstance(item, Mapping)]
+
+    def section(key: str) -> list[Mapping[str, Any]]:
+        value = sidecars.get(key, [])
+        if value is None or not isinstance(value, (list, tuple)):
+            findings.append(_invalid(f"Quantitative sidecar section {key} must be a list, got {type(value).__name__}."))
+            return []
+        items = [item for item in value if isinstance(item, Mapping)]
+        if len(items) != len(value):
+            findings.append(_invalid(f"Quantitative sidecar section {key} contains {len(value) - len(items)} non-object entries."))
+        return items
+
+    designs = section("research_designs")
+    claims = section("mathematical_claims")
+    proofs = section("proof_receipts")
+    counters = section("counterexample_receipts")
+    graphs = section("proof_obligation_graphs")
+    analyses = section("statistical_analyses")
+    decisions = section("decision_analyses")
+    numerical = section("numerical_verifications")
+    dimensions = section("dimension_checks")
+    uncertainty = section("uncertainty_propagations")
 
     for design in designs:
         findings.extend(review_research_design(design))
@@ -148,6 +187,16 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
         findings.extend(review_uncertainty_propagation(receipt))
     findings.extend(math_review_findings(claims, proofs, counters, graphs))
 
+    for label, key, items in (
+        ("Research design", "design_id", designs),
+        ("Statistical analysis", "analysis_id", analyses),
+        ("Decision analysis", "analysis_id", decisions),
+        ("Numerical verification", "verification_id", numerical),
+        ("Dimension check", "check_id", dimensions),
+        ("Uncertainty propagation", "propagation_id", uncertainty),
+    ):
+        findings.extend(_duplicate_id_findings(label, key, items))
+
     design_ids = {str(item.get("design_id")) for item in designs}
     claim_ids = {str(item.get("claim_id")) for item in claims}
     proof_ids = {str(item.get("receipt_id")) for item in proofs}
@@ -160,27 +209,37 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
                 "message": f"Statistical analysis {analysis.get('analysis_id')} has no matching research-design sidecar; a research-design sidecar is written by scripts/validate_research_design.py --output and registered as kind research-design with the matching design_id.",
             })
     for collection_name, collection in (
+        ("statistical analysis", analyses),
         ("numerical verification", numerical),
         ("dimension check", dimensions),
         ("uncertainty propagation", uncertainty),
     ):
         for item in collection:
             claim_id = str(item.get("claim_id", ""))
-            if claims and claim_id not in claim_ids:
+            if claim_id not in claim_ids:
                 findings.append({
                     "code": "quantitative-claim-missing",
                     "severity": "major",
-                    "message": f"{collection_name.title()} {item.get('verification_id') or item.get('check_id') or item.get('propagation_id')} references missing mathematical claim {claim_id}.",
+                    "message": f"{collection_name.title()} {item.get('analysis_id') or item.get('verification_id') or item.get('check_id') or item.get('propagation_id')} references missing mathematical claim {claim_id}.",
                 })
+    # Decision-analysis receipts are accepted without a claim sidecar; they are cross-checked only once claims exist.
+    for item in decisions if claims else []:
+        claim_id = str(item.get("claim_id", ""))
+        if claim_id not in claim_ids:
+            findings.append({
+                "code": "quantitative-claim-missing",
+                "severity": "major",
+                "message": f"Decision Analysis {item.get('analysis_id')} references missing mathematical claim {claim_id}.",
+            })
     for claim in claims:
-        for receipt_id in claim.get("proof_receipt_ids", []):
+        for receipt_id in _id_list(claim, "proof_receipt_ids", findings):
             if str(receipt_id) not in proof_ids:
                 findings.append({
                     "code": "missing-proof-receipt",
                     "severity": "major",
                     "message": f"Mathematical claim {claim.get('claim_id')} references missing proof receipt {receipt_id}.",
                 })
-        for receipt_id in claim.get("counterexample_receipt_ids", []):
+        for receipt_id in _id_list(claim, "counterexample_receipt_ids", findings):
             if str(receipt_id) not in counter_ids:
                 findings.append({
                     "code": "missing-counterexample-receipt",
@@ -205,5 +264,11 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
                 "severity": "critical",
                 "message": f"Claim {claim.get('claim_id')} is marked proved but has only quantitative computation sidecars and no proof receipt.",
             })
-    unique = {(item["code"], item.get("claim_id", ""), item["message"]): item for item in findings}
+    checked: list[dict[str, str]] = []
+    for item in findings:
+        if isinstance(item, Mapping) and isinstance(item.get("code"), str) and isinstance(item.get("message"), str):
+            checked.append(item)
+        else:
+            checked.append(_invalid(f"A quantitative sidecar reviewer returned a malformed finding entry: {item!r}."))
+    unique = {(item["code"], item.get("claim_id", ""), item["message"]): item for item in checked}
     return sorted(unique.values(), key=lambda item: (item.get("severity", ""), item["code"], item["message"]))

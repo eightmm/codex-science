@@ -19,7 +19,7 @@ from codex_science.math_contracts import (
     validate_proof_receipt,
 )
 from codex_science.review import review_manifest
-from codex_science.quantitative_sidecars import empty_quantitative_sidecars, validate_quantitative_sidecar
+from codex_science.quantitative_sidecars import empty_quantitative_sidecars, review_quantitative_sidecars, validate_quantitative_sidecar
 from codex_science.safe_expression import MAX_EXPRESSION_CHARS, ExpressionError, canonical_sha256, evaluate_expression, parse_expression, search_counterexample
 
 
@@ -721,6 +721,53 @@ class MathResearchRuntimeTests(unittest.TestCase):
         self.assertEqual(reviews[0], reviews[2])
         identical = [("mathematical-claim", unconditional), ("counterexample-search", duplicates[0]), ("counterexample-search", dict(duplicates[0]))]
         self.assertEqual("passed", self._bundle_review(identical)["status"])
+
+    def test_quantitative_review_flags_dangling_claims_and_duplicate_ids(self) -> None:
+        def codes(sidecars):
+            return [item["code"] for item in review_quantitative_sidecars(sidecars)]
+        for key, record in (
+            ("numerical_verifications", {"verification_id": "V", "claim_id": "ghost"}),
+            ("statistical_analyses", {"analysis_id": "S", "design_id": "D", "claim_id": "ghost"}),
+        ):
+            with self.subTest(key=key):
+                self.assertIn("quantitative-claim-missing", codes({key: [record]}))
+        claim = {"claim_id": "C1"}
+        self.assertIn("quantitative-claim-missing", codes({
+            "mathematical_claims": [claim], "decision_analyses": [{"analysis_id": "X", "claim_id": "ghost"}],
+        }))
+        self.assertNotIn("quantitative-claim-missing", codes({
+            "mathematical_claims": [claim], "dimension_checks": [{"check_id": "K", "claim_id": "C1"}],
+        }))
+        for key, id_key, other in (
+            ("research_designs", "design_id", "x"),
+            ("statistical_analyses", "analysis_id", "x"),
+            ("numerical_verifications", "verification_id", "x"),
+            ("dimension_checks", "check_id", "x"),
+            ("uncertainty_propagations", "propagation_id", "x"),
+        ):
+            first, second = {id_key: "same", "note": "a"}, {id_key: "same", "note": other}
+            with self.subTest(key=key):
+                self.assertIn("quantitative-duplicate-id", codes({key: [first, second]}))
+                self.assertNotIn("quantitative-duplicate-id", codes({key: [first, dict(first)]}))
+                self.assertNotIn("quantitative-duplicate-id", codes({key: [first, {id_key: "other"}]}))
+
+    def test_quantitative_review_reports_malformed_shapes_instead_of_crashing(self) -> None:
+        def invalid(sidecars):
+            return [item for item in review_quantitative_sidecars(sidecars) if item["code"] == "quantitative-sidecar-invalid"]
+        for value in (None, 5, "ab"):
+            with self.subTest(proof_receipt_ids=value):
+                findings = invalid({"mathematical_claims": [{"claim_id": "C", "proof_receipt_ids": value}]})
+                self.assertEqual(["critical"], [item["severity"] for item in findings])
+        self.assertEqual([], [item for item in review_quantitative_sidecars(
+            {"mathematical_claims": [{"claim_id": "C", "proof_receipt_ids": []}]}) if item["code"] == "missing-proof-receipt"])
+        for value in (None, 5, "ab", {"a": 1}):
+            with self.subTest(section=value):
+                self.assertEqual(["critical"], [item["severity"] for item in invalid({"proof_receipts": value})])
+        self.assertEqual(1, len(invalid({"numerical_verifications": [{"claim_id": "C"}, 7]})))
+        self.assertEqual([], invalid({"mathematical_claims": []}))
+        with mock.patch("codex_science.quantitative_sidecars.review_numerical_verification", return_value=[{"severity": "major"}, "bad"]):
+            findings = invalid({"numerical_verifications": [{"verification_id": "V", "claim_id": "C"}]})
+        self.assertEqual(2, len(findings))
 
     def test_documented_sidecar_shapes_validate(self) -> None:
         reference = (

@@ -31,7 +31,7 @@ Preserve inputs, calibration references, covariance, seed, and receipts with `$s
 
 ## Outputs
 
-- `uncertainty-propagation` receipt with expression hash, means, standard uncertainties, covariance, gradient, variance, sensitivities, seed, Monte Carlo interval, findings, and fingerprint;
+- `uncertainty-propagation` receipt with expression hash, means, standard uncertainties, covariance, gradient, variance, sensitivities, seed, Monte Carlo interval, findings, and an unkeyed tamper-evidence fingerprint digest (not authentication; validators also check internal consistency);
 - calibration and traceability records;
 - uncertainty budget and sensitivity alternatives;
 - dimension check where quantities carry units;
