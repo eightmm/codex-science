@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import argparse
+import importlib.util
 import json
 import subprocess
 import sys
+import tarfile
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -197,6 +200,102 @@ def _base_diff_errors(root: Path, base_ref: str) -> list[str]:
     return errors
 
 
+def _load_mcp_contract_probe():
+    """Load the installed updaters' discovery probe read-only, without editing it."""
+
+    script = Path(__file__).resolve().with_name("science_update_hook.py")
+    spec = importlib.util.spec_from_file_location("_validate_release_update_hook", script)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load {script.name}")
+    module = importlib.util.module_from_spec(spec)
+    previous_path = list(sys.path)
+    previous_flag = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = previous_path
+        sys.dont_write_bytecode = previous_flag
+    return module._mcp_discovery_contract
+
+
+def _contract_difference(base: object, current: object) -> str:
+    def tools(contract: object) -> dict[str, object]:
+        found: dict[str, object] = {}
+        pages = contract.get("tools") if isinstance(contract, dict) else None
+        for page in pages if isinstance(pages, list) else []:
+            for tool in page.get("tools", []) if isinstance(page, dict) else []:
+                if isinstance(tool, dict) and isinstance(tool.get("name"), str):
+                    found[tool["name"]] = tool
+        return found
+
+    before, after = tools(base), tools(current)
+    parts = [f"added tool {name}" for name in after if name not in before]
+    parts += [f"removed tool {name}" for name in before if name not in after]
+    for name in before:
+        if name in after and before[name] != after[name]:
+            keys = sorted(
+                key
+                for key in {*before[name], *after[name]}
+                if before[name].get(key) != after[name].get(key)
+            )
+            parts.append(f"tool {name} changed {'/'.join(keys)}")
+    if not parts:
+        parts.append("initialize result or tool pagination changed")
+    return "; ".join(parts[:6]) + (f"; and {len(parts) - 6} more" if len(parts) > 6 else "")
+
+
+def _mcp_contract_errors(root: Path, base_ref: str) -> list[str]:
+    """Require a plugin version advance when installed updaters would refuse the change."""
+
+    merge_base = subprocess.run(
+        ["git", "-C", str(root), "merge-base", base_ref, "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    base_commit = merge_base.stdout.strip()
+    if merge_base.returncode != 0 or len(base_commit) != 40:
+        return [merge_base.stderr.strip() or f"could not resolve merge base with {base_ref}"]
+    try:
+        previous_version = str(_git_json(root, base_commit, "release/manifest.json")["plugin_version"])
+        current_version = str(load_release_manifest(root)["plugin_version"])
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        return [f"could not compare MCP discovery contract: {error}"]
+    if release_version_advances(previous_version, current_version):
+        return []
+    unverified = "could not verify the MCP discovery contract against the merge base"
+    try:
+        probe = _load_mcp_contract_probe()
+        with tempfile.TemporaryDirectory(prefix="mcp-contract-") as temporary:
+            archive = Path(temporary) / "base.tar"
+            base_tree = Path(temporary) / "base"
+            base_tree.mkdir()
+            exported = subprocess.run(
+                ["git", "-C", str(root), "archive", "--format=tar", "-o", str(archive), base_commit],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if exported.returncode != 0:
+                return [exported.stderr.strip() or unverified]
+            with tarfile.open(archive) as tree:
+                tree.extractall(base_tree, filter="data")
+            base_contract = probe(base_tree)
+            current_contract = probe(root)
+    except (OSError, ImportError, tarfile.TarError, SyntaxError) as error:
+        return [f"{unverified}: {error}"]
+    if base_contract is None or current_contract is None:
+        return [unverified]
+    if base_contract == current_contract:
+        return []
+    return [
+        "MCP discovery contract changed without a monotonic plugin version bump from "
+        f"{previous_version} ({_contract_difference(base_contract, current_contract)}); "
+        "a new bootstrap version and curl migration are required"
+    ]
+
+
 def _tracked_path_errors(root: Path) -> list[str]:
     try:
         manifest = load_release_manifest(root)
@@ -263,6 +362,7 @@ def main() -> int:
             )
         else:
             errors.extend(_base_diff_errors(root, args.base_ref))
+            errors.extend(_mcp_contract_errors(root, args.base_ref))
     if errors:
         raise SystemExit("\n".join(errors))
     print("release contract: valid")

@@ -369,5 +369,117 @@ class ReleaseGateTests(unittest.TestCase):
         )
 
 
+STUB_MCP_SERVER = """\
+import json, pathlib, sys
+description = pathlib.Path(__file__).resolve().parents[1].joinpath(
+    "src", "codex_science", "mcp_server.py").read_text().strip()
+for line in sys.stdin:
+    request = json.loads(line)
+    if request.get("method") == "initialize":
+        result = {"protocolVersion": "1", "capabilities": {}, "serverInfo": {"name": "stub"}}
+    elif request.get("method") == "tools/list":
+        result = {"tools": [{"name": "tool", "description": description, "inputSchema": {}}]}
+    else:
+        continue
+    print(json.dumps({"jsonrpc": "2.0", "id": request["id"], "result": result}), flush=True)
+"""
+
+
+class McpContractGateTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        script = ROOT / "scripts" / "validate_release.py"
+        spec = importlib.util.spec_from_file_location("validate_release_mcp_script", script)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("could not load validate_release.py")
+        cls.validator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.validator)
+
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tempdir.cleanup)
+        self.root = Path(self.tempdir.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.git("config", "user.email", "release@test.invalid")
+        self.git("config", "user.name", "Release Test")
+        self.write_release(BASE_PLUGIN)
+        for relative, content in (
+            ("scripts/science_mcp.py", STUB_MCP_SERVER),
+            ("catalog/inventory.json", "{}\n"),
+            ("src/codex_science/mcp_server.py", "description A\n"),
+            ("docs/guide.md", "A\n"),
+        ):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        self.commit("base")
+        self.base = self.git("rev-parse", "HEAD")
+
+    def git(self, *arguments: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(self.root), *arguments],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+    def commit(self, message: str) -> None:
+        self.git("add", ".")
+        self.git("commit", "-q", "-m", message)
+
+    def write_release(self, plugin_version: str) -> None:
+        plugin = self.root / ".codex-plugin" / "plugin.json"
+        plugin.parent.mkdir(parents=True, exist_ok=True)
+        plugin.write_text(json.dumps({"version": plugin_version}) + "\n", encoding="utf-8")
+        manifest = self.root / "release" / "manifest.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({
+            "schema_version": 2, "plugin_version": plugin_version,
+            "runtime_version": plugin_version, "runtime_affecting_prefixes": [],
+        }) + "\n", encoding="utf-8")
+
+    def errors(self) -> list[str]:
+        return self.validator._mcp_contract_errors(self.root, self.base)
+
+    def test_description_change_without_plugin_bump_fails(self) -> None:
+        (self.root / "src/codex_science/mcp_server.py").write_text("description B\n", encoding="utf-8")
+        self.commit("describe tool")
+        errors = self.errors()
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn("tool tool changed description", errors[0])
+        self.assertIn("bootstrap version and curl migration", errors[0])
+
+    def test_description_change_with_plugin_bump_passes(self) -> None:
+        (self.root / "src/codex_science/mcp_server.py").write_text("description B\n", encoding="utf-8")
+        self.write_release(NEXT_PLUGIN)
+        self.commit("describe tool with bootstrap bump")
+        self.assertEqual([], self.errors())
+
+    def test_change_outside_mcp_surface_passes(self) -> None:
+        (self.root / "docs/guide.md").write_text("B\n", encoding="utf-8")
+        self.commit("docs")
+        self.assertEqual([], self.errors())
+
+    def test_uncomputable_contract_is_an_error(self) -> None:
+        (self.root / "scripts/science_mcp.py").unlink()
+        self.commit("drop server")
+        errors = self.errors()
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn("could not verify the MCP discovery contract", errors[0])
+
+    def test_root_without_base_ref_does_not_probe_the_server(self) -> None:
+        def refuse() -> None:
+            raise AssertionError("MCP probe must not run without --base-ref")
+
+        original = self.validator._load_mcp_contract_probe
+        self.validator._load_mcp_contract_probe = refuse
+        self.addCleanup(setattr, self.validator, "_load_mcp_contract_probe", original)
+        argv = sys.argv
+        sys.argv = ["validate_release.py", "--root", str(self.root)]
+        self.addCleanup(setattr, sys, "argv", argv)
+        try:
+            self.validator.main()
+        except SystemExit:  # the fixture's own verdict is irrelevant; only the probe matters
+            pass
+
+
 if __name__ == "__main__":
     unittest.main()
