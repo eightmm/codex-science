@@ -283,9 +283,43 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("=== test_partial ===", result.stderr)
         self.assertIn("missing test IDs without fixture outcomes", result.stderr)
 
+    def test_classes_from_helper_modules_fail_closed(self):
+        # Serial runs honour the importer's hook or side effect; replaying the helper alone would not.
+        (self.tests / "helpers.py").write_text(textwrap.dedent("""
+            import unittest
+            LIMIT = 0
+            class ParamCase(unittest.TestCase):
+                def __init__(self, methodName="runTest", value=0):
+                    super().__init__(methodName)
+                    self.value = value
+                def test_value(self): self.assertEqual(0, self.value)
+            class Shared(unittest.TestCase):
+                def test_limit(self): self.assertEqual(0, LIMIT)
+        """), encoding="utf-8")
+        cases = {
+            "hook": """
+                import unittest
+                from helpers import ParamCase
+                def load_tests(loader, tests, pattern):
+                    return unittest.TestSuite([ParamCase("test_value", value=1)])
+            """,
+            "side_effect": """
+                import helpers
+                helpers.LIMIT = 1
+                from helpers import Shared
+            """,
+        }
+        for case, source in cases.items():
+            with self.subTest(case=case):
+                self.module("test_a", source)
+                result = self.invoke()
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                self.assertIn("non-test module 'helpers'", result.stderr)
+
     def test_empty_and_single_module_worker_boundaries(self):
         empty = self.invoke()
-        self.assertEqual(0, empty.returncode, empty.stderr)
+        # Matches serial unittest: 3.12+ exits 5 when no tests ran.
+        self.assertEqual(5 if sys.version_info >= (3, 12) else 0, empty.returncode, empty.stderr)
         self.assertIn("tests_run=0", empty.stdout)
         self.passing()
         for workers in ("1", "2", "0002"):

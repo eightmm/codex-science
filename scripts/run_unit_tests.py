@@ -4,13 +4,14 @@
 Import skips/errors retain unittest outcomes. SIGINT/SIGTERM stop workers,
 remove scratch directories, and exit with status 130/143 respectively.
 Worker output uses private files so test descendants cannot delay shutdown.
-Limits: discovery imports modules in this process; shared TestCase classes and
-package load_tests hooks fail closed. Use serial discovery for such suites.
+Limits: discovery imports modules in this process; shared TestCase classes,
+classes defined outside test*.py modules and package load_tests hooks fail closed. Use serial discovery for such suites.
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import importlib
@@ -67,6 +68,14 @@ def discover(start):
         if module == "unittest.loader" and type(test).__name__ in ("ModuleSkipped", "_FailedTest"):
             module = test._testMethodName
         modules[module].append(test.id())
+    # Children rebuild each group from its module alone, which only reproduces modules that
+    # discovery itself loads; a class from a helper module may depend on its importer.
+    for module in modules:
+        if not fnmatch.fnmatchcase(module.rsplit(".", 1)[-1], "test*"):
+            raise ValueError(
+                f"tests from non-test module {module!r} cannot be replayed safely; "
+                "run serially (unset CODEX_SCIENCE_TEST_WORKERS or set it to 1)"
+            )
     return dict(modules)
 
 
@@ -264,8 +273,11 @@ def run(start, workers):
         print(f"unit tests: {exc}", file=sys.stderr)
         failed = True
     counts = ", ".join(f"{key}={value}" for key, value in totals.items())
-    print(f"{'FAILED' if failed else 'OK'}: {counts}; wall time {time.monotonic() - started:.3f}s")
-    return int(failed)
+    # Python 3.12+ unittest exits 5 when nothing ran or was skipped; keep that status.
+    no_tests = not failed and totals["tests_run"] == 0 and totals["skips"] == 0 and sys.version_info >= (3, 12)
+    print(f"{'FAILED' if failed else 'NO TESTS RAN' if no_tests else 'OK'}: {counts}; "
+          f"wall time {time.monotonic() - started:.3f}s")
+    return 5 if no_tests else int(failed)
 
 
 def main():
