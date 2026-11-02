@@ -1201,8 +1201,9 @@ A claim is consensus only when strictly more than `min_support_fraction` of
 trajectories (default 0.5; values of 1 or more are refused) mention it and
 their statuses agree; claims with `status_disagreement` are listed as
 contested. Claim keys and statuses are compared after Unicode NFC
-normalisation, case folding and whitespace collapsing. Warning entries name
-the affected candidate ids in `component`. Bradley-Terry warnings include
+normalisation, case folding and whitespace collapsing. The
+`not_strongly_connected`, `tied_scores` and `candidate_id_collision` warnings
+name the affected candidate ids in `component`. Bradley-Terry warnings include
 `tied_scores` (adjacent scores equal within 1e-12, so their order is only an
 id tie-break) and `candidate_id_collision` (ids that are equal after the same
 key normalisation but counted as distinct candidates). When

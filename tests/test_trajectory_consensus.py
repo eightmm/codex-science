@@ -152,12 +152,12 @@ class ConsensusTests(unittest.TestCase):
         self.assertEqual(result["singleton_claims"][0]["key"], "rare")
 
     def test_statuses_differing_only_in_form_still_agree(self):
-        claims = ["Supported", " supported ", "Supp\u006frted", "not  supported"]
+        claims = ["Not  Supported", " not supported ", "NOT\tsupported"]
         result = build_consensus({"schema": "trajectory-set-v1", "trajectories": [
             {"id": f"t{i}", "claims": [{"key": "k", "statement": "s", "status": status}]}
-            for i, status in enumerate(claims[:3])]})
+            for i, status in enumerate(claims)]})
         self.assertEqual(["k"], [x["key"] for x in result["consensus_claims"]])
-        self.assertEqual({"supported": ["t0", "t1", "t2"]}, result["consensus_claims"][0]["statuses"])
+        self.assertEqual({"not supported": ["t0", "t1", "t2"]}, result["consensus_claims"][0]["statuses"])
         nfd = build_consensus({"schema": "trajectory-set-v1", "trajectories": [
             {"id": "a", "claims": [{"key": "k", "statement": "s", "status": "r\u00e9fut\u00e9"}]},
             {"id": "b", "claims": [{"key": "k", "statement": "s", "status": "re\u0301fute\u0301"}]},
