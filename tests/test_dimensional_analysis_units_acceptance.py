@@ -91,6 +91,15 @@ class DimensionalAnalysisUnitsAcceptanceTests(unittest.TestCase):
         self.assertEqual("findings", receipt["status"])
         self.assertIn("exp requires a dimensionless argument", receipt["findings"][0]["message"])
 
+    def test_require_clean_refuses_check_with_nothing_to_check(self) -> None:
+        payload = self.fixture_payload()
+        payload.update(equations=[], conversions=[])
+        completed, receipt = self.run_check(payload)
+        self.assertEqual(1, completed.returncode)
+        self.assertIsNotNone(receipt)
+        self.assertEqual("findings", receipt["status"])
+        self.assertEqual(["vacuous-dimension-check"], [item["code"] for item in receipt["findings"]])
+
     def test_quality_seeded_failures_have_matching_tests(self) -> None:
         quality = json.loads(QUALITY.read_text(encoding="utf-8"))
         declared = set(quality["seeded_failures"])

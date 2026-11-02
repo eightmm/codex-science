@@ -188,7 +188,7 @@ def _unit_tree(source: str) -> ast.Expression:
         raise ValueError("unit expression is required")
     if len(text) > 256:
         raise ValueError("unit expression exceeds 256 characters")
-    normalized = text.replace("^", "**").replace("µ", "u").replace("Å", "angstrom")
+    normalized = text.replace("^", "**").replace("µ", "u").replace("\u03bc", "u").replace("Å", "angstrom")
     try:
         tree = ast.parse(normalized, mode="eval")
     except SyntaxError as error:
@@ -286,6 +286,30 @@ def _wide_conversion(numeric: float, source: str, target: str) -> float:
     return converted
 
 
+def _equation_exponent(node: ast.AST) -> Fraction | None:
+    # Fractional floats are not exact ratios; None leaves them to dimensionless bases only.
+    if isinstance(node, ast.Constant) and not isinstance(node.value, bool):
+        if isinstance(node.value, int):
+            return Fraction(node.value)
+        if isinstance(node.value, float) and math.isfinite(node.value) and node.value.is_integer():
+            return Fraction(node.value)
+        return None
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        operand = _equation_exponent(node.operand)
+        if operand is None:
+            return None
+        return -operand if isinstance(node.op, ast.USub) else operand
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        numerator = _equation_exponent(node.left)
+        denominator = _equation_exponent(node.right)
+        if numerator is None or denominator is None:
+            return None
+        if denominator == 0:
+            raise ValueError("equation exponent denominator cannot be zero")
+        return numerator / denominator
+    return None
+
+
 def _affine_variables(node: ast.AST, variables: Mapping[str, Unit]) -> list[str]:
     called = {id(item.func) for item in ast.walk(node) if isinstance(item, ast.Call)}
     return sorted({
@@ -329,7 +353,16 @@ def _eval_dimension(node: ast.AST, variables: Mapping[str, Unit]) -> Dimension:
             right = _eval_dimension(node.right, variables)
             return tuple(a - b for a, b in zip(left, right))  # type: ignore[return-value]
         if isinstance(node.op, ast.Pow):
-            exponent = _fraction(node.right)
+            exponent = _equation_exponent(node.right)
+            if exponent is None:
+                if _eval_dimension(node.right, variables) != ZERO_DIMENSION:
+                    raise ValueError("equation powers require a dimensionless exponent")
+                if left != ZERO_DIMENSION:
+                    raise ValueError(
+                        "equation powers of a dimensioned base must be integer or rational constants; "
+                        "write a fractional power as a ratio such as 1/2"
+                    )
+                return ZERO_DIMENSION
             affine = _affine_variables(node.left, variables)
             if affine and exponent != 1:
                 raise ValueError(f"affine variable {affine[0]} cannot be exponentiated; declare a temperature difference as a separate variable in K")
@@ -353,7 +386,7 @@ def _eval_dimension(node: ast.AST, variables: Mapping[str, Unit]) -> Dimension:
     raise ValueError(f"unsupported dimensional expression element: {type(node).__name__}")
 
 
-def infer_dimension(expression: str, variables: Mapping[str, Unit]) -> Dimension:
+def _expression_tree(expression: str) -> ast.Expression:
     if not expression.strip() or len(expression) > 4096:
         raise ValueError("dimensional expression is empty or too long")
     try:
@@ -362,7 +395,44 @@ def infer_dimension(expression: str, variables: Mapping[str, Unit]) -> Dimension
         raise ValueError(f"invalid dimensional expression: {error.msg}") from error
     if len(list(ast.walk(tree))) > 512:
         raise ValueError("dimensional expression is too complex")
-    return _eval_dimension(tree, variables)
+    return tree
+
+
+def infer_dimension(expression: str, variables: Mapping[str, Unit]) -> Dimension:
+    return _eval_dimension(_expression_tree(expression), variables)
+
+
+def _references_variable(expression: str) -> bool:
+    tree = _expression_tree(expression)
+    called = {id(item.func) for item in ast.walk(tree) if isinstance(item, ast.Call)}
+    return any(isinstance(item, ast.Name) and id(item) not in called for item in ast.walk(tree))
+
+
+def _mismatch_finding(identifier: Any, error: Any) -> dict[str, str]:
+    return {
+        "code": "dimension-mismatch",
+        "severity": "critical",
+        "message": f"Equation {identifier} is dimensionally inconsistent" + (f": {error}" if error else "."),
+    }
+
+
+def _constant_equation_finding(identifier: Any) -> dict[str, str]:
+    return {
+        "code": "vacuous-dimension-check",
+        "severity": "major",
+        "message": f"Equation {identifier} references no variable, so it checks no declared dimension.",
+    }
+
+
+def _conversion_finding(identifier: Any, error: Any) -> dict[str, str]:
+    return {"code": "unit-conversion-failed", "severity": "major", "message": f"Conversion {identifier} failed: {error}"}
+
+
+_EMPTY_CHECK_FINDING = {
+    "code": "vacuous-dimension-check",
+    "severity": "major",
+    "message": "Dimension check declares no equations and no conversions, so it checks nothing.",
+}
 
 
 def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -412,11 +482,9 @@ def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
             "error": error,
         })
         if not compatible:
-            findings.append({
-                "code": "dimension-mismatch",
-                "severity": "critical",
-                "message": f"Equation {identifier} is dimensionally inconsistent" + (f": {error}" if error else "."),
-            })
+            findings.append(_mismatch_finding(identifier, error))
+        elif not (_references_variable(left_source) or _references_variable(right_source)):
+            findings.append(_constant_equation_finding(identifier))
     conversions: list[dict[str, Any]] = []
     for index, item in enumerate(conversions_raw):
         value = _finite_real(item.get("value"), "conversion value")
@@ -429,12 +497,10 @@ def run_dimension_check(payload: Mapping[str, Any]) -> dict[str, Any]:
         except ValueError as exc:
             converted = None
             error = str(exc)
-            findings.append({
-                "code": "unit-conversion-failed",
-                "severity": "major",
-                "message": f"Conversion {identifier} failed: {exc}",
-            })
+            findings.append(_conversion_finding(identifier, error))
         conversions.append({"id": identifier, "value": value, "from": source, "to": target, "converted": converted, "error": error})
+    if not equations and not conversions:
+        findings.append(dict(_EMPTY_CHECK_FINDING))
     result: dict[str, Any] = {
         "schema_version": 1,
         "check_id": check_id,
@@ -503,20 +569,29 @@ def review_dimension_check(payload: Mapping[str, Any]) -> list[dict[str, str]]:
             raise ValueError("dimension-check equations must be objects")
         derived: list[dict[str, str]] = []
         for index, equation in enumerate(equations):
+            identifier = equation.get("id", f"equation-{index}")
             if (
                 equation.get("compatible") is not True or equation.get("error") is not None
                 or equation.get("left_dimension") != equation.get("right_dimension")
             ):
-                identifier = equation.get("id", f"equation-{index}")
-                error = equation.get("error")
-                derived.append({
-                    "code": "dimension-mismatch", "severity": "critical",
-                    "message": f"Equation {identifier} is dimensionally inconsistent" + (f": {error}" if error else "."),
-                })
+                derived.append(_mismatch_finding(identifier, equation.get("error")))
+            if equation.get("error") is None:
+                sides = (equation.get("left"), equation.get("right"))
+                if not all(isinstance(side, str) for side in sides):
+                    raise ValueError(f"equation {identifier} must record left and right expressions as strings")
+                # Syntactic only: review never recomputes dimensions with today's registry.
+                if not any(_references_variable(side) for side in sides):
+                    derived.append(_constant_equation_finding(identifier))
+        conversions = payload.get("conversions", [])
+        for index, conversion in enumerate(conversions):
+            if conversion.get("error") is not None or conversion.get("converted") is None:
+                derived.append(_conversion_finding(conversion.get("id", f"conversion-{index}"), conversion.get("error")))
+        if not equations and not conversions:
+            derived.append(dict(_EMPTY_CHECK_FINDING))
         for finding in derived:
             if finding not in findings:
                 findings.append(finding)
-    except (ValueError, TypeError, OverflowError) as error:
+    except (ValueError, TypeError, OverflowError, RecursionError) as error:
         findings.append({"code": "invalid-dimension-check", "severity": "critical", "message": str(error)})
     if payload.get("status") == "passed" and findings:
         findings.append({"code": "unsafe-dimension-pass", "severity": "critical", "message": "Dimension check is passed despite recorded mismatches."})

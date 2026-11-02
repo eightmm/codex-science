@@ -70,6 +70,45 @@ class UnitsScaleValidityTests(unittest.TestCase):
             ):
                 self.assertEqual([], review_dimension_check(recorded))
 
+    def test_dimension_review_rederives_conversion_and_vacuous_findings(self):
+        def forge(receipt, mutate=None):
+            forged = copy.deepcopy(receipt)
+            forged.update(status="passed", findings=[])
+            if mutate:
+                mutate(forged)
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            return forged
+
+        base = {"schema_version": 1, "check_id": "d", "claim_id": "c", "variables": {"x": "m"}}
+        for label, payload, code in (
+            ("conversion", {"conversions": [{"value": 1, "from": "m", "to": "s"}]}, "unit-conversion-failed"),
+            ("empty", {}, "vacuous-dimension-check"),
+            ("constant", {"equations": [{"left": "2", "right": "3"}]}, "vacuous-dimension-check"),
+        ):
+            receipt = run_dimension_check({**base, **payload})
+            with self.subTest(label=label):
+                self.assertEqual("findings", receipt["status"])
+                self.assertEqual(receipt["findings"], review_dimension_check(receipt))
+                with patch("codex_science.units_runtime.infer_dimension", side_effect=AssertionError("recomputed")):
+                    review = review_dimension_check(forge(receipt))
+                self.assertEqual(receipt["findings"] + [{
+                    "code": "unsafe-dimension-pass", "severity": "critical",
+                    "message": "Dimension check is passed despite recorded mismatches.",
+                }], review)
+                self.assertEqual(code, review[0]["code"])
+
+        receipt = run_dimension_check({**base, "equations": [{"left": "x", "right": "x"}]})
+        for side in (5, None, "", "x +", "x" * 4097):
+            forged = forge(receipt, lambda r: r["equations"][0].update(left=side))
+            with self.subTest(side=str(side)[:16]):
+                self.assertIn("invalid-dimension-check", {item["code"] for item in review_dimension_check(forged)})
+        recorded_error = forge(receipt, lambda r: r["equations"][0].update(left=5, compatible=False, error="recorded"))
+        self.assertEqual(
+            ["dimension-mismatch", "unsafe-dimension-pass"],
+            [item["code"] for item in review_dimension_check(recorded_error)],
+        )
+
     def test_validator_refuses_malformed_findings_and_conversions(self):
         receipt = run_dimension_check({
             "schema_version": 1, "check_id": "d", "claim_id": "c", "variables": {"x": "m"},

@@ -23,12 +23,20 @@ input JSON keys (schema_version must be 1):
                            expressions over the variable names (not unit symbols),
                            using +, -, *, /, ^ or **, numeric constants, unary +/-,
                            sqrt, abs, and exp/log/log10/sin/cos/tan (dimensionless
-                           argument). + and - need equal dimensions. An unknown name,
+                           argument). + and - need equal dimensions. Equation powers
+                           need a dimensionless exponent; a dimensioned base needs an
+                           integer, integer-valued float or integer ratio exponent
+                           (x**2.0, x**(1/2), not x**0.5 or x**n), and a dimensionless
+                           base takes any dimensionless exponent. An unknown name,
                            invalid syntax, or unequal dimensions is reported as a
-                           critical dimension-mismatch finding.
+                           critical dimension-mismatch finding. An equation whose
+                           sides reference no variable (2 = 3) is a major
+                           vacuous-dimension-check finding.
   conversions              optional list of {id (default conversion-N), value
                            (required number), from, to (built-in unit symbols)}.
                            A failed conversion is a major unit-conversion-failed finding.
+  With no equations and no conversions there is nothing to check: the result
+  has a major vacuous-dimension-check finding and status is not 'passed'.
 """
 
 

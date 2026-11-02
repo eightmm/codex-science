@@ -263,6 +263,65 @@ class UnitsRuntimeContractTests(unittest.TestCase):
         self.assertTrue(all(item["compatible"] and item["error"] is None for item in result["equations"]))
         self.assertEqual({"length": "1", "time": "-1"}, result["equations"][4]["left_dimension"])
 
+    def test_equation_powers_accept_exact_and_dimensionless_exponents(self) -> None:
+        variables = {"x": "m", "n": "1", "T": "K", "A": "m^2", "temperature": "degC"}
+        for left, right in (
+            ("x**2.0", "A"), ("x**-(-2.0)", "A"), ("x**(4.0/2)", "A"), ("x**0.0", "n"),
+            ("n**0.5", "n"), ("n**-2.0", "n"), ("n**0.0", "n"), ("2**n", "n"), ("n**n", "n"),
+            ("n**1e400", "n"), ("temperature**1.0", "temperature"),
+        ):
+            with self.subTest(left=left):
+                result = run_dimension_check(self.check_payload(
+                    variables=variables, equations=[{"id": "eq", "left": left, "right": right}],
+                ))
+                self.assertEqual("passed", result["status"], result["findings"])
+        for left, fragment in (
+            ("x**0.5", "equation powers of a dimensioned base must be integer or rational"),
+            ("x**1e400", "equation powers of a dimensioned base must be integer or rational"),
+            ("x**n", "equation powers of a dimensioned base must be integer or rational"),
+            ("temperature**n", "equation powers of a dimensioned base must be integer or rational"),
+            ("2**T", "equation powers require a dimensionless exponent"),
+            ("n**x", "equation powers require a dimensionless exponent"),
+            ("x**(1/0)", "equation exponent denominator cannot be zero"),
+            ("x**True", "only numeric constants"),
+            ("x**'a'", "only numeric constants"),
+        ):
+            with self.subTest(left=left):
+                self.assertEquationError(left, "x", fragment, variables=variables)
+
+    def test_constant_equations_and_empty_checks_are_vacuous(self) -> None:
+        for payload in (
+            self.check_payload(),
+            self.check_payload(equations=[{"id": "eq", "left": "2", "right": "3"}]),
+            self.check_payload(equations=[{"id": "eq", "left": "sqrt(4)", "right": "abs(-2)"}]),
+            self.check_payload(equations=[{"id": "ok", "left": "x", "right": "x"}, {"id": "eq", "left": "2", "right": "2"}]),
+        ):
+            with self.subTest(equations=payload["equations"], conversions=len(payload["conversions"])):
+                result = run_dimension_check(payload)
+                self.assertEqual("findings", result["status"])
+                self.assertEqual(
+                    [("vacuous-dimension-check", "major")],
+                    [(item["code"], item["severity"]) for item in result["findings"]],
+                )
+                if payload["equations"]:
+                    self.assertIn("Equation eq references no variable", result["findings"][0]["message"])
+                self.assertEqual(result["findings"], review_dimension_check(result))
+        for payload in (
+            self.check_payload(variables={"x": "1"}, equations=[{"id": "eq", "left": "x", "right": "2"}]),
+            self.check_payload(variables={"sqrt": "m"}, equations=[{"id": "eq", "left": "sqrt", "right": "sqrt"}]),
+            self.check_payload(conversions=[{"id": "c", "value": 1, "from": "m", "to": "cm"}]),
+        ):
+            with self.subTest(equations=payload["equations"], conversions=len(payload["conversions"])):
+                self.assertEqual("passed", run_dimension_check(payload)["status"])
+        unknown = run_dimension_check(self.check_payload(equations=[{"id": "eq", "left": "2", "right": "y"}]))
+        self.assertEqual(["dimension-mismatch"], [item["code"] for item in unknown["findings"]])
+
+    def test_greek_mu_parses_like_micro_sign(self) -> None:
+        for symbol in ("μm", "µm", "um"):
+            with self.subTest(symbol=symbol):
+                self.assertEqual(1e-6, parse_unit(symbol).scale)
+                self.assertAlmostEqual(1.0, convert_value(1000.0, symbol.replace("m", "s"), "ms"))
+
     def test_equation_mismatch_without_error_message(self) -> None:
         result = run_dimension_check(self.check_payload(equations=[{"id": "bad", "left": "x", "right": "t"}]))
         self.assertIsNone(result["equations"][0]["error"])

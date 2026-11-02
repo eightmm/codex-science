@@ -112,7 +112,7 @@ The receipt records refinement sequence, reference or errors, observed order, re
   --require-clean
 ```
 
-The built-in unit registry covers common SI base and derived units, prefixes, litre, angle, Celsius, and electronvolt. Unknown or convention-specific units fail rather than being silently treated as dimensionless.
+The built-in unit registry is the fixed symbol list `UNIT_REGISTRY` in `src/codex_science/units_runtime.py` (SI base and derived units, a few prefixed lengths, masses, times and volumes, litre, angle, Celsius, and electronvolt); there is no general prefix parser, so symbols such as `kJ` or `MHz` are unknown. The dimensional-analysis-units reference lists the symbols. Unknown or convention-specific units fail rather than being silently treated as dimensionless. A check with no equations and no conversions, or an equation whose sides reference no variable, is reported as `vacuous-dimension-check` and does not pass.
 
 ### Uncertainty propagation
 
