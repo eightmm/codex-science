@@ -1569,7 +1569,7 @@ class ManuscriptPackageTests(unittest.TestCase):
         self.edit_manuscript(
             "not an empirical scientific result.\n",
             "not an empirical scientific result.\n"
-            "See [@ghost; @ref-method], [see @ghost2, p. 3], [@fig:plot] and [@eq:one].\n"
+            "See [@ghost; @ref-method], [see @ghost2, p. 3], [@fig:plot], [@Fig:plot], [@Sec:intro] and [@eq:one].\n"
             "Mail [a@example.org] or `[@incode]`.\n\n"
             "```\n[@infence]\n<!-- claim:CODE-1 -->\n```\n\n"
             "<!-- claim:M-999 -->\n",

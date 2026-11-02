@@ -180,7 +180,9 @@ def _unregistered_manuscript_keys(
         for pattern in registered:
             text = pattern.sub(" ", text)
         for key in CITATION_KEY_RE.findall(text):
-            if not key.startswith(CROSSREF_PREFIXES) and key not in citation_ids:
+            # pandoc-crossref also accepts a capitalised prefix ([@Fig:x] renders "Fig.").
+            crossref = (key[:1].lower() + key[1:]).startswith(CROSSREF_PREFIXES)
+            if not crossref and key not in citation_ids:
                 citations.add(key)
     markers = {
         marker for marker in CLAIM_MARKER_ID_RE.findall(prose) if f"claim:{marker}" not in anchors
