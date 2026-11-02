@@ -24,7 +24,7 @@
 
 Domains are explicit `values`, inclusive `integer_range`, or sampled `float_grid`. The evaluator allows bounded arithmetic, comparisons, Boolean logic, conditional expressions, and approved elementary functions. It rejects attributes, indexing, containers, comprehensions, imports, file access, arbitrary calls, excessive powers, huge integers, and oversized searches.
 
-A search accepts at most 64 variables. Assumptions and the conclusion must evaluate to booleans, a boolean is never compared with a number, and a failing grid point stops the search with the expression and assignment named. Variable names cannot be Python keywords, and `exact_domains` is false when a `values` list holds a float.
+A search accepts at most 64 variables. Assumptions and the conclusion must evaluate to booleans, a boolean is never compared with a number, and a failing grid point stops the search with the expression and assignment named. A variable entry holds only `name` and one domain key, variable names cannot be Python keywords, and `exact_domains` is false when a `values` list holds a float.
 
 Power bounds compare integer exponents directly, without converting them to floating point. Oversized exponents raise the existing power-bound expression error. Numeric evaluation and float-grid endpoint conversion also report overflow as labelled expression errors.
 
