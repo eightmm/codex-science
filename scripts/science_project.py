@@ -43,9 +43,27 @@ def create(args: argparse.Namespace) -> None:
     _write(args.output, store.create_project(project_id=args.project_id, title=args.title, question=args.question))
 
 
+def _preflight_bundle_output(output: Path, manifest_paths: list[Path]) -> None:
+    """Refuse outputs that would replace files of validated imported run bundles."""
+    inputs = []
+    protected_dirs = []
+    for manifest_path in manifest_paths:
+        root = manifest_path.parent
+        inputs.extend((manifest_path, root / "manifest.json", root / "checkpoint.json"))
+        protected_dirs.append(root / "discovery" / "revisions")
+        manifest = load_json_object(manifest_path)
+        inputs.extend(manifest_provenance_paths(manifest, root))
+        for item in manifest["artifacts"]:
+            if item.get("artifact_type") == "directory-tree":
+                protected_dirs.append(root / item["path"])
+    preflight_output_paths(output, inputs=inputs, protected_dirs=protected_dirs)
+
+
 def import_run(args: argparse.Namespace) -> None:
     store = ProjectStore(args.database)
     record = store.import_run(project_id=args.project_id, manifest_path=args.manifest, branch_name=args.branch, parent_run_id=args.parent_run)
+    # Checked after import validated the bundle; a refused output leaves an idempotent re-import.
+    _preflight_bundle_output(args.output, [args.manifest])
     _write(args.output, record.to_dict())
 
 
@@ -133,19 +151,7 @@ def discovery(args: argparse.Namespace) -> None:
                     "SELECT manifest_path FROM runs WHERE project_id=? AND (? IS NULL OR run_id=?)",
                     (args.project_id, args.run_id, args.run_id),
                 ).fetchall()
-            inputs = []
-            protected_dirs = []
-            for row in rows:
-                manifest_path = Path(row["manifest_path"])
-                root = manifest_path.parent
-                inputs.extend((manifest_path, root / "manifest.json", root / "checkpoint.json"))
-                protected_dirs.append(root / "discovery" / "revisions")
-                manifest = load_json_object(manifest_path)
-                inputs.extend(manifest_provenance_paths(manifest, root))
-                for item in manifest["artifacts"]:
-                    if item.get("artifact_type") == "directory-tree":
-                        protected_dirs.append(root / item["path"])
-            preflight_output_paths(args.output, inputs=inputs, protected_dirs=protected_dirs)
+            _preflight_bundle_output(args.output, [Path(row["manifest_path"]) for row in rows])
         if action == "memory":
             from codex_science.discovery_synthesis import synthesize_history
             result = synthesize_history(result)
@@ -307,7 +313,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--manifest", type=Path, required=True, help="run manifest.json path")
     command.add_argument("--branch", required=True, help="branch name to record the run on")
     command.add_argument("--parent-run", help="imported parent run ID (optional; defaults to the branch head when the branch exists)")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database, SQLite sidecars or imported bundle files")
     command.set_defaults(handler=import_run)
 
     command = subcommands.add_parser("fork", help="Fork a project branch from an imported run")

@@ -176,6 +176,28 @@ class DiscoveryWorkbenchTests(unittest.TestCase):
                     self.assertIsInstance(json.loads(output.read_text()), dict)
                 self.assertEqual(1, len(store.discovery_history(project_id="p")["runs"]))
 
+    def test_import_run_output_preserves_imported_bundle_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest, artifact, _ = annotation_fixture(root / "run")
+            database = root / "project.sqlite"
+            ProjectStore(database).create_project(project_id="p", title="Import", question="Why?")
+            command = [sys.executable, str(ROOT / "scripts/science_project.py"), "--database", str(database),
+                       "import-run", "--project-id", "p", "--manifest", str(manifest), "--branch", "main"]
+            before = {path: path.read_bytes() for path in (manifest, artifact)}
+            for target in (manifest, artifact):
+                with self.subTest(target=target.name):
+                    result = subprocess.run(command + ["--output", str(target)], capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertEqual(before, {path: path.read_bytes() for path in before})
+            output = root / "import.json"
+            result = subprocess.run(command + ["--output", str(output)], capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("run-annotation", json.loads(output.read_text())["run_id"])
+
     def test_cli_refuses_missing_or_directory_manifest_without_writes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
