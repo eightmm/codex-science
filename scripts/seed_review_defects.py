@@ -22,11 +22,13 @@ with no find/replace makes an unmodified copy and needs no expected_min_severity
 manifest paths, the seeded file and paths with symlink components are refused.
 --strip-review-history deletes review-rounds/ from the copy so a blinded reviewer
 cannot read prior receipts.
-Keep --key outside --out.
+Keep --spec and --key outside both --bundle and --out, including resolved aliases.
 Responses are reviewer-response JSON or review receipts with findings[].
 Scoring requires defect_id/defect_class and, for non-control keys, file and
-expected_min_severity. Malformed keys exit 2. Artifact paths ignore ./ and
-redundant separators; contradictory seeded-artifact hashes exclude a finding.
+expected_min_severity. Optional key digests must be 64 lowercase hexadecimal
+characters or null; malformed keys exit 2. Artifact paths ignore ./ and redundant
+separators; malformed finding hashes or contradictory seeded-artifact hashes
+exclude a finding. Finding hashes accept uppercase hexadecimal too.
 One response per variant is a detection record, not a sensitivity estimate."""
 
 
@@ -35,9 +37,9 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     seeding = commands.add_parser("seed", help="copy a bundle, apply the spec replacement, refresh its manifest")
     seeding.add_argument("--bundle", type=Path, required=True, help="reviewed run bundle directory (not modified)")
-    seeding.add_argument("--spec", type=Path, required=True, help="defect spec JSON")
+    seeding.add_argument("--spec", type=Path, required=True, help="defect spec JSON, outside --bundle and --out")
     seeding.add_argument("--out", type=Path, required=True, help="new directory for the seeded copy; must not exist")
-    seeding.add_argument("--key", type=Path, required=True, help="answer key JSON to write, outside --out")
+    seeding.add_argument("--key", type=Path, required=True, help="answer key JSON to write, outside --bundle and --out")
     seeding.add_argument("--drop", action="append", default=[], metavar="PATH", help="remove an unregistered file or directory from the copy before refresh; repeatable")
     seeding.add_argument("--strip-review-history", action="store_true", help="delete review-rounds/ from the copy after refresh")
     scoring = commands.add_parser("score", help="score reviewer responses against an answer key")

@@ -25,6 +25,10 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
+
+
 def _is_inside(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
 
@@ -153,14 +157,19 @@ def seed(bundle: Path, spec_path: Path, out: Path, key_path: Path, drop: Iterabl
     key_path = key_path.parent.resolve() / key_path.name
     if not bundle.is_dir():
         raise ValueError(f"bundle is not a directory: {bundle}")
+    for label, path in (("--spec", spec_path), ("--key", key_path)):
+        try:
+            path = path.resolve()
+        except RuntimeError as error:
+            raise ValueError(f"{label} cannot resolve path: {path}") from error
+        if _is_inside(path, bundle):
+            raise ValueError(f"{label} must not be inside --bundle; keep seeding answers outside review bundles")
+        if _is_inside(path, out):
+            raise ValueError(f"{label} must not be inside --out; keep seeding answers outside review bundles")
     if out.exists() or out.is_symlink():
         raise ValueError(f"--out already exists: {out}")
     if _is_inside(out, bundle):
         raise ValueError("--out must not be inside --bundle")
-    if _is_inside(key_path, bundle):
-        raise ValueError("--key must not be inside --bundle; --bundle is never modified")
-    if _is_inside(key_path, out):
-        raise ValueError("--key must not be inside --out; the answer key must not ship with the bundle")
     if key_path.exists() or key_path.is_symlink():
         raise ValueError(f"--key already exists: {key_path}")
     _check_key_parent(key_path)
@@ -270,14 +279,15 @@ def _scoring_spec(key: Any) -> dict[str, Any]:
     claim_id = spec.get("claim_id")
     if claim_id is not None and (not isinstance(claim_id, str) or not claim_id):
         raise ValueError("key spec claim_id must be a non-empty string when present")
+    for field in ("file_sha256_before", "file_sha256_after"):
+        digest = key.get(field)
+        if digest is not None and not _is_sha256(digest):
+            raise ValueError(f"key {field} must be 64 lowercase hexadecimal characters or null")
     if spec["defect_class"] != "control":
         if not isinstance(spec.get("file"), str) or not spec["file"]:
             raise ValueError("key spec file must be a non-empty string")
         if spec.get("expected_min_severity") not in MIN_SEVERITIES:
             raise ValueError("key spec expected_min_severity must be 'major' or 'critical'")
-        after = key.get("file_sha256_after")
-        if after is not None and not isinstance(after, str):
-            raise ValueError("key file_sha256_after must be a string or null")
     return spec
 
 
@@ -309,10 +319,13 @@ def score_response(key: dict[str, Any], response: Any) -> dict[str, Any]:
     matched = []
     for index, finding in indexed:
         evidence = finding.get("evidence", [])
-        if after is not None and isinstance(evidence, list) and any(
-            isinstance(entry, dict) and _same_artifact_path(entry.get("artifact_path"), spec["file"])
-            and "artifact_sha256" in entry
-            and str(entry["artifact_sha256"]).lower() != str(after).lower()
+        if isinstance(evidence, list) and any(
+            isinstance(entry, dict) and "artifact_sha256" in entry and (
+                not isinstance(entry["artifact_sha256"], str)
+                or not _is_sha256(entry["artifact_sha256"].lower())
+                or (after is not None and _same_artifact_path(entry.get("artifact_path"), spec["file"])
+                    and entry["artifact_sha256"].lower() != after)
+            )
             for entry in evidence
         ):
             continue

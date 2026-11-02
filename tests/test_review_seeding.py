@@ -180,6 +180,54 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertTrue(all(path in {"manifest.json", "review.json"} or "review-rounds" in path for path in changed), changed)
         self.assertNotIn("claims.json", changed)
 
+    def test_cli_refuses_seeding_answers_inside_review_bundles_before_writing(self) -> None:
+        spec = self.spec()
+        internal = self.bundle / "logs" / "seed-spec.json"
+        internal.parent.mkdir(exist_ok=True)
+        internal.write_bytes(spec.read_bytes())
+        bundle_alias = self.root / "bundle-alias"
+        bundle_alias.symlink_to(self.bundle, target_is_directory=True)
+        spec_alias = self.root / "spec-alias.json"
+        spec_alias.symlink_to(internal)
+        out_alias = self.root / "out-alias"
+        out_alias.symlink_to(self.out, target_is_directory=True)
+        loop = self.root / "loop"
+        loop.symlink_to(loop.name)
+        cases = [("--spec", internal, "--bundle"),
+                 ("--spec", bundle_alias / "logs" / internal.name, "--bundle"),
+                 ("--spec", spec_alias, "--bundle"),
+                 ("--spec", self.bundle, "--bundle"),
+                 ("--spec", self.out / "spec.json", "--out"),
+                 ("--spec", out_alias / "spec.json", "--out"),
+                 ("--spec", self.out, "--out"),
+                 ("--key", self.bundle / "key.json", "--bundle"),
+                 ("--key", bundle_alias / "key.json", "--bundle"),
+                 ("--key", spec_alias, "--bundle"),
+                 ("--key", self.bundle, "--bundle"),
+                 ("--key", self.out / "key.json", "--out"),
+                 ("--key", out_alias / "key.json", "--out"),
+                 ("--key", self.out, "--out"),
+                 ("--spec", loop, None), ("--key", loop, None)]
+        script = ROOT / "scripts" / "seed_review_defects.py"
+        for option, path, container in cases:
+            with self.subTest(option=option, path=path):
+                before = {p.relative_to(self.root): p.read_bytes()
+                          for p in self.root.rglob("*") if p.is_file()}
+                entries = {p.relative_to(self.root) for p in self.root.rglob("*")}
+                result = subprocess.run([sys.executable, str(script), "seed", "--bundle", str(self.bundle),
+                    "--spec", str(path if option == "--spec" else spec), "--out", str(self.out),
+                    "--key", str(path if option == "--key" else self.key), "--strip-review-history"],
+                    capture_output=True, text=True)
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("seed_review_defects failed:", result.stderr)
+                if container is not None:
+                    self.assertIn(f"{option} must not be inside {container}", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(entries, {p.relative_to(self.root) for p in self.root.rglob("*")})
+                self.assertEqual(before, {p.relative_to(self.root): p.read_bytes()
+                                         for p in self.root.rglob("*") if p.is_file()})
+
     def test_control_spec_with_find_refused(self) -> None:
         with self.assertRaisesRegex(ValueError, "control"):
             self.run_seed(defect_class="control")
@@ -325,6 +373,57 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertEqual(["current"], result["matched_finding_ids"])
         legacy_key = {name: value for name, value in key.items() if name != "file_sha256_after"}
         self.assertTrue(review_seeding.score_response(legacy_key, {"findings": findings[:1]})["caught"])
+
+    def test_cli_and_scorer_reject_malformed_digests_as_evidence(self) -> None:
+        spec = {"defect_id": "d1", "defect_class": "overreach", "file": "claims.json",
+                "claim_id": CLAIM, "expected_min_severity": "major"}
+        invalid = ("not-a-sha256", "", 0, [], {}, "a" * 63, "a" * 65, "A" * 64, "a" * 63 + "g",
+                   "a" * 64 + "\n")
+        script = ROOT / "scripts" / "seed_review_defects.py"
+        for field in ("file_sha256_before", "file_sha256_after"):
+            for digest in invalid:
+                with self.subTest(field=field, digest=digest):
+                    key = {"spec": spec, "file_sha256_before": "a" * 64, "file_sha256_after": "a" * 64,
+                           field: digest}
+                    finding = {"severity": "major", "affected_claim_id": CLAIM,
+                               "evidence": [{"artifact_path": "claims.json", "artifact_sha256": digest}]}
+                    self.key.write_text(json.dumps(key), encoding="utf-8")
+                    response = self.response("digest-response.json", [finding])
+                    before = (self.key.read_bytes(), response.read_bytes())
+                    result = subprocess.run([sys.executable, str(script), "score", "--key", str(self.key),
+                        "--response", str(response)], capture_output=True, text=True)
+                    self.assertEqual(before, (self.key.read_bytes(), response.read_bytes()))
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertIn("seed_review_defects failed:", result.stderr)
+                    self.assertIn(field, result.stderr)
+                    self.assertIn("64 lowercase hexadecimal characters", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual("", result.stdout)
+                    with self.assertRaisesRegex(ValueError, field):
+                        review_seeding.score_response(key, {"findings": [finding]})
+        for digest in ("0" * 64, "a" * 64, None):
+            key = {"spec": spec, "file_sha256_before": digest, "file_sha256_after": digest}
+            self.assertFalse(review_seeding.score_response(key, {"findings": []})["caught"])
+        for after in ("a" * 64, "0" * 64, None):
+            for legacy in (False, True):
+                key = {"spec": spec, "file_sha256_before": None}
+                if not legacy:
+                    key["file_sha256_after"] = after
+                for path in ("claims.json", "report.md"):
+                    finding_cases = [(value, False) for value in invalid if value != "A" * 64]
+                    finding_cases += [(None, False), (after or "a" * 64, True),
+                                      ((after or "a" * 64).upper(), True)]
+                    for digest, valid in finding_cases:
+                        with self.subTest(after=after, legacy=legacy, path=path, digest=digest):
+                            finding = {"severity": "major", "affected_claim_id": CLAIM,
+                                       "evidence": [{"artifact_path": path, "artifact_sha256": digest}]}
+                            self.key.write_text(json.dumps(key), encoding="utf-8")
+                            response = self.response("digest-response.json", [finding])
+                            before = (self.key.read_bytes(), response.read_bytes())
+                            result = score(self.key, [response])["results"][0]
+                            self.assertEqual(before, (self.key.read_bytes(), response.read_bytes()))
+                            self.assertEqual(valid, result["caught"])
+                            self.assertEqual(valid, result["caught_any_severity"])
 
     def test_score_path_only_key_and_critical_threshold(self) -> None:
         self.run_seed(claim_id=None, expected_min_severity="critical")
