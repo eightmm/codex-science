@@ -12,7 +12,7 @@ Preserve the prior protocol, exact queries, source releases, included and exclud
 
 - Studies: `study_id`, `title`, `persistent_id`, `eligibility`, and `exclusion_reason` for excluded studies.
 - Claims: `id`, `status`.
-- Queries: `query_id`, `source`, `query`, and, when present in the query log, `status`, `accessed_at`.
+- Queries: `query_id`, `source`, `query`, `status` and `accessed_at`; a snapshot build refuses ledger rows without a known status or an access time.
 
 A diff of two built snapshots reports query additions, removals, and changes to those query fields; study additions, removals, and changes to title, persistent identifier, eligibility, or exclusion reason; and claim additions, removals, and status changes. Rows are matched by `query_id`, `study_id`, and claim `id`; changing one appears as removal and addition.
 
