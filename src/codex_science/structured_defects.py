@@ -284,10 +284,12 @@ _POPULATION_NOUNS = frozenset({
     "participants", "volunteers", "controls", "caregivers", "carers", "students", "workers",
     "veterans", "parents", "partners", "families", "mice", "rats", "animals",
 })
-# "and" before an age bound ("aged 65 and older", "18 and under in japan") is part of the bound, not a
-# list separator, unless the bound word directly modifies a group noun ("adults and older children").
+# "and" closing a numeric age bound ("aged 65 and older", "18 years and under in japan") is part of the
+# bound, not a list separator, unless the bound word directly modifies a group noun. Without a number
+# ("middle-aged and older chinese adults", "adults and older school-age children") it separates items.
 _POPULATION_SEPARATOR = re.compile(
-    r"[,;/]|\band\b(?!\s+(?:over|older|above|under|younger|below)\b(?!\s+(?:"
+    r"[,;/]|\band\b(?!(?:(?<=\d\sand)|(?<=\d\syears\sand))"
+    r"\s+(?:over|older|above|under|younger|below)\b(?!\s+(?:"
     + "|".join(sorted(_POPULATION_NOUNS, key=len, reverse=True)) + r")\b))"
 )
 _BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
