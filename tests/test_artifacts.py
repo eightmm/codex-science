@@ -867,7 +867,7 @@ class ArtifactIndexTests(unittest.TestCase):
             run = manifest_path.parent
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             markdown = render_markdown(manifest, run)
-            # Only complete/completed count, as in review; "done" is neither counted nor labelled complete.
+            # Only complete/completed count; "done" is neither counted nor labelled complete.
             self.assertIn("2/4 complete", markdown)
             self.assertNotIn("✅ Complete:** First", markdown)
             self.assertIn("- **✅ Complete:** Second", markdown)
