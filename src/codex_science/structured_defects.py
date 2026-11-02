@@ -270,6 +270,14 @@ def _validate(payload: Any) -> dict[str, Any]:
     }
 
 
+# "and" before an age or size bound ("aged 18 and over") qualifies one population rather than listing another.
+_POPULATION_SEPARATOR = re.compile(r"[,;/]|\band\b(?!\s+(?:over|older|above|under|younger|below)\b)")
+
+
+def _population_components(population: str) -> list[str]:
+    return [item.strip() for item in _POPULATION_SEPARATOR.split(population.casefold()) if item.strip()]
+
+
 def structured_review_findings(payload: Any) -> list[dict[str, str]]:
     """Find defects provable from a validated structured review input."""
     data = _validate(payload)
@@ -288,21 +296,27 @@ def structured_review_findings(payload: Any) -> list[dict[str, str]]:
             })
 
         if "population" in claim:
-            target = claim["population"].casefold()
+            targets = _population_components(claim["population"])
             declared_populations = [
-                study["population"].casefold()
+                study["population"]
                 for study in supporting
                 if "population" in study
             ]
-            covered = any(
-                target == population
-                or target in {item.strip() for item in re.split(r"[,;/]|\band\b", population)}
-                or (
-                    target.startswith(population)
-                    and len(target) > len(population)
-                    and not target[len(population)].isalnum()
+            populations = [
+                component for population in declared_populations
+                for component in _population_components(population)
+            ]
+            covered = bool(targets) and all(
+                any(
+                    target == population
+                    or (
+                        target.startswith(population)
+                        and len(target) > len(population)
+                        and not target[len(population)].isalnum()
+                    )
+                    for population in populations
                 )
-                for population in declared_populations
+                for target in targets
             )
             if declared_populations and not covered:
                 findings.append({

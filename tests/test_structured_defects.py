@@ -1,5 +1,10 @@
 import copy
+import json
+import os
+from pathlib import Path
+import subprocess
 import sys
+import tempfile
 import unittest
 
 from codex_science.structured_defects import structured_review_findings
@@ -75,6 +80,87 @@ class StructuredDefectTests(unittest.TestCase):
             studies=[{"id": "study-1", "design": "cohort", "population": "adults"}],
         )
         self.assertNotIn("population-overreach", finding_codes(payload))
+
+    def _assert_population_coverage(self, target, populations, overreach) -> None:
+        payload = review_input(
+            claims=[{"id": "C", "kind": "associational", "population": target,
+                     "supported_by": [str(index) for index in range(len(populations))]}],
+            studies=[{"id": str(index), "design": "cohort", "population": population}
+                     for index, population in enumerate(populations)],
+        )
+        original = copy.deepcopy(payload)
+        expected = [{"code": "population-overreach", "severity": "major"}] if overreach else []
+        with tempfile.TemporaryDirectory() as temporary:
+            case_path = Path(temporary) / "population.json"
+            input_bytes = (json.dumps({"case_id": "population", "structured_review_input": payload,
+                                      "expected_findings": expected}, indent=2) + "\n").encode()
+            case_path.write_bytes(input_bytes)
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" /
+                                     "run_reviewer_benchmark.py"), "--cases", temporary],
+                capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "60")),
+            )
+            self.assertEqual(input_bytes, case_path.read_bytes())
+            self.assertEqual(2 if overreach is None else 0, result.returncode, result.stderr)
+            if overreach is None:
+                self.assertIn("population must be a non-empty string", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+            else:
+                detail = json.loads(result.stdout)["details"][0]
+                self.assertTrue(detail["passed"], detail)
+        if overreach is None:
+            with self.assertRaisesRegex(ValueError, "population must be a non-empty string"):
+                structured_review_findings(payload)
+        else:
+            self.assertEqual(overreach, "population-overreach" in finding_codes(payload))
+        self.assertEqual(original, payload)
+
+    def test_population_overreach_rejects_added_list_components(self) -> None:
+        for target, populations, overreach in (
+            ("adults and children", ["adults"], True),
+            ("adults, children", ["adults"], True),
+            ("adults; children", ["adults"], True),
+            ("adults / children", ["adults"], True),
+            ("children and adults", ["adults"], True),
+            ("adults aged 18-65 and children", ["adults"], True),
+            ("adults 65 and older and children", ["adults"], True),
+            ("adults and children and infants", ["adults", "children"], True),
+            ("children", [", ; / and "], True),
+            (", ; / and ", ["adults"], True),
+            ("adults and children", [], False),
+            ("adults or children", ["adults"], False),
+            ("children", ["adults or children"], True),
+            ("", ["adults"], None),
+            ("  ", ["adults"], None),
+            (0, ["adults"], None),
+            (None, ["adults"], None),
+            (["adults"], ["adults"], None),
+            ("adults", [""], None),
+            ("adults", [0], None),
+            ("adults", [None], None),
+            ("adults", [["adults"]], None),
+        ):
+            with self.subTest(target=target, populations=populations):
+                self._assert_population_coverage(target, populations, overreach)
+
+    def test_population_overreach_accepts_reordered_list_components(self) -> None:
+        for target, populations in (
+            ("adults and children", ["children and adults"]),
+            ("adults, children", ["children and adults"]),
+            ("adults; children", ["children / adults"]),
+            (" ADULTS AND children ", [" Children, ADULTS "]),
+            ("adults and children", ["adults", "children"]),
+            ("adults aged 18-65 and children", ["children and adults"]),
+            ("adults and adults", ["adults"]),
+            ("adults, and children", ["children, adults"]),
+            ("adults", ["adults"]),
+            ("patients aged 18 and over", ["patients"]),
+            ("adults 65 and older", ["adults"]),
+            ("children aged 5 and under", ["children and adults"]),
+        ):
+            with self.subTest(target=target, populations=populations):
+                self._assert_population_coverage(target, populations, False)
 
     def test_multiplicity_requires_significance_and_no_correction(self) -> None:
         payload = review_input(
