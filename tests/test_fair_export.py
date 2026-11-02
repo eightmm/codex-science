@@ -599,6 +599,90 @@ class FairExportTests(unittest.TestCase):
                         self.assertTrue(resolved.is_file())
                         self.assertIn(reference, {item["@id"] for item in graph})
 
+    def _mutated(self, root: Path, mutate, raw=None) -> Path:
+        path = self._bundle(root)
+        manifest = json.loads(path.read_text())
+        manifest["claims"] = [{"id": "C1", "text": "Recorded result", "evidence": ["result.csv"]}]
+        mutate(manifest)
+        path.write_text(json.dumps(manifest) if raw is None else raw(json.dumps(manifest)), encoding="utf-8")
+        return path
+
+    def test_malformed_manifest_values_are_refused_before_any_destination_is_opened(self) -> None:
+        cases = {
+            "evidence string": (lambda m: m["claims"][0].update(evidence="result.csv"), "claim 'C1' evidence must be a list"),
+            "evidence mapping": (lambda m: m["claims"][0].update(evidence={"result.csv": 1}), "claim 'C1' evidence must be a list"),
+            "evidence null": (lambda m: m["claims"][0].update(evidence=None), "claim 'C1' evidence must be a list"),
+            "evidence entry": (lambda m: m["claims"][0].update(evidence=[5]), "evidence entries must be artifact path strings"),
+            "evidence not artifact": (lambda m: m["claims"][0].update(evidence=["notes/readme.txt"]), "evidence is not a listed artifact path"),
+            "evidence empty entry": (lambda m: m["claims"][0].update(evidence=[""]), "evidence is not a listed artifact path"),
+            "kind list": (lambda m: m["artifacts"][0].update(kind=["result"]), "artifact 0 kind must be a string"),
+            "path number": (lambda m: m["artifacts"][0].update(path=5), "artifact 0 path must be a string"),
+            "packages mapping": (lambda m: m["environment"].update(packages={"numpy": "0.0"}), "environment.packages must be a list"),
+            "packages null": (lambda m: m["environment"].update(packages=None), "environment.packages must be a list"),
+            "surrogate text": (lambda m: m["claims"][0].update(text="a\udcffb"), r"\$\.claims\[0\]\.text"),
+            "surrogate artifact path": (lambda m: m["artifacts"][0].update(path="r\udcff.csv"), r"\$\.artifacts\[0\]\.path"),
+        }
+        for name, (mutate, pattern) in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                path = self._mutated(root, mutate)
+                before = self._snapshot(root)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    export_run(path, root / "export", receipt_path=root / "receipt.json")
+                self.assertEqual(before, self._snapshot(root))
+                self._refused(path, root / "export", root / "receipt.json", root, "")
+
+    def test_non_finite_numbers_are_refused_before_any_destination_is_opened(self) -> None:
+        for literal in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(literal), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                path = self._mutated(root, lambda m: m["environment"].update(score="PLACEHOLDER"),
+                                     lambda text: text.replace('"PLACEHOLDER"', literal))
+                before = self._snapshot(root)
+                with self.assertRaisesRegex(ValueError, r"NaN or Infinity.*\$\.environment\.score"):
+                    export_run(path, root / "export", receipt_path=root / "receipt.json")
+                self.assertEqual(before, self._snapshot(root))
+                self._refused(path, root / "export", root / "receipt.json", root, "manifest contains NaN or Infinity")
+
+    def test_equivalent_evidence_spellings_link_to_the_artifact(self) -> None:
+        for spelling in ("./result.csv", "result.csv", ".//result.csv"):
+            with self.subTest(spelling), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                path = self._mutated(root, lambda m: m["claims"][0].update(evidence=[spelling]))
+                export_run(path, root / "export")
+                graph = json.loads((root / "export" / "ro-crate-metadata.json").read_text())["@graph"]
+                artifact = next(item for item in graph if item.get("name") == "result.csv")
+                claim = next(item for item in graph if item["@id"] == "#claim-C1")
+                self.assertEqual([{"@id": artifact["@id"]}], claim["citation"])
+
+    def test_claim_fragments_are_percent_encoded(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            path = self._mutated(root, lambda m: m["claims"][0].update(id="C#1 a"))
+            export_run(path, root / "export")
+            graph = json.loads((root / "export" / "ro-crate-metadata.json").read_text())["@graph"]
+            claim = next(item for item in graph if item.get("identifier") == "C#1 a")
+            self.assertEqual("#claim-C%231%20a", claim["@id"])
+            self.assertEqual("C%231%20a", urlsplit(claim["@id"]).fragment[len("claim-"):])
+
+    def test_symlink_loops_and_deep_nesting_are_labelled_cli_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = self._bundle(root)
+            (root / "loop-a").symlink_to(root / "loop-b")
+            (root / "loop-b").symlink_to(root / "loop-a")
+            for output, receipt, label in ((root / "loop-a" / "export", root / "receipt.json", "output directory has a symlink loop"),
+                                           (root / "export", root / "loop-a" / "receipt.json", "export destination has non-directory ancestor")):
+                with self.subTest(label), self.assertRaisesRegex(ValueError, label):
+                    export_run(manifest, output, receipt_path=receipt)
+                self._refused(manifest, output, receipt, root, label)
+            self._refused(root / "loop-a" / "manifest.json", root / "export", root / "receipt.json", root,
+                          "manifest path has a symlink loop")
+            deep = manifest.read_text().rstrip()[:-1] + ', "x": ' + "[" * 100000 + "]" * 100000 + "}"
+            manifest.write_text(deep)
+            self._refused(manifest, root / "export", root / "receipt.json", root,
+                          "manifest or export data is nested too deeply to process")
+
     def test_changed_artifact_bytes_prevent_export(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)

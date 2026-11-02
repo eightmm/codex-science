@@ -7,12 +7,14 @@ portability of bytes that are not included in the source bundle.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
+import math
 import mimetypes
 import os
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 from urllib.parse import quote
 
@@ -29,18 +31,109 @@ def _now() -> str:
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError("record contains text that is not valid UTF-8 (lone surrogate)") from None
+    except ValueError:
+        raise ValueError("record contains NaN or Infinity, which is not valid JSON") from None
 
 
 def _sha(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
+def _unencodable(value: Any, pointer: str = "$") -> str | None:
+    """Locate the first lone surrogate or non-finite number for error messages."""
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            return f"{pointer} (lone surrogate in {value[:60]!r})"
+    elif isinstance(value, float) and not math.isfinite(value):
+        return f"{pointer} ({value!r})"
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            found = _unencodable(key, f"{pointer}.<key {str(key)[:60]!r}>") or _unencodable(item, f"{pointer}.{key}")
+            if found:
+                return found
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            found = _unencodable(item, f"{pointer}[{index}]")
+            if found:
+                return found
+    return None
+
+
+def _json_bytes(name: str, payload: Any) -> bytes:
+    try:
+        return (json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+    except ValueError as error:
+        where = _unencodable(payload)
+        kind = ("text that is not valid UTF-8" if isinstance(error, UnicodeEncodeError)
+                else "NaN or Infinity, which is not valid JSON")
+        raise ValueError(f"{name} contains {kind}" + (f" at {where}" if where else "")) from None
+
+
 def _write_json(path: Path, payload: Any) -> None:
+    data = _json_bytes(path.name, payload)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation also refuses symlinks or aliases introduced after preflight.
-    with path.open("x", encoding="utf-8") as stream:
-        stream.write(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
+    with path.open("xb") as stream:
+        stream.write(data)
+
+
+def _canonical_path(value: str) -> str:
+    return PurePosixPath(value).as_posix()
+
+
+def _quote(value: str, label: str, safe: str = "/") -> str:
+    try:
+        return quote(value, safe=safe)
+    except UnicodeEncodeError:
+        raise ValueError(f"{label} is not valid UTF-8: {value[:60]!r}") from None
+
+
+def _claim_evidence(claim: Mapping[str, Any]) -> list[str]:
+    evidence = claim.get("evidence", [])
+    label = f"claim {str(claim.get('id'))[:60]!r}"
+    if not isinstance(evidence, list):
+        raise ValueError(f"{label} evidence must be a list of artifact path strings, not {type(evidence).__name__}")
+    for item in evidence:
+        if not isinstance(item, str):
+            raise ValueError(f"{label} evidence entries must be artifact path strings: {item!r}")
+    return evidence
+
+
+def _resolve(path: Path, label: str) -> Path:
+    """Resolve a path, labelling symlink loops on every supported Python version."""
+    message = f"{label} has a symlink loop: {str(path)!r}"
+    try:
+        resolved = path.resolve()
+    except RuntimeError:
+        raise ValueError(message) from None
+    try:
+        os.stat(resolved)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ValueError(message) from None
+    return resolved
+
+
+def _check_types(manifest: Mapping[str, Any]) -> None:
+    artifacts = manifest.get("artifacts")
+    if isinstance(artifacts, list):
+        for index, item in enumerate(artifacts):
+            if not isinstance(item, Mapping):
+                continue
+            for field in ("path", "kind", "descriptor_path"):
+                if field in item and not isinstance(item[field], str) and not (field == "descriptor_path" and item[field] is None):
+                    raise ValueError(f"artifact {index} {field} must be a string: {item[field]!r}")
+    claims = manifest.get("claims")
+    if isinstance(claims, list):
+        for claim in claims:
+            if isinstance(claim, Mapping):
+                _claim_evidence(claim)
 
 
 def _media_type(path: str, record: Mapping[str, Any]) -> str:
@@ -73,10 +166,10 @@ def build_ro_crate(
 ) -> dict[str, Any]:
     run_id = str(manifest["run_id"])
     references = artifact_references if artifact_references is not None else {
-        str(item["path"]): quote(str(item["path"]), safe="/")
+        _canonical_path(str(item["path"])): _quote(str(item["path"]), f"artifact path {str(item['path'])[:60]!r}")
         for item in manifest.get("artifacts", []) if isinstance(item, Mapping)
     }
-    artifacts = [_artifact_entity(item, references[str(item["path"])])
+    artifacts = [_artifact_entity(item, references[_canonical_path(str(item["path"]))])
                  for item in manifest.get("artifacts", []) if isinstance(item, Mapping)]
     root = {
         "@id": "./",
@@ -103,13 +196,20 @@ def build_ro_crate(
     for claim in manifest.get("claims", []):
         if not isinstance(claim, Mapping) or not claim.get("id"):
             continue
-        claim_id = f"#claim-{claim['id']}"
+        claim_id = "#claim-" + _quote(str(claim["id"]), f"claim id {str(claim['id'])[:60]!r}")
+        citations = []
+        for item in _claim_evidence(claim):
+            reference = references.get(_canonical_path(item))
+            if reference is None:
+                raise ValueError(f"claim {str(claim['id'])[:60]!r} evidence is not a listed artifact path: {item!r} "
+                                 "(evidence entries must be manifest artifact paths, not identifiers)")
+            citations.append({"@id": reference})
         claims.append({
             "@id": claim_id,
             "@type": "CreativeWork",
             "identifier": str(claim["id"]),
             "text": str(claim.get("text", "")),
-            "citation": [{"@id": references.get(str(item), str(item))} for item in claim.get("evidence", [])],
+            "citation": citations,
         })
     root["about"] = [{"@id": item["@id"]} for item in claims]
     return {
@@ -200,9 +300,10 @@ def build_scientific_bom(manifest: Mapping[str, Any], sidecars: Mapping[str, Any
             if environment.get(key) is not None:
                 components.append({"component_type": key, "id": str(environment[key]), "record": {"value": environment[key]}})
         packages = environment.get("packages", [])
-        if isinstance(packages, list):
-            for index, package in enumerate(packages):
-                components.append({"component_type": "package", "id": str(package if not isinstance(package, Mapping) else package.get("name", f"package-{index}")), "record": package})
+        if not isinstance(packages, list):
+            raise ValueError(f"environment.packages must be a list, not {type(packages).__name__}")
+        for index, package in enumerate(packages):
+            components.append({"component_type": "package", "id": str(package if not isinstance(package, Mapping) else package.get("name", f"package-{index}")), "record": package})
     for index, item in enumerate(manifest.get("inputs", [])):
         if isinstance(item, Mapping):
             component_type = "dataset" if item.get("source") or item.get("identifier") else "input"
@@ -247,16 +348,18 @@ def export_run(
     are preserved. Recorded local code and saved lane-output digests must match
     the bundle bytes. Preflight rejection creates no files.
     """
-    manifest_path = manifest_path.resolve()
+    manifest_path = _resolve(manifest_path, "manifest path")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("manifest must be an object")
+    _check_types(manifest)
+    _json_bytes("manifest", manifest)
     sidecars = validate_bundle(manifest, manifest_path.parent)
     if sidecars.get("digest_findings"):
         raise ValueError("Bundle digest mismatch: " + "; ".join(
             finding["message"] for finding in sidecars["digest_findings"]
         ))
-    output_dir = output_dir.resolve()
+    output_dir = _resolve(output_dir, "output directory")
     files = {
         "ro_crate": output_dir / "ro-crate-metadata.json",
         "prov": output_dir / "prov.json",
@@ -267,30 +370,30 @@ def export_run(
         receipt_paths.append(receipt_path)
     protected_paths = {manifest_path}
     for item in manifest["artifacts"]:
-        artifact_path = (manifest_path.parent / item["path"]).resolve()
+        artifact_path = _resolve(manifest_path.parent / item["path"], f"artifact {item['path']!r}")
         protected_paths.add(artifact_path)
         if item.get("artifact_type") == "directory-tree":
-            protected_paths.update(path.resolve() for path in artifact_path.rglob("*") if path.is_file())
+            protected_paths.update(_resolve(path, "artifact tree entry") for path in artifact_path.rglob("*") if path.is_file())
         if item.get("descriptor_path") is not None:
-            protected_paths.add((manifest_path.parent / str(item["descriptor_path"])).resolve())
+            protected_paths.add(_resolve(manifest_path.parent / str(item["descriptor_path"]), "artifact descriptor"))
     existing_destination = None
     for destination in [*files.values(), *receipt_paths]:
         for ancestor in destination.parents:
             if (ancestor.exists() or ancestor.is_symlink()) and not ancestor.is_dir():
                 raise ValueError(f"export destination has non-directory ancestor: {str(ancestor)!r}")
-        resolved = destination.resolve()
+        resolved = _resolve(destination, "export destination")
         if any(path in resolved.parents or _same_file(path, resolved) for path in protected_paths):
             raise ValueError(f"export destination overlaps protected bundle path: {str(destination)!r}")
         if existing_destination is None and (destination.exists() or destination.is_symlink()):
             existing_destination = destination
     if receipt_path is not None:
-        resolved_receipt = receipt_path.resolve()
+        resolved_receipt = _resolve(receipt_path, "receipt destination")
         if resolved_receipt.is_dir():
             raise ValueError(f"receipt destination is an existing directory: {str(receipt_path)!r}")
-        if any(_same_file(resolved_receipt, path.resolve()) for path in [*files.values(), receipt_paths[0]]):
+        if any(_same_file(resolved_receipt, _resolve(path, "export destination")) for path in [*files.values(), receipt_paths[0]]):
             raise ValueError(f"receipt destination overlaps export output: {str(receipt_path)!r}")
         if any(resolved_receipt == path or resolved_receipt in path.parents or path in resolved_receipt.parents
-               for path in (destination.resolve() for destination in [output_dir, *files.values(), receipt_paths[0]])):
+               for path in (_resolve(destination, "export destination") for destination in [output_dir, *files.values(), receipt_paths[0]])):
             raise ValueError(f"receipt destination has ancestor/descendant overlap with export output: {str(receipt_path)!r}")
     if existing_destination is not None:
         if existing_destination == receipt_path:
@@ -300,21 +403,23 @@ def export_run(
                          "choose a new versioned output directory or archive the old export explicitly")
     timestamp = exported_at or _now()
     artifact_references = {
-        str(item["path"]): quote(os.path.relpath(manifest_path.parent / item["path"], output_dir).replace(os.sep, "/"), safe="/")
+        _canonical_path(item["path"]): _quote(
+            os.path.relpath(manifest_path.parent / item["path"], output_dir).replace(os.sep, "/"),
+            f"artifact path {item['path'][:60]!r}")
         for item in manifest["artifacts"]
     }
-    manifest_reference = quote(os.path.relpath(manifest_path, output_dir).replace(os.sep, "/"), safe="/")
+    manifest_reference = _quote(os.path.relpath(manifest_path, output_dir).replace(os.sep, "/"),
+                                f"manifest path {str(manifest_path)[:60]!r}")
     ro_crate = build_ro_crate(manifest, exported_at=timestamp,
                               manifest_reference=manifest_reference, artifact_references=artifact_references)
     prov = build_prov(manifest, exported_at=timestamp)
     bom = build_scientific_bom(manifest, sidecars, exported_at=timestamp)
-    _write_json(files["ro_crate"], ro_crate)
-    _write_json(files["prov"], prov)
-    _write_json(files["scientific_bom"], bom)
+    payloads = {"ro_crate": ro_crate, "prov": prov, "scientific_bom": bom}
     exports = []
     for name, path in files.items():
-        digest, size = stream_sha256(path)
-        exports.append({"name": name, "path": path.name, "sha256": digest, "size_bytes": size})
+        # Encode every payload before any destination is opened.
+        data = _json_bytes(path.name, payloads[name])
+        exports.append({"name": name, "path": path.name, "sha256": hashlib.sha256(data).hexdigest(), "size_bytes": len(data)})
     manifest_digest, _manifest_size = stream_sha256(manifest_path)
     receipt_material = {
         "schema_version": 1,
@@ -329,6 +434,9 @@ def export_run(
         "evidence_boundary": "The export packages validated recorded metadata. It does not certify RO-Crate, W3C PROV, regulatory, or legal compliance."
     }
     receipt = {**receipt_material, "fingerprint": _sha(receipt_material)}
+    _json_bytes("export-receipt.json", receipt)
+    for name, path in files.items():
+        _write_json(path, payloads[name])
     for path in receipt_paths:
         _write_json(path, receipt)
     return receipt

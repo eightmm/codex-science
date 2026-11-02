@@ -27,8 +27,21 @@ def main() -> int:
     args = parser.parse_args()
     try:
         export_run(args.manifest, args.output, receipt_path=args.receipt)
+    except RecursionError:
+        print("error: manifest or export data is nested too deeply to process", file=sys.stderr)
+        return 1
+    except RuntimeError as error:
+        print(f"error: symlink loop or runtime failure while resolving paths: {error}", file=sys.stderr)
+        return 1
+    except TypeError as error:
+        print(f"error: manifest contains a value of an unexpected type: {error}", file=sys.stderr)
+        return 1
     except (OSError, ValueError, json.JSONDecodeError) as error:
-        print(f"error: {error}{digest_mismatch_hint(error, args.manifest.resolve().parent)}", file=sys.stderr)
+        try:
+            run_dir = args.manifest.resolve().parent
+        except RuntimeError:
+            run_dir = args.manifest.parent
+        print(f"error: {error}{digest_mismatch_hint(error, run_dir)}", file=sys.stderr)
         return 1
     print(f"Success! Export written to: {args.output.resolve()}")
     print(f"Success! Receipt written to: {args.receipt.resolve()}")

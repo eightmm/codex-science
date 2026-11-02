@@ -70,7 +70,7 @@ The graph includes:
 - review status;
 - explicit Codex Science evidence boundary.
 
-The exporter does not copy artifact bytes into the export directory. Manifest and artifact `@id` values resolve relative to the written metadata file, using the real manifest filename and percent-encoded URI paths. For example, metadata in `run/exports/ro-crate-metadata.json` references `../manifest.json` and `../result%231.json` for `run/result#1.json`; `hasPart` and claim evidence links use the same artifact identifiers. These identifiers contain no absolute machine paths. Preserve the source bundle or copy it through a separate verified packaging step.
+The exporter does not copy artifact bytes into the export directory. Manifest and artifact `@id` values resolve relative to the written metadata file, using the real manifest filename and percent-encoded URI paths. For example, metadata in `run/exports/ro-crate-metadata.json` references `../manifest.json` and `../result%231.json` for `run/result#1.json`; `hasPart` and claim evidence links use the same artifact identifiers. Claim `@id` fragments are percent-encoded the same way (`C#1 a` becomes `#claim-C%231%20a`). Claim `evidence` must be a list of strings that, after path canonicalisation (`./result.csv` is `result.csv`), name listed artifact paths; anything else is refused before any file is written. The same preflight refuses artifact `path`/`kind` values that are not strings, `environment.packages` that is present but not a list, NaN or Infinity, lone surrogates, symlink loops and over-deep nesting, each with a labelled error. These identifiers contain no absolute machine paths. Preserve the source bundle or copy it through a separate verified packaging step.
 
 ## W3C PROV-oriented lineage
 
