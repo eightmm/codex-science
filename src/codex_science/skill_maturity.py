@@ -24,6 +24,12 @@ CORE_SECTION_ALIASES = {
     ),
 }
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*\n", re.DOTALL)
+FENCE_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<rest>.*)$")
+QUALITY_KEYS = frozenset({
+    "schema_version", "skill", "roles", "declared_maturity", "output_schemas",
+    "acceptance_fixtures", "seeded_failures", "test_files", "limitations",
+})
+POLICY_KEYS = frozenset({"skill", "minimum_maturity", "required_roles", "require_reference_contract"})
 FIELD_RE = re.compile(r"^(?P<key>[A-Za-z0-9_-]+):\s*(?P<value>.+?)\s*$", re.MULTILINE)
 
 
@@ -49,6 +55,36 @@ def _frontmatter(text: str) -> dict[str, str]:
             value = value[1:-1]
         result[item.group("key")] = value
     return result
+
+
+def _strip_fences_and_comments(text: str) -> str:
+    """Drop fenced code blocks and HTML comments; unclosed ones run to the end."""
+    kept: list[str] = []
+    fence = ""
+    in_comment = False
+    for line in text.splitlines():
+        marker = FENCE_RE.match(line)
+        if fence:
+            if marker and marker.group("fence")[0] == fence[0] and len(marker.group("fence")) >= len(fence) and not marker.group("rest").strip():
+                fence = ""
+            continue
+        if marker and not in_comment:
+            fence = marker.group("fence")
+            continue
+        visible = ""
+        rest = line
+        while rest:
+            if in_comment:
+                end = rest.find("-->")
+                in_comment = end < 0
+                rest = "" if end < 0 else rest[end + 3 :]
+            else:
+                start = rest.find("<!--")
+                visible += rest if start < 0 else rest[:start]
+                in_comment = start >= 0
+                rest = "" if start < 0 else rest[start + 4 :]
+        kept.append(visible)
+    return "\n".join(kept)
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -91,6 +127,8 @@ def _reference_contract(skill_dir: Path) -> tuple[bool, list[str]]:
             target = skill_dir / relative
             if not target.is_file():
                 errors.append(f"indexed reference is missing: {relative}")
+            elif target.resolve() != skill_dir.resolve() / relative:
+                errors.append(f"indexed reference is a symlink or resolves outside the skill directory: {relative}")
         except ValueError as error:
             errors.append(f"invalid reference path {relative}: {error}")
         if not isinstance(raw.get("read_when"), list) or not raw.get("read_when"):
@@ -112,13 +150,21 @@ def _path_list(payload: Mapping[str, Any], field: str) -> list[str]:
 def validate_quality_declaration(root: Path, skill_dir: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported quality declaration schema")
+    unknown_keys = sorted(set(payload) - QUALITY_KEYS)
+    if unknown_keys:
+        raise ValueError(f"unknown quality declaration keys: {', '.join(map(str, unknown_keys))}")
     skill = str(payload.get("skill", "")).strip()
     if not skill:
         raise ValueError("quality skill is required")
-    name = _frontmatter((skill_dir / "SKILL.md").read_text(encoding="utf-8")).get("name", "").strip()
+    name = _frontmatter((skill_dir / "SKILL.md").read_text(encoding="utf-8-sig")).get("name", "").strip()
     if skill != name:
         raise ValueError(f"quality skill {skill!r} does not match SKILL.md name {name!r}")
     roles = _path_list(payload, "roles")
+    if not roles:
+        raise ValueError("quality roles must not be empty")
+    duplicate_roles = sorted({role for role in roles if roles.count(role) > 1})
+    if duplicate_roles:
+        raise ValueError(f"duplicate skill roles: {', '.join(duplicate_roles)}")
     unknown_roles = sorted(set(roles) - ROLES)
     if unknown_roles:
         raise ValueError(f"unknown skill roles: {', '.join(unknown_roles)}")
@@ -162,7 +208,11 @@ def validate_quality_declaration(root: Path, skill_dir: Path, payload: Mapping[s
 
 def _sections_for(skill_dir: Path, name: str, text: str) -> tuple[bool, list[str]]:
     required = CORE_SECTION_ALIASES.get(name, REQUIRED_DECISION_SECTIONS)
-    missing = [section for section in required if section not in text]
+    body = _strip_fences_and_comments(text)
+    missing = [
+        section for section in required
+        if re.search(rf"^{re.escape(section)}[ \t]*$", body, re.MULTILINE) is None
+    ]
     return not missing, missing
 
 
@@ -186,7 +236,7 @@ def evaluate_skill(root: Path, skill_dir: Path) -> dict[str, Any]:
     if not skill_path.is_file():
         record["reasons"].append("SKILL.md is missing")
         return record
-    text = skill_path.read_text(encoding="utf-8")
+    text = skill_path.read_text(encoding="utf-8-sig")
     metadata = _frontmatter(text)
     name = metadata.get("name", "").strip()
     description = metadata.get("description", "").strip()
@@ -202,8 +252,9 @@ def evaluate_skill(root: Path, skill_dir: Path) -> dict[str, Any]:
         has_provenance = True
         has_review = True
     else:
-        has_provenance = "$science-provenance" in text
-        has_review = "$science-review" in text
+        body = _strip_fences_and_comments(text)
+        has_provenance = "$science-provenance" in body
+        has_review = "$science-review" in body
     if complete_sections and has_provenance and has_review:
         computed = 2
     else:
@@ -240,12 +291,19 @@ def load_policy(root: Path, path: Path | None = None) -> dict[str, Any]:
     payload = _load_json(policy_path, "native skill policy")
     if payload.get("schema_version") != 1 or not isinstance(payload.get("requirements"), list):
         raise ValueError("unsupported native skill policy")
+    seen: set[str] = set()
     for requirement in payload["requirements"]:
         if not isinstance(requirement, Mapping):
             raise ValueError("native skill policy requirements must be objects")
+        unknown_keys = sorted(set(requirement) - POLICY_KEYS)
+        if unknown_keys:
+            raise ValueError(f"unknown policy requirement keys: {', '.join(map(str, unknown_keys))}")
         name = requirement.get("skill")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("policy skill must be a non-empty string")
+        if name.strip() in seen:
+            raise ValueError(f"duplicate policy requirement for skill {name.strip()!r}")
+        seen.add(name.strip())
         minimum = requirement.get("minimum_maturity")
         if not isinstance(minimum, str) or minimum not in LEVELS:
             raise ValueError("invalid policy maturity: minimum_maturity must be L0-L4")
@@ -265,7 +323,7 @@ def audit_native_skills(root: Path, *, policy_path: Path | None = None) -> dict[
         if not parent.is_dir():
             continue
         for skill_dir in sorted(path for path in parent.iterdir() if path.is_dir() and (path / "SKILL.md").is_file()):
-            name = _frontmatter((skill_dir / "SKILL.md").read_text(encoding="utf-8")).get("name", "").strip()
+            name = _frontmatter((skill_dir / "SKILL.md").read_text(encoding="utf-8-sig")).get("name", "").strip()
             relative = str(skill_dir.relative_to(root))
             if name:
                 if name in names:

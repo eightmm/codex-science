@@ -307,9 +307,9 @@ Reject or revise skills that:
 
 The repository test suite protects tier-1 skills from losing the mandatory sections, provenance and review handoffs, and key evidence semantics. Inventory regeneration remains the authoritative check for frontmatter, line counts, licensing, executable content, and activation status.
 
-The maturity audit binds each `quality.json` `skill` to its `SKILL.md` frontmatter name and refuses duplicate names across `runtime-skills/` and `authored-skills/`. Each declared `acceptance_fixtures` and `test_files` path must resolve to a regular file inside the repository; directories and symlink escapes are refused. Test files must be Python (`.py`) files under `tests/`, including after symlink resolution.
+The maturity audit binds each `quality.json` `skill` to its `SKILL.md` frontmatter name and refuses duplicate names across `runtime-skills/` and `authored-skills/`. Each declared `acceptance_fixtures` and `test_files` path must resolve to a regular file inside the repository; directories and symlink escapes are refused. Test files must be Python (`.py`) files under `tests/`, including after symlink resolution. Unknown `quality.json` keys, an empty `roles` list and duplicate roles are refused. Required sections count only as exact-level, line-anchored headings outside fenced code blocks and HTML comments (the handoff mentions are likewise read with those stripped), and an indexed reference that is a symlink or resolves outside the skill directory is refused. `SKILL.md` is read with a leading UTF-8 byte-order mark ignored.
 
-Policy requirements use a non-empty string `skill`, an L0–L4 string `minimum_maturity`, an optional `required_roles` list of known role strings (empty by default), and an optional boolean `require_reference_contract` (false by default). Malformed requirement fields are refused before skill lookup.
+Policy requirements use a non-empty string `skill`, an L0–L4 string `minimum_maturity`, an optional `required_roles` list of known role strings (empty by default), and an optional boolean `require_reference_contract` (false by default). Malformed requirement fields are refused before skill lookup. Unknown requirement keys and a repeated `skill` are refused.
 
 When editing an authored skill:
 

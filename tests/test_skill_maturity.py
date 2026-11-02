@@ -557,6 +557,113 @@ class SkillMaturityTests(unittest.TestCase):
             self.assertIn("required_roles", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
 
+    def reasons_for(self, root: Path, skill: Path) -> str:
+        return " ".join(evaluate_skill(root, skill)["reasons"])
+
+    def test_required_sections_must_be_real_headings_outside_code_and_comments(self) -> None:
+        cases = {
+            "fenced": SKILL_TEXT.replace("## Workflow\n", "```\n## Workflow\n```\n"),
+            "tilde-fenced": SKILL_TEXT.replace("## Workflow\n", "~~~md\n## Workflow\n~~~\n"),
+            "unclosed-fence": SKILL_TEXT.replace("## Workflow\n", "```\n## Workflow\n"),
+            "comment": SKILL_TEXT.replace("## Workflow\n", "<!--\n## Workflow\n-->\n"),
+            "inline-comment": SKILL_TEXT.replace("## Workflow\n", "<!-- x --> ## Workflow\n"),
+            "wrong-level": SKILL_TEXT.replace("## Workflow", "### Workflow"),
+            "trailing-text": SKILL_TEXT.replace("## Workflow", "## Workflow and more"),
+            "inline-prose": SKILL_TEXT.replace("## Workflow", "See ## Workflow"),
+        }
+        for label, text in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                skill = self.make_skill(root, quality=self.valid_quality())
+                (skill / "SKILL.md").write_text(text, encoding="utf-8")
+                record = evaluate_skill(root, skill)
+                self.assertIn("missing instruction contract: ## Workflow", record["reasons"])
+                self.assertEqual("L1", record["computed_maturity"])
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self.make_skill(root, quality=self.valid_quality())
+            (skill / "SKILL.md").write_text(SKILL_TEXT.replace("## Workflow", "## Workflow \t"), encoding="utf-8")
+            self.assertEqual("L4", evaluate_skill(root, skill)["computed_maturity"])
+
+    def test_handoff_mentions_in_code_or_comments_do_not_count(self) -> None:
+        for label, old, new in (
+            ("fence", "Use `$science-provenance`, execute the fixture, and use `$science-review`.",
+             "```\n$science-provenance $science-review\n```"),
+            ("comment", "Use `$science-provenance`, execute the fixture, and use `$science-review`.",
+             "<!-- $science-provenance $science-review -->"),
+        ):
+            with self.subTest(label), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                skill = self.make_skill(root, quality=self.valid_quality())
+                (skill / "SKILL.md").write_text(SKILL_TEXT.replace(old, new), encoding="utf-8")
+                reasons = self.reasons_for(root, skill)
+                self.assertIn("science provenance handoff is missing", reasons)
+                self.assertIn("science review handoff is missing", reasons)
+
+    def test_symlinked_or_escaping_reference_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self.make_skill(root, quality=self.valid_quality())
+            outside = root / "outside.md"
+            outside.write_text("# Outside\n", encoding="utf-8")
+            target = skill / "references" / "commands.md"
+            target.unlink()
+            target.symlink_to(outside)
+            record = evaluate_skill(root, skill)
+            self.assertFalse(record["reference_contract"])
+            self.assertRegex(" ".join(record["reasons"]), "symlink.*references/commands.md")
+            self.assertNotEqual("L4", record["computed_maturity"])
+            target.unlink()
+            target.write_text("# Commands\n", encoding="utf-8")
+            (skill / "references" / "linked").symlink_to(skill / "references" / "commands.md")
+            self.assertTrue(evaluate_skill(root, skill)["reference_contract"])
+
+    def test_quality_declaration_rejects_unknown_keys_and_bad_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self.make_skill(root)
+            for label, changes, pattern in (
+                ("unknown", {"seeded_failure": ["typo"]}, "unknown quality declaration keys: seeded_failure"),
+                ("duplicate", {"roles": ["executor", "executor"]}, "duplicate skill roles: executor"),
+                ("empty", {"roles": []}, "roles must not be empty"),
+            ):
+                with self.subTest(label), self.assertRaisesRegex(ValueError, pattern):
+                    validate_quality_declaration(root, skill, {**self.valid_quality(), **changes})
+            validate_quality_declaration(root, skill, {**self.valid_quality(), "roles": ["executor"]})
+
+    def test_policy_rejects_unknown_requirement_keys_and_duplicate_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            self.make_skill(root, quality=self.valid_quality())
+            policy = root / "policy.json"
+            base = {"skill": "demo-skill", "minimum_maturity": "L4"}
+            for requirements, pattern in (
+                ([{**base, "minimum_maturty": "L4"}], "unknown policy requirement keys: minimum_maturty"),
+                ([{**base, "required_role": ["executor"]}], "unknown policy requirement keys: required_role"),
+                ([base, {**base, "minimum_maturity": "L0"}], "duplicate policy requirement for skill 'demo-skill'"),
+                ([base, {**base, "skill": " demo-skill "}], "duplicate policy requirement"),
+            ):
+                with self.subTest(pattern):
+                    policy.write_text(json.dumps({"schema_version": 1, "requirements": requirements}), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, pattern):
+                        audit_native_skills(root, policy_path=policy)
+            policy.write_text(json.dumps({"schema_version": 1, "requirements": [base, {**base, "skill": "other"}]}), encoding="utf-8")
+            self.assertEqual(1, len(audit_native_skills(root, policy_path=policy)["findings"]))
+
+    def test_utf8_bom_skill_is_parsed_and_duplicate_name_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self.make_skill(root, quality=self.valid_quality())
+            (skill / "SKILL.md").write_bytes(b"\xef\xbb\xbf" + SKILL_TEXT.encode("utf-8"))
+            self.assertEqual("L4", evaluate_skill(root, skill)["computed_maturity"])
+            duplicate = root / "authored-skills" / "other"
+            duplicate.mkdir(parents=True)
+            (duplicate / "SKILL.md").write_text(SKILL_TEXT, encoding="utf-8")
+            policy = root / "policy.json"
+            policy.write_text(json.dumps({"schema_version": 1, "requirements": []}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate.*demo-skill"):
+                audit_native_skills(root, policy_path=policy)
+
 
 if __name__ == "__main__":
     unittest.main()
