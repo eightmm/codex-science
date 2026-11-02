@@ -20,13 +20,15 @@ graph JSON (schema_version 1 as written by build_evidence_graph.py, or 2; requir
   supports and contradicts propagate impact source -> target;
   depends_on, derived_from and propagated_from propagate target -> source;
   training_overlap propagates both ways. Other relations do not propagate.
-steps JSON: a list of step objects, or an object whose steps[] is used.
+steps JSON: a list of step objects, or an object whose steps[] is used (required).
   id                  echoed in rerun_steps (not validated)
   consumes[]          node ids this step reads
   produces[]          node ids this step writes
   description         optional (default: the id)
   requires_approval   optional (default: false)
-A step is selected when any consumes or produces id is impacted.
+A step is selected when it consumes an impacted id, or produces an id impacted
+through graph edges or other selected steps. A producer of a node named by
+--changed is not selected only for that reason (the changed node is kept as is).
 Selected steps' produces ids become impacted, propagating through graph edges
 and further steps until no additional nodes are impacted; input step order is kept.
 Output keys: changed_nodes, impacted_nodes, rerun_steps, invalidated_review_receipts,
@@ -68,7 +70,9 @@ def main() -> int:
             raise ValueError(f"--changed id is not a node in the evidence graph: {', '.join(unknown)}")
         steps = json.loads(args.steps.read_text(encoding="utf-8"))
         if isinstance(steps, dict):
-            steps = steps.get("steps", [])
+            if "steps" not in steps:
+                raise ValueError("steps object must have a 'steps' list")
+            steps = steps["steps"]
         if not isinstance(steps, list):
             raise ValueError("steps must be a JSON list or an object whose 'steps' value is a list")
         for index, step in enumerate(steps):

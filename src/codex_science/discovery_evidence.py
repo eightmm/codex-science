@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from codex_science.cli_io import load_json_object
-from codex_science.research_cycle import _confined_file, _refs, _text, _validate_cycle_hash, validate_cycle
+from codex_science.research_cycle import _confined_file, _file_hash, _refs, _text, _validate_cycle_hash, validate_cycle
 from codex_science.review_receipts import review_receipt_findings, validate_review_receipt
 
 
@@ -127,9 +127,24 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
         seen.add(receipt["review_id"])
         # Receipts can cover older snapshots too. Validate every declared file,
         # then require coverage of the current scientific state and references.
-        covered = _refs(receipt["covered_artifacts"], "review covered_artifacts", run_dir)
+        # A receipt whose files changed is stale, not fatal: shape is checked
+        # here, current hashes are compared by review_receipt_findings.
+        covered = _refs([{"path": item["path"], "sha256": str(item["sha256"]).lower()}
+                         for item in receipt["covered_artifacts"]], "review covered_artifacts")
         hashes = {item["path"]: item["sha256"] for item in covered}
-        findings = review_receipt_findings(receipt, {**artifact_hashes, **hashes}, registry_sha256=registry_digest)
+        current = dict(artifact_hashes)
+        evidence_paths = {str(entry.get("artifact_path", ""))
+                          for item in receipt.get("findings", []) if isinstance(item.get("evidence"), list)
+                          for entry in item["evidence"] if isinstance(entry, Mapping) and "artifact_sha256" in entry}
+        has_bundle = (run_dir / "manifest.json").exists()
+        for path in set(hashes) | (evidence_paths if has_bundle else set()):
+            current.pop(path, None)
+            try:
+                current[path] = _file_hash(_confined_file(run_dir, path))
+            except (ValueError, OSError):
+                pass
+        findings = review_receipt_findings(receipt, current, registry_sha256=registry_digest,
+                                         require_evidence_hashes=has_bundle)
         missing = sorted(path for path, digest in refs.items() if hashes.get(path) != digest)
         qualified = receipt["independent"] and not missing and not findings
         entry = {"review_id": receipt["review_id"], "receipt_ref": ref,

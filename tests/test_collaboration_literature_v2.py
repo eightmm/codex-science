@@ -541,6 +541,44 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                 ))
         self.assertEqual(original, steps)
 
+    def test_selective_rerun_does_not_rerun_producer_of_user_changed_node(self) -> None:
+        steps = [
+            {"id": "align", "consumes": ["reads"], "produces": ["bam", "stats"]},
+            {"id": "call", "consumes": ["bam"], "produces": ["vcf"]},
+            {"id": "qcrep", "consumes": ["stats"], "produces": ["qc"]},
+        ]
+        plan = selective_rerun_plan(changed_nodes=["bam"], edges=[], steps=steps)
+        self.assertEqual(["call"], [step["id"] for step in plan["rerun_steps"]])
+        self.assertEqual(["bam", "vcf"], plan["impacted_nodes"])
+        # A changed node that is also reached through an edge is derived: its producer reruns.
+        edges = [{"source": "reads", "target": "bam", "relation": "supports"}]
+        plan = selective_rerun_plan(changed_nodes=["reads", "bam"], edges=edges, steps=steps)
+        self.assertEqual(["align", "call", "qcrep"], [step["id"] for step in plan["rerun_steps"]])
+        # A node impacted through a selected step selects its other producers.
+        plan = selective_rerun_plan(changed_nodes=["reads"], edges=[], steps=steps + [{"id": "late", "produces": ["bam"]}])
+        self.assertEqual(["align", "call", "qcrep", "late"], [step["id"] for step in plan["rerun_steps"]])
+
+    def test_selective_rerun_cli_refuses_steps_object_without_steps_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            graph = root / "graph.json"
+            graph.write_text(json.dumps({"schema_version": 1, "nodes": [{"id": "a", "type": "dataset"}], "edges": []}))
+            for name, body in (("missing", {}), ("typo", {"step": []}), ("not-list", {"steps": {}})):
+                steps = root / f"{name}.json"
+                steps.write_text(json.dumps(body))
+                done = subprocess.run(
+                    [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "plan_selective_rerun.py"),
+                     str(graph), str(steps), "--changed", "a"], capture_output=True, text=True)
+                self.assertEqual(1, done.returncode, name)
+                self.assertIn("steps", done.stderr)
+                self.assertEqual("", done.stdout)
+            steps = root / "ok.json"
+            steps.write_text(json.dumps({"steps": []}))
+            done = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "plan_selective_rerun.py"),
+                 str(graph), str(steps), "--changed", "a"], capture_output=True, text=True)
+            self.assertEqual(0, done.returncode)
+
     def test_selective_rerun_visits_chain_steps_once(self) -> None:
         class CountedStep(dict):
             reads = 0

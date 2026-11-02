@@ -76,7 +76,7 @@ Add `--review-output <path> --require-passed-review` at a completion gate. The r
   --changed input-node --review-path review.json --output rerun-plan.json
 ```
 
-Indexes and workbenches are derived navigation views, not evidence. Run diffs identify changed artifacts, claims, code, and environment. Selective rerun plans propagate changed nodes through evidence and execution dependencies and invalidate affected review receipts.
+Indexes and workbenches are derived navigation views, not evidence. Run diffs identify changed artifacts, claims, code, and environment. Selective rerun plans propagate changed nodes through evidence and execution dependencies and report every `--review-path` receipt as invalidated whenever any node is impacted (the plan does not decide which receipts cover the impacted nodes).
 
 ## Evidence links and independence
 

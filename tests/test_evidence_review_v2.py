@@ -13,6 +13,24 @@ from codex_science.reviewer_benchmark import load_cases, score_cases
 
 
 class EvidenceReviewV2Tests(unittest.TestCase):
+    def test_finding_evidence_absent_from_hash_map_is_stale_when_required(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = Path(tmp) / "counter.json"
+            evidence.write_text("{}")
+            digest = __import__("hashlib").sha256(evidence.read_bytes()).hexdigest()
+            receipt = build_review_receipt(
+                review_id="r", reviewer="x", independent=True, review_modes=["method"], status="passed",
+                covered_artifacts=[{"path": "metrics.json", "sha256": "a" * 64}], covered_claim_ids=[],
+                findings=[{"id": "f", "code": "c", "severity": "major", "message": "m", "resolution_status": "resolved",
+                           "evidence": [{"artifact_path": "counter.json", "artifact_sha256": digest.upper()}]}])
+            hashes = {"metrics.json": "a" * 64}
+            strict = {"require_evidence_hashes": True}
+            self.assertEqual([], review_receipt_findings(receipt, hashes))
+            self.assertEqual(["stale-review-receipt"], [i["code"] for i in review_receipt_findings(receipt, hashes, **strict)])
+            self.assertEqual([], review_receipt_findings(receipt, {**hashes, "counter.json": digest}, **strict))
+            self.assertEqual(["stale-review-receipt"], [i["code"] for i in review_receipt_findings(
+                receipt, {**hashes, "counter.json": "0" * 64}, **strict)])
+
     def test_numeric_graph_ids_preserve_dependency_components(self):
         from codex_science.advanced_sidecars import review_advanced_sidecars
 

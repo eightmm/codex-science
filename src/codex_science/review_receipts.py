@@ -121,8 +121,11 @@ def build_review_receipt(
 
 
 def review_receipt_findings(
-    payload: dict[str, Any], current_artifact_hashes: Mapping[str, str], *, registry_sha256: str | None = None
+    payload: dict[str, Any], current_artifact_hashes: Mapping[str, str], *, registry_sha256: str | None = None,
+    require_evidence_hashes: bool = False,
 ) -> list[dict[str, str]]:
+    """Return integrity findings. Finding evidence whose path is absent from the hash map is
+    ignored unless ``require_evidence_hashes``; then it is stale (callers must hash cited files)."""
     try:
         validate_review_receipt(payload)
     except ValueError as error:
@@ -141,10 +144,10 @@ def review_receipt_findings(
             if not isinstance(entry, Mapping):
                 continue
             path = str(entry.get("artifact_path", ""))
-            if path in current_artifact_hashes and "artifact_sha256" in entry:
+            if "artifact_sha256" in entry and (require_evidence_hashes or path in current_artifact_hashes):
                 expected = str(entry["artifact_sha256"]).lower()
-                if current_artifact_hashes[path] != expected:
-                    findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} finding {finding.get('id', index)} cites stale artifact {path}."})
+                if current_artifact_hashes.get(path) != expected:
+                    findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} finding {finding.get('id', index)} cites stale or missing artifact {path}."})
     expected_registry = payload.get("covered_registry_sha256")
     if expected_registry is not None and registry_sha256 != expected_registry:
         findings.append({"code": "stale-review-receipt", "severity": "major", "message": f"Review receipt {payload['review_id']} covers a different model registry."})

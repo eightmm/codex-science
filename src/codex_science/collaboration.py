@@ -405,17 +405,24 @@ def selective_rerun_plan(
             readers[node].append(index)
     queue = deque(set(map(str, changed_nodes)))
     impacted_set = set(queue)
+    # Nodes reached through graph edges or selected steps. A node the caller
+    # named as changed is not rebuilt, so its producers rerun only when it is
+    # also reached this way.
+    derived: set[str] = set()
     selected_indices: set[int] = set()
     while queue:
         node = queue.popleft()
         neighbors = set(forward.get(node, ()))
         for index in readers.get(node, ()):
-            if index not in selected_indices:
+            if index in selected_indices:
+                continue
+            if node in normalized[index][0] or node in derived:
                 selected_indices.add(index)
                 neighbors.update(normalized[index][1])
         for neighbor in neighbors:
-            if neighbor not in impacted_set:
-                impacted_set.add(neighbor)
+            impacted_set.add(neighbor)
+            if neighbor not in derived:
+                derived.add(neighbor)
                 queue.append(neighbor)
     impacted = sorted(impacted_set)
     selected = []

@@ -615,8 +615,20 @@ def plan_receipt_registration(run_dir: Path, manifest: dict[str, Any], relative:
         for item in manifest["artifacts"]
         if isinstance(item, dict) and item.get("path") and item.get("sha256")
     }
+    for finding in payload.get("findings", []):
+        for entry in finding.get("evidence", []) if isinstance(finding.get("evidence"), list) else []:
+            if not isinstance(entry, dict) or "artifact_sha256" not in entry:
+                continue
+            cited = str(entry.get("artifact_path", ""))
+            if cited and cited not in current_hashes:
+                try:
+                    target = _inside(run_dir, _canonical_relative(cited))
+                except ValueError:
+                    continue
+                if target.is_file():
+                    current_hashes[cited] = _sha(target)
     receipt_findings = review_receipt_findings(
-        payload, current_hashes, registry_sha256=registry_digest
+        payload, current_hashes, registry_sha256=registry_digest, require_evidence_hashes=True
     )
     if receipt_findings:
         codes = ", ".join(sorted({item["code"] for item in receipt_findings}))

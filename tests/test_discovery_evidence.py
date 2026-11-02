@@ -63,6 +63,40 @@ class DiscoveryEvidenceTests(unittest.TestCase):
         result = assess_cycle(load_cycle(self.root), self.root, {"review_refs": [ref]})
         self.assertEqual("pending", result["review_axes"]["method"]["status"])
 
+    def covering_receipt(self, name, extra, upper=False):
+        manifest = attach_cycle(self.root)
+        covered = [{"path": item["path"], "sha256": item["sha256"]} for item in manifest["artifacts"]]
+        covered.append(extra)
+        if upper:
+            covered = [{"path": item["path"], "sha256": item["sha256"].upper()} for item in covered]
+        receipt = build_review_receipt(review_id=name, reviewer="separate reviewer", independent=True,
+                                       review_modes=["method"], status="passed", covered_artifacts=covered,
+                                       covered_claim_ids=[], findings=[])
+        return write_ref(self.root, name + ".json", receipt)
+
+    def test_changed_covered_file_makes_one_receipt_stale_not_the_assessment_fatal(self):
+        cycle = self.start()
+        extra = write_ref(self.root, "extra.json", {"v": 1})
+        stale = self.covering_receipt("stale-one", extra)
+        good = self.review_ref(cycle, ["method"], name="good-one")
+        (self.root / "extra.json").write_text(json.dumps({"v": 2}))
+        result = assess_cycle(cycle, self.root, {"review_refs": [stale, good]})
+        receipts = {item["review_id"]: item for item in result["review_axes"]["method"]["receipts"]}
+        self.assertFalse(receipts["stale-one"]["qualified_coverage"])
+        self.assertIn("stale-review-receipt", {item["code"] for item in receipts["stale-one"]["integrity_findings"]})
+        self.assertTrue(receipts["good-one"]["qualified_coverage"])
+        (self.root / "extra.json").unlink()
+        result = assess_cycle(cycle, self.root, {"review_refs": [stale]})
+        self.assertFalse(result["review_axes"]["method"]["receipts"][0]["qualified_coverage"])
+
+    def test_uppercase_covered_digests_are_compared_case_insensitively(self):
+        cycle = self.start()
+        extra = write_ref(self.root, "extra.json", {"v": 1})
+        ref = self.covering_receipt("upper-one", extra, upper=True)
+        entry = assess_cycle(cycle, self.root, {"review_refs": [ref]})["review_axes"]["method"]["receipts"][0]
+        self.assertTrue(entry["qualified_coverage"])
+        self.assertEqual([], entry["integrity_findings"])
+
     def test_conflicting_reviews_preserved_and_tampered_receipt_rejected(self):
         cycle = self.start()
         good = self.review_ref(cycle, ["method"], name="pass")
