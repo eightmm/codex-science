@@ -105,6 +105,12 @@ def _validate_candidates(raw: Any, objectives: list[dict[str, Any]]) -> list[dic
         uncertainty = _number(item.get("uncertainty", 0), f"candidate {candidate_id} uncertainty")
         if cost < 0 or uncertainty < 0:
             raise ValueError(f"candidate {candidate_id} cost and uncertainty must be non-negative")
+        metadata = item.get("metadata", {})
+        if isinstance(metadata, Mapping):
+            try:
+                _canonical_bytes(metadata)
+            except (ValueError, TypeError) as error:
+                raise ValueError(f"candidate {candidate_id} metadata must contain only finite JSON values") from error
         result.append({
             "id": candidate_id,
             "properties": properties,
@@ -133,8 +139,11 @@ def _normalize(candidates: list[dict[str, Any]], objectives: list[dict[str, Any]
                 continue
             value = candidate["properties"][name]
             if maximum == minimum:
-                score = 1.0
-            elif math.isfinite(maximum - minimum):
+                # A constant objective scores 1.0 in both directions so it never
+                # ties with the 0.0 given to a candidate missing the property.
+                normalized[candidate["id"]][name] = 1.0
+                continue
+            if math.isfinite(maximum - minimum):
                 score = (value - minimum) / (maximum - minimum)
             else:
                 score = float((_decimal(value) - _decimal(minimum)) / (_decimal(maximum) - _decimal(minimum)))
@@ -186,20 +195,30 @@ def plan_next_experiment(payload: Mapping[str, Any], *, created_at: str | None =
     batch_raw = constraints.get("batch_size", 0)
     group_raw = constraints.get("diversity_group_cap", constraints.get("scaffold_cap", batch_raw))
     controls_raw = constraints.get("minimum_controls", 0)
-    if any(not isinstance(item, int) or isinstance(item, bool) for item in (batch_raw, group_raw, controls_raw)):
-        raise ValueError("batch size, diversity cap, and minimum controls must be integers")
+    for label, raw_count in (("batch_size", batch_raw), ("diversity_group_cap", group_raw), ("minimum_controls", controls_raw)):
+        if not isinstance(raw_count, int) or isinstance(raw_count, bool):
+            raise ValueError(f"constraints.{label} must be an integer: batch size, diversity cap, and minimum controls must be integers")
     batch_size = batch_raw
     budget = _number(constraints.get("budget", 0), "budget")
     budget_exact = _decimal(budget)
     group_cap = group_raw
     minimum_controls = controls_raw
-    if batch_size < 1 or budget < 0 or group_cap < 1 or minimum_controls < 0:
-        raise ValueError("batch size, budget, diversity cap, and minimum controls are invalid")
+    if batch_size < 1:
+        raise ValueError("constraints.batch_size is required and must be an integer >= 1")
+    if budget < 0:
+        raise ValueError("constraints.budget must be non-negative")
+    if group_cap < 1:
+        raise ValueError("constraints.diversity_group_cap must be an integer >= 1")
+    if minimum_controls < 0:
+        raise ValueError("constraints.minimum_controls must be an integer >= 0")
     uncertainty_weight = _number(payload.get("uncertainty_weight", 0.25), "uncertainty_weight")
     diversity_bonus = _number(payload.get("diversity_bonus", 0.1), "diversity_bonus")
     if uncertainty_weight < 0 or diversity_bonus < 0:
         raise ValueError("uncertainty_weight and diversity_bonus must be non-negative")
-    claim_ids = sorted({_text(item, "claim_id") for item in payload.get("claim_ids", [])})
+    claim_ids_raw = payload.get("claim_ids", [])
+    if not isinstance(claim_ids_raw, list):
+        raise ValueError("claim_ids must be a list of non-empty strings")
+    claim_ids = sorted({_text(item, "claim_id") for item in claim_ids_raw})
 
     eligible = [item for item in candidates if item["eligible"]]
     ineligible = [item for item in candidates if not item["eligible"]]

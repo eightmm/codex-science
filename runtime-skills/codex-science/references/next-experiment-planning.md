@@ -120,7 +120,7 @@ Optional:
 
 `control` and `eligible`, when supplied, must be booleans. An explicitly ineligible candidate may omit required objective measurements; its record and exclusion reason remain in the rejected list.
 
-`diversity_group` is an explicit category supplied by the workflow. It may represent scaffold, target family, donor, site, assay plate, or another prespecified grouping. The planner does not derive chemical or biological similarity.
+`diversity_group` is optional (`scaffold_id` is accepted as an alias) and defaults to the candidate ID, so ungrouped candidates are each their own group. When supplied it is an explicit category supplied by the workflow. It may represent scaffold, target family, donor, site, assay plate, or another prespecified grouping. The planner does not derive chemical or biological similarity.
 
 ### Constraints
 
@@ -143,7 +143,7 @@ Required controls are selected before optimization in ascending cost, then ID or
   --output artifacts/run-020/next-experiment.proposal.json
 ```
 
-The proposal is deterministic when the full input, including time field supplied by the API, is unchanged.
+The proposal is deterministic when the full input, including the `created_at` time supplied by the API, is unchanged. The CLI takes the current time as `created_at`, which is part of the fingerprinted material, so two CLI runs on identical input produce different fingerprints and proposal IDs even when the selection is identical. The CLI refuses an `--output` that resolves to the input file (including through a symlink) and replaces the output atomically.
 
 ## Selection method
 
@@ -262,7 +262,7 @@ Candidates may be receptor states, ligand microstates, initial conditions, or pa
 | costs incomparable | convert to one declared unit or separate budgets |
 | no candidate fits | return an empty/infeasible decision record; do not relax constraints silently |
 | candidate excluded after proposal | preserve the original proposal and create a revision/diff |
-| source properties changed | invalidate the proposal fingerprint and regenerate |
+| source properties changed | regenerate the proposal; `validate_experiment_proposal` checks only that the proposal is internally consistent with its own fingerprint and `proposal_id` (tamper evidence) and does not recompute the selection from source candidates, so it cannot detect changed sources |
 
 ## Common mistakes
 

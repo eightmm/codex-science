@@ -238,6 +238,58 @@ class ExperimentPlannerTests(unittest.TestCase):
             self.assertIn("integers", refused.stderr)
             self.assertEqual(before, output.read_bytes())
 
+    def test_claim_ids_must_be_a_list_of_strings(self):
+        for value in (5, None, "abc", {"a": 1}, [5], [""], [None]):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "claim_id"):
+                plan_next_experiment({**self.simple_input(), "claim_ids": value})
+        proposal = plan_next_experiment({**self.simple_input(), "claim_ids": []})
+        self.assertEqual([], proposal["claim_ids"])
+
+    def test_constant_objective_scores_one_in_both_directions(self):
+        for direction in ("maximize", "minimize"):
+            payload = self.simple_input([
+                {"id": "a", "properties": {"score": 2, "opt": 3}},
+                {"id": "b", "properties": {"score": 1, "opt": 3}},
+                {"id": "c", "properties": {"score": 1}}], batch_size=3)
+            payload["objectives"].append({"name": "opt", "direction": direction, "required": False})
+            scores = {item["id"]: item["normalized_objectives"]["opt"]
+                      for item in plan_next_experiment(payload)["selected"]}
+            self.assertEqual({"a": 1.0, "b": 1.0, "c": 0.0}, scores, direction)
+
+    def test_error_messages_name_the_offending_field(self):
+        payload = self.simple_input([{"id": "a", "properties": {"score": 1}, "metadata": {"x": [float("nan")]}}])
+        with self.assertRaisesRegex(ValueError, "candidate a metadata"):
+            plan_next_experiment(payload)
+        missing = self.simple_input()
+        del missing["constraints"]["batch_size"]
+        with self.assertRaisesRegex(ValueError, "constraints.batch_size"):
+            plan_next_experiment(missing)
+        for field, regex in (("budget", "constraints.budget"), ("diversity_group_cap", "constraints.diversity_group_cap"),
+                             ("minimum_controls", "constraints.minimum_controls")):
+            value = -1 if field != "diversity_group_cap" else 0
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, regex):
+                plan_next_experiment(self.simple_input(**{field: value}))
+
+    def test_cli_refuses_input_alias_output_and_cleans_up(self):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "plan_next_experiment.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            source, link = Path(tmp) / "input.json", Path(tmp) / "link.json"
+            source.write_text(json.dumps(self.simple_input()))
+            link.symlink_to(source)
+            before = source.read_bytes()
+            for output in (source, link):
+                with self.subTest(output=output.name):
+                    result = subprocess.run([sys.executable, str(script), str(source), "--output", str(output)],
+                                            capture_output=True, text=True)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("overwrite input", result.stderr)
+                    self.assertEqual(before, source.read_bytes())
+            self.assertEqual(["input.json", "link.json"], sorted(path.name for path in Path(tmp).iterdir()))
+            ok = subprocess.run([sys.executable, str(script), str(source), "--output", str(Path(tmp) / "out.json")],
+                                capture_output=True, text=True)
+            self.assertEqual(0, ok.returncode, ok.stderr)
+            self.assertEqual(["input.json", "link.json", "out.json"], sorted(path.name for path in Path(tmp).iterdir()))
+
 
 if __name__ == "__main__":
     unittest.main()

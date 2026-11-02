@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from codex_science.cli_io import preflight_output_paths, write_json_atomic  # noqa: E402
 from codex_science.experiment_planner import plan_next_experiment, validate_experiment_proposal  # noqa: E402
 
 
@@ -44,17 +45,17 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("input", type=Path, help="candidate-planning JSON object (format below)")
-    parser.add_argument("--output", type=Path, required=True, help="output proposal JSON path; overwritten")
+    parser.add_argument("--output", type=Path, required=True, help="output proposal JSON path; replaced atomically; must not be the input file")
     args = parser.parse_args()
     try:
+        preflight_output_paths(args.output, inputs=[args.input])
         payload = json.loads(args.input.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("input must be a JSON object")
         proposal = plan_next_experiment(payload)
         validate_experiment_proposal(proposal)
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(proposal, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+        write_json_atomic(args.output, proposal)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     print(f"Success! Proposal written to: {args.output.resolve()}")
