@@ -292,6 +292,7 @@ _POPULATION_SEPARATOR = re.compile(
     r"\s+(?:over|older|above|under|younger|below)\b(?!\s+(?:"
     + "|".join(sorted(_POPULATION_NOUNS, key=len, reverse=True)) + r")\b))"
 )
+_QUALIFIER_LEADS = frozenset({"with", "without", "who", "whose", "having", "living"})
 _BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
 
 
@@ -310,13 +311,16 @@ def _population_narrows(target: str, population: str) -> bool:
         if stripped == continuation:
             break
         continuation = stripped
-    first, *added = [set(re.findall(r"[^\W\d_]+(?:-[^\W\d_]+)*", item))
+    first, *added = [re.findall(r"[^\W\d_]+(?:-[^\W\d_]+)*", item)
                      for item in _POPULATION_SEPARATOR.split(continuation)]
     # A group noun in the first qualifier ("parents of children and adolescents") takes the
     # coordination that follows, so later nouns describe the qualifier, not added groups.
-    if first & _POPULATION_NOUNS:
+    if set(first) & _POPULATION_NOUNS:
         return True
-    return not any(words & _POPULATION_NOUNS for words in added)
+    # An item opening with a qualifying word ("with and without children", "living alone and
+    # with partners") qualifies the population rather than adding a group.
+    return not any(set(words) & _POPULATION_NOUNS for words in added
+                   if not (words and words[0] in _QUALIFIER_LEADS))
 
 
 def _population_covered(target: str, populations: list[str]) -> bool:
