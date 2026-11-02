@@ -5,6 +5,7 @@ import math
 import random
 import statistics
 import sys
+import unicodedata
 from typing import Any, Mapping
 
 from codex_science.safe_expression import (
@@ -18,6 +19,10 @@ from codex_science.safe_expression import (
 
 MAX_INPUTS = 64
 MAX_SAMPLES = 1_000_000
+INPUT_KEYS = frozenset({
+    "schema_version", "propagation_id", "claim_id", "expression", "inputs", "covariance",
+    "method", "seed", "samples", "confidence_level", "nonlinearity_threshold",
+})
 
 
 def _finite(value: Any, label: str) -> float:
@@ -37,6 +42,38 @@ def _quantile(values: list[float], probability: float) -> float:
         return ordered[lower]
     fraction = position - lower
     return ordered[lower] * (1.0 - fraction) + ordered[upper] * fraction
+
+
+def _evaluated_number(parsed: Any, values: Mapping[str, float]) -> float:
+    value = evaluate_expression(parsed, values)
+    # float(True) would silently turn a comparison into 1.0.
+    if isinstance(value, bool):
+        raise ValueError("uncertainty expression must evaluate to a number, not a boolean")
+    return float(value)
+
+
+def _domain_filtering_finding(failures: int, samples: int) -> dict[str, str]:
+    return {
+        "code": "monte-carlo-domain-filtering",
+        "severity": "major" if failures / samples >= 0.01 else "minor",
+        "message": "Some Monte Carlo samples failed expression evaluation; reported statistics are conditional on the accepted samples.",
+    }
+
+
+def _low_samples_finding() -> dict[str, str]:
+    return {"code": "low-monte-carlo-samples", "severity": "minor", "message": "Monte Carlo propagation uses fewer than 1000 accepted samples."}
+
+
+def _nonlinear_disagreement_finding(zero_scale_shift: bool) -> dict[str, str]:
+    return {
+        "code": "nonlinear-propagation-disagreement",
+        "severity": "major",
+        "message": (
+            "mean shift cannot be normalized by zero uncertainty; nominal and Monte Carlo means differ."
+            if zero_scale_shift else
+            "Linear and Monte Carlo propagation disagree materially; report the nonlinear distribution rather than only a first-order standard uncertainty."
+        ),
+    }
 
 
 def _require_finite_statistics(value: Any) -> None:
@@ -93,8 +130,8 @@ def _gradient(
             plus[name] += width
             minus[name] -= width
             try:
-                high = float(evaluate_expression(parsed, plus))
-                low = float(evaluate_expression(parsed, minus))
+                high = _evaluated_number(parsed, plus)
+                low = _evaluated_number(parsed, minus)
                 derivative = (high - low) / (2.0 * width)
                 if not math.isfinite(derivative):
                     raise ValueError(f"non-finite numerical derivative for {name}")
@@ -158,6 +195,9 @@ def _variance(
 def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported uncertainty-propagation input schema")
+    unknown = sorted(str(key) for key in payload if key not in INPUT_KEYS)
+    if unknown:
+        raise ValueError(f"unknown uncertainty-propagation input keys: {', '.join(unknown)}")
     propagation_id = _required_text(payload.get("propagation_id"), "propagation_id", error="propagation_id, claim_id, and expression are required")
     claim_id = _required_text(payload.get("claim_id"), "claim_id", error="propagation_id, claim_id, and expression are required")
     expression = _required_text(payload.get("expression"), "expression", error="propagation_id, claim_id, and expression are required")
@@ -180,20 +220,27 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     means: list[float] = []
     uncertainties: list[float] = []
     units: list[str | None] = []
+    normalized_names: set[str] = set()
     for index, item in enumerate(raw_inputs):
         if not isinstance(item, Mapping):
             raise ValueError(f"inputs[{index}] must be an object")
         name = _required_text(item.get("name"), f"inputs[{index}].name")
         if not name.isidentifier():
             raise ValueError(f"inputs[{index}].name must be an identifier")
-        if name in names:
+        # Python identifiers are NFKC-normalized, so the expression cannot tell these apart.
+        normalized = unicodedata.normalize("NFKC", name)
+        if normalized in normalized_names:
             raise ValueError(f"duplicate uncertainty input: {name}")
+        normalized_names.add(normalized)
         mean = _finite(item.get("mean"), f"inputs[{index}].mean")
         uncertainty = abs(_finite(item.get("standard_uncertainty"), f"inputs[{index}].standard_uncertainty"))
         names.append(name)
         means.append(mean)
         uncertainties.append(uncertainty)
-        units.append(None if item.get("unit") is None else str(item.get("unit")))
+        unit = item.get("unit")
+        if unit is not None and not isinstance(unit, str):
+            raise ValueError(f"inputs[{index}].unit must be a string or null")
+        units.append(unit)
     parsed = parse_expression(expression, allowed_names=names)
     nominal = _finite(evaluate_expression(parsed, dict(zip(names, means))), "nominal expression value")
     covariance = [[0.0] * len(names) for _ in names]
@@ -235,9 +282,10 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
     confidence_level = _finite(payload.get("confidence_level", 0.95), "confidence_level")
     if not 0.5 < confidence_level < 1:
         raise ValueError("confidence_level must be between 0.5 and 1")
+    # The linear method records neither seed nor samples, so it ignores both.
     seed = payload.get("seed")
-    samples = _integer(payload.get("samples", 20_000), "samples")
     if method in {"monte-carlo", "both"}:
+        samples = _integer(payload.get("samples", 20_000), "samples")
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise ValueError("Monte Carlo propagation requires an explicit integer seed")
         if not 100 <= samples <= MAX_SAMPLES:
@@ -252,7 +300,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
                 perturbation = sum(lower[row][column] * independent[column] for column in range(row + 1))
                 values.append(means[row] + perturbation)
             try:
-                output = float(evaluate_expression(parsed, dict(zip(names, values))))
+                output = _evaluated_number(parsed, dict(zip(names, values)))
                 if math.isfinite(output):
                     outputs.append(output)
                 else:
@@ -304,13 +352,9 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
                     ),
                 })
     if failures:
-        findings.append({
-            "code": "monte-carlo-domain-filtering",
-            "severity": "major" if failures / samples >= 0.01 else "minor",
-            "message": "Some Monte Carlo samples failed expression evaluation; reported statistics are conditional on the accepted samples.",
-        })
+        findings.append(_domain_filtering_finding(failures, samples))
     if method in {"monte-carlo", "both"} and samples < 1000:
-        findings.append({"code": "low-monte-carlo-samples", "severity": "minor", "message": "Monte Carlo propagation uses fewer than 1000 accepted samples."})
+        findings.append(_low_samples_finding())
     if method == "both" and monte_carlo_uncertainty is not None:
         scale = max(linear_uncertainty, monte_carlo_uncertainty)
         zero_scale_shift = scale == 0.0 and nominal != monte_carlo_mean
@@ -318,15 +362,7 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
         uncertainty_discrepancy = abs(linear_uncertainty - monte_carlo_uncertainty) / scale if scale else 0.0
         mean_discrepancy = abs(nominal - float(monte_carlo_mean)) / scale if scale else 0.0
         if zero_scale_shift or uncertainty_discrepancy > nonlinearity_threshold or mean_discrepancy > 0.25:
-            findings.append({
-                "code": "nonlinear-propagation-disagreement",
-                "severity": "major",
-                "message": (
-                    "mean shift cannot be normalized by zero uncertainty; nominal and Monte Carlo means differ."
-                    if zero_scale_shift else
-                    "Linear and Monte Carlo propagation disagree materially; report the nonlinear distribution rather than only a first-order standard uncertainty."
-                ),
-            })
+            findings.append(_nonlinear_disagreement_finding(zero_scale_shift))
     else:
         uncertainty_discrepancy = None
         mean_discrepancy = None
@@ -377,6 +413,13 @@ def run_uncertainty_propagation(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_uncertainty_propagation(payload: Mapping[str, Any]) -> None:
+    try:
+        _validate_uncertainty_receipt(payload)
+    except RecursionError as error:
+        raise ValueError("uncertainty-propagation receipt is nested too deeply to validate") from error
+
+
+def _validate_uncertainty_receipt(payload: Mapping[str, Any]) -> None:
     if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported uncertainty-propagation receipt schema")
     for field in ("propagation_id", "claim_id", "expression", "status", "method"):
@@ -454,6 +497,10 @@ def validate_uncertainty_propagation(payload: Mapping[str, Any]) -> None:
             _required_text(item.get(field), f"finding.{field}")
         if item["severity"] not in {"critical", "major", "minor", "suggestion"}:
             raise ValueError("invalid uncertainty finding severity")
+    if payload["status"] == "findings" and not any(
+        item["severity"] in {"critical", "major"} for item in payload["findings"]
+    ):
+        raise ValueError("findings status requires a critical or major finding")
     _validate_uncertainty_consistency(payload)
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
@@ -523,12 +570,41 @@ def _validate_uncertainty_consistency(payload: Mapping[str, Any]) -> None:
         raise ValueError("nonlinearity.relative_uncertainty_discrepancy cannot exceed 1")
 
 
+def _stored_field_findings(payload: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Return the run-path findings that stored receipt fields fully determine.
+
+    linearization-derivative-unstable and the threshold branch of
+    nonlinear-propagation-disagreement depend on values the receipt does not
+    store, so they cannot be re-derived.
+    """
+    if payload["method"] == "linear":
+        return []
+    monte_carlo = payload["monte_carlo"]
+    failed, requested = monte_carlo["failed_samples"], monte_carlo["requested_samples"]
+    derived = []
+    if failed:
+        derived.append(_domain_filtering_finding(failed, requested))
+    if requested < 1000:
+        derived.append(_low_samples_finding())
+    if payload["method"] == "both":
+        nominal, mean = payload["nominal_value"], monte_carlo["mean"]
+        scale = max(payload["linear"]["standard_uncertainty"], monte_carlo["standard_uncertainty"])
+        zero_scale_shift = scale == 0.0 and nominal != mean
+        mean_shift = abs(nominal - float(mean)) / scale if scale else 0.0
+        if (zero_scale_shift or mean_shift > 0.25
+                or payload["nonlinearity"]["mean_shift_in_uncertainty_units"] > 0.25):
+            derived.append(_nonlinear_disagreement_finding(zero_scale_shift))
+    return derived
+
+
 def review_uncertainty_propagation(payload: Mapping[str, Any]) -> list[dict[str, str]]:
     try:
         validate_uncertainty_propagation(payload)
     except ValueError as error:
         return [{"code": "invalid-uncertainty-propagation", "severity": "critical", "message": str(error)}]
     findings = [dict(item) for item in payload.get("findings", [])]
+    recorded = {(item["code"], item["severity"]) for item in findings}
+    findings.extend(item for item in _stored_field_findings(payload) if (item["code"], item["severity"]) not in recorded)
     if payload.get("method") in {"monte-carlo", "both"} and payload.get("monte_carlo", {}).get("seed") is None:
         findings.append({"code": "uncertainty-seed-missing", "severity": "critical", "message": "Monte Carlo uncertainty receipt lacks a deterministic seed."})
     if payload.get("status") == "passed" and any(item.get("severity") in {"critical", "major"} for item in findings):

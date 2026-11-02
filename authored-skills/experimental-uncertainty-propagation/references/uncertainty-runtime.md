@@ -31,6 +31,8 @@
 
 The expression uses the same bounded mathematical language as counterexample search. It cannot access files, attributes, imports, or user-defined functions.
 
+The runtime refuses any top-level key not shown above; a misspelt `covariance` is an error, not an independent-input run. Input names must be unique after `unicodedata.normalize("NFKC", name)`, because Python identifiers in the expression are normalized that way (the micro sign `µ` and Greek `μ` are one name). `unit` must be a string or null. `linear` ignores `seed` and `samples`, which its receipt does not record; `nonlinearity_threshold` is used only by `both`.
+
 ## Linear propagation
 
 The runtime evaluates the nominal expression, estimates a central finite-difference gradient, and computes
@@ -43,6 +45,8 @@ using the full covariance matrix. It reports each diagonal sensitivity contribut
 
 Finite-difference scale is chosen from input magnitude and uncertainty. All methods retain the original linear gradient. For `linear` and `both`, each derivative is also estimated at half the step: a change times that input's standard uncertainty exceeding both 1% of the propagated linear standard uncertainty and an absolute noise floor adds the major `linearization-derivative-unstable` finding. The run returns its receipt with status `findings`; `--require-clean` exits 1 after writing it. The noise floor is the largest uncertainty-weighted subtraction roundoff (16 sampled output-value ulps divided by the original step). If every Richardson-extrapolated derivative `(4*d(h/2) - d(h))/3` is within its subtraction roundoff, all estimates are consistent with stationary-point central-difference truncation; their uncertainty-weighted changes also enter the floor, so stationary cubic models are not flagged by themselves. If half-step expression evaluation or its derivative fails, `linear` and `both` retain the original gradient and add the same major finding; failed original-step evaluation still refuses the run. Monte Carlo-only propagation skips half-step diagnostics entirely and adds no derivative-instability finding. This bounded check cannot prove derivative accuracy or detect every oscillatory alias or higher-order stationary truncation. Review nonsmooth models, boundaries, and severe cancellation independently.
 
+An expression result that is a boolean (for example from a comparison in a conditional branch) is a failed evaluation: it refuses the nominal value and an original-step finite difference, adds `linearization-derivative-unstable` at the half step, and counts as a failed Monte Carlo sample.
+
 Negative propagated variance raises `ValueError` unless its magnitude is within `1e-12` times the sum of absolute covariance contributions, where cancellation roundoff is clamped to zero.
 
 ## Monte Carlo
@@ -52,6 +56,16 @@ Negative propagated variance raises `ValueError` unless its magnitude is within 
 The receipt records requested, accepted, and failed samples, output mean, standard uncertainty, percentile interval, seed, and expression hash. Too many invalid or non-finite samples fail the run. Any failed samples add the `monte-carlo-domain-filtering` review finding: the reported statistics are conditional on the accepted samples. The finding is major when failures are at least 1% of requested samples and minor otherwise. A major finding changes status to `findings`; a minor finding alone leaves status `passed`, so inspect findings even with `--require-clean`.
 
 When `both` is selected, the runtime compares linear and Monte Carlo uncertainty plus nominal-to-Monte-Carlo mean shift. Material disagreement produces a nonlinearity finding.
+
+## Receipt review
+
+Validation refuses a receipt with status `findings` but no critical or major finding. Review re-derives every finding the stored fields fully determine and appends any that the receipt lacks (matched by code and severity); a `passed` receipt with a derived major finding then also gets the critical `unsafe-uncertainty-pass`:
+
+- `monte-carlo-domain-filtering` when `monte_carlo.failed_samples > 0`, major when `failed_samples / requested_samples >= 0.01` and minor otherwise;
+- `low-monte-carlo-samples` (minor) when `monte_carlo.requested_samples < 1000`;
+- `nonlinear-propagation-disagreement` (major) for `both` when both standard uncertainties are zero and `nominal_value` differs from `monte_carlo.mean`, or when the mean shift recomputed from those fields or the stored `nonlinearity.mean_shift_in_uncertainty_units` exceeds 0.25.
+
+`linearization-derivative-unstable` cannot be re-derived from stored fields, because the half-step derivatives are not recorded. Neither can the `nonlinearity_threshold` branch of `nonlinear-propagation-disagreement`, because the threshold is not recorded in the receipt.
 
 ## Covariance rules
 

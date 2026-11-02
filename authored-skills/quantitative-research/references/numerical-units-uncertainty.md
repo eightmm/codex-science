@@ -150,7 +150,11 @@ A covariance matrix must be positive semidefinite. Supplied diagonals must agree
 
 `linear` and `both` compare central finite-difference derivatives with estimates at half the original step. Each derivative change times its input standard uncertainty is judged against 1% of the propagated linear standard uncertainty and a function-scale subtraction-roundoff floor. A material change adds the major `linearization-derivative-unstable` finding and status `findings`, rather than refusing the result; `--require-clean` exits 1 after writing the receipt. If all Richardson-extrapolated derivatives are consistent with zero within subtraction roundoff, stationary-point truncation changes also enter the floor. A failed half-step expression evaluation or derivative adds the same major finding while retaining the original gradient; failed original-step evaluation still refuses the run. Monte Carlo-only propagation skips half-step diagnostics entirely and retains the original linear fields without derivative-instability findings. This bounded check cannot prove derivative accuracy or detect every oscillatory alias or higher-order stationary truncation; original derivatives are retained.
 
+Unknown top-level keys, input names that collide after NFKC normalisation, non-string units and boolean expression results are refused; boolean results count as failed Monte Carlo samples or failed finite-difference evaluations. `linear` ignores `seed` and `samples`.
+
 Monte Carlo requires an explicit seed. Any failed sample adds `monte-carlo-domain-filtering`, stating that reported statistics are conditional on accepted samples. Failed fractions of at least 1% of requested samples produce a major finding and status `findings`; smaller nonzero fractions produce a minor finding, which alone leaves status `passed` even with `--require-clean`. The Gaussian model, standard uncertainties, and covariance are scientific assumptions, not facts established by the runtime.
+
+Review re-derives `monte-carlo-domain-filtering`, `low-monte-carlo-samples` and the zero-scale or mean-shift branch of `nonlinear-propagation-disagreement` from stored receipt fields and reports any that a receipt lacks. `linearization-derivative-unstable` and the `nonlinearity_threshold` branch cannot be re-derived from stored fields.
 
 ## Interpretation boundary
 

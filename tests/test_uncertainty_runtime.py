@@ -1,5 +1,6 @@
 """Scale and validity regressions for uncertainty propagation."""
 import copy
+import hashlib
 import json
 import math
 import os
@@ -666,6 +667,199 @@ class UncertaintyValidityTests(unittest.TestCase):
                     self.assertEqual("findings" if failed >= 10 else "passed", result["status"])
                 else:
                     self.assertEqual([], result["findings"])
+
+    def refingerprint(self, receipt):
+        receipt.pop("fingerprint")
+        receipt["fingerprint"] = canonical_sha256(receipt)
+        return receipt
+
+    def test_review_rederives_findings_removed_from_receipt(self):
+        result = self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo")
+        stripped = self.refingerprint({**copy.deepcopy(result), "findings": [], "status": "passed"})
+        validate_uncertainty_propagation(stripped)
+        self.assertEqual(
+            [("monte-carlo-domain-filtering", "major"), ("unsafe-uncertainty-pass", "critical")],
+            [(item["code"], item["severity"]) for item in review_uncertainty_propagation(stripped)],
+        )
+        downgraded = copy.deepcopy(result)
+        downgraded["findings"][0]["severity"] = "minor"
+        self.refingerprint(downgraded)
+        with self.assertRaisesRegex(ValueError, "findings status requires a critical or major finding"):
+            validate_uncertainty_propagation(downgraded)
+        downgraded["status"] = "passed"
+        self.refingerprint(downgraded)
+        self.assertEqual(
+            ["minor", "major", "critical"],
+            [item["severity"] for item in review_uncertainty_propagation(downgraded)],
+        )
+        with self.assertRaisesRegex(ValueError, "findings status requires"):
+            validate_uncertainty_propagation(self.refingerprint({**copy.deepcopy(result), "findings": []}))
+
+        base = self.propagate("x", [("x", 0, 1)], samples=1000)
+        self.assertEqual([], base["findings"])
+        for requested, failed, expected in (
+            (1000, 0, []),
+            (999, 0, [("low-monte-carlo-samples", "minor")]),
+            (1000, 9, [("monte-carlo-domain-filtering", "minor")]),
+            (1000, 10, [("monte-carlo-domain-filtering", "major"), ("unsafe-uncertainty-pass", "critical")]),
+        ):
+            with self.subTest(requested=requested, failed=failed):
+                forged = copy.deepcopy(base)
+                forged["monte_carlo"].update(
+                    requested_samples=requested, accepted_samples=requested - failed, failed_samples=failed,
+                )
+                self.refingerprint(forged)
+                validate_uncertainty_propagation(forged)
+                self.assertEqual(expected, [(item["code"], item["severity"]) for item in review_uncertainty_propagation(forged)])
+        for shift, flagged in ((0.25, False), (math.nextafter(0.25, 1), True)):
+            with self.subTest(stored_mean_shift=shift):
+                forged = copy.deepcopy(base)
+                forged["nonlinearity"]["mean_shift_in_uncertainty_units"] = shift
+                self.refingerprint(forged)
+                self.assertEqual(
+                    [("nonlinear-propagation-disagreement", "major"), ("unsafe-uncertainty-pass", "critical")] if flagged else [],
+                    [(item["code"], item["severity"]) for item in review_uncertainty_propagation(forged)],
+                )
+        disagreement = self.propagate("0 if x == 0 else 1", [("x", 0, 1)], samples=1000)
+        self.assertIn("nonlinear-propagation-disagreement", {item["code"] for item in disagreement["findings"]})
+        stripped = self.refingerprint({**copy.deepcopy(disagreement), "findings": [], "status": "passed"})
+        self.assertIn(
+            "nonlinear-propagation-disagreement",
+            {item["code"] for item in review_uncertainty_propagation(stripped)},
+        )
+        constant = self.propagate("x", [("x", 0, 0)], samples=1000)
+        forged = copy.deepcopy(constant)
+        forged["monte_carlo"].update(mean=1e-300, interval=[1e-300, 1e-300])
+        self.refingerprint(forged)
+        validate_uncertainty_propagation(forged)
+        review = review_uncertainty_propagation(forged)
+        self.assertEqual("nonlinear-propagation-disagreement", review[0]["code"])
+        self.assertIn("cannot be normalized by zero uncertainty", review[0]["message"])
+        self.assertEqual("unsafe-uncertainty-pass", review[-1]["code"])
+
+    def test_unknown_input_keys_are_refused(self):
+        correlated = self.propagate("x*y", [("x", 1, 0.1), ("y", 1, 0.1)], covariance=[{"left": "x", "right": "y", "value": 0.009}])
+        self.assertEqual(0.009, correlated["covariance"][0][1])
+        for key in ("covariances", "Seed", "", "fingerprint"):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "unknown uncertainty-propagation input keys"):
+                self.propagate("x*y", [("x", 1, 0.1), ("y", 1, 0.1)], **{key: []})
+        root = Path(__file__).resolve().parents[1]
+        quantitative = json.loads((root / "examples/quantitative-research/input.json").read_text(encoding="utf-8"))
+        for payload in (
+            json.loads((root / "examples/experimental-uncertainty-propagation/input.json").read_text(encoding="utf-8")),
+            quantitative["uncertainty_propagation"],
+        ):
+            self.assertEqual("passed", run_uncertainty_propagation(payload)["status"])
+
+    def test_deeply_nested_receipt_is_a_labelled_refusal(self):
+        receipt = self.propagate("x", [("x", 0, 1)], samples=1000)
+        nested = []
+        for _ in range(sys.getrecursionlimit() + 100):
+            nested = [nested]
+        receipt["extra"] = nested
+        with self.assertRaisesRegex(ValueError, "nested too deeply"):
+            validate_uncertainty_propagation(receipt)
+        self.assertEqual("invalid-uncertainty-propagation", review_uncertainty_propagation(receipt)[0]["code"])
+
+    def test_validate_artifact_reviews_rederived_findings_and_deep_receipts(self):
+        from importlib.util import module_from_spec, spec_from_file_location
+
+        root = Path(__file__).resolve().parents[1]
+        spec = spec_from_file_location("run_quantitative_acceptance_uncertainty", root / "scripts/run_quantitative_acceptance.py")
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "run"
+            manifest_path = module.run(root / "examples/quantitative-research/input.json", output)
+            receipt_path = output / "uncertainty-propagation.json"
+            original = json.loads(receipt_path.read_text(encoding="utf-8"))
+            stripped = self.propagate("log(x)", [("x", 2, 1)], method="monte-carlo",
+                                      propagation_id=original["propagation_id"], claim_id=original["claim_id"])
+            stripped = self.refingerprint({**stripped, "findings": [], "status": "passed"})
+            deep = self.refingerprint({**original, "extra": []})
+            # Deep enough for the recursive encoder, shallow enough for the JSON loader.
+            text = json.dumps(deep)[:-1] + ', "extra": ' + "[" * 2000 + "]" * 2000 + "}"
+            for label, body, expected in (
+                ("stripped", json.dumps(stripped), "unsafe-uncertainty-pass"),
+                # Interpreters whose JSON loader has a lower nesting cap refuse it at load time.
+                ("deep", text, r"nested too deeply|nesting is too deep"),
+            ):
+                with self.subTest(receipt=label):
+                    data = body.encode("utf-8")
+                    receipt_path.write_bytes(data)
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    for artifact in manifest["artifacts"]:
+                        if artifact["path"] == receipt_path.name:
+                            artifact.update(sha256=hashlib.sha256(data).hexdigest(), size_bytes=len(data))
+                    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    review_path = Path(directory) / "review.json"
+                    review_path.unlink(missing_ok=True)
+                    process = subprocess.run(
+                        [sys.executable, str(root / "scripts/validate_artifact.py"), str(manifest_path),
+                         "--review-output", str(review_path), "--require-passed-review"],
+                        capture_output=True, text=True, check=False,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                    )
+                    self.assertEqual(1, process.returncode, process.stdout + process.stderr)
+                    self.assertNotIn("Traceback", process.stderr)
+                    if label == "deep":
+                        self.assertRegex(process.stderr, expected)
+                    else:
+                        codes = {item["code"] for item in json.loads(review_path.read_text(encoding="utf-8"))["findings"]}
+                        self.assertLessEqual({expected, "monte-carlo-domain-filtering"}, codes)
+
+    def test_unit_must_be_string_or_null(self):
+        def with_unit(unit):
+            return run_uncertainty_propagation({
+                "schema_version": 1, "propagation_id": "u", "claim_id": "c", "expression": "x", "method": "linear",
+                "inputs": [{"name": "x", "mean": 1, "standard_uncertainty": 0.1, "unit": unit}],
+            })
+        baseline = self.propagate("x", [("x", 1, 0.1)], method="linear")
+        for unit in ("m", "", None):
+            with self.subTest(unit=unit):
+                result = with_unit(unit)
+                self.assertEqual(unit, result["inputs"][0]["unit"])
+                self.assertEqual(baseline["linear"], result["linear"])
+        for unit in ({"a": 1}, ["m"], 1, 1.5, True):
+            with self.subTest(unit=unit), self.assertRaisesRegex(ValueError, r"inputs\[0\]\.unit must be a string or null"):
+                with_unit(unit)
+
+    def test_linear_method_ignores_seed_and_samples(self):
+        baseline = self.propagate("x*x", [("x", 1, 0.1)], method="linear")
+        for overrides in ({"samples": "many"}, {"samples": 0}, {"samples": None}, {"samples": True},
+                          {"seed": "s"}, {"seed": None}, {"samples": 10**9, "seed": 1.5}):
+            with self.subTest(overrides=overrides):
+                result = self.propagate("x*x", [("x", 1, 0.1)], method="linear", **overrides)
+                for field in ("input_sha256", "fingerprint"):
+                    result.pop(field)
+                self.assertEqual({key: value for key, value in baseline.items() if key not in {"input_sha256", "fingerprint"}}, result)
+        for method in ("monte-carlo", "both"):
+            for overrides, message in (({"samples": "many"}, "samples has an invalid literal"),
+                                       ({"samples": 99}, "samples must be between"),
+                                       ({"seed": None}, "explicit integer seed")):
+                with self.subTest(method=method, overrides=overrides), self.assertRaisesRegex(ValueError, message):
+                    self.propagate("x", [("x", 1, 0.1)], method=method, **overrides)
+
+    def test_input_names_equal_after_nfkc_are_duplicates(self):
+        for first, second in (("µ", "μ"), ("ﬁ", "fi")):
+            with self.subTest(names=(first, second)), self.assertRaisesRegex(ValueError, "duplicate uncertainty input"):
+                self.propagate(f"{first}+{second}", [(first, 1, 0.1), (second, 1, 0.2)], method="linear")
+        result = self.propagate("μ+fi", [("μ", 1, 0.1), ("fi", 1, 0.2)], method="linear")
+        self.assertEqual(["μ", "fi"], [item["name"] for item in result["inputs"]])
+
+    def test_boolean_expression_results_are_failed_evaluations(self):
+        result = self.propagate("x if x > -2 else x < 1", [("x", 0.5, 1)], method="monte-carlo")
+        self.assertGreater(result["monte_carlo"]["failed_samples"], 0)
+        self.assertEqual("monte-carlo-domain-filtering", result["findings"][0]["code"])
+        with self.assertRaisesRegex(ValueError, "too many Monte Carlo samples failed"):
+            self.propagate("x if x > 0 else x < 1", [("x", 0.5, 1)], method="monte-carlo")
+        with self.assertRaisesRegex(ValueError, "not a boolean"):
+            self.propagate("(x > 0.5) if x > 0.5 else x", [("x", 0.5, 0.1)], method="linear")
+        # The original step 1e-4 stays numeric; only the half step yields a boolean.
+        result = self.propagate("(x > 0.5) if 0.5 < x < 0.50007 else x", [("x", 0.5, 0.1)], method="linear")
+        self.assertAlmostEqual(1.0, result["linear"]["gradient"][0])
+        self.assertEqual(["linearization-derivative-unstable"], [item["code"] for item in result["findings"]])
+        self.assertIn("failed expression evaluation", result["findings"][0]["message"])
 
     def test_cli_refuses_untyped_identifiers_before_writing(self):
         from loader_cases import assert_refused

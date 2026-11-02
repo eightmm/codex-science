@@ -13,19 +13,25 @@ from codex_science.uncertainty_runtime import run_uncertainty_propagation  # noq
 
 
 EPILOG = """\
-input JSON keys (schema_version must be 1):
+input JSON keys (schema_version must be 1; any other top-level key is refused):
   propagation_id, claim_id, expression   required non-empty strings;
                            expression uses the safe_expression grammar over the input names
-  inputs                   required list, 1-64 objects: name (unique Python identifier),
-                           mean (finite number), standard_uncertainty (finite; sign ignored),
-                           unit (optional string, default null)
+                           and must evaluate to a number, not a boolean
+  inputs                   required list, 1-64 objects: name (Python identifier, unique
+                           after NFKC normalisation), mean (finite number),
+                           standard_uncertainty (finite; sign ignored),
+                           unit (optional string or null, default null)
   covariance               optional list of {left, right, value}; left and right must be
                            input names; left == right must agree with standard_uncertainty;
                            default: no covariance
   method                   linear, monte-carlo, or both (default)
-  seed                     integer; required (no default) for monte-carlo and both
-  samples                  optional, 100-1000000; default 20000 (monte-carlo and both only)
+  seed                     integer; required (no default) for monte-carlo and both;
+                           ignored by linear
+  samples                  optional, 100-1000000; default 20000 (monte-carlo and both only;
+                           ignored by linear)
   confidence_level         optional, in (0.5, 1); default 0.95
+  nonlinearity_threshold   optional, must convert to a finite non-negative number (not
+                           boolean); default 0.25 (both only)
 """
 
 
