@@ -231,7 +231,7 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
             for report_text in ("", "Report without the required limitation.\n"):
                 with self.subTest(report_text=report_text):
                     report_path.write_text(report_text, encoding="utf-8")
-                    with self.assertRaisesRegex(ValueError, "limitation text does not appear verbatim in report.md"):
+                    with self.assertRaisesRegex(ValueError, "limitation text does not appear in report.md"):
                         commitment_ledger.validate_ledger(ledger, **inputs)
 
             report_path.write_text(limitation + "\n", encoding="utf-8")

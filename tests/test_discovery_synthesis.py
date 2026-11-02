@@ -158,7 +158,7 @@ class DiscoverySynthesisTests(unittest.TestCase):
                 cycle = load_cycle(root)
                 history = {"project_id": "p", "runs": [{"run_id": "r", "cycles": [cycle]}]}
                 if cost == 1e308:
-                    with self.assertRaisesRegex(ValueError, "experiment e1 total_cost must be finite"):
+                    with self.assertRaisesRegex(ValueError, "run r experiment e1: total_cost must be finite"):
                         synthesize_history(history)
                     attach_cycle(root)
                     database = Path(temporary) / "project.sqlite"
@@ -171,7 +171,7 @@ class DiscoverySynthesisTests(unittest.TestCase):
                         capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
                     )
                     self.assertEqual(1, result.returncode)
-                    self.assertIn("error: experiment e1 total_cost must be finite", result.stderr)
+                    self.assertIn("error: run run experiment e1: total_cost must be finite", result.stderr)
                     self.assertNotIn("Traceback", result.stderr)
                     self.assertEqual("", result.stdout)
                 else:
@@ -345,6 +345,11 @@ class DiscoverySynthesisTests(unittest.TestCase):
             broken["experiments"][0]["cost"] = "abc"
             with self.assertRaisesRegex(ValueError, "run r experiment e1: .*malformed value"):
                 synthesize_history({"runs": [{"run_id": "r", "cycles": [broken]}]})
+            for cost in (1e308, float("inf")):
+                huge = copy.deepcopy(base)
+                huge["experiments"][0].update(cost=cost, control_cost=cost)
+                with self.subTest(cost=cost), self.assertRaisesRegex(ValueError, "^run r experiment e1: total_cost must be finite$"):
+                    synthesize_history({"runs": [{"run_id": "r", "cycles": [huge]}]})
             surrogate = copy.deepcopy(base)
             surrogate["hypotheses"][0]["statement"] = "\ud800"
             with self.assertRaisesRegex(ValueError, "run r.*not valid UTF-8"):

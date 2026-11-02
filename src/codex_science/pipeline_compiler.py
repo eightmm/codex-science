@@ -10,6 +10,7 @@ from __future__ import annotations
 import errno
 import hashlib
 import json
+import os
 import re
 import tempfile
 import unicodedata
@@ -96,11 +97,24 @@ def _check_description(description: str) -> None:
             )
 
 
+def _is_inside_by_identity(path: Path, root: Path) -> bool:
+    # Textual comparison misses differently spelled paths on case-insensitive file systems.
+    probe = path
+    while not probe.exists():
+        if probe.parent == probe:
+            return False
+        probe = probe.parent
+    try:
+        return any(os.path.samefile(ancestor, root) for ancestor in (probe, *probe.parents))
+    except OSError:
+        return False
+
+
 def _refuse_catalog_or_run_output(output_dir: Path, run_dir: Path) -> None:
     for root in SKILL_ROOTS:
-        if output_dir.is_relative_to(root.resolve()):
+        if output_dir.is_relative_to(root.resolve()) or _is_inside_by_identity(output_dir, root):
             raise ValueError(f"output directory is inside the catalog skill root {root.name}/: {output_dir}")
-    if output_dir == run_dir or output_dir.is_relative_to(run_dir):
+    if output_dir == run_dir or output_dir.is_relative_to(run_dir) or _is_inside_by_identity(output_dir, run_dir):
         raise ValueError(f"output directory is inside the run directory: {output_dir}")
 
 
@@ -309,8 +323,7 @@ def _reference_text(
     commands = "\n".join(f"- `{json.dumps(command, ensure_ascii=False)}`" for command in command_contract) or "- No command was promoted. Reconstruct commands from an approved method before validation."
     steps = "\n".join(
         "- `{}` — {}".format(*_step_fields(step, index))
-        for index, step in enumerate(manifest.get("plan", []), 1)
-        if isinstance(step, Mapping)
+        for index, step in enumerate((item for item in manifest.get("plan", []) if isinstance(item, Mapping)), 1)
     ) or "- No source plan steps were recorded."
     limitations_text = "\n".join(f"- {item}" for item in limitations)
     return f'''# Generated pipeline contract

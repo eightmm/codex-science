@@ -195,8 +195,9 @@ preserve the minimum scientific state, not permission to infer it.
 
 The memory view does not filter by cycle status or run lineage: rejected,
 superseded, and forked cycles appear alongside active ones, so read each entry
-with its source run. `total_cost` is per experiment and repeats in every group
-that experiment appears in; never sum it across entries. For a terminal cycle,
+with its source run. `total_cost` is per experiment, repeated in every group the
+experiment appears in (one per predicted hypothesis, and again in forked runs);
+never sum it across entries. For a terminal cycle,
 `discovery next` returns `review_or_report_bounded_result` (obtain the
 applicable independent review or report the bounded result; schedule no new
 experiment in that cycle).

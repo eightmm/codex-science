@@ -585,6 +585,25 @@ class SkillMaturityTests(unittest.TestCase):
             (skill / "SKILL.md").write_text(SKILL_TEXT.replace("## Workflow", "## Workflow \t"), encoding="utf-8")
             self.assertEqual("L4", evaluate_skill(root, skill)["computed_maturity"])
 
+    def test_line_separators_and_comment_tails_follow_commonmark(self) -> None:
+        cases = {
+            # Only a line feed starts a line: a fence after a form feed or U+2028 is not a fence.
+            "form-feed-fence": ("\x0c```\n## Workflow\n", True),
+            "line-separator-comment": ("\u2028```\n## Workflow\n", True),
+            # A comment closing a multi-line block ends the HTML block, so its tail is not a heading.
+            "multiline-comment-tail": ("<!--\nx\n-->## Workflow\n", False),
+            "multiline-comment-tail-heading": ("<!--\nx\n-->\n## Workflow\n", True),
+            "crlf-heading": ("## Workflow\r\n", True),
+            "empty": ("", False),
+        }
+        for label, (body, expected) in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                skill = self.make_skill(root, quality=self.valid_quality())
+                (skill / "SKILL.md").write_text(SKILL_TEXT.replace("## Workflow\n", body), encoding="utf-8")
+                record = evaluate_skill(root, skill)
+                self.assertEqual(expected, "missing instruction contract: ## Workflow" not in record["reasons"])
+
     def test_handoff_mentions_in_code_or_comments_do_not_count(self) -> None:
         for label, old, new in (
             ("fence", "Use `$science-provenance`, execute the fixture, and use `$science-review`.",

@@ -13,7 +13,7 @@ from codex_science.artifact_store import describe_file
 from codex_science.catalog import parse_frontmatter
 from codex_science.skill_maturity import _frontmatter as skill_frontmatter
 from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, write_manifest
-from codex_science.pipeline_compiler import compile_pipeline_draft
+from codex_science.pipeline_compiler import _reference_text, _skill_text, compile_pipeline_draft
 
 
 def reviewed_run(root: Path, *, review_status: str = "passed") -> Path:
@@ -390,6 +390,42 @@ class PipelineCompilerTests(unittest.TestCase):
                                                    name="fixture-pipeline", description="Fixture.")
                         self.assertEqual([], list(roots[0].iterdir()) + list(roots[1].iterdir()))
                         self.assertFalse((manifest.parent / "draft").exists())
+
+    def test_output_in_differently_spelled_alias_of_a_protected_directory_is_refused(self) -> None:
+        # Linux cannot spell one directory two ways, so file identity is faked for the "alias" directory.
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            catalog = root / "fake-authored-skills"
+            catalog.mkdir()
+            (root / "alias" / "nested").mkdir(parents=True)
+            real = os.path.samefile
+
+            def alias_of(protected):
+                return lambda a, b: Path(a).name == "alias" and Path(b) == protected or real(a, b)
+
+            for protected, pattern in ((catalog, "catalog skill root"), (manifest.parent, "run directory")):
+                for output in (root / "alias" / "nested" / "draft", root / "alias" / "missing" / "draft"):
+                    with self.subTest(protected=protected.name, output=output.parent.name), \
+                            patch("codex_science.pipeline_compiler.SKILL_ROOTS", (catalog,), create=True), \
+                            patch("codex_science.pipeline_compiler.os.path.samefile", side_effect=alias_of(protected)):
+                        with self.assertRaisesRegex(ValueError, pattern):
+                            compile_pipeline_draft(manifest_path=manifest, output_dir=output,
+                                                   name="fixture-pipeline", description="Fixture.")
+                        self.assertFalse(output.exists())
+            with patch("codex_science.pipeline_compiler.SKILL_ROOTS", (catalog,), create=True):
+                compile_pipeline_draft(manifest_path=manifest, output_dir=root / "alias" / "ok",
+                                       name="fixture-pipeline", description="Fixture.")
+
+    def test_reference_step_ids_skip_non_mapping_plan_entries_like_skill_text(self) -> None:
+        manifest = {"run_id": "r", "plan": ["stray", {"description": "first"}, 7, {"description": "second"}]}
+        reference = _reference_text(name="n", source_manifest_path=Path("m.json"), source_manifest_sha256="0" * 64,
+                                    manifest=manifest, command_contract=[], limitations=[])
+        skill = _skill_text("n", "d", "r", [item for item in manifest["plan"] if isinstance(item, dict)])
+        for text in (skill, reference):
+            self.assertIn("`step-1` — first", text)
+            self.assertIn("`step-2` — second", text)
+            self.assertNotIn("step-4", text)
 
     def test_manifest_is_read_once_and_hash_matches_parsed_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

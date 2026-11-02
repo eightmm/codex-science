@@ -58,11 +58,23 @@ def _frontmatter(text: str) -> dict[str, str]:
 
 
 def _strip_fences_and_comments(text: str) -> str:
-    """Drop fenced code blocks and HTML comments; unclosed ones run to the end."""
+    """Drop fenced code blocks and HTML comments; unclosed ones run to the end.
+
+    Lines split on a line feed only (one trailing carriage return dropped), as in CommonMark, so
+    form feeds and Unicode separators never start a line. A comment opening at the
+    start of a line (up to three spaces of indent) is an HTML block that ends on
+    the line holding ``-->``, so the rest of that line is dropped; a comment
+    opening mid-line is inline and the text after ``-->`` stays visible.
+    """
     kept: list[str] = []
     fence = ""
     in_comment = False
-    for line in text.splitlines():
+    block_comment = False
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    for line in lines:
+        line = line.removesuffix("\r")
         marker = FENCE_RE.match(line)
         if fence:
             if marker and marker.group("fence")[0] == fence[0] and len(marker.group("fence")) >= len(fence) and not marker.group("rest").strip():
@@ -77,10 +89,11 @@ def _strip_fences_and_comments(text: str) -> str:
             if in_comment:
                 end = rest.find("-->")
                 in_comment = end < 0
-                rest = "" if end < 0 else rest[end + 3 :]
+                rest = "" if end < 0 or block_comment else rest[end + 3 :]
             else:
                 start = rest.find("<!--")
                 visible += rest if start < 0 else rest[:start]
+                block_comment = start >= 0 and not visible.strip() and len(visible) < 4
                 in_comment = start >= 0
                 rest = "" if start < 0 else rest[start + 4 :]
         kept.append(visible)

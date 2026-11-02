@@ -395,14 +395,14 @@ def synthesize_history(history: Mapping[str, Any]) -> dict[str, Any]:
                         entry["run_id"] = run["run_id"]
                         entry["total_cost"] = float(experiment["cost"]) + float(experiment.get("control_cost", 0))
                         if not math.isfinite(entry["total_cost"]):
-                            raise ValueError(f"experiment {experiment['id']} total_cost must be finite")
+                            raise ValueError(f"{where}: total_cost must be finite")
                         group["evidence"].append(entry)
             except UnicodeEncodeError as error:
                 raise ValueError(f"{where}: recorded text is not valid UTF-8 ({error.reason})") from error
             except (KeyError, TypeError, AttributeError) as error:
                 raise ValueError(f"{where}: history snapshot lacks or malforms a required field ({error!r})") from error
             except ValueError as error:
-                if str(error).startswith("experiment "):
+                if str(error).startswith(f"{where}: ") or str(error).startswith("experiment "):
                     raise
                 raise ValueError(f"{where}: history snapshot has a malformed value ({error})") from error
     for group in groups.values():

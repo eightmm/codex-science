@@ -273,7 +273,7 @@ def validate_ledger(
                         report_text = report_path.read_text(encoding="utf-8")
                     if collapsed_limitation not in _collapse_whitespace(report_text):
                         raise ValueError(
-                            f"{claim_label}: limitation text does not appear verbatim in report.md (whitespace collapsed, case-sensitive); expected: text present in report.md; actual: missing; field: deviation.affected_claims[].limitation"
+                            f"{claim_label}: limitation text does not appear in report.md (compared case-sensitively after collapsing whitespace); expected: text present in report.md; actual: missing; field: deviation.affected_claims[].limitation"
                         )
 
         proc_context: dict[str, Any] = {
