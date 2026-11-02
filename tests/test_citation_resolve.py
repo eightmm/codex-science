@@ -548,5 +548,133 @@ class CitationResolveTests(unittest.TestCase):
         self.assertIn("evidence_boundary", payload)
 
 
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/resolve_citations.py"
+
+
+def _run_cli(*args, stdin=subprocess.DEVNULL):
+    return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, stdin=stdin)
+
+
+class CitationResolveCliFixTests(unittest.TestCase):
+    def _setup(self, root, studies, fixtures):
+        run_dir, fixture_dir = Path(root) / "run", Path(root) / "fixtures"
+        run_dir.mkdir()
+        fixture_dir.mkdir()
+        (run_dir / "manifest.json").write_text(json.dumps({"artifacts": []}))
+        (run_dir / "studies.json").write_text(json.dumps({"studies": studies}))
+        for name, payload in fixtures.items():
+            (fixture_dir / (name + ".json")).write_text(json.dumps(payload))
+        return run_dir, fixture_dir
+
+    def _crossref(self, title="Fixture paper", year=2021, family="Smith"):
+        return {"http_status": 200, "body": {"message": {
+            "title": [title], "issued": {"date-parts": [[year]]}, "author": [{"family": family}]}}}
+
+    def test_expected_author_surname_forms(self):
+        for author in ("John Smith", "Smith J", "Smith JA", "Smith, John", "Smith, J.", "Smith J.A."):
+            with self.subTest(author=author), tempfile.TemporaryDirectory() as root:
+                run_dir, fixtures = self._setup(root, [{
+                    "persistent_id": "doi:10.1234/example", "title": "Fixture paper", "year": 2021,
+                    "authors": [author]}], {"doi_10.1234_example": self._crossref()})
+                result = _run_cli("--ids", "doi:10.1234/example", "--offline-fixture", str(fixtures),
+                                  "--run-dir", str(run_dir))
+                self.assertEqual(0, result.returncode, result.stdout)
+                self.assertEqual("match", json.loads(result.stdout)["results"][0]["metadata_check"])
+
+    def test_alias_ids_and_publication_date_year_are_compared(self):
+        with tempfile.TemporaryDirectory() as root:
+            run_dir, fixtures = self._setup(root, [{
+                "persistent_id": "doi:10.1234/primary", "persistent_ids": ["doi:10.1234/primary", "pmid:12345"],
+                "title": "Fixture paper", "publication_date": "2015-03-01", "first_author": "Smith"}],
+                {"pmid_12345": {"http_status": 200, "body": {"result": {"uids": ["12345"], "12345": {
+                    "uid": "12345", "title": "Fixture paper", "pubdate": "2021 Jan",
+                    "authors": [{"name": "Smith J"}]}}}}})
+            result = _run_cli("--ids", "pmid:12345", "--offline-fixture", str(fixtures), "--run-dir", str(run_dir))
+            self.assertEqual(0, result.returncode, result.stdout)
+            self.assertEqual("uncertain", json.loads(result.stdout)["results"][0]["metadata_check"])
+
+    def test_alias_ids_match_when_publication_date_agrees(self):
+        with tempfile.TemporaryDirectory() as root:
+            run_dir, fixtures = self._setup(root, [{
+                "persistent_id": "doi:10.1234/primary", "persistent_ids": ["pmid:12345"],
+                "title": "Fixture paper", "publication_date": "2021-03-01", "first_author": "Smith"}],
+                {"pmid_12345": {"http_status": 200, "body": {"result": {"uids": ["12345"], "12345": {
+                    "uid": "12345", "title": "Fixture paper", "pubdate": "2021 Jan",
+                    "authors": [{"name": "Smith J"}]}}}}})
+            result = _run_cli("--ids", "pmid:12345", "--offline-fixture", str(fixtures), "--run-dir", str(run_dir))
+            self.assertEqual("match", json.loads(result.stdout)["results"][0]["metadata_check"])
+
+    def test_closed_stdin_is_invalid_request(self):
+        code = ("import sys, runpy; sys.stdin = None; sys.argv = ['resolve_citations.py']; "
+                f"runpy.run_path({str(SCRIPT)!r}, run_name='__main__')")
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertEqual("invalid_request", json.loads(result.stdout)["error"]["code"])
+
+    def test_study_conflict_overrides_only_resolved_records(self):
+        studies = [{"persistent_id": "doi:10.1234/example", "title": "Fixture paper"},
+                   {"persistent_id": "doi:10.1234/example", "title": "Entirely different title"}]
+        for http_status, expected in ((200, "mismatch"), (404, "unverified"), (500, "unverified")):
+            with self.subTest(http_status=http_status), tempfile.TemporaryDirectory() as root:
+                run_dir, fixtures = self._setup(root, studies, {"doi_10.1234_example": {
+                    **self._crossref(), "http_status": http_status}})
+                result = _run_cli("--ids", "doi:10.1234/example", "--offline-fixture", str(fixtures),
+                                  "--run-dir", str(run_dir))
+                self.assertEqual(expected, json.loads(result.stdout)["results"][0]["metadata_check"])
+
+    def test_non_2xx_fixture_for_ambiguous_doi_is_not_found(self):
+        with tempfile.TemporaryDirectory() as root:
+            _, fixtures = self._setup(root, [], {"doi_10.1234_a_b": {"http_status": 404, "body": "not found"}})
+            result = _run_cli("--ids", "doi:10.1234/a_b", "--offline-fixture", str(fixtures))
+            self.assertEqual("not_found", json.loads(result.stdout)["results"][0]["status"])
+            (fixtures / "doi_10.1234_a_b.json").write_text(json.dumps({"http_status": 200, "body": "x"}))
+            result = _run_cli("--ids", "doi:10.1234/a_b", "--offline-fixture", str(fixtures))
+            self.assertEqual("unavailable", json.loads(result.stdout)["results"][0]["status"])
+
+    def test_authors_object_names_the_field(self):
+        for authors in ({"0": "Smith"}, 5):
+            with self.subTest(authors=authors), tempfile.TemporaryDirectory() as root:
+                run_dir, fixtures = self._setup(root, [{
+                    "persistent_id": "doi:10.1234/example", "authors": authors}], {})
+                result = _run_cli("--ids", "doi:10.1234/example", "--offline-fixture", str(fixtures),
+                                  "--run-dir", str(run_dir))
+                self.assertEqual(2, result.returncode)
+                self.assertIn("authors", json.loads(result.stdout)["error"]["message"])
+
+
+class CitationResolveLibraryFixTests(unittest.TestCase):
+    def test_boolean_crossref_year_is_not_emitted(self):
+        payload = {"message": {"title": ["Fixture paper"], "issued": {"date-parts": [[True]]}}}
+        record = resolve_identifiers(["doi:10.1234/example"], fetch=lambda *a, **k: (
+            200, json.dumps(payload).encode()), delay=lambda _: None)["results"][0]
+        self.assertEqual("resolved", record["status"])
+        self.assertNotIn("year", record)
+
+    def test_labelled_overlap_matches_simple_inputs(self):
+        for text, expected in (
+            ("doi: 10.1234/abc", ["doi:10.1234/abc"]),
+            ("see https://doi.org/10.1234/abc and doi:10.1234/abc", ["doi:10.1234/abc"]),
+            ("doi:https://doi.org/10.1234/abc", ["doi:10.1234/abc"]),
+            ("pmid: 12345 PMID:67890, arxiv: 2401.00001", ["arxiv:2401.00001", "pmid:12345", "pmid:67890"]),
+            ("", []),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(expected, supported_identifiers_from_text(text)[0])
+
+    def test_many_labelled_identifiers_scan_in_bounded_time(self):
+        import time
+        text = "\n".join(f"doi:10.1234/x{n}" for n in range(30000))
+        started = time.monotonic()
+        supported_identifiers_from_text(text)
+        self.assertLess(time.monotonic() - started, 5)
+
+    def test_tag_stripping_is_linear_on_many_open_brackets(self):
+        import time
+        started = time.monotonic()
+        self.assertEqual("a b", _normalized_text("a <i>b</i>"))
+        _normalized_text("<" * 200000)
+        self.assertLess(time.monotonic() - started, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1223,7 +1223,9 @@ metadata services only with explicit `--network` opt-in. `unavailable` means
 the lookup could not determine existence and is never `not_found`. Resolution
 is an existence signal only; it never decides citation support or grading.
 Pass `--run-dir RUN_DIR` to compare resolved records with the run's study-table
-`title`, `year`, and `first_author`; the CLI prints the count of `mismatch`
+`title`, `year` (or the first four digits of `publication_date` when `year` is absent), and
+`first_author` (or the surname of the first author), under `persistent_id` and every
+`persistent_ids` entry; the CLI prints the count of `mismatch`
 results. `metadata_check` is advisory and never changes the command's exit
 status. Non-Latin titles and organisation author names may not normalize to a
 comparable form and therefore produce `uncertain` or `unverified` results.

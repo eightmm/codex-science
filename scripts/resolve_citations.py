@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import urllib.parse
 from pathlib import Path
@@ -15,6 +16,16 @@ from codex_science.citation_resolve import (
     EVIDENCE_BOUNDARY, normalize_identifiers, resolve_identifiers, supported_identifiers_from_text,
     _normalized_text, _year_value,
 )
+
+
+def _expected_surname(value) -> str | None:
+    text = str(value).strip()
+    if "," in text:
+        return text.split(",", 1)[0].strip() or None
+    parts = text.split()
+    while len(parts) > 1 and re.fullmatch(r"(?:[A-Z]\.?){1,3}", parts[-1]):
+        parts.pop()
+    return parts[-1] if parts else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,6 +47,8 @@ def main(argv: list[str] | None = None) -> int:
             skipped = []
         else:
             input_path = args.input or "-"
+            if input_path == "-" and sys.stdin is None:
+                raise ValueError("stdin is not available; pass --input FILE or --ids")
             content = sys.stdin.read() if input_path == "-" else Path(input_path).read_text(encoding="utf-8")
             ids, skipped = supported_identifiers_from_text(content)
         expected = {}
@@ -74,34 +87,51 @@ def main(argv: list[str] | None = None) -> int:
             for index, study in enumerate(studies):
                 if not isinstance(study, dict):
                     raise ValueError(f"study {index} must be an object")
-                raw_id = study.get("persistent_id")
-                if not isinstance(raw_id, str):
-                    continue
-                try:
-                    identifier = normalize_identifiers([raw_id])[0]
-                except (ValueError, TypeError):
+                raw_ids = [study.get("persistent_id")]
+                alias_ids = study.get("persistent_ids")
+                if isinstance(alias_ids, list):
+                    raw_ids.extend(alias_ids)
+                identifiers = []
+                for raw_id in raw_ids:
+                    if not isinstance(raw_id, str):
+                        continue
+                    try:
+                        identifier = normalize_identifiers([raw_id])[0]
+                    except (ValueError, TypeError):
+                        continue
+                    if identifier not in identifiers:
+                        identifiers.append(identifier)
+                if not identifiers:
                     continue
                 authors = study.get("authors") or []
                 if isinstance(authors, str):
                     authors = [authors]
+                if not isinstance(authors, list):
+                    raise ValueError(f"study {index} authors must be a string or a list")
                 first = authors[0] if authors else None
                 if isinstance(first, dict):
                     first = first.get("family") or first.get("name")
                 first = study.get("first_author") or first
                 if first and not study.get("first_author"):
-                    first = (str(first).split() or [None])[-1]
-                metadata = {"title": study.get("title"), "year": study.get("year"), "first_author": first}
-                previous = expected.setdefault(identifier, {})
-                for field, value in metadata.items():
-                    if value is None or value == "":
-                        continue
-                    if field in previous:
-                        old = previous[field]
-                        normalize = _year_value if field == "year" else _normalized_text
-                        if normalize(old) != normalize(value) or (normalize(value) is None and old != value):
-                            metadata_conflicts.add(identifier)
-                    else:
-                        previous[field] = value
+                    first = _expected_surname(first)
+                year = study.get("year")
+                if year is None or year == "":
+                    published = study.get("publication_date")
+                    if isinstance(published, str) and published[:4].isascii() and published[:4].isdigit():
+                        year = published[:4]
+                metadata = {"title": study.get("title"), "year": year, "first_author": first}
+                for identifier in identifiers:
+                    previous = expected.setdefault(identifier, {})
+                    for field, value in metadata.items():
+                        if value is None or value == "":
+                            continue
+                        if field in previous:
+                            old = previous[field]
+                            normalize = _year_value if field == "year" else _normalized_text
+                            if normalize(old) != normalize(value) or (normalize(value) is None and old != value):
+                                metadata_conflicts.add(identifier)
+                        else:
+                            previous[field] = value
         if args.offline_fixture:
             def fetch(url: str, *, timeout: float):
                 del timeout
@@ -120,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
                 fixture = args.offline_fixture / (name + ".json")
                 payload = json.loads(fixture.read_text(encoding="utf-8"))
                 body = payload.get("body", {})
-                if ambiguous_doi:
+                if ambiguous_doi and 200 <= payload["http_status"] < 300:
                     identity_body = json.loads(body) if isinstance(body, str) else body
                     message = identity_body.get("message") if isinstance(identity_body, dict) else None
                     if not isinstance(message, dict) or "DOI" not in message:
@@ -135,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.offline_fixture or args.network:
             output["skipped_identifiers"] = skipped
             for item in output["results"]:
-                if item["identifier"] in metadata_conflicts:
+                if item["identifier"] in metadata_conflicts and item.get("status") == "resolved":
                     item["metadata_check"] = "mismatch"
             if args.run_dir:
                 mismatches = sum(item.get("metadata_check") == "mismatch" for item in output["results"])

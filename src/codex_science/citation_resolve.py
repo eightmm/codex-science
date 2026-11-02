@@ -1,6 +1,7 @@
 """Optional citation existence lookups; results are signals, not grading evidence."""
 from __future__ import annotations
 
+import bisect
 import http.client
 import difflib
 import html
@@ -168,7 +169,7 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
             result["first_author"] = str(first_author).strip()
         if title:
             result["title"] = " ".join(str(title).split())
-        if isinstance(year, int):
+        if isinstance(year, int) and not isinstance(year, bool):
             result["year"] = year
         return result
     except (OSError, TimeoutError, http.client.HTTPException, ET.ParseError, ValueError, TypeError, KeyError, IndexError, AttributeError, json.JSONDecodeError, RecursionError, OverflowError):
@@ -176,7 +177,7 @@ def _record(identifier: str, fetch: Callable[..., Any], timeout: float) -> dict[
 
 
 def _normalized_text(value: Any) -> str:
-    value = html.unescape(re.sub(r"<[^>]*>", " ", str(value or "")))
+    value = html.unescape(re.sub(r"<[^<>]*>", " ", str(value or "")))
     value = unicodedata.normalize("NFKD", value)
     value = "".join(ch for ch in value if not unicodedata.combining(ch)).casefold()
     return " ".join("".join(ch if ch.isalnum() else " " for ch in value).split())
@@ -315,6 +316,11 @@ def supported_identifiers_from_text(text: str) -> tuple[list[str], list[dict[str
     extracted_spans = [match.span(group)
                        for match in _CITATION_ID.finditer(text)
                        for group, value in enumerate(match.groups(), start=1) if value is not None]
+    extracted_spans.sort()
+    span_starts = [start for start, _ in extracted_spans]
+    longest_end: list[int] = []
+    for _, span_end in extracted_spans:
+        longest_end.append(max(span_end, longest_end[-1]) if longest_end else span_end)
     for raw in extracted:
         identifier = normalize_identifier(raw)
         kind = identifier.split(":", 1)[0]
@@ -329,7 +335,10 @@ def supported_identifiers_from_text(text: str) -> tuple[list[str], list[dict[str
     # extracted inside that value (for example, a DOI nested inside a URL label).
     for match in _LABELED_ID.finditer(text):
         label_start, label_end = match.span(2)
-        if any(label_start < span_end and span_start < label_end for span_start, span_end in extracted_spans):
+        # Spans starting before label_end are a prefix of the sorted spans; the
+        # label overlaps one of them exactly when the longest such end passes label_start.
+        reach = bisect.bisect_left(span_starts, label_end)
+        if reach and longest_end[reach - 1] > label_start:
             continue
         identifier = _clean_labeled_identifier(match.group(1), match.group(2))
         kind = identifier.split(":", 1)[0]
