@@ -1,6 +1,7 @@
 """Offline lexical retrieval of run-local sources for report statements."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -56,14 +57,15 @@ def _ledger_source_identity(record: dict[str, Any]) -> tuple[str | None, str | N
     return identifier, (url if isinstance(url, str) and url else _source_url(identifier) if identifier else None)
 
 
-def _study_source_url(study: dict[str, Any], identifier: str, primary_id: str | None) -> str | None:
+def _study_source_url(study: dict[str, Any], identifier: str | None, primary_id: str | None) -> str | None:
     url = study.get("url")
-    if isinstance(url, str) and url and identifier == primary_id:
+    if isinstance(url, str) and url and (identifier is None or identifier == primary_id):
         return url
-    return _source_url(identifier)
+    return _source_url(identifier) if identifier else None
 
 
-def _load_candidates(sidecars: dict[str, Any]) -> list[dict[str, Any]]:
+def _load_candidates(sidecars: dict[str, Any], root: Path, report: Path,
+                     report_sha256: str) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     study_path = next(iter(sidecars.get("paths", {}).get("study-table", ["studies.json"])))
     for study_id, study in sorted(sidecars.get("study_by_id", {}).items()):
@@ -71,9 +73,13 @@ def _load_candidates(sidecars: dict[str, Any]) -> list[dict[str, Any]]:
         primary_ids = sorted(_walk_ids({"persistent_id": study.get("persistent_id")}))
         primary_id = next(iter(primary_ids), None)
         label = str(study.get("title", study_id))
-        for identifier in ids:
+        for identifier in ids or [None]:
             candidates.append(_candidate(identifier, _study_source_url(study, identifier, primary_id), study_path + "#" + study_id, label))
         for index, excerpt in enumerate(study.get("support_excerpts", [])):
+            # Match the statement support checker's report identity boundary.
+            if ((root / str(excerpt["source_artifact"]).strip()).samefile(report)
+                    or str(excerpt["source_sha256"]).strip().lower() == report_sha256):
+                continue
             excerpt_ids = ids or [None]
             for identifier in excerpt_ids:
                 url = _study_source_url(study, identifier, primary_id) if identifier else None
@@ -81,6 +87,8 @@ def _load_candidates(sidecars: dict[str, Any]) -> list[dict[str, Any]]:
                                              f"{study_path}#{study_id}/support_excerpts/{index}", str(excerpt["text"])))
     for ledger in sidecars.get("query_ledgers", []):
         for index, record in enumerate(ledger["records"]):
+            if str(record["status"]).strip() in {"failed", "unavailable"}:
+                continue
             identifier, url = _ledger_source_identity(record)
             text = " ".join(record[key] for key in ("source", "query", "title", "summary", "url")
                              if isinstance(record.get(key), str))
@@ -105,11 +113,13 @@ def retrieve_statement_sources(run_dir: str | Path, report_paths: list[str | Pat
     if not isinstance(declarations, list):
         raise ValueError("manifest artifacts must be a list")
     reports = report_paths if report_paths is not None else [item["path"] for item in declarations if isinstance(item, dict) and item.get("kind") == "report"]
-    candidates = _load_candidates(sidecars)
     statements = []
     for requested in reports:
         relative = str(requested)
-        for line, statement in _units(_safe_file(root, relative).read_text(encoding="utf-8")):
+        report = _safe_file(root, relative)
+        report_bytes = report.read_bytes()
+        candidates = _load_candidates(sidecars, root, report, hashlib.sha256(report_bytes).hexdigest())
+        for line, statement in _units(report_bytes.decode("utf-8")):
             identifiers = [item["identifier"] for item in extract_identifiers(statement)]
             query = _tokens(statement)
             ranked = []

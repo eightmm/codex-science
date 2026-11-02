@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 from codex_science.statement_retrieval import retrieve_statement_sources
+from codex_science.statement_support import check_statement_support
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples/literature-review-reviewed-run"
@@ -35,7 +36,7 @@ class StatementRetrievalTests(unittest.TestCase):
 
     def add_support_excerpt(self, run: Path, text: str, url: str) -> None:
         source = run / "source.txt"
-        source.write_text(text, encoding="utf-8")
+        source.write_text("Independent study source.\n" + text, encoding="utf-8")
         studies_path = run / "studies.json"
         studies = json.loads(studies_path.read_text(encoding="utf-8"))
         study = studies["studies"][0]
@@ -48,6 +49,115 @@ class StatementRetrievalTests(unittest.TestCase):
         }]
         studies_path.write_text(json.dumps(studies), encoding="utf-8")
         self.update_artifact_digests(run)
+
+    def retrieval_cli(self, run: Path, *args: str, returncode: int = 0):
+        before = {path.relative_to(run): path.read_bytes() for path in run.rglob("*") if path.is_file()}
+        env = dict(os.environ)
+        env.pop("PYTHONPATH", None)
+        result = subprocess.run([sys.executable, str(CLI), str(run), *args],
+                                cwd=run.parent, env=env, text=True, capture_output=True,
+                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+        self.assertEqual(returncode, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(before, {path.relative_to(run): path.read_bytes()
+                                  for path in run.rglob("*") if path.is_file()})
+        if returncode:
+            self.assertIn("invalid input", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            return None
+        return json.loads(result.stdout)
+
+    def test_failed_and_unavailable_queries_are_not_candidates(self):
+        phrase = "Unrelated nebula quasar spectroscopy measurements."
+        for status in ("failed", "unavailable", " failed ", " unavailable ", "complete", "partial",
+                       "", 0, None, {}, "unknown"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as temp:
+                run = self.make_run(Path(temp), phrase)
+                ledger = run / "queries.jsonl"
+                record = json.loads(ledger.read_text(encoding="utf-8"))
+                record.update(query=phrase, status=status)
+                ledger.write_text(json.dumps(record) + "\n", encoding="utf-8")
+                self.update_artifact_digests(run)
+                if status not in ("failed", "unavailable", " failed ", " unavailable ", "complete", "partial"):
+                    with self.assertRaises(ValueError):
+                        retrieve_statement_sources(run)
+                    self.retrieval_cli(run, returncode=2)
+                    continue
+                result = retrieve_statement_sources(run)
+                self.assertEqual(result, self.retrieval_cli(run))
+                candidates = result["statements"][0]["candidates"]
+                self.assertEqual(["queries.jsonl#0"] if status in ("complete", "partial") else [],
+                                 [item["source"] for item in candidates])
+
+    def test_unsupported_study_identity_retains_title_and_recorded_url(self):
+        phrase = "Unrelated nebula quasar spectroscopy measurements."
+        for identifier, url in (("GSE12345", "https://example.org/dataset/GSE12345"),
+                                ("GSE12345", ""), ("GSE12345", None), ("GSE12345", 0),
+                                ("doi:10.0000/example.primary.1", "https://example.org/study"),
+                                ("", "https://example.org/dataset")):
+            with self.subTest(identifier=identifier, url=url), tempfile.TemporaryDirectory() as temp:
+                run = self.make_run(Path(temp), phrase)
+                studies_path = run / "studies.json"
+                studies = json.loads(studies_path.read_text(encoding="utf-8"))
+                studies["studies"][0].update(persistent_id=identifier, title=phrase, url=url)
+                studies_path.write_text(json.dumps(studies), encoding="utf-8")
+                self.update_artifact_digests(run)
+                if not identifier:
+                    with self.assertRaises(ValueError):
+                        retrieve_statement_sources(run)
+                    self.retrieval_cli(run, returncode=2)
+                    continue
+                result = retrieve_statement_sources(run, top_k=1)
+                self.assertEqual(result, self.retrieval_cli(run, "--top-k", "1"))
+                candidates = result["statements"][0]["candidates"]
+                self.assertEqual(1, len(candidates))
+                self.assertEqual("studies.json#study-example-1", candidates[0]["source"])
+                self.assertEqual(1.0, candidates[0]["score"])
+                self.assertEqual(None if identifier == "GSE12345" else identifier, candidates[0]["identifier"])
+                self.assertEqual(url or None, candidates[0]["url"])
+                self.assertIsNone(result["statements"][0]["cited_source_rank"])
+
+    def test_report_excerpts_are_excluded_by_identity_and_digest_per_report(self):
+        sentence = "Intervention improved the measured cohort outcome DOI:10.0000/example.primary.1."
+        for source in ("report.md", "./report.md", " report.md ", "linked-report.md",
+                       "symlink-report.md", "copy-report.md"):
+            for external in (False, True):
+                with self.subTest(source=source, external=external), tempfile.TemporaryDirectory() as temp:
+                    run = self.make_run(Path(temp), sentence)
+                    self.add_support_excerpt(run, sentence, "https://example.org/study")
+                    if source == "linked-report.md":
+                        (run / source).hardlink_to(run / "report.md")
+                    elif source == "symlink-report.md":
+                        (run / source).symlink_to("report.md")
+                    elif source == "copy-report.md":
+                        (run / source).write_bytes((run / "report.md").read_bytes())
+                    (run / "source.txt").write_text("Independent study source.\n" + sentence, encoding="utf-8")
+                    (run / "other-report.md").write_text("Independent review: " + sentence, encoding="utf-8")
+                    studies_path = run / "studies.json"
+                    studies = json.loads(studies_path.read_text(encoding="utf-8"))
+                    excerpts = studies["studies"][0]["support_excerpts"]
+                    excerpts[0]["source_sha256"] = hashlib.sha256((run / "source.txt").read_bytes()).hexdigest()
+                    own = {**excerpts[0], "source_artifact": source,
+                           "source_sha256": " " + hashlib.sha256((run / "report.md").read_bytes()).hexdigest().upper() + " "}
+                    studies["studies"][0]["support_excerpts"] = [own, *excerpts] if external else [own]
+                    studies_path.write_text(json.dumps(studies), encoding="utf-8")
+                    self.update_artifact_digests(run)
+                    reports = ["report.md", "other-report.md"]
+                    if source == "symlink-report.md":
+                        with self.assertRaises(ValueError):
+                            retrieve_statement_sources(run, reports)
+                        self.retrieval_cli(run, returncode=2)
+                        continue
+                    result = retrieve_statement_sources(run, reports, top_k=20)
+                    self.assertEqual(result, self.retrieval_cli(run, "--report", reports[0],
+                                                               "--report", reports[1], "--top-k", "20"))
+                    support = check_statement_support(run, reports)
+                    self.assertEqual("excerpt_available" if external else "no_excerpt",
+                                     support["statements"][0]["pair_statuses"][0]["status"])
+                    for index, row in enumerate(result["statements"]):
+                        excerpt_sources = [item["source"] for item in row["candidates"]
+                                           if "/support_excerpts/" in item["source"]]
+                        self.assertEqual(2 * (int(external) + index), len(excerpt_sources))
+                        self.assertEqual(bool(index), any(path.endswith("/0") for path in excerpt_sources))
 
     def test_deterministic_ranking_ties_and_cited_rank(self):
         with tempfile.TemporaryDirectory() as temp:
