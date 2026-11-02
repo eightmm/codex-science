@@ -82,7 +82,8 @@ SLURM_STATE_MAP = {
     "COMPLETING": "running",
     "REQUEUED": "submitted",
     "RESIZING": "running",
-    "REVOKED": "cancelled",
+    # A federated sibling is revoked because another cluster started the job.
+    "REVOKED": "running",
     "SUSPENDED": "running",
 }
 
@@ -929,10 +930,17 @@ def _timeout_local_group(job_dir: Path, final: Mapping[str, Any], started_monoto
         return
     if helper_pid:
         _, status = os.waitpid(helper_pid, 0)
-        # Only failed isolation returns publication to the surviving worker.
-        if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 125:
-            return
-        os._exit(1)
+        if os.WIFEXITED(status):
+            # Only failed isolation returns publication to the surviving worker.
+            if os.WEXITSTATUS(status) == 125:
+                return
+            if os.WEXITSTATUS(status) == 0:
+                os._exit(1)
+        # A failed or signalled helper may not have stopped the command group.
+        try:
+            _timeout_local_group_fallback(job_dir, final, started_monotonic)
+        finally:
+            os._exit(1)
     try:
         os.setsid()
     except OSError:

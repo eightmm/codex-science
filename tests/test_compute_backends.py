@@ -95,6 +95,24 @@ def local_spec(working: Path, *, command: list[str], outputs: list[str], timeout
     )
 
 
+def ready_worker_script(*lines: str) -> str:
+    # subprocess.run starts its timeout clock after Popen returns, so holding
+    # Popen until the descendant records child.pid removes the startup race.
+    # Descendants publish child.pid by rename so readers never see it empty.
+    return "\n".join((
+        "import sys, time; from pathlib import Path; from unittest import mock",
+        "import codex_science.compute_backends as module",
+        "popen = module.subprocess.Popen",
+        "class ReadyPopen(popen):",
+        "    def __init__(self, *args, **kwargs):",
+        "        super().__init__(*args, **kwargs)",
+        "        deadline = time.monotonic() + float(sys.argv[3])",
+        "        while not Path(sys.argv[2], 'child.pid').exists() and time.monotonic() < deadline:",
+        "            time.sleep(0.01)",
+        *lines,
+    ))
+
+
 class ComputeBackendTests(unittest.TestCase):
     def test_process_alive_reaps_children_and_preserves_worker_returncode(self) -> None:
         for pid in (0, -1):
@@ -261,8 +279,8 @@ class ComputeBackendTests(unittest.TestCase):
                 descendant = (
                     "import os, signal, time; from pathlib import Path; "
                     + ("signal.signal(signal.SIGTERM, signal.SIG_IGN); " if action.startswith("timeout") else "")
-                    + "Path('child.pid').write_text(str(os.getpid())); "
-                    "time.sleep(2); Path('late.txt').write_text('escaped')"
+                    + "Path('child.tmp').write_text(str(os.getpid())); os.replace('child.tmp', 'child.pid'); "
+                    f"time.sleep({2 * call_timeout}); Path('late.txt').write_text('escaped')"
                 )
                 command = (
                     "import os, signal, subprocess, sys; from pathlib import Path; "
@@ -275,10 +293,18 @@ class ComputeBackendTests(unittest.TestCase):
                     timeout=1 if action.startswith("timeout") else max(1, int(call_timeout)),
                 )
                 popen = subprocess.Popen
-                with mock.patch.object(
-                    compute_backends_module.subprocess, "Popen",
-                    side_effect=lambda *args, **kwargs: popen(*args, preexec_fn=reset_signals, **kwargs),
-                ):
+                worker_script = ready_worker_script(
+                    "with mock.patch.object(module.subprocess, 'Popen', ReadyPopen):",
+                    "    raise SystemExit(module._worker(Path(sys.argv[1])))",
+                )
+
+                def launch_worker(argv, **kwargs):
+                    return popen(
+                        [sys.executable, "-c", worker_script, argv[-1], str(root), str(call_timeout)],
+                        preexec_fn=reset_signals, **kwargs,
+                    )
+
+                with mock.patch.object(compute_backends_module.subprocess, "Popen", side_effect=launch_worker):
                     submitted = backend.submit(spec)
                 child_pid = None
                 command_pid = None
@@ -421,12 +447,38 @@ class ComputeBackendTests(unittest.TestCase):
                 compute_backends_module._timeout_local_group(root, final, time.monotonic())
             self.assertEqual(1, exited.exception.code)
 
-            for status in (0, signal.SIGKILL):
-                with self.subTest(helper_status=status), mock.patch.object(compute_backends_module.os, "fork", return_value=123), mock.patch.object(
-                    compute_backends_module.os, "waitpid", return_value=(123, status),
-                ), mock.patch.object(compute_backends_module.os, "_exit", side_effect=leave), self.assertRaises(SystemExit) as exited:
-                    compute_backends_module._timeout_local_group(root, final, time.monotonic())
-                self.assertEqual(1, exited.exception.code)
+            for status in (0, 1 << 8, 2 << 8, signal.SIGTERM, signal.SIGKILL):
+                with self.subTest(helper_status=status):
+                    state = refingerprint({**final, "state": "running"})
+                    compute_backends_module._atomic_json(root / "state.json", state)
+                    before = (root / "state.json").read_bytes()
+                    with mock.patch.object(compute_backends_module.os, "fork", return_value=123), mock.patch.object(
+                        compute_backends_module.os, "waitpid", return_value=(123, status),
+                    ), mock.patch.object(compute_backends_module.os, "_exit", side_effect=leave), mock.patch.object(
+                        compute_backends_module.signal, "signal",
+                    ), mock.patch.object(compute_backends_module.os, "killpg") as killpg, mock.patch.object(
+                        compute_backends_module.time, "sleep",
+                    ), mock.patch.object(
+                        compute_backends_module, "_publish_job_state_locked",
+                    ) as publication, self.assertRaises(SystemExit) as exited:
+                        compute_backends_module._timeout_local_group(root, final, time.monotonic())
+                    self.assertEqual(1, exited.exception.code)
+                    # Only a helper that exited cleanly has already stopped the group.
+                    expected = [] if status == 0 else [mock.call(123, signal.SIGTERM), mock.call(123, signal.SIGKILL)]
+                    self.assertEqual(expected, killpg.call_args_list)
+                    publication.assert_not_called()
+                    self.assertEqual(before, (root / "state.json").read_bytes())
+
+            with mock.patch.object(compute_backends_module.os, "fork", return_value=123), mock.patch.object(
+                compute_backends_module.os, "waitpid", return_value=(123, 1 << 8),
+            ), mock.patch.object(compute_backends_module.os, "_exit", side_effect=leave), mock.patch.object(
+                compute_backends_module.signal, "signal",
+            ), mock.patch.object(compute_backends_module.os, "killpg", side_effect=[None, PermissionError("group refused")]) as killpg, mock.patch.object(
+                compute_backends_module.time, "sleep",
+            ), self.assertRaises(SystemExit) as exited:
+                compute_backends_module._timeout_local_group(root, final, time.monotonic())
+            self.assertEqual(1, exited.exception.code)
+            self.assertEqual([mock.call(123, signal.SIGTERM), mock.call(123, signal.SIGKILL)], killpg.call_args_list)
 
             for failure in ("fork", "setsid"):
                 with self.subTest(failure=failure):
@@ -505,33 +557,41 @@ class ComputeBackendTests(unittest.TestCase):
             for signum in (signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
                 signal.signal(signum, signal.SIG_DFL)
 
-        for failure in ("fork", "setsid"):
+        for failure in ("fork", "setsid", "helper-exit"):
             with self.subTest(descendant_cleanup=failure), tempfile.TemporaryDirectory() as tempdir:
                 root = Path(tempdir)
                 backend = LocalBackend(root / "state")
                 descendant = (
                     "import os, signal, time; from pathlib import Path; "
                     "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
-                    "Path('child.pid').write_text(str(os.getpid())); "
-                    "time.sleep(2); Path('late.txt').write_text('escaped')"
+                    "Path('child.tmp').write_text(str(os.getpid())); os.replace('child.tmp', 'child.pid'); "
+                    f"time.sleep({2 * call_timeout}); Path('late.txt').write_text('escaped')"
                 )
                 command = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {descendant!r}]).wait()"
                 spec = local_spec(root, command=[sys.executable, "-c", command], outputs=[], timeout=1)
                 popen = subprocess.Popen
-                worker_script = "\n".join((
-                    "import sys; from pathlib import Path; from unittest import mock",
-                    "import codex_science.compute_backends as module",
+                # The helper-exit helper fails before stopping the group, as a crashed helper would.
+                setup_failure = (
+                    "mock.patch.object(module, '_stop_local_command', side_effect=OSError('group stop refused'))"
+                    if failure == "helper-exit"
+                    else f"mock.patch.object(module.os, {failure!r}, side_effect=OSError('setup refused'))"
+                )
+                worker_script = ready_worker_script(
                     "send = module.os.killpg",
                     "def record_before_kill(pid, signum):",
                     "    if signum == module.signal.SIGKILL:",
                     "        Path(sys.argv[2], 'before-kill.txt').write_text(module._read_job_state(Path(sys.argv[1]))['state'])",
                     "    send(pid, signum)",
-                    f"with mock.patch.object(module.os, {failure!r}, side_effect=OSError('setup refused')), mock.patch.object(module.os, 'killpg', side_effect=record_before_kill):",
+                    f"with {setup_failure}, mock.patch.object(module.os, 'killpg', side_effect=record_before_kill), "
+                    "mock.patch.object(module.subprocess, 'Popen', ReadyPopen):",
                     "    raise SystemExit(module._worker(Path(sys.argv[1])))",
-                ))
+                )
 
                 def launch_worker(argv, **kwargs):
-                    return popen([sys.executable, "-c", worker_script, argv[-1], str(root)], preexec_fn=reset_signals, **kwargs)
+                    return popen(
+                        [sys.executable, "-c", worker_script, argv[-1], str(root), str(call_timeout)],
+                        preexec_fn=reset_signals, **kwargs,
+                    )
 
                 with mock.patch.object(compute_backends_module.subprocess, "Popen", side_effect=launch_worker):
                     submitted = backend.submit(spec)
@@ -624,7 +684,7 @@ class ComputeBackendTests(unittest.TestCase):
     def test_slurm_status_normalizes_documented_states_and_preserves_unknown(self) -> None:
         cases = {
             "CANCELLED by 1000": "cancelled", "CANCELLED+ by 1000": "cancelled",
-            "REVOKED": "cancelled", "COMPLETED": "completed", "TIMEOUT": "timed-out",
+            "REVOKED": "running", "COMPLETED": "completed", "TIMEOUT": "timed-out",
             "FAILED": "failed", "NODE_FAIL": "failed", "OUT_OF_MEMORY": "failed",
             "PREEMPTED": "failed", "BOOT_FAIL": "failed", "DEADLINE": "timed-out",
             "RUNNING": "running", "PENDING": "submitted", "CONFIGURING": "submitted",
@@ -657,6 +717,32 @@ class ComputeBackendTests(unittest.TestCase):
                         if expected is None:
                             self.assertEqual(initial, actual)
                             self.assertEqual(before, (job_dir / "state.json").read_bytes())
+            for previous in ("submitted", "running"):
+                with self.subTest(revoked_previous=previous):
+                    initial = compute_backends_module._state_material(
+                        spec, job_id="states", state=previous, submitted_at="2026-01-01T00:00:00Z",
+                        scheduler_job_id="42",
+                    )
+                    compute_backends_module._atomic_json(job_dir / "state.json", initial)
+
+                    def scheduler(argv, **kwargs):
+                        output = "REVOKED|0:0|00:01|\n" if argv[0] == "sacct" else ""
+                        return subprocess.CompletedProcess(argv, 0, output, "")
+
+                    with mock.patch.object(compute_backends_module.shutil, "which", side_effect=lambda name: name if name == "sacct" else None), mock.patch.object(
+                        compute_backends_module.subprocess, "run", side_effect=scheduler,
+                    ) as run:
+                        revoked = backend.status("states")
+                        self.assertEqual("running", revoked["state"])
+                        self.assertIsNone(revoked["finished_at"])
+                        self.assertIsNone(revoked["failure_class"])
+                        self.assertEqual(revoked, compute_backends_module._read_job_state(job_dir))
+                        with self.assertRaisesRegex(ValueError, "nonterminal"):
+                            backend.collect("states")
+                        cancelled = backend.cancel("states")
+                    self.assertEqual("cancelled", cancelled["state"])
+                    self.assertEqual("user-cancelled", cancelled["failure_class"])
+                    self.assertIn(mock.call(["scancel", "42"], text=True, capture_output=True, check=False), run.call_args_list)
 
     def test_submit_preserves_worker_completion_during_stale_read(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
