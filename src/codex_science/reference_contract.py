@@ -16,7 +16,7 @@ from .cli_io import resolve_input_path
 
 INDEX_NAME = "index.json"
 REFERENCE_SECTION_RE = re.compile(r"^##\s+Reference (?:usage|map)\s*$", re.I | re.M)
-MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)]+)\)")
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((references/[^)#\s]+)[^)]*\)")
 _USER_VALUE_REPR = reprlib.Repr()
 _USER_VALUE_REPR.maxlevel = 4
 _USER_VALUE_REPR.maxstring = 80
@@ -97,6 +97,12 @@ def _text(value: Any, label: str) -> str:
     return text
 
 
+def _optional_text(value: Any, label: str) -> str:
+    if value is None:
+        return ""
+    return value.strip() if isinstance(value, str) else _text(value, label)
+
+
 def _string_list(value: Any, label: str, *, required: bool = False) -> tuple[str, ...]:
     if value is None and not required:
         return ()
@@ -155,7 +161,9 @@ class ReferenceEntry:
                 f"references[{index}].authority",
             ),
             version=_text(payload.get("version", "1"), f"references[{index}].version"),
-            evidence_boundary=str(payload.get("evidence_boundary", "")).strip(),
+            evidence_boundary=_optional_text(
+                payload.get("evidence_boundary"), f"references[{index}].evidence_boundary"
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -246,7 +254,12 @@ def load_reference_index(skill_dir: Path) -> ReferenceIndex | None:
     path = skill_dir / "references" / INDEX_NAME
     if not path.is_file():
         return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as error:
+        raise ValueError(f"reference index is not UTF-8 text: {path}: {error}") from error
+    except RecursionError as error:
+        raise ValueError(f"reference index is nested too deeply: {path}") from error
     if not isinstance(payload, dict):
         raise ValueError("reference index must be a JSON object")
     return ReferenceIndex.from_payload(payload)
@@ -256,9 +269,17 @@ def validate_reference_index(skill_dir: Path, *, strict: bool = False) -> dict[s
     skill_path = skill_dir / "SKILL.md"
     if not skill_path.is_file():
         raise ValueError(f"missing SKILL.md: {skill_dir}")
-    skill_text = skill_path.read_text(encoding="utf-8")
     references_dir = skill_dir / "references"
     findings: list[dict[str, str]] = []
+    try:
+        skill_text = skill_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        findings.append({
+            "code": "invalid-reference-file",
+            "severity": "major",
+            "message": f"SKILL.md is not readable UTF-8 text: {skill_path}: {exc}",
+        })
+        return {"skill": skill_dir.name, "index": None, "findings": findings, "references": []}
     try:
         _reference_path(skill_dir, "references")
     except (OSError, ValueError) as exc:
@@ -330,14 +351,23 @@ def validate_reference_index(skill_dir: Path, *, strict: bool = False) -> dict[s
                 "message": str(error),
             })
         else:
-            if path.is_file():
-                if len(path.read_text(encoding="utf-8")) > 12000 and not entry.search_patterns:
-                    findings.append({
-                        "code": "large-reference-without-search-patterns",
-                        "severity": "minor",
-                        "message": f"large reference needs search_patterns: {entry.path}",
-                    })
-                reference_hashes[entry.path] = _sha256(path)
+            try:
+                if path.is_file():
+                    with path.open(encoding="utf-8") as handle:
+                        large = len(handle.read(12001)) > 12000
+                    if large and not entry.search_patterns:
+                        findings.append({
+                            "code": "large-reference-without-search-patterns",
+                            "severity": "minor",
+                            "message": f"large reference needs search_patterns: {entry.path}",
+                        })
+                    reference_hashes[entry.path] = _sha256(path)
+            except (OSError, UnicodeDecodeError) as error:
+                findings.append({
+                    "code": "invalid-reference-file",
+                    "severity": "major",
+                    "message": f"reference is not readable UTF-8 text: {entry.path}: {error}",
+                })
         if entry.path not in linked:
             findings.append({
                 "code": "reference-not-linked-from-skill",
@@ -382,7 +412,11 @@ def select_references(
             ranked.append((score, entry.id, entry))
     ranked.sort(key=lambda item: (-item[0], item[1]))
     entries = [item[2] for item in ranked]
-    return entries if limit is None else entries[:limit]
+    if limit is None:
+        return entries
+    if limit < 0:
+        raise ValueError(f"limit must not be negative: {limit}")
+    return entries[:limit]
 
 
 def build_reference_use_receipt(
@@ -497,7 +531,7 @@ def validate_reference_use_ledger(payload: Mapping[str, Any]) -> None:
                 f"reference use ledger entries must be objects: {_bounded_repr(item)}; expected: object"
             )
         validate_reference_use_receipt({**item, "skill": item.get("skill", skill)})
-        key = (str(item["reference_id"]), str(item["sha256"]), str(item["path"]))
+        key = (str(item["reference_id"]), str(item["sha256"]).lower(), str(item["path"]))
         if key in seen:
             raise ValueError(
                 f"duplicate reference use receipt: {_bounded_item_repr(item, 'reference_id')}"
@@ -516,7 +550,8 @@ def record_reference_uses(
     output: str = "reference-use-ledger.json",
 ) -> dict[str, Any]:
     """Validate inputs, merge reference receipts, and atomically write a run ledger."""
-    root = run_dir.resolve(strict=True)
+    root = resolve_input_path(run_dir)
+    os.stat(root)
     descriptor = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         fcntl.flock(descriptor, fcntl.LOCK_EX)
@@ -571,7 +606,8 @@ def _record_reference_uses_locked(
     reference_paths: set[Path] = set()
     for supplied in references:
         try:
-            path = Path(supplied).resolve(strict=True)
+            path = resolve_input_path(Path(supplied))
+            os.stat(path)
             if not path.is_file():
                 raise ValueError("not a regular file")
             if path.parent.name != "references" or not (path.parent.parent / "SKILL.md").is_file():
@@ -611,7 +647,8 @@ def _record_reference_uses_locked(
                         item["skill"] = loaded["skill"]
             validate_reference_use_ledger(loaded)
             ledger = loaded
-        except (OSError, json.JSONDecodeError, ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
+        except (OSError, json.JSONDecodeError, ValueError, KeyError, TypeError, AttributeError, IndexError,
+                RecursionError) as exc:
             problems.append(f"existing ledger {target}: {exc}")
     if problems:
         raise ValueError("; ".join(problems))
@@ -624,7 +661,7 @@ def _record_reference_uses_locked(
             collision = next((
                 item for item in uses
                 if item["reference_id"] == key[1]
-                and item["sha256"] == key[2]
+                and item["sha256"].lower() == key[2]
                 and item.get("skill", ledger.get("skill")) != key[0]
             ), None)
             if collision is not None:
@@ -633,7 +670,7 @@ def _record_reference_uses_locked(
                 )
             existing = next((
                 item for item in uses
-                if (item.get("skill", ledger.get("skill")), item["reference_id"], item["sha256"]) == key
+                if (item.get("skill", ledger.get("skill")), item["reference_id"], item["sha256"].lower()) == key
                 and item["path"] == receipt["path"]
             ), None)
             if existing is None:
@@ -649,11 +686,14 @@ def _record_reference_uses_locked(
             ledger["skill"] = receipts[0]["skill"]
         ledger["uses"] = uses
         validate_reference_use_ledger(ledger)
-    except (KeyError, TypeError, AttributeError, IndexError) as exc:
+    except (KeyError, TypeError, AttributeError, IndexError, RecursionError) as exc:
         problems.append(f"existing ledger {target}: malformed structure: {exc}")
     if problems:
         raise ValueError("; ".join(problems))
-    write_json_atomic(target, ledger)
+    try:
+        write_json_atomic(target, ledger)
+    except RecursionError as exc:
+        raise ValueError(f"existing ledger {target}: nested too deeply to write") from exc
     return {
         "output": target.relative_to(root).as_posix(),
         "uses_added": added,

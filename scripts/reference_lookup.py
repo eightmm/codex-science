@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.cli_io import write_text_atomic  # noqa: E402
+from codex_science.cli_io import resolve_input_path, write_text_atomic  # noqa: E402
 from codex_science.reference_contract import (  # noqa: E402
     build_reference_use_receipt,
     load_reference_index,
@@ -65,10 +65,14 @@ def main() -> int:
         help="used_for value recorded in each receipt; repeatable (default: workflow-route)",
     )
     args = parser.parse_args()
-    skill_dir = args.skill_dir.resolve()
+    if args.limit is not None and args.limit < 0:
+        parser.error(f"--limit must not be negative: {args.limit}")
     try:
+        skill_dir = resolve_input_path(args.skill_dir)
+        if not skill_dir.is_dir():
+            parser.error(f"skill directory does not exist: {args.skill_dir}")
         index = load_reference_index(skill_dir)
-    except ValueError as error:
+    except (OSError, ValueError) as error:
         parser.error(str(error))
     if index is None:
         raise SystemExit(f"skill has no references/index.json: {skill_dir}")

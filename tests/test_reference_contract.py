@@ -1108,6 +1108,173 @@ class ReferenceContractTests(unittest.TestCase):
                 record_reference_uses(run_dir, [reference], read_reason="why")
             self.assertEqual(before, ledger_path.read_text())
 
+    def _cli(self, script: str, *args: object) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / script), *map(str, args)],
+            capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+
+    def test_record_reference_uses_refuses_symlink_loops_with_labelled_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            loop_run = root / "loop-run"
+            loop_run.symlink_to(loop_run.name)
+            loop_reference = skill / "references" / "loop.md"
+            loop_reference.symlink_to(loop_reference.name)
+            with self.assertRaisesRegex(ValueError, "invalid protected input path"):
+                record_reference_uses(loop_run, [reference], read_reason="why")
+            with self.assertRaisesRegex(ValueError, "loop.md: invalid protected input path"):
+                record_reference_uses(run_dir, [loop_reference], read_reason="why")
+            self.assertEqual([], list(run_dir.iterdir()))
+            for flag, value in (("--run-dir", loop_run), ("--reference", loop_reference)):
+                with self.subTest(flag=flag):
+                    arguments = {"--run-dir": run_dir, "--reference": reference, "--reason": "why"}
+                    arguments[flag] = value
+                    result = self._cli("record_reference_use.py", *(x for pair in arguments.items() for x in pair))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertIn("invalid protected input path", result.stderr)
+
+    def test_deeply_nested_index_and_ledger_are_labelled_errors(self) -> None:
+        deep = "[" * 200000
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            index = skill / "references" / "index.json"
+            valid_index = index.read_text()
+            index.write_text(deep, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "nested too deeply"):
+                load_reference_index(skill)
+            report = validate_reference_index(skill)
+            self.assertEqual(["invalid-reference-index"], [f["code"] for f in report["findings"]])
+            run_dir = root / "run"
+            run_dir.mkdir()
+            for script, arguments in (
+                ("reference_lookup.py", [skill]),
+                ("record_reference_use.py", ["--run-dir", run_dir, "--reference", reference, "--reason", "why"]),
+                ("audit_skill_references.py", ["--root", root]),
+            ):
+                with self.subTest(script=script):
+                    result = self._cli(script, *arguments)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertNotEqual("", result.stderr)
+            index.write_text(valid_index, encoding="utf-8")
+            ledger = run_dir / "reference-use-ledger.json"
+            ledger.write_text(deep, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "existing ledger .*reference-use-ledger.json"):
+                record_reference_uses(run_dir, [reference], read_reason="why")
+            result = self._cli("record_reference_use.py", "--run-dir", run_dir, "--reference", reference,
+                               "--reason", "why")
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual(deep, ledger.read_text())
+
+    def test_audit_reports_undecodable_files_and_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            roots = Path(tempdir) / "authored-skills"
+            bad_reference = self._skill(roots / "a")
+            bad_skill = self._skill(roots / "b")
+            (bad_reference / "references" / "study-identity.md").write_bytes(b"\xff\xfe")
+            (bad_skill / "SKILL.md").write_bytes(b"\xff\xfe")
+            good = self._skill(roots / "c")
+            big = good / "references" / "study-identity.md"
+            big.write_text("x" * 12001, encoding="utf-8")
+            index = good / "references" / "index.json"
+            payload = json.loads(index.read_text())
+            payload["references"][0]["search_patterns"] = []
+            index.write_text(json.dumps(payload), encoding="utf-8")
+            report = audit_reference_roots([roots / "a", roots / "b", roots / "c"])
+            self.assertEqual(3, report["summary"]["skills"])
+            self.assertEqual(
+                [["invalid-reference-file"], ["invalid-reference-file"], ["large-reference-without-search-patterns"]],
+                [[f["code"] for f in record["findings"]] for record in report["skills"]],
+            )
+            self.assertIsNone(report["skills"][0]["references"][0]["sha256"])
+
+    def test_skill_links_with_anchor_or_title_count_as_linked(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            skill = self._skill(Path(tempdir))
+            for link in ("references/study-identity.md#section", 'references/study-identity.md "Title"',
+                         "references/study-identity.md#a 'b'"):
+                with self.subTest(link=link):
+                    (skill / "SKILL.md").write_text(f"## Reference usage\n[study]({link})\n", encoding="utf-8")
+                    self.assertEqual([], validate_reference_index(skill, strict=True)["findings"])
+
+    def test_lookup_reports_unreadable_index_and_missing_skill_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            missing = self._cli("reference_lookup.py", root / "absent")
+            self.assertEqual(2, missing.returncode, missing.stderr)
+            self.assertIn("skill directory does not exist", missing.stderr)
+            self.assertNotIn("Traceback", missing.stderr)
+            index = skill / "references" / "index.json"
+            index.chmod(0)
+            try:
+                if os.access(index, os.R_OK):
+                    self.skipTest("file permissions are not enforced for this user")
+                result = self._cli("reference_lookup.py", skill)
+            finally:
+                index.chmod(0o600)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertIn("index.json", result.stderr)
+
+    def test_negative_limit_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            skill = self._skill(Path(tempdir))
+            index = load_reference_index(skill)
+            with self.assertRaisesRegex(ValueError, "limit must not be negative"):
+                select_references(index, limit=-1)
+            self.assertEqual([], select_references(index, limit=0))
+            self.assertEqual(1, len(select_references(index, limit=1)))
+            result = self._cli("reference_lookup.py", skill, "--limit", "-1")
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("--limit must not be negative", result.stderr)
+            self.assertEqual("", result.stdout)
+
+    def test_ledger_merge_and_duplicates_compare_digests_case_insensitively(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            skill = self._skill(root)
+            reference = skill / "references" / "study-identity.md"
+            run_dir = root / "run"
+            run_dir.mkdir()
+            record_reference_uses(run_dir, [reference], read_reason="why", used_for=["one"])
+            ledger_path = run_dir / "reference-use-ledger.json"
+            ledger = json.loads(ledger_path.read_text())
+            ledger["uses"][0]["sha256"] = ledger["uses"][0]["sha256"].upper()
+            ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+            summary = record_reference_uses(run_dir, [reference], read_reason="why", used_for=["two"])
+            self.assertEqual((0, 1, 1), (summary["uses_added"], summary["uses_merged"], summary["total_uses"]))
+            self.assertEqual(["one", "two"], json.loads(ledger_path.read_text())["uses"][0]["used_for"])
+            duplicate = json.loads(ledger_path.read_text())
+            duplicate["uses"].append({**duplicate["uses"][0], "sha256": duplicate["uses"][0]["sha256"].lower()})
+            with self.assertRaisesRegex(ValueError, "duplicate reference use receipt"):
+                validate_reference_use_ledger(duplicate)
+
+    def test_evidence_boundary_treats_null_as_absent_and_refuses_non_strings(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            skill = self._skill(Path(tempdir))
+            payload = json.loads((skill / "references" / "index.json").read_text())
+            entry = payload["references"][0]
+            for value, expected in ((None, ""), ("  ", ""), (" bound ", "bound")):
+                with self.subTest(value=value):
+                    entry["evidence_boundary"] = value
+                    self.assertEqual(expected, ReferenceIndex.from_payload(payload).references[0].evidence_boundary)
+            del entry["evidence_boundary"]
+            self.assertEqual("", ReferenceIndex.from_payload(payload).references[0].evidence_boundary)
+            for value in (0, False, ["x"], {"a": 1}):
+                with self.subTest(value=value):
+                    entry["evidence_boundary"] = value
+                    with self.assertRaisesRegex(ValueError, r"references\[0\]\.evidence_boundary is required"):
+                        ReferenceIndex.from_payload(payload)
+
 
 if __name__ == "__main__":
     unittest.main()
