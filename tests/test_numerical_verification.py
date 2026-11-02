@@ -156,6 +156,25 @@ class NumericalVerificationContractTests(unittest.TestCase):
             item["code"] for item in review_numerical_verification(underidentified)
         })
 
+    def test_review_labels_integer_cross_method_estimates_beyond_float_range(self) -> None:
+        from codex_science.safe_expression import canonical_sha256
+        receipt = run_numerical_verification(self.payload())
+        for uncertainty in (0, 1):
+            with self.subTest(uncertainty=uncertainty):
+                forged = copy.deepcopy(receipt)
+                forged["cross_method"][0].update(estimate=10**308, uncertainty=uncertainty)
+                forged["cross_method"][1].update(estimate=-(10**308), uncertainty=uncertainty)
+                material = dict(forged)
+                material.pop("fingerprint")
+                forged["fingerprint"] = canonical_sha256(material)
+                codes = {item["code"] for item in review_numerical_verification(forged)}
+                self.assertIn("invalid-numerical-verification", codes)
+                with self.assertRaises(ValueError):
+                    run_numerical_verification(self.payload(cross_method=[
+                        {"method": "method-a", "estimate": 10**308, "uncertainty": uncertainty},
+                        {"method": "method-b", "estimate": -(10**308), "uncertainty": uncertainty},
+                    ]))
+
     def test_validator_rejects_malformed_receipt_fields(self) -> None:
         receipt = run_numerical_verification(self.payload())
         cases = (

@@ -87,8 +87,12 @@ def _difference_orders(resolutions: list[float], estimates: list[float]) -> list
 
 
 def _cross_method_z(baseline: Mapping[str, Any], item: Mapping[str, Any], label: str) -> tuple[float, float]:
-    combined = math.hypot(baseline["uncertainty"], item["uncertainty"])
-    difference = _derived(abs(baseline["estimate"] - item["estimate"]), f"{label} estimate difference")
+    # Convert first: JSON integers subtract exactly and can exceed the float range.
+    combined = math.hypot(_finite(baseline["uncertainty"], f"{label} uncertainty"), _finite(item["uncertainty"], f"{label} uncertainty"))
+    difference = _derived(
+        abs(_finite(baseline["estimate"], f"{label} estimate") - _finite(item["estimate"], f"{label} estimate")),
+        f"{label} estimate difference",
+    )
     z_score = math.inf if combined == 0 and difference > 0 else (0.0 if combined == 0 else difference / combined)
     return difference, z_score
 
