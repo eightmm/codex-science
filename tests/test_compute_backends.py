@@ -2552,10 +2552,10 @@ class ComputeBackendTests(unittest.TestCase):
                 )
             self.assertEqual("cancelled", cancelled["state"])
 
-    def test_slurm_status_records_lost_only_when_both_tools_report_no_record(self) -> None:
+    def test_slurm_status_without_any_record_leaves_the_job_unchanged(self) -> None:
         invalid = "echo 'slurm_load_jobs error: Invalid job id specified' >&2; exit 1"
         cases = (
-            ({"sacct": "exit 0", "squeue": invalid}, "42", "lost"),
+            ({"sacct": "exit 0", "squeue": invalid}, "42", "submitted"),
             ({"sacct": "echo 'slurmdbd: connection refused' >&2; exit 1", "squeue": invalid}, "42", "submitted"),
             ({"sacct": "exit 0", "squeue": "echo 'Unable to contact slurm controller' >&2; exit 1"}, "42", "submitted"),
             ({"sacct": "exit 0", "squeue": "exit 0"}, "42", "submitted"),

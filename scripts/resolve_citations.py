@@ -27,8 +27,11 @@ def _expected_surname(value) -> str | None:
     def initial(token: str) -> bool:
         return re.fullmatch(r"(?:[A-Z]\.?){1,3}", token) is not None
 
-    # "Smith JA" drops trailing initials; "X. OU" keeps OU, since only initials precede it.
-    while len(parts) > 1 and initial(parts[-1]) and not all(initial(part) for part in parts[:-1]):
+    # "Smith JA" and "LI W" drop trailing initials; "X. OU" keeps OU, since only dotted initials precede it.
+    def after_dotted_initials(index: int) -> bool:
+        return all(initial(part) for part in parts[:index]) and any("." in part for part in parts[:index])
+
+    while len(parts) > 1 and initial(parts[-1]) and not after_dotted_initials(len(parts) - 1):
         parts.pop()
     return parts[-1] if parts else None
 

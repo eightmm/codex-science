@@ -10,7 +10,7 @@ import stat
 import sys
 from collections import defaultdict, deque
 from contextlib import contextmanager
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from codex_science.connector_contract import canonical_json_bytes
@@ -65,11 +65,6 @@ def validate_annotation(payload: dict[str, Any]) -> None:
     artifact_path = anchor.get("artifact_path")
     if not isinstance(artifact_path, str) or not artifact_path.strip():
         raise ValueError("annotation artifact_path is required and must be a string")
-    if PurePosixPath(artifact_path).as_posix() != artifact_path:
-        raise ValueError(
-            f"annotation artifact_path must be a canonical path without '.' or empty segments "
-            f"(for example result.json, not ./result.json): {artifact_path}"
-        )
     _sha(anchor.get("artifact_sha256"), "annotation artifact_sha256")
     present = [field for field in ("json_pointer", "claim_id", "line_range") if anchor.get(field) is not None]
     if not present:

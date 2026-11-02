@@ -1377,11 +1377,9 @@ class SlurmBackend:
         scheduler_job_id = str(state.get("scheduler_job_id") or "")
         raw_state = ""
         exit_code = None
-        sacct_has_no_record = squeue_has_no_record = False
         if shutil.which("sacct"):
             completed = subprocess.run(["sacct", "-n", "-P", "-j", scheduler_job_id, "--format=State,ExitCode,Elapsed,MaxRSS"], text=True, capture_output=True, check=False)
             first = next((line for line in completed.stdout.splitlines() if line.strip()), "")
-            sacct_has_no_record = completed.returncode == 0 and not first
             if first:
                 fields = first.split("|")
                 parts = fields[0].split()
@@ -1394,19 +1392,15 @@ class SlurmBackend:
         if not raw_state and shutil.which("squeue"):
             completed = subprocess.run(["squeue", "-h", "-j", scheduler_job_id, "-o", "%T"], text=True, capture_output=True, check=False)
             raw_state = completed.stdout.strip().splitlines()[0].upper() if completed.stdout.strip() else ""
-            # A controller outage also exits nonzero; only this report means no record.
-            squeue_has_no_record = completed.returncode != 0 and "invalid job id" in completed.stderr.lower()
         if raw_state:
             mapped = SLURM_STATE_MAP.get(raw_state)
             if mapped is None:
                 return state
             failure_class = None if mapped == "completed" else (raw_state.lower() if mapped in TERMINAL_STATES else None)
             message = f"Slurm state {raw_state}"
-        elif scheduler_job_id and sacct_has_no_record and squeue_has_no_record:
-            mapped = "lost"
-            failure_class = "worker-lost"
-            message = f"neither sacct nor squeue has a record of Slurm job {scheduler_job_id}"
         else:
+            # No record is not proof of loss: sacct lags slurmdbd, and a job submitted to another
+            # cluster (sbatch "id;cluster") is invisible to both tools here; "lost" is irreversible.
             return state
         spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
         updated = _state_material(

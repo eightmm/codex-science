@@ -598,7 +598,8 @@ class CitationResolveCliFixTests(unittest.TestCase):
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
         for name, surname in (("X. OU", "OU"), ("Smith JA", "Smith"), ("Smith J A", "Smith"),
-                              ("J. A. Smith", "Smith"), ("Meer, J.", "Meer")):
+                              ("J. A. Smith", "Smith"), ("Meer, J.", "Meer"),
+                              ("LI W", "LI"), ("WU JH", "WU"), ("OU X", "OU")):
             with self.subTest(name=name):
                 self.assertEqual(surname, cli._expected_surname(name))
 

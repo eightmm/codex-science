@@ -1283,8 +1283,7 @@ class AnnotationAnchorValidationTests(unittest.TestCase):
                 "anchor": {"artifact_path": "result.json", "artifact_sha256": digest, "json_pointer": ""}}
         validate_annotation(base)
         bad_anchors = [
-            {"artifact_path": ["result.json"]}, {"artifact_path": "./result.json"},
-            {"artifact_path": "a//b.json"}, {"artifact_path": "a/./b.json"}, {"artifact_path": "a/"},
+            {"artifact_path": ["result.json"]},
             {"artifact_sha256": 5}, {"artifact_sha256": " " + digest}, {"artifact_sha256": digest + "\n"},
             {"json_pointer": "notapointer"}, {"json_pointer": 3}, {"json_pointer": None, "claim_id": ["c"]},
             {"json_pointer": None, "line_range": "abc"}, {"json_pointer": None, "line_range": "1-2-3"},
@@ -1307,14 +1306,16 @@ class AnnotationAnchorValidationTests(unittest.TestCase):
             resolved = self.cli(root, "resolve", "--id", "A1", "--status", "resolved", "--resolver", "reviewer")
             self.assertEqual(0, resolved.returncode, resolved.stderr)
 
-    def test_noncanonical_anchor_path_is_refused_with_cause(self) -> None:
+    def test_unregistered_anchor_spelling_names_the_cause_on_resolve(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = self.run_dir(temporary)
             self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
             self.rewrite_sidecar(root, artifact_path="./result.json")
-            result = self.cli(root, "list")
+            # Earlier runtimes stored such spellings when the manifest used them, so they still load.
+            self.assertEqual(0, self.cli(root, "list").returncode)
+            result = self.cli(root, "resolve", "--id", "A1", "--status", "resolved", "--resolver", "r")
             self.assertEqual(2, result.returncode)
-            self.assertIn("canonical path without", result.stderr)
+            self.assertIn("not a manifest artifact path", result.stderr)
 
     def test_duplicate_annotation_ids_refused_before_any_lock_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

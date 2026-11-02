@@ -227,6 +227,9 @@ def main() -> int:
                         or not anchor_path.resolve().is_relative_to(root)):
                     raise ValueError("annotation anchor artifact must be a regular file inside the run bundle")
                 observed = hashlib.sha256(anchor_path.read_bytes()).hexdigest()
+                if annotation["anchor"]["artifact_path"] not in sidecars["artifact_hashes"]:
+                    raise ValueError("annotation anchor artifact_path is not a manifest artifact path "
+                                     f"(spelled exactly as registered): {annotation['anchor']['artifact_path']}")
                 if observed != sidecars["artifact_hashes"].get(annotation["anchor"]["artifact_path"]):
                     raise ValueError("anchor artifact changed after manifest verification; resolution was not recorded")
                 if observed != annotation["anchor"]["artifact_sha256"].lower():
