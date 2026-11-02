@@ -602,7 +602,7 @@ def execute_paginated(
                 raise ValueError(f"schema-drift: source returned invalid JSON on page {page_index}") from error
             try:
                 page_records = operation.normalize(payload)
-            except (KeyError, TypeError, ValueError) as error:
+            except (AttributeError, KeyError, TypeError, ValueError) as error:
                 raise ValueError(f"normalization-failed on page {page_index}: {error}") from error
             if not isinstance(page_records, list) or not all(isinstance(item, dict) for item in page_records):
                 raise ValueError("normalization-failed: operation must return record objects")

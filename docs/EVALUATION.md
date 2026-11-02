@@ -1132,8 +1132,10 @@ records a passed review. Use a single writer per run directory.
 `scripts/retrieve_literature.py --run-dir RUN {europepmc,pubmed} QUERY
 [--page-size N] [--max-pages N] [--evidence-cutoff DATE] [--abstracts]`
 snapshots result pages under `raw/queries/<query_id>/` and appends
-`queries.jsonl` with status (complete, partial, or failed), response hash,
-records returned, and hit count. With `--abstracts`, it writes EuropePMC
+`queries.jsonl` with status (complete or partial), response hash,
+records returned, and hit count. A failed fetch (transport error, malformed
+response) raises before any ledger row or snapshot is published, so it appends
+nothing. With `--abstracts`, it writes EuropePMC
 abstracts under `sources/`.
 If an existing EuropePMC query was saved without abstracts, rerun the same
 command with `--abstracts` to write them from the saved snapshot without another

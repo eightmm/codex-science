@@ -326,6 +326,21 @@ class TypedPayloadTests(unittest.TestCase):
 
 
 class ConnectorTests(unittest.TestCase):
+    def test_non_finite_upstream_number_is_an_upstream_error(self) -> None:
+        connector = PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": ["1"]}, "extra": math.nan})
+        with self.assertRaisesRegex(ValueError, "^pubmed upstream error: response contains non-finite numbers$"):
+            execute_connector(connector, QueryRequest("pubmed", "search", {"query": "x"}))
+        for payload in ({"esearchresult": {"idlist": ["1"]}, "extra": json.loads('"\\ud800"')},):
+            connector = PubMedConnector(fetch_json=lambda _, payload=payload: payload)
+            with self.assertRaises(ValueError) as caught:
+                execute_connector(connector, QueryRequest("pubmed", "search", {"query": "x"}))
+            self.assertNotIn("non-finite", str(caught.exception))
+        loop: dict = {"esearchresult": {"idlist": ["1"]}}
+        loop["self"] = loop
+        with self.assertRaises(ValueError) as caught:
+            execute_connector(PubMedConnector(fetch_json=lambda _: loop), QueryRequest("pubmed", "search", {"query": "x"}))
+        self.assertNotIn("non-finite", str(caught.exception))
+
     def test_fetch_json_rejects_response_over_16_mib(self) -> None:
         class FakeResponse:
             def __enter__(self):

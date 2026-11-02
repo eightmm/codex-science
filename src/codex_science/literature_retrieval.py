@@ -27,6 +27,9 @@ from codex_science.transport_v3 import (
 )
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
+# mkstemp names the temporary file "." + id + ".abstract.txt." + 8 random characters (id + 23), so with a
+# 255-byte name limit 232 is the longest id any earlier runtime could write; real ids are under 30 characters.
+_MAX_ID_LENGTH = 232
 _DISPLAY = {"europepmc": "EuropePMC", "pubmed": "PubMed"}
 _PUBMED_BATCH_SIZE = 200
 
@@ -99,7 +102,20 @@ def _pubmed_records(payload: Any, *, requested_ids: list[str] | None = None) -> 
     return records
 
 
-def _pubmed_abstracts(xml_bytes: bytes) -> list[dict[str, Any]]:
+def _result_rows(payload: Any) -> list[dict[str, Any]]:
+    """Return payload["resultList"]["result"], refusing malformed shapes before anything is published."""
+    if not isinstance(payload, dict) or "resultList" not in payload:
+        return []
+    result_list = payload["resultList"]
+    if not isinstance(result_list, dict):
+        raise ValueError("invalid literature response: resultList must be an object")
+    rows = result_list.get("result", [])
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        raise ValueError("invalid literature response: resultList.result must be a list of objects")
+    return rows
+
+
+def _pubmed_abstracts(xml_bytes: bytes, requested_ids: list[str]) -> list[dict[str, Any]]:
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError as error:
@@ -119,7 +135,7 @@ def _pubmed_abstracts(xml_bytes: bytes) -> list[dict[str, Any]]:
             label = node.attrib.get("Label")
             if text:
                 chunks.append(f"{label}: {text}" if label else text)
-        if pmid and chunks:
+        if pmid in requested_ids and chunks:
             found.append({"resultList": {"result": [{"id": pmid, "abstractText": " ".join(chunks)}]}})
     return found
 
@@ -149,13 +165,16 @@ def _fetch_pubmed_metadata(
                 page_request=request, response=response,
             )
             if endpoint == "esummary":
-                payload = response.json()
+                try:
+                    payload = response.json()
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise ValueError("invalid PubMed esummary response: body is not JSON") from error
                 batch_records = _pubmed_records(payload, requested_ids=batch)
                 records.update(batch_records)
                 payloads.append(payload)
                 normalized_count = len(batch_records)
             else:
-                abstract_payloads = _pubmed_abstracts(response.body)
+                abstract_payloads = _pubmed_abstracts(response.body, batch)
                 payloads.extend(abstract_payloads)
                 normalized_count = len(abstract_payloads)
             receipt_pages.append(PageReceiptV3(
@@ -246,7 +265,10 @@ def _pair_rows(records: list[dict[str, Any]], rows: list[dict[str, Any]]) -> lis
 
 
 def _plain_abstract(value: str) -> bytes:
-    tag = re.compile(r"</?[A-Za-z][A-Za-z0-9:-]*(?:\s[^<>]*)?/?>")
+    # Any tag name, but attributes must be name="value" pairs, so "CD4<CD8 in group A>B" stays text.
+    tag = re.compile(
+        r"</?[A-Za-z][A-Za-z0-9:-]*"
+        r"(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s\"'<>]+))*\s*/?>")
     return (" ".join(html.unescape(tag.sub(" ", value)).split()) + "\n").encode("utf-8")
 
 
@@ -266,10 +288,9 @@ def _write_abstracts(root: Path, payloads: list[Any]) -> tuple[set[str], set[str
     wanted: dict[str, bytes] = {}
     sources: dict[str, str] = {}
     for payload in payloads:
-        rows = payload.get("resultList", {}).get("result", []) if isinstance(payload, dict) else []
-        for raw in rows if isinstance(rows, list) else []:
-            record_id = raw.get("id") if isinstance(raw, dict) else None
-            text = raw.get("abstractText") if isinstance(raw, dict) else None
+        for raw in _result_rows(payload):
+            record_id = raw.get("id")
+            text = raw.get("abstractText")
             if not record_id or not isinstance(text, str):
                 continue
             source, identifier = _record_identity(raw)
@@ -279,7 +300,7 @@ def _write_abstracts(root: Path, payloads: list[Any]) -> tuple[set[str], set[str
                     "nothing was written; rerun without --abstracts to retrieve records"
                 )
             sources[identifier] = source
-            if not _SAFE_ID.fullmatch(str(record_id)):
+            if not _SAFE_ID.fullmatch(str(record_id)) or len(str(record_id)) > _MAX_ID_LENGTH:
                 raise ValueError(f"unsafe literature record id: {record_id!r}")
             filename = f"{record_id}.abstract.txt"
             target = _check_path(root, Path("sources") / filename)
@@ -525,6 +546,7 @@ def retrieve_literature(
                         hit_count = int(count) if count is not None else None
                     except (TypeError, ValueError):
                         hit_count = None
+            rows = [row for payload in pages for row in _result_rows(payload)]
             accessed_at = first_accessed
             record = {
                 "query_id": query_id, "source": _DISPLAY[source], "query": query,
@@ -572,11 +594,6 @@ def retrieve_literature(
             finally:
                 if ledger_fd is not None:
                     os.close(ledger_fd)
-            rows = []
-            for payload in pages:
-                rs = payload.get("resultList", {}).get("result", []) if isinstance(payload, dict) else []
-                if isinstance(rs, list):
-                    rows.extend(rs)
             summary_rows = []
             abstract_identities = _abstract_identities(rows)
             for normalized, raw in zip(result_obj["records"], _pair_rows(result_obj["records"], rows)):
@@ -591,7 +608,7 @@ def retrieve_literature(
                     summary_row["journal"] = normalized["journal"]
                 summary_rows.append(summary_row)
             return {"query_id": query_id, "status": record["status"], "hit_count": hit_count,
-                    "records_returned": len(result.records), "records": summary_rows[:page_size * max_pages],
+                    "records_returned": len(result.records), "records": summary_rows,
                     "abstracts_supported": True,
                     "abstracts_from_saved_snapshot": False,
                     "abstracts_kept_existing": sorted(kept_existing)}

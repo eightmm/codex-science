@@ -37,20 +37,25 @@ def _redact_url(url: str) -> str:
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(query), parsed.fragment))
 
 
-def _json_value(value: Any, label: str) -> None:
+MAX_JSON_DEPTH = 256
+
+
+def _json_value(value: Any, label: str, depth: int = 0) -> None:
+    if depth > MAX_JSON_DEPTH:
+        raise ValueError(f"{label[:60]} is nested more than {MAX_JSON_DEPTH} levels")
     if isinstance(value, float) and not math.isfinite(value):
         raise ValueError(f"{label} must contain finite JSON numbers")
     if value is None or isinstance(value, (str, int, float, bool)):
         return
     if isinstance(value, list):
         for index, item in enumerate(value):
-            _json_value(item, f"{label}[{index}]")
+            _json_value(item, f"{label}[{index}]", depth + 1)
         return
     if isinstance(value, dict):
         for key, item in value.items():
             if not isinstance(key, str):
                 raise ValueError(f"{label} keys must be strings")
-            _json_value(item, f"{label}.{key}")
+            _json_value(item, f"{label}.{key}", depth + 1)
         return
     raise ValueError(f"{label} must contain JSON-compatible values")
 
@@ -245,8 +250,34 @@ def _release(payload: Any) -> str | None:
     return None
 
 
+def _has_non_finite(value: Any) -> bool:
+    pending, seen = [value], set()
+    while pending:
+        item = pending.pop()
+        if isinstance(item, (dict, list, tuple)):
+            if id(item) in seen:
+                continue
+            seen.add(id(item))
+        if isinstance(item, float) and not math.isfinite(item):
+            return True
+        if isinstance(item, dict):
+            pending.extend(item.values())
+        elif isinstance(item, (list, tuple)):
+            pending.extend(item)
+    return False
+
+
+def _response_bytes(payload: Any, source: str, as_json: bool) -> bytes:
+    try:
+        return canonical_json_bytes(payload) if as_json else str(payload).encode("utf-8")
+    except ValueError as error:
+        if as_json and not isinstance(error, UnicodeError) and _has_non_finite(payload):
+            raise ValueError(f"{source} upstream error: response contains non-finite numbers") from error
+        raise
+
+
 @contextlib.contextmanager
-def _instrument(connector: Any) -> Iterator[tuple[list[_Call], list[int]]]:
+def _instrument(connector: Any, source: str) -> Iterator[tuple[list[_Call], list[int]]]:
     calls: list[_Call] = []
     received_counts: list[int] = []
     originals: dict[str, Any] = {}
@@ -260,7 +291,7 @@ def _instrument(connector: Any) -> Iterator[tuple[list[_Call], list[int]]]:
             validate_response = getattr(connector, "_validate_response", None)
             if validate_response is not None:
                 validate_response(payload)
-            raw = canonical_json_bytes(payload) if _media == "application/json" else str(payload).encode("utf-8")
+            raw = _response_bytes(payload, source, _media == "application/json")
             calls.append(_Call(_method, _redact_url(url), None, copy.deepcopy(payload), raw, _media))
             return payload
         setattr(connector, name, wrapper)
@@ -269,7 +300,8 @@ def _instrument(connector: Any) -> Iterator[tuple[list[_Call], list[int]]]:
         originals["_post_json"] = original
         def post(url: str, request_payload: dict[str, Any]):
             payload = original(url, request_payload)
-            calls.append(_Call("POST", _redact_url(url), copy.deepcopy(request_payload), copy.deepcopy(payload), canonical_json_bytes(payload), "application/json"))
+            raw = _response_bytes(payload, source, True)
+            calls.append(_Call("POST", _redact_url(url), copy.deepcopy(request_payload), copy.deepcopy(payload), raw, "application/json"))
             return payload
         connector._post_json = post
     tracking = _record_counts.set(received_counts)
@@ -297,7 +329,7 @@ def execute_connector(connector: Any, request: QueryRequest, *, include_snapshot
             raise ValueError("parameters.limit must be an integer between 1 and 10")
     warnings: list[str] = []
     timestamp = retrieved_at or _now()
-    with _instrument(connector) as (calls, received_counts):
+    with _instrument(connector, request.source) as (calls, received_counts):
         if typed_query:
             records = connector.query_v2(request)
         else:
@@ -354,6 +386,11 @@ def replay_snapshot(payload: Mapping[str, Any]) -> QueryResult:
     return _replay_snapshot(payload, verify_responses=True)
 
 
+def _snapshot_text(value: Any, label: str, *, optional: bool = False) -> None:
+    if not isinstance(value, str) and not (optional and value is None):
+        raise ValueError(f"{label} must be {'a string or null' if optional else 'a string'}")
+
+
 def _snapshot_list(value: Any, label: str) -> list[Any] | tuple[Any, ...]:
     if not value:
         return []
@@ -405,12 +442,28 @@ def _replay_snapshot(payload: Mapping[str, Any], *, verify_responses: bool) -> Q
         pages = tuple(PageReceipt(**item) for item in pages_raw)
     except TypeError as error:
         raise ValueError(f"invalid snapshot page receipt: {error}") from None
-    for page in pages:
+    for position, page in enumerate(pages):
+        label = f"snapshot page receipt {position}"
+        for field in ("request_url", "request_method", "response_sha256", "response_media_type", "retrieved_at"):
+            _snapshot_text(getattr(page, field), f"{label} {field}")
+        for field in ("request_body_sha256", "etag", "last_modified", "next_cursor"):
+            _snapshot_text(getattr(page, field), f"{label} {field}", optional=True)
+        if type(page.page_index) is not int:
+            raise ValueError(f"{label} page_index must be an integer")
+        if page.page_index != position:
+            raise ValueError(f"{label} page_index must equal its position")
         if type(page.record_count) is not int or page.record_count != len(records):
             raise ValueError("snapshot page record count mismatch")
+    for field in ("status", "completeness", "missingness"):
+        _snapshot_text(receipt_payload.get(field), f"snapshot receipt {field}")
+    if receipt_payload["status"] not in QUERY_STATUSES:
+        raise ValueError(f"snapshot receipt status must be one of {sorted(QUERY_STATUSES)}")
+    _snapshot_text(receipt_payload.get("source_release"), "snapshot receipt source_release", optional=True)
     if "pages" in payload:
         snapshot_pages = payload["pages"]
-        if not isinstance(snapshot_pages, (list, tuple)) or (snapshot_pages and len(snapshot_pages) != len(pages)):
+        if not isinstance(snapshot_pages, (list, tuple)):
+            raise ValueError("snapshot page count mismatch: pages must be a list")
+        if snapshot_pages and len(snapshot_pages) != len(pages):
             raise ValueError("snapshot page count mismatch")
         for page, stored in zip(pages, snapshot_pages):
             if not isinstance(stored, Mapping):

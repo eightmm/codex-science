@@ -768,17 +768,19 @@ class TransportV3Tests(unittest.TestCase):
                 self.assertEqual(["(x) AND FIRST_PDATE:[* TO 2026-01-01]"], params["query"])
 
     def test_pubmed_cutoff_conflicts_are_refused_before_io(self):
-        for key, values in (
-            ("maxdate", ("2027/01/01", "invalid", "2026/02/30", "2025/01-01", "2025-01/01", "0000", 0)),
-            ("mindate", ("2026/01/02", "invalid", "2026/13", "2025/01-01", "2025-01/01", "0000", 0)),
-            ("datetype", ("edat", "invalid", 0)),
+        for key, values, pattern in (
+            ("maxdate", ("2027/01/01",), "evidence-cutoff-conflict:.*"),
+            ("mindate", ("2026/01/02",), "evidence-cutoff-conflict:.*"),
+            ("datetype", ("edat", "invalid", 0), "evidence-cutoff-conflict:.*"),
+            ("maxdate", ("invalid", "2026/02/30", "2025/01-01", "2025-01/01", "0000", 0), "invalid "),
+            ("mindate", ("invalid", "2026/13", "2025/01-01", "2025-01/01", "0000", 0), "invalid "),
         ):
             for value in values:
                 request = QueryRequest("pubmed", "search", {"query": "x", key: value},
                     evidence_cutoff="2026-01-01", source_contract_version="3")
                 fake = FakeTransport([({"esearchresult": {"count": "0", "idlist": []}}, {})])
                 with self.subTest(key=key, value=value):
-                    with self.assertRaisesRegex(ValueError, rf"evidence-cutoff-conflict:.*parameters\.{key}"):
+                    with self.assertRaisesRegex(ValueError, rf"{pattern}parameters\.{key}"):
                         execute_paginated(PubMedSearchV3(), request, transport=fake)
                     self.assertEqual([], fake.requests)
 

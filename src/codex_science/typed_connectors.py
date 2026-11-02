@@ -52,6 +52,16 @@ def _response_items(payload: Any, fields: tuple[str, ...], *, allow_list: bool =
     raise ValueError(f"response must contain a result list: {', '.join(fields)}")
 
 
+def _text_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, list):
+        return value
+    raise ValueError("response openfda names and product types must be strings or lists")
+
+
 class NCBIESearchConnector:
     database = ""
     record_url = ""
@@ -63,7 +73,7 @@ class NCBIESearchConnector:
         payload = self._fetch_json(f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}")
         parse_esearch_ids(payload)
         ids = [_identifier(value) for value in _received_records(payload["esearchresult"]["idlist"])[:limit]]
-        return [{"id": str(identifier), "title": query, "database": self.database, "url": self.record_url.format(id=identifier)} for identifier in _received_records(ids)[:limit]]
+        return [{"id": str(identifier), "title": "", "database": self.database, "url": self.record_url.format(id=identifier)} for identifier in _received_records(ids)[:limit]]
 
 class ClinVarConnector(NCBIESearchConnector):
     database = "clinvar"
@@ -104,7 +114,10 @@ class GnomADConnector:
             expected = (chromosome.upper(), int(position), reference.upper(), alternate.upper())
             if returned is None or (returned[1].upper(), int(returned[2]), returned[3].upper(), returned[4].upper()) != expected:
                 raise ValueError("gnomAD identity mismatch: response variant_id did not match normalized query")
-        exome, genome = item.get("exome") or {}, item.get("genome") or {}
+        exome, genome = item.get("exome"), item.get("genome")
+        if not isinstance(exome, (dict, type(None))) or not isinstance(genome, (dict, type(None))):
+            raise ValueError("gnomAD upstream error: response exome and genome must be objects or null")
+        exome, genome = exome or {}, genome or {}
         return [{"id": _record_id(item, "variant_id") or variant_id, "title": variant_id, "assembly": "GRCh38", "exome_af": str(exome["af"]) if exome.get("af") is not None else "", "genome_af": str(genome["af"]) if genome.get("af") is not None else "", "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
 
 
@@ -156,6 +169,8 @@ class OpenFDAConnector:
     def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None: self._fetch_json = fetch_json
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, limit = _validate(query, limit)
+        if '"' in query or "\\" in query:
+            raise ValueError("OpenFDA query must not contain double quotes or backslashes")
         expression = f'openfda.generic_name:"{query}"+openfda.brand_name:"{query}"'
         payload = self._fetch_json(f"https://api.fda.gov/drug/label.json?{urllib.parse.urlencode({'search': expression, 'limit': limit})}")
         results = []
@@ -172,8 +187,9 @@ class OpenFDAConnector:
                 ids = _response_items(openfda, ("application_number",))
             identifier = _identifier(ids[0]) if ids else _record_id(item, "id")
             if identifier:
-                names = openfda.get("brand_name") or openfda.get("generic_name") or []
-                results.append({"id": identifier, "title": str(names[0] if names else identifier), "product_type": str((openfda.get("product_type") or [""])[0]), "url": "https://open.fda.gov/apis/drug/label/"})
+                names = _text_list(openfda.get("brand_name")) or _text_list(openfda.get("generic_name"))
+                product_types = _text_list(openfda.get("product_type")) or [""]
+                results.append({"id": identifier, "title": str(names[0] if names else identifier), "product_type": str(product_types[0]), "url": "https://open.fda.gov/apis/drug/label/"})
         return results
 
 
@@ -255,4 +271,14 @@ class VersionedSnapshotConnector:
         if not isinstance(releases, list) or any(not isinstance(item, dict) for item in releases):
             raise ValueError("snapshot releases must be a list of objects")
         needle = query.lower()
-        return _received_records([dict(item) for item in releases if needle in json.dumps(item, ensure_ascii=False).lower()])[:limit]
+
+        def matches(value: Any) -> bool:
+            if isinstance(value, str):
+                return needle in value.lower()
+            if isinstance(value, dict):
+                return any(matches(child) for child in value.values())
+            if isinstance(value, list):
+                return any(matches(child) for child in value)
+            return False
+
+        return _received_records([dict(item) for item in releases if matches(item)])[:limit]

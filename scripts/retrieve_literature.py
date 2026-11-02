@@ -17,6 +17,10 @@ def _display_title(value: object) -> str:
     return " ".join(str(value).split()) or "(untitled)"
 
 
+def _display_id(value: object) -> str:
+    return " ".join(str(value).split())
+
+
 def _display_year(value: object) -> str:
     year = str(value)
     return year if len(year) == 4 and year.isascii() and year.isdigit() else "?"
@@ -47,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps({key: value for key, value in summary.items() if key != "records"}, ensure_ascii=False, sort_keys=True))
     for row in summary["records"]:
         abstract_status = "kept-existing" if row.get("abstract_kept_existing") else "written" if row["abstract_written"] else ("no" if args.abstracts else "not-requested")
-        print(f"{row['id']}\t{_display_year(row['year'])}\t{_display_title(row['title'])}\tabstract={abstract_status}")
+        print(f"{_display_id(row['id'])}\t{_display_year(row['year'])}\t{_display_title(row['title'])}\tabstract={abstract_status}")
     return 0
 
 

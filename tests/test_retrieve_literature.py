@@ -17,6 +17,7 @@ from codex_science.literature_retrieval import _fetch_pubmed_metadata, _ledger_i
 from codex_science.source_operations_v3 import PubMedSearchV3
 from codex_science.transport_v3 import PageRequest, TransportError, TransportResponse
 from scripts.retrieve_literature import main
+from codex_science.literature_retrieval import _pubmed_abstracts
 
 
 class FakeTransport:
@@ -312,6 +313,10 @@ class RetrieveLiteratureTests(unittest.TestCase):
             '<i><h4 class="x">A &amp; B</h4></i>': 'A & B\n',
             '<0.001': '<0.001\n',
             'a<b>c': 'a c\n',
+            'CO<inf>2</inf> levels': 'CO 2 levels\n',
+            '<mml:mi>x</mml:mi><jats:p>y</jats:p><sc>z</sc>': 'x y z\n',
+            '<span data-x1="a">t</span>': 't\n',
+            "<a href='u' target=_b/>t": 't\n',
         }
         for raw, expected in cases.items():
             with self.subTest(raw=raw):
@@ -791,6 +796,69 @@ class RetrieveLiteratureTests(unittest.TestCase):
         self.assertEqual(["1\t2024\ta b c d\tabstract=not-requested", "2\t?\t(untitled)\tabstract=not-requested",
                           "3\t?\t(untitled)\tabstract=not-requested", "4\t?\tok\tabstract=not-requested",
                           "5\t?\tok\tabstract=not-requested"], lines)
+
+    def test_malformed_result_shapes_fail_labelled_before_any_publication(self):
+        bad_pubmed = pubmed_esummary(["1"])
+        bad_pubmed["resultList"] = None
+        search = {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["1"]}}
+        cases = [
+            ("europepmc", [{"hitCount": 1, "nextCursorMark": "*", "resultList": {"result": ["12345"]}}], "normalization-failed"),
+            ("pubmed", [search, bad_pubmed], "resultList must be an object"),
+            ("pubmed", [search, {**pubmed_esummary(["1"]), "resultList": {"result": "x"}}], "list of objects"),
+        ]
+        for source, responses, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                with self.assertRaisesRegex(ValueError, message):
+                    retrieve_literature(root, source, "q", transport=FakeTransport(responses))
+                self.assertEqual([], list(root.iterdir()))
+
+    def test_pubmed_non_json_esummary_names_the_step(self):
+        search = {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["1"]}}
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "PubMed esummary response: body is not JSON"):
+                retrieve_literature(temp, "pubmed", "q", transport=FakeTransport([search, (b"<html>", "text/html")]))
+            self.assertEqual([], list(Path(temp).iterdir()))
+
+    def test_pubmed_efetch_ignores_pmids_outside_the_batch(self):
+        xml = (b"<S>" + b"".join(
+            b"<PubmedArticle><MedlineCitation><PMID>%s</PMID><Article><Abstract><AbstractText>text %s"
+            b"</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle>" % (pmid, pmid)
+            for pmid in (b"1", b"999")) + b"</S>")
+        found = _pubmed_abstracts(xml, ["1"])
+        self.assertEqual(["1"], [item["resultList"]["result"][0]["id"] for item in found])
+        search = {"esearchresult": {"count": "1", "retstart": "0", "idlist": ["1"]}}
+        with tempfile.TemporaryDirectory() as temp:
+            retrieve_literature(temp, "pubmed", "q", abstracts=True,
+                                transport=FakeTransport([search, pubmed_esummary(["1"]), (xml, "application/xml")]))
+            self.assertEqual(["1.abstract.txt"], sorted(p.name for p in (Path(temp) / "sources").iterdir()))
+
+    def test_plain_abstract_keeps_non_markup_angle_brackets(self):
+        self.assertEqual(b"ratio CD4<CD8 in group A>B; p<0.05\n", _plain_abstract("ratio CD4<CD8 in group A>B; p<0.05"))
+        self.assertEqual(b"x y z\n", _plain_abstract('x<sup class="a">y</sup>z<br/>'))
+
+    def test_overlong_abstract_id_is_refused_before_any_write(self):
+        rows = [{"id": "1", "source": "MED", "title": "t", "abstractText": "a"},
+                {"id": "A" * 233, "source": "MED", "title": "t", "abstractText": "a"}]
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "unsafe literature record id"):
+                retrieve_literature(temp, "europepmc", "q", abstracts=True, transport=FakeTransport([europe_payload(rows)]))
+            self.assertEqual([], list(Path(temp).iterdir()))
+        rows[1]["id"] = "A" * 232
+        with tempfile.TemporaryDirectory() as temp:
+            retrieve_literature(temp, "europepmc", "q", abstracts=True, transport=FakeTransport([europe_payload(rows)]))
+            self.assertEqual(2, len(list((Path(temp) / "sources").iterdir())))
+
+    def test_returned_rows_are_not_truncated_and_cli_ids_are_single_line(self):
+        rows = [{"id": str(i), "source": "MED", "title": "t"} for i in range(3)]
+        with tempfile.TemporaryDirectory() as temp:
+            summary = retrieve_literature(temp, "europepmc", "q", page_size=1, transport=FakeTransport([europe_payload(rows)]))
+        self.assertEqual(summary["records_returned"], len(summary["records"]))
+        records = [{"id": "a\tb\nc", "year": "2024", "title": "t", "abstract_written": False}]
+        with patch("scripts.retrieve_literature.retrieve_literature", return_value={"query_id": "q", "records": records}), \
+                patch("builtins.print") as output:
+            self.assertEqual(0, main(["--run-dir", ".", "europepmc", "test"]))
+        self.assertEqual("a b c\t2024\tt\tabstract=not-requested", output.call_args_list[1].args[0])
 
     def test_ledger_ids_splits_on_newline_only(self):
         with tempfile.TemporaryDirectory() as temp:

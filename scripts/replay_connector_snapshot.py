@@ -14,7 +14,7 @@ def main() -> int:
         payload = json.loads(args.snapshot.read_text(encoding="utf-8"))
         result = replay_snapshot(payload)
         print(json.dumps(result.to_dict(), indent=2, sort_keys=True, allow_nan=False))
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0

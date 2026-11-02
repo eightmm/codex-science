@@ -233,6 +233,99 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
             self.assertEqual("unchanged", classify_drift(snapshot, changed)["status"])
         self.assertEqual(tuple(snapshot["records"]), replay_snapshot(snapshot).records)
 
+    def _snapshot_for_contract_tests(self) -> dict:
+        return execute_connector(
+            PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": ["123"]}}),
+            QueryRequest("pubmed", "search", {"query": "fixture"}), include_snapshot=True,
+        ).snapshot()
+
+    def _run_script(self, script: str, *arguments: str, env: dict | None = None) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, str(self.root / "scripts" / script), *arguments], capture_output=True, text=True,
+                              env=env, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+
+    def test_replay_types_receipt_and_page_scalars(self) -> None:
+        snapshot = self._snapshot_for_contract_tests()
+        self.assertEqual(1, len(replay_snapshot(snapshot).receipt.pages))
+        receipt_cases = [
+            ("status", "whatever"), ("status", None), ("completeness", 7), ("completeness", None), ("missingness", None),
+            ("missingness", ["observed"]), ("source_release", {"x": [1]}), ("source_release", 1),
+        ]
+        page_cases = [
+            ("request_url", 123), ("request_method", None), ("page_index", "zero"), ("page_index", True), ("page_index", 1),
+            ("page_index", -1), ("response_sha256", None), ("response_sha256", float("nan")), ("retrieved_at", 0),
+            ("retrieved_at", None), ("response_media_type", 1), ("etag", 1), ("last_modified", []),
+            ("next_cursor", 1), ("request_body_sha256", 1),
+        ]
+        for field, value in receipt_cases + page_cases:
+            changed = copy.deepcopy(snapshot)
+            (changed["receipt"]["pages"][0] if (field, value) in page_cases else changed["receipt"])[field] = value
+            with self.subTest(field=field, value=value):
+                with self.assertRaisesRegex(ValueError, field):
+                    replay_snapshot(changed)
+                with self.assertRaisesRegex(ValueError, field):
+                    classify_drift(snapshot, changed)
+        for status in ("complete", "partial", "failed", "unavailable", "environment-blocked"):
+            changed = copy.deepcopy(snapshot)
+            changed["receipt"]["status"] = status
+            self.assertEqual(status, replay_snapshot(changed).receipt.status)
+        changed = copy.deepcopy(snapshot)
+        changed["receipt"]["source_release"] = None
+        changed["receipt"]["pages"][0].update(etag="e", last_modified="m", next_cursor=None)
+        replay_snapshot(changed)
+
+    def test_replay_names_the_type_of_a_non_list_top_level_pages(self) -> None:
+        snapshot = self._snapshot_for_contract_tests()
+        for value in (None, 0, {}, "x"):
+            changed = copy.deepcopy(snapshot)
+            changed["pages"] = value
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "pages must be a list"):
+                    replay_snapshot(changed)
+
+    def test_deeply_nested_request_parameters_are_refused_by_the_cli(self) -> None:
+        for depth, accepted in ((255, True), (256, False)):
+            nested: object = 1
+            for _ in range(depth):
+                nested = [nested]
+            request = QueryRequest("pubmed", "search", {"query": "fixture", "nested": nested})
+            with self.subTest(depth=depth):
+                if accepted:
+                    request.validate()
+                else:
+                    with self.assertRaisesRegex(ValueError, "is nested more than 256 levels"):
+                        request.validate()
+        snapshot = self._snapshot_for_contract_tests()
+        text = json.dumps(snapshot)
+        with tempfile.TemporaryDirectory() as temporary:
+            good = Path(temporary) / "good.json"
+            good.write_text(json.dumps(snapshot), encoding="utf-8")
+            for levels in (257, 600, 990, 3000):
+                deep = "[" * levels + "]" * levels
+                source = Path(temporary) / f"deep-{levels}.json"
+                source.write_text(text.replace('"query": "fixture"', '"query": "fixture", "nested": ' + deep), encoding="utf-8")
+                for script, arguments in (("replay_connector_snapshot.py", [str(source)]),
+                                          ("connector_drift_report.py", [str(good), str(source)])):
+                    with self.subTest(levels=levels, script=script):
+                        result = self._run_script(script, *arguments)
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        if levels <= 990:
+                            self.assertIn("is nested more than 256 levels", result.stderr)
+
+    def test_drift_report_reads_snapshots_as_utf8(self) -> None:
+        snapshot = execute_connector(
+            PubMedConnector(fetch_json=lambda _: {"esearchresult": {"idlist": ["123"]}}),
+            QueryRequest("pubmed", "search", {"query": "caf\u00e9"}), include_snapshot=True,
+        ).snapshot()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "snapshot.json"
+            source.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+            env = {**os.environ, "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "PYTHONIOENCODING": "utf-8"}
+            result = self._run_script("connector_drift_report.py", str(source), str(source), env=env)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("unchanged", json.loads(result.stdout)["status"])
+
     def test_release_identities_are_synchronized(self) -> None:
         self.assertEqual([], validate_release(self.root))
         self.assertIsNotNone(RELEASE_VERSION_RE.fullmatch(PLUGIN_VERSION))
@@ -785,7 +878,10 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
             results = connector.search(query, limit=1)
             self.assertEqual(1, len(results), cls.__name__)
             self.assertTrue(results[0].get("id"), cls.__name__)
-            self.assertTrue(results[0].get("title"), cls.__name__)
+            if cls is ClinVarConnector or cls is GEOConnector:
+                self.assertEqual("", results[0].get("title"), cls.__name__)
+            else:
+                self.assertTrue(results[0].get("title"), cls.__name__)
             self.assertEqual(1, transport.call_count)
 
         fetch = mock.Mock(return_value={"esearchresult": {"idlist": [str(i) for i in range(12)]}})

@@ -70,6 +70,38 @@ def _pagination_drift(source: str, error: ValueError) -> ValueError:
     return ValueError(f"schema-drift: {source} pagination {detail}")
 
 
+def _result_item(item: Any) -> Mapping[str, Any]:
+    if not isinstance(item, Mapping):
+        raise ValueError("invalid result item: expected object")
+    return item
+
+
+def _balanced_parentheses(query: str) -> bool:
+    # Fail closed: an unterminated quote or trailing escape would swallow the appended date clause.
+    depth = 0
+    quoted = False
+    escaped = False
+    for char in query:
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif quoted:
+            quoted = char != '"'
+        elif char == '"':
+            quoted = True
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0 and not quoted and not escaped
+
+
+_PUBMED_PARAMETERS = frozenset({"query", "mindate", "maxdate", "datetype", "sort"})
+
+
 def _record_identifier(value: Any) -> str:
     if isinstance(value, bool) or not isinstance(value, (str, int)):
         raise ValueError("invalid record identifier: expected string or integer")
@@ -120,23 +152,28 @@ class PubMedSearchV3:
             "retmax": request.page_size,
             "usehistory": "y",
         }
+        for key in request.parameters:
+            if key not in _PUBMED_PARAMETERS:
+                raise ValueError(f"unsupported parameters.{key} for pubmed search")
         normalized_dates: dict[str, str] = {}
-        if cutoff is not None:
-            for key in ("mindate", "maxdate", "datetype"):
-                value = request.parameters.get(key)
-                if value in (None, ""):
-                    continue
+        for key in ("mindate", "maxdate", "datetype", "sort"):
+            value = request.parameters.get(key)
+            if value in (None, ""):
+                continue
+            if key == "datetype" and cutoff is not None and value != "pdat":
+                raise ValueError("evidence-cutoff-conflict: parameters.datetype conflicts with evidence_cutoff")
+            if not isinstance(value, str):
+                raise ValueError(f"invalid parameters.{key}: expected string")
+            if key in ("mindate", "maxdate"):
                 try:
-                    if key == "datetype":
-                        compatible = value == "pdat"
-                    else:
-                        bound = _calendar_date_bound(value, upper=key == "maxdate")
-                        compatible = bound <= cutoff
-                        normalized_dates[key] = bound.isoformat().replace("-", "/")
-                except ValueError:
-                    compatible = False
-                if not compatible:
-                    raise ValueError(f"evidence-cutoff-conflict: parameters.{key} conflicts with evidence_cutoff")
+                    bound = _calendar_date_bound(value, upper=key == "maxdate")
+                except ValueError as error:
+                    raise ValueError(f"invalid parameters.{key}: expected an ASCII calendar date") from error
+                if cutoff is not None:
+                    if bound > cutoff:
+                        raise ValueError(f"evidence-cutoff-conflict: parameters.{key} conflicts with evidence_cutoff")
+                    normalized_dates[key] = bound.isoformat().replace("-", "/")
+        if cutoff is not None:
             # ESearch requires both date bounds to specify a date range.
             params.update({
                 "datetype": "pdat",
@@ -201,6 +238,9 @@ class EuropePMCSearchV3:
         cutoff = _evidence_cutoff_date(request.evidence_cutoff)
         query = _query(request)
         if cutoff is not None:
+            # Backslash escapes are refused outright: whether the upstream parser honours them is unverified.
+            if "\\" in query or not _balanced_parentheses(query):
+                raise ValueError("invalid parameters.query: unbalanced parentheses, unterminated quote or backslash cannot be combined with evidence_cutoff")
             query = f"({query}) AND FIRST_PDATE:[* TO {cutoff.isoformat()}]"
         params = {
             "query": query,
@@ -263,6 +303,7 @@ class EuropePMCSearchV3:
         results = _europepmc_results(payload)
         records = []
         for item in results:
+            item = _result_item(item)
             identifier = _record_identifier(item.get("id", ""))
             source = str(item.get("source") or "")
             if identifier:
@@ -300,6 +341,8 @@ class ChEMBLMoleculeSearchV3:
             next_url = _required_value(page_meta, "next")
             if next_url is not None and next_url != "" and not isinstance(next_url, str):
                 raise ValueError("invalid page_meta.next: expected string or null")
+            if next_url and not _required_list(payload, "molecules"):
+                raise ValueError("invalid empty page while page_meta.next is set")
         except ValueError as error:
             raise _pagination_drift(self.source, error) from error
         if next_url is None or next_url == "":
@@ -319,10 +362,15 @@ class ChEMBLMoleculeSearchV3:
         molecules = _required_list(payload, "molecules")
         records = []
         for item in molecules:
+            item = _result_item(item)
             identifier = _record_identifier(item.get("molecule_chembl_id", ""))
             if not identifier:
                 continue
-            structures = item.get("molecule_structures") or {}
+            structures = item.get("molecule_structures")
+            if structures is None:
+                structures = {}
+            elif not isinstance(structures, Mapping):
+                raise ValueError("invalid molecule_structures: expected object")
             records.append({
                 "id": identifier,
                 "title": str(item.get("pref_name") or identifier),
@@ -380,6 +428,7 @@ class PDBSearchV3:
 
     def normalize(self, payload: Any) -> list[dict[str, Any]]:
         result_set = _pdb_results(payload)
+        items = [_result_item(item) for item in result_set]
         return [
             {
                 "id": identifier,
@@ -387,7 +436,7 @@ class PDBSearchV3:
                 "score": item.get("score"),
                 "url": f"https://www.rcsb.org/structure/{identifier}",
             }
-            for item in result_set
+            for item in items
             if (identifier := _record_identifier(item.get("identifier", "")))
         ]
 

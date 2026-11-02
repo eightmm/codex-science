@@ -13,11 +13,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
-        report = classify_drift(json.loads(args.previous.read_text()), json.loads(args.current.read_text()))
+        report = classify_drift(json.loads(args.previous.read_text(encoding="utf-8")), json.loads(args.current.read_text(encoding="utf-8")))
         text = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
         if args.output: args.output.write_text(text, encoding="utf-8")
         else: print(text, end="")
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0
