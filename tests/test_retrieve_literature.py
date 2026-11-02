@@ -764,6 +764,57 @@ class RetrieveLiteratureTests(unittest.TestCase):
                 retrieve_literature(root, "europepmc", "dupr", page_size=1, max_pages=2, abstracts=True)
             self.assertFalse(list((root / "sources").glob("*.abstract.txt")) if (root / "sources").exists() else [])
 
+    def test_same_identity_rows_keep_their_own_title_and_year(self):
+        rows = [{"source": "MED", "id": "123", "title": "First", "pubYear": "2020"},
+                {"source": "MED", "id": "123", "title": "Second", "pubYear": "2021"}]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            result = retrieve_literature(root, "europepmc", "dup", transport=FakeTransport([europe_payload(rows)]))
+            self.assertEqual([("First", "2020"), ("Second", "2021")],
+                             [(r["title"], r["year"]) for r in result["records"]])
+            recovered = retrieve_literature(root, "europepmc", "dup", abstracts=True)
+            self.assertEqual([("First", "2020"), ("Second", "2021")],
+                             [(r["title"], r["year"]) for r in recovered["records"]])
+
+    def test_cli_sanitizes_titles_and_years(self):
+        records = [
+            {"id": "1", "year": "2024", "title": "a\tb\nc  d", "abstract_written": False},
+            {"id": "2", "year": "nan", "title": " \t\n", "abstract_written": False},
+            {"id": "3", "year": "99999", "title": "", "abstract_written": False},
+            {"id": "4", "year": "", "title": "ok", "abstract_written": False},
+            {"id": "5", "year": "20x4", "title": "ok", "abstract_written": False},
+        ]
+        with patch("scripts.retrieve_literature.retrieve_literature", return_value={"query_id": "q", "records": records}), \
+                patch("builtins.print") as output:
+            self.assertEqual(0, main(["--run-dir", ".", "europepmc", "test"]))
+        lines = [call.args[0] for call in output.call_args_list[1:]]
+        self.assertEqual(["1\t2024\ta b c d\tabstract=not-requested", "2\t?\t(untitled)\tabstract=not-requested",
+                          "3\t?\t(untitled)\tabstract=not-requested", "4\t?\tok\tabstract=not-requested",
+                          "5\t?\tok\tabstract=not-requested"], lines)
+
+    def test_ledger_ids_splits_on_newline_only(self):
+        with tempfile.TemporaryDirectory() as temp:
+            ledger = Path(temp) / "queries.jsonl"
+            row = {"query_id": "q-sep", "source": "EuropePMC", "query": "a\u2028b\x85c"}
+            ledger.write_text(json.dumps(row, ensure_ascii=False) + "\r\n", encoding="utf-8")
+            self.assertEqual({"q-sep"}, _ledger_ids(ledger))
+
+    def test_torn_final_ledger_line_gets_actionable_error_and_is_kept(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ledger = root / "queries.jsonl"
+            content = '{"query_id":"q-ok"}\n{"query_id":"q-x","source":"Euro'
+            ledger.write_text(content, encoding="utf-8")
+            transport = FakeTransport([europe_payload()])
+            with self.assertRaisesRegex(ValueError, "line 2.*incomplete record from an interrupted write.*remove"):
+                retrieve_literature(root, "europepmc", "torn", transport=transport)
+            self.assertEqual(0, transport.calls)
+            self.assertEqual(content, ledger.read_text(encoding="utf-8"))
+            ledger.write_text('{"query_id":"q-ok"}\nnot-json\n{"query_id":"q-z"}\n', encoding="utf-8")
+            with self.assertRaises(ValueError) as caught:
+                _ledger_ids(ledger)
+            self.assertEqual("invalid query ledger JSON at line 2", str(caught.exception))
+
     def test_ledger_ids_rejects_deeply_nested_line(self):
         with tempfile.TemporaryDirectory() as temp:
             ledger = Path(temp) / "queries.jsonl"

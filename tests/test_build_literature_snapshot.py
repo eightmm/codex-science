@@ -221,6 +221,48 @@ class BuildLiteratureSnapshotTests(unittest.TestCase):
                     build_literature_snapshot(self.root)
                 self.assertEqual(before, output.read_bytes())
 
+    def _rewrite_queries(self, rows):
+        (self.root / "queries.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    def test_query_ledger_fields_follow_evidence_rules(self):
+        record = json.loads((self.root / "queries.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        before = (self.root / "snapshot.current.json").read_bytes()
+        for field, value, message in (
+            ("status", "bogus", "Invalid query status for q-pubmed-1"),
+            ("status", 7, "query q-pubmed-1 status is required"),
+            ("accessed_at", 12345, "query q-pubmed-1 accessed_at is required"),
+            ("accessed_at", " ", "query q-pubmed-1 accessed_at is required"),
+            ("response_sha256", "zz", "Invalid response_sha256 for query q-pubmed-1"),
+            ("response_sha256", "a" * 63, "Invalid response_sha256 for query q-pubmed-1"),
+            ("response_sha256", 5, "Invalid response_sha256 for query q-pubmed-1"),
+        ):
+            with self.subTest(field=field, value=value):
+                self._rewrite_queries([{**record, field: value}])
+                with self.assertRaisesRegex(ValueError, message):
+                    build_literature_snapshot(self.root)
+                self.assertEqual(before, (self.root / "snapshot.current.json").read_bytes())
+        for field in ("status", "accessed_at"):
+            self._rewrite_queries([{key: value for key, value in record.items() if key != field}])
+            with self.assertRaisesRegex(ValueError, f"query q-pubmed-1 {field} is required"):
+                build_literature_snapshot(self.root)
+        self._rewrite_queries([{**record, "status": "failed"}, {**record, "query_id": "q-2", "status": "unavailable"}])
+        self.assertEqual(2, build_literature_snapshot(self.root)["counts"]["queries"])
+
+    def test_empty_query_ledger_is_reported(self):
+        for text in ("", "\n\n"):
+            (self.root / "queries.jsonl").write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "queries.jsonl contains no queries"):
+                build_literature_snapshot(self.root)
+
+    def test_jsonl_splits_on_newline_only(self):
+        record = json.loads((self.root / "queries.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        record["query"] = "left\u2028right\x85end"
+        (self.root / "queries.jsonl").write_text(
+            json.dumps(record, ensure_ascii=False) + "\r\n", encoding="utf-8")
+        build_literature_snapshot(self.root)
+        snapshot = json.loads((self.root / "snapshot.current.json").read_text(encoding="utf-8"))
+        self.assertEqual(record["query"], snapshot["queries"][0]["query"])
+
     def test_excluded_and_awaiting_screening_records_are_included(self):
         screening = {
             "schema": "screening-table-v1",

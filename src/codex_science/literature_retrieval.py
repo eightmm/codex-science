@@ -198,22 +198,51 @@ def _check_path(root: Path, relative: Path) -> Path:
     return candidate
 
 
-def _ledger_ids(path: Path) -> set[str]:
-    if not path.exists():
-        return set()
-    ids = set()
-    for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+def _jsonl_lines(text: str) -> list[str]:
+    """Split JSONL on newline only; str.splitlines() also splits inside JSON strings."""
+    return [line[:-1] if line.endswith("\r") else line for line in text.split("\n")]
+
+
+def _ledger_rows(path: Path):
+    text = path.read_text(encoding="utf-8")
+    lines = _jsonl_lines(text)
+    for index, line in enumerate(lines, start=1):
         if not line.strip():
             continue
         try:
             row = json.loads(line)
         except (json.JSONDecodeError, RecursionError) as error:
+            if index == len(lines) and not text.endswith("\n"):
+                raise ValueError(
+                    f"invalid query ledger JSON at line {index}: the final line is an incomplete record "
+                    "from an interrupted write; remove it from queries.jsonl before retrieving again"
+                ) from error
             raise ValueError(f"invalid query ledger JSON at line {index}") from error
         if not isinstance(row, dict):
             raise ValueError(f"query ledger line {index} must be a JSON object")
-        if isinstance(row.get("query_id"), str):
-            ids.add(row["query_id"])
-    return ids
+        yield row
+
+
+def _ledger_ids(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    return {row["query_id"] for row in _ledger_rows(path) if isinstance(row.get("query_id"), str)}
+
+
+def _pair_rows(records: list[dict[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pair each normalized record with its own raw row by position, so same-identity rows stay distinct."""
+    paired: list[dict[str, Any]] = []
+    cursor = 0
+    for record in records:
+        identity = _record_identity(record)
+        for offset in range(cursor, len(rows)):
+            if _record_identity(rows[offset]) == identity:
+                paired.append(rows[offset])
+                cursor = offset + 1
+                break
+        else:
+            paired.append({})
+    return paired
 
 
 def _plain_abstract(value: str) -> bytes:
@@ -288,15 +317,7 @@ def _write_abstracts(root: Path, payloads: list[Any]) -> tuple[set[str], set[str
 
 def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str, Any]:
     row = None
-    for index, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            parsed = json.loads(line)
-        except (json.JSONDecodeError, RecursionError) as error:
-            raise ValueError(f"invalid query ledger JSON at line {index}") from error
-        if not isinstance(parsed, dict):
-            raise ValueError(f"query ledger line {index} must be a JSON object")
+    for parsed in _ledger_rows(ledger_path):
         if parsed.get("query_id") == query_id:
             row = parsed
             break
@@ -376,8 +397,7 @@ def _recover_abstracts(root: Path, query_id: str, ledger_path: Path) -> dict[str
     if saved_identities != [_record_identity(record) for record in records]:
         raise ValueError(f"saved literature page record identities mismatch: {query_id}")
     summary_rows = []
-    for normalized in records:
-        raw = next((item for item in raw_rows if _record_identity(item) == _record_identity(normalized)), {})
+    for normalized, raw in zip(records, _pair_rows(records, raw_rows)):
         year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or ""
         summary_rows.append({"id": normalized.get("id", ""), "year": str(year)[:4],
                              "title": str(raw.get("title") or normalized.get("title") or "")[:120],
@@ -559,8 +579,7 @@ def retrieve_literature(
                     rows.extend(rs)
             summary_rows = []
             abstract_identities = _abstract_identities(rows)
-            for index, normalized in enumerate(result_obj["records"]):
-                raw = next((r for r in rows if _record_identity(r) == _record_identity(normalized)), {})
+            for normalized, raw in zip(result_obj["records"], _pair_rows(result_obj["records"], rows)):
                 title = str(raw.get("title") or normalized.get("title") or "")
                 year = raw.get("firstPublicationDate") or raw.get("pubYear") or normalized.get("publication_date") or normalized.get("year") or ""
                 has_abstract = source != "europepmc" or _record_identity(normalized) in abstract_identities

@@ -8,8 +8,12 @@ from typing import Any
 
 from codex_science.cli_io import write_json_atomic
 from codex_science.connector_contract import canonical_json_bytes
-from codex_science.evidence import _support_source_path, _validate_claim_register, _validate_study_table
+from codex_science.evidence import (
+    QUERY_STATUSES, _bounded_repr, _support_source_path, _valid_sha256, _validate_claim_register,
+    _validate_study_table,
+)
 from codex_science.literature import validate_review_snapshot
+from codex_science.literature_retrieval import _jsonl_lines
 from codex_science.screening_pool import _relative_path, _safe_file
 from codex_science.study_table import _input_file
 
@@ -99,7 +103,7 @@ def build_literature_snapshot(
         hashes["queries"] = hashlib.sha256(query_bytes).hexdigest()
         by_query_id: dict[str, dict[str, Any]] = {}
         response_by_query_id: dict[str, bytes] = {}
-        for line_number, raw in enumerate(query_bytes.decode("utf-8").splitlines(), 1):
+        for line_number, raw in enumerate(_jsonl_lines(query_bytes.decode("utf-8")), 1):
             if not raw.strip():
                 continue
             try:
@@ -121,7 +125,26 @@ def build_literature_snapshot(
             for field in ("status", "accessed_at"):
                 if field in record:
                     entry[field] = record[field]
+            accessed_at, status = record.get("accessed_at"), record.get("status")
+            if not isinstance(accessed_at, str) or not accessed_at.strip():
+                problems.append(
+                    f"query {query_id} accessed_at is required: {_bounded_repr(accessed_at)}; expected: non-empty text"
+                )
+            if not isinstance(status, str) or not status.strip():
+                problems.append(
+                    f"query {query_id} status is required: {_bounded_repr(status)}; expected: non-empty text"
+                )
+            elif status.strip() not in QUERY_STATUSES:
+                problems.append(
+                    f"Invalid query status for {query_id}: {_bounded_repr(status.strip())}; "
+                    f"allowed: {sorted(QUERY_STATUSES)}"
+                )
             response = record.get("response_sha256")
+            if response is not None and response != "" and (not isinstance(response, str) or not _valid_sha256(response)):
+                problems.append(
+                    f"Invalid response_sha256 for query {query_id}: {_bounded_repr(response)}; "
+                    "expected: 64 hexadecimal characters"
+                )
             response_identity = canonical_json_bytes(response.lower() if isinstance(response, str) else response)
             previous = by_query_id.get(query_id)
             if previous is not None:
@@ -134,6 +157,8 @@ def build_literature_snapshot(
             by_query_id[query_id] = entry
             response_by_query_id[query_id] = response_identity
         query_rows = list(by_query_id.values())
+        if not query_rows:
+            problems.append("queries.jsonl contains no queries")
     except (OSError, UnicodeError) as error:
         problems.append(f"queries: {error}")
 
