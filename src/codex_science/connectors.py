@@ -57,6 +57,8 @@ def _fetch_bytes(request: urllib.request.Request) -> bytes:
             body = _read_with_deadline(response, MAX_RESPONSE_BYTES + 1, deadline)
     except TimeoutError as error:
         host = urllib.parse.urlsplit(request.full_url).hostname
+        if time.monotonic() < deadline:
+            raise TimeoutError(f"timed out reading {host} response") from error
         raise TimeoutError(f"{host} response not received within {RESPONSE_DEADLINE_SECONDS} s") from error
     if len(body) > MAX_RESPONSE_BYTES:
         raise ValueError("response exceeded 16 MiB limit")

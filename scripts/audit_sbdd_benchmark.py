@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from codex_science.cli_io import preflight_output_paths, write_text_atomic  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, write_text_atomic  # noqa: E402
 from codex_science.sbdd import audit_sbdd_benchmark  # noqa: E402
 
 
@@ -23,7 +23,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         preflight_output_paths(args.output, inputs=[args.benchmark])
-        benchmark = json.loads(args.benchmark.read_text(encoding="utf-8"))
+        benchmark = load_json_object(args.benchmark)
         findings = audit_sbdd_benchmark(benchmark)
         payload = {
             "status": "findings" if findings else "passed",
