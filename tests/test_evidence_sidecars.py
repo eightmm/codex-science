@@ -1350,6 +1350,121 @@ class EvidenceSidecarTests(unittest.TestCase):
                         for relative in paths:
                             self.assertIn(relative, message)
 
+    def _mutate_sidecar(self, relative: str, mutate, *, write=None) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            path = run_dir / relative
+            if write is None:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                mutate(payload)
+                path.write_text(json.dumps(payload), encoding="utf-8")
+            else:
+                path.write_bytes(write)
+            self._rehash(manifest, run_dir, relative)
+            validate_bundle(manifest, run_dir)
+
+    def test_unknown_required_evidence_is_refused(self) -> None:
+        def typo(payload):
+            payload["claims"][0]["required_evidence"] = ["primray"]
+
+        with self.assertRaisesRegex(ValueError, r"claim claim-method-effect required_evidence has unknown values.*primray"):
+            self._mutate_sidecar("claims.json", typo)
+
+        def empty(payload):
+            payload["claims"][0]["required_evidence"] = []
+
+        self._mutate_sidecar("claims.json", empty)
+
+    def test_required_text_fields_refuse_non_text_values(self) -> None:
+        for field in ("text", "falsifier", "uncertainty", "next_action", "permitted_inference"):
+            for value in (None, False, True, [], {}, 1.5):
+                def mutate(payload, field=field, value=value):
+                    payload["claims"][0][field] = value
+
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(
+                    ValueError, rf"claim claim-method-effect {field} is required"
+                ):
+                    self._mutate_sidecar("claims.json", mutate)
+
+        def null_pid(payload):
+            payload["studies"][0]["persistent_id"] = None
+
+        with self.assertRaisesRegex(ValueError, "persistent_id is required"):
+            self._mutate_sidecar("studies.json", null_pid)
+
+        for field in ("query", "source", "accessed_at"):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, rf"query q-pubmed-1 {field} is required"):
+                with tempfile.TemporaryDirectory() as tempdir:
+                    run_dir, manifest = self._copy_example(Path(tempdir))
+                    path = run_dir / "queries.jsonl"
+                    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+                    rows[0][field] = None
+                    path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+                    self._rehash(manifest, run_dir, "queries.jsonl")
+                    validate_bundle(manifest, run_dir)
+
+    def test_deeply_nested_and_non_utf8_sidecars_name_the_file(self) -> None:
+        with self.assertRaisesRegex(ValueError, r"Invalid JSON in claim-register: claims\.json"):
+            self._mutate_sidecar("claims.json", None, write=b"[" * 100000 + b"]" * 100000)
+        with self.assertRaisesRegex(ValueError, r"claims\.json is not valid UTF-8"):
+            self._mutate_sidecar("claims.json", None, write=b"\xff\xfe{}")
+        with self.assertRaisesRegex(ValueError, r"queries\.jsonl is not valid UTF-8"):
+            self._mutate_sidecar("queries.jsonl", None, write=b"\xff\n")
+        with self.assertRaisesRegex(ValueError, r"Invalid query ledger JSON at queries\.jsonl:1"):
+            self._mutate_sidecar("queries.jsonl", None, write=b"[" * 100000 + b"]" * 100000 + b"\n")
+
+    def test_schema_version_must_be_the_integer_one(self) -> None:
+        from codex_science.evidence import _schema_one
+
+        _schema_one({"schema_version": 1}, "x")
+        for value in (True, 1.0, "1", None, 2, 0):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "Unsupported x schema version"):
+                _schema_one({"schema_version": value}, "x")
+
+    def test_query_ledger_splits_on_line_feed_only(self) -> None:
+        from codex_science.evidence import _load_jsonl
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "queries.jsonl"
+            separators = "\u2028\u2029\u0085\u001c\u001d\u001e"
+            path.write_text(
+                json.dumps({"query": "a" + separators + "b"}, ensure_ascii=False) + "\r\n\r\n"
+                + json.dumps({"query": "c"}) + "\n",
+                encoding="utf-8",
+            )
+            records = _load_jsonl(path)
+            self.assertEqual(["a" + separators + "b", "c"], [row["query"] for row in records])
+
+    def test_excerpt_source_is_read_once_per_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir = Path(tempdir)
+            source = "Alpha beta gamma delta epsilon zeta eta theta.\nIota kappa lambda mu nu xi omicron.\n"
+            (run_dir / "source.txt").write_text(source, encoding="utf-8")
+            digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+            excerpts = [
+                {"claim_id": "c1", "text": text, "source_artifact": "source.txt", "source_sha256": digest}
+                for text in ("Alpha beta gamma delta epsilon", "Iota kappa lambda mu nu xi", "zeta eta theta. Iota kappa")
+            ]
+            excerpts.append({**excerpts[0], "text": "absent absent absent absent absent"})
+            study = {
+                "study_id": "s1", "persistent_id": "id-1", "title": "T", "evidence_type": "primary",
+                "included": True, "supports_claim_ids": ["c1"], "support_excerpts": excerpts[:3],
+            }
+            table = {"schema_version": 1, "studies": [study]}
+            original = Path.read_bytes
+            reads: list[Path] = []
+
+            def counting(self):
+                reads.append(self)
+                return original(self)
+
+            with patch.object(Path, "read_bytes", counting):
+                _validate_study_table(table, run_dir)
+            self.assertEqual(1, [path.name for path in reads].count("source.txt"))
+            study["support_excerpts"] = excerpts[2:]
+            with self.assertRaisesRegex(ValueError, "excerpt_not_found"):
+                _validate_study_table(table, run_dir)
+
     def _verified(self, manifest, run_dir):
         from codex_science.artifacts import verify_bundle_artifacts
         return verify_bundle_artifacts(manifest, run_dir)

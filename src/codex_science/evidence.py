@@ -127,7 +127,10 @@ def _list(value: Any, label: str) -> list[Any]:
     return value
 
 
-def _text(value: Any, label: str) -> str:
+def _text(value: Any, label: str, *, legacy_scalars: bool = False) -> str:
+    """Return stripped text; ``legacy_scalars`` keeps str() coercion for ids that later checks report."""
+    if not legacy_scalars and (not isinstance(value, (str, int)) or isinstance(value, bool)):
+        raise ValueError(f"{label} is required: {_bounded_repr(value)}; expected: non-empty text")
     text = str(value).strip()
     if not text:
         raise ValueError(f"{label} is required: {_bounded_repr(value)}; expected: non-empty text")
@@ -148,7 +151,8 @@ def _string_list(value: Any, label: str) -> list[str]:
 
 
 def _schema_one(payload: dict[str, Any], label: str) -> None:
-    if payload.get("schema_version") != 1:
+    version = payload.get("schema_version")
+    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
         raise ValueError(
             f"Unsupported {label} schema version: {_bounded_field_repr(payload, 'schema_version')}; "
             "expected: 1"
@@ -168,22 +172,30 @@ def _validate_claim_kind(claim_id: str, claim: dict[str, Any]) -> None:
         )
 
 
+def _read_utf8(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{path.name} is not valid UTF-8: {error}") from error
+
+
 def _load_json(path: Path, label: str) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
+        payload = json.loads(_read_utf8(path))
+    except (json.JSONDecodeError, RecursionError) as error:
         raise ValueError(f"Invalid JSON in {label}: {path.name}: {error}") from error
     return _mapping(payload, label)
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, raw in enumerate(_read_utf8(path).split("\n"), 1):
+        raw = raw.removesuffix("\r")
         if not raw.strip():
             continue
         try:
             payload = json.loads(raw)
-        except json.JSONDecodeError as error:
+        except (json.JSONDecodeError, RecursionError) as error:
             raise ValueError(
                 f"Invalid query ledger JSON at {path.name}:{line_number}: {error}"
             ) from error
@@ -443,9 +455,10 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
     _schema_one(payload, "study table")
     studies = _list(payload.get("studies"), "study table studies")
     by_id: dict[str, dict[str, Any]] = {}
+    sources: dict[Path, tuple[str, str | None, int]] = {}
     for index, raw in enumerate(studies):
         study = _mapping(raw, f"study {index}")
-        study_id = _text(study.get("study_id"), f"study {index} study_id")
+        study_id = _text(study.get("study_id"), f"study {index} study_id", legacy_scalars=True)
         if study_id in by_id:
             raise ValueError(f"Duplicate study id: {study_id}")
         _text(study.get("persistent_id"), f"study {study_id} persistent_id")
@@ -505,18 +518,25 @@ def _validate_study_table(payload: dict[str, Any], run_dir: Path | None = None) 
                         )
                 if run_dir is not None:
                     path = _support_source_path(run_dir, source_artifact, study_id, claim_id)
-                    content = path.read_bytes()
-                    if hashlib.sha256(content).hexdigest() != digest.lower():
+                    if path not in sources:
+                        content = path.read_bytes()
+                        try:
+                            source_text = content.decode("utf-8")
+                            normalised: str | None = _normalise_excerpt(source_text)
+                            line_count = len(source_text.splitlines())
+                        except UnicodeDecodeError:
+                            normalised, line_count = None, 0
+                        sources[path] = (hashlib.sha256(content).hexdigest(), normalised, line_count)
+                    source_digest, normalised, line_count = sources[path]
+                    if source_digest != digest.lower():
                         raise ValueError(f"{label} excerpt_hash_mismatch: source_sha256 does not match")
-                    try:
-                        source_text = content.decode("utf-8")
-                    except UnicodeDecodeError as error:
-                        raise ValueError(f"{label} excerpt_source_missing: source is not UTF-8") from error
-                    if _normalise_excerpt(text) not in _normalise_excerpt(source_text):
+                    if normalised is None:
+                        raise ValueError(f"{label} excerpt_source_missing: source is not UTF-8")
+                    if _normalise_excerpt(text) not in normalised:
                         raise ValueError(f"{label} excerpt_not_found: text does not occur in source")
                     line = excerpt.get("locator", {}).get("line")
                     if (isinstance(line, int) and not isinstance(line, bool)
-                            and not 1 <= line <= len(source_text.splitlines())):
+                            and not 1 <= line <= line_count):
                         raise ValueError(f"{label} locator.line {line} is outside source line count")
         by_id[study_id] = {**study, "study_id": study_id, "evidence_type": evidence_type}
     if run_dir is not None:
@@ -628,7 +648,9 @@ def _validate_screening_table(payload: dict[str, Any]) -> None:
     seen: set[str] = set()
     for index, raw in enumerate(_list(payload.get("records"), "screening.json records")):
         record = _mapping(raw, f"screening.json record {index}")
-        record_id = _text(record.get("record_id"), f"screening.json record {index} record_id")
+        record_id = _text(
+            record.get("record_id"), f"screening.json record {index} record_id", legacy_scalars=True
+        )
         if record_id in seen:
             raise ValueError(f"screening.json duplicate record_id: {record_id}")
         seen.add(record_id)
@@ -657,6 +679,16 @@ def validate_sidecars(
     claim_by_id: dict[str, dict[str, Any]] = {}
     if loaded["claim_register"] is not None:
         claim_by_id = _validate_claim_register(loaded["claim_register"])
+        for raw_claim in loaded["claim_register"]["claims"]:
+            unknown_evidence = sorted(
+                {value.strip() for value in raw_claim.get("required_evidence", [])
+                 if isinstance(value, str)} - EVIDENCE_TYPES
+            )
+            if unknown_evidence:
+                raise ValueError(
+                    f"claim {str(raw_claim['id']).strip()} required_evidence has unknown values: "
+                    f"{unknown_evidence}; allowed: {sorted(EVIDENCE_TYPES)}"
+                )
         if set(claim_by_id) != manifest_claim_ids:
             missing = sorted(manifest_claim_ids - set(claim_by_id))
             extra = sorted(set(claim_by_id) - manifest_claim_ids)
@@ -706,10 +738,10 @@ def validate_sidecars(
         relative = record.get("path")
         if record.get("kind") != "protocol" or relative not in verified or not relative.endswith(".json"):
             continue
-        raw = verified[relative].read_text(encoding="utf-8")
+        raw = _read_utf8(verified[relative])
         try:
             protocol = json.loads(raw[1:] if raw.startswith("\ufeff") else raw)
-        except json.JSONDecodeError as error:
+        except (json.JSONDecodeError, RecursionError) as error:
             if "commitment_ledger" in raw:
                 raise ValueError(f"Invalid JSON in protocol: {relative}: {error}") from error
             continue
