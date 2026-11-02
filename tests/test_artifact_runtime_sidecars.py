@@ -420,6 +420,29 @@ class ArtifactRuntimeSidecarTests(unittest.TestCase):
                 else:
                     self.assertEqual([], findings)
 
+    def test_descriptor_with_another_viewer_does_not_judge_a_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            run_dir = Path(scratch)
+            data = run_dir / "metrics.csv"
+            data.write_text("metric,value\nrmsd,2.4\n", encoding="utf-8")
+            table = describe_runtime(data, artifact_path="metrics.csv", kind="metrics", max_bytes=1024,
+                                     max_records=20, generated_at="2026-07-21T00:00:00Z").to_dict()
+            other = describe_runtime(data, artifact_path="metrics.csv", kind="structure", max_bytes=1024,
+                                     max_records=20, generated_at="2026-07-21T00:00:00Z").to_dict()
+            self.assertNotEqual(table["viewer"], other["viewer"])
+            selection = build_selection(table, selector_type="cell", selector={"row": 1, "column": "value"},
+                                        selected_by="reviewer", reason="Inspect.", created_at="2026-07-21T00:01:00Z")
+            manifest = new_manifest("viewer-run", "Does another viewer judge the selection?", [])
+            add_artifact(manifest, data.name, kind="metrics", sha256=digest(data))
+            for name, kind, payload in (("cell.selection.json", "artifact-selection", selection),
+                                        ("metrics.structure.runtime.json", "artifact-runtime-descriptor", other)):
+                path = run_dir / name
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                add_artifact(manifest, name, kind=kind, sha256=digest(path))
+            sidecars = validate_bundle(manifest, run_dir)
+            self.assertEqual([], [item for item in sidecars["advanced_findings"]
+                                  if item["code"] == "unresolved-artifact-selection"])
+
     def test_missing_verified_sidecar_path_is_labelled(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             with self.assertRaisesRegex(ValueError, r"\(artifact-selection\).*path"):

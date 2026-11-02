@@ -226,6 +226,7 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
             item for item in sidecars.get("runtime_descriptors", [])
             if item.get("artifact_path") == selection.get("artifact_path")
             and str(item.get("artifact_sha256")).lower() == str(selection.get("artifact_sha256")).lower()
+            and item.get("viewer") == selection.get("viewer")
         ]
         errors = [selection_region_error(selection, item) for item in matches]
         if errors and all(errors):

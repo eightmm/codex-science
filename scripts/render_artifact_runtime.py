@@ -131,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     describe = subcommands.add_parser("describe", help="Build a bounded runtime descriptor")
     describe.add_argument("artifact", type=Path, help="file or directory to describe")
-    describe.add_argument("--artifact-path", required=True, help="run-relative safe path (no absolute path, no \"..\") recorded in the descriptor")
+    describe.add_argument("--artifact-path", required=True, help="run-relative canonical POSIX path recorded in the descriptor (no absolute path, \"..\", bare \".\", backslash, control character or trailing slash)")
     describe.add_argument("--sha256", help="expected SHA-256 hex digest of the artifact bytes; a mismatch is an error")
     describe.add_argument("--kind", required=True, help="free-text kind; substrings such as structure, molecule, variant, genome, track, anndata or single-cell can select a viewer")
     describe.add_argument("--artifact-type", default="file", help="artifact type recorded for files (default: file); directories are always directory-tree")
