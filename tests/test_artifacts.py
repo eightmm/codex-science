@@ -696,6 +696,9 @@ class ArtifactIndexTests(unittest.TestCase):
             ("plan", [["nested"]], "Plan step 1 must be an object"),
             ("findings", "report.md", "Review findings must be a list"),
             ("findings", ["finding text"], "Review finding 1 must be an object"),
+            ("findings", [{"code": "x", "severity": ["major"], "message": "m"}], "Review finding 1 severity must be a string"),
+            ("findings", [{"code": "x", "severity": "major", "message": "m", "resolution_status": {"s": 1}}],
+             "Review finding 1 resolution_status must be a string"),
         )
         for field, value, message in cases:
             with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as tempdir:
@@ -819,6 +822,13 @@ class ArtifactIndexTests(unittest.TestCase):
             markdown = render_markdown(manifest, run)
             self.assertIn("[report.md](report.md)", markdown)
             self.assertIn("[reportU+200B.md](report%E2%80%8B.md)", markdown)
+            # A joiner inside non-ASCII text (Persian, emoji sequences) is kept; next to ASCII it is shown.
+            manifest["claims"][0]["text"] = "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645 \U0001F469\u200d\U0001F52C report\u200d.md"
+            write_manifest(manifest, manifest_path)
+            for output in (render_markdown(manifest, run), render_html(manifest, run)):
+                self.assertIn("\u0645\u06cc\u200c\u062e", output)
+                self.assertIn("\U0001F469\u200d\U0001F52C", output)
+                self.assertIn("reportU+200D.md", output)
 
     def test_renderer_counts_completed_statuses_consistently_and_matches_kinds_by_token(self) -> None:
         def edit(manifest: dict) -> None:

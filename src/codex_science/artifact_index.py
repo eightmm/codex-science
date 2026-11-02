@@ -45,17 +45,32 @@ STATUS_LABELS = {
 }
 
 
-def _escape_invisible(character: str) -> str:
-    if unicodedata.category(character) in {"Cc", "Cf"}:
-        return f"U+{ord(character):04X}"
-    return character
+_JOINERS = frozenset("\u200c\u200d")
+
+
+def _invisible(character: str) -> bool:
+    return unicodedata.category(character) in {"Cc", "Cf"}
 
 
 def _text(value: Any) -> str:
     # Whitespace (including control whitespace) collapses first; any remaining
     # control or format character, such as a bidi or zero-width mark, is shown
-    # as a visible escape so distinct names stay distinguishable.
-    return "".join(map(_escape_invisible, " ".join(str(value).split())))
+    # as a visible escape so distinct names stay distinguishable. A zero-width
+    # (non-)joiner between two visible non-ASCII characters is kept: Persian,
+    # Indic scripts and emoji sequences need it, and it cannot disguise ASCII.
+    text = " ".join(str(value).split())
+    out = []
+    for index, character in enumerate(text):
+        if _invisible(character) and not (
+            character in _JOINERS
+            and 0 < index < len(text) - 1
+            and not text[index - 1].isascii() and not _invisible(text[index - 1])
+            and not text[index + 1].isascii() and not _invisible(text[index + 1])
+        ):
+            out.append(f"U+{ord(character):04X}")
+        else:
+            out.append(character)
+    return "".join(out)
 
 
 def _markdown_text(value: Any) -> str:
@@ -96,12 +111,12 @@ def _claim_rows(
     disagreements: dict[str, dict[str, Any]] = {}
     if claim_register is not None:
         recorded = {
-            str(item.get("id", "")).strip(): item
+            str(item.get("id", "claim")).strip(): item
             for item in manifest["claims"]
             if isinstance(item, dict)
         }
         for claim in claims:
-            claim_id = str(claim.get("id", "")).strip()
+            claim_id = str(claim.get("id", "claim")).strip()
             other = recorded.get(claim_id)
             if other is not None and any(
                 _text(other.get(field, "")) != _text(claim.get(field, ""))
@@ -147,6 +162,11 @@ def _unresolved_blocking_findings(manifest: dict[str, Any]) -> int:
             raise ValueError(
                 f"Review finding {index} must be an object, not {type(finding).__name__}"
             )
+        for field in ("severity", "resolution_status"):
+            if field in finding and not isinstance(finding[field], str):
+                raise ValueError(
+                    f"Review finding {index} {field} must be a string, not {type(finding[field]).__name__}"
+                )
         if finding.get("severity") in BLOCKING_SEVERITIES and finding.get(
             "resolution_status", "open"
         ) not in RESOLVED_FINDING_STATUSES:
