@@ -180,6 +180,7 @@ def _heredoc_cuts(text: str, depth: int = 0) -> list[tuple[int, int]]:
     cuts: list[tuple[int, int]] = []
     pending: list[str] = []
     stack: list[bool] = []  # open parentheses; True marks an arithmetic `((`
+    arithmetic = 0  # count of True entries in stack, so the `<<` check stays O(1)
     first = previous = None  # first and last complete word of the current simple command
     word = -1  # start of the word being read
     lines: tuple[list[int], dict[str, list[int]]] | None = None
@@ -225,7 +226,7 @@ def _heredoc_cuts(text: str, depth: int = 0) -> list[tuple[int, int]]:
                 index += 3 if text.startswith("<<<", index) else 2
             elif text.startswith("<<", index):
                 match = _HEREDOC_RE.match(text, index + 2)
-                if match and not any(stack):
+                if match and not arithmetic:
                     pending.append(next(g for g in match.groups() if g))
                     index = match.end()
                 else:
@@ -252,8 +253,9 @@ def _heredoc_cuts(text: str, depth: int = 0) -> list[tuple[int, int]]:
             first = previous = None
             if char == "(":
                 stack.append(index > 0 and text[index - 1] == "(")
+                arithmetic += stack[-1]
             elif char == ")" and stack:
-                stack.pop()
+                arithmetic -= stack.pop()
         index += 1
     return cuts
 
@@ -463,6 +465,9 @@ _PLUGIN_SOURCE_RE = re.compile(_ANY_PLUGIN_CACHE_PATH.pattern + _SOURCE_TAIL)
 
 def _plugin_source_paths(text: str) -> list[str]:
     """Distinct plugin-cache scripts/ or src/ paths named in `text`, grouped by marketplace.
+
+    A plugin-cache path nested inside another path's scripts/ or src/ tail is part of that match
+    and is not listed separately; the caller's substring check still finds it.
 
     One pass over `text`: a pattern per named marketplace made the scan quadratic.
     """

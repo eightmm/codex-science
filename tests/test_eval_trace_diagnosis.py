@@ -531,6 +531,12 @@ class DiagnoseTest(unittest.TestCase):
         self.assertEqual(len(paths), 20_000)
         self.assertEqual(paths[:2], ["plugins/cache/m0/codex-science/1/src/a.py", "plugins/cache/m1/codex-science/1/src/a.py"])
 
+    def test_heredoc_scan_is_linear_in_open_parentheses(self):
+        text = "( " * 100_000 + "<<a " * 50_000
+        start = time.monotonic()
+        _strip_heredocs(text)
+        self.assertLess(time.monotonic() - start, 3)  # rescanning the paren stack per `<<` took about 9 s here
+
     def test_heredocs_inside_a_shell_c_argument_are_dropped(self):
         # the terminator is usually glued to the closing quote; the quote stays
         self.assertEqual(_strip_heredocs(wrap("python3 - <<'PY'\nopen('scripts/x.py')\nPY")), wrap("python3 - <<'PY'"))
