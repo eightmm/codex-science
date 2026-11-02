@@ -271,20 +271,21 @@ def _validate(payload: Any) -> dict[str, Any]:
 
 
 _POPULATION_SEPARATOR = re.compile(r"[,;/]|\band\b")
-# Head nouns that name a population group. A study population followed by a separator and an
-# item ending in one of these ("adults and older children") lists another group; any other
-# continuation ("aged 18 and over", "with heart failure and reduced ejection fraction") is
-# read as a narrowing qualifier, as before.
+# Nouns that name a population group. A study population followed by a separator and an item
+# containing one of these ("adults and children aged 5-12") lists another group; other
+# continuations ("aged 18 and over", "male and female", "current or former smokers") and
+# bracketed descriptions ("(men and women)") are read as narrowing qualifiers, as before.
 _POPULATION_NOUNS = frozenset({
     "adult", "adults", "adolescent", "adolescents", "teenager", "teenagers", "youth", "youths",
-    "child", "children", "infant", "infants", "newborn", "newborns", "neonate", "neonates",
-    "toddler", "toddlers", "boy", "boys", "girl", "girls", "man", "men", "woman", "women",
-    "male", "males", "female", "females", "elderly", "senior", "seniors", "patient", "patients",
-    "control", "controls", "participant", "participants", "volunteer", "volunteers",
-    "smoker", "smokers", "nonsmoker", "nonsmokers", "mother", "mothers", "father", "fathers",
+    "child", "children", "kid", "kids", "infant", "infants", "newborn", "newborns", "neonate",
+    "neonates", "toddler", "toddlers", "boy", "boys", "girl", "girls", "man", "men", "woman",
+    "women", "elderly", "senior", "seniors", "people", "person", "persons", "individual",
+    "individuals", "patient", "patients", "subject", "subjects", "participant", "participants",
+    "volunteer", "volunteers", "control", "controls", "caregiver", "caregivers", "carer", "carers",
     "student", "students", "worker", "workers", "veteran", "veterans",
     "mouse", "mice", "rat", "rats", "animal", "animals",
 })
+_BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
 
 
 def _population_components(population: str) -> list[str]:
@@ -296,9 +297,14 @@ def _population_narrows(target: str, population: str) -> bool:
     if not (target.startswith(population) and len(target) > len(population)
             and not target[len(population)].isalnum()):
         return False
-    added = _POPULATION_SEPARATOR.split(target[len(population):])[1:]
-    return not any(item.split() and re.sub(r"\W+$", "", item.split()[-1]) in _POPULATION_NOUNS
-                   for item in added)
+    continuation = target[len(population):]
+    while True:
+        stripped = _BRACKETED.sub(" ", continuation)
+        if stripped == continuation:
+            break
+        continuation = stripped
+    added = _POPULATION_SEPARATOR.split(continuation)[1:]
+    return not any(word in _POPULATION_NOUNS for item in added for word in re.findall(r"[^\W\d_]+", item))
 
 
 def _population_covered(target: str, populations: list[str]) -> bool:
