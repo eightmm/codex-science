@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
@@ -297,6 +298,12 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
     return sorted(unique.values(), key=lambda item: (item["code"], item["message"]))
 
 
+def _axiom_authorized(axiom: str, claim: Mapping[str, Any]) -> bool:
+    """An axiom is authorized when a claim assumption names it as a whole Lean identifier."""
+    pattern = re.compile(r"(?<![\w.'])" + re.escape(axiom) + r"(?![\w.'])")
+    return any(pattern.search(text) for text in _string_list(claim, "assumptions"))
+
+
 def math_review_findings(
     claims: list[Mapping[str, Any]],
     proof_receipts: list[Mapping[str, Any]],
@@ -450,9 +457,9 @@ def math_review_findings(
             findings.append({"code": "proof-obligations-open", "severity": "major", "message": f"Claim {claim_id} has unresolved proof obligations."})
         if status in PROVED_STATUSES:
             for receipt in linked_proofs:
-                axioms = _string_list(receipt, "axioms")
+                axioms = [axiom for axiom in _string_list(receipt, "axioms") if not _axiom_authorized(axiom, claim)]
                 if receipt.get("status") == "passed" and axioms:
-                    findings.append({"code": "formal-proof-axioms-unreviewed", "severity": "critical", "message": f"Passed proof receipt {receipt['receipt_id']} behind {status} claim {claim_id} declares axioms ({', '.join(axioms)}); review them as a trust boundary before accepting the claim."})
+                    findings.append({"code": "formal-proof-axioms-unreviewed", "severity": "critical", "message": f"Passed proof receipt {receipt['receipt_id']} behind {status} claim {claim_id} declares axioms the claim assumptions do not name ({', '.join(axioms)}); review them as a trust boundary before accepting the claim."})
         if status == "disproved" and not any(item.get("status") == "disproved" for item in linked_counters):
             findings.append({"code": "counterexample-missing", "severity": "critical", "message": f"Claim {claim_id} is disproved without a verified counterexample."})
         if status in PROVED_STATUSES and any(

@@ -72,7 +72,7 @@ A passed kernel receipt requires all of:
 5. checker tool and version recorded;
 6. `kernel_checked: true`.
 
-Declared axioms are not automatically rejected because some projects explicitly trust them, but they are listed as a trust-boundary limitation. Review whether each axiom is allowed by the claim contract.
+Declared axioms are not automatically rejected because some projects explicitly trust them, but they are listed as a trust-boundary limitation. Review whether each axiom is allowed by the claim contract. Quantitative review reports a critical `formal-proof-axioms-unreviewed` finding for a passed receipt behind a `proved-*` claim that declares an axiom no claim assumption names as a whole identifier.
 
 If Lean is unavailable, the runtime emits `status: unavailable` and a non-passing receipt. It does not install a toolchain implicitly.
 

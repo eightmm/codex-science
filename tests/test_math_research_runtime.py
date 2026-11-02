@@ -263,6 +263,30 @@ class MathResearchRuntimeTests(unittest.TestCase):
                     else:
                         self.assertEqual([], findings)
 
+    def test_axioms_named_in_claim_assumptions_are_authorized(self):
+        checker = {"kernel_checked": True, "tool": "lean", "tool_version": "4"}
+        for assumptions, axioms, flagged in (
+            (["axiom Foo.choice is trusted"], ["Foo.choice"], []),
+            (["Foo.choice"], ["Foo.choice", "extra"], ["extra"]),
+            (["cheater is trusted"], ["cheat"], ["cheat"]),
+            (["Foo.choice'"], ["Foo.choice"], ["Foo.choice"]),
+            (["Bar.Foo.choice"], ["Foo.choice"], ["Foo.choice"]),
+        ):
+            claim = build_mathematical_claim(
+                claim_id="C", statement="x > 0", domain="integers", assumptions=assumptions, quantifiers=["forall x"],
+                status="proved-formal", permitted_inference="inference", proof_receipt_ids=["P"],
+            )
+            proof = build_proof_receipt(
+                receipt_id="P", claim_id="C", statement="x > 0", kind="formal-kernel", status="passed",
+                assumptions=[], checker=checker, axioms=axioms,
+            )
+            with self.subTest(assumptions=assumptions, axioms=axioms):
+                findings = [item for item in math_review_findings([claim], [proof], [], [])
+                            if item["code"] == "formal-proof-axioms-unreviewed"]
+                self.assertEqual(bool(flagged), bool(findings))
+                if flagged:
+                    self.assertIn("(" + ", ".join(flagged) + ")", findings[0]["message"])
+
     def test_ids_are_compared_after_stripping(self):
         claim, proof = self._deductive_pair()
         claim.pop("fingerprint")

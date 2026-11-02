@@ -76,7 +76,7 @@ The declaration rule is a line heuristic on raw source, using this multiline reg
 
 It accepts indentation, an optional attribute group, and the listed modifiers. It does not parse Lean: a declaration that appears only inside a comment can still satisfy it. A passed receipt therefore does not establish that an intended theorem was declared; the separate correspondence review remains required before assigning `proved-formal`. The theorem-file hash covers raw bytes, including CRLF line endings; LF source hashes are unchanged.
 
-Declared axioms are surfaced as trust-boundary limitations and must be independently authorized by the claim contract. Introducing an axiom only to finish a proof is a failure.
+Declared axioms are surfaced as trust-boundary limitations and must be independently authorized by the claim contract: quantitative review reports a critical `formal-proof-axioms-unreviewed` finding for each declared axiom behind a `proved-*` claim that no claim assumption names as a whole identifier. Introducing an axiom only to finish a proof is a failure.
 
 ## Failure and invalidation
 
