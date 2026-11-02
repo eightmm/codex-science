@@ -2552,6 +2552,163 @@ class ComputeBackendTests(unittest.TestCase):
                 )
             self.assertEqual("cancelled", cancelled["state"])
 
+    def test_slurm_status_records_lost_only_when_both_tools_report_no_record(self) -> None:
+        invalid = "echo 'slurm_load_jobs error: Invalid job id specified' >&2; exit 1"
+        cases = (
+            ({"sacct": "exit 0", "squeue": invalid}, "42", "lost"),
+            ({"sacct": "echo 'slurmdbd: connection refused' >&2; exit 1", "squeue": invalid}, "42", "submitted"),
+            ({"sacct": "exit 0", "squeue": "echo 'Unable to contact slurm controller' >&2; exit 1"}, "42", "submitted"),
+            ({"sacct": "exit 0", "squeue": "exit 0"}, "42", "submitted"),
+            ({"squeue": invalid}, "42", "submitted"),
+            ({"sacct": "exit 0"}, "42", "submitted"),
+            ({"sacct": "exit 0", "squeue": invalid}, "", "submitted"),
+        )
+        for tools, scheduler_job_id, expected in cases:
+            with self.subTest(tools=tools, scheduler_job_id=scheduler_job_id), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                working = root / "working"
+                working.mkdir()
+                fake_bin = root / "bin"
+                fake_bin.mkdir()
+                for name, body in tools.items():
+                    executable = fake_bin / name
+                    executable.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+                    executable.chmod(0o700)
+                backend = SlurmBackend(root / "state")
+                spec = JobSpec.from_payload(
+                    {"backend": "slurm", "name": "lost-job", "command": ["python", "analysis.py"],
+                     "working_directory": str(working), "outputs": []}
+                )
+                job_dir = backend._job_dir("scheduler-lost")
+                job_dir.mkdir(parents=True)
+                (job_dir / "spec.json").write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+                submitted = compute_backends_module._state_material(
+                    spec, job_id=job_dir.name, state="submitted", submitted_at="2026-01-01T00:00:00Z",
+                    scheduler_job_id=scheduler_job_id,
+                )
+                (job_dir / "state.json").write_text(json.dumps(submitted), encoding="utf-8")
+                with mock.patch.dict(os.environ, {"PATH": str(fake_bin)}):
+                    status = backend.status(job_dir.name)
+                    self.assertEqual(expected, status["state"])
+                    self.assertEqual(status, json.loads((job_dir / "state.json").read_text(encoding="utf-8")))
+                    if expected == "submitted":
+                        with self.assertRaisesRegex(ValueError, "nonterminal Slurm job"):
+                            backend.collect(job_dir.name)
+                        continue
+                    self.assertEqual("worker-lost", status["failure_class"])
+                    self.assertEqual("42", status["scheduler_job_id"])
+                    self.assertIn("Slurm job 42", status["message"])
+                    self.assertIsNotNone(status["finished_at"])
+                    self.assertEqual(set(submitted), set(status))
+                    self.assertEqual("lost", backend.collect(job_dir.name)["state"])
+                    self.assertEqual("lost", backend.status(job_dir.name)["state"])
+
+    def test_collect_records_undigestable_directory_output_and_digests_the_rest(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working = root / "working"
+            (working / "out").mkdir(parents=True)
+            (working / "out" / "model.bin").write_bytes(b"fixture weights\n")
+            (working / "out" / "best").symlink_to("model.bin")
+            (working / "result.txt").write_text("fixture result\n", encoding="utf-8")
+            backend = LocalBackend(root / "state")
+            spec = local_spec(working, command=[sys.executable, "-c", "pass"], outputs=["out", "result.txt", "absent"])
+            job_dir = backend._job_dir("symlink-output")
+            job_dir.mkdir(parents=True)
+            (job_dir / "spec.json").write_text(json.dumps(spec.to_dict()), encoding="utf-8")
+            terminal = compute_backends_module._state_material(
+                spec, job_id=job_dir.name, state="completed", submitted_at="2026-01-01T00:00:00Z",
+                exit_code=0, message="command exited successfully",
+            )
+            (job_dir / "state.json").write_text(json.dumps(terminal), encoding="utf-8")
+
+            for attempt in range(2):
+                with self.subTest(attempt=attempt):
+                    collected = backend.collect(job_dir.name)
+                    by_path = {item["path"]: item for item in collected["outputs"]}
+                    self.assertEqual(
+                        {"path": "out", "artifact_type": "missing", "sha256": None, "size_bytes": None, "entry_count": 0},
+                        by_path["out"],
+                    )
+                    self.assertEqual("file", by_path["result.txt"]["artifact_type"])
+                    self.assertEqual(
+                        hashlib.sha256(b"fixture result\n").hexdigest(), by_path["result.txt"]["sha256"]
+                    )
+                    self.assertEqual("missing", by_path["absent"]["artifact_type"])
+                    self.assertEqual(
+                        "command exited successfully; collection: output out not digested: "
+                        "symbolic links are forbidden in directory artifacts: best",
+                        collected["message"],
+                    )
+                    self.assertEqual(set(terminal), set(collected))
+                    self.assertEqual("completed", collected["state"])
+                    compute_backends_module.validate_job_state(collected)
+
+            (working / "out" / "best").unlink()
+            collected = backend.collect(job_dir.name)
+            self.assertEqual("directory-tree", collected["outputs"][0]["artifact_type"])
+            self.assertEqual(describe_directory(working / "out").root_sha256, collected["outputs"][0]["sha256"])
+            self.assertEqual("command exited successfully", collected["message"])
+
+    def test_preflight_reports_undigestable_directory_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            (root / "data").mkdir()
+            (root / "data" / "a.txt").write_text("fixture\n", encoding="utf-8")
+            (root / "data" / "b.txt").symlink_to("a.txt")
+            payload = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[]).to_dict()
+            payload["inputs"] = [{"id": "data", "path": "data", "root_sha256": "0" * 64}]
+            spec = JobSpec.from_payload(payload)
+            for backend in (LocalBackend(root / "local"), SlurmBackend(root / "slurm")):
+                with self.subTest(backend=type(backend).__name__):
+                    report = backend.preflight(spec)
+                    self.assertFalse(report["ready"])
+                    check = next(item for item in report["checks"] if item["name"] == "input:data")
+                    self.assertFalse(check["ready"])
+                    self.assertIn("symbolic links are forbidden in directory artifacts: b.txt", check["detail"])
+            with self.assertRaisesRegex(ValueError, r"local preflight failed: input:data$"):
+                LocalBackend(root / "local").submit(spec)
+            self.assertFalse((root / "local").exists())
+
+    def test_submit_failure_names_failing_preflight_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            payload = local_spec(root, command=["fixture-missing-executable"], outputs=[]).to_dict()
+            payload["inputs"] = [{"id": "data", "path": "absent.txt"}, {"id": "ref", "identifier": "fixture:1"}]
+            spec = JobSpec.from_payload(payload)
+            with self.assertRaisesRegex(ValueError, r"^local preflight failed: executable, input:data$"):
+                LocalBackend(root / "local").submit(spec)
+            slurm = JobSpec.from_payload({**payload, "backend": "slurm"})
+            approval = build_approval_receipt(slurm, approved_by="fixture-reviewer", target="fixture-cluster")
+            with mock.patch.dict(os.environ, {"PATH": str(root / "no-tools")}), self.assertRaisesRegex(
+                ValueError, r"^Slurm preflight failed: sbatch, scancel, status-command, input:data$"
+            ):
+                SlurmBackend(root / "slurm").submit(slurm, approval=approval)
+            self.assertFalse((root / "local").exists())
+            self.assertFalse((root / "slurm").exists())
+
+    def test_wait_refuses_non_finite_and_non_numeric_intervals(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            backend = LocalBackend(Path(tempdir) / "state")
+            for timeout_seconds, poll_seconds, message in (
+                (float("nan"), 0.2, "must be finite"),
+                (float("inf"), 0.2, "must be finite"),
+                (-float("inf"), 0.2, "must be finite"),
+                (10**400, 0.2, "must be finite"),
+                (1, float("nan"), "must be finite"),
+                (1, float("inf"), "must be finite"),
+                ("1", 0.2, "must be numbers"),
+                (None, 0.2, "must be numbers"),
+                (True, 0.2, "must be numbers"),
+                (1, False, "must be numbers"),
+                (0, 0.2, "must be positive"),
+                (0.0, 0.2, "must be positive"),
+            ):
+                with self.subTest(timeout=timeout_seconds, poll=poll_seconds), self.assertRaisesRegex(ValueError, message):
+                    backend.wait("fixture-absent", timeout_seconds=timeout_seconds, poll_seconds=poll_seconds)
+            with self.assertRaises(FileNotFoundError):
+                backend.wait("fixture-absent", timeout_seconds=1e-9, poll_seconds=1)
+
     def test_load_spec_backend_factory_and_worker_invocation_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
@@ -2651,6 +2808,63 @@ class JobSpecParsingAndCliTests(unittest.TestCase):
                           float("nan"), float("inf"), -float("inf"), 10**400):
                 with self.subTest(value=value), self.assertRaises(ValueError):
                     JobSpec.from_payload(self.payload(Path(tempdir), cost_cap=value))
+
+    def test_boolean_fields_require_json_booleans(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            for field in ("inherit_environment", "approval_required"):
+                for value in (True, False):
+                    spec = JobSpec.from_payload(self.payload(root, **{field: value}))
+                    self.assertIs(value, getattr(spec, field))
+                for value in ("false", "no", "true", "", 0, 1, None, [], {}):
+                    with self.subTest(field=field, value=value), self.assertRaisesRegex(
+                        ValueError, f"^{field} must be a boolean$"
+                    ):
+                        JobSpec.from_payload(self.payload(root, **{field: value}))
+            defaults = JobSpec.from_payload(self.payload(root))
+            self.assertIs(True, defaults.inherit_environment)
+            self.assertIs(False, defaults.approval_required)
+            self.assertIs(True, JobSpec.from_payload(self.payload(root, backend="slurm")).approval_required)
+
+    def test_text_fields_require_strings(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            for changes, message in (
+                ({"name": None}, "^name is required$"),
+                ({"name": 7}, "^name must be a string$"),
+                ({"name": {}}, "^name must be a string$"),
+                ({"name": " "}, "^name is required$"),
+                ({"backend": None}, "^backend is required$"),
+                ({"working_directory": 7}, "^working_directory must be a string$"),
+                ({"outputs": [None]}, "^output is required$"),
+                ({"outputs": [7]}, "^output must be a string$"),
+                ({"outputs": [{}]}, "^output must be a string$"),
+                ({"checkpoint_paths": [7]}, "^checkpoint path must be a string$"),
+                ({"inputs": [{"id": None, "identifier": "fixture:1"}]}, "^input 0 id is required$"),
+                ({"inputs": [{"id": 7, "identifier": "fixture:1"}]}, "^input 0 id must be a string$"),
+                ({"inputs": [{"id": "a", "path": 7}]}, "^input a path must be a string$"),
+                ({"environment": {"OMP_NUM_THREADS": "1", 7: "1"}}, "^environment key must be a string$"),
+            ):
+                with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
+                    JobSpec.from_payload(self.payload(root, **changes))
+            spec = JobSpec.from_payload(
+                self.payload(root, name=" fixture ", outputs=["out.txt"], inputs=[{"identifier": "fixture:1"}],
+                             extra_key="ignored")
+            )
+            self.assertEqual("fixture", spec.name)
+            self.assertEqual(("out.txt",), spec.outputs)
+            self.assertEqual("input-0", spec.inputs[0]["id"])
+            with self.assertRaisesRegex(ValueError, "^job_id must be a string$"):
+                LocalBackend(root / "state").status(7)
+
+    def test_environment_keys_refuse_assignment_and_nul_characters(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            for key in ("A=B", "=A", "A=", "=", "A\0B", "\0"):
+                with self.subTest(key=key), self.assertRaisesRegex(ValueError, "^environment key must not contain"):
+                    JobSpec.from_payload(self.payload(root, environment={key: "fixture"}))
+            spec = JobSpec.from_payload(self.payload(root, environment={"A_B": "x=y"}))
+            self.assertEqual({"A_B": "x=y"}, spec.environment)
 
     def test_cli_refuses_spec_aliases_without_changing_input_bytes(self) -> None:
         for command in ("preflight", "approve", "render-slurm", "submit"):

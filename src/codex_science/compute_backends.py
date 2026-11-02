@@ -120,10 +120,20 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _text(value: Any, label: str) -> str:
-    text = str(value).strip()
+    if value is None:
+        raise ValueError(f"{label} is required")
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+    text = value.strip()
     if not text:
         raise ValueError(f"{label} is required")
     return text
+
+
+def _boolean(value: Any, label: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be a boolean")
+    return value
 
 
 def _integer(value: Any, label: str, *, minimum: int) -> int:
@@ -167,6 +177,9 @@ def _reject_secret_environment(environment: Mapping[str, Any]) -> dict[str, str]
     result: dict[str, str] = {}
     for key, value in environment.items():
         key_text = _text(key, "environment key")
+        # The worker's execve and Slurm's export both split at the first "=".
+        if "=" in key_text or "\0" in key_text:
+            raise ValueError(f"environment key must not contain '=' or NUL: {key_text!r}")
         normalized = key_text.lower()
         if any(fragment in normalized for fragment in SECRET_KEY_FRAGMENTS):
             raise ValueError(f"secret-like environment keys cannot be recorded in a job spec: {key_text}")
@@ -247,14 +260,15 @@ def _input_preflight(spec: "JobSpec") -> list[dict[str, Any]]:
                 {"name": f"input:{input_id}", "ready": True, "detail": "exists; no digest declared"}
             )
             continue
-        if target.is_file():
-            actual, _size = stream_sha256(target)
-        elif target.is_dir():
-            actual = describe_directory(target).root_sha256
-        else:
+        if not target.is_file() and not target.is_dir():
             checks.append(
                 {"name": f"input:{input_id}", "ready": False, "detail": "unsupported filesystem object"}
             )
+            continue
+        try:
+            actual = stream_sha256(target)[0] if target.is_file() else describe_directory(target).root_sha256
+        except ValueError as error:
+            checks.append({"name": f"input:{input_id}", "ready": False, "detail": f"cannot digest: {error}"})
             continue
         checks.append(
             {
@@ -362,13 +376,13 @@ class JobSpec:
             command=command,
             working_directory=str(Path(_text(payload.get("working_directory"), "working_directory")).resolve()),
             environment=_reject_secret_environment(environment_raw),
-            inherit_environment=bool(payload.get("inherit_environment", True)),
+            inherit_environment=_boolean(payload.get("inherit_environment", True), "inherit_environment"),
             inputs=_normalize_inputs(inputs_raw),
             outputs=tuple(_safe_relative(item, "output") for item in outputs_raw),
             resources=ResourceRequest.from_payload(payload.get("resources")),
             timeout_seconds=timeout,
             cost_cap=cost_cap,
-            approval_required=bool(payload.get("approval_required", backend != "local")),
+            approval_required=_boolean(payload.get("approval_required", backend != "local"), "approval_required"),
             scientific_run_id=None if payload.get("scientific_run_id") is None else str(payload["scientific_run_id"]),
             checkpoint_paths=tuple(_safe_relative(item, "checkpoint path") for item in checkpoints_raw),
             source_snapshot=_normalize_source_snapshot(payload.get("source_snapshot")),
@@ -546,14 +560,29 @@ def _job_state_lock(job_dir: Path) -> Iterator[None]:
 
 
 def _publish_job_state(
-    job_dir: Path, payload: Mapping[str, Any], *, collection: bool = False
+    job_dir: Path,
+    payload: Mapping[str, Any],
+    *,
+    collection: bool = False,
+    collection_notes: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     with _job_state_lock(job_dir):
-        return _publish_job_state_locked(job_dir, payload, collection=collection)
+        return _publish_job_state_locked(
+            job_dir, payload, collection=collection, collection_notes=collection_notes
+        )
+
+
+# Collection appends its notes to the terminal message after this marker and
+# replaces any notes an earlier collection left.
+_COLLECTION_NOTE_MARKER = "; collection: "
 
 
 def _publish_job_state_locked(
-    job_dir: Path, payload: Mapping[str, Any], *, collection: bool = False
+    job_dir: Path,
+    payload: Mapping[str, Any],
+    *,
+    collection: bool = False,
+    collection_notes: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     validate_job_state(payload)
     try:
@@ -567,6 +596,10 @@ def _publish_job_state_locked(
             updated["outputs"] = payload["outputs"]
             if "source_collection_error" in payload:
                 updated["source_collection_error"] = payload["source_collection_error"]
+            message = str(current.get("message") or "").split(_COLLECTION_NOTE_MARKER, 1)[0]
+            if collection_notes:
+                message += _COLLECTION_NOTE_MARKER + "; ".join(collection_notes)
+            updated["message"] = message
             updated["updated_at"] = _now()
             updated.pop("fingerprint", None)
             updated["fingerprint"] = _fingerprint(updated)
@@ -575,7 +608,7 @@ def _publish_job_state_locked(
             current["state"] == "running" and payload["state"] == "submitted"
         ):
             return current
-        elif payload["state"] == "lost" and (
+        elif payload["state"] == "lost" and not current.get("scheduler_job_id") and (
             not current.get("worker_pid") or _process_alive(int(current["worker_pid"]))
         ):
             return current
@@ -636,6 +669,10 @@ def _load_source_receipt(job_dir: Path, spec: JobSpec, state: Mapping[str, Any])
     if validated["input_ids"] != expected_input_ids:
         raise SourceSnapshotError("source receipt inputs differ from the job spec")
     return validated
+
+
+def _failed_checks(preflight: Mapping[str, Any]) -> str:
+    return ", ".join(str(check["name"]) for check in preflight["checks"] if not check["ready"])
 
 
 def _process_alive(pid: int) -> bool:
@@ -722,7 +759,7 @@ class LocalBackend:
             raise ValueError("LocalBackend requires backend=local")
         preflight = self.preflight(spec)
         if not preflight["ready"]:
-            raise ValueError("local preflight failed")
+            raise ValueError(f"local preflight failed: {_failed_checks(preflight)}")
         if spec.approval_required:
             if approval is None:
                 raise ValueError("job spec requires explicit approval")
@@ -803,8 +840,17 @@ class LocalBackend:
         return state
 
     def wait(self, job_id: str, *, timeout_seconds: float, poll_seconds: float = 0.2) -> dict[str, Any]:
-        if timeout_seconds <= 0 or poll_seconds <= 0:
-            raise ValueError("wait timeout and poll interval must be positive")
+        for value in (timeout_seconds, poll_seconds):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError("wait timeout and poll interval must be numbers")
+            try:
+                finite = math.isfinite(value)
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise ValueError("wait timeout and poll interval must be finite")
+            if value <= 0:
+                raise ValueError("wait timeout and poll interval must be positive")
         deadline = time.monotonic() + timeout_seconds
         while True:
             state = self.status(job_id)
@@ -871,6 +917,7 @@ class LocalBackend:
             root = None
             source_collection_error = str(error)
         outputs: list[dict[str, Any]] = []
+        notes: list[str] = []
         for relative in spec.outputs:
             if root is None:
                 outputs.append(
@@ -887,7 +934,12 @@ class LocalBackend:
             if not path.is_relative_to(root):
                 raise ValueError(f"output escapes working directory: {relative}")
             if path.is_dir():
-                descriptor = describe_directory(path)
+                try:
+                    descriptor = describe_directory(path)
+                except ValueError as error:
+                    notes.append(f"output {relative} not digested: {error}")
+                    outputs.append({"path": relative, "artifact_type": "missing", "sha256": None, "size_bytes": None, "entry_count": 0})
+                    continue
                 outputs.append({"path": relative, "artifact_type": "directory-tree", "sha256": descriptor.root_sha256, "size_bytes": descriptor.total_bytes, "entry_count": descriptor.entry_count})
             elif path.is_file():
                 digest, size = stream_sha256(path)
@@ -901,7 +953,7 @@ class LocalBackend:
             state["source_collection_error"] = source_collection_error
         state["updated_at"] = _now()
         state["fingerprint"] = _fingerprint(state)
-        return _publish_job_state(job_dir, state, collection=True)
+        return _publish_job_state(job_dir, state, collection=True, collection_notes=tuple(notes))
 
 
 def _job_environment(spec: JobSpec) -> dict[str, str]:
@@ -1283,7 +1335,7 @@ class SlurmBackend:
         validate_approval_receipt(approval, spec)
         preflight = self.preflight(spec)
         if not preflight["ready"]:
-            raise ValueError("Slurm preflight failed")
+            raise ValueError(f"Slurm preflight failed: {_failed_checks(preflight)}")
         job_id = "slurm-local-" + uuid.uuid4().hex[:16]
         job_dir = self._job_dir(job_id)
         source_receipt = _prepare_source_snapshot(spec, job_dir)
@@ -1325,9 +1377,11 @@ class SlurmBackend:
         scheduler_job_id = str(state.get("scheduler_job_id") or "")
         raw_state = ""
         exit_code = None
+        sacct_has_no_record = squeue_has_no_record = False
         if shutil.which("sacct"):
             completed = subprocess.run(["sacct", "-n", "-P", "-j", scheduler_job_id, "--format=State,ExitCode,Elapsed,MaxRSS"], text=True, capture_output=True, check=False)
             first = next((line for line in completed.stdout.splitlines() if line.strip()), "")
+            sacct_has_no_record = completed.returncode == 0 and not first
             if first:
                 fields = first.split("|")
                 parts = fields[0].split()
@@ -1340,10 +1394,19 @@ class SlurmBackend:
         if not raw_state and shutil.which("squeue"):
             completed = subprocess.run(["squeue", "-h", "-j", scheduler_job_id, "-o", "%T"], text=True, capture_output=True, check=False)
             raw_state = completed.stdout.strip().splitlines()[0].upper() if completed.stdout.strip() else ""
-        if not raw_state:
-            return state
-        mapped = SLURM_STATE_MAP.get(raw_state)
-        if mapped is None:
+            # A controller outage also exits nonzero; only this report means no record.
+            squeue_has_no_record = completed.returncode != 0 and "invalid job id" in completed.stderr.lower()
+        if raw_state:
+            mapped = SLURM_STATE_MAP.get(raw_state)
+            if mapped is None:
+                return state
+            failure_class = None if mapped == "completed" else (raw_state.lower() if mapped in TERMINAL_STATES else None)
+            message = f"Slurm state {raw_state}"
+        elif scheduler_job_id and sacct_has_no_record and squeue_has_no_record:
+            mapped = "lost"
+            failure_class = "worker-lost"
+            message = f"neither sacct nor squeue has a record of Slurm job {scheduler_job_id}"
+        else:
             return state
         spec = JobSpec.from_payload(_read_json(job_dir / "spec.json"))
         updated = _state_material(
@@ -1354,9 +1417,9 @@ class SlurmBackend:
             started_at=state.get("started_at") or (_now() if mapped == "running" else None),
             finished_at=_now() if mapped in TERMINAL_STATES else None,
             exit_code=exit_code,
-            failure_class=None if mapped == "completed" else (raw_state.lower() if mapped in TERMINAL_STATES else None),
+            failure_class=failure_class,
             scheduler_job_id=scheduler_job_id,
-            message=f"Slurm state {raw_state}",
+            message=message,
             **_source_state_update(state),
         )
         return _publish_job_state(job_dir, updated)
