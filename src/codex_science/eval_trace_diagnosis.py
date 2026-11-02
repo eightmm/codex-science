@@ -23,11 +23,12 @@ REPEAT_THRESHOLD = 3
 _MAX_LINE_BYTES = 1 << 20
 _MAX_FILE_BYTES = 64 << 20
 _MAX_MANIFESTS = 200
+_MAX_SCAN_CHARS = 8192  # per command, bounds the regex work done on untrusted text
 EVIDENCE_BOUNDARY = (
     "Counts are pattern matches over recorded commands, not judgments of scientific quality; "
     "regexes can miss shell indirection (variables, eval, scripts that run other commands).")
 
-_SCRIPT_RE = re.compile(r"(?<![\w.-])(?:[\w.$~{}-]*/)*scripts/(?P<name>[\w.-]+\.py)(?![\w.-])")
+_SCRIPT_RE = re.compile(r"(?:(?<=/)|(?<![\w.-]))scripts/(?P<name>[\w.-]+\.py)(?![\w.-])")
 _SOURCE_TAIL = r"/(?:scripts|src)/[^\s\"'<>;|&]+"
 _MANIFEST_WRITE_RES = tuple(re.compile(pattern) for pattern in (
     r"\bsed\b[^|;&\n]*\s-[A-Za-z]*i[^|;&\n]*manifest\.json",
@@ -41,8 +42,8 @@ _SEGMENT_SPLIT = {";", "&&", "||", "|", "&"}
 
 
 _PLUGIN_ROOT_RE = re.compile(
-    r"[^\s\"'<>;|&=:]*plugins/cache/[A-Za-z0-9][A-Za-z0-9._-]*/codex-science/[^/\\\s\"'<>;|&]+(?=/|$|[\\\s\"'<>;|&])")
-_HEREDOC_RE = re.compile(r"<<-?\s*(?:'([^']+)'|\"([^\"]+)\"|\\?([\w.-]+))")
+    r"(?<![^\s\"'<>;|&=:])[^\s\"'<>;|&=:]*plugins/cache/[A-Za-z0-9][A-Za-z0-9._-]*/codex-science/[^/\\\s\"'<>;|&]+(?=/|$|[\\\s\"'<>;|&])")
+_HEREDOC_RE = re.compile(r"-?\s*(?:'([^']+)'|\"([^\"]+)\"|\\?([\w.-]+))")
 _REDIRECT_RE = re.compile(r"^\d*(?:>>?|<)")
 _FD_DUP_RE = re.compile(r"\d*>&(?:\d+|-)|&>>?")
 
@@ -60,17 +61,63 @@ def _normalize(command: str) -> str:
     return " ".join(_plugin_relative(command).split())
 
 
+def _heredoc_delimiters(line: str) -> list[str]:
+    """Delimiters of real heredoc operators: not `<<<`, not quoted, not inside `((...))`."""
+    found: list[str] = []
+    stack: list[bool] = []  # open parentheses; True marks an arithmetic `((`
+    quote = ""
+    index, size = 0, len(line)
+    while index < size:
+        char = line[index]
+        if quote:
+            if char == "\\" and quote == '"':
+                index += 1
+            elif char == quote:
+                quote = ""
+        elif char == "\\":
+            index += 1
+        elif char in "'\"":
+            quote = char
+        elif char == "#" and (index == 0 or line[index - 1].isspace()):
+            break
+        elif char == "(":
+            stack.append(index > 0 and line[index - 1] == "(")
+        elif char == ")":
+            if stack:
+                stack.pop()
+        elif char == "<" and line.startswith("<<", index):
+            if index > 0 and line[index - 1] == "<" or line.startswith("<<<", index):
+                index += 3 if line.startswith("<<<", index) else 2
+                continue
+            match = _HEREDOC_RE.match(line, index + 2)
+            if match and not any(stack):
+                found.append(next(g for g in match.groups() if g))
+            index += 2
+            continue
+        index += 1
+    return found
+
+
 def _strip_heredocs(command: str) -> str:
-    """Drop heredoc bodies (data written by the command, not commands it runs)."""
+    """Drop heredoc bodies (data written by the command, not commands it runs).
+
+    A delimiter that never terminates is not a heredoc: its lines stay.
+    """
+    lines = command.split("\n")
     kept: list[str] = []
     delimiters: list[str] = []
-    for line in command.split("\n"):
+    body_start = 0
+    for number, line in enumerate(lines):
         if delimiters:
             if line.strip() == delimiters[0]:
                 delimiters.pop(0)
             continue
         kept.append(line)
-        delimiters.extend(next(g for g in match.groups() if g) for match in _HEREDOC_RE.finditer(line))
+        delimiters.extend(_heredoc_delimiters(line))
+        if delimiters:
+            body_start = number + 1
+    if delimiters:
+        kept.extend(lines[body_start:])
     return "\n".join(kept)
 
 
@@ -98,19 +145,37 @@ def _finite_t(value: Any) -> float | None:
 
 
 def _bounded_lines(path: Path) -> Iterable[bytes | None]:
-    """Yield lines; None marks a line over the size cap (rest of it is skipped)."""
-    with path.open("rb") as handle:
+    """Yield lines; None marks a line over the size cap (rest of it is skipped).
+
+    Only a regular file is read, at most `_MAX_FILE_BYTES` in total (else OSError).
+    """
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode):
+        raise OSError(f"{path}: not a regular file")
+    if info.st_size > _MAX_FILE_BYTES:
+        raise OSError(f"{path}: larger than {_MAX_FILE_BYTES} bytes")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    with os.fdopen(descriptor, "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise OSError(f"{path}: not a regular file")
+        total = 0
         while True:
             line = handle.readline(_MAX_LINE_BYTES + 1)
+            total += len(line)
             if not line:
                 return
             if len(line) > _MAX_LINE_BYTES and not line.endswith(b"\n"):
                 while True:
                     chunk = handle.readline(_MAX_LINE_BYTES)
+                    total += len(chunk)
+                    if total > _MAX_FILE_BYTES:
+                        raise OSError(f"{path}: larger than {_MAX_FILE_BYTES} bytes")
                     if not chunk or chunk.endswith(b"\n"):
                         break
                 yield None
             else:
+                if total > _MAX_FILE_BYTES:
+                    raise OSError(f"{path}: larger than {_MAX_FILE_BYTES} bytes")
                 yield line
 
 
@@ -208,8 +273,12 @@ def _is_help(command: str) -> bool:
     return bool(re.search(r"(?<!\S)(?:--help|-h)(?!\S)", command))
 
 
+def _item_id(value: Any) -> Any:
+    return _short(value) if isinstance(value, str) else value
+
+
 def _example(command: str, item: Mapping[str, Any], **extra: Any) -> dict[str, Any]:
-    return {"command": _short(command), "item_id": item.get("id"), "t": item.get("t"), **extra}
+    return {"command": _short(command), "item_id": _item_id(item.get("id")), "t": item.get("t"), **extra}
 
 
 def _section(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -218,12 +287,14 @@ def _section(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def collect_items(lines: Iterable[bytes | str | None]) -> dict[str, Any]:
     """Parse event lines (wrapped `{"t","event"}` or bare); tolerate malformed lines."""
-    items: dict[str, dict[str, Any]] = {}
-    order: list[str] = []
+    items: dict[Any, dict[str, Any]] = {}
+    order: list[Any] = []
     malformed = 0
     parsed = 0
     terminal = None
+    previous: tuple[str, str, str, str, Any] | None = None  # the line before: slot kind, event, item type, command, slot key
     for number, line in enumerate(lines):
+        prior, previous = previous, None
         if line is None:
             malformed += 1
             continue
@@ -288,13 +359,22 @@ def collect_items(lines: Iterable[bytes | str | None]) -> dict[str, Any]:
                 malformed += not timestamp_invalid
                 continue
         raw_id = item.get("id")
-        slot = f"id:{raw_id}" if isinstance(raw_id, (str, int)) and not isinstance(raw_id, bool) else f"line:{number}"
+        command_text = item["command"] if isinstance(item.get("command"), str) else ""
+        if isinstance(raw_id, (str, int)) and not isinstance(raw_id, bool):
+            slot: Any = ("id", item_type, type(raw_id).__name__, raw_id)
+        elif (prior is not None and prior[0] == "line" and prior[1] == "item.started"
+                and event_type == "item.completed" and prior[2] == item_type
+                and command_text and prior[3] == command_text):
+            slot = ("line", prior[4])
+        else:
+            slot = ("line", number)
         row = items.get(slot)
         if row is None:
-            row = items[slot] = {"id": raw_id if slot.startswith("id:") else None, "type": item["type"],
-                                "command": "", "exit_code": None, "output": "", "changes": [],
+            row = items[slot] = {"id": raw_id if slot[0] == "id" else None, "type": item["type"],
+                                "command": "", "exit_code": None, "changes": [],
                                 "t": t, "last_t": t}
             order.append(slot)
+        previous = (slot[0], event_type, item_type, command_text, slot[1])
         if t is not None:
             row["t"] = t if row["t"] is None else min(row["t"], t)
             row["last_t"] = t if row["last_t"] is None else max(row["last_t"], t)
@@ -305,8 +385,6 @@ def collect_items(lines: Iterable[bytes | str | None]) -> dict[str, Any]:
         exit_code = item.get("exit_code")
         if isinstance(exit_code, int) and not isinstance(exit_code, bool):
             row["exit_code"] = exit_code
-        if isinstance(item.get("aggregated_output"), str):
-            row["output"] = item["aggregated_output"]
         if isinstance(item.get("changes"), list):
             row["changes"] = [c for c in item["changes"] if isinstance(c, Mapping)]
     return {"items": [items[slot] for slot in order], "malformed_lines": malformed,
@@ -415,7 +493,8 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
     command_counts: dict[str, list[Any]] = {}
     for item in commands:
         raw = item["command"]
-        command = _strip_heredocs(raw)
+        command = _strip_heredocs(raw)[:_MAX_SCAN_CHARS]
+        scanned = raw[:_MAX_SCAN_CHARS]
         names = [m.group("name") for m in _SCRIPT_RE.finditer(command)]
         norm = _normalize(raw)
         command_counts.setdefault(norm, []).append(item)
@@ -443,7 +522,7 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
                 if any(source in path for path in read_set):
                     plugin_reads.append(_example(raw, item, path=_short(source)))
                     break
-        if not names and any(r.search(raw) for r in _MANIFEST_WRITE_RES):
+        if not names and any(r.search(scanned) for r in _MANIFEST_WRITE_RES):
             manifest_edits.append(_example(raw, item, via="command"))
     for item in items:
         if item["type"] != "file_change":
@@ -451,7 +530,7 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
         for change in item["changes"]:
             path = change.get("path")
             if isinstance(path, str) and os.path.basename(path) == "manifest.json":
-                manifest_edits.append({"command": None, "item_id": item["id"], "t": item["t"],
+                manifest_edits.append({"command": None, "item_id": _item_id(item["id"]), "t": item["t"],
                                        "via": "file_change", "path": _short(path)})
     repeated_commands = [(c, -n) for n, c in sorted((-len(v), c) for c, v in command_counts.items()
                                                     if len(v) >= REPEAT_THRESHOLD)]
@@ -459,7 +538,7 @@ def diagnose_items(parsed: Mapping[str, Any], *, receipt: Mapping[str, Any] | No
                                                  if len(v) >= REPEAT_THRESHOLD)]
     phase_rows = [row for *_, row in sorted(
         (span[0] is None, span[0] or 0.0, name, {"script": name, "first_t": span[0], "last_t": span[1]})
-        for name, span in phases.items())]
+        for name, span in phases.items())][:MAX_EXAMPLES]
     return {
         "schema_version": SCHEMA_VERSION,
         "event_lines": parsed["event_lines"],

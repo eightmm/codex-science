@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.eval_trace_diagnosis import diagnose_events, diagnose_task_dir  # noqa: E402
+from codex_science import eval_trace_diagnosis  # noqa: E402
+from codex_science.eval_trace_diagnosis import (  # noqa: E402
+    _strip_heredocs, collect_items, diagnose_events, diagnose_task_dir)
 
 CLI = ROOT / "scripts" / "diagnose_eval_trace.py"
 CACHE = "$HOME/.codex/plugins/cache/codex-science/codex-science/1.2.3"
@@ -382,6 +386,120 @@ class DiagnoseTest(unittest.TestCase):
                                   cmd("c", f"python {CACHE}/scripts/x.py")])
         self.assertEqual(result["repeated_exploration"]["commands"]["examples"],
                          [{"command": "python <plugin>/scripts/x.py", "count": 3}])
+
+    def cli(self, *args):
+        return subprocess.run([sys.executable, str(CLI), *map(str, args)], capture_output=True, text=True, timeout=60)
+
+    def test_cli_refuses_output_that_resolves_to_an_input(self):
+        events = self.tmp / "ev.jsonl"
+        events.write_text(cmd("a", "false", 1) + "\n")
+        before = events.read_bytes()
+        link = self.tmp / "link.json"
+        link.symlink_to(events)
+        hard = self.tmp / "hard.json"
+        os.link(events, hard)
+        for target in (events, link, hard):
+            done = self.cli("--events", events, "--output", target)
+            self.assertEqual(done.returncode, 2, target)
+            self.assertIn("diagnose_eval_trace:", done.stderr)
+            self.assertEqual(events.read_bytes(), before)
+        task = self.task_dir({"completion_report": {"runs": []}}, {"status": "completed"}, manifest={"artifacts": []})
+        for name in ("events.jsonl", "receipt.json", "last.md", "project/artifacts/manifest.json"):
+            kept = (task / name).read_bytes()
+            done = self.cli(task, "--output", task / name)
+            self.assertEqual(done.returncode, 2, name)
+            self.assertEqual((task / name).read_bytes(), kept)
+
+    def test_cli_output_write_errors_are_labelled(self):
+        events = self.tmp / "ev.jsonl"
+        events.write_text(cmd("a", "false", 1) + "\n")
+        done = self.cli("--events", events, "--output", self.tmp / "nodir" / "x.json")
+        self.assertEqual(done.returncode, 2)
+        self.assertIn("diagnose_eval_trace:", done.stderr)
+        self.assertNotIn("Traceback", done.stderr)
+        done = self.cli("--events", events, "--output", self.tmp)  # a directory cannot be replaced
+        self.assertEqual(done.returncode, 2)
+        self.assertNotIn("Traceback", done.stderr)
+        # the temporary file is created next to the output, here in the parent of self.tmp
+        self.assertEqual([p.name for p in self.tmp.parent.iterdir() if p.name.startswith(f".{self.tmp.name}.")], [])
+
+    def test_events_must_be_a_regular_file_within_the_byte_cap(self):
+        fifo = self.tmp / "fifo"
+        os.mkfifo(fifo)
+        for target in (fifo, self.tmp):
+            with self.assertRaises(OSError):
+                diagnose_events(target)
+        done = self.cli("--events", fifo)
+        self.assertEqual(done.returncode, 2)
+        events = self.tmp / "ev.jsonl"
+        events.write_bytes((cmd("a", "false", 1) + "\n").encode())
+        size = events.stat().st_size
+        original = eval_trace_diagnosis._MAX_FILE_BYTES
+        self.addCleanup(setattr, eval_trace_diagnosis, "_MAX_FILE_BYTES", original)
+        eval_trace_diagnosis._MAX_FILE_BYTES = size
+        self.assertEqual(diagnose_events(events)["command_count"], 1)  # equal to the cap is allowed
+        eval_trace_diagnosis._MAX_FILE_BYTES = size - 1
+        with self.assertRaises(OSError):
+            diagnose_events(events)
+        events.write_bytes(b"")
+        eval_trace_diagnosis._MAX_FILE_BYTES = 0
+        self.assertEqual(diagnose_events(events)["command_count"], 0)
+
+    def test_long_commands_are_scanned_in_bounded_time(self):
+        size = 200_000
+        commands = ["a" * size, "$" * size, "sed " * (size // 4), "open(" * (size // 5), "> " * (size // 2),
+                    "/" * size, "x/plugins/cache/" * (size // 16), "a=" * (size // 2)]
+        start = time.monotonic()
+        result = self.run_events([cmd(f"i{n}", text, 1) for n, text in enumerate(commands)])
+        self.assertLess(time.monotonic() - start, 30)
+        self.assertEqual(result["command_count"], len(commands))
+        shared = "echo " + "x" * 9000
+        result = self.run_events([cmd(f"r{n}", shared + tail, 0) for n, tail in enumerate("ABC")])
+        self.assertEqual(result["repeated_exploration"]["commands"]["count"], 0)
+        result = self.run_events([cmd(f"r{n}", shared + "A", 0) for n in range(3)])
+        self.assertEqual(result["repeated_exploration"]["commands"]["count"], 1)
+
+    def test_heredoc_lookalikes_do_not_hide_later_lines(self):
+        for first in ('grep x <<< "$v"', 'echo "a << b"', "echo 'a << b'", "echo $((1 << 2))", "echo $(( x << y ))",
+                      "cat <<EOF # unterminated"):
+            text = f"{first}\npython scripts/b.py"
+            self.assertEqual(_strip_heredocs(text), text, first)
+            result = self.run_events([cmd("a", text, 1)])
+            self.assertEqual(result["failed_tool_use"]["plugin_script"]["examples"][0]["script"], "b.py", first)
+        self.assertEqual(_strip_heredocs("cat <<EOF\nscripts/x.py\nEOF\nls"), "cat <<EOF\nls")
+        self.assertEqual(_strip_heredocs("x=$(cat <<'E'\nbody\nE\n)\nls"), "x=$(cat <<'E'\n)\nls")
+        self.assertEqual(_strip_heredocs(""), "")
+
+    def test_output_is_dropped_and_ids_and_phases_are_bounded(self):
+        parsed = collect_items([cmd("a", "ls", output="x" * 1000).encode()])
+        self.assertNotIn("output", parsed["items"][0])
+        result = self.run_events([cmd("i" * 500, "false", 1), change("c" * 500, "p/manifest.json")])
+        self.assertEqual(len(result["failed_tool_use"]["other"]["examples"][0]["item_id"]), 200)
+        self.assertEqual(len(result["manifest_hand_edits"]["examples"][0]["item_id"]), 200)
+        result = self.run_events([cmd(f"i{n}", f"python scripts/s{n}.py", t=n) for n in range(12)])
+        self.assertEqual([row["script"] for row in result["phase_seconds"]], [f"s{n}.py" for n in range(5)])
+
+    def test_item_identity_is_typed_and_idless_pairs_merge_only_when_adjacent(self):
+        def count(*events):
+            return len(collect_items([json.dumps(e) for e in events])["items"])
+
+        def item(event, item_id=None, kind="command_execution", command="false"):
+            body = {"type": kind, "command": command, "exit_code": 1}
+            if item_id is not None:
+                body["id"] = item_id
+            return {"type": event, "item": body}
+
+        started, done = "item.started", "item.completed"
+        self.assertEqual(count(item(done, 1), item(done, "1")), 2)
+        self.assertEqual(count(item(done, "a"), item(done, "a", kind="file_change")), 2)
+        self.assertEqual(count(item(started, "a"), item(done, "a")), 1)
+        self.assertEqual(count(item(started), item(done)), 1)
+        self.assertEqual(count(item(started), item(done, command="true")), 2)
+        self.assertEqual(count(item(started), {"type": "turn.started"}, item(done)), 2)
+        self.assertEqual(count(item(started), item(started), item(done)), 2)
+        self.assertEqual(count(item(done), item(done)), 2)
+        result = self.run_events([cmd(None, "false", None, event="item.started"), cmd(None, "false", 1)])
+        self.assertEqual((result["command_count"], result["failed_tool_use"]["count"]), (1, 1))
 
 
 if __name__ == "__main__":

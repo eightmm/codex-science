@@ -25,6 +25,24 @@ Examples:
 """
 
 
+def _input_clash(output: Path, sources: list[Path], project: Path | None) -> Path | None:
+    """The input that `output` resolves to (symlinks and hard links included), if any."""
+    target = Path(os.path.realpath(output))
+    for source in sources:
+        if target == Path(os.path.realpath(source)):
+            return source
+        try:
+            if output.exists() and source.exists() and os.path.samefile(output, source):
+                return source
+        except OSError:
+            pass
+    if project is not None and target.name == "manifest.json":
+        root = Path(os.path.realpath(project))
+        if target.is_relative_to(root):
+            return target
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, epilog=EPILOG,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -35,6 +53,13 @@ def main() -> int:
     args = parser.parse_args()
     if (args.task_dir is None) == (args.events is None):
         parser.error("give exactly one of TASK_DIR or --events FILE")
+    sources = ([args.events] if args.events else
+               [args.task_dir / "events.jsonl", args.task_dir / "receipt.json", args.task_dir / "last.md"])
+    if args.output is not None:
+        clash = _input_clash(args.output, sources, None if args.events else args.task_dir / "project")
+        if clash is not None:
+            print(f"diagnose_eval_trace: --output {args.output} would replace input {clash}", file=sys.stderr)
+            return 2
     try:
         result = diagnose_events(args.events) if args.events else diagnose_task_dir(args.task_dir)
     except OSError as error:
@@ -44,14 +69,22 @@ def main() -> int:
     if args.output is None:
         sys.stdout.write(text)
         return 0
-    descriptor, temp = tempfile.mkstemp(dir=args.output.parent, prefix=f".{args.output.name}.")
+    temp = None
     try:
+        descriptor, temp = tempfile.mkstemp(dir=args.output.parent, prefix=f".{args.output.name}.")
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(text)
         os.replace(temp, args.output)
-    except BaseException:
-        os.unlink(temp)
-        raise
+        temp = None
+    except OSError as error:
+        print(f"diagnose_eval_trace: cannot write --output {args.output}: {error}", file=sys.stderr)
+        return 2
+    finally:
+        if temp is not None:
+            try:
+                os.unlink(temp)
+            except OSError:
+                pass
     return 0
 
 
