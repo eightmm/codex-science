@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from codex_science.artifacts import validate_bundle
+from codex_science.artifacts import manifest_provenance_paths, validate_bundle
 from codex_science.evidence import _persistent_id
 from codex_science.evidence_graph_v2 import INDEPENDENCE_RELATIONS, UnionFind
 from codex_science.literature_v2 import RELATIONSHIPS, _identifiers
@@ -34,6 +34,24 @@ def _group_id(study: dict[str, Any], edge: dict[str, Any]) -> str:
         return cohort
     persistent = _persistent_id(study.get("persistent_id") or "")
     return f"pid:{persistent}" if persistent else str(edge["source"])
+
+
+def protected_run_paths(run_dir: str | Path) -> tuple[list[Path], list[Path]]:
+    """Return the manifest with every file it registers, and registered directory trees.
+
+    The registered claim-sufficiency result is this check's own output and stays
+    rewritable so an interrupted review sequence can rerun it.
+    """
+    root = Path(run_dir)
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest must be an object")
+    others = [record for record in manifest["artifacts"] if record.get("kind") != "claim-sufficiency"]
+    files = [manifest_path, *manifest_provenance_paths({**manifest, "artifacts": others}, root)]
+    trees = [root / str(record["path"]) for record in manifest["artifacts"]
+             if str(record.get("artifact_type", "file")) == "directory-tree"]
+    return files, trees
 
 
 def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
@@ -139,6 +157,9 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
             required = max(required, SUFFICIENCY_POLICY["replicated_minimum"])
         if tier == "full":
             required = max(required, SUFFICIENCY_POLICY["full_claim_kinds"].get(kind, 0))
+        declared = claim.get("required_support")
+        if isinstance(declared, int) and not isinstance(declared, bool):
+            required = max(required, declared)
         support_count = count_groups(supporting[claim_id])
         contradiction_count = count_groups(contradicting[claim_id])
         resolution = claim.get("contradiction_resolution")

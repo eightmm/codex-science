@@ -3,19 +3,51 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import os
 from difflib import get_close_matches
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
+from codex_science.artifacts import manifest_provenance_paths
 from codex_science.cli_io import write_json_atomic
 from codex_science.evidence import NODE_TYPES, RELATIONS, _support_source_path, _validate_claim_register, _validate_evidence_graph, _validate_study_table
 from codex_science.screening_pool import _relative_path, _safe_file
-from codex_science.study_table import _input_file
+
+
+def _run_relative(root: Path, value: str | Path, label: str) -> PurePosixPath:
+    """Map a cwd-relative or absolute spelling into the run, else treat a relative value as run-relative.
+
+    The shallowest ancestor that resolves to the run directory anchors the
+    remainder, so symlinked ancestors match while in-run components stay
+    lexical for the per-component symlink refusal.
+    """
+    path = Path(value)
+    spelled = path.absolute()
+    for ancestor in reversed(spelled.parents):
+        if os.path.realpath(ancestor) == str(root):
+            return _relative_path(spelled.relative_to(ancestor).as_posix(), label)
+    if path.is_absolute():
+        raise ValueError(f"{label} must be inside the run directory")
+    return _relative_path(path.as_posix(), label)
+
+
+def _input_file(root: Path, value: str | Path, label: str) -> Path:
+    result = _safe_file(root, _run_relative(root, value, label))
+    assert result is not None
+    return result
+
+
+def _refuse_non_finite(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"non-finite number {value} is not allowed")
+    return number
 
 
 def _read_json(path: Path) -> tuple[dict[str, Any], str]:
     data = path.read_bytes()
-    payload = json.loads(data)
+    payload = json.loads(data, parse_float=_refuse_non_finite, parse_constant=_refuse_non_finite)
     if not isinstance(payload, dict):
         raise ValueError(f"input JSON must be an object: {path.name}")
     return payload, hashlib.sha256(data).hexdigest()
@@ -35,7 +67,7 @@ def _suggest(value: Any, allowed: set[str]) -> str:
 
 def build_evidence_graph(
     run_dir: str | Path, claims: str | Path | None = None, studies: str | Path | None = None,
-    extra: str | Path | None = None, output: str | Path = "evidence_graph.json",
+    extra: str | Path | None = None, output: str | Path | None = None,
 ) -> dict[str, Any]:
     """Derive claim/study/cohort nodes and evidence edges; preserve extra relations."""
     root_arg = Path(run_dir).absolute()
@@ -46,13 +78,8 @@ def build_evidence_graph(
     study_path = _input_file(root, root / "studies.json" if studies is None else studies, "studies file")
     extra_path = _input_file(root, extra, "extra file") if extra is not None else None
     inputs = [claim_path, study_path] + ([extra_path] if extra_path else [])
-    output_arg = Path(output)
-    if output_arg.is_absolute():
-        try:
-            output_arg = output_arg.absolute().relative_to(root)
-        except ValueError as error:
-            raise ValueError("output file must be inside the run directory") from error
-    output_rel = _relative_path(output_arg.as_posix(), "output file")
+    output_rel = (PurePosixPath("evidence_graph.json") if output is None
+                  else _run_relative(root, output, "output file"))
     output_path = _safe_file(root, output_rel, required=False) or root.joinpath(*output_rel.parts)
 
     problems: list[str] = []
@@ -85,10 +112,31 @@ def build_evidence_graph(
         for study_id, study in study_by_id.items()
         for excerpt in study.get("support_excerpts", [])
     }
-    protected_paths = {path.resolve() for path in inputs} | {path.resolve() for path in excerpt_source_paths}
-    protected_paths.add((root / "manifest.json").resolve())
-    if output_path.resolve() in protected_paths:
-        raise ValueError("output file must not replace an input file, an excerpt source, or the manifest")
+    protected = [*inputs, *excerpt_source_paths, root / "manifest.json"]
+    protected_trees: list[Path] = []
+    manifest_path = root / "manifest.json"
+    if manifest_path.exists():
+        # The builder rebuilds the registered evidence graph; every other artifact stays intact.
+        try:
+            manifest, _ = _read_json(manifest_path)
+            for field in ("artifacts", "inputs"):
+                if not isinstance(manifest.get(field, []), list):
+                    raise ValueError(f"{field} must be a list")
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            raise ValueError(f"manifest.json: cannot list registered artifacts to protect: {error}") from error
+        artifacts = [record for record in manifest.get("artifacts", [])
+                     if isinstance(record, dict) and isinstance(record.get("path"), str) and record["path"]
+                     and record.get("kind") != "evidence-graph"]
+        protected.extend(manifest_provenance_paths({**manifest, "inputs": manifest.get("inputs", []),
+                                                    "artifacts": artifacts}, root))
+        protected_trees.extend((root / record["path"]).resolve() for record in artifacts
+                               if record.get("artifact_type") == "directory-tree")
+    output_resolved = output_path.resolve()
+    if (output_resolved in {path.resolve() for path in protected}
+            or any(os.path.samefile(output_path, path) for path in protected if output_path.exists() and path.exists())
+            or any(output_resolved.is_relative_to(tree) for tree in protected_trees)):
+        raise ValueError("output file must not replace an input file, an excerpt source, the manifest, "
+                         "or a registered artifact")
 
     nodes: list[dict[str, Any]] = [
         {"id": key, "label": value["text"], "type": "claim"} for key, value in claim_by_id.items()
@@ -98,7 +146,7 @@ def build_evidence_graph(
     cohorts: dict[str, dict[str, Any]] = {}
     known_ids = set(claim_by_id) | set(study_by_id)
     for study_id, study in study_by_id.items():
-        cohort = study.get("cohort_id")
+        cohort = str(study.get("cohort_id") or "").strip()
         if cohort:
             if cohort in known_ids:
                 problems.append(f"cohort_id {cohort} collides with a claim or study id")

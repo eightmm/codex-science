@@ -336,6 +336,129 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         self.assertEqual("evidence_graph.json", json.loads(proc.stdout)["output"])
 
 
+    def test_output_cannot_replace_registered_artifacts_or_aliases(self):
+        (self.root / "execution-log.jsonl").write_text("{}\n", encoding="utf-8")
+        (self.root / "raw").mkdir()
+        (self.root / "raw" / "input.csv").write_text("a,b\n", encoding="utf-8")
+        manifest = json.loads((self.root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["inputs"].append({"path": "raw/input.csv", "sha256": "0" * 64})
+        (self.root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        names = ("review.json", "lanes/pubmed-search.json", "report.md", "protocol.json", "manifest.json",
+                 "execution-log.jsonl", "raw/input.csv")
+        before = {name: (self.root / name).read_bytes() for name in names + ("evidence_graph.json",)}
+        os.link(self.root / "review.json", self.root / "review-alias.json")
+        for output in names + ("review-alias.json",):
+            with self.subTest(output=output), self.assertRaisesRegex(ValueError, "registered artifact"):
+                build_evidence_graph(self.root, output=output)
+        self.assertEqual(before, {name: (self.root / name).read_bytes() for name in before})
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        bad = subprocess.run([sys.executable, str(CLI), "--run-dir", str(self.root), "--output", "review.json"],
+                             capture_output=True, text=True, env=env)
+        self.assertEqual(1, bad.returncode)
+        self.assertTrue(bad.stderr.startswith("error:") and "registered artifact" in bad.stderr, bad.stderr)
+        self.assertEqual(before["review.json"], (self.root / "review.json").read_bytes())
+        self.assertEqual("fresh-graph.json", build_evidence_graph(self.root, output="fresh-graph.json")["output"])
+        self.assertEqual("evidence_graph.json", build_evidence_graph(self.root)["output"])
+
+    def test_registered_tree_and_unreadable_manifest_refuse_output(self):
+        manifest_path = self.root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["artifacts"].append({"path": "sources", "artifact_type": "directory-tree", "kind": "data"})
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "registered artifact"):
+            build_evidence_graph(self.root, output="sources/graph.json")
+        self.assertFalse((self.root / "sources").exists())
+        for text in ("{", "[]", json.dumps({"artifacts": {}}), json.dumps({"artifacts": [], "inputs": {}})):
+            manifest_path.write_text(text, encoding="utf-8")
+            with self.subTest(manifest=text), self.assertRaisesRegex(ValueError, "manifest.json"):
+                build_evidence_graph(self.root, output="fresh-graph.json")
+            self.assertFalse((self.root / "fresh-graph.json").exists())
+        manifest_path.unlink()
+        self.assertEqual("fresh-graph.json", build_evidence_graph(self.root, output="fresh-graph.json")["output"])
+
+    def test_absolute_paths_through_symlinked_ancestor_stay_in_run(self):
+        real = Path(self.temp.name) / "real"
+        real.mkdir()
+        shutil.move(str(self.root), str(real / "run"))
+        link = Path(self.temp.name) / "link"
+        link.symlink_to(real, target_is_directory=True)
+        extra = real / "run" / "extra.json"
+        extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [], "edges": []}), encoding="utf-8")
+        for run_dir, spelling in ((link / "run", link / "run"), (link / "run", real / "run"), (real / "run", link / "run")):
+            with self.subTest(run_dir=run_dir, spelling=spelling):
+                result = build_evidence_graph(run_dir, claims=spelling / "claims.json", extra=spelling / "extra.json",
+                                              output=spelling / "abs-graph.json")
+                self.assertEqual("abs-graph.json", result["output"])
+                self.assertTrue((real / "run" / "abs-graph.json").is_file())
+                (real / "run" / "abs-graph.json").unlink()
+        with self.assertRaisesRegex(ValueError, "output file must be inside the run directory"):
+            build_evidence_graph(link / "run", output=Path(self.temp.name) / "outside.json")
+        with self.assertRaisesRegex(ValueError, "claims file must be inside the run directory"):
+            build_evidence_graph(link / "run", claims=Path(self.temp.name) / "claims.json")
+
+    def test_cli_output_resolves_like_inputs_from_parent_directory(self):
+        for output, written in ((f"{self.root.name}/cwd-graph.json", "cwd-graph.json"), ("plain-graph.json", "plain-graph.json")):
+            with self.subTest(output=output):
+                proc = subprocess.run([sys.executable, str(CLI), "--run-dir", self.root.name,
+                                       "--claims", f"{self.root.name}/claims.json", "--output", output],
+                                      cwd=self.root.parent, capture_output=True, text=True)
+                self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+                self.assertEqual(written, json.loads(proc.stdout)["output"])
+                self.assertTrue((self.root / written).is_file())
+        self.assertFalse((self.root / self.root.name).exists())
+
+    def test_non_finite_numbers_are_refused_with_labels(self):
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        extra = self.root / "extra.json"
+        for literal in ("NaN", "-Infinity", "Infinity", "1e999"):
+            extra.write_text('{"schema": "evidence-graph-extra-v1", "nodes": [{"id": "d", "type": "dataset", "weight": '
+                             + literal + '}], "edges": []}', encoding="utf-8")
+            with self.subTest(literal=literal), self.assertRaisesRegex(ValueError, "extra: non-finite number"):
+                build_evidence_graph(self.root, extra=extra)
+            self.assertEqual(before, output.read_bytes())
+        claims = self.root / "claims.json"
+        claims.write_text(claims.read_text(encoding="utf-8").replace('"required_support": 1', '"required_support": NaN'), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "claims: non-finite number NaN"):
+            build_evidence_graph(self.root)
+        shutil.copy(EXAMPLE / "claims.json", claims)
+        extra.write_text('{"schema": "evidence-graph-extra-v1", "nodes": [{"id": "d", "type": "dataset", "weight": 1e308}], "edges": []}',
+                         encoding="utf-8")
+        build_evidence_graph(self.root, extra=extra)
+
+        def strict(value):
+            raise AssertionError(f"non-strict JSON constant {value}")
+        graph = json.loads(output.read_text(encoding="utf-8"), parse_constant=strict)
+        self.assertIn({"id": "d", "type": "dataset", "weight": 1e308}, graph["nodes"])
+
+    def test_numeric_cohort_ids_become_text_and_collisions_are_specific(self):
+        claims_path, studies_path = self.root / "claims.json", self.root / "studies.json"
+        claims = json.loads(claims_path.read_text(encoding="utf-8"))
+        claims["claims"][0]["id"] = "7"
+        claims_path.write_text(json.dumps(claims), encoding="utf-8")
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        studies["studies"][0]["supports_claim_ids"] = ["7"]
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        for cohort in (7, " 7 "):
+            studies["studies"][0]["cohort_id"] = cohort
+            studies_path.write_text(json.dumps(studies), encoding="utf-8")
+            with self.subTest(cohort=cohort), self.assertRaisesRegex(ValueError, "cohort_id 7 collides with a claim or study id"):
+                build_evidence_graph(self.root)
+            self.assertEqual(before, output.read_bytes())
+        for cohort, expected in ((8, "8"), (" c8 ", "c8"), (0, None), (" ", None)):
+            studies["studies"][0]["cohort_id"] = cohort
+            studies_path.write_text(json.dumps(studies), encoding="utf-8")
+            with self.subTest(cohort=cohort):
+                graph_result = build_evidence_graph(self.root)
+                graph = json.loads(output.read_text(encoding="utf-8"))
+                cohorts = [node["id"] for node in graph["nodes"] if node["type"] == "cohort"]
+                self.assertEqual([expected] if expected else [], cohorts)
+                self.assertEqual(int(bool(expected)), graph_result["counts"]["cohorts"])
+                support = next(edge for edge in graph["edges"] if edge["relation"] == "supports")
+                self.assertEqual(expected, support.get("independence_group"))
+
+
     def _plan(self, graph, *extra, steps=_DEFAULT_STEPS):
         steps_path = self.root / "steps.json"
         if steps is _DEFAULT_STEPS:

@@ -10,7 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.claim_sufficiency import check_sufficiency  # noqa: E402
+from codex_science.claim_sufficiency import check_sufficiency, protected_run_paths  # noqa: E402
+from codex_science.cli_io import preflight_output_paths  # noqa: E402
 from codex_science.run_packaging import _stage_file, digest_mismatch_hint  # noqa: E402
 
 
@@ -32,7 +33,9 @@ def main() -> int:
                         help="rigor tier setting the minimum independent supporting study groups per claim")
     parser.add_argument("--require-sufficient", action="store_true",
                         help="exit 1 if any claim is insufficient or has unresolved contradicting studies")
-    parser.add_argument("--output", help="also write the result JSON atomically to this path; untouched when the run is invalid (exit 2)")
+    parser.add_argument("--output", help="also write the result JSON atomically to this path; untouched when the run is invalid "
+                             "or the path would replace the manifest or a file it registers other than "
+                             "its claim-sufficiency result (exit 2)")
     args = parser.parse_args()
     try:
         result = check_sufficiency(args.run_dir, tier=args.tier)
@@ -44,6 +47,14 @@ def main() -> int:
         if args.output:
             print(f"note: {args.output} was not written because the run is invalid", file=sys.stderr)
         return 2
+    if args.output:
+        try:
+            files, trees = protected_run_paths(args.run_dir)
+            preflight_output_paths(Path(args.output), inputs=files, protected_dirs=trees)
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError, KeyError) as error:
+            print(json.dumps({"error": {"code": "output_refused", "message": f"refusing to write {args.output}: {error}"},
+                              "schema": "claim-sufficiency-error-v1"}))
+            return 2
     try:
         emit(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(",", ":")), args.output)
     except OSError as error:

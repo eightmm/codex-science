@@ -440,6 +440,56 @@ class ClaimSufficiencyTests(unittest.TestCase):
         self.assertEqual(row["supporting_groups"], 2)
         self.assertEqual((row["required"], row["verdict"], row["recommended_status"]), (3, "insufficient", "suggestive"))
 
+    def test_declared_required_support_raises_tier_bar(self):
+        base = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        for index, (declared, tier, required, verdict) in enumerate((
+                (2, "quick", 2, "insufficient"), (3, "standard", 3, "insufficient"),
+                (1, "quick", 1, "sufficient"), (0, "quick", 1, "sufficient"), (0, "standard", 2, "insufficient"))):
+            with self.subTest(declared=declared, tier=tier):
+                run = self._bundle(self._temp / str(index), claims=[{**base, "required_support": declared}])
+                row = check_sufficiency(run, tier=tier)["claims"][0]
+                self.assertEqual((1, required, verdict), (row["supporting_groups"], row["required"], row["verdict"]))
+        run = self._bundle(self._temp / "malformed", claims=[{**base, "required_support": "2"}])
+        with self.assertRaisesRegex(ValueError, "required_support"):
+            check_sufficiency(run, tier="quick")
+
+    def test_cli_output_refuses_manifest_registered_and_aliased_destinations(self):
+        run = self._temp / "run"
+        shutil.copytree(EXAMPLE, run)
+        out = run / "claim-sufficiency.json"
+        out.write_text("{}\n")
+        manifest = json.loads((run / "manifest.json").read_text())
+        manifest["artifacts"].append({"kind": "claim-sufficiency", "path": out.name,
+                                      "sha256": hashlib.sha256(out.read_bytes()).hexdigest()})
+        (run / "manifest.json").write_text(json.dumps(manifest))
+        files = [path for path in run.rglob("*") if path.is_file()]
+        before = {path: path.read_bytes() for path in files}
+        (self._temp / "graph-link.json").symlink_to(run / "evidence_graph.json")
+        os.link(run / "studies.json", self._temp / "studies-hardlink.json")
+        script = str(ROOT / "scripts/check_claim_sufficiency.py")
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        targets = [run / name for name in ("manifest.json", "review.json", "lanes/pubmed-search.json",
+                                           "claims.json", "protocol.json")]
+        targets += [self._temp / "graph-link.json", self._temp / "studies-hardlink.json"]
+        for target in targets:
+            with self.subTest(target=target.name):
+                proc = subprocess.run([sys.executable, script, "--run-dir", str(run), "--tier", "standard",
+                                       "--output", str(target)], cwd=self._temp, env=env, text=True, capture_output=True)
+                self.assertEqual(2, proc.returncode, proc.stdout + proc.stderr)
+                payload = json.loads(proc.stdout)
+                self.assertEqual({"schema", "error"}, set(payload))
+                self.assertEqual(("claim-sufficiency-error-v1", "output_refused"),
+                                 (payload["schema"], payload["error"]["code"]))
+                self.assertIn(str(target), payload["error"]["message"])
+        self.assertEqual(before, {path: path.read_bytes() for path in files})
+        self.assertTrue((self._temp / "graph-link.json").is_symlink())
+        self.assertEqual([], list(run.rglob(".*.tmp")) + list(self._temp.glob(".*.tmp")))
+        # The registered claim-sufficiency result is the check's own output; reruns rewrite it.
+        proc = subprocess.run([sys.executable, script, "--run-dir", str(run), "--tier", "standard", "--output", str(out)],
+                              cwd=self._temp, env=env, text=True, capture_output=True)
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertEqual(json.loads(out.read_text()), json.loads(proc.stdout))
+
     def setUp(self):
         self._temp_context = tempfile.TemporaryDirectory(dir="/tmp")
         self._temp = Path(self._temp_context.name)

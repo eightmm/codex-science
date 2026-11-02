@@ -48,7 +48,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--claims", help="claims register JSON in the run directory (default claims.json)")
     parser.add_argument("--studies", help="study table JSON in the run directory (default studies.json)")
     parser.add_argument("--extra", help="extra nodes/edges JSON in the run directory; format below")
-    parser.add_argument("--output", default="evidence_graph.json", help="graph file to write inside the run directory (default evidence_graph.json)")
+    parser.add_argument("--output", help="graph file to write inside the run directory, located like the inputs; must not replace "
+                        "an input, excerpt source, the manifest or another registered artifact (default evidence_graph.json)")
     args = parser.parse_args(argv)
     try:
         result = build_evidence_graph(args.run_dir, args.claims, args.studies, args.extra, args.output)
