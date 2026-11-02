@@ -43,6 +43,11 @@ def score_cases(cases: Iterable[dict[str, Any]]) -> dict[str, Any]:
     details: list[dict[str, Any]] = []
     severity_totals = {"critical": [0, 0], "major": [0, 0]}
     for case in cases:
+        try:
+            _validate_case(case)
+        except ValueError as error:
+            label = case.get("case_id", "<unnamed>") if isinstance(case, dict) else "<unnamed>"
+            raise ValueError(f"reviewer benchmark case {label}: {error}") from error
         expected_items = [item for item in case.get("expected_findings", []) if isinstance(item, dict)]
         expected = {(str(item["code"]), str(item.get("severity", "major"))) for item in expected_items}
         actual_items = evaluate_case(case)
@@ -108,16 +113,23 @@ def _validate_case(payload: Any) -> None:
         if field in case:
             _case_text(case[field], field)
     for field in ("expected_findings", "additional_findings"):
+        seen: set[tuple[str, str]] = set()
         for index, raw in enumerate(_case_array(case.get(field, []), field)):
             label = f"{field}[{index}]"
             item = _case_object(raw, label)
             _case_text(item.get("code"), f"{label}.code")
             if "severity" in item:
                 _case_text(item["severity"], f"{label}.severity", choices=WEIGHTS)
+            if field == "expected_findings":
+                pair = (item["code"], item.get("severity", "major"))
+                if pair in seen:
+                    raise ValueError(f"duplicate expected_findings pair at {label}: {pair!r}")
+                seen.add(pair)
             if field == "additional_findings" and "message" in item:
                 _case_text(item["message"], f"{label}.message", empty=True)
-    if "artifact_hashes" in case:
-        _case_object(case["artifact_hashes"], "artifact_hashes")
+    for field in ("artifact_hashes", "evidence_graph_v2", "review_receipt"):
+        if field in case:
+            _case_object(case[field], field)
     if "structured_review_input" in case:
         try:
             structured_review_findings(case["structured_review_input"])

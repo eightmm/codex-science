@@ -4,20 +4,23 @@ import argparse, json, sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from codex_science.cli_io import preflight_output_paths, write_text_atomic  # noqa: E402
 from codex_science.reviewer_benchmark import load_cases, score_cases  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cases", type=Path, default=ROOT / "benchmarks" / "reviewer",
                         help="Existing directory containing benchmark JSON cases")
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path,
+                        help="Atomically replace a report outside the cases directory; case aliases are refused")
     parser.add_argument("--require-safe", action="store_true",
                         help="Fail for zero cases, unsafe passes, or incomplete critical/major recall")
     args = parser.parse_args()
     try:
+        preflight_output_paths(args.output, inputs=args.cases.glob("*.json"), protected_dirs=[args.cases])
         report = score_cases(load_cases(args.cases))
         text = json.dumps(report, indent=2, sort_keys=True) + "\n"
-        if args.output: args.output.write_text(text, encoding="utf-8")
+        if args.output: write_text_atomic(args.output, text)
         else: print(text, end="")
     except (OSError, ValueError) as error:
         parser.exit(2, f"error: {error}\n")
