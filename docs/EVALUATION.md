@@ -1174,7 +1174,9 @@ refused before launch. Lines longer than 1 MiB are truncated with a marker
 and counted in `truncated_lines`; this alone does not stop the turn.
 Only the total output cap stops a turn with `output_cap`, stopping the driver
 with code `turn_failed` and reason `output_cap`. Process-group cleanup also
-runs on exceptions.
+runs on exceptions, after a normal child exit (before the checkpoint is read),
+and on SIGTERM or SIGHUP when their handlers are the default; those signals
+record the `interrupted` stop.
 
 The real-run harness writes private receipts and output files (mode 0600),
 refuses symlinked or pre-existing task output paths before execution, and

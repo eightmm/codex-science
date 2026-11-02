@@ -6,6 +6,7 @@ import math
 import tempfile
 import os
 import queue
+import signal
 import subprocess
 import threading
 import time
@@ -145,6 +146,44 @@ def _count_truncated_lines(path: Path) -> int:
     return count
 
 
+def _raise_interrupt(signum: int, frame: Any) -> None:
+    raise KeyboardInterrupt
+
+
+def _install_interrupt_handlers() -> dict[int, Any]:
+    """Route default-disposition SIGTERM/SIGHUP through the KeyboardInterrupt cleanup path."""
+    previous: dict[int, Any] = {}
+    if threading.current_thread() is not threading.main_thread():
+        return previous
+    for name in ("SIGTERM", "SIGHUP"):
+        number = getattr(signal, name, None)
+        if number is not None and signal.getsignal(number) == signal.SIG_DFL:
+            previous[number] = signal.signal(number, _raise_interrupt)
+    return previous
+
+
+def _restore_interrupt_handlers(previous: dict[int, Any]) -> None:
+    for number, handler in previous.items():
+        signal.signal(number, handler)
+
+
+def _stop_exited_group(process: subprocess.Popen[bytes]) -> None:
+    """Kill descendants left in an exited child's process group and wait briefly until it is empty."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        return
+    deadline = time.monotonic() + _KILL_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return
+        except PermissionError:
+            pass
+        time.sleep(0.01)
+
+
 def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *, event_stream=None,
               codex_home: Path | None = None) -> tuple[list[dict[str, Any]], int | None, bool, str | None, float, bool]:
     started = time.monotonic()
@@ -162,6 +201,8 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
     kill_requested = False
     output_capped = threading.Event()
     stop_reader = threading.Event()
+    # stderr drains to EOF; it is abandoned only when EOF does not follow the group kill within the join bound.
+    abandon_stderr = threading.Event()
     total_bytes = [0]
     byte_lock = threading.Lock()
 
@@ -244,7 +285,7 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
 
             def capture_stderr() -> None:
                 assert process is not None and process.stderr is not None
-                while not stop_reader.is_set():
+                while not abandon_stderr.is_set():
                     chunk = process.stderr.read1(65536)
                     if not chunk:
                         break
@@ -292,7 +333,13 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
                 if event_stream is None:
                     events.append(record)
                 else:
-                    event_stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    try:
+                        serialized = json.dumps(record, ensure_ascii=False)
+                        serialized.encode("utf-8")
+                    except UnicodeEncodeError:
+                        # Lone surrogates from JSON escapes cannot be UTF-8 encoded; keep them as escapes.
+                        serialized = json.dumps(record)
+                    event_stream.write(serialized + "\n")
                     event_stream.flush()
             exit_code = process.returncode
     except BaseException:
@@ -300,8 +347,12 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
         kill_and_wait()
         raise
     finally:
-        if process is not None and process.poll() is None:
-            kill_and_wait()
+        if process is not None:
+            if process.poll() is None:
+                kill_and_wait()
+            elif not kill_requested:
+                # Descendants of a normally exited child must not outlive the turn and change the checkpoint.
+                _stop_exited_group(process)
         if reader_started and reader is not None:
             reader.join(timeout=_READER_JOIN_SECONDS)
             reader_abandoned = reader.is_alive()
@@ -309,6 +360,8 @@ def _run_turn(argv: list[str], project: Path, directory: Path, timeout: float, *
         stderr_thread = stderr_reader
         if stderr_thread is not None:
             stderr_thread.join(timeout=_READER_JOIN_SECONDS)
+            if stderr_thread.is_alive():
+                abandon_stderr.set()
         if output_capped.is_set():
             launch_error = "output_cap"
         if kill_requested and process is not None and not reader_abandoned:
@@ -402,6 +455,7 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
                 "token_total": tokens_counted, "preflight": preflight,
                 "codex_home_kind": "explicit" if codex_home is not None else "ambient"}
 
+    previous_handlers = _install_interrupt_handlers()
     try:
         effective_home = runner._codex_home(codex_home)
         preflight = runner._preflight(codex_bin, effective_home)
@@ -506,7 +560,7 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
                 stop = {"code": "needs_human", "reason": "invalid_record" if outcome == "invalid" else selected.get("stop_reason", {}).get("code", outcome)}
                 break
             if (not baseline_has_active_run and selected is None and not changed_checkpoint_paths
-                    and after_hashes == initial_hashes and last.read_text(encoding="utf-8").strip()):
+                    and after_hashes == initial_hashes and last.read_text(encoding="utf-8", errors="replace").strip()):
                 stop = {"code": "quick_answer"}
                 break
             if no_progress_turns >= 2:
@@ -533,6 +587,8 @@ def drive(project: Path, prompt: str, *, run_dir: Path, codex_bin: str = "codex"
         stop = {"code": "driver_error", "error": f"{type(error).__name__}: {error}"}
         _write_receipt(receipt_path, make_receipt())
         raise
+    finally:
+        _restore_interrupt_handlers(previous_handlers)
 
 
 def _validate_caps(max_turns: int, wall_seconds: float, max_total_tokens: int | None) -> None:

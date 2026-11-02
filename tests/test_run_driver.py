@@ -28,6 +28,7 @@ from codex_science.run_driver import _argv, _run_turn, _write_receipt, drive
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CALL_TIMEOUT = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
 CLI = ROOT / "scripts" / "drive_codex_run.py"
 FAKE_CODE = r'''#!/usr/bin/env python3
 import json, os, pathlib, sys, time
@@ -58,6 +59,12 @@ if step.get("sleep"):
 if step.get("interrupt_parent"):
     import signal
     os.kill(os.getppid(), signal.SIGINT)
+    while True:
+        time.sleep(0.05)
+if step.get("signal_parent"):
+    import signal
+    counter.with_name("child.pid").write_text(str(os.getpid()))
+    os.kill(os.getppid(), getattr(signal, step["signal_parent"]))
     while True:
         time.sleep(0.05)
 
@@ -121,8 +128,12 @@ for artifact in step.get("remove_artifacts", []):
     (pathlib.Path(os.environ["FAKE_PROJECT"]) / "artifacts" / artifact).unlink()
 for size in step.get("stdout_line_sizes", []):
     print("x" * size)
+for line in step.get("raw_stdout", []):
+    print(line)
 if "last" in step:
     last.write_text(step["last"])
+if "last_hex" in step:
+    last.write_bytes(bytes.fromhex(step["last_hex"]))
 if not step.get("omit_thread"):
     print(json.dumps({"type":"thread.started", "thread_id":step.get("thread_id", "fake-thread")}))
 if step.get("terminal", "completed") == "failed":
@@ -134,6 +145,12 @@ usage = step.get("usage", {"input_tokens":10,"output_tokens":2})
 print(json.dumps({"type":"turn.completed", "usage":usage}))
 raise SystemExit(step.get("exit_code", 0))
 '''
+
+
+def _default_signal_dispositions() -> None:
+    # Inherited SIG_IGN (nohup, background jobs) would hide or hang the signal cases.
+    for name in ("SIGINT", "SIGTERM", "SIGHUP"):
+        signal.signal(getattr(signal, name), signal.SIG_DFL)
 
 
 class RunDriverTests(unittest.TestCase):
@@ -947,7 +964,175 @@ class RunDriverTests(unittest.TestCase):
                    str(root / "out"), "--codex-bin", str(binary), "--execute", *extra]
         # A launcher that ignores SIGINT (nohup, background jobs) must not hide the interrupt case.
         return subprocess.run(command, env=env, capture_output=True, text=True, check=False,
-                              preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+                              preexec_fn=_default_signal_dispositions)
+
+    def _wait_until_gone(self, pid: int) -> bool:
+        deadline = time.monotonic() + CALL_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return True
+            status = Path(f"/proc/{pid}/status")
+            try:
+                # A killed orphan stays a zombie under a subreaper that does not reap.
+                if "State:\tZ" in status.read_text(encoding="utf-8"):
+                    return True
+            except OSError:
+                pass
+            time.sleep(0.02)
+        return False
+
+    def _kill_if_alive(self, pid: int) -> None:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def test_cli_sigterm_and_sighup_kill_child_and_record_interrupted_receipt(self):
+        for name in ("SIGTERM", "SIGHUP"):
+            with self.subTest(signal=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                result = self._cli(root, [{"signal_parent": name}])
+                pid = int((root / "child.pid").read_text())
+                gone = self._wait_until_gone(pid)
+                if not gone:
+                    self._kill_if_alive(pid)
+                self.assertEqual(5, result.returncode, result.stderr)
+                self.assertTrue(gone, "Codex child outlived the interrupted driver")
+                saved = json.loads((root / "out" / "run-driver-receipt.json").read_text())
+                self.assertEqual({"code": "interrupted"}, saved["stop"])
+
+    def test_drive_routes_default_termination_signals_and_restores_handlers(self):
+        names = [name for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name)]
+        numbers = [getattr(signal, name) for name in names]
+        saved_handlers = {number: signal.getsignal(number) for number in numbers}
+        self.addCleanup(lambda: [signal.signal(number, handler) for number, handler in saved_handlers.items()])
+        cases = [("default", signal.SIG_DFL, None, True), ("error", signal.SIG_DFL, OSError("disk full"), True),
+                 ("ignored", signal.SIG_IGN, None, True), ("thread", signal.SIG_DFL, None, False)]
+        for label, initial, failure, main_thread in cases:
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                project = self._project(root)
+                binary, env = self._fake(root, [{}])
+                for number in numbers:
+                    signal.signal(number, initial)
+                observed = []
+
+                def turn(argv, project, directory, timeout, *, event_stream, **kwargs):
+                    observed.append({number: signal.getsignal(number) for number in numbers})
+                    if failure is not None:
+                        raise failure
+                    event_stream.write(json.dumps({"type": "thread.started", "thread_id": "fixture"}) + "\n")
+                    return [], 0, False, None, 0.01, False
+
+                errors = []
+
+                def run() -> None:
+                    try:
+                        drive(project, "task", run_dir=root / "out", codex_bin=str(binary), max_turns=1)
+                    except BaseException as error:
+                        errors.append(error)
+
+                with patch.dict(os.environ, env), patch("codex_science.run_driver._run_turn", side_effect=turn):
+                    if main_thread:
+                        run()
+                    else:
+                        worker = threading.Thread(target=run)
+                        worker.start()
+                        worker.join(timeout=CALL_TIMEOUT)
+                        self.assertFalse(worker.is_alive())
+                self.assertEqual([failure] if failure is not None else [], errors)
+                self.assertEqual(1, len(observed))
+                for number in numbers:
+                    replaced = main_thread and initial == signal.SIG_DFL
+                    self.assertEqual(replaced, observed[0][number] not in (signal.SIG_DFL, signal.SIG_IGN))
+                    if not replaced:
+                        self.assertEqual(initial, observed[0][number])
+                    self.assertEqual(initial, signal.getsignal(number))
+
+    def test_lone_surrogate_event_is_kept_without_failing_the_turn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._drive(root, [{"last": "answer", "raw_stdout": ['{"type":"x","m":"\\ud83d"}']}])
+            self.assertEqual({"code": "quick_answer"}, receipt["stop"])
+            lines = (root / "out" / "turn-1" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertIn({"type": "x", "m": "\ud83d"}, [json.loads(line)["event"] for line in lines])
+
+    def test_non_utf8_last_message_keeps_quick_answer(self):
+        for hex_bytes in ("ff", "616e73776572fffe"):
+            with self.subTest(hex_bytes=hex_bytes), tempfile.TemporaryDirectory() as tmp:
+                receipt = self._drive(Path(tmp), [{"last_hex": hex_bytes}])
+                self.assertEqual({"code": "quick_answer"}, receipt["stop"])
+
+    def test_run_turn_keeps_stderr_buffered_after_child_exit(self):
+        import codex_science.run_driver as driver
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            marker = root / "exited"
+            script = root / "fake-codex"
+            script.write_text(
+                "#!/usr/bin/env python3\nimport pathlib,sys,time\n"
+                "sys.stderr.buffer.write(b'a'*1024); sys.stderr.flush(); time.sleep(0.05)\n"
+                "sys.stderr.buffer.write(b'b'*50000); sys.stderr.flush()\n"
+                f"pathlib.Path({str(marker)!r}).write_text('x')\n",
+                encoding="utf-8",
+            )
+            script.chmod(0o755)
+            create_private = driver._create_private
+
+            class SlowFirstWrite:
+                def __init__(self, stream):
+                    self.stream = stream
+                    self.first = True
+
+                def write(self, data):
+                    if self.first:
+                        # Hold the first chunk until the child exited so the rest is still in the pipe.
+                        self.first = False
+                        deadline = time.monotonic() + CALL_TIMEOUT
+                        while not marker.exists() and time.monotonic() < deadline:
+                            time.sleep(0.01)
+                        time.sleep(0.2)
+                    return self.stream.write(data)
+
+                def __getattr__(self, name):
+                    return getattr(self.stream, name)
+
+            def slow_private(path, *, binary=False):
+                stream = create_private(path, binary=binary)
+                return SlowFirstWrite(stream) if binary else stream
+
+            with patch("codex_science.run_driver._create_private", side_effect=slow_private), \
+                 patch("codex_science.run_driver._READER_JOIN_SECONDS", CALL_TIMEOUT):
+                _, exit_code, timed_out, launch_error, _, _ = _run_turn([str(script)], root, directory, CALL_TIMEOUT)
+            self.assertEqual((0, False, None), (exit_code, timed_out, launch_error))
+            self.assertEqual(b"a" * 1024 + b"b" * 50000, (directory / "stderr.log").read_bytes())
+
+    def test_run_turn_kills_descendants_left_after_normal_child_exit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "turn-1"
+            directory.mkdir()
+            pid_file = root / "descendant.pid"
+            script = root / "fake-codex"
+            script.write_text(
+                "#!/usr/bin/env python3\nimport pathlib,subprocess\n"
+                "child = subprocess.Popen(['sleep', '60'], stdin=subprocess.DEVNULL, "
+                "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+                f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))\n",
+                encoding="utf-8",
+            )
+            script.chmod(0o755)
+            _, exit_code, timed_out, _, _, _ = _run_turn([str(script)], root, directory, CALL_TIMEOUT)
+            pid = int(pid_file.read_text())
+            gone = self._wait_until_gone(pid)
+            if not gone:
+                self._kill_if_alive(pid)
+            self.assertEqual((0, False), (exit_code, timed_out))
+            self.assertTrue(gone, "descendant outlived the turn")
 
     def test_cli_dry_run_executes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
