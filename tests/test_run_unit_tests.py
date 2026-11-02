@@ -252,9 +252,19 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn("malformed result", result.stderr)
 
     def test_import_outcomes_match_serial_discovery(self):
+        warning_case = textwrap.dedent("""
+            import unittest, warnings
+            class Warns(unittest.TestCase):
+                def test_no_warnings(self):
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.warn("old", DeprecationWarning)
+                    self.assertEqual([], caught)
+        """)
         for statement, status, counts in (
-            ("raise unittest.SkipTest('import skip marker')", 0, "errors=0, skips=1"),
-            ("raise ImportError('import error marker')", 1, "errors=1, skips=0"),
+            ("raise unittest.SkipTest('import skip marker')", 0, "failures=0, errors=0, skips=1"),
+            ("raise ImportError('import error marker')", 1, "failures=0, errors=1, skips=0"),
+            # Serial unittest applies the "default" warning filter, so the warning is recorded.
+            (warning_case, 1, "failures=1, errors=0, skips=0"),
         ):
             with self.subTest(statement=statement):
                 self.module("test_import_outcome", "import unittest\n" + statement)
@@ -265,11 +275,11 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(status, serial.returncode, serial.stderr)
                 result = self.invoke()
                 self.assertEqual(serial.returncode, result.returncode, result.stderr)
-                self.assertIn("tests_run=1, failures=0, " + counts, result.stdout)
+                self.assertIn("tests_run=1, " + counts, result.stdout)
                 self.assertNotIn("discovery mismatch", result.stderr)
                 if status:
                     self.assertIn("=== test_import_outcome ===", result.stderr)
-                    self.assertIn("import error marker", result.stderr)
+                    self.assertIn("import error marker" if "ImportError" in statement else "test_no_warnings", result.stderr)
 
     def test_uncovered_unexecuted_tests_are_refused(self):
         self.module("test_partial", """
@@ -378,6 +388,43 @@ class RunnerTests(unittest.TestCase):
         result = self.invoke()
         self.assertEqual(1, result.returncode)
         self.assertIn("discovery mismatch", result.stderr)
+
+    def test_interrupt_during_discovery_stops_before_workers(self):
+        for interruption in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(interruption=interruption):
+                marker = self.root / "importing.json"
+                marker.unlink(missing_ok=True)
+                self.module("test_slow_import", """
+                    import json, os, time
+                    from pathlib import Path
+                    Path('importing.json').write_text(json.dumps(os.getpid()))
+                    time.sleep(3600)
+                """)
+                environment = os.environ.copy()
+                environment["CODEX_SCIENCE_TEST_WORKERS"] = "2"
+                environment["PYTHONDONTWRITEBYTECODE"] = "1"
+                with subprocess.Popen(
+                    [sys.executable, str(RUNNER)], cwd=self.root, env=environment,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    preexec_fn=lambda: [signal.signal(s, signal.SIG_DFL) for s in (signal.SIGINT, signal.SIGTERM)],
+                ) as parent:
+                    try:
+                        deadline = time.monotonic() + CALL_TIMEOUT
+                        while not marker.exists():
+                            self.assertIsNone(parent.poll())
+                            self.assertLess(time.monotonic(), deadline, "discovery did not import the module")
+                            threading.Event().wait(0.01)
+                        parent.send_signal(interruption)
+                        try:
+                            output, errors = parent.communicate(timeout=CALL_TIMEOUT)
+                        except subprocess.TimeoutExpired:
+                            self.fail("interrupt during discovery did not stop the runner")
+                        self.assertEqual(128 + interruption, parent.returncode, output + errors)
+                        # Only the parent imported the module: no worker started.
+                        self.assertEqual(parent.pid, json.loads(marker.read_text()))
+                    finally:
+                        if parent.poll() is None:
+                            parent.kill()
 
     def test_interrupt_stops_workers_and_removes_scratch(self):
         for interruption in (signal.SIGINT, signal.SIGTERM):

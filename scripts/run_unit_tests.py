@@ -37,6 +37,8 @@ SERIAL_MODULES = frozenset({
     "test_trajectory_consensus",
 })
 COUNTS = ("tests_run", "failures", "errors", "skips", "expected_failures", "unexpected_successes")
+# Signals the parent runner received; unittest discovery would otherwise swallow their KeyboardInterrupt.
+RECEIVED_SIGNALS = []
 
 
 def test_ids(suite):
@@ -120,7 +122,9 @@ def run_child(module, destination):
         if loader.errors:
             raise ValueError("discovery failed:\n" + "\n".join(loader.errors))
     ids = [test.id() for test in test_ids(suite)]
-    result = unittest.TextTestRunner(verbosity=1, resultclass=RecordedResult).run(suite)
+    # Serial `python -m unittest` applies the "default" warning filter unless -W options are given.
+    warnings = None if sys.warnoptions else "default"
+    result = unittest.TextTestRunner(verbosity=1, resultclass=RecordedResult, warnings=warnings).run(suite)
     payload = dict(zip(COUNTS, (
         result.testsRun, len(result.failures), len(result.errors), len(result.skipped),
         len(result.expectedFailures), len(result.unexpectedSuccesses),
@@ -256,6 +260,9 @@ def run(start, workers):
     failed = False
     try:
         modules = discover(start)
+        if RECEIVED_SIGNALS:
+            # unittest discovery turns an interrupt during a test-module import into a failed-import placeholder.
+            raise KeyboardInterrupt(RECEIVED_SIGNALS[0])
         parallel = [name for name in modules if name.rsplit(".", 1)[-1] not in SERIAL_MODULES]
         serial = [name for name in modules if name.rsplit(".", 1)[-1] in SERIAL_MODULES]
         with tempfile.TemporaryDirectory(prefix="unit-tests-") as scratch:
@@ -322,16 +329,22 @@ def main():
         parser.error("CODEX_SCIENCE_TEST_WORKERS must be an integer >= 1")
 
     def interrupt(signum, frame):
+        RECEIVED_SIGNALS.append(signum)
         raise KeyboardInterrupt(signum)
 
-    previous = signal.signal(signal.SIGTERM, interrupt)
+    # Inherited dispositions such as an ignored SIGINT under `cmd &` are kept, as in serial runs.
+    previous = {}
+    for number, default in ((signal.SIGINT, signal.default_int_handler), (signal.SIGTERM, signal.SIG_DFL)):
+        if signal.getsignal(number) is default:
+            previous[number] = signal.signal(number, interrupt)
     try:
         return run(start, workers)
     except KeyboardInterrupt as exc:
         print("unit tests: interrupted", file=sys.stderr)
         return 128 + (exc.args[0] if exc.args else signal.SIGINT)
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for number, handler in previous.items():
+            signal.signal(number, handler)
 
 
 if __name__ == "__main__":
