@@ -1118,7 +1118,9 @@ class EvidenceSidecarTests(unittest.TestCase):
         limitation = "Backward reference screening covered 0 of 1 included studies."
         hidden = (f"<!-- {limitation} -->", f"<!--\n{limitation}\n-->", f"```\n{limitation}\n```",
                   f"~~~text\n{limitation}\n~~~", f"```\n{limitation}\n", f"<!-- {limitation}")
-        visible = (f"A <!-- note --> {limitation}", f"```\ncode\n```\n{limitation}", f"~~~\nx\n~~~\n\n{limitation}")
+        visible = (f"A <!-- note --> {limitation}", f"```\ncode\n```\n{limitation}", f"~~~\nx\n~~~\n\n{limitation}",
+                   f"```\n```\n{limitation}", f"~~~\n~~~\n{limitation}", f"```bash\n```\n\n{limitation}",
+                   f"<!--> {limitation}", f"<!---> {limitation}", f"```inline``` {limitation}")
         with tempfile.TemporaryDirectory() as tempdir:
             run_dir, manifest = self._copy_example(Path(tempdir))
             procedure = self._deviation_procedure(
