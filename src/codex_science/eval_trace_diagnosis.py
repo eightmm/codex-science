@@ -467,7 +467,8 @@ def _plugin_source_paths(text: str) -> list[str]:
     """Distinct plugin-cache scripts/ or src/ paths named in `text`, grouped by marketplace.
 
     A plugin-cache path nested inside another path's scripts/ or src/ tail is part of that match
-    and is not listed separately; the caller's substring check still finds it.
+    and is not listed separately. The caller's substring check usually still finds it, but not
+    when the outer tail holds a backslash that shell word splitting removes.
 
     One pass over `text`: a pattern per named marketplace made the scan quadratic.
     """
