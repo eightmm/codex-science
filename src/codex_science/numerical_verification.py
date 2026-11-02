@@ -158,6 +158,8 @@ def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
         noise_floor = _finite(solver.get("absolute_tolerance"), "absolute_tolerance")
     except ValueError:
         noise_floor = None
+    if noise_floor is not None and noise_floor < 0:
+        raise ValueError("solver.absolute_tolerance must not be negative")
 
     refinements: list[dict[str, Any]] = []
     resolutions: list[float] = []

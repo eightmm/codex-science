@@ -569,6 +569,14 @@ class NumericalVerificationContractTests(unittest.TestCase):
             self.assertIn("not finite", completed.stderr)
             self.assertFalse(output.exists())
 
+    def test_negative_absolute_tolerance_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "absolute_tolerance must not be negative"):
+            run_numerical_verification(self.payload(
+                reference_value=1.0,
+                refinements=[{"resolution": h, "estimate": 1.0 + h * h} for h in (0.4, 0.2, 0.1)],
+                thresholds={"minimum_order": 1.5},
+                solver={"precision": "binary64", "absolute_tolerance": -1e-12}, cross_method=[]))
+
     def test_order_from_errors_at_or_below_absolute_tolerance_is_noise(self) -> None:
         near_one = [{"resolution": h, "estimate": 1 + e} for h, e in ((0.4, 3.6e-15), (0.2, 9e-16), (0.1, 2.3e-16))]
         exact = [{"resolution": h, "estimate": 1.0, "error": e} for h, e in ((0.4, 4e-12), (0.2, 2e-12), (0.1, 1e-12))]
