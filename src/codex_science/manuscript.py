@@ -53,6 +53,11 @@ REVIEW_RECEIPT_KINDS = frozenset({"review-receipt", "review-receipt-v2"})
 REVIEW_PACKET_KINDS = frozenset({"review-packet", "review-packet-v1"})
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 CLAIM_MARKER_RE = re.compile(r"<!--\s*claim\s*:\s*[^\s>]+\s*-->")
+CLAIM_MARKER_ID_RE = re.compile(r"<!--\s*claim\s*:\s*([^\s>]+)\s*-->")
+CODE_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}(?P=fence)[`~]*[ \t]*$|(?P<ticks>`+)[^\n]+?(?P=ticks)", re.MULTILINE)
+BRACKET_RE = re.compile(r"\[([^\[\]]*@[^\[\]]*)\]")
+CITATION_KEY_RE = re.compile(r"(?<!\w)@(\w(?:[\w.:+/-]*[\w+/-])?)")
+CROSSREF_PREFIXES = ("fig:", "tbl:", "eq:", "sec:", "lst:")
 NUMBER_RE = re.compile(
     r"(?<![0-9A-Za-z_.])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?(?![0-9A-Za-z_]|\.\d)"
 )
@@ -72,6 +77,11 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _read_json(path: Path) -> Any:
+    # Hash checks read raw bytes; only parsing tolerates a UTF-8 byte-order mark.
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _relative_path(value: object) -> str | None:
@@ -100,7 +110,7 @@ def _load_json(
         findings.append(_finding("required-file-missing", f"Required file is missing: {name}"))
         return None
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = _read_json(path)
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
         findings.append(_finding("invalid-json", f"Could not read {name}: {error}"))
         return None
@@ -127,7 +137,10 @@ def _check_file_ref(
         findings.append(_finding(code, f"{label} has an invalid path or sha256"))
         return False
     target = root / relative
-    if not target.is_file() or not target.resolve().is_relative_to(root.resolve()):
+    if target.is_file() and not target.resolve().is_relative_to(root.resolve()):
+        findings.append(_finding(code, f"{label} path resolves outside the package (symlink): {relative}"))
+        return False
+    if not target.is_file():
         findings.append(_finding(code, f"{label} file is unavailable inside the package: {relative}"))
         return False
     if _sha256(target) != digest:
@@ -149,6 +162,22 @@ def _claim_segment(manuscript: str, locator: str) -> tuple[str | None, str | Non
     next_marker = CLAIM_MARKER_RE.search(manuscript, start)
     end = len(manuscript) if next_marker is None else next_marker.start()
     return manuscript[start:end], None
+
+
+def _unregistered_manuscript_keys(
+    manuscript: str, citation_ids: set[str], anchors: set[str]
+) -> tuple[list[str], list[str]]:
+    """Return bracketed citation keys and claim markers no map or checklist anchor uses."""
+    prose = CODE_RE.sub("", manuscript)
+    citations: set[str] = set()
+    for bracket in BRACKET_RE.finditer(prose):
+        for key in CITATION_KEY_RE.findall(bracket.group(1)):
+            if not key.startswith(CROSSREF_PREFIXES) and key not in citation_ids:
+                citations.add(key)
+    markers = {
+        marker for marker in CLAIM_MARKER_ID_RE.findall(prose) if f"claim:{marker}" not in anchors
+    }
+    return sorted(citations), sorted(markers)
 
 
 def _resolve_json_pointer(payload: Any, pointer: str) -> Any:
@@ -410,7 +439,7 @@ def _validate_source_bundle(
     relative = str(record["path"])
     manifest_path = root / relative
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = _read_json(manifest_path)
         if not isinstance(manifest, dict):
             raise ValueError("source manifest must be a JSON object")
         sidecars = validate_bundle(manifest, manifest_path.parent)
@@ -484,7 +513,7 @@ def _validate_source_bundle(
             continue
         packet_path = manifest_path.parent / str(item["path"])
         try:
-            packet = json.loads(packet_path.read_text(encoding="utf-8"))
+            packet = _read_json(packet_path)
             if not isinstance(packet, dict):
                 raise ValueError("review packet must be a JSON object")
             validate_review_packet(packet)
@@ -664,7 +693,7 @@ def _validate_submission_review(
     assert isinstance(receipt_ref, Mapping)
     receipt_path = str(receipt_ref["path"])
     try:
-        receipt = json.loads((root / receipt_path).read_text(encoding="utf-8"))
+        receipt = _read_json(root / receipt_path)
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
         findings.append(_finding("invalid-review-receipt", f"Could not read review receipt: {error}"))
         return
@@ -1118,7 +1147,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                             if not isinstance(evidence_locator, str):
                                 raise ValueError("JSON evidence locator must be a string")
                             _resolve_json_pointer(
-                                json.loads(artifact_path.read_text(encoding="utf-8")),
+                                _read_json(artifact_path),
                                 evidence_locator,
                             )
                         except (OSError, UnicodeDecodeError, ValueError) as error:
@@ -1159,7 +1188,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     findings.append(_finding("reported-value-invalid", f"{claim_id} value record is invalid"))
                     continue
                 text = str(value.get("text", ""))
-                if not text or segment is None or text not in segment:
+                if not text or segment is None or not _scalar_appears_in_text(text, segment):
                     findings.append(
                         _finding(
                             "reported-value-not-in-manuscript",
@@ -1188,7 +1217,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     artifact_path = root / str(value["artifact_path"])
                     if artifact_path.suffix.lower() == ".json":
                         try:
-                            artifact_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+                            artifact_payload = _read_json(artifact_path)
                             resolved_value = _resolve_json_pointer(artifact_payload, locator_value)
                         except (
                             json.JSONDecodeError,
@@ -1241,7 +1270,11 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                                     ))
 
     if "bibtex" in output_formats and (root / "references.bib").is_file():
-        bibtex = (root / "references.bib").read_text(encoding="utf-8")
+        try:
+            bibtex = (root / "references.bib").read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            findings.append(_finding("bibtex-output-invalid", f"Could not read references.bib as UTF-8: {error}"))
+            bibtex = ""
         entries: dict[str, dict[str, str]] = {}
         for citation_id, fields in _bibtex_entries(bibtex):
             if citation_id in entries:
@@ -1258,6 +1291,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
             if bib_doi and reference_doi and bib_doi != reference_doi:
                 findings.append(_finding("bibtex-doi-mismatch", f"BibTeX DOI differs from verified reference: {citation_id}"))
 
+    checklist_locators: set[str] = set()
     if checklist is not None:
         if checklist.get("schema_version") != 1:
             findings.append(_finding("checklist-schema-invalid", "Unsupported checklist schema"))
@@ -1275,10 +1309,18 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
         if not isinstance(items, list):
             findings.append(_finding("checklist-items-invalid", "Checklist items must be a list"))
         else:
+            seen_item_ids: set[str] = set()
             for item in items:
                 if not isinstance(item, Mapping):
                     findings.append(_finding("checklist-item-invalid", "Checklist item must be an object"))
                     continue
+                item_id = item.get("id")
+                if isinstance(item_id, str) and item_id.strip():
+                    if item_id.strip() in seen_item_ids:
+                        findings.append(
+                            _finding("checklist-item-duplicate", f"Reporting item id is duplicated: {item_id.strip()}")
+                        )
+                    seen_item_ids.add(item_id.strip())
                 status = item.get("status")
                 if not isinstance(status, str) or status not in {"met", "not-applicable", "unresolved"}:
                     findings.append(_finding("checklist-status-invalid", f"Reporting item has invalid status: {item.get('id')}"))
@@ -1286,6 +1328,8 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     locator = item["manuscript_locator"]
                     if not isinstance(locator, str) or not locator.strip() or _claim_segment(manuscript, locator.strip())[1] is not None:
                         findings.append(_finding("checklist-locator-invalid", f"Reporting item has no unique manuscript anchor: {item.get('id')}"))
+                    else:
+                        checklist_locators.add(re.sub(r"\s*:\s*", ":", locator.strip()))
                 if package_status in {"review-ready", "submission-ready"} and status == "unresolved":
                     findings.append(
                         _finding(
@@ -1293,6 +1337,19 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                             f"Reporting item remains unresolved: {item.get('id')}",
                         )
                     )
+
+    if trace is not None:
+        stray_citations, stray_markers = _unregistered_manuscript_keys(
+            manuscript, set(citation_by_id), claim_locators | checklist_locators
+        )
+        for key in stray_citations:
+            findings.append(_finding(
+                "citation-key-unregistered", f"manuscript.md cites @{key}, which is not in the citation map"
+            ))
+        for marker in stray_markers:
+            findings.append(_finding(
+                "claim-marker-unregistered", f"manuscript.md claim marker {marker} is not in the claim map"
+            ))
 
     if package_status == "submission-ready":
         _validate_submission_review(
@@ -1323,7 +1380,16 @@ def build_acceptance_package(specification: Mapping[str, Any], output: Path) -> 
             or specification.get("schema_version") != 1):
         raise ValueError("unsupported manuscript acceptance schema")
     manuscript_id = _required_text(specification.get("manuscript_id"), "manuscript_id")
+    reporting_guideline = _required_text(
+        specification.get("reporting_guideline", "none"), "reporting_guideline"
+    )
+    specification_values: dict[str, str | None] = {"target_venue": None, "evidence_cutoff": None}
+    for field in ("target_venue", "evidence_cutoff"):
+        if specification.get(field) is not None:
+            specification_values[field] = _required_text(specification[field], field)
     root = Path(output)
+    if root.exists() and not root.is_dir():
+        raise ValueError(f"output path is not a directory: {root}")
     if root.exists() and any(root.iterdir()):
         raise ValueError(f"output directory is not empty: {root}")
     root.mkdir(parents=True, exist_ok=True)
@@ -1433,9 +1499,9 @@ def build_acceptance_package(specification: Mapping[str, Any], output: Path) -> 
         "manuscript_id": manuscript_id,
         "mode": "new",
         "document_type": "research-article",
-        "target_venue": specification.get("target_venue"),
-        "evidence_cutoff": specification.get("evidence_cutoff"),
-        "reporting_guideline": specification.get("reporting_guideline", "none"),
+        "target_venue": specification_values["target_venue"],
+        "evidence_cutoff": specification_values["evidence_cutoff"],
+        "reporting_guideline": reporting_guideline,
         "output_formats": ["markdown", "latex", "bibtex"],
         "source_manifest": {
             "path": "source/manifest.json",

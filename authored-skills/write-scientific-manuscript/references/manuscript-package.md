@@ -68,7 +68,13 @@ Schema version `1` remains readable, but readiness validation is intentionally
 stricter. Existing packages can return new findings when their source receipt
 has no linked review packet, their source review omits a mandatory mode, their
 checklist guideline differs from the contract, or cited claim segments omit the
-recorded citation anchor, or an independent receipt states no limitation. Keep
+recorded citation anchor, an independent receipt states no limitation, the
+manuscript carries a bracketed `@key` citation absent from the citation map
+(`citation-key-unregistered`) or a `<!-- claim:ID -->` marker that no claim or
+checklist `manuscript_locator` uses (`claim-marker-unregistered`), a checklist
+repeats an item id (`checklist-item-duplicate`), `references.bib` is not UTF-8
+(`bibtex-output-invalid`), or a reported value appears only inside a longer
+number. Keep
 such a package in `draft` or `review-ready`, regenerate the exact review packet
 and receipt, refresh hashes, and validate again; do not suppress the finding or
 relabel the old receipt.
@@ -81,9 +87,12 @@ Run:
 "<plugin-root>/scripts/python_runtime.sh" "<plugin-root>/scripts/validate_manuscript_package.py" artifacts/<run>/manuscript --require-clean
 ```
 
-Save JSON output with `--output <path>` when it must enter the artifact bundle.
+Save JSON output with `--output <path>` when it must enter the artifact bundle;
+a path inside the package directory is refused (exit 2) so package files are
+never overwritten.
 The validator checks declared structure, paths, hashes, cross-file IDs,
-claim/citation links, reported-value evidence, BibTeX keys, declaration status,
+claim/citation links (including unregistered bracketed citation keys and claim
+markers outside fenced or inline code), reported-value evidence, BibTeX keys, declaration status,
 checklist/contract guideline agreement, revision or rebuttal identity,
 source-bundle review-packet and receipt coverage, and submission review receipt
 freshness and completeness.

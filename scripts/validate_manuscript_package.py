@@ -26,6 +26,8 @@ def main() -> int:
     parser.add_argument("--require-clean", action="store_true", help="exit 1 unless the validation status is passed")
     args = parser.parse_args()
 
+    if args.output is not None and args.output.resolve().is_relative_to(args.package.resolve()):
+        parser.error(f"--output resolves inside the package directory: {args.output}")
     result = validate_manuscript_package(args.package)
     serialized = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output is not None:

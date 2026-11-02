@@ -1549,6 +1549,137 @@ class ManuscriptPackageTests(unittest.TestCase):
         self.assertIn("rebuttal-comments-required", codes)
         self.assertIn("rebuttal-response-required", codes)
 
+    def messages(self, code: str) -> list[str]:
+        return [
+            finding["message"]
+            for finding in validate_manuscript_package(self.package)["findings"]
+            if finding["code"] == code
+        ]
+
+    def edit_manuscript(self, old: str, new: str) -> None:
+        path = self.package / "manuscript.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+        self.refresh_submission_hash(path.name)
+
+    def test_reported_value_cannot_match_inside_a_longer_number(self) -> None:
+        self.edit_manuscript("estimate was 2.5 response", "estimate was 12.5 response")
+        self.assertIn("reported-value-not-in-manuscript", self.findings())
+
+    def test_unregistered_citation_keys_and_claim_markers_are_refused(self) -> None:
+        self.edit_manuscript(
+            "not an empirical scientific result.\n",
+            "not an empirical scientific result.\n"
+            "See [@ghost; @ref-method], [see @ghost2, p. 3], [@fig:plot] and [@eq:one].\n"
+            "Mail [a@example.org] or `[@incode]`.\n\n"
+            "```\n[@infence]\n<!-- claim:CODE-1 -->\n```\n\n"
+            "<!-- claim:M-999 -->\n",
+        )
+        result = validate_manuscript_package(self.package)
+        found = {(f["code"], f["message"]) for f in result["findings"]}
+        self.assertEqual(
+            {"@ghost", "@ghost2"},
+            {m.split()[2].rstrip(",") for c, m in found if c == "citation-key-unregistered"},
+        )
+        self.assertEqual(
+            ["manuscript.md claim marker M-999 is not in the claim map"],
+            [m for c, m in found if c == "claim-marker-unregistered"],
+        )
+
+    def test_claim_markers_bind_through_locators_not_claim_ids(self) -> None:
+        trace_name = "claim-citation-map.json"
+        trace = json.loads((self.package / trace_name).read_text(encoding="utf-8"))
+        self.edit_manuscript("<!-- claim:M-001 -->", "<!-- claim:results-1 -->")
+        trace["claims"][0]["manuscript_locator"] = "claim:results-1"
+        self.rewrite_json(trace_name, trace)
+        self.refresh_submission_hash(trace_name)
+        checklist_name = "reporting-checklist.json"
+        checklist = json.loads((self.package / checklist_name).read_text(encoding="utf-8"))
+        checklist["items"][0]["manuscript_locator"] = "claim:results-1"
+        checklist["items"][1]["manuscript_locator"] = "claim : CONSORT-1a"
+        self.rewrite_json(checklist_name, checklist)
+        self.refresh_submission_hash(checklist_name)
+        self.edit_manuscript("## Discussion", "<!-- claim:CONSORT-1a -->\n## Discussion")
+        result = validate_manuscript_package(self.package)
+        self.assertEqual("passed", result["status"], result["findings"])
+        # A stray marker equal to an existing claim_id that no locator uses is flagged.
+        self.edit_manuscript("## Discussion", "<!-- claim:M-001 -->\n## Discussion")
+        self.assertEqual(
+            ["manuscript.md claim marker M-001 is not in the claim map"],
+            self.messages("claim-marker-unregistered"),
+        )
+
+    def test_citation_key_scan_handles_indented_fences_lst_and_key_punctuation(self) -> None:
+        trace_name = "claim-citation-map.json"
+        trace = json.loads((self.package / trace_name).read_text(encoding="utf-8"))
+        trace["citations"].append({**trace["citations"][0], "citation_id": "ref+", "supports_claim_ids": []})
+        self.rewrite_json(trace_name, trace)
+        self.refresh_submission_hash(trace_name)
+        self.edit_manuscript(
+            "not an empirical scientific result.\n",
+            "not an empirical scientific result.\n"
+            "Listing [@lst:code] and [@ref+] and [@ghost.].\n\n"
+            "   ```\n   [@indented-fence]\n   ```\n",
+        )
+        found = {
+            m.split()[2].rstrip(",") for m in self.messages("citation-key-unregistered")
+        }
+        self.assertEqual({"@ghost"}, found)
+
+    def run_validator_cli(self, *extra: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "validate_manuscript_package.py"), str(self.package), *extra],
+            capture_output=True, text=True, check=False,
+        )
+
+    def test_cli_output_cannot_overwrite_a_package_file(self) -> None:
+        manuscript = self.package / "manuscript.md"
+        before = manuscript.read_bytes()
+        link = Path(self.tempdir.name) / "alias"
+        link.symlink_to(self.package, target_is_directory=True)
+        for output in (manuscript, self.package / "new-result.json", link / "manuscript.md", link / "sub" / "x.json"):
+            with self.subTest(output=output):
+                result = self.run_validator_cli("--output", str(output))
+                self.assertEqual(2, result.returncode)
+                self.assertIn("inside the package", result.stderr)
+                self.assertEqual("", result.stdout)
+                self.assertEqual(before, manuscript.read_bytes())
+        self.assertFalse((self.package / "new-result.json").exists())
+        outside = Path(self.tempdir.name) / "out" / "result.json"
+        self.assertEqual(0, self.run_validator_cli("--output", str(outside)).returncode)
+        self.assertTrue(outside.is_file())
+
+    def test_non_utf8_bibtex_is_a_finding_not_a_crash(self) -> None:
+        (self.package / "references.bib").write_bytes(b"@misc{ref-method, title = {\xff\xfe}}\n")
+        self.assertIn("bibtex-output-invalid", self.findings())
+
+    def test_json_inputs_with_a_byte_order_mark_are_read(self) -> None:
+        for name in ("manuscript-contract.json", "claim-citation-map.json", "reporting-checklist.json"):
+            path = self.package / name
+            path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+            self.refresh_submission_hash(name)
+        result = validate_manuscript_package(self.package)
+        self.assertEqual("passed", result["status"], result["findings"])
+
+    def test_checklist_item_ids_must_be_unique(self) -> None:
+        name = "reporting-checklist.json"
+        checklist = json.loads((self.package / name).read_text(encoding="utf-8"))
+        checklist["items"][0]["evidence_refs"] = ["doi:10.1000/x", "Methods section"]
+        self.assertNotIn("checklist-item-duplicate", self.findings())
+        checklist["items"][1]["id"] = checklist["items"][0]["id"]
+        self.rewrite_json(name, checklist)
+        self.refresh_submission_hash(name)
+        self.assertIn("checklist-item-duplicate", self.findings())
+
+    def test_symlink_outside_the_package_is_named_in_hash_findings(self) -> None:
+        result_path = self.package / "source" / "result.json"
+        outside = Path(self.tempdir.name) / "outside.json"
+        outside.write_bytes(result_path.read_bytes())
+        result_path.unlink()
+        result_path.symlink_to(outside)
+        messages = self.messages("claim-evidence-mismatch")
+        self.assertTrue(messages)
+        self.assertTrue(all("resolves outside the package (symlink)" in m for m in messages), messages)
+
     def test_cli_rejects_seeded_unsupported_claim(self) -> None:
         path = self.package / "claim-citation-map.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1607,6 +1738,32 @@ class ManuscriptAcceptanceInputTests(unittest.TestCase):
                     if output.exists():
                         import shutil
                         shutil.rmtree(output)
+
+    def test_invalid_contract_fields_and_file_output_refuse_before_writing(self):
+        base = {"schema_version": 1, "manuscript_id": "m"}
+        invalid = [{"reporting_guideline": value} for value in ("", "  ", None, 3)]
+        invalid += [{"target_venue": value} for value in ("", 3, [])]
+        invalid += [{"evidence_cutoff": value} for value in ("", " ", False)]
+        with tempfile.TemporaryDirectory() as tempdir:
+            output = Path(tempdir) / "package"
+            for extra in invalid:
+                with self.subTest(extra=extra):
+                    with self.assertRaises(ValueError):
+                        build_acceptance_package({**base, **extra}, output)
+                    self.assertFalse(output.exists())
+            occupied = Path(tempdir) / "file"
+            occupied.write_text("x", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not a directory.*file"):
+                build_acceptance_package(base, occupied)
+            self.assertEqual("x", occupied.read_text(encoding="utf-8"))
+            built = build_acceptance_package(
+                {**base, "reporting_guideline": " CONSORT ", "target_venue": " J ", "evidence_cutoff": " 2026-01-01 "},
+                output,
+            )
+            contract = json.loads((built / "manuscript-contract.json").read_text(encoding="utf-8"))
+            self.assertEqual(("CONSORT", "J", "2026-01-01"), (
+                contract["reporting_guideline"], contract["target_venue"], contract["evidence_cutoff"]))
+            self.assertEqual("passed", validate_manuscript_package(built)["status"])
 
 
 if __name__ == "__main__":
