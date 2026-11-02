@@ -17,6 +17,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from codex_science.cli_io import preflight_output_paths, write_json_atomic, write_text_atomic  # noqa: E402
 from codex_science.compute_backends import (  # noqa: E402
     LocalBackend,
     SlurmBackend,
@@ -34,9 +35,18 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _write(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json_atomic(path, payload)
     print(f"Success! Data written to: {path.resolve()}")
+
+
+def _preflight_output(args: argparse.Namespace) -> None:
+    inputs = [path for name in ("spec", "approval") if (path := getattr(args, name, None)) is not None]
+    jobs_dir = args.state_dir / "jobs"
+    if hasattr(args, "backend"):
+        job_dir = backend_for(args.backend, args.state_dir)._job_dir(args.job_id)
+        if job_dir.is_dir():
+            inputs.extend(job_dir.iterdir())
+    preflight_output_paths(args.output, inputs=inputs, protected_dirs=[jobs_dir])
 
 
 def command_preflight(args: argparse.Namespace) -> None:
@@ -53,8 +63,7 @@ def command_approve(args: argparse.Namespace) -> None:
 def command_render_slurm(args: argparse.Namespace) -> None:
     spec = load_spec(args.spec)
     backend = SlurmBackend(args.state_dir)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(backend.render_script(spec, job_id=args.job_id), encoding="utf-8")
+    write_text_atomic(args.output, backend.render_script(spec, job_id=args.job_id))
     print(f"Success! Slurm script written to: {args.output.resolve()}")
 
 
@@ -87,7 +96,9 @@ job spec JSON:
   required:
     backend          "local" or "slurm"
     name             non-empty string
-    command          non-empty list of argv strings
+    command          non-empty list of argv strings, preserved verbatim;
+                     argv[0] must contain a non-whitespace character;
+                     later arguments may be empty or whitespace
     working_directory  existing directory
   optional (default):
     schema_version   1 (only 1 is accepted)
@@ -102,9 +113,11 @@ job spec JSON:
     checkpoint_paths []  relative paths
     resources        {cpus 1, memory_mb 1024, gpus 0, gpu_type null,
                      wall_time_seconds 3600, partition null, account null,
-                     qos null}; cpus, memory_mb, wall_time_seconds >= 1, gpus >= 0
-    timeout_seconds  3600 (>= 1)
-    cost_cap         null, or a number >= 0
+                     qos null}; object or null; counts must be integers
+                     (no booleans or floats); cpus, memory_mb,
+                     wall_time_seconds >= 1, gpus >= 0
+    timeout_seconds  3600 (integer >= 1, no booleans or floats)
+    cost_cap         null, or a finite number >= 0 (no booleans or strings)
     approval_required  true unless backend is local
     scientific_run_id  null or string
     source_snapshot  null, or exactly {"mode": "git-archive",
@@ -118,7 +131,11 @@ def _subparser(subcommands, name: str, help_text: str, *, spec: bool = False) ->
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Outputs are written atomically and must not alias spec, approval or job-state inputs, "
+               "or overlap the managed <state-dir>/jobs tree.",
+    )
     parser.add_argument("--state-dir", type=Path, required=True, help="durable state directory; job records and logs are kept under <state-dir>/jobs")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
@@ -176,6 +193,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
+        _preflight_output(args)
         args.handler(args)
     except (OSError, ValueError, TimeoutError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)

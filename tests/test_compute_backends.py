@@ -1922,5 +1922,201 @@ class ComputeBackendTests(unittest.TestCase):
                 compute_backends_module._worker_main(["_worker"])
 
 
+class JobSpecParsingAndCliTests(unittest.TestCase):
+    def payload(self, working: Path, **changes) -> dict:
+        return {
+            "backend": "local", "name": "parsing-fixture",
+            "command": [sys.executable, "-c", "pass"],
+            "working_directory": str(working), **changes,
+        }
+
+    def run_cli(self, state_dir: Path, *arguments: str) -> subprocess.CompletedProcess:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_job.py"
+        return subprocess.run(
+            [sys.executable, str(script), "--state-dir", str(state_dir), *arguments],
+            capture_output=True, text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")),
+        )
+
+    def test_argv_preserves_whitespace_and_empty_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            for command in (["echo", "  x  "], ["echo", "", " \t "], [" echo ", "é\n"]):
+                with self.subTest(command=command):
+                    spec = JobSpec.from_payload(self.payload(Path(tempdir), command=command))
+                    self.assertEqual(command, list(spec.command))
+                    self.assertEqual(command, spec.to_dict()["command"])
+
+    def test_argv_refuses_non_strings_and_blank_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            for command in ([], [""], [" \t "], [None], [1], [True], ["echo", None],
+                            ["echo", 1], ["echo", False], ["echo", []], "echo"):
+                with self.subTest(command=command), self.assertRaises(ValueError):
+                    JobSpec.from_payload(self.payload(Path(tempdir), command=command))
+
+    def test_resources_require_an_object_or_none(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            defaults = JobSpec.from_payload(self.payload(root)).resources
+            for resources in (None, {}):
+                self.assertEqual(defaults, JobSpec.from_payload(self.payload(root, resources=resources)).resources)
+            for resources in ("4 GPUs", "", [], [1], 0, 1, False):
+                with self.subTest(resources=resources), self.assertRaises(ValueError):
+                    JobSpec.from_payload(self.payload(root, resources=resources))
+                with self.assertRaises(ValueError):
+                    compute_backends_module.ResourceRequest.from_payload(resources)
+
+    def test_resource_counts_are_exact_integers_with_existing_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            for field in ("cpus", "memory_mb", "gpus", "wall_time_seconds"):
+                minimum = 0 if field == "gpus" else 1
+                for value in (minimum, minimum + 1, 10**30):
+                    spec = JobSpec.from_payload(self.payload(Path(tempdir), resources={field: value}))
+                    self.assertEqual(value, getattr(spec.resources, field))
+                invalid = [True, False, 1.9, 2.0, -0.5, "2", "", None, [], {},
+                           float("nan"), float("inf"), -1]
+                if minimum:
+                    invalid.append(0)
+                for value in invalid:
+                    with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                        JobSpec.from_payload(self.payload(Path(tempdir), resources={field: value}))
+                    with self.assertRaises(ValueError):
+                        compute_backends_module.ResourceRequest(**{field: value}).validate()
+
+    def test_timeout_is_an_exact_positive_integer(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            for value in (1, 2, 10**30):
+                spec = JobSpec.from_payload(self.payload(Path(tempdir), timeout_seconds=value))
+                self.assertEqual(value, spec.timeout_seconds)
+            for value in (True, False, 1.9, 2.0, "2", "", None, [], {}, 0, -1,
+                          float("nan"), float("inf")):
+                with self.subTest(value=value), self.assertRaises(ValueError):
+                    JobSpec.from_payload(self.payload(Path(tempdir), timeout_seconds=value))
+
+    def test_cost_cap_is_finite_nonnegative_numeric(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            for value in (None, 0, 0.0, 0.5, 2, 1e308):
+                spec = JobSpec.from_payload(self.payload(Path(tempdir), cost_cap=value))
+                self.assertEqual(value, spec.cost_cap)
+            for value in (True, False, "NaN", "Infinity", "2", "", [], {}, -1,
+                          float("nan"), float("inf"), -float("inf"), 10**400):
+                with self.subTest(value=value), self.assertRaises(ValueError):
+                    JobSpec.from_payload(self.payload(Path(tempdir), cost_cap=value))
+
+    def test_cli_refuses_spec_aliases_without_changing_input_bytes(self) -> None:
+        for command in ("preflight", "approve", "render-slurm", "submit"):
+            for alias in ("same", "symlink", "hardlink"):
+                with self.subTest(command=command, alias=alias), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    source = root / "spec.json"
+                    # Invalid specs must also be protected before parsing or backend calls.
+                    original = b'{"backend": "invalid"}\n'
+                    if command != "submit":
+                        original = json.dumps(self.payload(root, backend="slurm" if command == "render-slurm" else "local")).encode()
+                    source.write_bytes(original)
+                    output = source if alias == "same" else root / "alias.json"
+                    if alias == "symlink":
+                        output.symlink_to(source)
+                    elif alias == "hardlink":
+                        os.link(source, output)
+                    extra = ["--approved-by", "reviewer", "--target", "fixture"] if command == "approve" else []
+                    result = self.run_cli(root / "state", command, "--spec", str(source), "--output", str(output), *extra)
+                    self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("overwrite input", result.stderr)
+                    self.assertEqual(original, source.read_bytes())
+                    self.assertEqual(original, output.read_bytes())
+                    self.assertFalse((root / "state").exists())
+
+    def test_cli_refuses_approval_alias_before_parsing_or_submission(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            spec_path = root / "spec.json"
+            spec_path.write_text("{}", encoding="utf-8")
+            approval = root / "approval.json"
+            original = b'{}\n'
+            approval.write_bytes(original)
+            output = root / "alias.json"
+            os.link(approval, output)
+            result = self.run_cli(root / "state", "submit", "--spec", str(spec_path),
+                                  "--approval", str(approval), "--output", str(output))
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("overwrite input", result.stderr)
+            self.assertEqual(original, approval.read_bytes())
+            self.assertFalse((root / "state").exists())
+
+    def test_cli_refuses_state_aliases_before_backend_side_effects(self) -> None:
+        for command in ("status", "wait", "cancel", "collect"):
+            for filename in ("state.json", "spec.json", "source-receipt.json", "job.sh"):
+                with self.subTest(command=command, filename=filename), tempfile.TemporaryDirectory() as tempdir:
+                    root = Path(tempdir)
+                    state_dir = root / "state"
+                    job_dir = state_dir / "jobs" / "fixture"
+                    job_dir.mkdir(parents=True)
+                    source = job_dir / filename
+                    original = b'{}\n'
+                    source.write_bytes(original)
+                    output = root / "alias.json"
+                    os.link(source, output)
+                    extra = ["--timeout", "1"] if command == "wait" else []
+                    result = self.run_cli(state_dir, command, "--backend", "local", "--job-id", "fixture",
+                                          "--output", str(output), *extra)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn("overwrite input", result.stderr)
+                    self.assertEqual(original, source.read_bytes())
+                    self.assertEqual([source], list(job_dir.iterdir()))
+
+    def test_cli_output_publication_is_atomic_for_json_and_scripts(self) -> None:
+        import runpy
+
+        script = Path(__file__).resolve().parents[1] / "scripts" / "science_job.py"
+        cli = runpy.run_path(str(script))
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            destination = root / "output"
+            spec_path = root / "spec.json"
+            spec_path.write_text(json.dumps(self.payload(root, backend="slurm")), encoding="utf-8")
+            from argparse import Namespace
+
+            actions = (
+                lambda: cli["_write"](destination, {"value": 1}),
+                lambda: cli["command_render_slurm"](Namespace(
+                    spec=spec_path, state_dir=root / "state", output=destination, job_id="preview",
+                )),
+            )
+            for action in actions:
+                destination.write_bytes(b"previous complete output\n")
+                with mock.patch("codex_science.cli_io.os.fsync", side_effect=OSError("interrupted publication")):
+                    with self.assertRaisesRegex(OSError, "interrupted publication"):
+                        action()
+                self.assertEqual(b"previous complete output\n", destination.read_bytes())
+                self.assertEqual({spec_path, destination}, set(root.iterdir()))
+                action()
+                self.assertNotEqual(b"previous complete output\n", destination.read_bytes())
+
+    def test_cli_allows_distinct_outputs_and_protects_managed_job_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            state_dir = root / "state"
+            spec_path = root / "spec.json"
+            spec_path.write_text(json.dumps(self.payload(root)), encoding="utf-8")
+            original = spec_path.read_bytes()
+            report = root / "reports" / "preflight.json"
+            result = self.run_cli(state_dir, "preflight", "--spec", str(spec_path), "--output", str(report))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue(json.loads(report.read_text(encoding="utf-8"))["ready"])
+            self.assertEqual(original, spec_path.read_bytes())
+            blocked = state_dir / "jobs" / "new" / "state.json"
+            result = self.run_cli(state_dir, "preflight", "--spec", str(spec_path), "--output", str(blocked))
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("protected directory", result.stderr)
+            self.assertFalse(state_dir.exists())
+            for job_id in ("", "..", "bad/id", "0"):
+                with self.subTest(job_id=job_id):
+                    result = self.run_cli(state_dir, "status", "--backend", "local", "--job-id", job_id,
+                                          "--output", str(report))
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertTrue(json.loads(report.read_text(encoding="utf-8"))["ready"])
+
+
 if __name__ == "__main__":
     unittest.main()

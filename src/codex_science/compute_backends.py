@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import shlex
 import shutil
@@ -118,6 +119,14 @@ def _text(value: Any, label: str) -> str:
     if not text:
         raise ValueError(f"{label} is required")
     return text
+
+
+def _integer(value: Any, label: str, *, minimum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} must be an integer")
+    if value < minimum:
+        raise ValueError(f"{label} must be >= {minimum}")
+    return value
 
 
 def _safe_relative(value: Any, label: str) -> str:
@@ -264,22 +273,20 @@ class ResourceRequest:
     qos: str | None = None
 
     def validate(self) -> None:
-        for field in ("cpus", "memory_mb", "wall_time_seconds"):
-            value = int(getattr(self, field))
-            if value < 1:
-                raise ValueError(f"resource {field} must be positive")
-        if self.gpus < 0:
-            raise ValueError("resource gpus must be non-negative")
+        for field in ("cpus", "memory_mb", "wall_time_seconds", "gpus"):
+            _integer(getattr(self, field), f"resource {field}", minimum=0 if field == "gpus" else 1)
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any] | None) -> "ResourceRequest":
-        source = dict(payload or {})
+        if payload is not None and not isinstance(payload, Mapping):
+            raise ValueError("resources must be an object or null")
+        source = {} if payload is None else dict(payload)
         request = cls(
-            cpus=int(source.get("cpus", 1)),
-            memory_mb=int(source.get("memory_mb", 1024)),
-            gpus=int(source.get("gpus", 0)),
+            cpus=source.get("cpus", 1),
+            memory_mb=source.get("memory_mb", 1024),
+            gpus=source.get("gpus", 0),
             gpu_type=None if source.get("gpu_type") is None else str(source["gpu_type"]),
-            wall_time_seconds=int(source.get("wall_time_seconds", 3600)),
+            wall_time_seconds=source.get("wall_time_seconds", 3600),
             partition=None if source.get("partition") is None else str(source["partition"]),
             account=None if source.get("account") is None else str(source["account"]),
             qos=None if source.get("qos") is None else str(source["qos"]),
@@ -317,7 +324,11 @@ class JobSpec:
         command_raw = payload.get("command")
         if not isinstance(command_raw, list) or not command_raw:
             raise ValueError("command must be a non-empty argv list")
-        command = tuple(_text(item, "command item") for item in command_raw)
+        if any(not isinstance(item, str) for item in command_raw):
+            raise ValueError("command items must be strings")
+        if not command_raw[0].strip():
+            raise ValueError("command executable must be non-empty")
+        command = tuple(command_raw)
         environment_raw = payload.get("environment", {})
         if not isinstance(environment_raw, Mapping):
             raise ValueError("environment must be an object")
@@ -328,12 +339,17 @@ class JobSpec:
         checkpoints_raw = payload.get("checkpoint_paths", [])
         if not isinstance(checkpoints_raw, list):
             raise ValueError("checkpoint_paths must be a list")
-        timeout = int(payload.get("timeout_seconds", 3600))
-        if timeout < 1:
-            raise ValueError("timeout_seconds must be positive")
-        cost_cap = None if payload.get("cost_cap") is None else float(payload["cost_cap"])
-        if cost_cap is not None and cost_cap < 0:
-            raise ValueError("cost_cap must be non-negative")
+        timeout = _integer(payload.get("timeout_seconds", 3600), "timeout_seconds", minimum=1)
+        cost_cap = payload.get("cost_cap")
+        if cost_cap is not None:
+            if isinstance(cost_cap, bool) or not isinstance(cost_cap, (int, float)):
+                raise ValueError("cost_cap must be a finite non-negative number")
+            try:
+                cost_cap = float(cost_cap)
+            except OverflowError as error:
+                raise ValueError("cost_cap must be a finite non-negative number") from error
+            if not math.isfinite(cost_cap) or cost_cap < 0:
+                raise ValueError("cost_cap must be a finite non-negative number")
         spec = cls(
             schema_version=1,
             backend=backend,
@@ -344,7 +360,7 @@ class JobSpec:
             inherit_environment=bool(payload.get("inherit_environment", True)),
             inputs=_normalize_inputs(inputs_raw),
             outputs=tuple(_safe_relative(item, "output") for item in outputs_raw),
-            resources=ResourceRequest.from_payload(payload.get("resources") if isinstance(payload.get("resources"), Mapping) else None),
+            resources=ResourceRequest.from_payload(payload.get("resources")),
             timeout_seconds=timeout,
             cost_cap=cost_cap,
             approval_required=bool(payload.get("approval_required", backend != "local")),
