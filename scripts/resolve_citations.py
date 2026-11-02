@@ -23,7 +23,12 @@ def _expected_surname(value) -> str | None:
     if "," in text:
         return text.split(",", 1)[0].strip() or None
     parts = text.split()
-    while len(parts) > 1 and re.fullmatch(r"(?:[A-Z]\.?){1,3}", parts[-1]):
+
+    def initial(token: str) -> bool:
+        return re.fullmatch(r"(?:[A-Z]\.?){1,3}", token) is not None
+
+    # "Smith JA" drops trailing initials; "X. OU" keeps OU, since only initials precede it.
+    while len(parts) > 1 and initial(parts[-1]) and not all(initial(part) for part in parts[:-1]):
         parts.pop()
     return parts[-1] if parts else None
 
@@ -117,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
                 year = study.get("year")
                 if year is None or year == "":
                     published = study.get("publication_date")
-                    if isinstance(published, str) and published[:4].isascii() and published[:4].isdigit():
+                    if isinstance(published, str) and re.match(r"[0-9]{4}(?![0-9])", published):
                         year = published[:4]
                 metadata = {"title": study.get("title"), "year": year, "first_author": first}
                 for identifier in identifiers:

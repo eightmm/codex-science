@@ -417,6 +417,21 @@ class PipelineCompilerTests(unittest.TestCase):
                 compile_pipeline_draft(manifest_path=manifest, output_dir=root / "alias" / "ok",
                                        name="fixture-pipeline", description="Fixture.")
 
+    def test_unreadable_identity_check_refuses_instead_of_allowing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            catalog = root / "fake-authored-skills"
+            catalog.mkdir()
+            output = root / "elsewhere" / "draft"
+            with patch("codex_science.pipeline_compiler.SKILL_ROOTS", (catalog,), create=True), \
+                    patch("codex_science.pipeline_compiler.os.path.samefile",
+                          side_effect=PermissionError(13, "Permission denied")):
+                with self.assertRaisesRegex(ValueError, "cannot check whether .* is inside .*Permission denied"):
+                    compile_pipeline_draft(manifest_path=manifest, output_dir=output,
+                                           name="fixture-pipeline", description="Fixture.")
+            self.assertFalse(output.exists())
+
     def test_reference_step_ids_skip_non_mapping_plan_entries_like_skill_text(self) -> None:
         manifest = {"run_id": "r", "plan": ["stray", {"description": "first"}, 7, {"description": "second"}]}
         reference = _reference_text(name="n", source_manifest_path=Path("m.json"), source_manifest_sha256="0" * 64,

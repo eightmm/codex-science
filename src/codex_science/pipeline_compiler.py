@@ -106,8 +106,11 @@ def _is_inside_by_identity(path: Path, root: Path) -> bool:
         probe = probe.parent
     try:
         return any(os.path.samefile(ancestor, root) for ancestor in (probe, *probe.parents))
-    except OSError:
+    except FileNotFoundError:
         return False
+    except OSError as exc:
+        # Fail closed: an unreadable ancestor must not let output land in a protected tree.
+        raise ValueError(f"cannot check whether {path} is inside {root}: {exc.strerror or exc}") from exc
 
 
 def _refuse_catalog_or_run_output(output_dir: Path, run_dir: Path) -> None:

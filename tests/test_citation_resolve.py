@@ -593,6 +593,28 @@ class CitationResolveCliFixTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout)
             self.assertEqual("uncertain", json.loads(result.stdout)["results"][0]["metadata_check"])
 
+    def test_expected_surname_keeps_short_capitalised_surname_after_initials(self):
+        spec = importlib.util.spec_from_file_location("resolve_citations_surname", SCRIPT)
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        for name, surname in (("X. OU", "OU"), ("Smith JA", "Smith"), ("Smith J A", "Smith"),
+                              ("J. A. Smith", "Smith"), ("Meer, J.", "Meer")):
+            with self.subTest(name=name):
+                self.assertEqual(surname, cli._expected_surname(name))
+
+    def test_publication_date_year_fallback_needs_exactly_four_digits(self):
+        # A five-digit prefix is no year, so only title and author are compared against the 2021 record.
+        for published, expected in (("20151-03-01", "match"), ("2015-03-01", "uncertain")):
+            with self.subTest(published=published), tempfile.TemporaryDirectory() as root:
+                run_dir, fixtures = self._setup(root, [{
+                    "persistent_id": "doi:10.1234/primary", "persistent_ids": ["pmid:12345"],
+                    "title": "Fixture paper", "publication_date": published, "first_author": "Smith"}],
+                    {"pmid_12345": {"http_status": 200, "body": {"result": {"uids": ["12345"], "12345": {
+                        "uid": "12345", "title": "Fixture paper", "pubdate": "2021 Jan",
+                        "authors": [{"name": "Smith J"}]}}}}})
+                result = _run_cli("--ids", "pmid:12345", "--offline-fixture", str(fixtures), "--run-dir", str(run_dir))
+                self.assertEqual(expected, json.loads(result.stdout)["results"][0]["metadata_check"])
+
     def test_alias_ids_match_when_publication_date_agrees(self):
         with tempfile.TemporaryDirectory() as root:
             run_dir, fixtures = self._setup(root, [{

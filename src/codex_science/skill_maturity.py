@@ -60,7 +60,7 @@ def _frontmatter(text: str) -> dict[str, str]:
 def _strip_fences_and_comments(text: str) -> str:
     """Drop fenced code blocks and HTML comments; unclosed ones run to the end.
 
-    Lines split on a line feed only (one trailing carriage return dropped), as in CommonMark, so
+    Lines split on a line feed only (one trailing carriage return dropped), so
     form feeds and Unicode separators never start a line. A comment opening at the
     start of a line (up to three spaces of indent) is an HTML block that ends on
     the line holding ``-->``, so the rest of that line is dropped; a comment
