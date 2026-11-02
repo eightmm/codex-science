@@ -1265,8 +1265,8 @@ command and a file change sharing an id stay separate; an item without an id is 
 `item.started` only when the two lines are adjacent and carry the same non-empty command.
 Heredoc bodies are dropped, but `<<<`, quoted or arithmetic `<<` and a delimiter that never
 terminates are not heredocs. `--output` is refused (exit 2) when it resolves, through symlinks or
-hard links, to an input the command reads (`events.jsonl`, `receipt.json`, `last.md` or a
-`project/` `manifest.json`); write failures are reported as labelled errors and the replace
+hard links, to `events.jsonl`, `receipt.json` or `last.md`, or through symlinks to a
+`project/` `manifest.json`; write failures are reported as labelled errors and the replace
 stays atomic.
 
 ### Reviewer seeded-defect probe
