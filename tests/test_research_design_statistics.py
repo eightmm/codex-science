@@ -3,6 +3,7 @@ import hashlib
 import itertools
 import json
 import math
+import os
 import random
 import statistics
 import subprocess
@@ -75,6 +76,66 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         material = {key: value for key, value in design.items() if key != "fingerprint"}
         payload = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         self.assertEqual(hashlib.sha256(payload.encode("utf-8")).hexdigest(), design["fingerprint"])
+
+    def test_design_cli_preserves_input_and_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "design.json"
+            source.write_text(json.dumps(self.valid_design()))
+            before = source.read_bytes()
+            script = Path(__file__).resolve().parents[1] / "scripts/validate_research_design.py"
+            command = [sys.executable, str(script), str(source), "--require-clean"]
+            for alias_kind in ("direct", "symlink", "hardlink"):
+                output = source if alias_kind == "direct" else root / "alias.json"
+                if alias_kind == "symlink":
+                    output.symlink_to(source)
+                elif alias_kind == "hardlink":
+                    os.link(source, output)
+                with self.subTest(alias=alias_kind):
+                    result = subprocess.run(command + ["--output", str(output)],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(before, source.read_bytes())
+                    self.assertEqual(before, output.read_bytes())
+                if alias_kind != "direct":
+                    output.unlink()
+            output = root / "validated.json"
+            for _ in range(2):
+                result = subprocess.run(command + ["--output", str(output)],
+                    capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual("passed", json.loads(output.read_text())["audit_status"])
+                self.assertEqual(before, source.read_bytes())
+
+    def test_design_compares_normalized_units_without_changing_payload(self) -> None:
+        for experimental, observational, aggregation in (
+            ("sample ", "sample", "sample"), ("sample", " sample ", ""),
+            (" sample ", "cell", " sample "), ("sample", "sample", "sample"),
+        ):
+            payload = self.valid_design()
+            payload["experimental_unit"] = experimental
+            payload["observational_unit"] = observational
+            if aggregation:
+                payload["analysis"]["aggregation_unit"] = aggregation
+            else:
+                payload["analysis"].pop("aggregation_unit")
+            original = copy.deepcopy(payload)
+            with self.subTest(experimental=experimental, observational=observational, aggregation=aggregation):
+                self.assertEqual("passed", build_research_design(payload)["audit_status"])
+                self.assertEqual(original, payload)
+
+    def test_design_cli_help_describes_strict_unit_strings(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/validate_research_design.py"
+        result = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+        self.assertEqual(0, result.returncode, result.stderr)
+        unit_help = result.stdout.split("experimental_unit, observational_unit", 1)[1].split("outcome", 1)[0]
+        self.assertIn("non-empty strings", unit_help)
+        self.assertNotIn("converted to a string", unit_help)
 
     def test_design_detects_pseudoreplication_optional_stopping_and_causal_gap(self) -> None:
         broken = self.valid_design()

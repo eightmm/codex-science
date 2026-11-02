@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.project_store import ProjectStore  # noqa: E402
-from codex_science.cli_io import load_json_object, write_json_atomic  # noqa: E402
+from codex_science.artifacts import manifest_provenance_paths  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, resolve_input_path, write_json_atomic  # noqa: E402
 
 
 def _write(path: Path, payload: Any) -> None:
@@ -123,7 +124,28 @@ def discovery(args: argparse.Namespace) -> None:
     if action in {"history", "memory"}:
         if args.database is None:
             raise ValueError("--database is required for discovery history")
-        result = ProjectStore(args.database).discovery_history(project_id=args.project_id, run_id=args.run_id)
+        store = ProjectStore(args.database)
+        result = store.discovery_history(project_id=args.project_id, run_id=args.run_id)
+        if args.output:
+            # History validates every selected bundle, including runs without cycles.
+            with store.connect() as connection:
+                rows = connection.execute(
+                    "SELECT manifest_path FROM runs WHERE project_id=? AND (? IS NULL OR run_id=?)",
+                    (args.project_id, args.run_id, args.run_id),
+                ).fetchall()
+            inputs = []
+            protected_dirs = []
+            for row in rows:
+                manifest_path = Path(row["manifest_path"])
+                root = manifest_path.parent
+                inputs.extend((manifest_path, root / "manifest.json", root / "checkpoint.json"))
+                protected_dirs.append(root / "discovery" / "revisions")
+                manifest = load_json_object(manifest_path)
+                inputs.extend(manifest_provenance_paths(manifest, root))
+                for item in manifest["artifacts"]:
+                    if item.get("artifact_type") == "directory-tree":
+                        protected_dirs.append(root / item["path"])
+            preflight_output_paths(args.output, inputs=inputs, protected_dirs=protected_dirs)
         if action == "memory":
             from codex_science.discovery_synthesis import synthesize_history
             result = synthesize_history(result)
@@ -277,7 +299,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--project-id", required=True, help="project identifier; repeating init with the same title and question returns the existing project")
     command.add_argument("--title", required=True, help="human-readable project title")
     command.add_argument("--question", required=True, help="research question the project tracks")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=create)
 
     command = subcommands.add_parser("import-run", help="Validate and import an immutable run")
@@ -285,14 +307,14 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--manifest", type=Path, required=True, help="run manifest.json path")
     command.add_argument("--branch", required=True, help="branch name to record the run on")
     command.add_argument("--parent-run", help="imported parent run ID (optional; defaults to the branch head when the branch exists)")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=import_run)
 
     command = subcommands.add_parser("fork", help="Fork a project branch from an imported run")
     command.add_argument("--project-id", required=True, help="project that holds the source run")
     command.add_argument("--source-run", required=True, help="imported run ID to fork from")
     command.add_argument("--branch", required=True, help="name of the new branch")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=fork)
 
     command = subcommands.add_parser("assert", help="Add a quantitative, located evidence assertion")
@@ -317,26 +339,26 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--sample-size", type=int, help="sample size behind the estimate (non-negative integer, optional)")
     command.add_argument("--population", help="population the estimate applies to (optional)")
     command.add_argument("--risk-of-bias-ref", help="risk-of-bias reference stored with the assertion (optional)")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=assertion)
 
     command = subcommands.add_parser("compare", help="Compare two imported run manifests")
     command.add_argument("--project-id", required=True, help="project that holds both runs")
     command.add_argument("--previous-run", required=True, help="imported run ID of the previous run")
     command.add_argument("--current-run", required=True, help="imported run ID of the current run")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=compare)
 
     command = subcommands.add_parser("merge-plan", help="Prepare a non-executing scientific merge plan")
     command.add_argument("--project-id", required=True, help="project that holds both branches")
     command.add_argument("--source-branch", required=True, help="branch to merge from")
     command.add_argument("--target-branch", required=True, help="branch to merge into")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=merge_plan)
 
     command = subcommands.add_parser("summary", help="Summarize project lineage and event-chain state")
     command.add_argument("--project-id", required=True, help="project to summarize")
-    command.add_argument("--output", type=Path, required=True, help="JSON result path")
+    command.add_argument("--output", type=Path, required=True, help="JSON result path; cannot overwrite database or SQLite sidecars")
     command.set_defaults(handler=summary)
 
     command = subcommands.add_parser("discovery", help="Develop, record, and inspect a research cycle",
@@ -368,7 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
             operation.add_argument("--project-id", required=True, help="project to read history for")
             operation.add_argument("--run-id", help="restrict history to one imported run ID (optional)")
         operation.add_argument("--output", type=Path,
-                               help="write the JSON result here instead of printing it; cannot overwrite inputs or run state")
+                               help="write the JSON result here instead of printing it; cannot overwrite inputs, run state, database or SQLite sidecars")
         operation.set_defaults(handler=discovery)
     return parser
 
@@ -379,6 +401,12 @@ def main() -> int:
     if args.command != "discovery" and args.database is None:
         parser.error("--database is required for project store commands")
     try:
+        if args.database is not None and args.output is not None:
+            database = resolve_input_path(args.database)
+            protected = [args.database, database]
+            protected.extend(Path(f"{path}{suffix}") for path in (args.database, database)
+                             for suffix in ("-wal", "-shm", "-journal"))
+            preflight_output_paths(args.output, inputs=protected)
         args.handler(args)
     except (OSError, ValueError, sqlite3.Error) as error:
         print(f"error: {error}", file=sys.stderr)

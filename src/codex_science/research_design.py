@@ -62,8 +62,8 @@ def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]
         raise ValueError("unsupported research-design schema")
     _text(payload, "design_id")
     _text(payload, "question")
-    _text(payload, "experimental_unit")
-    _text(payload, "observational_unit")
+    experimental_unit = _text(payload, "experimental_unit")
+    observational_unit = _text(payload, "observational_unit")
     outcome = _object(payload, "outcome")
     _text(outcome, "name", "outcome.name")
     _text(outcome, "measurement", "outcome.measurement")
@@ -124,8 +124,6 @@ def validate_research_design(payload: Mapping[str, Any]) -> list[dict[str, str]]
     looks = _positive_integer(1 if stopping.get("planned_looks") is None else stopping["planned_looks"], "stopping.planned_looks")
 
     findings: list[dict[str, str]] = []
-    experimental_unit = str(payload["experimental_unit"])
-    observational_unit = str(payload["observational_unit"])
     if experimental_unit != observational_unit and not cluster_adjustment and aggregation_unit != experimental_unit:
         findings.append(_finding(
             "pseudoreplication-risk",

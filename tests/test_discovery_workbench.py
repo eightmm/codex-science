@@ -44,6 +44,138 @@ def add_fixture_annotation(cli, *, annotation_id="A1", text="Check the claim", a
 
 
 class DiscoveryWorkbenchTests(unittest.TestCase):
+    def test_project_outputs_preserve_database_and_sqlite_sidecars(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = root / "project.sqlite"
+            store = ProjectStore(database)
+            store.create_project(project_id="p", title="Discovery", question="Why?")
+            commands = [
+                ["init", "--title", "Discovery", "--question", "Why?"],
+                ["import-run", "--manifest", str(root / "missing.json"), "--branch", "main"],
+                ["fork", "--source-run", "missing", "--branch", "other"],
+                ["assert", "--run-id", "missing", "--claim-id", "c", "--source-id", "s",
+                 "--polarity", "supports", "--locator", "{}", "--independence-group", "g"],
+                ["compare", "--previous-run", "a", "--current-run", "b"],
+                ["merge-plan", "--source-branch", "a", "--target-branch", "b"],
+                ["summary"], ["discovery", "history"], ["discovery", "memory"],
+            ]
+            database_alias = root / "database-link"
+            database_alias.symlink_to(database)
+            for suffix in ("", "-wal", "-shm", "-journal"):
+                target = Path(f"{database}{suffix}")
+                if suffix:
+                    target.write_bytes(b"sidecar sentinel")
+                before = target.read_bytes()
+                for alias_kind in ("direct", "symlink", "hardlink"):
+                    output = target if alias_kind == "direct" else root / "output-alias"
+                    if alias_kind == "symlink":
+                        output.symlink_to(target)
+                    elif alias_kind == "hardlink":
+                        os.link(target, output)
+                    for command in commands:
+                        with self.subTest(suffix=suffix, alias=alias_kind, command=command[0:2]):
+                            result = subprocess.run(
+                                [sys.executable, str(ROOT / "scripts/science_project.py"),
+                                 "--database", str(database_alias), *command, "--project-id", "p",
+                                 "--output", str(output)], capture_output=True, text=True,
+                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                            self.assertEqual(1, result.returncode, result.stderr)
+                            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                            self.assertIn("output path would overwrite input", result.stderr)
+                            self.assertNotIn("Traceback", result.stderr)
+                            self.assertEqual(before, target.read_bytes())
+                    if alias_kind != "direct":
+                        output.unlink()
+                if suffix:
+                    target.unlink()
+                    result = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts/science_project.py"),
+                         "--database", str(database), "discovery", "history", "--project-id", "p",
+                         "--output", str(target)], capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("output path would overwrite input", result.stderr)
+                    self.assertFalse(target.exists())
+            for action in ("history", "memory"):
+                output = root / f"empty-{action}.json"
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/science_project.py"),
+                     "--database", str(database), "discovery", action, "--project-id", "p",
+                     "--output", str(output)], capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIsInstance(json.loads(output.read_text()), dict)
+            self.assertEqual("p", store.summary(project_id="p")["project"]["project_id"])
+
+    def test_project_history_outputs_preserve_imported_bundle_files(self):
+        from codex_science.artifact_store import describe_directory
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "run"
+            save_cycle(new_cycle(prepare(run)), run)
+            (run / "checkpoint.json").write_text('{"sentinel": "checkpoint"}')
+            manifest = attach_cycle(run)
+            for name in ("tree", "empty-tree"):
+                tree = run / name
+                tree.mkdir()
+                if name == "tree":
+                    (tree / "data.json").write_text('{"value": 0}')
+                descriptor_path = run / f"{name}.descriptor.json"
+                descriptor = describe_directory(tree)
+                descriptor_path.write_text(json.dumps(descriptor.to_dict()))
+                manifest["artifacts"].append({"path": name, "kind": "data", "artifact_type": "directory-tree",
+                                              "sha256": descriptor.root_sha256,
+                                              "descriptor_path": descriptor_path.name})
+            (run / "manifest.json").write_text(json.dumps(manifest))
+            database = root / "project.sqlite"
+            store = ProjectStore(database)
+            store.create_project(project_id="p", title="Discovery", question="Why?")
+            imported = store.import_run(project_id="p", manifest_path=run / "manifest.json")
+            other, _, _ = annotation_fixture(root / "other")
+            store.import_run(project_id="p", manifest_path=other)
+            targets = [run / "manifest.json", run / "checkpoint.json", other,
+                       other.parent / "result.json", run / "discovery/revisions/new.json",
+                       run / "tree/data.json", run / "tree/new.json", run / "empty-tree/new.json"]
+            targets.extend(run / item["path"] for item in manifest["artifacts"])
+            targets.extend(run / item["descriptor_path"] for item in manifest["artifacts"]
+                           if "descriptor_path" in item)
+            before = {path: path.read_bytes() for path in root.rglob("*")
+                      if path.is_file() and path.parent != root}
+            for action in ("history", "memory"):
+                command = [sys.executable, str(ROOT / "scripts/science_project.py"),
+                           "--database", str(database), "discovery", action, "--project-id", "p"]
+                for target in targets:
+                    aliases = ("direct", "symlink", "hardlink") if target.is_file() else ("direct",)
+                    if target.parent == run / "tree":
+                        aliases = ("direct", "symlink") if target.is_file() else ("direct",)
+                    for alias_kind in aliases:
+                        output = target if alias_kind == "direct" else root / "output-alias"
+                        if alias_kind == "symlink":
+                            output.symlink_to(target)
+                        elif alias_kind == "hardlink":
+                            os.link(target, output)
+                        with self.subTest(action=action, target=target, alias=alias_kind):
+                            result = subprocess.run(command + ["--output", str(output)],
+                                capture_output=True, text=True,
+                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                            self.assertEqual(1, result.returncode, result.stderr)
+                            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+                            self.assertNotIn("Traceback", result.stderr)
+                            self.assertEqual(before, {path: path.read_bytes() for path in root.rglob("*")
+                                                     if path.is_file() and path.parent != root})
+                        if alias_kind != "direct":
+                            output.unlink()
+                output = root / f"{action}.json"
+                for _ in range(2):
+                    result = subprocess.run(command + ["--run-id", imported.run_id, "--output", str(output)],
+                        capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertIsInstance(json.loads(output.read_text()), dict)
+                self.assertEqual(1, len(store.discovery_history(project_id="p")["runs"]))
+
     def test_cli_refuses_missing_or_directory_manifest_without_writes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

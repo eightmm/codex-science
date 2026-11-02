@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.cli_io import load_json_object, write_json_atomic  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, write_json_atomic  # noqa: E402
 from codex_science.research_design import build_research_design  # noqa: E402
 
 
@@ -16,7 +16,7 @@ EPILOG = """\
 input JSON keys (schema_version must be 1; required unless marked optional):
   design_id, question      non-empty strings
   experimental_unit, observational_unit
-                           key must be present; value is converted to a string
+                           non-empty strings
   outcome                  object: name, measurement (non-empty strings)
   estimand                 object: population, contrast, summary_measure
                            (non-empty strings)
@@ -54,10 +54,11 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("input", type=Path, help="research-design JSON object (format below)")
-    parser.add_argument("--output", type=Path, required=True, help="output JSON path; adds audit_status, audit_findings, fingerprint")
+    parser.add_argument("--output", type=Path, required=True, help="output JSON path; cannot overwrite input; adds audit_status, audit_findings, fingerprint")
     parser.add_argument("--require-clean", action="store_true", help="exit 1 unless audit_status is 'passed' (default: exit 0)")
     args = parser.parse_args()
     try:
+        preflight_output_paths(args.output, inputs=[args.input])
         result = build_research_design(load_json_object(args.input))
         write_json_atomic(args.output, result)
     except (OSError, ValueError) as error:
