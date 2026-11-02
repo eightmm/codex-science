@@ -270,7 +270,10 @@ def _validate(payload: Any) -> dict[str, Any]:
     }
 
 
-_POPULATION_SEPARATOR = re.compile(r"[,;/]|\band\b")
+# "and" before a closing age bound ("aged 65 and older") is part of the bound, not a list separator.
+_POPULATION_SEPARATOR = re.compile(
+    r"[,;/]|\band\b(?!\s+(?:over|older|above|under|younger|below)\s*(?:$|[,;/()\[\]]|\band\b))"
+)
 # Nouns that name a population group; singulars usually used as modifiers ("glycaemic control",
 # "subject to", "animal allergy", "mostly elderly") are left out, and hyphenated compounds such as
 # "patient-reported" count as one word. A study population followed by a separator and an item
