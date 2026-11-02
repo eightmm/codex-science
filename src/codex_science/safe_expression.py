@@ -10,6 +10,7 @@ import ast
 import hashlib
 import itertools
 import json
+import keyword
 import math
 from dataclasses import dataclass
 from fractions import Fraction
@@ -21,6 +22,7 @@ MAX_INTEGER_BITS = 4096
 MAX_POWER_ABS = 64
 MAX_DOMAIN_VALUES = 10_000
 MAX_SEARCH_EVALUATIONS = 1_000_000
+MAX_SEARCH_VARIABLES = 64
 
 
 class ExpressionError(ValueError):
@@ -122,6 +124,7 @@ class ParsedExpression:
 class _SearchArithmetic:
     rationalize_floats: bool = False
     inexact: bool = False
+    strict_bool_comparison: bool = False
 
     def number(self, value: Any, label: str) -> Any:
         value = _finite_number(value, label)
@@ -314,6 +317,8 @@ def _eval(node: ast.AST, variables: Mapping[str, Any], arithmetic: _SearchArithm
         left = evaluate(node.left)
         for operator, comparator in zip(node.ops, node.comparators):
             right = evaluate(comparator)
+            if arithmetic is not None and arithmetic.strict_bool_comparison and isinstance(left, bool) != isinstance(right, bool):
+                raise ExpressionError("boolean values cannot be compared with numbers")
             if isinstance(operator, ast.Eq):
                 passed = left == right
             elif isinstance(operator, ast.NotEq):
@@ -370,7 +375,7 @@ def _evaluate_exact_expression(source: str | ParsedExpression, variables: Mappin
 
 def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tuple[Any, ...], bool]:
     name = str(payload.get("name", "")).strip()
-    if not name.isidentifier() or name in _ALLOWED_FUNCTIONS or name in _ALLOWED_CONSTANTS:
+    if not name.isidentifier() or keyword.iskeyword(name) or name in _ALLOWED_FUNCTIONS or name in _ALLOWED_CONSTANTS:
         raise ValueError(f"variables[{index}].name must be a safe unique identifier")
     modes = sum(key in payload for key in ("values", "integer_range", "float_grid"))
     if modes != 1:
@@ -388,6 +393,7 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
                 values.append(value)
             else:
                 values.append(_finite_number(value, f"variable {name} value"))
+        exact = not any(isinstance(value, float) for value in values)
     elif "integer_range" in payload:
         spec = payload["integer_range"]
         if not isinstance(spec, Mapping):
@@ -432,6 +438,22 @@ def _domain_values(payload: Mapping[str, Any], *, index: int) -> tuple[str, tupl
     return name, tuple(values), exact
 
 
+def _search_truth(parsed: ParsedExpression, assignment: Mapping[str, Any], arithmetic: _SearchArithmetic, role: str) -> bool:
+    try:
+        value = _eval(parsed.tree, assignment, arithmetic)
+    except ExpressionError as error:
+        raise ExpressionError(f"{error} ({role} {parsed.source!r} at {_describe_assignment(assignment)})") from error
+    if not isinstance(value, bool):
+        raise ExpressionError(
+            f"{role} {parsed.source!r} must evaluate to a boolean, not a number, at {_describe_assignment(assignment)}"
+        )
+    return value
+
+
+def _describe_assignment(assignment: Mapping[str, Any]) -> str:
+    return ", ".join(f"{name}={value!r}" for name, value in assignment.items())[:512]
+
+
 def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
     if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
         raise ValueError("unsupported counterexample-search schema")
@@ -443,6 +465,8 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
     raw_variables = payload.get("variables")
     if not isinstance(raw_variables, list) or not raw_variables:
         raise ValueError("variables must be a non-empty list")
+    if len(raw_variables) > MAX_SEARCH_VARIABLES:
+        raise ValueError(f"variables exceed {MAX_SEARCH_VARIABLES} entries")
     domains = [_domain_values(item, index=index) for index, item in enumerate(raw_variables) if isinstance(item, Mapping)]
     if len(domains) != len(raw_variables):
         raise ValueError("each variable domain must be an object")
@@ -473,14 +497,14 @@ def search_counterexample(payload: Mapping[str, Any]) -> dict[str, Any]:
             break
         assignment = dict(zip(names, values))
         evaluations += 1
-        arithmetic = _SearchArithmetic(inexact=any(isinstance(value, float) for value in values))
-        assumptions_hold = all(bool(_eval(item.tree, assignment, arithmetic)) for item in parsed_assumptions)
+        arithmetic = _SearchArithmetic(inexact=any(isinstance(value, float) for value in values), strict_bool_comparison=True)
+        assumptions_hold = all(_search_truth(item, assignment, arithmetic, "assumption") for item in parsed_assumptions)
         used_inexact = used_inexact or arithmetic.inexact
         if not assumptions_hold:
             skipped_assumptions += 1
             continue
         satisfying_assignments += 1
-        conclusion_holds = bool(_eval(parsed_conclusion.tree, assignment, arithmetic))
+        conclusion_holds = _search_truth(parsed_conclusion, assignment, arithmetic, "conclusion")
         used_inexact = used_inexact or arithmetic.inexact
         if not conclusion_holds:
             confirmed = not arithmetic.inexact
@@ -561,6 +585,14 @@ def validate_counterexample_receipt(payload: Mapping[str, Any]) -> None:
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError(f"counterexample receipt {field} must be a non-negative integer")
     expected = search_counterexample(payload)
+    # receipt_id is the optional label that bundle review reads from counterexample receipts.
+    unknown = sorted(set(payload) - set(expected) - {"receipt_id"})
+    if unknown:
+        raise ValueError(f"counterexample receipt has unknown keys: {', '.join(map(str, unknown))}")
+    for index, entry in enumerate(payload["variables"]):
+        extra = sorted(set(entry) - {"name", "values", "integer_range", "float_grid"})
+        if extra:
+            raise ValueError(f"counterexample receipt variables[{index}] has unknown keys: {', '.join(map(str, extra))}")
     # The unchanged producer is deterministic. Canonical comparison also keeps
     # JSON booleans distinct from numbers when checking counts and assignments.
     for field, value in expected.items():

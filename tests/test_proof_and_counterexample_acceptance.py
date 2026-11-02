@@ -34,6 +34,30 @@ class ProofAndCounterexampleAcceptanceTests(unittest.TestCase):
             result = json.loads(output_path.read_text(encoding="utf-8")) if output_path.exists() else None
             return completed, result
 
+    def _run_paths(self, payload: dict, output_for) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
+        temporary = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temporary, ignore_errors=True))
+        (temporary / "run").mkdir()
+        input_path = temporary / "run" / "input.json"
+        input_path.write_text(json.dumps(payload), encoding="utf-8")
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT), str(input_path), "--output", str(output_for(temporary, input_path))],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        return completed, temporary, input_path
+
+    def test_output_aliasing_input_is_refused_without_writing(self) -> None:
+        payload = self._fixture()
+        completed, _, input_path = self._run_paths(payload, lambda _t, i: i)
+        self.assertEqual(1, completed.returncode)
+        self.assertEqual(payload, json.loads(input_path.read_text(encoding="utf-8")))
+
+    def test_output_with_parent_component_is_refused_without_writing(self) -> None:
+        completed, temporary, _ = self._run_paths(
+            self._fixture(), lambda t, _i: t / "run" / ".." / "escaped.json")
+        self.assertEqual(1, completed.returncode)
+        self.assertFalse((temporary / "escaped.json").exists())
+
     def _fixture(self) -> dict:
         return json.loads(FIXTURE.read_text(encoding="utf-8"))
 

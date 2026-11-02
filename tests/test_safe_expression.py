@@ -1,4 +1,5 @@
 import ast
+import json
 import math
 import unittest
 from unittest.mock import patch
@@ -7,6 +8,7 @@ from codex_science.safe_expression import (
     MAX_AST_NODES,
     MAX_EXPRESSION_CHARS,
     MAX_DOMAIN_VALUES,
+    MAX_SEARCH_VARIABLES,
     ExpressionError,
     ParsedExpression,
     canonical_sha256,
@@ -452,6 +454,62 @@ class CounterexampleNumericValidityTests(unittest.TestCase):
         for count in (0, 1, -1, True, 2.5, "2", None):
             with self.subTest(count=count), self.assertRaises(ValueError):
                 self.search({"float_grid": {"start": 0, "stop": 1, "count": count}}, "True")
+
+    def test_search_refuses_non_boolean_assumptions_and_conclusions(self):
+        for expression, domain in (("x - 1", {"values": [1, 2]}), ("x", {"values": [0, 1]})):
+            with self.subTest(conclusion=expression), self.assertRaisesRegex(ExpressionError, r"conclusion .* boolean.* x=") as caught:
+                self.search(domain, expression)
+            self.assertIn(repr(expression), str(caught.exception))
+        with self.assertRaisesRegex(ExpressionError, r"assumption 'x \+ 1' .* boolean"):
+            self.search({"values": [1]}, "True", assumptions=["x + 1"])
+
+    def test_search_refuses_bool_number_comparison_but_evaluator_is_unchanged(self):
+        with self.assertRaisesRegex(ExpressionError, "boolean values cannot be compared with numbers"):
+            self.search({"values": [True, False]}, "x != 1")
+        with self.assertRaisesRegex(ExpressionError, "boolean values cannot be compared with numbers"):
+            self.search({"values": [1]}, "x == True")
+        self.assertEqual("tested-no-counterexample", self.search({"values": [True, False]}, "x == x", scope="general")["status"])
+        self.assertTrue(evaluate_expression("x == 1", {"x": True}))
+
+    def test_exact_domains_requires_every_value_exact(self):
+        self.assertFalse(self.search({"values": [1, 0.5]}, "x >= 0")["exact_domains"])
+        self.assertTrue(self.search({"values": [1, 2, True]}, "True")["exact_domains"])
+
+    def test_receipt_refuses_unknown_keys_with_recomputed_fingerprint(self):
+        honest = self.search({"integer_range": {"start": 0, "stop": 1}}, "x*x >= 0")
+        for mutate, name in (
+            (lambda r: r.update(surprise=1), "surprise"),
+            (lambda r: r["variables"][0].update(note="n"), "note"),
+        ):
+            forged = json.loads(json.dumps(honest))
+            mutate(forged)
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(key=name), self.assertRaisesRegex(ValueError, f"unknown keys: {name}"):
+                validate_counterexample_receipt(forged)
+        labelled = dict(honest, receipt_id="R")
+        labelled.pop("fingerprint")
+        labelled["fingerprint"] = canonical_sha256(labelled)
+        validate_counterexample_receipt(labelled)
+
+    def test_failing_grid_point_names_the_assignment(self):
+        with self.assertRaisesRegex(ExpressionError, r"function sqrt failed.*conclusion 'sqrt\(x\) >= 0'.*x=-1"):
+            self.search({"values": [-1, 4]}, "sqrt(x) >= 0")
+
+    def test_keyword_variable_names_are_refused(self):
+        for name in ("None", "and", "if", "lambda"):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "safe unique identifier"):
+                self.search({"values": [1]}, "True", variables=[{"name": name, "values": [1]}])
+
+    def test_variable_count_is_bounded_before_materialization(self):
+        def many(count):
+            return [{"name": f"v{index}", "values": [True, False]} for index in range(count)]
+        with patch("codex_science.safe_expression._domain_values", side_effect=AssertionError("materialized")), \
+                self.assertRaisesRegex(ValueError, f"variables exceed {MAX_SEARCH_VARIABLES}"):
+            self.search({"values": [1]}, "True", variables=many(MAX_SEARCH_VARIABLES + 1))
+        result = self.search({"values": [1]}, "True", variables=many(MAX_SEARCH_VARIABLES), max_evaluations=1)
+        self.assertEqual(2**MAX_SEARCH_VARIABLES, result["total_combinations"])
+        self.assertEqual(1, result["evaluations"])
 
 
 if __name__ == "__main__":

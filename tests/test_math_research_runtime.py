@@ -767,8 +767,8 @@ class MathResearchRuntimeTests(unittest.TestCase):
             ("x**64 >= 0", "x**64 >= 0", 0, "conjecture", "passed"),
             ("x**65 >= 0", "y > 0", -1, "disproved", "findings"),
             ("x**" + "9" * 400 + " >= 0", "x*x >= 0", 1, "conjecture", "findings"),
-            ("(x" + " " * (MAX_EXPRESSION_CHARS - 3) + ")", "x", 0, "disproved", "passed"),
-            ("(x" + " " * (MAX_EXPRESSION_CHARS - 2) + ")", "x", 0, "disproved", "findings"),
+            ("(x > 0" + " " * (MAX_EXPRESSION_CHARS - 7) + ")", "x > 0", -1, "disproved", "passed"),
+            ("(x > 0" + " " * (MAX_EXPRESSION_CHARS - 6) + ")", "x > 0", -1, "disproved", "findings"),
         ):
             with self.subTest(statement_preview=statement[:64], statement_chars=len(statement), conclusion=conclusion):
                 variable_name = "y" if conclusion == "y > 0" else "x"

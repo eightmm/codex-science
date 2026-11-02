@@ -75,6 +75,16 @@ Domain declarations:
 
 The expression language allows bounded real arithmetic, comparisons, Boolean logic, conditional expressions, and approved elementary functions. It forbids attributes, indexing, comprehensions, imports, user-defined functions, file access, and arbitrary Python execution.
 
+Search limits and refusals:
+
+- at most 64 variables, each with at most 10,000 domain values, checked before any domain is materialised, so `total_combinations` stays below 10^257;
+- variable names must be identifiers that are not Python keywords (`None`, `and`, `if`, `lambda` are refused);
+- every assumption and the conclusion must evaluate to a boolean at each assignment; a numeric result (for example conclusion `x - 1`) is refused with the expression and assignment, and a boolean is never compared with a number (`b != 1` over `[true, false]` is refused);
+- an evaluation error at a grid point (for example `sqrt(x)` at `x=-1`) stops the search naming the expression and assignment: add the missing assumption instead of relying on the search to skip the point;
+- `exact_domains` is false when any `values` entry is a float;
+- `--output` must not be the input, and must not contain a `..` component;
+- receipt validation refuses top-level keys the search does not emit (except the optional `receipt_id` that bundle review reads) and unknown keys in variable entries.
+
 Result semantics:
 
 - `disproved`: a returned assignment satisfies all assumptions and falsifies the conclusion;
