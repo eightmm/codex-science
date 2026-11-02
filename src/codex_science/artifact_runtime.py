@@ -932,15 +932,22 @@ def selection_region_error(selection: Mapping[str, Any], descriptor: Mapping[str
         return f"selection viewer {selection.get('viewer')!r} differs from descriptor viewer {descriptor.get('viewer')!r}"
     try:
         _validate_selection_region(selection, descriptor)
-    except (ValueError, KeyError, TypeError, IndexError) as exc:
+    except (ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
+        # Stored descriptors are only structurally validated, so malformed preview facts
+        # (a non-string media_type or line text) are reported here instead of raising.
         return str(exc) or type(exc).__name__
     return None
+
+
+def anchor_is_current(artifact_hashes: Mapping[str, str], artifact_path: Any, artifact_sha256: Any) -> bool:
+    """Whether bundle hashes record this digest for the canonical form of the path."""
+    return _anchor_matches(artifact_hashes, *_anchor(artifact_path, artifact_sha256))
 
 
 def stale_selection(payload: Mapping[str, Any], artifact_hashes: Mapping[str, str]) -> dict[str, Any]:
     validate_selection(payload)
     result = dict(payload)
-    if not _anchor_matches(artifact_hashes, *_anchor(str(payload["artifact_path"]), payload["artifact_sha256"])):
+    if not anchor_is_current(artifact_hashes, str(payload["artifact_path"]), payload["artifact_sha256"]):
         result["status"] = "stale-anchor"
     return result
 

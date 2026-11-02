@@ -443,6 +443,56 @@ class ArtifactRuntimeSidecarTests(unittest.TestCase):
             self.assertEqual([], [item for item in sidecars["advanced_findings"]
                                   if item["code"] == "unresolved-artifact-selection"])
 
+    def test_malformed_descriptor_preview_facts_are_a_finding_not_a_crash(self) -> None:
+        def refingerprint(payload: dict) -> dict:
+            material = {key: value for key, value in payload.items() if key != "fingerprint"}
+            return {**material, "fingerprint": runtime._fingerprint(material)}
+
+        for field, value in (("lines_preview", [{"text": 5}]), ("media_type", 5)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as scratch:
+                run_dir = Path(scratch)
+                data = run_dir / "data.json"
+                data.write_text('{"a": 1}\n', encoding="utf-8")
+                descriptor = describe_runtime(data, artifact_path="data.json", kind="data", max_bytes=1024,
+                                              max_records=20, generated_at="2026-07-21T00:00:00Z").to_dict()
+                selection = build_selection(descriptor, selector_type="json-pointer", selector={"pointer": "/a"},
+                                            selected_by="reviewer", reason="Inspect.", created_at="2026-07-21T00:01:00Z")
+                if field == "lines_preview":
+                    broken = refingerprint({**descriptor, "preview": {**descriptor["preview"], field: value}})
+                else:
+                    broken = refingerprint({**descriptor, field: value})
+                manifest = new_manifest("malformed-run", "Does review survive malformed preview facts?", [])
+                add_artifact(manifest, data.name, kind="data", sha256=digest(data))
+                for name, kind, payload in (("a.selection.json", "artifact-selection", selection),
+                                            ("data.runtime.json", "artifact-runtime-descriptor", broken)):
+                    path = run_dir / name
+                    path.write_text(json.dumps(payload), encoding="utf-8")
+                    add_artifact(manifest, name, kind=kind, sha256=digest(path))
+                sidecars = validate_bundle(manifest, run_dir)
+                findings = [item for item in sidecars["advanced_findings"]
+                            if item["code"] == "unresolved-artifact-selection"]
+                self.assertEqual(1, len(findings), sidecars["advanced_findings"])
+
+    def test_descriptor_and_selection_share_staleness_for_dotted_manifest_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            run_dir = Path(scratch)
+            data = run_dir / "metrics.csv"
+            data.write_text("metric,value\nrmsd,2.4\n", encoding="utf-8")
+            descriptor = describe_runtime(data, artifact_path="metrics.csv", kind="metrics", max_bytes=1024,
+                                          max_records=20, generated_at="2026-07-21T00:00:00Z").to_dict()
+            selection = build_selection(descriptor, selector_type="cell", selector={"row": 1, "column": "value"},
+                                        selected_by="reviewer", reason="Inspect.", created_at="2026-07-21T00:01:00Z")
+            manifest = new_manifest("dotted-run", "Do both sidecars agree on staleness?", [])
+            add_artifact(manifest, "./metrics.csv", kind="metrics", sha256=digest(data))
+            for name, kind, payload in (("cell.selection.json", "artifact-selection", selection),
+                                        ("metrics.runtime.json", "artifact-runtime-descriptor", descriptor)):
+                path = run_dir / name
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                add_artifact(manifest, name, kind=kind, sha256=digest(path))
+            sidecars = validate_bundle(manifest, run_dir)
+            self.assertEqual("active", sidecars["artifact_selections"][0]["status"])
+            self.assertEqual([], sidecars["runtime_descriptor_stale"])
+
     def test_missing_verified_sidecar_path_is_labelled(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
             with self.assertRaisesRegex(ValueError, r"\(artifact-selection\).*path"):

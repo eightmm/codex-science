@@ -8,6 +8,7 @@ from typing import Any
 
 from codex_science.artifact_store import validate_descriptor
 from codex_science.artifact_runtime import (
+    anchor_is_current,
     selection_region_error,
     stale_selection,
     validate_runtime_descriptor,
@@ -138,9 +139,9 @@ def validate_advanced_sidecars(
                 result["artifact_descriptors"].append(validate_descriptor(payload).to_dict())
             elif kind == "artifact-runtime-descriptor":
                 validate_runtime_descriptor(payload)
-                if result["artifact_hashes"].get(str(payload["artifact_path"])) != str(
-                    payload["artifact_sha256"]
-                ).lower():
+                if not anchor_is_current(
+                    result["artifact_hashes"], str(payload["artifact_path"]), payload["artifact_sha256"]
+                ):
                     result["runtime_descriptor_stale"].append(payload)
                 result["runtime_descriptors"].append(payload)
             elif kind == "artifact-selection":
