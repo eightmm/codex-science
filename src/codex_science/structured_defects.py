@@ -270,10 +270,6 @@ def _validate(payload: Any) -> dict[str, Any]:
     }
 
 
-# "and" before a closing age bound ("aged 65 and older") is part of the bound, not a list separator.
-_POPULATION_SEPARATOR = re.compile(
-    r"[,;/]|\band\b(?!\s+(?:over|older|above|under|younger|below)\s*(?:$|[,;/()\[\]]|\band\b))"
-)
 # Nouns that name a population group; singulars usually used as modifiers ("glycaemic control",
 # "subject to", "animal allergy", "mostly elderly") are left out, and hyphenated compounds such as
 # "patient-reported" count as one word. A study population followed by a separator and an item
@@ -288,6 +284,12 @@ _POPULATION_NOUNS = frozenset({
     "participants", "volunteers", "controls", "caregivers", "carers", "students", "workers",
     "veterans", "parents", "partners", "families", "mice", "rats", "animals",
 })
+# "and" before an age bound ("aged 65 and older", "18 and under in japan") is part of the bound, not a
+# list separator, unless the bound word directly modifies a group noun ("adults and older children").
+_POPULATION_SEPARATOR = re.compile(
+    r"[,;/]|\band\b(?!\s+(?:over|older|above|under|younger|below)\b(?!\s+(?:"
+    + "|".join(sorted(_POPULATION_NOUNS, key=len, reverse=True)) + r")\b))"
+)
 _BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
 
 
