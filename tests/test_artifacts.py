@@ -746,6 +746,13 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertIn("<strong>Note:</strong> The manifest records a different status and text", rendered_html)
             self.assertIn("&lt;b&gt;bold&lt;/b&gt; | claim", rendered_html)
             self.assertNotIn("<b>", rendered_html)
+            # A field the manifest claim leaves out is not a disagreement.
+            recorded_status = claim.pop("status")
+            write_manifest(manifest, manifest_path)
+            for output in (render_markdown(manifest, run), render_html(manifest, run)):
+                self.assertIn("different text for this claim", output)
+                self.assertNotIn("different status", output)
+            claim["status"] = recorded_status
             # Only the differing field is named, and agreeing claims get no note.
             claim["text"] = register["text"]
             write_manifest(manifest, manifest_path)
@@ -800,6 +807,20 @@ class ArtifactIndexTests(unittest.TestCase):
                 self.assertNotIn("manifest.json", rendered_html)
                 self.assertIn(f"<code>{name}</code>", rendered_html)
 
+    def test_shipped_examples_render_without_disagreement_notes_and_names_must_be_bare(self) -> None:
+        root = Path(__file__).resolve().parents[1] / "examples"
+        manifests = sorted(root.glob("*/manifest.json"))
+        self.assertTrue(manifests)
+        for manifest_path in manifests:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for renderer in (render_markdown, render_html):
+                with self.subTest(example=manifest_path.parent.name, renderer=renderer.__name__):
+                    self.assertNotIn("manifest records a different", renderer(manifest, manifest_path.parent).lower())
+        manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+        for name in ("//host/x.json", "../manifest.json", "sub/manifest.json", "a\\b.json", "", ".."):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "manifest_name must be a file name"):
+                render_markdown(manifest, manifests[0].parent, manifest_name=name)
+
     def test_renderer_shows_control_and_format_characters_as_escapes(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
@@ -846,8 +867,10 @@ class ArtifactIndexTests(unittest.TestCase):
             run = manifest_path.parent
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             markdown = render_markdown(manifest, run)
-            self.assertIn("3/4 complete", markdown)
-            self.assertIn("- **✅ Complete:** First", markdown)
+            # Only complete/completed count, as in review; "done" is neither counted nor labelled complete.
+            self.assertIn("2/4 complete", markdown)
+            self.assertNotIn("✅ Complete:** First", markdown)
+            self.assertIn("- **✅ Complete:** Second", markdown)
             primary = markdown.split("## Primary files")[1].split("## Details")[0]
             self.assertNotIn("figures/result.png", primary)
             self.assertIn("tables/result.csv", primary)

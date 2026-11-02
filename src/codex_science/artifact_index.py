@@ -23,14 +23,13 @@ PRIMARY_KIND_TERMS = (
     "notebook",
     "manuscript",
 )
-COMPLETED_STATUSES = frozenset({"complete", "completed", "done"})
+COMPLETED_STATUSES = frozenset({"complete", "completed"})
 BLOCKING_SEVERITIES = frozenset({"major", "critical"})
 RESOLVED_FINDING_STATUSES = frozenset({"resolved", "not-applicable"})
 STATUS_LABELS = {
     "passed": "✅ Passed",
     "complete": "✅ Complete",
     "completed": "✅ Complete",
-    "done": "✅ Complete",
     "supported": "✅ Supported",
     "replicated": "✅ Replicated",
     "in_progress": "🟡 In progress",
@@ -55,9 +54,10 @@ def _invisible(character: str) -> bool:
 def _text(value: Any) -> str:
     # Whitespace (including control whitespace) collapses first; any remaining
     # control or format character, such as a bidi or zero-width mark, is shown
-    # as a visible escape so distinct names stay distinguishable. A zero-width
-    # (non-)joiner between two visible non-ASCII characters is kept: Persian,
-    # Indic scripts and emoji sequences need it, and it cannot disguise ASCII.
+    # as a visible escape. A zero-width (non-)joiner between two non-ASCII
+    # characters that are not themselves control or format characters is kept:
+    # Persian, Indic scripts and emoji sequences need it, and it never sits
+    # inside ASCII text.
     text = " ".join(str(value).split())
     out = []
     for index, character in enumerate(text):
@@ -118,27 +118,28 @@ def _claim_rows(
         for claim in claims:
             claim_id = str(claim.get("id", "claim")).strip()
             other = recorded.get(claim_id)
-            if other is not None and any(
-                _text(other.get(field, "")) != _text(claim.get(field, ""))
-                for field in ("status", "text")
-            ):
+            if other is not None and _differing_fields(claim, other):
                 disagreements[claim_id] = other
     return claims, disagreements
 
 
-def _manifest_difference(claim: dict[str, Any], recorded: dict[str, Any] | None) -> str:
-    if recorded is None:
-        return ""
-    parts = [
-        f'{field} "{_text(recorded.get(field, ""))}"'
-        for field in ("status", "text")
-        if _text(recorded.get(field, "")) != _text(claim.get(field, ""))
+def _differing_fields(claim: dict[str, Any], recorded: dict[str, Any]) -> list[str]:
+    # Like the validator's kind check, a field counts only when both records carry it:
+    # manifest claims usually leave status to the register.
+    return [
+        field for field in ("status", "text")
+        if field in recorded and field in claim and _text(recorded[field]) != _text(claim[field])
     ]
+
+
+def _manifest_difference(claim: dict[str, Any], recorded: dict[str, Any] | None) -> str:
+    fields = _differing_fields(claim, recorded) if recorded is not None else []
+    if not fields:
+        return ""
+    parts = [f'{field} "{_text(recorded[field])}"' for field in fields]
     return (
-        "The manifest records a different " + " and ".join(
-            field for field in ("status", "text")
-            if _text(recorded.get(field, "")) != _text(claim.get(field, ""))
-        ) + " for this claim (" + "; ".join(parts) + "); the claim register values are shown."
+        "The manifest records a different " + " and ".join(fields)
+        + " for this claim (" + "; ".join(parts) + "); the claim register values are shown."
     )
 
 
@@ -272,6 +273,12 @@ def _primary_artifacts(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [record for _, _, record in ranked]
 
 
+def _check_manifest_name(manifest_name: str) -> None:
+    # The footer links the manifest beside the index, so only a bare file name is accepted.
+    if not manifest_name or manifest_name in {".", ".."} or "/" in manifest_name or "\\" in manifest_name:
+        raise ValueError(f"manifest_name must be a file name in the run directory: {manifest_name!r}")
+
+
 def _manifest_link(manifest_name: str) -> str:
     return f"[{_markdown_text(manifest_name)}]({_href(manifest_name)})"
 
@@ -284,6 +291,7 @@ def _manifest_code(manifest_name: str) -> str:
 def render_markdown(
     manifest: dict[str, Any], run_dir: Path, manifest_name: str = "manifest.json"
 ) -> str:
+    _check_manifest_name(manifest_name)
     artifacts, sidecars = _validated_bundle(manifest, run_dir)
     claims, disagreements = _claim_rows(manifest, sidecars)
     plan = _plan_steps(manifest)
@@ -542,6 +550,7 @@ def render_markdown(
 def render_html(
     manifest: dict[str, Any], run_dir: Path, manifest_name: str = "manifest.json"
 ) -> str:
+    _check_manifest_name(manifest_name)
     artifacts, sidecars = _validated_bundle(manifest, run_dir)
     plan_steps = _plan_steps(manifest)
     claim_rows, disagreements = _claim_rows(manifest, sidecars)
