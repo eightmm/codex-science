@@ -255,7 +255,6 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
         self.assertFalse(monte_carlo["test"]["exact"])
         cases = [
             (exact, lambda r: r["sample"]["experimental_units"].update(control=0), "experimental_units"),
-            (exact, lambda r: r["sample"]["experimental_units"].update(control=1), "experimental_units"),
             (exact, lambda r: r["interval"].update(replicates=0), "interval.replicates"),
             (exact, lambda r: r["interval"].update(replicates=199), "interval.replicates"),
             (exact, lambda r: r["test"].update(permutations=0, p_value=0.5), "test.permutations"),
@@ -276,6 +275,15 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
                 validate_statistical_analysis(broken)
         for receipt in (exact, monte_carlo):
             validate_statistical_analysis(receipt)
+        # Receipt shape the runtime wrote before d81020b, which accepted one unit per group.
+        legacy = copy.deepcopy(exact)
+        legacy["sample"].update(experimental_units={"control": 1, "treatment": 1},
+                                raw_counts={"control": 1, "treatment": 1}, missing_counts={"control": 0, "treatment": 0},
+                                duplicate_observations_aggregated=0)
+        legacy["test"].update(permutations=2, p_value=1.0)
+        legacy.pop("fingerprint")
+        legacy["fingerprint"] = canonical_sha256(legacy)
+        validate_statistical_analysis(legacy)
         edge = copy.deepcopy(exact)
         edge["interval"]["replicates"] = 200
         edge["sample"]["experimental_units"] = {"control": 2, "treatment": 2}

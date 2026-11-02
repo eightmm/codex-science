@@ -554,8 +554,9 @@ def _validate_statistical_consistency(payload: Mapping[str, Any]) -> None:
             raise ValueError(f"sample.missing_counts.{group} exceeds sample.raw_counts.{group}")
         if units[group] > raw[group]:
             raise ValueError(f"sample.experimental_units.{group} exceeds sample.raw_counts.{group}")
-        if units[group] < 2:
-            raise ValueError(f"sample.experimental_units.{group} must be at least 2")
+        # Runs before d81020b accepted one unit per group, so stored receipts may record one.
+        if units[group] < 1:
+            raise ValueError(f"sample.experimental_units.{group} must be at least 1")
     if analysis_type == "paired" and units[first] != units[second]:
         raise ValueError("paired analysis requires equal experimental_units per group")
     if interval.get("method") != "deterministic-percentile-bootstrap":
@@ -573,10 +574,10 @@ def _validate_statistical_consistency(payload: Mapping[str, Any]) -> None:
     if test.get("method") != ("exact-randomization" if exact else "monte-carlo-randomization"):
         raise ValueError("test.method does not match test.exact")
     permutations, p_value = test["permutations"], float(test["p_value"])
-    # The smallest exact state space is 2 ** 2 sign flips (paired) or C(4, 2) splits.
+    # One unit per group (accepted before d81020b) gives 2 ** 1 sign flips or C(2, 1) splits.
     if permutations > (MAX_EXACT_PERMUTATIONS if exact else MAX_REPLICATES):
         raise ValueError("test.permutations exceeds the randomization limit")
-    smallest = 4 if exact else MIN_REPLICATES
+    smallest = 2 if exact else MIN_REPLICATES
     if permutations < smallest:
         raise ValueError(f"test.permutations is below the runtime minimum of {smallest}")
     # Exact p = extreme/total; Monte Carlo p = (extreme + 1)/(total + 1).
