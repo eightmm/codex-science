@@ -135,6 +135,9 @@ Committed blobs are materialized without checkout filters, so a tracked path
 with a `filter` attribute is refused rather than bundled as its committed
 pointer. Keep content that Git LFS or another filter materializes out of the
 committed tree (gitignored) and declare it as a hashed input.
+Line-ending (`eol`/`text` with `core.autocrlf`), `working-tree-encoding` and
+`ident` conversions are not refused: the bundle holds the committed bytes, which
+can differ from the checked-out file.
 
 Directory inputs must be quiescent for the duration of bundling. If another
 process may change their entries or types, first stage them into a reviewed

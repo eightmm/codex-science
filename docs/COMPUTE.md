@@ -54,6 +54,9 @@ The strict bundle contains Git blob bytes, not checkout filters, so a tracked
 path with a `filter` attribute is refused rather than bundled as its committed
 pointer. Keep content that Git LFS or another filter materializes out of the
 committed tree (gitignored) and declare it as a digest-bound path input.
+Line-ending (`eol`/`text` with `core.autocrlf`), `working-tree-encoding` and
+`ident` conversions are not refused: the bundle holds the committed bytes, which
+can differ from the checked-out file.
 
 A strict Slurm job directory is single-attempt state. Scheduler requeue or an
 operator restart must use a new submission/job directory so the verified source
