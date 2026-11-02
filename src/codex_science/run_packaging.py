@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shlex
 import stat
 import subprocess
@@ -195,6 +196,30 @@ def _execution_is_later(
     return candidate_index > failure_index
 
 
+def _read_journal(log_file: Path) -> list[dict[str, Any]]:
+    records = []
+    content = log_file.read_bytes()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        # The sentinel retains the current line after any str.splitlines separator.
+        number = len((content[:error.start].decode("utf-8") + "x").splitlines())
+        raise ValueError(f"Invalid execution-log.jsonl line {number}: {error}") from error
+    for number, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except ValueError as error:
+            raise ValueError(f"Invalid execution-log.jsonl line {number}: {error}") from error
+        except RecursionError as error:
+            raise ValueError(f"Invalid execution-log.jsonl line {number}: excessive nesting") from error
+        if not isinstance(entry, dict):
+            raise ValueError(f"Invalid execution-log.jsonl line {number}: execution record must be a JSON object")
+        records.append(entry)
+    return records
+
+
 def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -> int:
     if not command:
         raise ValueError("command is required after --")
@@ -203,27 +228,7 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
     log_file = run_dir / "execution-log.jsonl"
     _write_target(run_dir, "execution-log.jsonl")
     logs_dir = _safe_directory(run_dir, "logs")
-    records = []
-    if log_file.exists():
-        content = log_file.read_bytes()
-        try:
-            text = content.decode("utf-8")
-        except UnicodeDecodeError as error:
-            # The sentinel retains the current line after any str.splitlines separator.
-            number = len((content[:error.start].decode("utf-8") + "x").splitlines())
-            raise ValueError(f"Invalid execution-log.jsonl line {number}: {error}") from error
-        for number, line in enumerate(text.splitlines(), 1):
-            if not line.strip():
-                continue
-            try:
-                entry = json.loads(line)
-            except ValueError as error:
-                raise ValueError(f"Invalid execution-log.jsonl line {number}: {error}") from error
-            except RecursionError as error:
-                raise ValueError(f"Invalid execution-log.jsonl line {number}: excessive nesting") from error
-            if not isinstance(entry, dict):
-                raise ValueError(f"Invalid execution-log.jsonl line {number}: execution record must be a JSON object")
-            records.append(entry)
+    records = _read_journal(log_file) if log_file.exists() else []
     exit_codes: dict[str, list[Any]] = {}
 
     def _note(item: Any) -> None:
@@ -286,8 +291,15 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
             file=sys.stderr,
         )
     started = _utc()
-    with os.fdopen(output_fd, "wb") as output:
-        result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
+    try:
+        with os.fdopen(output_fd, "wb") as output:
+            result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
+    except OSError as error:
+        log_path.unlink(missing_ok=True)
+        raise ValueError(
+            f"Cannot start command {shlex.join(command)}: {error.strerror or error}; "
+            "no log or journal entry was written"
+        ) from error
     ended = _utc()
     record = {"id": identifier, "command": shlex.join(command), "started_at": started, "ended_at": ended,
               "exit_code": result.returncode, "log_path": log_relative, "log_sha256": _sha(log_path)}
@@ -328,6 +340,14 @@ def _kind(path: str, overrides: list[tuple[str, str]], default_kind: str | None 
     return default_kind
 
 
+_STAGING_LEFTOVER = re.compile(r"\..+\.[A-Za-z0-9_]{8}\.tmp")
+
+
+def _is_staging_leftover(path: Path) -> bool:
+    """Match the `.<name>.<random>.tmp` files `_stage_file` creates beside a target."""
+    return _STAGING_LEFTOVER.fullmatch(path.name) is not None
+
+
 def _is_operational_lock(run_dir: Path, path: Path) -> bool:
     if path.name not in _OPERATIONAL_LOCK_NAMES:
         return False
@@ -344,11 +364,16 @@ def _is_deterministic_review_file(path: Path) -> bool:
     return name.startswith("deterministic-review") and path.suffix.lower() == ".json"
 
 
+# Writers emit review-receipt.json, review-receipt-v2.json, review-packet.json and review-response.json;
+# prefixed copies (old-review-receipt.json) still match, ordinary data names that merely contain the words do not.
+_REVIEW_FLOW_NAME = re.compile(r"(?:^|[-_.])review-(?:receipt|packet|response)(?:-v?\d+)?\.json$")
+
+
 def _is_review_flow_file(path: Path) -> bool:
     name = path.name.lower()
     if name in {"review-task.json", "reviewer-response.json", "reviewer-notes.md"}:
         return True
-    if any(tag in name for tag in ("review-receipt", "review-packet", "review-response")):
+    if _REVIEW_FLOW_NAME.search(name):
         return True
     if path.suffix.lower() != ".json":
         return False
@@ -715,6 +740,9 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         new_kind = exact_overrides.get(_canonical_relative(str(item["path"])))
         if new_kind is not None and new_kind != item.get("kind") and (item.get("kind") in REVIEW_KINDS or new_kind in REVIEW_KINDS):
             raise ValueError(f"--kind {item['path']}={new_kind} refused: review artifact kinds are managed by the review flow")
+    for key in ("code", "executions"):
+        if not isinstance(manifest.get(key), list):
+            raise ValueError(f"Manifest {key} must be a list in manifest.json; add \"{key}\": [] before refreshing")
     review = manifest.get("review", {})
     review_artifacts = [item for item in artifacts if isinstance(item, dict) and item.get("kind") in REVIEW_KINDS]
     review_files = _review_flow_files(run_dir)
@@ -892,8 +920,14 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
             continue
         relative = target.relative_to(run_dir).as_posix()
         canonical = _canonical_relative(relative)
-        _inside(run_dir, canonical)
-        if _is_operational_lock(run_dir, target):
+        try:
+            _inside(run_dir, canonical)
+        except ValueError as error:
+            raise ValueError(
+                f"{error} (found while scanning the run directory for unregistered files; "
+                "remove the symlink or move its target into the run)"
+            ) from error
+        if _is_operational_lock(run_dir, target) or _is_staging_leftover(target) or target.name == ".DS_Store":
             continue
         if "__pycache__" in PurePosixPath(canonical).parts or target.suffix == ".pyc":
             continue
@@ -972,27 +1006,23 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         for item in [*manifest["executions"], *superseded]:
             if isinstance(item, dict) and item.get("id") is not None:
                 known.setdefault(item["id"], []).append(item)
-        with execution_log.open(encoding="utf-8") as stream:
-            for line in stream:
-                if not line.strip():
-                    continue
-                entry = json.loads(line)
-                entry_id = entry.get("id")
-                if entry_id is not None and entry_id in known:
-                    for recorded in known[entry_id]:
-                        if any(
-                            key in entry and key in recorded and entry[key] != recorded[key]
-                            for key in comparable_fields
-                        ):
-                            raise ValueError(
-                                f"Conflicting execution record for id {entry_id}"
-                            )
-                    continue
-                new_entry = {key: entry[key] for key in ("id", "command", "started_at", "ended_at", "exit_code", "log_path", "log_sha256") if key in entry}
-                manifest["executions"].append(new_entry)
-                if entry_id is not None:
-                    known.setdefault(entry_id, []).append(new_entry)
-                executions_added += 1
+        for entry in _read_journal(execution_log):
+            entry_id = entry.get("id")
+            if entry_id is not None and entry_id in known:
+                for recorded in known[entry_id]:
+                    if any(
+                        key in entry and key in recorded and entry[key] != recorded[key]
+                        for key in comparable_fields
+                    ):
+                        raise ValueError(
+                            f"Conflicting execution record for id {entry_id}"
+                        )
+                continue
+            new_entry = {key: entry[key] for key in ("id", "command", "started_at", "ended_at", "exit_code", "log_path", "log_sha256") if key in entry}
+            manifest["executions"].append(new_entry)
+            if entry_id is not None:
+                known.setdefault(entry_id, []).append(new_entry)
+            executions_added += 1
     executions = manifest["executions"]
     superseded_failures = 0
     remaining_executions = []

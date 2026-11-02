@@ -2064,6 +2064,87 @@ class PackageRunTests(unittest.TestCase):
         validation = self.cli_validator(manifest_path)
         self.assertEqual(validation.returncode, 0, validation.stderr)
 
+    def _refresh_clean(self, *extra: str) -> subprocess.CompletedProcess[str]:
+        self._make_unreviewed_run()
+        return self.cli("refresh", "--run-dir", str(self.run_dir), "--default-kind", "data", *extra)
+
+    def _registered(self) -> set[str]:
+        return {item["path"] for item in json.loads((self.run_dir / "manifest.json").read_text())["artifacts"]}
+
+    def test_refresh_skips_staging_leftovers_and_ds_store_only(self) -> None:
+        self._make_unreviewed_run()
+        skipped = [".data.csv.ab12_c34.tmp", ".DS_Store", "sub/.DS_Store"]
+        (self.run_dir / "sub").mkdir()
+        for name in [*skipped, ".hidden-note", ".x.tmp", "stage.tmp"]:
+            (self.run_dir / name).write_text("x")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--default-kind", "data")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        registered = self._registered()
+        self.assertFalse(registered & set(skipped))
+        self.assertLessEqual({".hidden-note", ".x.tmp", "stage.tmp"}, registered)
+
+    def test_refresh_labels_symlink_escaping_run(self) -> None:
+        self._make_unreviewed_run()
+        outside = Path(self.temp.name) / "outside.csv"
+        outside.write_text("a\n")
+        (self.run_dir / "data").mkdir()
+        (self.run_dir / "data" / "link.csv").symlink_to(outside)
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--default-kind", "data")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Path escapes run directory: data/link.csv", result.stderr)
+        self.assertIn("scanning the run directory", result.stderr)
+        self.assertIn("remove the symlink or move its target into the run", result.stderr)
+
+    def test_refresh_labels_malformed_manifest_and_journal(self) -> None:
+        self._make_unreviewed_run()
+        manifest_path = self.run_dir / "manifest.json"
+        original = manifest_path.read_text()
+        for key in ("code", "executions"):
+            with self.subTest(key=key):
+                manifest = json.loads(original)
+                del manifest[key]
+                manifest_path.write_text(json.dumps(manifest))
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--default-kind", "data")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"Manifest {key} must be a list", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+        manifest_path.write_text(original)
+        journal = self.run_dir / "execution-log.jsonl"
+        for content, line in (("[]\n", 1), ("{}\n\nnot json\n", 3), ("null", 1)):
+            with self.subTest(content=content):
+                journal.write_text(content)
+                result = self.cli("refresh", "--run-dir", str(self.run_dir), "--default-kind", "data")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"Invalid execution-log.jsonl line {line}", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_exec_unstartable_command_leaves_no_log_or_journal(self) -> None:
+        for command in ("definitely-missing-command-xyz", str(self.run_dir / "manifest.json")):
+            with self.subTest(command=command):
+                result = self.cli("exec", "--run-dir", str(self.run_dir), "--", command)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("Cannot start command", result.stderr)
+                self.assertIn(Path(command).name, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual(list((self.run_dir / "logs").glob("exec-*.log")) if (self.run_dir / "logs").exists() else [], [])
+                self.assertFalse((self.run_dir / "execution-log.jsonl").exists())
+
+    def test_refresh_review_flow_detection_ignores_ordinary_names(self) -> None:
+        self._make_unreviewed_run()
+        ordinary = ["my-review-response-notes.csv", "review-packet-stats.csv", "review-receipt.csv", "notes-review-response.md"]
+        for name in ordinary:
+            (self.run_dir / name).write_text("a\n")
+        result = self.cli("refresh", "--run-dir", str(self.run_dir), "--default-kind", "data")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLessEqual(set(ordinary), self._registered())
+
+    def test_review_flow_names_written_by_the_flow_still_match(self) -> None:
+        from codex_science.run_packaging import _is_review_flow_file
+        for name in ("review-task.json", "reviewer-response.json", "reviewer-notes.md", "review-packet.json",
+                     "review-receipt.json", "review-receipt-v2.json", "review-response.json", "old-review-receipt.json"):
+            with self.subTest(name=name):
+                self.assertTrue(_is_review_flow_file(Path(self.run_dir / name)))
+
 
 if __name__ == "__main__":
     unittest.main()
