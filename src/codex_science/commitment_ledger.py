@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+MIN_LIMITATION_CHARS = 10
 SUPPORTED_TARGET_SETS = {
     ("record", "screening.json", "included"),
     ("record", "screening.json", "all"),
@@ -62,6 +63,7 @@ def validate_ledger(
     report_path: Path | None,
     study_table_artifact: str | None = "studies.json",
     screening_artifact: str | None = "screening.json",
+    protocol_artifact: str | None = None,
 ) -> dict[str, Any]:
     """Check closure using validated payloads bound to their verified artifact paths."""
     context_procedures: list[dict[str, Any]] = []
@@ -199,6 +201,10 @@ def validate_ledger(
                 raise ValueError(
                     f"{c_label}: evidence_artifact is not a registered, hash-verified artifact path; expected: one of {sorted(artifact_paths)}; actual: {evidence_artifact}; field: completed[].evidence_artifact"
                 )
+            if evidence_artifact == protocol_artifact:
+                raise ValueError(
+                    f"{c_label}: evidence_artifact must not be the declaring protocol artifact {protocol_artifact}; expected: an artifact other than the protocol that declares this ledger; actual: {evidence_artifact}; field: completed[].evidence_artifact"
+                )
             completed_items.append({"target_id": target_id, "evidence_artifact": evidence_artifact})
 
         completed_count_raw = procedure.get("completed_count")
@@ -248,6 +254,7 @@ def validate_ledger(
                     limitation = claim_item.get("limitation")
                     if not isinstance(claim_id, str) or not claim_id.strip():
                         raise ValueError(f"{claim_label}: claim_id must be a non-empty string; expected: non-empty string; actual: {_bounded_repr(claim_id)}")
+                    claim_id = claim_id.strip()
                     if claim_id not in claim_ids:
                         known_claims_text = sorted(claim_ids) or "none registered"
                         raise ValueError(
@@ -255,13 +262,18 @@ def validate_ledger(
                         )
                     if not isinstance(limitation, str) or not limitation.strip():
                         raise ValueError(f"{claim_label}: limitation must be a non-empty string; expected: non-empty text; actual: {_bounded_repr(limitation)}; field: deviation.affected_claims[].limitation")
+                    collapsed_limitation = _collapse_whitespace(limitation)
+                    if len(collapsed_limitation.replace(" ", "")) < MIN_LIMITATION_CHARS:
+                        raise ValueError(
+                            f"{claim_label}: limitation must contain at least {MIN_LIMITATION_CHARS} non-space characters; expected: a specific limitation sentence; actual: {_bounded_repr(limitation)}; field: deviation.affected_claims[].limitation"
+                        )
                     if report_path is None:
                         raise ValueError(f"{claim_label}: limitation requires a registered, hash-verified report.md")
                     if report_text is None:
                         report_text = report_path.read_text(encoding="utf-8")
-                    if limitation not in report_text:
+                    if collapsed_limitation not in _collapse_whitespace(report_text):
                         raise ValueError(
-                            f"{claim_label}: limitation text does not appear verbatim in report.md; expected: text present in report.md; actual: missing; field: deviation.affected_claims[].limitation"
+                            f"{claim_label}: limitation text does not appear verbatim in report.md (whitespace collapsed, case-sensitive); expected: text present in report.md; actual: missing; field: deviation.affected_claims[].limitation"
                         )
 
         proc_context: dict[str, Any] = {
@@ -280,7 +292,7 @@ def validate_ledger(
                 for ac in deviation.get("affected_claims", []):
                     if isinstance(ac, dict):
                         affected_claims_context.append({
-                            "claim_id": ac.get("claim_id"),
+                            "claim_id": ac["claim_id"].strip() if isinstance(ac.get("claim_id"), str) else ac.get("claim_id"),
                             "limitation": ac.get("limitation"),
                         })
             if affected_claims_context:
@@ -289,6 +301,10 @@ def validate_ledger(
         context_procedures.append(proc_context)
 
     return {"procedures": context_procedures}
+
+
+def _collapse_whitespace(text: str) -> str:
+    return " ".join(text.split())
 
 
 def _bounded_repr(value: Any) -> str:

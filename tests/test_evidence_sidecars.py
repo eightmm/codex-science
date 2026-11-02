@@ -979,6 +979,81 @@ class EvidenceSidecarTests(unittest.TestCase):
                                       report_path=run_dir / "report.md")
             self.assertEqual(0, context["procedures"][0]["denominator"])
 
+    def test_commitment_ledger_refuses_declaring_protocol_as_evidence(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            procedure = self._ledger_procedure()
+            procedure["completed"] = [{"target_id": "study-example-1", "evidence_artifact": "protocol.json"}]
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            with self.assertRaisesRegex(ValueError, "test-procedure completed\\[0\\].*declaring protocol artifact protocol.json"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            procedure["completed"][0]["evidence_artifact"] = "report.md"
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_limitation_matching_collapses_whitespace(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            (run_dir / "report.md").write_text(
+                "Backward reference screening\n  covered 0 of 1\tincluded studies.\n\nA\n", encoding="utf-8")
+            self._rehash(manifest, run_dir, "report.md")
+            cases = (
+                ("Backward reference screening covered 0 of 1 included studies.", None),
+                ("  Backward   reference screening covered\n0 of 1 included studies. ", None),
+                ("backward reference screening covered 0 of 1 included studies.", "report.md"),
+                ("A", "at least 10 non-space characters"),
+                ("A B C D E F G", "at least 10 non-space characters"),
+                ("123456789", "at least 10 non-space characters"),
+                ("   \n ", "limitation must be a non-empty string"),
+            )
+            for limitation, message in cases:
+                with self.subTest(limitation=limitation):
+                    procedure = self._ledger_procedure()
+                    procedure.update(completed=[], completed_count=0, deviation={
+                        "reason": "Source access was limited.",
+                        "affected_claims": [{"claim_id": "claim-method-effect", "limitation": limitation}]})
+                    self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+                    if message is None:
+                        validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+                    else:
+                        with self.assertRaisesRegex(ValueError, message):
+                            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            # exactly ten non-space characters is accepted
+            (run_dir / "report.md").write_text("ab cde fghij\n", encoding="utf-8")
+            self._rehash(manifest, run_dir, "report.md")
+            procedure["deviation"]["affected_claims"][0]["limitation"] = "ab cde fghij"
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
+    def test_commitment_ledger_strips_deviation_claim_id(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            limitation = "A completed pass still had limited source access."
+            (run_dir / "report.md").write_text(limitation, encoding="utf-8")
+            self._rehash(manifest, run_dir, "report.md")
+            procedure = self._ledger_procedure()
+            procedure.update(completed=[], completed_count=0, deviation={
+                "reason": "Source access was limited.",
+                "affected_claims": [{"claim_id": " claim-method-effect\n", "limitation": limitation}]})
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [procedure]})
+            context = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            claims = context["protocol_commitment_context"]["procedures"][0]["deviation"]["affected_claims"]
+            self.assertEqual("claim-method-effect", claims[0]["claim_id"])
+
+    def test_commitment_ledger_accepts_protocol_bom_only_for_ledger_load(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            run_dir, manifest = self._copy_example(Path(tempdir))
+            self._write_ledger(manifest, run_dir, {"schema_version": 1, "procedures": [self._ledger_procedure()]})
+            protocol_path = run_dir / "protocol.json"
+            protocol_path.write_text("\ufeff" + protocol_path.read_text(encoding="utf-8"), encoding="utf-8")
+            self._rehash(manifest, run_dir, "protocol.json")
+            sidecars = validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+            self.assertEqual("test-procedure", sidecars["protocol_commitment_context"]["procedures"][0]["id"])
+            protocol_path.write_text("\ufeff\ufeff" + protocol_path.read_text(encoding="utf-8").lstrip("\ufeff"), encoding="utf-8")
+            self._rehash(manifest, run_dir, "protocol.json")
+            with self.assertRaisesRegex(ValueError, "Invalid JSON in protocol"):
+                validate_sidecars(manifest, run_dir, self._verified(manifest, run_dir))
+
     def test_commitment_ledger_rejects_malformed_json(self):
         for relative, contents in (("protocol.json", '{"commitment_ledger":'),
                                    ("protocol.json", '["commitment_ledger"]'),

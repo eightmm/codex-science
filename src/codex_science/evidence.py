@@ -708,7 +708,7 @@ def validate_sidecars(
             continue
         raw = verified[relative].read_text(encoding="utf-8")
         try:
-            protocol = json.loads(raw)
+            protocol = json.loads(raw[1:] if raw.startswith("\ufeff") else raw)
         except json.JSONDecodeError as error:
             if "commitment_ledger" in raw:
                 raise ValueError(f"Invalid JSON in protocol: {relative}: {error}") from error
@@ -754,6 +754,7 @@ def validate_sidecars(
             report_path=_verified_artifact_path(manifest, verified, "report") if needs_report else None,
             study_table_artifact=source_paths.get("study-table"),
             screening_artifact=source_paths.get("screening-table"),
+            protocol_artifact=protocols[0][0],
         )
         if context["procedures"]:
             loaded["protocol_commitment_context"] = context

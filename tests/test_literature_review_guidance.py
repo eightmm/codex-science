@@ -192,6 +192,9 @@ class LiteratureReviewGuidanceTests(unittest.TestCase):
         section = text.split("## Protocol commitment ledger\n", 1)[1].split("\n## ", 1)[0]
         example_text = section.split("Minimal validating example:\n", 1)[1]
         example_text = example_text.split("```json\n", 1)[1].split("\n```", 1)[0]
+        for phrase in ("Descriptive only, never checked", "collapsing runs of whitespace", "fewer than 10 non-space characters",
+                       "except the `protocol.json` that declares the ledger", "byte order mark"):
+            self.assertIn(phrase, section)
         ledger = json.loads(example_text)["commitment_ledger"]
         procedure = next(item for item in ledger["procedures"] if item["id"] == "backward-references")
         deviation = procedure["deviation"]
