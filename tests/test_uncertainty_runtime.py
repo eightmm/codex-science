@@ -211,6 +211,17 @@ class UncertaintyValidityTests(unittest.TestCase):
             edge.pop("fingerprint")
             edge["fingerprint"] = canonical_sha256(edge)
             validate_uncertainty_propagation(edge)
+        # Older receipts summed variance terms without fsum; rounding-level
+        # differences in recomputed sums remain valid.
+        rounded = copy.deepcopy(base)
+        linear = rounded["linear"]
+        linear["variance"] = math.nextafter(linear["variance"], math.inf)
+        linear["standard_uncertainty"] = math.nextafter(linear["standard_uncertainty"], 0.0)
+        for item in linear["sensitivities"]:
+            item["fraction_of_linear_variance"] = math.nextafter(item["fraction_of_linear_variance"], 0.0)
+        rounded.pop("fingerprint")
+        rounded["fingerprint"] = canonical_sha256(rounded)
+        validate_uncertainty_propagation(rounded)
 
     def test_receipt_validation_preserves_valid_method_boundaries(self):
         for method in ("linear", "monte-carlo", "both"):

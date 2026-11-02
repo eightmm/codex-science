@@ -496,12 +496,18 @@ def _validate_uncertainty_consistency(payload: Mapping[str, Any]) -> None:
             if value != covariance[column][row]:
                 raise ValueError("covariance must be symmetric")
     variance = _variance(gradient, covariance, uncertainties=uncertainties)
-    if linear["variance"] != variance or linear["standard_uncertainty"] != math.sqrt(variance):
+    # Receipts written before the summation switched to math.fsum can differ by
+    # rounding, so recomputed sums are compared with a tight relative tolerance.
+    def _same(stored: Any, expected: float) -> bool:
+        return (isinstance(stored, (int, float)) and not isinstance(stored, bool)
+                and math.isclose(stored, expected, rel_tol=1e-12, abs_tol=0.0))
+    if not _same(linear["variance"], variance) or not _same(linear["standard_uncertainty"], math.sqrt(variance)):
         raise ValueError("linear.variance and linear.standard_uncertainty do not match the gradient and covariance")
     for index, item in enumerate(sensitivities):
         contribution = gradient[index] * covariance[index][index] * gradient[index]
         if (item["derivative"] != gradient[index] or item["diagonal_variance_contribution"] != contribution
-                or item.get("fraction_of_linear_variance") != (None if variance == 0 else contribution / variance)):
+                or not (item.get("fraction_of_linear_variance") is None if variance == 0
+                        else _same(item.get("fraction_of_linear_variance"), contribution / variance))):
             raise ValueError(f"linear.sensitivities[{index}] does not match the gradient and covariance")
     monte_carlo = payload.get("monte_carlo")
     if isinstance(monte_carlo, Mapping):
