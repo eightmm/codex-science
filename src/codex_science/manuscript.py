@@ -169,9 +169,17 @@ def _unregistered_manuscript_keys(
 ) -> tuple[list[str], list[str]]:
     """Return bracketed citation keys and claim markers no map or checklist anchor uses."""
     prose = CODE_RE.sub("", manuscript)
+    registered = [
+        re.compile(r"(?<!\w)@" + re.escape(citation_id) + r"(?![\w.:+/-])")
+        for citation_id in sorted(citation_ids, key=len, reverse=True)
+    ]
     citations: set[str] = set()
     for bracket in BRACKET_RE.finditer(prose):
-        for key in CITATION_KEY_RE.findall(bracket.group(1)):
+        # Registered ids may hold characters a bare key cannot, such as DOI parentheses.
+        text = bracket.group(1)
+        for pattern in registered:
+            text = pattern.sub(" ", text)
+        for key in CITATION_KEY_RE.findall(text):
             if not key.startswith(CROSSREF_PREFIXES) and key not in citation_ids:
                 citations.add(key)
     markers = {
@@ -1105,6 +1113,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                 or not all(isinstance(item, str) and item for item in citation_ids)
             ):
                 findings.append(_finding("claim-support-invalid", f"{claim_id} support fields must be lists"))
+                claim_locators.add(re.sub(r"\s*:\s*", ":", str(claim.get("manuscript_locator", "")).strip()))
                 continue
             if material and status == "supported" and not evidence_refs and not citation_ids:
                 findings.append(

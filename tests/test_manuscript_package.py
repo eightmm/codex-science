@@ -1625,6 +1625,34 @@ class ManuscriptPackageTests(unittest.TestCase):
         }
         self.assertEqual({"@ghost"}, found)
 
+    def test_registered_citation_ids_with_doi_or_hash_characters_are_not_truncated(self) -> None:
+        trace_name = "claim-citation-map.json"
+        trace = json.loads((self.package / trace_name).read_text(encoding="utf-8"))
+        for citation_id in ("10.1016/S0140-6736(20)30183-5", "smith#2020"):
+            trace["citations"].append({**trace["citations"][0], "citation_id": citation_id, "supports_claim_ids": []})
+        self.rewrite_json(trace_name, trace)
+        self.refresh_submission_hash(trace_name)
+        self.edit_manuscript(
+            "not an empirical scientific result.\n",
+            "not an empirical scientific result.\n"
+            "See [@10.1016/S0140-6736(20)30183-5; @smith#2020, p. 4] and [@smith#2020x].\n",
+        )
+        found = {
+            m.split()[2].rstrip(",") for m in self.messages("citation-key-unregistered")
+        }
+        self.assertEqual({"@smith"}, found)
+
+    def test_claim_with_invalid_support_fields_keeps_its_marker_registered(self) -> None:
+        trace_name = "claim-citation-map.json"
+        trace = json.loads((self.package / trace_name).read_text(encoding="utf-8"))
+        trace["claims"][0]["citation_ids"] = "ref-method"
+        trace["claims"][0]["manuscript_locator"] = "claim:results-1"
+        self.rewrite_json(trace_name, trace)
+        self.refresh_submission_hash(trace_name)
+        self.edit_manuscript("<!-- claim:M-001 -->", "<!-- claim:results-1 -->")
+        self.assertIn("claim-support-invalid", self.findings())
+        self.assertEqual([], self.messages("claim-marker-unregistered"))
+
     def run_validator_cli(self, *extra: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "validate_manuscript_package.py"), str(self.package), *extra],
