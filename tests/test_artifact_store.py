@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import tracemalloc
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
@@ -312,6 +313,92 @@ class ArtifactStoreTests(unittest.TestCase):
             path.chmod(0o600)
             path.write_bytes(b"corrupt")
             self.assertFalse(store.verify(digest.upper()))
+
+    def test_verification_cost_follows_descriptor_and_canonicalises_entries(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/describe_artifact.py"
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            path = root / "data.bin"
+            path.write_bytes(b"x" * (2 * 1024 * 1024))
+            small = root / "small.bin"
+            small.write_bytes(b"x")
+            claim = describe_file(small, chunk_size=1).to_dict()
+            tracemalloc.start()
+            with self.assertRaisesRegex(ValueError, "do not match"):
+                validate_descriptor(claim, path)
+            peak = tracemalloc.get_traced_memory()[1]
+            tracemalloc.stop()
+            self.assertLess(peak, 16 * 1024 * 1024)
+            data = b"abcdef"
+            path.write_bytes(data)
+            wrong = describe_file(path, chunk_size=3).to_dict()
+            wrong["entries"][0]["chunks"][0]["sha256"] = "0" * 64
+            path.write_bytes(b"x" * (3 * 1024 * 1024))
+            big = describe_file(path, chunk_size=1024 * 1024).to_dict()
+            big["entries"][0]["chunks"][0]["sha256"] = "0" * 64
+            reads = []
+            original_open = Path.open
+
+            @contextmanager
+            def counting_open(target, *args, **kwargs):
+                with original_open(target, *args, **kwargs) as handle:
+                    yield mock.Mock(read=lambda size: reads.append(size) or handle.read(size))
+
+            with mock.patch.object(Path, "open", counting_open), self.assertRaisesRegex(ValueError, "do not match"):
+                validate_descriptor(big, path)
+            self.assertEqual(1, len(reads))
+            path.write_bytes(data)
+            for chunk_size in (None, 3):
+                payload = describe_file(path, chunk_size=chunk_size).to_dict()
+                entry = payload["entries"][0]
+                entry["sha256"] = entry["sha256"].upper()
+                payload["root_sha256"] = payload["root_sha256"].upper()
+                entry["path"] = "./" + entry["path"]
+                entry["note"] = "unreferenced key"
+                for chunk in entry.get("chunks", []):
+                    chunk["sha256"] = chunk["sha256"].upper()
+                with self.subTest(chunk_size=chunk_size):
+                    self.assertEqual(len(data), validate_descriptor(payload, path).total_bytes)
+            for field, value in (("chunk_size", 3), ("chunks", [{"index": 0, "offset": 0, "size": 6, "sha256": "0" * 64}])):
+                payload = describe_file(path).to_dict()
+                payload["entries"][0]["chunk_size"] = 3
+                payload["entries"][0]["chunks"] = [{"index": 0, "offset": 0, "size": 6, "sha256": "0" * 64}]
+                del payload["entries"][0][{"chunk_size": "chunks", "chunks": "chunk_size"}[field]]
+                with self.subTest(file_field=field), self.assertRaisesRegex(ValueError, field):
+                    validate_descriptor(payload, path)
+            for value in (".", "./", "a/..", ""):
+                payload = describe_file(path).to_dict()
+                payload["entries"][0]["path"] = value
+                with self.subTest(path=value), self.assertRaises(ValueError):
+                    validate_descriptor(payload)
+            for value in ([], {}, 1, True):
+                with self.subTest(media_type=value), self.assertRaisesRegex(ValueError, "media_type"):
+                    validate_descriptor({**describe_file(path).to_dict(), "media_type": value})
+            nested = root / "nested.json"
+            nested.write_text("[" * 100000, encoding="utf-8")
+            result = subprocess.run([sys.executable, str(script), str(path), "--verify", str(nested)],
+                                    capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_external_reference_size_is_validated_and_unknown_size_refuses_nonempty_bytes(self) -> None:
+        for value in (-1, True, 1.5, "1", []):
+            with self.subTest(size_bytes=value), self.assertRaisesRegex(ValueError, "size_bytes"):
+                describe_external_reference(uri="s3://bucket/data", version="v1", sha256="a" * 64, size_bytes=value)
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "data.bin"
+            for content, accepted in ((b"", True), (b"x", False)):
+                path.write_bytes(content)
+                payload = describe_external_reference(
+                    uri="s3://bucket/data", version="v1", sha256=hashlib.sha256(content).hexdigest()).to_dict()
+                with self.subTest(content=content):
+                    if accepted:
+                        validate_descriptor(payload, path)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "without size_bytes"):
+                            validate_descriptor(payload, path)
 
     def test_cli_verifies_external_reference_against_supplied_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

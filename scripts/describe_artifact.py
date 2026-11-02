@@ -24,7 +24,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", type=Path, help="file or directory to describe")
     parser.add_argument("--output", type=Path, help="output path for the descriptor JSON; without it the descriptor is printed to stdout")
-    parser.add_argument("--verify", type=Path, help="descriptor JSON (schema_version 1) to check against local bytes, including an external reference's digest and size; missing paths are refused; the validated descriptor is then written or printed")
+    parser.add_argument("--verify", type=Path, help="descriptor JSON (schema_version 1) to check against local bytes, including an external reference's digest and size; missing paths are refused; the validated descriptor is then written or printed; --chunk-size and --media-type are ignored with --verify")
     parser.add_argument("--chunk-size", type=int, help="file only: chunk size in bytes (positive); omit for one whole-file hash (artifact_type file), set for per-chunk hashes (chunked-file); ignored for directories")
     parser.add_argument("--media-type", help="media type recorded in the descriptor (default: none)")
     parser.add_argument("--store", type=Path, help="content-addressed store directory; adds the file (files only) and prints its sha256 and stored_path")
@@ -56,7 +56,10 @@ def describe(args: argparse.Namespace) -> int:
         protected.append(store.objects)
     preflight_output_paths(args.output, inputs=inputs, protected_dirs=protected)
     if args.verify:
-        payload = json.loads(args.verify.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(args.verify.read_text(encoding="utf-8"))
+        except RecursionError:
+            raise ValueError(f"descriptor JSON is nested too deeply: {args.verify}") from None
         descriptor = validate_descriptor(payload, target)
     elif target.is_dir():
         descriptor = describe_directory(target, media_type=args.media_type)

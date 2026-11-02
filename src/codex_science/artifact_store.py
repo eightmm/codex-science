@@ -79,7 +79,7 @@ def _validate_relative(value: str) -> str:
     if not isinstance(value, str):
         raise ValueError("artifact entry path must be a non-empty string")
     pure = PurePosixPath(value)
-    if not value or pure.is_absolute() or ".." in pure.parts:
+    if not value or not pure.parts or pure.is_absolute() or ".." in pure.parts:
         raise ValueError(f"artifact entry must be a safe relative path: {value}")
     return pure.as_posix()
 
@@ -190,6 +190,8 @@ def describe_external_reference(
     if not uri.strip() or not version.strip():
         raise ValueError("external reference requires uri and version")
     digest = _hex_sha256(sha256, "sha256")
+    if size_bytes is not None:
+        _descriptor_integer(size_bytes, "size_bytes")
     external = {
         "uri": uri,
         "version": version,
@@ -201,12 +203,57 @@ def describe_external_reference(
         1,
         "external-reference",
         digest,
-        int(size_bytes or 0),
+        size_bytes or 0,
         0,
         media_type,
         (),
         external,
     )
+
+
+def _canonical_entries(entries: tuple[dict[str, Any], ...]) -> list[tuple[str, int, str]]:
+    return [(_validate_relative(item["path"]), item["size"], _hex_sha256(item["sha256"], "entry sha256")) for item in entries]
+
+
+def _chunk_matches(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    return (all(actual[key] == expected[key] for key in ("index", "offset", "size"))
+            and actual["sha256"] == _hex_sha256(expected["sha256"], "chunk sha256"))
+
+
+def _verify_local_bytes(descriptor: ArtifactDescriptor, path: Path) -> None:
+    mismatch = "artifact bytes do not match descriptor"
+    kind = descriptor.artifact_type
+    if kind == "directory-tree":
+        actual = describe_directory(path)
+        if (actual.root_sha256 != descriptor.root_sha256 or actual.total_bytes != descriptor.total_bytes
+                or _canonical_entries(actual.entries) != _canonical_entries(descriptor.entries)):
+            raise ValueError(mismatch)
+        return
+    if not path.is_file():
+        raise ValueError(f"not a file: {path}")
+    size = path.stat().st_size
+    if kind == "external-reference" and size and descriptor.external.get("size_bytes") is None:
+        raise ValueError("external reference without size_bytes cannot verify nonempty local bytes")
+    if size != descriptor.total_bytes:
+        raise ValueError(mismatch)
+    if kind != "external-reference" and _validate_relative(descriptor.entries[0]["path"]) != path.name:
+        raise ValueError(mismatch)
+    if kind == "chunked-file":
+        entry = descriptor.entries[0]
+        whole = hashlib.sha256()
+        expected = iter(entry["chunks"])
+        with path.open("rb") as handle:
+            for actual_chunk in _iter_chunk_hashes(handle, entry["chunk_size"], whole):
+                wanted = next(expected, None)
+                if wanted is None or not _chunk_matches(actual_chunk, wanted):
+                    raise ValueError(mismatch)
+        if next(expected, None) is not None:
+            raise ValueError(mismatch)
+        digest = whole.hexdigest()
+    else:
+        digest, _size = stream_sha256(path)
+    if digest != descriptor.root_sha256:
+        raise ValueError(mismatch)
 
 
 def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) -> ArtifactDescriptor:
@@ -234,6 +281,10 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
         entry_paths.add(entry_path)
         _hex_sha256(item.get("sha256"), "entry sha256")
         entry_size = _descriptor_integer(item.get("size", -1), "entry size")
+        if artifact_type == "file":
+            for field in ("chunk_size", "chunks"):
+                if field in item:
+                    raise ValueError(f"file descriptor entry cannot contain {field}; use chunked-file")
         if artifact_type == "chunked-file" or "chunk_size" in item:
             _descriptor_integer(item.get("chunk_size"), "chunk_size", positive=True)
         chunks = item.get("chunks")
@@ -256,13 +307,16 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
     external_raw = payload.get("external")
     if external_raw is not None and not isinstance(external_raw, Mapping):
         raise ValueError("external metadata must be an object")
+    media_type = payload.get("media_type")
+    if media_type is not None and not isinstance(media_type, str):
+        raise ValueError("media_type must be a string or null")
     descriptor = ArtifactDescriptor(
         1,
         artifact_type,
         root_sha256,
         total_bytes,
         entry_count,
-        None if payload.get("media_type") is None else str(payload.get("media_type")),
+        media_type,
         entries,
         None if external_raw is None else dict(external_raw),
     )
@@ -293,20 +347,7 @@ def validate_descriptor(payload: Mapping[str, Any], path: Path | None = None) ->
             if _hex_sha256(entries[0]["sha256"], "entry sha256") != root_sha256:
                 raise ValueError("file root_sha256 does not match entry")
     if path is not None:
-        if artifact_type == "directory-tree":
-            actual = describe_directory(path, media_type=descriptor.media_type)
-        elif artifact_type in {"file", "chunked-file"}:
-            actual = describe_file(
-                path,
-                media_type=descriptor.media_type,
-                chunk_size=entries[0]["chunk_size"] if artifact_type == "chunked-file" else None,
-            )
-        else:
-            actual = describe_file(path, media_type=descriptor.media_type)
-        if (actual.root_sha256 != descriptor.root_sha256
-                or actual.total_bytes != descriptor.total_bytes
-                or (artifact_type != "external-reference" and actual.entries != descriptor.entries)):
-            raise ValueError("artifact bytes do not match descriptor")
+        _verify_local_bytes(descriptor, path)
     return descriptor
 
 

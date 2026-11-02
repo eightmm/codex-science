@@ -24,7 +24,7 @@ Symbolic links are rejected by default. A directory entry cannot escape the arti
 
 ### `external-reference`
 
-An immutable remote or database object described by URI or accession, version, SHA-256, size when known, media type, and license. It is not considered locally verified until bytes are materialized and checked. Validation without a local path checks only descriptor metadata. When a local path is supplied, including through `--verify` or a manifest's `descriptor_path`, that file must exist and match the descriptor's root digest and total bytes; unknown-size metadata cannot verify nonempty local bytes.
+An immutable remote or database object described by URI or accession, version, SHA-256, size when known, media type, and license. It is not considered locally verified until bytes are materialized and checked. Validation without a local path checks only descriptor metadata. When a local path is supplied, including through `--verify` or a manifest's `descriptor_path`, that file must exist and match the descriptor's root digest and total bytes; an external reference without `size_bytes` cannot verify nonempty local bytes and is refused.
 
 ## Commands
 
@@ -59,6 +59,6 @@ Insertion computes the digest before and after copy, writes through a temporary 
 - Even without local bytes, reject duplicate descriptor entry paths, file roots that differ from their sole entry digest, and directory roots that differ from the Merkle digest of their entries.
 - Descriptor byte sizes, entry counts, chunk sizes, indexes and offsets must be integers; booleans, fractions and numeric strings are refused. Sizes and counts are non-negative, with positive chunk sizes. An external reference may omit its optional size.
 - Preserve incomplete downloads outside the immutable object path.
-- Distinguish `downloaded`, `partially-downloaded`, `locally-verified`, and `externally-referenced` states.
+- Record whether an artifact is `downloaded`, `partially-downloaded`, `locally-verified` or `externally-referenced` in your own notes or manifest. The runtime does not produce or track these states; it only checks descriptors against local bytes.
 - Do not hash a multi-gigabyte file with `read_bytes()`.
 - Do not copy private or licensed data into a run bundle merely to make it self-contained.
