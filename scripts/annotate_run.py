@@ -25,6 +25,7 @@ from codex_science.collaboration import (  # noqa: E402
     load_resolution_events,
     validate_annotation,
 )
+from codex_science.collaboration import _resolve_json_pointer  # noqa: E402
 
 
 def _atomic_write(target: Path, data: bytes) -> None:
@@ -69,9 +70,20 @@ def _validate_add_artifact(args: argparse.Namespace, root: Path, manifest: dict,
         raise ValueError("anchor artifact must be a regular run-local file")
     if args.artifact not in {str(item["path"]) for item in manifest["artifacts"]}:
         raise ValueError("anchor artifact must be a regular file inside the run bundle and registered in the manifest")
-    artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    artifact_bytes = artifact.read_bytes()
+    artifact_hash = hashlib.sha256(artifact_bytes).hexdigest()
     if artifact_hash != sidecars["artifact_hashes"].get(args.artifact):
         raise ValueError("anchor artifact changed after manifest verification")
+    if args.json_pointer is not None:
+        try:
+            document = json.loads(artifact_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError(f"--json-pointer needs a JSON artifact: {error}") from error
+        _resolve_json_pointer(document, args.json_pointer)
+    if args.claim_id is not None and args.claim_id not in {
+        str(item.get("id", "")).strip() for item in manifest["claims"] if isinstance(item, dict)
+    }:
+        raise ValueError(f"--claim-id is not a claim registered in the manifest: {args.claim_id}")
     return artifact_hash
 
 
@@ -217,7 +229,7 @@ def main() -> int:
                 observed = hashlib.sha256(anchor_path.read_bytes()).hexdigest()
                 if observed != sidecars["artifact_hashes"].get(annotation["anchor"]["artifact_path"]):
                     raise ValueError("anchor artifact changed after manifest verification; resolution was not recorded")
-                if observed != annotation["anchor"]["artifact_sha256"]:
+                if observed != annotation["anchor"]["artifact_sha256"].lower():
                     raise ValueError("artifact hash differs from annotation anchor; resolution was not recorded")
                 event = {"schema_version": 1, "annotation_id": args.id, "status": args.status,
                          "resolver": args.resolver, "resolved_at": datetime.now(timezone.utc).isoformat(),
@@ -231,7 +243,7 @@ def main() -> int:
             effective = fold_annotation_resolutions(annotations, events, sidecars["artifact_hashes"])
         print(json.dumps(effective, indent=2, sort_keys=True))
         return 0
-    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+    except (OSError, ValueError, KeyError, RecursionError, json.JSONDecodeError) as error:
         registered = registration.get("path")
         suffix = f"; annotation was registered at {registered} (manifest.json was updated)" if registered else ""
         print(f"annotate_run: {error}{suffix}", file=sys.stderr)

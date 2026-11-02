@@ -1221,5 +1221,181 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                 validate_advanced_sidecars(manifest, Path(tmp), {"bias/S1.json": path})
 
 
+class AnnotationAnchorValidationTests(unittest.TestCase):
+    SCRIPT = Path(__file__).resolve().parents[1] / "scripts/annotate_run.py"
+
+    def cli(self, root: Path, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, str(self.SCRIPT), str(root), *args], capture_output=True, text=True)
+
+    def run_dir(self, temporary: str, claims: bool = False) -> Path:
+        from tests.test_discovery_workbench import annotation_fixture
+
+        manifest_path, _, _ = annotation_fixture(Path(temporary) / "run")
+        if claims:
+            manifest = json.loads(manifest_path.read_text())
+            manifest["claims"].append({"id": "claim-one", "statement": "fake", "evidence": ["result.json"]})
+            manifest_path.write_text(json.dumps(manifest))
+        return manifest_path.parent
+
+    def add(self, root: Path, *anchor: str) -> subprocess.CompletedProcess:
+        return self.cli(root, "add", "--id", "A1", "--author", "reviewer", "--text", "note",
+                        "--artifact", "result.json", *anchor)
+
+    def rewrite_sidecar(self, root: Path, **anchor_changes) -> None:
+        path = root / "annotations/A1.json"
+        record = json.loads(path.read_text())
+        record["anchor"].update(anchor_changes)
+        path.write_text(json.dumps(record))
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        for entry in manifest["artifacts"]:
+            if entry["path"] == "annotations/A1.json":
+                entry["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+
+    def test_add_refuses_unresolvable_anchors_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary, claims=True)
+            before = (root / "manifest.json").read_bytes()
+            for anchor in (("--json-pointer", "notapointer"), ("--json-pointer", "/missing"),
+                           ("--json-pointer", "/bad~2escape"), ("--claim-id", "no-such-claim"),
+                           ("--line-range", "abc"), ("--line-range", "1-"), ("--line-range", "")):
+                with self.subTest(anchor=anchor):
+                    result = self.add(root, *anchor)
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(before, (root / "manifest.json").read_bytes())
+                    self.assertFalse((root / "annotations").exists())
+            for anchor in (("--json-pointer", ""), ("--json-pointer", "/answer"),
+                           ("--claim-id", "claim-one"), ("--line-range", "3"), ("--line-range", "3-9")):
+                with self.subTest(accepted=anchor):
+                    self.assertEqual(0, self.add(root, *anchor).returncode)
+                    self.assertEqual(0, self.cli(root, "list").returncode)
+                    (root / "manifest.json").write_bytes(before)
+                    for leftover in (root / "annotations").glob("*"):
+                        leftover.unlink()
+                    (root / "annotations").rmdir()
+
+    def test_stored_anchor_fields_must_be_exact_strings(self) -> None:
+        digest = "a" * 64
+        base = {"schema_version": 1, "annotation_id": "A1", "author": "x", "type": "note", "text": "t",
+                "status": "open", "created_at": "2026-01-01T00:00:00+00:00",
+                "anchor": {"artifact_path": "result.json", "artifact_sha256": digest, "json_pointer": ""}}
+        validate_annotation(base)
+        bad_anchors = [
+            {"artifact_path": ["result.json"]}, {"artifact_path": "./result.json"},
+            {"artifact_path": "a//b.json"}, {"artifact_path": "a/./b.json"}, {"artifact_path": "a/"},
+            {"artifact_sha256": 5}, {"artifact_sha256": " " + digest}, {"artifact_sha256": digest + "\n"},
+            {"json_pointer": "notapointer"}, {"json_pointer": 3}, {"json_pointer": None, "claim_id": ["c"]},
+            {"json_pointer": None, "line_range": "abc"}, {"json_pointer": None, "line_range": "1-2-3"},
+        ]
+        for change in bad_anchors:
+            with self.subTest(change=change):
+                record = deepcopy(base)
+                record["anchor"].update(change)
+                with self.assertRaises(ValueError):
+                    validate_annotation(record)
+
+    def test_uppercase_anchor_digest_lists_open_and_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
+            digest = json.loads((root / "annotations/A1.json").read_text())["anchor"]["artifact_sha256"]
+            self.rewrite_sidecar(root, artifact_sha256=digest.upper())
+            listed = self.cli(root, "list")
+            self.assertEqual("open", json.loads(listed.stdout)[0]["status"])
+            resolved = self.cli(root, "resolve", "--id", "A1", "--status", "resolved", "--resolver", "reviewer")
+            self.assertEqual(0, resolved.returncode, resolved.stderr)
+
+    def test_noncanonical_anchor_path_is_refused_with_cause(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
+            self.rewrite_sidecar(root, artifact_path="./result.json")
+            result = self.cli(root, "list")
+            self.assertEqual(2, result.returncode)
+            self.assertIn("canonical path without", result.stderr)
+
+    def test_duplicate_annotation_ids_refused_before_any_lock_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
+            sidecar = root / "annotations/A1.json"
+            copy = root / "annotations/A2.json"
+            copy.write_bytes(sidecar.read_bytes())
+            manifest_path = root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["artifacts"].append({"path": "annotations/A2.json", "kind": "annotation",
+                                          "sha256": hashlib.sha256(copy.read_bytes()).hexdigest()})
+            manifest_path.write_text(json.dumps(manifest))
+            lock = root / "annotations/.resolutions.lock"
+            lock.unlink(missing_ok=True)
+            for args in (("list",), ("resolve", "--id", "A1", "--status", "resolved", "--resolver", "r")):
+                with self.subTest(args=args):
+                    result = self.cli(root, *args)
+                    self.assertEqual(2, result.returncode)
+                    self.assertIn("duplicate annotation ID", result.stderr)
+                    self.assertFalse(lock.exists())
+            records = [json.loads(sidecar.read_text())] * 2
+            with self.assertRaisesRegex(ValueError, "duplicate annotation ID"):
+                stale_annotations(records, {})
+
+    def test_deeply_nested_json_reports_labelled_errors(self) -> None:
+        deep = "[" * 200000 + "]" * 200000
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            (root / "manifest.json").write_text(deep)
+            result = self.cli(root, "list")
+            self.assertEqual(2, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertTrue(result.stderr.startswith("annotate_run:"))
+            path = Path(temporary) / "deep.json"
+            path.write_text(deep)
+            diff = subprocess.run([sys.executable, str(Path(self.SCRIPT).with_name("diff_runs.py")), str(path), str(path)],
+                                  capture_output=True, text=True)
+            self.assertEqual(1, diff.returncode)
+            self.assertNotIn("Traceback", diff.stderr)
+            self.assertTrue(diff.stderr.startswith("error:"))
+
+    def test_requires_approval_must_be_a_json_boolean(self) -> None:
+        for value in ("false", 0, 1, None, []):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "requires_approval"):
+                    selective_rerun_plan(changed_nodes=["a"], edges=[],
+                                         steps=[{"id": "s", "consumes": ["a"], "requires_approval": value}])
+        plan = selective_rerun_plan(changed_nodes=["a"], edges=[],
+                                    steps=[{"id": "s", "consumes": ["a"], "requires_approval": False}])
+        self.assertFalse(plan["approval_required"])
+        with tempfile.TemporaryDirectory() as temporary:
+            graph = Path(temporary) / "graph.json"
+            graph.write_text(json.dumps({"schema_version": 1, "nodes": [{"id": "a", "type": "claim"}], "edges": []}))
+            steps = Path(temporary) / "steps.json"
+            steps.write_text(json.dumps([{"id": "s", "consumes": ["a"], "requires_approval": "false"}]))
+            result = subprocess.run([sys.executable, str(self.SCRIPT.with_name("plan_selective_rerun.py")),
+                                     str(graph), str(steps), "--changed", "a"], capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("requires_approval", result.stderr)
+
+    def test_readonly_commands_announce_waiting_for_the_lock(self) -> None:
+        import select
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
+            timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+            with annotation_resolution_lock(root):
+                process = subprocess.Popen([sys.executable, str(self.SCRIPT), str(root), "list"],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                try:
+                    ready, _, _ = select.select([process.stderr], [], [], timeout)
+                    notice = process.stderr.readline() if ready else ""
+                finally:
+                    pass
+            stdout, stderr = process.communicate(timeout=timeout)
+            self.assertIn("waiting", notice)
+            self.assertEqual(0, process.returncode, stderr)
+            self.assertEqual("A1", json.loads(stdout)[0]["annotation_id"])
+
+
 if __name__ == "__main__":
     unittest.main()

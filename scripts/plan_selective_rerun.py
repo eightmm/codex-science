@@ -25,7 +25,7 @@ steps JSON: a list of step objects, or an object whose steps[] is used (required
   consumes[]          node ids this step reads
   produces[]          node ids this step writes
   description         optional (default: the id)
-  requires_approval   optional (default: false)
+  requires_approval   optional JSON boolean (default: false)
 A step is selected when it consumes an impacted id, or produces an id impacted
 through graph edges or other selected steps. Ids named by --changed never count
 as reached through edges or steps, so a step is not selected only because it
@@ -86,6 +86,8 @@ def main() -> int:
                     or any(not isinstance(node, str) for node in step[field])
                 ):
                     raise ValueError(f"step at index {index} field '{field}' must be a list of strings")
+            if "requires_approval" in step and not isinstance(step["requires_approval"], bool):
+                raise ValueError(f"step at index {index} field 'requires_approval' must be a JSON boolean")
         report = selective_rerun_plan(changed_nodes=args.changed, edges=edges, steps=steps, review_paths=args.review_path)
         text = json.dumps(report, indent=2, sort_keys=True) + "\n"
         if args.output: args.output.write_text(text, encoding="utf-8")

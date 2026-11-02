@@ -18,7 +18,7 @@ def main() -> int:
         text = json.dumps(report, indent=2, sort_keys=True) + "\n"
         if args.output: args.output.write_text(text, encoding="utf-8")
         else: print(text, end="")
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, RecursionError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0

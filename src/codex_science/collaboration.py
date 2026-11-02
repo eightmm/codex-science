@@ -7,9 +7,10 @@ import json
 import os
 import re
 import stat
+import sys
 from collections import defaultdict, deque
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
 from codex_science.connector_contract import canonical_json_bytes
@@ -19,21 +20,25 @@ ANNOTATION_STATUSES = {"open", "resolved", "dismissed", "stale-anchor"}
 
 
 def _sha(value: Any, label: str) -> str:
-    text = str(value).strip().lower()
+    text = value.lower() if isinstance(value, str) else ""
     if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise ValueError(f"{label} must be a SHA-256 digest")
     return text
 
 
-def _resolve_json_pointer(value: Any, pointer: Any) -> Any:
-    """Resolve RFC 6901 tokens, preserving empty keys and strict array indices."""
+def _check_json_pointer(pointer: Any) -> None:
     if not isinstance(pointer, str) or (pointer and not pointer.startswith("/")):
         raise ValueError("json_pointer must be an RFC 6901 pointer")
+    if pointer and any(re.search(r"~(?![01])", raw) for raw in pointer[1:].split("/")):
+        raise ValueError("json_pointer contains an invalid escape")
+
+
+def _resolve_json_pointer(value: Any, pointer: Any) -> Any:
+    """Resolve RFC 6901 tokens, preserving empty keys and strict array indices."""
+    _check_json_pointer(pointer)
     if pointer == "":
         return value
     for raw in pointer[1:].split("/"):
-        if re.search(r"~(?![01])", raw):
-            raise ValueError("json_pointer contains an invalid escape")
         part = raw.replace("~1", "/").replace("~0", "~")
         if isinstance(value, Mapping) and part in value:
             value = value[part]
@@ -57,17 +62,41 @@ def validate_annotation(payload: dict[str, Any]) -> None:
     anchor = payload.get("anchor")
     if not isinstance(anchor, dict):
         raise ValueError("annotation anchor must be an object")
-    if not str(anchor.get("artifact_path", "")).strip():
-        raise ValueError("annotation artifact_path is required")
+    artifact_path = anchor.get("artifact_path")
+    if not isinstance(artifact_path, str) or not artifact_path.strip():
+        raise ValueError("annotation artifact_path is required and must be a string")
+    if PurePosixPath(artifact_path).as_posix() != artifact_path:
+        raise ValueError(
+            f"annotation artifact_path must be a canonical path without '.' or empty segments "
+            f"(for example result.json, not ./result.json): {artifact_path}"
+        )
     _sha(anchor.get("artifact_sha256"), "annotation artifact_sha256")
-    if not any(str(anchor.get(field, "")).strip() for field in ("json_pointer", "claim_id", "line_range")):
+    present = [field for field in ("json_pointer", "claim_id", "line_range") if anchor.get(field) is not None]
+    if not present:
         raise ValueError("annotation anchor needs json_pointer, claim_id, or line_range")
+    if "json_pointer" in present:
+        _check_json_pointer(anchor["json_pointer"])
+    if "claim_id" in present and (not isinstance(anchor["claim_id"], str) or not anchor["claim_id"].strip()):
+        raise ValueError("annotation claim_id must be a non-empty string")
+    if "line_range" in present and (
+        not isinstance(anchor["line_range"], str) or not re.fullmatch(r"[0-9]+(-[0-9]+)?", anchor["line_range"])
+    ):
+        raise ValueError("annotation line_range must look like 12 or 12-20")
+
+
+def _require_unique_id(seen: set[str], annotation: dict[str, Any]) -> None:
+    annotation_id = str(annotation["annotation_id"])
+    if annotation_id in seen:
+        raise ValueError(f"duplicate annotation ID: {annotation_id}")
+    seen.add(annotation_id)
 
 
 def stale_annotations(annotations: Iterable[dict[str, Any]], artifact_hashes: Mapping[str, str]) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
     for raw in annotations:
         validate_annotation(raw)
+        _require_unique_id(seen_ids, raw)
         item = dict(raw)
         anchor = dict(item["anchor"])
         current = artifact_hashes.get(str(anchor["artifact_path"]))
@@ -116,7 +145,12 @@ def annotation_resolution_lock(run_dir: Path, *, exclusive: bool = True):
             raise ValueError("resolution lock must be a regular file")
         if exclusive:
             os.fchmod(descriptor, 0o644)
-        fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+        try:
+            fcntl.flock(descriptor, mode | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("annotate: waiting for another process holding the annotation lock", file=sys.stderr)
+            fcntl.flock(descriptor, mode)
         yield root
     finally:
         try:
@@ -388,6 +422,9 @@ def selective_rerun_plan(
 ) -> dict[str, Any]:
     changed_nodes = list(changed_nodes)
     steps = list(steps)
+    for index, step in enumerate(steps):
+        if "requires_approval" in step and not isinstance(step["requires_approval"], bool):
+            raise ValueError(f"step at index {index} field 'requires_approval' must be a JSON boolean")
     forward: dict[str, set[str]] = defaultdict(set)
     for edge in edges:
         relation = edge.get("relation")
