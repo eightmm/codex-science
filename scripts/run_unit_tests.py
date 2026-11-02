@@ -5,13 +5,15 @@ Import skips/errors retain unittest outcomes. SIGINT/SIGTERM stop workers,
 remove scratch directories, and exit with status 130/143 respectively.
 Worker output uses private files so test descendants cannot delay shutdown.
 Limits: discovery imports modules in this process; shared TestCase classes,
-classes defined outside test*.py modules and package load_tests hooks fail closed. Use serial discovery for such suites.
+classes from modules that discovery did not load itself (helpers, including test*-named
+modules outside discovered packages) and package load_tests hooks fail closed. Process
+isolation can also hide failures caused by another module's import side effects or the real
+user environment. Use serial discovery for such suites.
 """
 
 from __future__ import annotations
 
 import argparse
-import fnmatch
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import importlib
@@ -51,8 +53,20 @@ def prepare_imports(start):
     sys.path.insert(0, str(start))
 
 
+class RecordingLoader(unittest.TestLoader):
+    """Record the modules whose tests discovery loads directly."""
+
+    def __init__(self):
+        super().__init__()
+        self.loaded_modules = set()
+
+    def loadTestsFromModule(self, module, *args, **kwargs):
+        self.loaded_modules.add(module.__name__)
+        return super().loadTestsFromModule(module, *args, **kwargs)
+
+
 def discover(start):
-    loader = unittest.TestLoader()
+    loader = RecordingLoader()
     imported = set(sys.modules)
     suite = loader.discover(str(start))
     # Children reload test modules, so package hooks cannot preserve configured instances.
@@ -63,17 +77,20 @@ def discover(start):
                 "run serially (unset CODEX_SCIENCE_TEST_WORKERS or set it to 1)"
             )
     modules = defaultdict(list)
+    placeholders = set()
     for test in test_ids(suite):
         module = type(test).__module__
         if module == "unittest.loader" and type(test).__name__ in ("ModuleSkipped", "_FailedTest"):
             module = test._testMethodName
+            placeholders.add(module)
         modules[module].append(test.id())
     # Children rebuild each group from its module alone, which only reproduces modules that
-    # discovery itself loads; a class from a helper module may depend on its importer.
+    # discovery itself loads; a class from any other module, test*-named or not, may depend
+    # on its importer's load_tests hook or import side effects.
     for module in modules:
-        if not fnmatch.fnmatchcase(module.rsplit(".", 1)[-1], "test*"):
+        if module not in placeholders and module not in loader.loaded_modules:
             raise ValueError(
-                f"tests from non-test module {module!r} cannot be replayed safely; "
+                f"tests from module {module!r}, which discovery did not load itself, cannot be replayed safely; "
                 "run serially (unset CODEX_SCIENCE_TEST_WORKERS or set it to 1)"
             )
     return dict(modules)

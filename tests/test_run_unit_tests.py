@@ -284,8 +284,9 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("missing test IDs without fixture outcomes", result.stderr)
 
     def test_classes_from_helper_modules_fail_closed(self):
-        # Serial runs honour the importer's hook or side effect; replaying the helper alone would not.
-        (self.tests / "helpers.py").write_text(textwrap.dedent("""
+        # Serial runs honour the importer's hook or side effect; replaying the helper alone would
+        # not. A test*-named helper outside a discovered package is not loaded by discovery either.
+        helper_source = textwrap.dedent("""
             import unittest
             LIMIT = 0
             class ParamCase(unittest.TestCase):
@@ -295,26 +296,31 @@ class RunnerTests(unittest.TestCase):
                 def test_value(self): self.assertEqual(0, self.value)
             class Shared(unittest.TestCase):
                 def test_limit(self): self.assertEqual(0, LIMIT)
-        """), encoding="utf-8")
+        """)
         cases = {
             "hook": """
                 import unittest
-                from helpers import ParamCase
+                from {module} import ParamCase
                 def load_tests(loader, tests, pattern):
                     return unittest.TestSuite([ParamCase("test_value", value=1)])
             """,
             "side_effect": """
-                import helpers
-                helpers.LIMIT = 1
-                from helpers import Shared
+                import {module}
+                {module}.LIMIT = 1
+                from {module} import Shared
             """,
         }
-        for case, source in cases.items():
-            with self.subTest(case=case):
-                self.module("test_a", source)
-                result = self.invoke()
-                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-                self.assertIn("non-test module 'helpers'", result.stderr)
+        for relative, module in (("helpers.py", "helpers"), ("support/test_contract.py", "support.test_contract")):
+            helper = self.tests / relative
+            helper.parent.mkdir(exist_ok=True)
+            helper.write_text(helper_source, encoding="utf-8")
+            for case, source in cases.items():
+                with self.subTest(helper=module, case=case):
+                    self.module("test_a", source.replace("{module}", module))
+                    result = self.invoke()
+                    self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                    self.assertIn(f"module '{module}', which discovery did not load itself", result.stderr)
+            helper.unlink()
 
     def test_empty_and_single_module_worker_boundaries(self):
         empty = self.invoke()
@@ -407,7 +413,7 @@ class RunnerTests(unittest.TestCase):
                     with subprocess.Popen(
                         [sys.executable, str(RUNNER)], cwd=self.root, env=environment,
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                        # Launchers such as `cmd &` leave SIGINT ignored, which the runner must inherit.
+                        # Launchers such as `cmd &` leave SIGINT ignored; reset it so the signal reaches the runner.
                         preexec_fn=lambda: [signal.signal(s, signal.SIG_DFL) for s in (signal.SIGINT, signal.SIGTERM)],
                     ) as parent:
                         try:
