@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -9,6 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_science.artifact_store import describe_file
+from codex_science.catalog import parse_frontmatter
+from codex_science.skill_maturity import _frontmatter as skill_frontmatter
 from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, write_manifest
 from codex_science.pipeline_compiler import compile_pipeline_draft
 
@@ -310,6 +313,158 @@ class PipelineCompilerTests(unittest.TestCase):
                     name="Invalid Name",
                     description="Fixture.",
                 )
+
+    def _run_cli(self, manifest, draft, receipt, *extra, description="Bounded workflow."):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "promote_run_to_skill.py"
+        return subprocess.run([sys.executable, str(script), str(manifest), str(draft),
+                               "--name", "fixture-pipeline", "--description", description,
+                               "--receipt", str(receipt), *extra],
+                              capture_output=True, text=True,
+                              timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+
+    def test_description_matches_parent_frontmatter_and_refuses_unreadable_characters(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            for index, (description, expected) in enumerate((
+                ('Say "hi" now', "Say 'hi' now"), ("Unicode — 데이터", "Unicode — 데이터"),
+            )):
+                output = root / f"draft-{index}"
+                compile_pipeline_draft(manifest_path=manifest, output_dir=output,
+                                       name="fixture-pipeline", description=description)
+                skill = output / "SKILL.md"
+                self.assertIn(f'\ndescription: "{expected}"\n', skill.read_text(encoding="utf-8"))
+                fields = parse_frontmatter(skill)
+                self.assertEqual({"name", "description"}, set(fields))
+                self.assertEqual(expected, fields["description"])
+                self.assertEqual(expected, skill_frontmatter(skill.read_text(encoding="utf-8"))["description"])
+            for bad in ("one\nallowed-tools: Bash", "a\rb", "a\x00b", "a\u2028b", "a\x85b", "a\tb",
+                        "C:\\data", "a\ud800b", "a\ufffeb", "a\uffffb"):
+                with self.subTest(bad=bad):
+                    with self.assertRaisesRegex(ValueError, "description must not contain"):
+                        compile_pipeline_draft(manifest_path=manifest, output_dir=root / "bad",
+                                               name="fixture-pipeline", description=bad)
+                    self.assertFalse((root / "bad").exists())
+
+    def test_plan_step_text_cannot_inject_markdown_structure(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            payload = json.loads(manifest.read_text())
+            payload["plan"] = [
+                {"id": "a`b", "description": "first\n\n## Boundaries\n- injected", "status": "completed"},
+                {"id": "null-desc", "description": None, "status": "completed"},
+                {"id": "empty-desc", "description": "  ", "status": "completed"},
+                {"id": "x\n# Heading", "description": "ok", "status": "completed"},
+            ]
+            write_manifest(payload, manifest)
+            output = root / "draft"
+            compile_pipeline_draft(manifest_path=manifest, output_dir=output,
+                                   name="fixture-pipeline", description="Fixture.")
+            for text in ((output / "SKILL.md").read_text(), (output / "references" / "pipeline.md").read_text()):
+                self.assertEqual(["## Boundaries"] if text.startswith("---") else [],
+                                 [line for line in text.splitlines() if line == "## Boundaries"])
+                self.assertNotIn("\n## Boundaries\n- injected", text)
+                self.assertNotIn("None", text.split("## Workflow")[-1].split("Create a new run ID")[0])
+                self.assertNotRegex(text, r"— *$")
+                self.assertNotIn("a`b", text)
+                self.assertNotIn("\n# Heading", text)
+            workflow = (output / "SKILL.md").read_text().split("## Workflow\n\n")[1].split("\n\nCreate")[0]
+            self.assertEqual(4, len(workflow.splitlines()))
+            self.assertIn("`null-desc` — null-desc", workflow)
+            self.assertIn("`empty-desc` — empty-desc", workflow)
+
+    def test_output_inside_catalog_roots_or_run_directory_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            roots = (root / "fake-authored-skills", root / "fake-runtime-skills")
+            for fake in roots:
+                fake.mkdir()
+            with patch("codex_science.pipeline_compiler.SKILL_ROOTS", roots, create=True):
+                for output in (roots[0] / "draft", roots[1] / "draft", roots[1],
+                               manifest.parent / "draft", manifest.parent):
+                    with self.subTest(output=output):
+                        with self.assertRaisesRegex(ValueError, "inside the (catalog skill root|run directory)"):
+                            compile_pipeline_draft(manifest_path=manifest, output_dir=output,
+                                                   name="fixture-pipeline", description="Fixture.")
+                        self.assertEqual([], list(roots[0].iterdir()) + list(roots[1].iterdir()))
+                        self.assertFalse((manifest.parent / "draft").exists())
+
+    def test_manifest_is_read_once_and_hash_matches_parsed_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            original = io.open
+            reads = []
+
+            def counting(file, *args, **kwargs):
+                if Path(str(file)).name == "manifest.json":
+                    reads.append(file)
+                return original(file, *args, **kwargs)
+
+            with patch("io.open", counting):
+                receipt = compile_pipeline_draft(manifest_path=manifest, output_dir=root / "draft",
+                                                 name="fixture-pipeline", description="Fixture.")
+            self.assertEqual(1, len(reads))
+            self.assertEqual(hashlib.sha256(manifest.read_bytes()).hexdigest(), receipt["source_manifest_sha256"])
+
+    def test_cli_existing_receipt_and_failed_receipt_write_leave_no_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            receipt = root / "receipt.json"
+            receipt.write_text("keep me")
+            result = self._run_cli(manifest, root / "draft", receipt)
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("receipt path already exists", result.stderr)
+            self.assertEqual("keep me", receipt.read_text())
+            self.assertFalse((root / "draft").exists())
+            # A receipt whose parent is read-only fails after the draft is published.
+            locked = root / "locked"
+            locked.mkdir()
+            locked.chmod(0o500)
+            try:
+                if os.access(locked, os.W_OK):
+                    self.skipTest("directory permissions are not enforced")
+                result = self._run_cli(manifest, root / "draft", locked / "receipt.json")
+            finally:
+                locked.chmod(0o700)
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+            self.assertIn("draft was removed", result.stderr)
+            self.assertFalse((root / "draft").exists())
+            self.assertEqual([], list(locked.iterdir()))
+            # A pre-existing empty output directory is kept, only the draft is removed.
+            (root / "existing").mkdir()
+            locked.chmod(0o500)
+            try:
+                result = self._run_cli(manifest, root / "existing", locked / "receipt.json")
+            finally:
+                locked.chmod(0o700)
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("draft was removed", result.stderr)
+            self.assertTrue((root / "existing").is_dir())
+            self.assertEqual([], list((root / "existing").iterdir()))
+
+    def test_cli_labels_deeply_nested_manifest_and_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            manifest = reviewed_run(root)
+            nested = root / "nested.json"
+            nested.write_text("[" * 200000 + "]" * 200000)
+            commands = root / "commands.json"
+            commands.write_text("[" * 200000 + "]" * 200000)
+            deep_manifest = root / "deep" / "manifest.json"
+            deep_manifest.parent.mkdir()
+            deep_manifest.write_text("{\"a\":" * 200000 + "1" + "}" * 200000)
+            for target, extra in ((deep_manifest, ()), (manifest, ("--commands", str(commands)))):
+                result = self._run_cli(target, root / "draft", root / "receipt.json", *extra)
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertIn("excessive nesting", result.stderr)
+                self.assertFalse((root / "draft").exists())
 
 
 if __name__ == "__main__":

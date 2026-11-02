@@ -12,11 +12,11 @@ import hashlib
 import json
 import re
 import tempfile
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from codex_science.artifact_store import stream_sha256
 from codex_science.artifacts import validate_bundle
 from codex_science.review import review_manifest
 
@@ -66,6 +66,42 @@ def _text(value: Any, label: str) -> str:
     if not text:
         raise ValueError(f"{label} is required")
     return text
+
+
+SKILL_ROOTS = tuple(
+    Path(__file__).resolve().parents[2] / name for name in ("authored-skills", "runtime-skills")
+)
+
+
+def _single_line(value: Any) -> str:
+    return " ".join(str(value).split())
+
+
+def _step_fields(step: Mapping[str, Any], index: int) -> tuple[str, str]:
+    """Return a code-span-safe id and a single-line, heading-safe description."""
+    raw_id = step.get("id")
+    step_id = _single_line(raw_id if raw_id is not None else f"step-{index}") or f"step-{index}"
+    step_id = step_id.replace("`", "'")
+    raw_detail = step.get("description")
+    detail = _single_line(raw_detail) if raw_detail is not None else ""
+    return step_id, (detail or step_id).replace("`", "'")
+
+
+def _check_description(description: str) -> None:
+    # Frontmatter readers strip quotes without decoding escapes, so a backslash cannot round-trip.
+    for char in description:
+        if char == "\\" or unicodedata.category(char) in ("Cc", "Zl", "Zp", "Cs") or char in "\ufffe\uffff":
+            raise ValueError(
+                f"description must not contain backslashes, control characters, line breaks or invalid code points: {char!r}"
+            )
+
+
+def _refuse_catalog_or_run_output(output_dir: Path, run_dir: Path) -> None:
+    for root in SKILL_ROOTS:
+        if output_dir.is_relative_to(root.resolve()):
+            raise ValueError(f"output directory is inside the catalog skill root {root.name}/: {output_dir}")
+    if output_dir == run_dir or output_dir.is_relative_to(run_dir):
+        raise ValueError(f"output directory is inside the run directory: {output_dir}")
 
 
 def _normalize_spelling(value: str) -> str:
@@ -220,8 +256,7 @@ def _schema_outputs() -> dict[str, Any]:
 def _skill_text(name: str, description: str, source_run: str, workflow_steps: list[dict[str, Any]]) -> str:
     step_lines = []
     for index, step in enumerate(workflow_steps, 1):
-        step_id = str(step.get("id", f"step-{index}"))
-        detail = str(step.get("description", step_id)).strip()
+        step_id, detail = _step_fields(step, index)
         step_lines.append(f"{index}. `{step_id}` — {detail}")
     steps = "\n".join(step_lines) or "1. Reconstruct the approved workflow from a new decision contract."
     return f'''---
@@ -273,8 +308,8 @@ def _reference_text(
 ) -> str:
     commands = "\n".join(f"- `{json.dumps(command, ensure_ascii=False)}`" for command in command_contract) or "- No command was promoted. Reconstruct commands from an approved method before validation."
     steps = "\n".join(
-        f"- `{step.get('id', '<unknown>')}` — {step.get('description', step.get('id', ''))}"
-        for step in manifest.get("plan", [])
+        "- `{}` — {}".format(*_step_fields(step, index))
+        for index, step in enumerate(manifest.get("plan", []), 1)
         if isinstance(step, Mapping)
     ) or "- No source plan steps were recorded."
     limitations_text = "\n".join(f"- {item}" for item in limitations)
@@ -386,8 +421,16 @@ def compile_pipeline_draft(
     if not SKILL_NAME_RE.fullmatch(name):
         raise ValueError("name must be lowercase kebab-case")
     description = _text(description, "description")
+    _check_description(description)
     manifest_path = manifest_path.resolve()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_bytes = manifest_path.read_bytes()
+    manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+    try:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid manifest JSON in {manifest_path}: {error}") from error
+    except RecursionError as error:
+        raise ValueError(f"invalid manifest JSON in {manifest_path}: excessive nesting") from error
     if not isinstance(manifest, dict):
         raise ValueError("manifest must be an object")
     sidecars = validate_bundle(manifest, manifest_path.parent)
@@ -397,9 +440,9 @@ def compile_pipeline_draft(
     if any(step.get("status") != "completed" for step in manifest.get("plan", []) if isinstance(step, Mapping)):
         raise ValueError("source run has incomplete plan steps")
     output_dir = output_dir.resolve()
+    _refuse_catalog_or_run_output(output_dir, manifest_path.parent)
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError(f"output directory is not empty: {output_dir}")
-    manifest_sha, _size = stream_sha256(manifest_path)
     commands = command_contract or []
     for index, command in enumerate(commands):
         if not isinstance(command, list) or not command or not all(isinstance(item, str) and item for item in command):

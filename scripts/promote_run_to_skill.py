@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -13,8 +14,21 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from codex_science.pipeline_compiler import _validate_command, compile_pipeline_draft  # noqa: E402
 from codex_science.artifacts import manifest_provenance_paths, validate_manifest  # noqa: E402
-from codex_science.cli_io import preflight_output_paths, resolve_input_path  # noqa: E402
+from codex_science.cli_io import load_json_object, preflight_output_paths, resolve_input_path, write_json_atomic  # noqa: E402
 from codex_science.run_packaging import digest_mismatch_hint  # noqa: E402
+
+
+def _remove_draft(output: Path, existed: bool) -> str:
+    """Remove the published draft; keep a directory that existed (empty) before this run."""
+    try:
+        if existed:
+            for child in output.iterdir():
+                shutil.rmtree(child) if child.is_dir() and not child.is_symlink() else child.unlink()
+        else:
+            shutil.rmtree(output)
+    except OSError as error:
+        return f"the draft could not be fully removed from {output}: {error}"
+    return f"the draft was removed from {output}"
 
 
 def main() -> int:
@@ -37,7 +51,7 @@ def main() -> int:
     try:
         args.manifest = resolve_input_path(args.manifest)
         preflight_output_paths(args.receipt, protected_dirs=[args.output])
-        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        manifest = load_json_object(args.manifest)
         validate_manifest(manifest)
         inputs = [args.manifest, *manifest_provenance_paths(manifest, args.manifest.parent)]
         trees = []
@@ -54,11 +68,16 @@ def main() -> int:
             "references/pipeline.md", "references/index.json", "promotion.json",
         )]
         preflight_output_paths(*draft_paths, args.receipt, inputs=inputs, protected_dirs=trees)
+        if args.receipt.exists() or args.receipt.is_symlink():
+            raise ValueError(f"receipt path already exists: {args.receipt}")
         output_label = resolve_input_path(args.output)
         receipt_label = resolve_input_path(args.receipt)
         commands = None
         if args.commands:
-            payload = json.loads(args.commands.read_text(encoding="utf-8"))
+            try:
+                payload = json.loads(args.commands.read_text(encoding="utf-8"))
+            except RecursionError as error:
+                raise ValueError(f"invalid JSON in {args.commands}: excessive nesting") from error
             if not isinstance(payload, list):
                 raise ValueError("--commands must contain a JSON array")
             for index, command in enumerate(payload):
@@ -66,6 +85,7 @@ def main() -> int:
                     raise ValueError(f"command_contract[{index}] must be a non-empty argv list")
                 _validate_command(command, index)
             commands = payload
+        draft_existed = output_label.exists()
         receipt = compile_pipeline_draft(
             manifest_path=args.manifest,
             output_dir=args.output,
@@ -74,8 +94,13 @@ def main() -> int:
             command_contract=commands,
             limitations=args.limitation or None,
         )
-        args.receipt.parent.mkdir(parents=True, exist_ok=True)
-        args.receipt.write_text(json.dumps(receipt, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+        try:
+            write_json_atomic(args.receipt, receipt)
+        except OSError as error:
+            raise ValueError(f"receipt write failed ({error}); {_remove_draft(output_label, draft_existed)}") from error
+        except BaseException:
+            _remove_draft(output_label, draft_existed)
+            raise
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"error: {error}{digest_mismatch_hint(error, args.manifest.parent)}", file=sys.stderr)
         return 1
