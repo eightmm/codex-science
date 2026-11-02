@@ -614,7 +614,7 @@ class ReviewerRuntimeRejectionTests(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             deep: dict = {}
             cursor = deep
-            for _ in range(1200):
+            for _ in range(150):  # past the redaction limit, inside the interpreter's recursion limit
                 cursor["a"] = {}
                 cursor = cursor["a"]
             manifest["environment"] = deep
@@ -1313,6 +1313,16 @@ class RespondToReviewRejectionTests(unittest.TestCase):
                 self.assertRefused("output would overwrite", output=target)
                 self.assertEqual("original\n", target.read_text(encoding="utf-8"))
         self.assertEqual("passed", self.respond(output=self.task.parent / "other.json")["effective_status"])
+
+    def test_record_naming_the_run_directory_reserves_no_output(self) -> None:
+        manifest_path = self.task.parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["inputs"] = [*manifest.get("inputs", []), {"path": "."}]
+        manifest["code"] = [*manifest.get("code", []), {"path": "../outside.py"}, {"path": "/abs/analysis.py"}]
+        write_manifest(manifest, manifest_path)
+        self.task.write_text(json.dumps(build_review_packet(manifest_path, review_modes=["record"])), encoding="utf-8")
+        self.assertEqual("passed", self.respond(output=self.task.parent / "second-response.json")["effective_status"])
+        self.assertRefused("run bookkeeping file", output=self.task.parent / "review-response.json")
 
 
 if __name__ == "__main__":

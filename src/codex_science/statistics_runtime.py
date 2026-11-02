@@ -564,7 +564,8 @@ def _validate_statistical_consistency(payload: Mapping[str, Any]) -> None:
         raise ValueError(f"interval.replicates exceeds {MAX_REPLICATES}")
     if interval["replicates"] < MIN_REPLICATES:
         raise ValueError(f"interval.replicates is below the runtime minimum of {MIN_REPLICATES}")
-    if "within_unit_aggregation" in sample and sample["within_unit_aggregation"] not in {"mean", "median"}:
+    aggregation = sample.get("within_unit_aggregation", "mean")
+    if not isinstance(aggregation, str) or aggregation not in {"mean", "median"}:
         raise ValueError("sample.within_unit_aggregation must be mean or median")
     exact = test.get("exact")
     if not isinstance(exact, bool):

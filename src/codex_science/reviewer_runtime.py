@@ -12,7 +12,7 @@ import hashlib
 import json
 import urllib.parse
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 from codex_science.artifact_store import describe_directory, stream_sha256
@@ -596,8 +596,9 @@ def respond_to_review(
     Artifact types come from the source manifest; changed manifests require matching
     packet artifact digests. Artifact and declared descriptor paths in the packet
     or current manifest reserve their entire output subtrees, even without packet
-    type metadata or a current filesystem object. Recorded code and execution-log
-    paths, execution-log.jsonl and the run packaging bookkeeping files are also refused.
+    type metadata or a current filesystem object. Recorded input, code and execution-log
+    paths, execution-log.jsonl and the run packaging bookkeeping files are also refused;
+    a record naming the run directory itself reserves nothing.
     Raises one ValueError listing every input problem and writes nothing on failure.
     """
     task_path = Path(task_path)
@@ -738,7 +739,8 @@ def respond_to_review(
             problems.append(f"output is outside the run directory: {destination}")
         from codex_science.run_packaging import EXCLUDED_NAMES
 
-        protected_artifact_paths.update(_resolve_review_path(run_dir / name) for name in EXCLUDED_NAMES)
+        bookkeeping = {_resolve_review_path(run_dir / name) for name in EXCLUDED_NAMES}
+        protected_artifact_paths.update(bookkeeping)
         if manifest_loaded:
             protected_artifact_paths.update(_resolve_review_path(path) for path in manifest_provenance_paths(manifest, run_dir))
             # manifest_provenance_paths skips records without a digest; recorded files stay protected regardless.
@@ -747,10 +749,15 @@ def respond_to_review(
                 for field, key in (("code", "path"), ("executions", "log_path"), ("superseded_executions", "log_path"))
                 for record in manifest.get(field, [])
                 if isinstance(record, dict) and isinstance(record.get(key), str) and record[key] and "://" not in record[key]
+                and not PurePosixPath(record[key]).is_absolute() and ".." not in PurePosixPath(record[key]).parts
             )
+            # A record naming the run directory or an ancestor ("." or "") would reserve every output path.
+            protected_artifact_paths = {path for path in protected_artifact_paths if not run_dir.is_relative_to(path)}
         protected = {_resolve_review_path(task_path), run_dir / "manifest.json", run_dir / source_manifest.name, _resolve_review_path(source_manifest), *(_resolve_review_path(run_dir / path) for path in packet_hashes)}
         if resolved in protected:
             problems.append(f"output would overwrite a packet or manifest file: {destination}")
+        elif resolved in bookkeeping:
+            problems.append(f"output would overwrite a run bookkeeping file ({resolved.name}); choose another name: {destination}")
         elif (any(resolved.is_relative_to(path) for path in protected_artifact_paths)
               or any(path.is_dir() and resolved.is_relative_to(path) for path in protected)):
             problems.append(f"output would overwrite an artifact: {destination}")

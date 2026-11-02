@@ -263,6 +263,8 @@ class ResearchDesignStatisticsTests(unittest.TestCase):
             (exact, lambda r: r.update(status="passed"), "status"),
             (exact, lambda r: r["sample"].update(within_unit_aggregation="mode"), "within_unit_aggregation"),
             (exact, lambda r: r["sample"].update(within_unit_aggregation=""), "within_unit_aggregation"),
+            (exact, lambda r: r["sample"].update(within_unit_aggregation=["mean"]), "within_unit_aggregation"),
+            (exact, lambda r: r["sample"].update(within_unit_aggregation={"a": 1}), "within_unit_aggregation"),
             (monte_carlo, lambda r: r["test"].update(permutations=199, p_value=1.0), "test.permutations"),
         ]
         for receipt, mutate, message in cases:
