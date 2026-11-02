@@ -974,6 +974,7 @@ class ComputeBackendTests(unittest.TestCase):
             call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
             publish = compute_backends_module._publish_job_state
             contenders = []
+            operations = []
 
             def attempt_publication(path: Path, payload: dict, **kwargs: object) -> dict:
                 if payload["state"] == "lost":
@@ -985,12 +986,14 @@ class ComputeBackendTests(unittest.TestCase):
             def signal_worker(pid: int, operation: int) -> None:
                 nonlocal alive
                 self.assertEqual(123, pid)
-                self.assertEqual(compute_backends_module.signal.SIGTERM, operation)
+                operations.append(operation)
                 self.assertEqual("running", compute_backends_module._read_json(job_dir / "state.json")["state"])
-                alive = False
                 with (job_dir / ".state.lock").open("a") as contender:
                     with self.assertRaises(BlockingIOError):
                         fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                if operation != compute_backends_module.signal.SIGTERM:
+                    return
+                alive = False
                 contenders.append(executor.submit(backend.status, job_dir.name))
                 contenders.append(executor.submit(
                     compute_backends_module._publish_job_state, job_dir, refingerprint({**state, "state": "completed"})
@@ -1008,8 +1011,11 @@ class ComputeBackendTests(unittest.TestCase):
                 self.assertEqual("cancelled", cancelled["state"])
                 for future in contenders:
                     self.assertEqual(cancelled, future.result(timeout=call_timeout))
-                signal_worker_call.assert_called_once()
-                sleep.assert_called_once_with(0.05)
+                # The group survives TERM here, so cancel escalates after the grace probes.
+                self.assertEqual([signal.SIGTERM, 0, 0, 0, 0, signal.SIGKILL], operations)
+                self.assertEqual(6, signal_worker_call.call_count)
+                # Four grace steps from cancel and one from the contending status.
+                self.assertEqual([mock.call(0.05)] * 5, sleep.call_args_list)
             self.assertEqual("cancelled", backend.status(job_dir.name)["state"])
 
             compute_backends_module._atomic_json(job_dir / "state.json", state)
@@ -1058,6 +1064,112 @@ class ComputeBackendTests(unittest.TestCase):
                     send.side_effect = ProcessLookupError()
                     self.assertEqual("cancelled", backend.cancel(job_dir.name)["state"])
                     self.assertEqual(2, send.call_count)
+
+    def test_cancel_escalates_to_kill_only_while_group_survives_term(self) -> None:
+        term, kill = signal.SIGTERM, signal.SIGKILL
+        survives = [term, 0, 0, 0, 0, kill]
+        cases = {
+            "gone-at-first-probe": ({0: [ProcessLookupError()]}, [term, 0], 1, "cancelled"),
+            "gone-at-last-probe": ({0: [None, None, None, ProcessLookupError()]}, [term, 0, 0, 0, 0], 4, "cancelled"),
+            "survives-term": ({}, survives, 4, "cancelled"),
+            "gone-before-kill": ({kill: [ProcessLookupError()]}, survives, 4, "cancelled"),
+            "kill-refused": ({kill: [PermissionError("refused")]}, survives, 4, "failed"),
+            "probe-refused": ({0: [PermissionError("refused")]}, [term, 0], 1, "failed"),
+        }
+        for name, (outcomes, expected_calls, sleeps, result) in cases.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                backend = LocalBackend(root / "state")
+                spec = local_spec(root, command=[sys.executable, "-c", "pass"], outputs=[])
+                job_dir = backend._job_dir("escalation")
+                job_dir.mkdir(parents=True)
+                compute_backends_module._atomic_json(job_dir / "spec.json", spec.to_dict())
+                initial = compute_backends_module._state_material(
+                    spec, job_id=job_dir.name, state="running", submitted_at="2026-01-01T00:00:00Z", worker_pid=123,
+                )
+                state_path = job_dir / "state.json"
+                compute_backends_module._atomic_json(state_path, initial)
+                before = state_path.read_bytes()
+                pending = {operation: list(values) for operation, values in outcomes.items()}
+
+                def send(pid: int, operation: int) -> None:
+                    self.assertEqual(123, pid)
+                    queued = pending.get(operation)
+                    outcome = queued.pop(0) if queued else None
+                    if outcome is not None:
+                        raise outcome
+
+                with mock.patch.object(compute_backends_module, "_process_alive", return_value=True), mock.patch.object(
+                    compute_backends_module.os, "killpg", side_effect=send
+                ) as killpg, mock.patch.object(compute_backends_module.time, "sleep") as sleep:
+                    if result == "failed":
+                        with self.assertRaisesRegex(ValueError, "local cancellation failed: refused"):
+                            backend.cancel(job_dir.name)
+                        self.assertEqual(before, state_path.read_bytes())
+                        self.assertEqual([mock.call(123, operation) for operation in expected_calls], killpg.call_args_list)
+                        killpg.reset_mock()
+                        cancelled = backend.cancel(job_dir.name)
+                        self.assertEqual(mock.call(123, term), killpg.call_args_list[0])
+                    else:
+                        cancelled = backend.cancel(job_dir.name)
+                        self.assertEqual([mock.call(123, operation) for operation in expected_calls], killpg.call_args_list)
+                        self.assertEqual([mock.call(0.05)] * sleeps, sleep.call_args_list)
+                self.assertEqual("cancelled", cancelled["state"])
+                self.assertEqual("user-cancelled", cancelled["failure_class"])
+                self.assertEqual(cancelled, backend.status(job_dir.name))
+
+    def test_local_cancel_stops_command_group_that_ignores_term(self) -> None:
+        call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30"))
+
+        def wait_for(condition, message: str) -> None:
+            deadline = time.monotonic() + call_timeout
+            while not condition():
+                self.assertLess(time.monotonic(), deadline, message)
+                time.sleep(0.01)
+
+        def reset_signals() -> None:
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                signal.signal(signum, signal.SIG_DFL)
+
+        def group_gone(pid: int) -> bool:
+            # Killed members stay in the group as zombies until their new parent reaps them.
+            for stat in Path("/proc").glob("[0-9]*/stat"):
+                try:
+                    fields = stat.read_text().rsplit(")", 1)[1].split()
+                except (FileNotFoundError, ProcessLookupError):
+                    continue
+                if int(fields[2]) == pid and fields[0] != "Z":
+                    return False
+            return True
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            backend = LocalBackend(root / "state")
+            spec = local_spec(
+                root, command=["bash", "-c", f"trap '' TERM; touch ready; sleep {int(2 * call_timeout)}"],
+                outputs=[], timeout=max(1, int(2 * call_timeout)),
+            )
+            popen = subprocess.Popen
+            with mock.patch.object(
+                compute_backends_module.subprocess, "Popen",
+                side_effect=lambda *args, **kwargs: popen(*args, preexec_fn=reset_signals, **kwargs),
+            ):
+                submitted = backend.submit(spec)
+            worker_pid = submitted["worker_pid"]
+            worker = compute_backends_module._LOCAL_PROCESSES[worker_pid]
+            try:
+                wait_for(lambda: (root / "ready").exists(), "command did not start")
+                cancelled = backend.cancel(submitted["job_id"])
+                self.assertEqual("cancelled", cancelled["state"])
+                wait_for(lambda: worker.poll() is not None and group_gone(worker_pid), "command group survived cancel")
+                self.assertEqual(cancelled, backend.status(submitted["job_id"]))
+            finally:
+                try:
+                    os.killpg(worker_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                worker.wait(timeout=call_timeout)
+                compute_backends_module._LOCAL_PROCESSES.pop(worker_pid, None)
 
     def test_terminal_cancel_retry_never_signals_or_rewrites_receipts(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

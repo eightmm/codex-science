@@ -304,7 +304,7 @@ A process exit code of zero means only that the command completed according to t
   --output artifacts/run-014/job-cancelled.json
 ```
 
-Cancellation is idempotent for terminal jobs. The local backend sends `SIGTERM` to the worker process group and records `user-cancelled`.
+Cancellation is idempotent for terminal jobs. The local backend sends `SIGTERM` to the worker process group, sends `SIGKILL` to the group if it is still present after about 0.2 seconds, and records `user-cancelled`; if a signal cannot be sent, cancel fails and leaves the job state unchanged.
 
 ### Collect outputs
 

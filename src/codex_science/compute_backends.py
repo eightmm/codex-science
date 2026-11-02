@@ -876,7 +876,7 @@ class LocalBackend:
             # Signal the group even if its leader has exited but children remain.
             if pid > 0:
                 try:
-                    os.killpg(pid, signal.SIGTERM)
+                    _cancel_local_group(pid)
                 except ProcessLookupError:
                     pass
                 except OSError as error:
@@ -973,6 +973,21 @@ def _stop_local_command(pid: int) -> None:
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+
+
+def _cancel_local_group(pid: int) -> None:
+    # Unlike _stop_local_command, signal failures propagate so cancel keeps the
+    # receipt unchanged, and a group that already exited is not sent KILL.
+    os.killpg(pid, signal.SIGTERM)
+    for _ in range(4):
+        time.sleep(0.05)
+        # Reap a worker started by this process so its zombie does not keep the group.
+        _process_alive(pid)
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
+            return
+    os.killpg(pid, signal.SIGKILL)
 
 
 def _timeout_local_group(job_dir: Path, final: Mapping[str, Any], started_monotonic: float) -> None:
