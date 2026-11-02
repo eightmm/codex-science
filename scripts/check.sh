@@ -10,7 +10,15 @@ run_compile() {
 }
 
 run_tests() {
-  uv run python -m unittest discover -s tests
+  local workers="${CODEX_SCIENCE_TEST_WORKERS-1}"
+  if [[ ! "$workers" =~ ^[0-9]+$ ]] || [[ "$workers" =~ ^0+$ ]]; then
+    echo "CODEX_SCIENCE_TEST_WORKERS must be an integer >= 1" >&2
+    return 2
+  elif [[ "$workers" =~ ^0*1$ ]]; then
+    uv run python -m unittest discover -s tests
+  else
+    uv run python scripts/run_unit_tests.py
+  fi
   echo "unit tests: ok"
 }
 
