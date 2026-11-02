@@ -263,14 +263,21 @@ class MathResearchRuntimeTests(unittest.TestCase):
                     else:
                         self.assertEqual([], findings)
 
-    def test_axioms_named_in_claim_assumptions_are_authorized(self):
+    def test_axioms_need_explicit_axiom_assumptions(self):
         checker = {"kernel_checked": True, "tool": "lean", "tool_version": "4"}
         for assumptions, axioms, flagged in (
             (["axiom Foo.choice is trusted"], ["Foo.choice"], []),
-            (["Foo.choice"], ["Foo.choice", "extra"], ["extra"]),
-            (["cheater is trusted"], ["cheat"], ["cheat"]),
-            (["Foo.choice'"], ["Foo.choice"], ["Foo.choice"]),
-            (["Bar.Foo.choice"], ["Foo.choice"], ["Foo.choice"]),
+            (["axiom Foo.choice : Prop", "axiom extra."], ["Foo.choice", "extra"], []),
+            (["axiom Foo.choice"], ["Foo.choice", "extra"], ["extra"]),
+            (["Foo.choice"], ["Foo.choice"], ["Foo.choice"]),
+            (["x > 0"], ["x"], ["x"]),
+            (["h : 0 < x"], ["h"], ["h"]),
+            (["uses the axiom of choice"], ["choice"], ["choice"]),
+            (["axiom cheater is trusted"], ["cheat"], ["cheat"]),
+            (["axiom Foo.choice'"], ["Foo.choice"], ["Foo.choice"]),
+            (["axiom Foo.choice.extra"], ["Foo.choice"], ["Foo.choice"]),
+            (["axiom foo!"], ["foo"], ["foo"]),
+            (["we trust axiom Foo.choice"], ["Foo.choice"], ["Foo.choice"]),
         ):
             claim = build_mathematical_claim(
                 claim_id="C", statement="x > 0", domain="integers", assumptions=assumptions, quantifiers=["forall x"],

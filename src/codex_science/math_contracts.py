@@ -299,9 +299,12 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
 
 
 def _axiom_authorized(axiom: str, claim: Mapping[str, Any]) -> bool:
-    """An axiom is authorized when a claim assumption names it as a whole Lean identifier."""
-    pattern = re.compile(r"(?<![\w.'])" + re.escape(axiom) + r"(?![\w.'])")
-    return any(pattern.search(text) for text in _string_list(claim, "assumptions"))
+    """An axiom is authorized only by an explicit claim assumption of the form ``axiom <name> ...``.
+
+    Ordinary hypotheses often reuse short names (``x``, ``h``), so a bare mention never authorizes.
+    """
+    pattern = re.compile(r"\s*axiom\s+" + re.escape(axiom) + r"(?=$|[\s:,;]|\.(?:\s|$))")
+    return any(pattern.match(text) for text in _string_list(claim, "assumptions"))
 
 
 def math_review_findings(
