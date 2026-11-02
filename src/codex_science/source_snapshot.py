@@ -65,22 +65,109 @@ def _safe_relative(value: Any, label: str, *, allow_dot: bool = False) -> str:
 def _git_environment() -> dict[str, str]:
     environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     environment["GIT_NO_REPLACE_OBJECTS"] = "1"
+    # Read-only snapshotting must not rewrite the source index (and so fire index hooks).
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
     return environment
 
 
-def _run_git(working: Path, *arguments: str, binary: bool = False) -> str | bytes:
+def _git_command(working: Path, *arguments: str) -> list[str]:
+    # An empty hooks location keeps repository-configured hooks from running.
+    return [
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        f"core.hooksPath={os.devnull}",
+        "-C",
+        str(working),
+        *arguments,
+    ]
+
+
+def _run_git(
+    working: Path,
+    *arguments: str,
+    binary: bool = False,
+    stdin: bytes | None = None,
+) -> str | bytes:
     completed = subprocess.run(
-        ["git", "-c", "core.fsmonitor=false", "-C", str(working), *arguments],
+        _git_command(working, *arguments),
+        input=stdin,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=_git_environment(),
-        text=not binary,
         check=False,
     )
     if completed.returncode != 0:
-        stderr = completed.stderr if isinstance(completed.stderr, str) else os.fsdecode(completed.stderr)
+        stderr = os.fsdecode(completed.stderr)
         raise SourceSnapshotError(f"git {' '.join(arguments)} failed: {stderr.strip() or 'unknown error'}")
-    return completed.stdout
+    if binary:
+        return completed.stdout
+    try:
+        return completed.stdout.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise SourceSnapshotError(f"git {' '.join(arguments)} produced undecodable output") from error
+
+
+def _refuse_partial_clone(root: Path) -> None:
+    listing = _run_git(root, "config", "-z", "--list", binary=True)
+    assert isinstance(listing, bytes)
+    for record in listing.split(b"\0"):
+        name_raw, _separator, value_raw = record.partition(b"\n")
+        name = os.fsdecode(name_raw)
+        lowered = name.lower()
+        if lowered == "extensions.partialclone":
+            raise SourceSnapshotError("partial clones are forbidden: extensions.partialClone is configured")
+        if (
+            lowered.startswith("remote.")
+            and lowered.endswith(".promisor")
+            and value_raw.strip().lower() not in {b"false", b"no", b"off", b"0"}
+        ):
+            raise SourceSnapshotError(f"promisor remotes are forbidden: {name} is set")
+
+
+def _refuse_filtered_paths(root: Path, paths: Sequence[bytes]) -> None:
+    if not paths:
+        return
+    output = _run_git(
+        root,
+        "check-attr",
+        "-z",
+        "--stdin",
+        "filter",
+        binary=True,
+        stdin=b"".join(path + b"\0" for path in paths),
+    )
+    assert isinstance(output, bytes)
+    fields = output.split(b"\0")
+    if fields and fields[-1] == b"":
+        fields.pop()
+    if len(fields) % 3:
+        raise SourceSnapshotError("git check-attr produced malformed output")
+    for index in range(0, len(fields), 3):
+        path_raw, _attribute, value = fields[index : index + 3]
+        if value not in {b"unspecified", b"unset"}:
+            raise SourceSnapshotError(
+                "tracked paths with a Git filter attribute are forbidden "
+                f"(the bundle would hold the committed blob, not the filtered content): {os.fsdecode(path_raw)}"
+            )
+
+
+def _refuse_index_flags(root: Path) -> None:
+    output = _run_git(root, "ls-files", "-v", "-z", binary=True)
+    assert isinstance(output, bytes)
+    for record in output.split(b"\0"):
+        if not record:
+            continue
+        tag, separator, path_raw = record.partition(b" ")
+        if not separator or len(tag) != 1:
+            raise SourceSnapshotError("git ls-files produced malformed output")
+        if tag.islower():
+            raise SourceSnapshotError(
+                f"tracked entries marked assume-unchanged are forbidden: {os.fsdecode(path_raw)}"
+            )
+        if tag == b"S":
+            raise SourceSnapshotError(f"tracked entries marked skip-worktree are forbidden: {os.fsdecode(path_raw)}")
 
 
 def _git_identity(
@@ -98,36 +185,19 @@ def _git_identity(
     head = _object_id(str(_run_git(working, "rev-parse", "--verify", "HEAD")).strip(), "Git HEAD")
     if head != expected_commit:
         raise SourceSnapshotError(f"Git HEAD moved: expected {expected_commit}, found {head}")
-    status_output = _run_git(
-        working,
-        "status",
-        "--porcelain=v1",
-        "-z",
-        "--untracked-files=all",
-        "--ignore-submodules=none",
-        binary=True,
+    # Reading objects in a partial clone can fetch through repository-configured commands.
+    _refuse_partial_clone(root)
+    tree = _object_id(
+        str(_run_git(root, "rev-parse", "--verify", f"{expected_commit}^{{tree}}")).strip(),
+        "Git tree",
     )
-    assert isinstance(status_output, bytes)
-    if status_output and allowed_untracked_path is not None:
-        allowed = allowed_untracked_path.resolve()
-        if allowed.is_relative_to(root):
-            prefix = os.fsencode(allowed.relative_to(root).as_posix())
-            records = [record for record in status_output.split(b"\0") if record]
-            if all(
-                record.startswith(b"?? ")
-                and (record[3:] == prefix or record[3:].startswith(prefix + b"/"))
-                for record in records
-            ):
-                status_output = b""
-    if status_output:
-        raise SourceSnapshotError("Git worktree is dirty (tracked or untracked changes present)")
-    tree = _object_id(str(_run_git(working, "rev-parse", "--verify", "HEAD^{tree}")).strip(), "Git tree")
-    listing = _run_git(working, "ls-tree", "-r", "-l", "-z", "--full-tree", head, binary=True)
+    listing = _run_git(root, "ls-tree", "-r", "-l", "-z", "--full-tree", expected_commit, binary=True)
     assert isinstance(listing, bytes)
     entry_count = 0
     tracked_bytes = 0
     entries: list[dict[str, Any]] = []
     directory_paths: set[tuple[str, ...]] = set()
+    tracked_paths: list[bytes] = []
     for raw in listing.split(b"\0"):
         if not raw:
             continue
@@ -140,6 +210,7 @@ def _git_identity(
         mode, _kind, object_raw, size_raw = fields
         path = os.fsdecode(path_raw)
         _safe_relative(path, "Git tree entry")
+        tracked_paths.append(path_raw)
         path_parts = PurePosixPath(path).parts
         directory_paths.update(path_parts[:index] for index in range(1, len(path_parts)))
         if mode == b"120000":
@@ -169,11 +240,37 @@ def _git_identity(
     tracked_entry_count = entry_count + len(directory_paths)
     if tracked_entry_count > MAX_SOURCE_ENTRIES:
         raise SourceSnapshotError(f"source exceeds the {MAX_SOURCE_ENTRIES}-entry limit")
+    # Both checks precede status, which may run clean filters or trust index flags.
+    _refuse_filtered_paths(root, tracked_paths)
+    _refuse_index_flags(root)
+    status_output = _run_git(
+        working,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+        binary=True,
+    )
+    assert isinstance(status_output, bytes)
+    if status_output and allowed_untracked_path is not None:
+        allowed = allowed_untracked_path.resolve()
+        if allowed.is_relative_to(root):
+            prefix = os.fsencode(allowed.relative_to(root).as_posix())
+            records = [record for record in status_output.split(b"\0") if record]
+            if all(
+                record.startswith(b"?? ")
+                and (record[3:] == prefix or record[3:].startswith(prefix + b"/"))
+                for record in records
+            ):
+                status_output = b""
+    if status_output:
+        raise SourceSnapshotError("Git worktree is dirty (tracked or untracked changes present)")
     relative_cwd = working.relative_to(root).as_posix() or "."
     return {
         "root": root,
         "working": working,
-        "commit": head,
+        "commit": expected_commit,
         "tree": tree,
         "worktree_relative_cwd": relative_cwd,
         "tracked_entry_count": tracked_entry_count,
@@ -402,22 +499,28 @@ def _safe_extract(archive: BinaryIO, destination: Path) -> None:
             if entries > MAX_SOURCE_ENTRIES:
                 raise SourceSnapshotError(f"source exceeds the {MAX_SOURCE_ENTRIES}-entry limit")
             target = destination.joinpath(*PurePosixPath(relative).parts)
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True, mode=0o700)
-                target.chmod(member.mode & 0o777)
-                continue
-            if not member.isfile():
+            if not (member.isdir() or member.isfile()):
                 raise SourceSnapshotError(f"unsupported source archive member: {relative}")
-            total_bytes += member.size
-            if total_bytes > MAX_SOURCE_CONTENT_BYTES:
-                raise SourceSnapshotError("source content exceeds the bounded bundle limit")
-            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            extracted = bundle.extractfile(member)
-            if extracted is None:
-                raise SourceSnapshotError(f"could not read source archive member: {relative}")
-            with target.open("xb") as output:
-                shutil.copyfileobj(extracted, output, length=1024 * 1024)
-            target.chmod(member.mode & 0o777)
+            if member.isfile():
+                total_bytes += member.size
+                if total_bytes > MAX_SOURCE_CONTENT_BYTES:
+                    raise SourceSnapshotError("source content exceeds the bounded bundle limit")
+            try:
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    target.chmod(member.mode & 0o777)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                extracted = bundle.extractfile(member)
+                if extracted is None:
+                    raise SourceSnapshotError(f"could not read source archive member: {relative}")
+                with target.open("xb") as output:
+                    shutil.copyfileobj(extracted, output, length=1024 * 1024)
+                target.chmod(member.mode & 0o777)
+            except (FileExistsError, NotADirectoryError, IsADirectoryError) as error:
+                raise SourceSnapshotError(
+                    f"source archive member conflicts with an extracted path: {relative}"
+                ) from error
 
 
 def _git_blob_digest(path: Path, size: int, object_id: str) -> str:
@@ -435,19 +538,16 @@ def _materialize_git_tree(identity: Mapping[str, Any], destination: Path) -> Non
     for item in identity["entries"]:
         relative = _safe_relative(item["path"], "Git tree entry")
         target = destination.joinpath(*PurePosixPath(relative).parts)
-        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with target.open("xb") as output:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            output = target.open("xb")
+        except (FileExistsError, NotADirectoryError, IsADirectoryError) as error:
+            raise SourceSnapshotError(
+                f"Git tree entry conflicts with a materialized path: {relative}"
+            ) from error
+        with output:
             completed = subprocess.run(
-                [
-                    "git",
-                    "-c",
-                    "core.fsmonitor=false",
-                    "-C",
-                    str(working),
-                    "cat-file",
-                    "blob",
-                    str(item["object"]),
-                ],
+                _git_command(working, "cat-file", "blob", str(item["object"])),
                 stdout=output,
                 stderr=subprocess.PIPE,
                 env=_git_environment(),
@@ -476,7 +576,10 @@ def _ensure_overlay_directory(path: Path) -> None:
             raise SourceSnapshotError(f"source input conflicts with committed source: {path}")
         return
     _ensure_overlay_directory(path.parent)
-    path.mkdir(mode=0o700)
+    try:
+        path.mkdir(mode=0o700)
+    except (FileExistsError, NotADirectoryError) as error:
+        raise SourceSnapshotError(f"source input conflicts with committed source: {path}") from error
     path.chmod(0o700)
 
 

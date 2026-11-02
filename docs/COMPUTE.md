@@ -19,9 +19,15 @@ task. Desktop GUI and browser automation are out of scope.
 
 Durable local and Slurm jobs may opt into `source_snapshot.mode: git-archive`
 with an exact Git commit. This strict route rejects a moved `HEAD`, tracked
-changes or nonignored untracked files, tracked symlinks and submodules, unhashed
-path inputs, and oversized bundles. Submit creates a deterministic, owner-only archive and a
-fingerprinted receipt; execution verifies and materializes the archive inside
+changes or nonignored untracked files, tracked symlinks and submodules, tracked
+paths with a Git `filter` attribute (such as Git LFS), index entries marked
+assume-unchanged or skip-worktree (including entries added under
+`core.ignoreStat` and sparse-checkout exclusions), partial or promisor clones, unhashed path inputs, and
+oversized bundles. Snapshotting runs Git with repository hooks disabled and
+without optional index writes, so preflight and submit do not modify the source
+repository. Submit creates a deterministic, owner-only archive and a
+fingerprinted receipt that binds the commit, its tree, and the archive SHA-256
+and size; execution verifies and materializes the archive inside
 the job directory, and collection reads outputs from that isolated copy.
 Digest-bound ignored inputs are normalized in that copy: newly added files are
 non-executable, directories are owner-only, and empty nested directories are not
@@ -44,10 +50,10 @@ on the legacy route; previously persisted job records remain readable for
 status, cancellation, and collection. Source binding is separate from
 environment, model-weight, database-release, and external-input pinning.
 
-The strict bundle contains Git blob bytes, not checkout filters. Content managed
-by Git LFS or another smudge filter must therefore be declared as a digest-bound
-path input when the materialized content, rather than its committed pointer, is
-required by the job.
+The strict bundle contains Git blob bytes, not checkout filters, so a tracked
+path with a `filter` attribute is refused rather than bundled as its committed
+pointer. Keep content that Git LFS or another filter materializes out of the
+committed tree (gitignored) and declare it as a digest-bound path input.
 
 A strict Slurm job directory is single-attempt state. Scheduler requeue or an
 operator restart must use a new submission/job directory so the verified source

@@ -103,6 +103,12 @@ claim or matched comparison. Preflight and submit require:
 - an exact commit equal to the current `HEAD`;
 - a clean worktree with no tracked changes or nonignored untracked files;
 - no tracked symbolic links or submodules;
+- no tracked path with a Git `filter` attribute (for example Git LFS), from
+  `.gitattributes`, `.git/info/attributes`, or configured attribute files;
+- no index entry marked assume-unchanged or skip-worktree, including entries
+  added while `core.ignoreStat` is set and sparse-checkout exclusions;
+- a complete clone: partial clones (`extensions.partialClone`) and promisor
+  remotes (`remote.<name>.promisor`) are refused before any object is read;
 - a SHA-256 for every declared file input and a directory Merkle root for every
   declared directory input;
 - source and input bytes within the runtime's bounded archive limits.
@@ -111,7 +117,10 @@ Ignored, digest-bound inputs may be overlaid into the committed source. The
 runtime verifies them before and after copying. Submit produces an owner-only,
 deterministic source archive plus a fingerprinted receipt containing the commit,
 tree, working-directory location inside the tree, archive SHA-256 and size, and
-input IDs. Local and Slurm jobs verify and materialize that archive in their job
+input IDs; the archive digest and size are the bytes later verified. Snapshotting
+runs Git with repository hooks disabled and without optional index writes, so
+preflight and submit do not modify the source repository. Local and Slurm jobs
+verify and materialize that archive in their job
 directory immediately before execution. Output collection reads that isolated
 directory, never the mutable checkout.
 
@@ -122,10 +131,10 @@ Their declared content digest remains the identity boundary.
 Local and strict Slurm extraction preserve these archive modes identically inside
 the owner-only managed job directory.
 
-Committed blobs are materialized without checkout filters. If Git LFS or another
-smudge filter supplies bytes needed at runtime, declare that path as a hashed
-input so those materialized bytes replace the committed pointer under the same
-receipt.
+Committed blobs are materialized without checkout filters, so a tracked path
+with a `filter` attribute is refused rather than bundled as its committed
+pointer. Keep content that Git LFS or another filter materializes out of the
+committed tree (gitignored) and declare it as a hashed input.
 
 Directory inputs must be quiescent for the duration of bundling. If another
 process may change their entries or types, first stage them into a reviewed

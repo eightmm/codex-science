@@ -1,5 +1,6 @@
 import hashlib
 import io
+import os
 import shutil
 import tarfile
 import tempfile
@@ -11,6 +12,13 @@ from unittest import mock
 import codex_science.source_snapshot as source_snapshot
 from codex_science.artifact_store import describe_directory
 from tests.test_compute_backends import git, initialize_repo
+
+
+SPEC_SHA256 = hashlib.sha256(b"job spec").hexdigest()
+
+
+def _preflight_check(working: Path, commit: str) -> dict:
+    return source_snapshot.preflight_git_source(working, commit, [])
 
 
 class SourceSnapshotUnitTests(unittest.TestCase):
@@ -285,3 +293,192 @@ class SourceSnapshotUnitTests(unittest.TestCase):
                 source_snapshot.validate_source_receipt(receipt, expected_job_spec_sha256=other_spec)
 
             self.assertEqual(names_before, sorted(path.name for path in job_dir.iterdir()))
+
+
+class SourceSnapshotRepositoryGuardTests(unittest.TestCase):
+    def _bundle(self, working: Path, commit: str, job_dir: Path) -> dict:
+        return source_snapshot.create_git_source_bundle(
+            working_directory=working, commit=commit, inputs=[],
+            job_spec_sha256=SPEC_SHA256, job_dir=job_dir,
+        )
+
+    def test_filter_attribute_paths_are_refused_before_status_and_unset_filters_pass(self) -> None:
+        for location in ("gitattributes", "info"):
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                working, _ = initialize_repo(root)
+                marker = root / "clean-filter-ran"
+                git(working, "config", "filter.fake.smudge", "sed s/pointer/real/")
+                git(working, "config", "filter.fake.clean", f"touch '{marker}'; sed s/real/pointer/")
+                (working / "sub").mkdir()
+                (working / "sub" / "keep.txt").write_text("kept\n", encoding="utf-8")
+                (working / "data dir").mkdir()
+                (working / "data dir" / "é data.bin").write_text("real\n", encoding="utf-8")
+                rule = "*.bin filter=fake\nkeep.txt -filter\n"
+                if location == "gitattributes":
+                    (working / ".gitattributes").write_text(rule, encoding="utf-8")
+                else:
+                    (working / ".git" / "info" / "attributes").write_text(rule, encoding="utf-8")
+                git(working, "add", ".")
+                git(working, "commit", "-qm", "filtered")
+                commit = git(working, "rev-parse", "HEAD")
+                self.assertEqual("pointer", git(working, "cat-file", "-p", "HEAD:data dir/é data.bin"))
+                marker.unlink(missing_ok=True)
+                os.utime(working / "data dir" / "é data.bin", (1, 1))
+
+                # The working directory holds only an explicitly unfiltered path.
+                result = _preflight_check(working / "sub", commit)
+                self.assertFalse(result["ready"])
+                self.assertIn("filter attribute", result["detail"])
+                self.assertIn("data dir/é data.bin", result["detail"])
+                job_dir = root / "bundle"
+                with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "filter attribute"):
+                    self._bundle(working / "sub", commit, job_dir)
+                self.assertFalse(job_dir.exists())
+                self.assertFalse(marker.exists())
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working, _ = initialize_repo(root)
+            (working / ".gitattributes").write_text("*.txt -filter\n", encoding="utf-8")
+            git(working, "add", ".")
+            git(working, "commit", "-qm", "unset filter")
+            self.assertTrue(_preflight_check(working, git(working, "rev-parse", "HEAD"))["ready"])
+
+            empty = root / "empty"
+            empty.mkdir()
+            git(empty, "init", "-q")
+            git(empty, "-c", "user.email=fixture@example.test", "-c", "user.name=Fixture",
+                "commit", "-q", "--allow-empty", "-m", "empty")
+            self.assertTrue(_preflight_check(empty, git(empty, "rev-parse", "HEAD"))["ready"])
+
+    def test_index_flags_that_hide_edits_are_refused(self) -> None:
+        cases = {
+            "assume-unchanged": ["update-index", "--assume-unchanged"],
+            "skip-worktree": ["update-index", "--skip-worktree"],
+            "ignoreStat": None,
+        }
+        for label, command in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tempdir:
+                root = Path(tempdir)
+                working, commit = initialize_repo(root)
+                (working / "sub").mkdir()
+                (working / "sub" / "keep.txt").write_text("kept\n", encoding="utf-8")
+                git(working, "add", ".")
+                git(working, "commit", "-qm", "subdirectory")
+                commit = git(working, "rev-parse", "HEAD")
+                if command is None:
+                    git(working, "config", "core.ignoreStat", "true")
+                    (working / "hidden.txt").write_text("committed\n", encoding="utf-8")
+                    git(working, "add", "hidden.txt")
+                    git(working, "commit", "-qm", "indexed under ignoreStat")
+                    commit = git(working, "rev-parse", "HEAD")
+                    flagged = "hidden.txt"
+                else:
+                    flagged = "source.txt"
+                    git(working, *command, flagged)
+                (working / flagged).write_text("edited\n", encoding="utf-8")
+                self.assertEqual("", git(working, "status", "--porcelain"))
+
+                result = _preflight_check(working / "sub", commit)
+                self.assertFalse(result["ready"])
+                self.assertIn(flagged, result["detail"])
+                self.assertRegex(result["detail"], "assume-unchanged|skip-worktree")
+                with self.assertRaises(source_snapshot.SourceSnapshotError):
+                    self._bundle(working, commit, root / "bundle")
+
+    def test_preflight_does_not_rewrite_the_index_or_run_hooks(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working, commit = initialize_repo(root)
+            marker = root / "hook-ran"
+            hook = working / ".git" / "hooks" / "post-index-change"
+            hook.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+            hook.chmod(0o755)
+            os.utime(working / "source.txt", (1, 1))
+            index_before = (working / ".git" / "index").read_bytes()
+
+            self.assertTrue(_preflight_check(working, commit)["ready"])
+            self.assertFalse(marker.exists())
+            self.assertEqual(index_before, (working / ".git" / "index").read_bytes())
+
+    def test_partial_and_promisor_clones_are_refused_before_reading_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working, commit = initialize_repo(root)
+            server = root / "server.git"
+            git(root, "clone", "-q", "--bare", str(working), str(server))
+            git(server, "config", "uploadpack.allowFilter", "true")
+            clone = root / "partial"
+            git(root, "clone", "-q", "--no-checkout", "--filter=blob:none", server.as_uri(), str(clone))
+
+            def missing() -> list[str]:
+                listing = git(clone, "rev-list", "--objects", "--missing=print", commit)
+                return [line for line in listing.splitlines() if line.startswith("?")]
+
+            missing_before = missing()
+            self.assertTrue(missing_before)
+            result = _preflight_check(clone, commit)
+            self.assertFalse(result["ready"])
+            self.assertRegex(result["detail"], "partial clone|promisor")
+            with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "partial clone|promisor"):
+                self._bundle(clone, commit, root / "bundle")
+            self.assertEqual(missing_before, missing())
+
+            git(working, "config", "remote.origin.promisor", "false")
+            self.assertTrue(_preflight_check(working, commit)["ready"])
+            git(working, "config", "extensions.partialClone", "origin")
+            result = _preflight_check(working, commit)
+            self.assertFalse(result["ready"])
+            self.assertIn("partialClone", result["detail"])
+
+    def test_receipt_tree_is_resolved_from_the_verified_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            working, commit = initialize_repo(root)
+            run_git = source_snapshot._run_git
+            moved = []
+
+            def move_head_after_verification(working_path: Path, *arguments: str, **options: object):
+                output = run_git(working_path, *arguments, **options)
+                if arguments == ("rev-parse", "--verify", "HEAD") and not moved:
+                    (working / "source.txt").write_text("moved\n", encoding="utf-8")
+                    git(working, "commit", "-qam", "concurrent move")
+                    moved.append(True)
+                return output
+
+            with mock.patch.object(source_snapshot, "_run_git", side_effect=move_head_after_verification):
+                result = _preflight_check(working, commit)
+            self.assertTrue(moved)
+            self.assertEqual(commit, result["detail"]["commit"])
+            self.assertEqual(git(working, "rev-parse", f"{commit}^{{tree}}"), result["detail"]["tree"])
+
+    def test_honest_conflicts_and_undecodable_git_output_are_labelled(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            archive = io.BytesIO()
+            with tarfile.open(fileobj=archive, mode="w") as bundle:
+                for name in ("f", "f/g"):
+                    item = tarfile.TarInfo(name)
+                    item.size = 1
+                    bundle.addfile(item, io.BytesIO(b"x"))
+            archive.seek(0)
+            destination = root / "extract"
+            destination.mkdir()
+            with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "conflicts.*f/g"):
+                source_snapshot._safe_extract(archive, destination)
+
+            working, commit = initialize_repo(root)
+            identity = source_snapshot._git_identity(working, commit)
+            stage = root / "stage"
+            stage.mkdir()
+            (stage / "source.txt").write_text("existing\n", encoding="utf-8")
+            with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "materialized path: source.txt"):
+                source_snapshot._materialize_git_tree(identity, stage)
+
+            git(working, "pack-refs", "--all")
+            packed = working / ".git" / "packed-refs"
+            packed.write_bytes(packed.read_bytes() + b"\xff\xfe broken\n")
+            with self.assertRaisesRegex(source_snapshot.SourceSnapshotError, "git rev-parse"):
+                self._bundle(working, commit, root / "bundle")
+            self.assertTrue(_preflight_check(working, commit)["detail"].startswith("git rev-parse"))
