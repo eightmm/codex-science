@@ -16,12 +16,12 @@ from codex_science.safe_expression import (
 from codex_science.math_contracts import build_proof_receipt, statement_sha256
 
 ADMITTED_RE = re.compile(r"\b(sorry|sorryAx|admit|by_contra'\s*\?|exact\s*\?)\b")
-THEOREM_RE = re.compile(
-    r"^\s*(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|nonrec)\s+)*(?:theorem|lemma|example)\b",
-    re.MULTILINE,
-)
-AXIOM_RE = re.compile(r"^\s*(axiom|opaque)\s+([A-Za-z0-9_'.]+)", re.MULTILINE)
-UNSAFE_RE = re.compile(r"^\s*unsafe\s+", re.MULTILINE)
+DECLARATION_PREFIX = r"^\s*(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|nonrec)\s+)*"
+THEOREM_RE = re.compile(DECLARATION_PREFIX + r"(?:theorem|lemma|example)\b", re.MULTILINE)
+AXIOM_RE = re.compile(DECLARATION_PREFIX + r"(axiom|opaque)\s+([A-Za-z0-9_'.]+)", re.MULTILINE)
+UNSAFE_RE = re.compile(DECLARATION_PREFIX + r"unsafe\s+", re.MULTILINE)
+# Lean reports admitted proofs elaborated from macros or tactics that the source scan cannot see.
+OUTPUT_SORRY_RE = re.compile(r"declaration uses 'sorry'")
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_TIMEOUT_SECONDS = 600
 MAX_CAPTURE_CHARS = 16_000
@@ -162,7 +162,9 @@ def run_formal_proof_check(
     stderr = completed.stderr or ""
     current_sha256 = hashlib.sha256(theorem_path.read_bytes()).hexdigest()
     source_unchanged = current_sha256 == source_sha256
-    passed = completed.returncode == 0 and not admitted and source_unchanged and unsafe_declarations == 0 and has_theorem
+    output_admitted = OUTPUT_SORRY_RE.search(stdout) is not None or OUTPUT_SORRY_RE.search(stderr) is not None
+    receipt_admitted = sorted(set(admitted) | ({"sorry"} if output_admitted else set()))
+    passed = completed.returncode == 0 and not receipt_admitted and source_unchanged and unsafe_declarations == 0 and has_theorem
     checker = {
         "tool": executable,
         "tool_version": tool_version,
@@ -181,6 +183,8 @@ def run_formal_proof_check(
         limitations.append("No theorem declaration was found (theorem, lemma, or example required).")
     if admitted:
         limitations.append("The source contains admitted or placeholder proof constructs.")
+    if output_admitted:
+        limitations.append("The checker output reports a declaration that uses 'sorry'.")
     if axioms:
         limitations.append("The source declares axioms or opaque constants that require an explicit trust-boundary review.")
     if unsafe_declarations:
@@ -199,7 +203,7 @@ def run_formal_proof_check(
         checker=checker,
         evidence=[{"path": preview["theorem_file"], "sha256": source_sha256}],
         axioms=axioms,
-        admitted_constructs=admitted,
+        admitted_constructs=receipt_admitted,
         limitations=limitations,
     )
     return {**preview, "status": "passed" if passed else "failed", "proof_receipt": receipt}

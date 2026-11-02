@@ -194,6 +194,109 @@ class MathResearchRuntimeTests(unittest.TestCase):
             with self.subTest(obligations=obligations), self.assertRaises(ValueError):
                 validate_proof_obligation_graph({**graph, "obligations": obligations})
 
+    def test_cycle_messages_cap_listed_nodes(self):
+        for count, suffix in ((1999, ""), (2000, " -> ... (1 more nodes)"), (2100, " -> ... (101 more nodes)")):
+            ids = [f"O{index:04d}" for index in range(count)]
+            graph = {
+                "schema_version": 1, "graph_id": "G", "claim_id": "C",
+                "obligations": [
+                    {"id": identifier, "statement": "x > 0", "status": "passed",
+                     "dependencies": [ids[(index + 1) % count]]}
+                    for index, identifier in enumerate(ids)
+                ],
+            }
+            with self.subTest(count=count):
+                expected = "Proof obligation cycle: " + " -> ".join((ids + ["O0000"])[:2000]) + suffix
+                self.assertEqual([{"code": "proof-obligation-cycle", "severity": "major", "message": expected}],
+                                 validate_proof_obligation_graph(graph))
+
+    def test_open_obligations_are_checked_for_every_proved_status(self):
+        receipts = {
+            "proved-deductive": dict(kind="informal-deductive"),
+            "proved-formal": dict(kind="formal-kernel", checker={"kernel_checked": True, "tool": "lean", "tool_version": "4"}),
+            "proved-finite": dict(kind="finite-exhaustion", checker={"exhaustive": True}),
+        }
+        for status in ("proved-deductive", "proved-formal", "proved-finite", "tested", "conjecture"):
+            claim = build_mathematical_claim(
+                claim_id="C", statement="x > 0", domain="integers", assumptions=[], quantifiers=["forall x"],
+                status=status, permitted_inference="inference", proof_receipt_ids=["P"],
+            )
+            proof = build_proof_receipt(
+                receipt_id="P", claim_id="C", statement="x > 0", status="passed", assumptions=[],
+                **receipts.get(status, receipts["proved-deductive"]),
+            )
+            for obligation_status in ("open", "failed", "blocked", "passed"):
+                graph = {
+                    "schema_version": 1, "graph_id": "G", "claim_id": "C",
+                    "obligations": [{"id": "O", "statement": "x > 0", "status": obligation_status}],
+                }
+                with self.subTest(status=status, obligation_status=obligation_status):
+                    codes = {item["code"] for item in math_review_findings([claim], [proof], [], [graph])}
+                    self.assertEqual(
+                        status.startswith("proved") and obligation_status != "passed",
+                        "proof-obligations-open" in codes,
+                    )
+                    self.assertEqual(set(), codes - {"proof-obligations-open"})
+
+    def test_proved_claims_flag_declared_axioms_without_rejecting_receipts(self):
+        checker = {"kernel_checked": True, "tool": "lean", "tool_version": "4"}
+        for status, kind in (("proved-formal", "formal-kernel"), ("proved-deductive", "informal-deductive"), ("tested", "formal-kernel")):
+            claim = build_mathematical_claim(
+                claim_id="C", statement="x > 0", domain="integers", assumptions=[], quantifiers=["forall x"],
+                status=status, permitted_inference="inference", proof_receipt_ids=["P"],
+            )
+            for receipt_status, axioms in (("passed", ["extra"]), ("passed", ["a", "b"]), ("passed", []), ("failed", ["extra"])):
+                proof = build_proof_receipt(
+                    receipt_id="P", claim_id="C", statement="x > 0", kind=kind, status=receipt_status,
+                    assumptions=[], checker=checker if receipt_status == "passed" else {}, axioms=axioms,
+                )
+                with self.subTest(status=status, receipt_status=receipt_status, axioms=axioms):
+                    validate_proof_receipt(proof)
+                    findings = [item for item in math_review_findings([claim], [proof], [], [])
+                                if item["code"] == "formal-proof-axioms-unreviewed"]
+                    if status.startswith("proved") and receipt_status == "passed" and axioms:
+                        self.assertEqual(["critical"], [item["severity"] for item in findings])
+                        self.assertIn(", ".join(axioms), findings[0]["message"])
+                        review = self._bundle_review([("mathematical-claim", claim), ("proof-receipt", proof)])
+                        self.assertIn("formal-proof-axioms-unreviewed", {item["code"] for item in review["findings"]})
+                        self.assertNotIn("invalid-proof-receipt", {item["code"] for item in review["findings"]})
+                    else:
+                        self.assertEqual([], findings)
+
+    def test_ids_are_compared_after_stripping(self):
+        claim, proof = self._deductive_pair()
+        claim.pop("fingerprint")
+        proof.pop("fingerprint")
+        graph = {
+            "schema_version": 1, "graph_id": "G", "claim_id": " C ",
+            "obligations": [
+                {"id": "A", "statement": "x > 0", "status": "passed", "dependencies": [" B\t"]},
+                {"id": "B", "statement": "x > 0", "status": "passed", "dependencies": []},
+            ],
+        }
+        self.assertEqual([], validate_proof_obligation_graph(graph))
+        for claim_changes, proof_changes in (
+            ({"proof_receipt_ids": [" P "]}, {}),
+            ({}, {"receipt_id": " P\n"}),
+            ({"claim_id": " C"}, {}),
+            ({}, {"claim_id": "C ", "obligation_ids": [" A"]}),
+        ):
+            altered_claim = {**claim, **claim_changes}
+            altered_proof = {**proof, **proof_changes}
+            with self.subTest(claim=claim_changes, proof=proof_changes):
+                self.assertEqual([], math_review_findings([altered_claim], [altered_proof], [], [graph]))
+                self.assertEqual([], review_quantitative_sidecars({
+                    "mathematical_claims": [altered_claim], "proof_receipts": [altered_proof],
+                    "proof_obligation_graphs": [graph],
+                }))
+        open_graph = {**graph, "obligations": [{**graph["obligations"][1], "status": "open"}]}
+        self.assertIn("proof-obligations-open", {
+            item["code"] for item in math_review_findings([claim], [proof], [], [open_graph])
+        })
+        self.assertIn("missing-proof-receipt", {
+            item["code"] for item in math_review_findings([{**claim, "proof_receipt_ids": ["P2"]}], [proof], [], [])
+        })
+
     def test_finite_exhaustion_validates_optional_evaluation_counts(self):
         claim = build_mathematical_claim(
             claim_id="C", statement="x*x < 0", domain="{0,1}", assumptions=[],
@@ -531,6 +634,55 @@ class MathResearchRuntimeTests(unittest.TestCase):
                     for validate in (validate_bundle, review_manifest):
                         with self.subTest(kind=kind, evidence=evidence, validate=validate.__name__), self.assertRaisesRegex(ValueError, "proof evidence"):
                             validate(manifest, root)
+
+    def test_proved_formal_receipts_must_come_from_registered_checks(self):
+        fixture = Path(__file__).resolve().parents[1] / "examples/formal-theorem-proving"
+        payload = json.loads((fixture / "input.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / payload["theorem_file"]).write_bytes((fixture / payload["theorem_file"]).read_bytes())
+
+            def runner(command, cwd, timeout):
+                return subprocess.CompletedProcess(command, 0, "Lean stub\n" if command[-1] == "--version" else "", "")
+
+            with mock.patch("codex_science.formal_proof.shutil.which", return_value="lean"):
+                checked = run_formal_proof_check(payload, workspace=workspace, runner=runner)
+        forged = build_proof_receipt(
+            receipt_id="hand-written", claim_id=payload["claim_id"], statement=payload["statement"],
+            kind="formal-kernel", status="passed", assumptions=[],
+            checker={"kernel_checked": True, "tool": "lean", "tool_version": "4"},
+        )
+        failed = build_proof_receipt(**{
+            "receipt_id": "hand-written", "claim_id": payload["claim_id"], "statement": payload["statement"],
+            "kind": "formal-kernel", "status": "failed", "assumptions": [],
+        })
+
+        def claim(status, receipt_ids):
+            return build_mathematical_claim(
+                claim_id=payload["claim_id"], statement=payload["statement"], domain="natural numbers",
+                assumptions=[], quantifiers=["for every natural number n"], status=status,
+                permitted_inference="formal theorem", proof_receipt_ids=receipt_ids,
+            )
+
+        checked_id = payload["receipt_id"]
+        for status, receipt_ids, records, flagged in (
+            ("proved-formal", ["hand-written"], [("formal-proof-check", checked), ("proof-receipt", forged)], True),
+            ("proved-formal", [checked_id, "hand-written"], [("formal-proof-check", checked), ("proof-receipt", forged)], True),
+            ("proved-formal", [f" {checked_id} "], [("formal-proof-check", checked)], False),
+            ("proved-formal", [checked_id, "hand-written"], [("formal-proof-check", checked), ("proof-receipt", failed)], False),
+            ("tested", ["hand-written"], [("formal-proof-check", checked), ("proof-receipt", forged)], False),
+            # Without any formal-proof-check record there is no checker run to tie receipts to.
+            ("proved-formal", ["hand-written"], [("proof-receipt", forged)], False),
+        ):
+            with self.subTest(status=status, receipt_ids=receipt_ids, kinds=[kind for kind, _ in records]):
+                review = self._bundle_review([("mathematical-claim", claim(status, receipt_ids)), *records])
+                findings = [item for item in review["findings"] if item["code"] == "formal-proof-check-missing"]
+                self.assertEqual(flagged, bool(findings))
+                if flagged:
+                    self.assertEqual("major", findings[0]["severity"])
+                    self.assertIn("hand-written", findings[0]["message"])
+                elif status == "proved-formal" and records[0][0] == "formal-proof-check":
+                    self.assertEqual("passed", review["status"], review["findings"])
 
     def test_malformed_claim_ids_do_not_collide_with_real_ids(self):
         valid = build_mathematical_claim(

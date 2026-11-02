@@ -241,6 +241,53 @@ class FormalTheoremProvingAcceptanceTests(unittest.TestCase):
                 self.assertTrue(result["proof_receipt"]["checker"]["source_unchanged"])
         self.assertEqual(lf_hash, self._check_source(fixture)["theorem_file_sha256"])
 
+    def test_checker_sorry_warning_is_refused(self) -> None:
+        warning = "Main.lean:1:8: warning: declaration uses 'sorry'\n"
+        for stdout, stderr, refused in (
+            (warning, "", True), ("", warning, True), (warning, warning, True),
+            ("", "", False), ("Main.lean:1:8: warning: unused variable `n`\n", "", False),
+        ):
+            def runner(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+                if command[-1] == "--version":
+                    return subprocess.CompletedProcess(command, 0, "Lean acceptance stub\n", "")
+                return subprocess.CompletedProcess(command, 0, stdout, stderr)
+
+            with self.subTest(stdout=stdout, stderr=stderr):
+                with mock.patch("codex_science.formal_proof.shutil.which", return_value="lean"):
+                    result = run_formal_proof_check(self.payload, workspace=self.workspace, runner=runner)
+                receipt = result["proof_receipt"]
+                validate_proof_receipt(receipt)
+                self.assertEqual(0, receipt["checker"]["exit_code"])
+                self.assertEqual([], result["admitted_constructs"])
+                if refused:
+                    self.assertEqual("failed", result["status"])
+                    self.assertEqual("failed", receipt["status"])
+                    self.assertFalse(receipt["checker"]["kernel_checked"])
+                    self.assertEqual(["sorry"], receipt["admitted_constructs"])
+                    self.assertIn("declaration that uses 'sorry'", " ".join(receipt["limitations"]))
+                else:
+                    self.assertEqual("passed", result["status"])
+                    self.assertEqual([], receipt["admitted_constructs"])
+
+    def test_axiom_and_unsafe_scans_accept_declaration_prefixes(self) -> None:
+        fixture = self.theorem.read_text(encoding="utf-8")
+        for prefix in ("", "  ", "@[] ", "@[simp] ", "private ", "protected ", "noncomputable ", "@[simp] private noncomputable "):
+            for keyword in ("axiom", "opaque"):
+                with self.subTest(prefix=prefix, keyword=keyword):
+                    result = self._check_source(fixture + f"{prefix}{keyword} trusted : Nat\n")
+                    self.assertEqual("passed", result["status"])
+                    self.assertEqual(["trusted"], result["declared_axioms"])
+                    self.assertEqual(["trusted"], result["proof_receipt"]["axioms"])
+            with self.subTest(prefix=prefix, keyword="unsafe"):
+                result = self._check_source(fixture + f"{prefix}unsafe def unchecked : Nat := 0\n")
+                self.assertEqual("failed", result["status"])
+                self.assertEqual(1, result["unsafe_declaration_count"])
+        for suffix in ("def axiom_like : Nat := 0\n", "-- axiom trusted : Nat\n", "privateaxiom trusted : Nat\n"):
+            with self.subTest(suffix=suffix):
+                result = self._check_source(fixture + suffix)
+                self.assertEqual("passed", result["status"])
+                self.assertEqual([], result["declared_axioms"])
+
     def test_admit_placeholder_is_refused(self) -> None:
         self.theorem.write_text(self.theorem.read_text(encoding="utf-8").replace("rfl", "admit"), encoding="utf-8")
         result = self._assert_failed_cli("admitted or placeholder proof constructs")

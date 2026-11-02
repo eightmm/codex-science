@@ -24,6 +24,13 @@ CLAIM_STATUSES = {
 PROOF_KINDS = {"informal-deductive", "formal-kernel", "finite-exhaustion", "computational-test"}
 PROOF_STATUSES = {"passed", "failed", "unavailable", "blocked"}
 OBLIGATION_STATUSES = {"open", "passed", "failed", "blocked"}
+PROVED_STATUSES = {"proved-finite", "proved-deductive", "proved-formal"}
+MAX_CYCLE_MESSAGE_NODES = 2000
+
+
+def _id(value: Any) -> str:
+    # Builders store ids stripped, so every comparison uses the same form.
+    return str(value).strip()
 
 
 def statement_sha256(statement: str) -> str:
@@ -241,7 +248,7 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
     findings: list[dict[str, str]] = []
     graph: dict[str, list[str]] = defaultdict(list)
     for obligation_id, item in obligations.items():
-        for dependency in item.get("dependencies", []):
+        for dependency in _string_list(item, "dependencies"):
             if dependency not in obligations:
                 findings.append({
                     "code": "missing-proof-obligation",
@@ -249,8 +256,8 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
                     "message": f"Proof obligation {obligation_id} depends on missing {dependency}.",
                 })
             else:
-                graph[obligation_id].append(str(dependency))
-                if item.get("status") == "passed" and obligations[str(dependency)].get("status") != "passed":
+                graph[obligation_id].append(dependency)
+                if item.get("status") == "passed" and obligations[dependency].get("status") != "passed":
                     findings.append({
                         "code": "unresolved-proof-dependency",
                         "severity": "major",
@@ -272,10 +279,14 @@ def validate_proof_obligation_graph(payload: Mapping[str, Any]) -> list[dict[str
                 continue
             if state.get(dependency) == 1:
                 cycle = stack[stack.index(dependency):] + [dependency]
+                # Bound each message; many back edges into a long path would otherwise repeat it whole.
+                shown = " -> ".join(cycle[:MAX_CYCLE_MESSAGE_NODES])
+                if len(cycle) > MAX_CYCLE_MESSAGE_NODES:
+                    shown += f" -> ... ({len(cycle) - MAX_CYCLE_MESSAGE_NODES} more nodes)"
                 findings.append({
                     "code": "proof-obligation-cycle",
                     "severity": "major",
-                    "message": "Proof obligation cycle: " + " -> ".join(cycle),
+                    "message": "Proof obligation cycle: " + shown,
                 })
             elif state.get(dependency, 0) == 0:
                 state[dependency] = 1
@@ -295,7 +306,7 @@ def math_review_findings(
     findings: list[dict[str, str]] = []
     claim_by_id: dict[str, Mapping[str, Any]] = {}
     claim_id_counts = Counter(
-        claim["claim_id"] for claim in claims
+        _id(claim["claim_id"]) for claim in claims
         if isinstance(claim.get("claim_id"), str) and claim["claim_id"].strip()
     )
     for claim_id, count in claim_id_counts.items():
@@ -306,6 +317,7 @@ def math_review_findings(
             claim_id = claim.get("claim_id")
             if not isinstance(claim_id, str) or not claim_id.strip():
                 raise ValueError("claim_id must be a non-empty string")
+            claim_id = _id(claim_id)
             validate_mathematical_claim(claim)
             if claim_id_counts[claim_id] == 1:
                 claim_by_id[claim_id] = claim
@@ -321,7 +333,7 @@ def math_review_findings(
         for receipt in receipts:
             try:
                 validate(receipt)
-                identifier = str(receipt["receipt_id"]) if kind == "proof" else str(receipt.get("receipt_id") or receipt.get("fingerprint"))
+                identifier = _id(receipt["receipt_id"] if kind == "proof" else receipt.get("receipt_id") or receipt.get("fingerprint"))
                 if identifier in conflicts:
                     continue
                 if identifier in index:
@@ -337,15 +349,19 @@ def math_review_findings(
     for graph in obligation_graphs:
         try:
             findings.extend(validate_proof_obligation_graph(graph))
-            obligation_by_claim[str(graph.get("claim_id"))].append(graph)
+            obligation_by_claim[_id(graph.get("claim_id"))].append(graph)
         except ValueError as error:
             findings.append({"code": "invalid-proof-obligation-graph", "severity": "major", "message": str(error)})
 
-    for receipt in proofs.values():
+    obligation_index: dict[str, dict[str, list[Mapping[str, Any]]]] = {}
+    for graph_claim_id, graphs in obligation_by_claim.items():
         obligations: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
-        for graph in obligation_by_claim.get(str(receipt["claim_id"]), []):
+        for graph in graphs:
             for obligation in graph.get("obligations", []):
                 obligations[_required_text(obligation, "id")].append(obligation)
+        obligation_index[graph_claim_id] = obligations
+    for receipt in proofs.values():
+        obligations = obligation_index.get(_id(receipt["claim_id"]), {})
         for identifier in _string_list(receipt, "obligation_ids"):
             if identifier not in obligations:
                 findings.append({"code": "missing-proof-obligation", "severity": "major", "message": f"Proof receipt {receipt['receipt_id']} references missing obligation {identifier} for claim {receipt['claim_id']}."})
@@ -354,24 +370,26 @@ def math_review_findings(
 
     for claim_id, claim in claim_by_id.items():
         status = str(claim["status"])
-        linked_proofs = [proofs[item] for item in claim.get("proof_receipt_ids", []) if item in proofs]
-        linked_counters = [counters[item] for item in claim.get("counterexample_receipt_ids", []) if item in counters]
-        missing_proofs = sorted(set(map(str, claim.get("proof_receipt_ids", []))) - set(proofs))
-        missing_counters = sorted(set(map(str, claim.get("counterexample_receipt_ids", []))) - set(counters))
+        proof_ids = _string_list(claim, "proof_receipt_ids")
+        counter_ids = _string_list(claim, "counterexample_receipt_ids")
+        linked_proofs = [proofs[item] for item in proof_ids if item in proofs]
+        linked_counters = [counters[item] for item in counter_ids if item in counters]
+        missing_proofs = sorted(set(proof_ids) - set(proofs))
+        missing_counters = sorted(set(counter_ids) - set(counters))
         for identifier in missing_proofs:
             findings.append({"code": "missing-proof-receipt", "severity": "major", "message": f"Claim {claim_id} references missing proof receipt {identifier}."})
         for identifier in missing_counters:
             findings.append({"code": "missing-counterexample-receipt", "severity": "major", "message": f"Claim {claim_id} references missing counterexample receipt {identifier}."})
         invalid_finite_proofs: set[str] = set()
         finite_domains = [
-            receipt for receipt in (linked_counters if claim.get("counterexample_receipt_ids") else counters.values())
-            if receipt.get("claim_id") == claim_id
+            receipt for receipt in (linked_counters if counter_ids else counters.values())
+            if _id(receipt.get("claim_id")) == claim_id
             and receipt.get("statement_sha256") == claim.get("statement_sha256")
             and receipt.get("scope") == "finite"
             and receipt.get("status") == "proved-by-exhaustion"
         ]
         for receipt in linked_proofs:
-            if receipt.get("claim_id") != claim_id:
+            if _id(receipt.get("claim_id")) != claim_id:
                 findings.append({"code": "proof-claim-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} covers a different claim than {claim_id}."})
             if receipt.get("statement_sha256") != claim.get("statement_sha256"):
                 findings.append({"code": "proof-statement-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} covers a different statement than claim {claim_id}."})
@@ -390,7 +408,7 @@ def math_review_findings(
             if receipt.get("kind") in {"informal-deductive", "formal-kernel"} and not set(_string_list(receipt, "assumptions")).issubset(_string_list(claim, "assumptions")):
                 findings.append({"code": "proof-assumptions-mismatch", "severity": "critical", "message": f"Proof receipt {receipt['receipt_id']} requires assumptions absent from claim {claim_id}."})
         for receipt in linked_counters:
-            if receipt.get("claim_id") != claim_id:
+            if _id(receipt.get("claim_id")) != claim_id:
                 findings.append({"code": "counterexample-claim-mismatch", "severity": "critical", "message": f"Counterexample receipt for claim {claim_id} covers a different claim."})
             if receipt.get("statement_sha256") != claim.get("statement_sha256"):
                 findings.append({"code": "counterexample-statement-mismatch", "severity": "critical", "message": f"Counterexample receipt for claim {claim_id} covers a different statement."})
@@ -418,21 +436,26 @@ def math_review_findings(
         if status == "proved-deductive":
             if not any(item.get("kind") == "informal-deductive" and item.get("status") == "passed" for item in linked_proofs):
                 findings.append({"code": "deductive-proof-missing", "severity": "major", "message": f"Claim {claim_id} is proved-deductive without a passed deductive receipt."})
-            if obligation_by_claim.get(claim_id) and any(
-                obligation.get("status") != "passed"
-                for graph in obligation_by_claim[claim_id]
-                for obligation in graph.get("obligations", [])
-            ):
-                findings.append({"code": "proof-obligations-open", "severity": "major", "message": f"Claim {claim_id} has unresolved proof obligations."})
         if status == "proved-finite" and not any(
             item.get("kind") == "finite-exhaustion" and item.get("status") == "passed" and item.get("checker", {}).get("exhaustive") is True
             and str(item["receipt_id"]) not in invalid_finite_proofs
             for item in linked_proofs
         ):
             findings.append({"code": "finite-proof-missing", "severity": "major", "message": f"Claim {claim_id} is proved-finite without exhaustive finite evidence."})
+        if status in PROVED_STATUSES and any(
+            obligation.get("status") != "passed"
+            for graph in obligation_by_claim.get(claim_id, [])
+            for obligation in graph.get("obligations", [])
+        ):
+            findings.append({"code": "proof-obligations-open", "severity": "major", "message": f"Claim {claim_id} has unresolved proof obligations."})
+        if status in PROVED_STATUSES:
+            for receipt in linked_proofs:
+                axioms = _string_list(receipt, "axioms")
+                if receipt.get("status") == "passed" and axioms:
+                    findings.append({"code": "formal-proof-axioms-unreviewed", "severity": "critical", "message": f"Passed proof receipt {receipt['receipt_id']} behind {status} claim {claim_id} declares axioms ({', '.join(axioms)}); review them as a trust boundary before accepting the claim."})
         if status == "disproved" and not any(item.get("status") == "disproved" for item in linked_counters):
             findings.append({"code": "counterexample-missing", "severity": "critical", "message": f"Claim {claim_id} is disproved without a verified counterexample."})
-        if status in {"proved-formal", "proved-deductive", "proved-finite"} and any(
+        if status in PROVED_STATUSES and any(
             item.get("kind") == "computational-test" for item in linked_proofs
         ) and not any(item.get("kind") != "computational-test" and item.get("status") == "passed" for item in linked_proofs):
             findings.append({"code": "test-presented-as-proof", "severity": "critical", "message": f"Claim {claim_id} promotes bounded computation to proof."})

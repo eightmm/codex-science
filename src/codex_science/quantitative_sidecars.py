@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 from codex_science.decision_analysis import review_decision_analysis, validate_decision_analysis
 from codex_science.math_contracts import (
+    _id,
     math_review_findings,
     validate_mathematical_claim,
     validate_proof_obligation_graph,
@@ -167,6 +168,7 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
     proofs = section("proof_receipts")
     counters = section("counterexample_receipts")
     graphs = section("proof_obligation_graphs")
+    formal_checks = section("formal_proof_checks")
     analyses = section("statistical_analyses")
     decisions = section("decision_analyses")
     numerical = section("numerical_verifications")
@@ -197,12 +199,20 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
     ):
         findings.extend(_duplicate_id_findings(label, key, items))
 
-    design_ids = {str(item.get("design_id")) for item in designs}
-    claim_ids = {str(item.get("claim_id")) for item in claims}
-    proof_ids = {str(item.get("receipt_id")) for item in proofs}
-    counter_ids = {str(item.get("receipt_id") or item.get("fingerprint")) for item in counters}
+    design_ids = {_id(item.get("design_id")) for item in designs}
+    claim_ids = {_id(item.get("claim_id")) for item in claims}
+    proof_ids = {_id(item.get("receipt_id")) for item in proofs}
+    counter_ids = {_id(item.get("receipt_id") or item.get("fingerprint")) for item in counters}
+    passed_formal_ids = {
+        _id(item.get("receipt_id")) for item in proofs
+        if item.get("kind") == "formal-kernel" and item.get("status") == "passed"
+    }
+    checked_formal_ids = {
+        _id(item["proof_receipt"].get("receipt_id")) for item in formal_checks
+        if isinstance(item.get("proof_receipt"), Mapping)
+    }
     for analysis in analyses:
-        if str(analysis.get("design_id")) not in design_ids:
+        if _id(analysis.get("design_id")) not in design_ids:
             findings.append({
                 "code": "statistical-design-missing",
                 "severity": "major",
@@ -217,7 +227,7 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
     ):
         # Receipts are accepted without claim sidecars; references are cross-checked once claims exist.
         for item in collection if claims else []:
-            claim_id = str(item.get("claim_id", ""))
+            claim_id = _id(item.get("claim_id", ""))
             if claim_id not in claim_ids:
                 findings.append({
                     "code": "quantitative-claim-missing",
@@ -226,32 +236,42 @@ def review_quantitative_sidecars(sidecars: Mapping[str, Any]) -> list[dict[str, 
                 })
     for claim in claims:
         for receipt_id in _id_list(claim, "proof_receipt_ids", findings):
-            if str(receipt_id) not in proof_ids:
+            if _id(receipt_id) not in proof_ids:
                 findings.append({
                     "code": "missing-proof-receipt",
                     "severity": "major",
-                    "message": f"Mathematical claim {claim.get('claim_id')} references missing proof receipt {receipt_id}.",
+                    "message": f"Mathematical claim {claim.get('claim_id')} references missing proof receipt {_id(receipt_id)}.",
+                })
+            # Bundles without formal-proof-check records cannot tie any receipt to a checker run.
+            elif (
+                formal_checks and claim.get("status") == "proved-formal"
+                and _id(receipt_id) in passed_formal_ids and _id(receipt_id) not in checked_formal_ids
+            ):
+                findings.append({
+                    "code": "formal-proof-check-missing",
+                    "severity": "major",
+                    "message": f"Proved-formal claim {claim.get('claim_id')} relies on passed formal receipt {_id(receipt_id)}, which no formal-proof-check record in the bundle produced.",
                 })
         for receipt_id in _id_list(claim, "counterexample_receipt_ids", findings):
-            if str(receipt_id) not in counter_ids:
+            if _id(receipt_id) not in counter_ids:
                 findings.append({
                     "code": "missing-counterexample-receipt",
                     "severity": "major",
-                    "message": f"Mathematical claim {claim.get('claim_id')} references missing counterexample receipt {receipt_id}.",
+                    "message": f"Mathematical claim {claim.get('claim_id')} references missing counterexample receipt {_id(receipt_id)}.",
                 })
     by_claim: dict[str, list[str]] = defaultdict(list)
     for item in analyses:
-        by_claim[str(item.get("claim_id"))].append("statistical-analysis")
+        by_claim[_id(item.get("claim_id"))].append("statistical-analysis")
     for item in decisions:
-        by_claim[str(item.get("claim_id"))].append("decision-analysis")
+        by_claim[_id(item.get("claim_id"))].append("decision-analysis")
     for item in numerical:
-        by_claim[str(item.get("claim_id"))].append("numerical-verification")
+        by_claim[_id(item.get("claim_id"))].append("numerical-verification")
     for item in dimensions:
-        by_claim[str(item.get("claim_id"))].append("dimension-check")
+        by_claim[_id(item.get("claim_id"))].append("dimension-check")
     for item in uncertainty:
-        by_claim[str(item.get("claim_id"))].append("uncertainty-propagation")
+        by_claim[_id(item.get("claim_id"))].append("uncertainty-propagation")
     for claim in claims:
-        if claim.get("status") in {"proved-formal", "proved-deductive", "proved-finite"} and by_claim.get(str(claim.get("claim_id"))) and not claim.get("proof_receipt_ids"):
+        if claim.get("status") in {"proved-formal", "proved-deductive", "proved-finite"} and by_claim.get(_id(claim.get("claim_id"))) and not claim.get("proof_receipt_ids"):
             findings.append({
                 "code": "computation-without-proof-receipt",
                 "severity": "critical",
