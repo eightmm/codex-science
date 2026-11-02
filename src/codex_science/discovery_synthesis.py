@@ -150,17 +150,20 @@ def _next_action(cycle: Mapping[str, Any], plan: Mapping[str, Any]) -> dict[str,
 
 def _next_question(group: Mapping[str, Any]) -> str:
     labels = {item["label"] for item in group["evidence"]}
+    effects = {item.get("method_effect") for item in group["evidence"]}
     if "repair_required" in labels:
         return "Which recorded implementation, execution, or measurement failure must be repaired before interpreting this evidence?"
     if "unresolved" in labels:
         return "Which reserved, running, or ambiguous submission must be reconciled before a new discriminating experiment is selected?"
+    if "unknown" in labels:
+        return "Which explanation support is missing from the recorded completed experiment, and must it be recorded before this evidence is interpreted?"
     if "contradicted" in labels:
         return "Which recorded applicability condition or competing explanation should a revised discriminating experiment test after this interval contradiction?"
     if "inconclusive" in labels:
         return "Can a revised experiment distinguish the remaining prediction intervals at the recorded measurement resolution and budget?"
     if "planned" in labels:
         return "Which recorded planned experiment best discriminates this exact hypothesis under the frozen evaluation contract?"
-    if "nonpositive" in labels:
+    if "nonpositive" in labels or "nonpositive" in effects:
         return "What competing explanation or applicability boundary should be tested next; the nonpositive method effect alone does not reject this hypothesis?"
     return "No additional recorded discriminating proposal remains; should the bounded cycle stop or record a justified revision?"
 
@@ -168,7 +171,7 @@ def _next_question(group: Mapping[str, Any]) -> str:
 def _experiment_state(experiment: Mapping[str, Any], hypothesis_id: str | None = None) -> str:
     state = experiment.get("state", "planned")
     if state == "completed":
-        return experiment["explanation_support"].get(hypothesis_id, "inconclusive") if hypothesis_id else experiment["method_effect"]
+        return experiment["explanation_support"].get(hypothesis_id, "unknown") if hypothesis_id else experiment["method_effect"]
     if state == "failed":
         return "repair_required"
     if state in {"reserved", "running", "ambiguous"}:
@@ -301,6 +304,41 @@ def summarize_cycle(cycle: Mapping[str, Any], run_dir: Path | str) -> dict[str, 
     }
 
 
+def _shared_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Cluster entries linked by any common execution digest or observation reference."""
+    parent = list(range(len(evidence)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    owners: dict[tuple[str, str], int] = {}
+    for index, entry in enumerate(evidence):
+        keys = [("execution", ref["sha256"]) for ref in entry.get("execution_refs", [])]
+        keys += [("observation", _canonical([item["artifact_ref"], item["json_pointer"]])) for item in entry["observed_values"]]
+        for key in keys:
+            owner = owners.setdefault(key, index)
+            parent[find(index)] = find(owner)
+    clusters: dict[int, list[int]] = {}
+    for index in range(len(evidence)):
+        clusters.setdefault(find(index), []).append(index)
+    shared = []
+    for members in clusters.values():
+        if len(members) < 2:
+            continue
+        hashes: list[str] = []
+        for index in members:
+            hashes.extend(ref["sha256"] for ref in evidence[index].get("execution_refs", []) if ref["sha256"] not in hashes)
+        shared.append({
+            "execution_ref_hashes": hashes,
+            "entries": [{"run_id": evidence[index]["run_id"], "experiment_id": evidence[index]["experiment_id"]} for index in members],
+            "independence": "unknown; shared execution or observation identity is not an independent replication",
+        })
+    return sorted(shared, key=lambda item: (item["execution_ref_hashes"], [(e["run_id"], e["experiment_id"]) for e in item["entries"]]))
+
+
 def synthesize_history(history: Mapping[str, Any]) -> dict[str, Any]:
     """Group comparable recorded cycle evidence without voting across contexts.
 
@@ -330,44 +368,46 @@ def synthesize_history(history: Mapping[str, Any]) -> dict[str, Any]:
             if not required <= set(cycle):
                 missing.append({"run_id": run["run_id"], "reason": "cycle lacks full scientific state for synthesis"})
                 continue
-            evaluation_id, evaluation_material = _evaluation_identity(cycle)
-            contexts.append({"run_id": run["run_id"], "cycle_hash": cycle["cycle_hash"], "cycle_revision": cycle["revision"], "evaluation_identity": evaluation_id})
-            methods = {item["id"]: item for item in cycle["methods"]}
-            hypotheses = {item["id"]: item for item in cycle["hypotheses"]}
-            for experiment in cycle["experiments"]:
-                method = methods[experiment["method_id"]]
-                method_id, method_material = _method_identity(method)
-                for hypothesis_id in experiment["predictions"]:
-                    hypothesis = hypotheses[hypothesis_id]
-                    hypothesis_key = _hypothesis_identity(hypothesis)
-                    key = (evaluation_id, method_id, hypothesis_key)
-                    group = groups.setdefault(key, {
-                        "evaluation_identity": evaluation_id,
-                        "evaluation_identity_material": evaluation_material,
-                        "method_identity": method_id,
-                        "method_identity_material": method_material,
-                        "hypothesis_identity": hypothesis_key,
-                        "hypothesis": {field: hypothesis[field] for field in ("statement", "conditions", "falsifier")},
-                        "evidence": [],
-                    })
-                    entry = _experiment_evidence(experiment, method, cycle, hypothesis_id=hypothesis_id)
-                    entry["run_id"] = run["run_id"]
-                    entry["total_cost"] = float(experiment["cost"]) + float(experiment.get("control_cost", 0))
-                    if not math.isfinite(entry["total_cost"]):
-                        raise ValueError(f"experiment {experiment['id']} total_cost must be finite")
-                    group["evidence"].append(entry)
+            where = f"run {run['run_id']}"
+            try:
+                evaluation_id, evaluation_material = _evaluation_identity(cycle)
+                contexts.append({"run_id": run["run_id"], "cycle_hash": cycle["cycle_hash"], "cycle_revision": cycle["revision"], "evaluation_identity": evaluation_id})
+                methods = {item["id"]: item for item in cycle["methods"]}
+                hypotheses = {item["id"]: item for item in cycle["hypotheses"]}
+                for experiment in cycle["experiments"]:
+                    where = f"run {run['run_id']} experiment {experiment['id']}"
+                    method = methods[experiment["method_id"]]
+                    method_id, method_material = _method_identity(method)
+                    for hypothesis_id in experiment["predictions"]:
+                        hypothesis = hypotheses[hypothesis_id]
+                        hypothesis_key = _hypothesis_identity(hypothesis)
+                        key = (evaluation_id, method_id, hypothesis_key)
+                        group = groups.setdefault(key, {
+                            "evaluation_identity": evaluation_id,
+                            "evaluation_identity_material": evaluation_material,
+                            "method_identity": method_id,
+                            "method_identity_material": method_material,
+                            "hypothesis_identity": hypothesis_key,
+                            "hypothesis": {field: hypothesis[field] for field in ("statement", "conditions", "falsifier")},
+                            "evidence": [],
+                        })
+                        entry = _experiment_evidence(experiment, method, cycle, hypothesis_id=hypothesis_id)
+                        entry["run_id"] = run["run_id"]
+                        entry["total_cost"] = float(experiment["cost"]) + float(experiment.get("control_cost", 0))
+                        if not math.isfinite(entry["total_cost"]):
+                            raise ValueError(f"experiment {experiment['id']} total_cost must be finite")
+                        group["evidence"].append(entry)
+            except UnicodeEncodeError as error:
+                raise ValueError(f"{where}: recorded text is not valid UTF-8 ({error.reason})") from error
+            except (KeyError, TypeError, AttributeError) as error:
+                raise ValueError(f"{where}: history snapshot lacks or malforms a required field ({error!r})") from error
+            except ValueError as error:
+                if str(error).startswith("experiment "):
+                    raise
+                raise ValueError(f"{where}: history snapshot has a malformed value ({error})") from error
     for group in groups.values():
         group["evidence"].sort(key=lambda item: (item["run_id"], item["cycle_revision"], item["experiment_id"]))
-        shared: dict[tuple[str, ...], list[dict[str, Any]]] = {}
-        for entry in group["evidence"]:
-            execution = tuple(ref["sha256"] for ref in entry.get("execution_refs", []))
-            if execution:
-                shared.setdefault(execution, []).append(entry)
-        group["shared_execution_evidence"] = [
-            {"execution_ref_hashes": list(identity), "entries": [{"run_id": item["run_id"], "experiment_id": item["experiment_id"]} for item in entries],
-             "independence": "unknown; shared execution identity is not an independent replication"}
-            for identity, entries in sorted(shared.items()) if len(entries) > 1
-        ]
+        group["shared_execution_evidence"] = _shared_evidence(group["evidence"])
         group["suggested_actionable_next_question"] = _next_question(group)
     context_ids = {item["evaluation_identity"] for item in contexts}
     return {
@@ -380,6 +420,7 @@ def synthesize_history(history: Mapping[str, Any]) -> dict[str, Any]:
         "minimum_history_fields": ["run_id", "cycle_hash", "revision", "problem", "evaluation", "hypotheses", "methods", "experiments"],
         "evidence_boundary": (
             "Evidence is grouped only by exact evaluation, method, and hypothesis identities; labels are preserved per experiment and are never majority-voted. "
+            "total_cost is per experiment and is repeated in every group that experiment appears in (one per predicted hypothesis, and again in forked runs); never sum it across entries. "
             "Different contexts remain separate. Observation independence is unknown unless a future contract records it. "
             "Failed, null/nonpositive, inconclusive, and unresolved outcomes remain visible. "
             "This is not a claim of mechanism, universal rejection, reproducibility, or paper novelty."

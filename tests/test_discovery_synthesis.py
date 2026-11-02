@@ -281,6 +281,75 @@ class DiscoverySynthesisTests(unittest.TestCase):
             ]})
             self.assertEqual(2, len({item["method_identity"] for item in result["comparable_evidence_groups"]}))
 
+    def completed_snapshot(self, root: Path) -> dict:
+        return self.complete(root, self.cycle(root), "e1")
+
+    def history_group(self, cycles: dict, hypothesis_id: str = "h1") -> dict:
+        history = {"project_id": "p", "runs": [{"run_id": run_id, "cycles": [cycle]} for run_id, cycle in cycles.items()]}
+        groups = synthesize_history(history)["comparable_evidence_groups"]
+        return next(group for group in groups if group["hypothesis"]["statement"] == ("information matters" if hypothesis_id == "h1" else "capacity matters"))
+
+    def test_shared_observation_or_partial_execution_overlap_is_reported(self):
+        import copy
+        with tempfile.TemporaryDirectory() as temporary:
+            base = self.completed_snapshot(Path(temporary))
+            shared_ref = base["experiments"][0]["execution_refs"][0]
+            other_ref = {"path": "other.json", "sha256": "0" * 64}
+            runs = {name: copy.deepcopy(base) for name in ("r1", "r2", "r3", "r4", "r5")}
+            runs["r2"]["experiments"][0]["execution_refs"] = []
+            runs["r3"]["experiments"][0]["execution_refs"] = [shared_ref, other_ref]
+            # r4 shares nothing: distinct observation pointer and no execution refs.
+            runs["r4"]["experiments"][0]["execution_refs"] = []
+            runs["r4"]["experiments"][0]["observations"][0]["json_pointer"] = "/other"
+            # r5 shares only one execution digest with r1/r3 and a different observation.
+            runs["r5"]["experiments"][0]["execution_refs"] = [other_ref]
+            runs["r5"]["experiments"][0]["observations"][0]["json_pointer"] = "/elsewhere"
+            shared = self.history_group(runs)["shared_execution_evidence"]
+            members = sorted(sorted(item["run_id"] for item in entry["entries"]) for entry in shared)
+            self.assertEqual([["r1", "r2", "r3", "r5"]], members)
+            self.assertEqual(set(shared[0]), {"execution_ref_hashes", "entries", "independence"})
+            self.assertEqual({shared_ref["sha256"], other_ref["sha256"]}, set(shared[0]["execution_ref_hashes"]))
+            for entry in self.history_group({"r1": runs["r1"], "r4": runs["r4"]})["shared_execution_evidence"]:
+                self.fail(f"unexpected sharing: {entry}")
+
+    def test_total_cost_is_documented_as_per_experiment(self):
+        self.assertIn("total_cost is per experiment", synthesize_history({"runs": []})["evidence_boundary"])
+
+    def test_next_question_reads_method_effect_and_treats_missing_support_as_unknown(self):
+        import copy
+        with tempfile.TemporaryDirectory() as temporary:
+            base = self.completed_snapshot(Path(temporary))
+            baseline = self.history_group({"r": base})["suggested_actionable_next_question"]
+            nonpositive = copy.deepcopy(base)
+            nonpositive["experiments"][0].update(method_effect="nonpositive", explanation_support={"h1": "supported", "h2": "supported"})
+            self.assertIn("nonpositive method effect alone", self.history_group({"r": nonpositive})["suggested_actionable_next_question"])
+            unknown = copy.deepcopy(base)
+            unknown["experiments"][0]["explanation_support"].pop("h1")
+            group = self.history_group({"r": unknown})
+            self.assertEqual("unknown", group["evidence"][0]["label"])
+            question = group["suggested_actionable_next_question"]
+            self.assertNotIn("remaining prediction intervals", question)
+            self.assertIn("support", question)
+            self.assertNotEqual(baseline, question)
+
+    def test_hand_built_history_raises_labelled_errors(self):
+        import copy
+        with tempfile.TemporaryDirectory() as temporary:
+            base = self.completed_snapshot(Path(temporary))
+            for field in ("cost", "method_id", "predictions", "controls"):
+                broken = copy.deepcopy(base)
+                del broken["experiments"][0][field]
+                with self.subTest(field=field), self.assertRaisesRegex(ValueError, f"run r experiment e1.*{field}"):
+                    synthesize_history({"runs": [{"run_id": "r", "cycles": [broken]}]})
+            broken = copy.deepcopy(base)
+            broken["experiments"][0]["cost"] = "abc"
+            with self.assertRaisesRegex(ValueError, "run r experiment e1: .*malformed value"):
+                synthesize_history({"runs": [{"run_id": "r", "cycles": [broken]}]})
+            surrogate = copy.deepcopy(base)
+            surrogate["hypotheses"][0]["statement"] = "\ud800"
+            with self.assertRaisesRegex(ValueError, "run r.*not valid UTF-8"):
+                synthesize_history({"runs": [{"run_id": "r", "cycles": [surrogate]}]})
+
 
 if __name__ == "__main__":
     unittest.main()

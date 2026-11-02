@@ -26,6 +26,9 @@ probabilities.
 1. If ProjectStore exists, read relevant `discovery memory`; reuse evidence
    only for matching frozen evaluation and method identities; heterogeneous
    contexts remain separate.
+   The view does not filter by cycle status or run lineage; read rejected,
+   superseded, and forked entries with their source run. A terminal cycle's
+   next action is `review_or_report_bounded_result`.
 2. Reproduce the smallest reliable symptom. Audit representation, objective,
    optimization, evaluation, data, and execution; preserve raw-data lineage and
    transformations. Classify implementation/measurement failures separately;
