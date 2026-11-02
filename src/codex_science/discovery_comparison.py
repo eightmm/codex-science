@@ -24,7 +24,10 @@ def _report(status, errors, violations, aggregation, missing_cells=None, synthet
 def _canon(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
 def _digest(value): return hashlib.sha256(_canon(value)).hexdigest()
-def _finite(value): return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+def _finite(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool): return False
+    try: return math.isfinite(float(value))
+    except OverflowError: return False  # integers beyond float range are unrepresentable
 def _err(errors, code, message): errors.append({"code": code, "message": message})
 def _frozen_contract(contract): return {k: v for k, v in contract.items() if k != "contract_digest"}
 
@@ -131,6 +134,10 @@ def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, 
         _err(errors,"metrics",f"Comparison aggregation refused a non-finite or unrepresentable derived difference or aggregate: {exc}")
         aggregation={}
     status="incomplete" if missing and not errors else "rejected" if missing or errors or violations else "passed"
+    if status!="rejected":
+        unpaired=[{"code":"no_paired_comparison","message":f"arm {arm!r} metric {metric!r} has no paired success cell against ordinary; nothing was compared"}
+                  for arm,metrics_ in aggregation.get("paired_differences_vs_ordinary",{}).items() for metric,cell in metrics_.items() if cell["n"]==0]
+        if unpaired: errors.extend(unpaired); status="incomplete"
     return _report(status, errors, violations, aggregation, [list(x) for x in missing], synthetic)
 
 def _validate_record(record,evaluator_refs,evaluator_sha,contract_digest,task_digests,model,tools,arm_versions,budget,root,metric_ids,synthetic,index):

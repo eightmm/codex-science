@@ -20,6 +20,23 @@ def _fixture():
             records.append({"task_id":task,"seed":7,"arm":arm,"repetition":0,"model":contract["model"],"tools":contract["tools"],"cost":cost,"outcome":outcome,"result_ref":result_ref,"execution_receipt_ref":{"path":str(receipt_path),"sha256":receipt_hash}})
     return root,contract,records
 
+def _set_outcome(root, contract, records, arm, status, metrics):
+    for record in records:
+        if record["arm"] != arm: continue
+        record["outcome"] = {"status": status, "metrics": dict(metrics)}
+        for ref_key in ("result_ref", "execution_receipt_ref"):
+            payload = json.loads((root / record[ref_key]["path"]).read_text())
+            payload["outcome"] = record["outcome"]
+            if ref_key == "execution_receipt_ref": payload["result_ref"] = record["result_ref"]
+            record[ref_key]["sha256"] = _write(root, record[ref_key]["path"], payload)
+
+def _science_project(*argv, cwd=None):
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, PYTHONPATH=str(root / "src"))
+    return subprocess.run([sys.executable, str(root / "scripts" / "science_project.py"), "discovery", "compare", *argv],
+                          cwd=cwd, env=env, capture_output=True, text=True,
+                          timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+
 class DiscoveryComparisonTests(unittest.TestCase):
     def test_fixture_file_destination_is_refused_without_changes(self):
         script = Path(__file__).resolve().parents[1] / "scripts" / "run_discovery_comparison_fixture.py"
@@ -206,5 +223,86 @@ class DiscoveryComparisonTests(unittest.TestCase):
         self.assertEqual(report["status"], "passed")
         self.assertEqual(report["execution_authenticity"], "unverified")
         self.assertEqual(report["empirical_status"], "not_established")
+
+    def test_unpaired_comparison_is_incomplete_not_passed(self):
+        for status, metrics in (("failure", {}), ("inconclusive", {"score": None})):
+            with self.subTest(ordinary=status):
+                root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+                _set_outcome(root, contract, records, "ordinary", status, metrics)
+                report = evaluate_comparison(contract, records, root)
+                self.assertEqual("incomplete", report["status"])
+                findings = [e for e in report["errors"] if e["code"] == "no_paired_comparison"]
+                self.assertEqual(2, len(findings), report)
+                self.assertTrue(all("'score'" in e["message"] for e in findings))
+                self.assertTrue(any("'rdl'" in e["message"] for e in findings))
+        root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+        _set_outcome(root, contract, records, "rdl", "failure", {})
+        report = evaluate_comparison(contract, records, root)
+        self.assertEqual("incomplete", report["status"])
+        self.assertEqual(["rdl"], [e["message"].split("'")[1] for e in report["errors"]])
+
+    def test_huge_integers_are_nonfinite_not_overflow(self):
+        huge = 10 ** 400
+        for where in ("budget", "cost", "metric"):
+            with self.subTest(where=where):
+                root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+                if where == "budget":
+                    contract["budget"]["wall_time_seconds"] = huge
+                    contract["contract_digest"] = _digest(_frozen_contract(contract))
+                elif where == "cost":
+                    records[0]["cost"]["wall_time_seconds"] = huge
+                else:
+                    records[0]["outcome"]["metrics"]["score"] = huge
+                report = evaluate_comparison(contract, records, root)
+                self.assertEqual("rejected", report["status"])
+                json.dumps(report, allow_nan=False)
+                self.assertTrue(any(e["code"] in ("budget", "cost", "metrics") for e in report["errors"]), report)
+
+    def _cli_fixture(self, ordinary_fails=False):
+        root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+        if ordinary_fails: _set_outcome(root, contract, records, "ordinary", "failure", {})
+        (root / "input.json").write_text(json.dumps({"contract": contract, "records": records}), encoding="utf-8")
+        return root
+
+    def test_cli_success_line_only_for_passed_report(self):
+        root = self._cli_fixture()
+        passed = _science_project("--run-dir", str(root), "--input", str(root / "input.json"), "--output", str(root / "new-report.json"))
+        self.assertEqual(0, passed.returncode, passed.stderr)
+        self.assertIn("Success!", passed.stdout)
+        root = self._cli_fixture(ordinary_fails=True)
+        out = root / "new-report.json"
+        incomplete = _science_project("--run-dir", str(root), "--input", str(root / "input.json"), "--output", str(out))
+        self.assertEqual(1, incomplete.returncode)
+        self.assertNotIn("Success!", incomplete.stdout)
+        self.assertIn("comparison is incomplete", incomplete.stderr)
+        self.assertEqual("incomplete", json.loads(out.read_text())["status"])
+
+    def test_cli_output_cannot_alias_run_state_or_inputs_via_hardlink(self):
+        root = self._cli_fixture()
+        (root / "manifest.json").write_text("{\"artifacts\": []}", encoding="utf-8")
+        for target in ("manifest.json", "results/task-a-rdl.json", "evaluator.json", "input.json"):
+            with self.subTest(target=target):
+                link = root / ("alias-" + target.replace("/", "-"))
+                os.link(root / target, link)
+                before = (root / target).read_bytes()
+                refused = _science_project("--run-dir", str(root), "--input", str(root / "input.json"), "--output", str(link))
+                self.assertEqual(1, refused.returncode, refused.stdout)
+                self.assertIn("error:", refused.stderr)
+                self.assertNotIn("Traceback", refused.stderr)
+                self.assertEqual(before, (root / target).read_bytes())
+
+    def test_fixture_script_exits_nonzero_for_unpassed_report(self):
+        import importlib.util, io, contextlib
+        path = Path(__file__).resolve().parents[1] / "scripts" / "run_discovery_comparison_fixture.py"
+        spec = importlib.util.spec_from_file_location("fixture_script", path); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        for status, code in (("passed", 0), ("incomplete", 1), ("rejected", 1)):
+            module.run_fixture = lambda output, status=status: {"status": status}
+            argv, sys.argv = sys.argv, [str(path), "unused"]
+            try:
+                with contextlib.redirect_stdout(io.StringIO()) as out: result = module.main()
+            finally: sys.argv = argv
+            self.assertEqual(code, result, status)
+            self.assertEqual(status, json.loads(out.getvalue())["status"])
+
 
 if __name__ == "__main__": unittest.main()

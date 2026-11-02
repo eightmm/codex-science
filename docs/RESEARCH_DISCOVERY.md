@@ -285,6 +285,16 @@ and empirical research effectiveness is not established, even when the supplied
 contract declares `synthetic: false`. Trusted collection and independent evaluation
 are still needed for empirical claims.
 
+Paired differences are raw `arm - ordinary` means over cells where both arms
+succeeded; they ignore the metric `direction`, so an improvement on a
+lower-is-better metric shows as a negative difference, and ties report `0.0`.
+If any non-ordinary arm and metric has no paired cell (for example every
+ordinary cell failed), the report is `incomplete` with a `no_paired_comparison`
+finding rather than `passed`. `discovery compare` prints the success line only
+for a passed report, and the fixture script exits 1 for any other status. The
+`--output` report cannot replace the run's manifest, checkpoint, discovery
+revisions, registered artifacts or referenced comparison inputs.
+
 ```bash
 python3 scripts/run_discovery_comparison_fixture.py artifacts/discovery-comparison-fixture
 python3 scripts/science_project.py discovery compare \

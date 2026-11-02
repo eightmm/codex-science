@@ -109,6 +109,29 @@ def summary(args: argparse.Namespace) -> None:
     _write(args.output, store.summary(project_id=args.project_id))
 
 
+def _preflight_compare_output(output: Path, run_dir: Path, input_path: Path, payload: dict[str, Any]) -> None:
+    """Refuse report destinations that alias run state or comparison inputs (symlink/hardlink aware)."""
+    inputs = [input_path, run_dir / "manifest.json", run_dir / "checkpoint.json"]
+    protected_dirs = [run_dir / "discovery" / "revisions"]
+
+    def collect(value: Any) -> None:
+        if isinstance(value, dict):
+            if isinstance(value.get("path"), str) and "sha256" in value:
+                inputs.append(run_dir / value["path"])
+            for child in value.values():
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+    collect(payload)
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.exists():
+        for item in load_json_object(manifest_path).get("artifacts", []):
+            target = run_dir / item["path"]
+            (protected_dirs if item.get("artifact_type") == "directory-tree" else inputs).append(target)
+    preflight_output_paths(output, inputs=inputs, protected_dirs=protected_dirs)
+
+
 def discovery(args: argparse.Namespace) -> None:
     from codex_science.discovery import attach_cycle, finite_decision, plan_cycle
     from codex_science.experiment_planner import plan_discriminating_experiment
@@ -194,12 +217,15 @@ def discovery(args: argparse.Namespace) -> None:
     elif action == "compare":
         from codex_science.discovery_comparison import evaluate_comparison
         payload = load_json_object(args.input)
+        if args.output:
+            _preflight_compare_output(args.output, args.run_dir, args.input, payload)
         result = evaluate_comparison(payload.get("contract"), payload.get("records"), args.run_dir)
     else:
         raise ValueError(f"unknown discovery operation: {action}")
     if args.output:
         write_json_atomic(args.output, result)
-        print(f"Success! Data written to: {args.output.resolve()}")
+        if action != "compare" or result["status"] == "passed":
+            print(f"Success! Data written to: {args.output.resolve()}")
     else:
         print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))
     if action == "compare" and result["status"] != "passed":
@@ -289,8 +315,12 @@ failing field.
   records: one object per grid cell, named by task_id, seed, arm and repetition.
   Nested fields are validated by `science_project.py discovery compare`; errors name
   the failing field.
-  Status is passed, incomplete (cells missing, no errors) or rejected; any status
-  other than passed exits with code 1.
+  Status is passed, incomplete (cells missing, or no paired success cell against
+  ordinary for some arm and metric: finding no_paired_comparison) or rejected; any
+  status other than passed exits with code 1 and still writes the report.
+  mean_difference is the raw arm-minus-ordinary mean over paired success cells and
+  ignores metric direction: for lower-is-better metrics an improvement is negative.
+  Ties report 0.0.
 """,
 }
 

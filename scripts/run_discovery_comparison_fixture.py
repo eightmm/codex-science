@@ -61,7 +61,7 @@ def main() -> int:
     except (OSError, ValueError) as error:
         parser.error(str(error))
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0
+    return 0 if report["status"] == "passed" else 1
 
 
 if __name__ == "__main__":
