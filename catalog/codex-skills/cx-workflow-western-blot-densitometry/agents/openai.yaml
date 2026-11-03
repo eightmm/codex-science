@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Western Blot Densitometry"
+  short_description: "Audited scientific workflow for cx-workflow-western-blot-densito"
+  default_prompt: "Use $cx-workflow-western-blot-densitometry for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

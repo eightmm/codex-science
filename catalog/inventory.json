@@ -1674,6 +1674,18 @@
       "status": "active"
     },
     {
+      "description": "Fit Arrhenius temperature dependence from supplied synthetic positive rate constants, frozen kelvin identities, replicate rules and units. Use for offline arithmetic checks of Ea, ln A and in-range rate intervals; exclude mechanism, shelf life, process safety and reaction order conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-arrhenius-rate-fit",
+      "path": "authored-skills/workflow-arrhenius-rate-fit",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Assess technical batch structure in supplied omics matrices with frozen design rules, exact confounding checks and group-restricted permutations. Use before biological comparisons; never for batch correction.",
       "executable_count": 0,
       "instruction_line_count": 107,
@@ -1794,6 +1806,18 @@
       "status": "active"
     },
     {
+      "description": "Check completed two-level factorial response tables with frozen coded levels, exact design contrasts, signed alias sets, replicate pure error and centre-point curvature. Use for offline synthetic fixtures; exclude optimal conditions and mechanistic conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-factorial-doe-effects",
+      "path": "authored-skills/workflow-factorial-doe-effects",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Check already-acquired synthetic flow cytometry event tables against frozen compensation, singlet, live/dead and channel gates; return control-qualified counts and parent-relative percentages. Use for offline cytometry QC arithmetic, never cell identity, function or disease interpretation.",
       "executable_count": 0,
       "instruction_line_count": 100,
@@ -1836,6 +1860,18 @@
       "license": "MIT",
       "name": "cx-workflow-gwas-summary-qc",
       "path": "authored-skills/workflow-gwas-summary-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check recorded replicate standard injections using frozen HPLC peak identities, retention-time and area RSD, tailing, plates, nearest-peak resolution and blank carryover. Use with synthetic peak tables; exclude method validation and release decisions.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-hplc-system-suitability",
+      "path": "authored-skills/workflow-hplc-system-suitability",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1896,6 +1932,18 @@
       "license": "MIT",
       "name": "cx-workflow-microbiome-composition",
       "path": "authored-skills/workflow-microbiome-composition",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied binned particle diameters with frozen micrometre edges, cumulative D10/D50/D90, span, midpoint means and replicate agreement. Use for already-measured synthetic count or volume tables; exclude product quality, stability, performance and regulatory conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 43,
+      "license": "MIT",
+      "name": "cx-workflow-particle-size-distribution",
+      "path": "authored-skills/workflow-particle-size-distribution",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -2040,6 +2088,18 @@
       "license": "MIT",
       "name": "cx-workflow-variant-evidence-dossier",
       "path": "authored-skills/workflow-variant-evidence-dossier",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied synthetic Western blot band intensities with frozen local backgrounds, antibody dilution ranges, loading controls, blot references and biological replicate uncertainty. Use for offline densitometry arithmetic; exclude abundance and medical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 43,
+      "license": "MIT",
+      "name": "cx-workflow-western-blot-densitometry",
+      "path": "authored-skills/workflow-western-blot-densitometry",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -4191,8 +4251,8 @@
     }
   ],
   "summary": {
-    "active": 211,
+    "active": 216,
     "inactive": 113,
-    "total": 324
+    "total": 329
   }
 }

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Factorial Doe Effects"
+  short_description: "Audited scientific workflow for cx-workflow-factorial-doe-effect"
+  default_prompt: "Use $cx-workflow-factorial-doe-effects for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
