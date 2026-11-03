@@ -175,6 +175,12 @@ class BatchComputationTests(FixtureCase):
         # Exact arithmetic: observed pseudo-F is 1/17 and every permutation reaches it.
         self.assertEqual(1.0, self.compute()['metrics']['batch_permanova']['p_value'])
 
+    def test_tie_tolerance_is_relative_and_keeps_near_zero_statistics_distinct(self):
+        self.matrix['features'] = ['fixture-near-zero']
+        self.matrix['values'] = [[0, 0, 1, 1, 10000000, 10000000, 10000001, 10000001]]
+        # Observed pseudo-F is about 6e-14; smaller permuted statistics must not count as ties.
+        self.assertEqual(0.075, self.compute()['metrics']['batch_permanova']['p_value'])
+
     def test_inclusive_detection_and_qc_thresholds(self):
         metrics = self.compute()['metrics']
         self.rules['thresholds'].update(median_batch_r2=metrics['median_batch_r2'],
