@@ -172,6 +172,19 @@ class TypedPayloadTests(unittest.TestCase):
                     self.assertEqual("bounded" if size > 1 else "complete", result.receipt.completeness)
                     self.assertEqual(size > 1, bool(result.receipt.warnings))
 
+    def test_malformed_reactome_groups_are_never_negative_evidence(self):
+        request = QueryRequest("ReactomeConnector", "search", {"query": "x"})
+        for body in ({"results": [None, "x", 3, ["y"]]}, {"results": [{"entries": []}, None]}):
+            with self.subTest(body=body):
+                connector = ReactomeConnector(fetch_json=lambda *_: body)
+                with self.assertRaises(ValueError):
+                    execute_connector(connector, request)
+        for body in ({"results": []}, {"results": [{"entries": []}]}):
+            with self.subTest(body=body):
+                result = execute_connector(ReactomeConnector(fetch_json=lambda *_: body), request)
+                self.assertEqual("complete", result.receipt.completeness)
+                self.assertEqual("negative", result.receipt.missingness)
+
     def test_xml_ranked_and_local_snapshot_limits_are_reported(self):
         request = QueryRequest("arxiv", "search", {"query": "x"}, page_size=1)
         for size in (0, 1, 2):
@@ -1060,6 +1073,137 @@ class ConnectorTests(unittest.TestCase):
                     parse_esearch_ids(payload)
                 rendered = json.dumps(value, separators=(",", ":"))
                 self.assertEqual("NCBI ESearch error: " + rendered[:500], str(caught.exception))
+
+
+class MalformedUpstreamBodyTests(unittest.TestCase):
+    # (connector, query, response keys leading to the record list, uses post_json)
+    LISTED = (
+        (UniProtConnector, "p53", ("results",), False),
+        (PDBConnector, "p53", ("result_set",), True),
+        (ChEMBLConnector, "aspirin", ("molecules",), False),
+        (PubChemConnector, "aspirin", ("PropertyTable", "Properties"), False),
+        (EuropePMCConnector, "p53", ("resultList", "result"), False),
+        (OpenAlexConnector, "p53", ("results",), False),
+        (ClinicalTrialsConnector, "p53", ("studies",), False),
+        (InterProConnector, "kinase", ("results",), False),
+        (QuickGOConnector, "apoptosis", ("results",), False),
+        (OLSConnector, "apoptosis", ("response", "docs"), False),
+        (ReactomeConnector, "apoptosis", ("results",), False),
+        (STRINGConnector, "TP53", (), False),
+        (AlphaFoldConnector, "P04637", (), False),
+        (MyGeneConnector, "TP53", ("hits",), False),
+        (EnsemblConnector, "TP53", (), False),
+        (GWASCatalogConnector, "asthma", ("_embedded", "efo_traits"), False),
+        (GTExConnector, "TP53", ("data",), False),
+        (HumanProteinAtlasConnector, "TP53", (), False),
+        (BgeeConnector, "TP53", ("data", "result", "geneMatches"), False),
+        (BioStudiesConnector, "p53", ("hits",), False),
+        (CBioPortalConnector, "TP53", (), False),
+        (ChEBIConnector, "aspirin", ("results",), False),
+        (RheaConnector, "ATP", ("results",), False),
+        (PRIDEConnector, "p53", ("_embedded", "projects"), False),
+        (MGnifyConnector, "gut", ("data",), False),
+        (RNACentralConnector, "mir", ("results",), False),
+    )
+
+    @staticmethod
+    def run_search(cls, query, body, post):
+        fetcher = (lambda url, payload=None: body)
+        connector = cls(post_json=fetcher) if post else cls(fetch_json=fetcher)
+        return connector.search(query, limit=3)
+
+    def assert_value_error(self, cls, query, body, post=False):
+        try:
+            self.run_search(cls, query, body, post)
+        except ValueError:
+            return
+        except Exception as exc:  # noqa: BLE001 - the contract is ValueError only
+            self.fail(f"{cls.__name__} {body!r} raised {type(exc).__name__}: {exc}")
+        self.fail(f"{cls.__name__} accepted {body!r}")
+
+    def test_non_object_or_mistyped_bodies_raise_value_error(self):
+        for cls, query, keys, post in self.LISTED:
+            if keys:
+                bodies = [None, "text", []]
+                for depth in range(1, len(keys) + 1):
+                    body = "x"
+                    for key in reversed(keys[:depth]):
+                        body = {key: body}
+                    bodies.append(body)
+                if cls is PRIDEConnector:
+                    bodies.remove([])
+            else:
+                bodies = [None, "text", {}, {"results": "x"}]
+            if cls is ReactomeConnector:
+                bodies.append({"results": [{"entries": "x"}]})
+            for body in bodies:
+                with self.subTest(connector=cls.__name__, body=body):
+                    self.assert_value_error(cls, query, body, post)
+
+    def test_non_object_records_are_skipped_not_raised(self):
+        junk = [None, "x", 3, ["y"]]
+        for cls, query, keys, post in self.LISTED:
+            if cls is ReactomeConnector:  # groups are envelopes; see the Reactome receipt test
+                continue
+            body = junk
+            for key in reversed(keys):
+                body = {key: body}
+            with self.subTest(connector=cls.__name__):
+                self.assertEqual([], self.run_search(cls, query, body, post))
+
+    def test_non_object_nested_fields_inside_records_are_tolerated(self):
+        cases = (
+            (UniProtConnector, "p53", {"results": [{"primaryAccession": "P1", "proteinDescription": "x"}]}),
+            (ChEMBLConnector, "x", {"molecules": [{"molecule_chembl_id": "C1", "molecule_structures": "x"}]}),
+            (ClinicalTrialsConnector, "x", {"studies": [{"protocolSection": ["x"]}]}),
+            (InterProConnector, "x", {"results": [{"metadata": "x"}]}),
+            (ChEBIConnector, "x", {"results": [{"_source": "x"}]}),
+            (MGnifyConnector, "x", {"data": [{"id": "S1", "attributes": "x"}]}),
+            (BgeeConnector, "x", {"data": {"result": {"geneMatches": [{"gene": "x"}]}}}),
+        )
+        for cls, query, body in cases:
+            with self.subTest(connector=cls.__name__):
+                self.run_search(cls, query, body, False)
+
+    def test_graphql_and_esearch_connectors_reject_malformed_bodies(self):
+        for body in (None, [], "text", {"data": "x"}, {"data": {"search": "x"}}):
+            with self.subTest(connector="OpenTargets", body=body):
+                self.assert_value_error(OpenTargetsConnector, "p53", body, True)
+        for cls in (PubMedConnector, NCBIGeneConnector):
+            for body in (None, [], "text", {"esearchresult": "x"}, {"esearchresult": {"idlist": "x"}}):
+                with self.subTest(connector=cls.__name__, body=body):
+                    self.assert_value_error(cls, "p53", body)
+
+    def test_proteomexchange_rejects_malformed_bodies(self):
+        accession = "PXD000001"
+        identifiers = [{"name": "ProteomeXchange accession number", "value": accession}]
+        for body in (None, [], "text", {"identifiers": "x"}, {"identifiers": None}):
+            with self.subTest(body=body):
+                self.assert_value_error(ProteomeXchangeConnector, accession, body)
+        for species in ("x", None, [{"terms": "x"}]):
+            with self.subTest(species=species):
+                self.assert_value_error(
+                    ProteomeXchangeConnector, accession, {"identifiers": identifiers, "species": species}
+                )
+        rows = ProteomeXchangeConnector(
+            fetch_json=lambda url: {"identifiers": identifiers, "species": ["x", {"terms": ["y"]}]}
+        ).search(accession)
+        self.assertEqual("", rows[0]["species"])
+
+    def test_phewas_connectors_reject_malformed_bodies(self):
+        query = "1:100-A-T"
+        variants = (
+            (UKBTopMedConnector, {"chrom": "1", "pos": 100, "ref": "A", "alt": "T"}, "phenos"),
+            (BioBankJapanConnector, {"chrom": "1", "pos": 100, "ref": "A", "alt": "T"}, "phenos"),
+            (FinnGenConnector, {"variant": {"chr": "1", "pos": 100, "ref": "A", "alt": "T"}}, "results"),
+        )
+        for cls, identity, key in variants:
+            for body in (None, [], "text", {**identity, key: "x"}, {**identity, key: None}, {**identity, key: {}}):
+                with self.subTest(connector=cls.__name__, body=body):
+                    self.assert_value_error(cls, query, body)
+            with self.subTest(connector=cls.__name__, case="records"):
+                rows = cls(fetch_json=lambda url: {**identity, key: [None, "x"]}).search(query)
+                self.assertEqual([], rows)
 
 
 if __name__ == "__main__":

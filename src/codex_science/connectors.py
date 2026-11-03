@@ -35,6 +35,31 @@ def _received_records(items: Any) -> Any:
     return items
 
 
+def _received_objects(items: Any) -> list[dict[str, Any]]:
+    """Count every received record, then drop items that are not JSON objects."""
+    return [item for item in _received_records(items) if isinstance(item, dict)]
+
+
+def _obj(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _payload_list(payload: Any, source: str, *keys: str) -> list[Any]:
+    """Walk objects along keys and return the final list; a missing key means no records."""
+    value = payload
+    for depth, key in enumerate(keys):
+        if not isinstance(value, dict):
+            path = ".".join(keys[:depth])
+            raise ValueError(f"{source} upstream error: response{' ' + path if path else ''} must be an object")
+        if key not in value:
+            return []
+        value = value[key]
+    if not isinstance(value, list):
+        path = ".".join(keys)
+        raise ValueError(f"{source} upstream error: response{' ' + path if path else ''} must be a list")
+    return value
+
+
 def _graphql_data(payload: Any, source: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{source} upstream error: GraphQL response must be an object")
@@ -211,13 +236,13 @@ class UniProtConnector:
         params = urllib.parse.urlencode({"query": query, "format": "json", "size": limit})
         payload = self._fetch_json(f"https://rest.uniprot.org/uniprotkb/search?{params}")
         results: list[dict[str, str]] = []
-        for item in _received_records(payload.get("results", []))[:limit]:
+        for item in _received_objects(_payload_list(payload, "UniProt", "results"))[:limit]:
             accession = item.get("primaryAccession") if isinstance(item, dict) else None
             if not isinstance(accession, str) or not accession:
                 continue
-            description = item.get("proteinDescription", {})
+            description = _obj(item.get("proteinDescription"))
             title = (
-                description.get("recommendedName", {}).get("fullName", {}).get("value")
+                _obj(_obj(description.get("recommendedName")).get("fullName")).get("value")
                 or item.get("uniProtkbId")
                 or accession
             )
@@ -250,7 +275,7 @@ class PDBConnector:
                 "score": str(item.get("score", "")),
                 "url": f"https://www.rcsb.org/structure/{item.get('identifier', '')}",
             }
-            for item in _received_records(response.get("result_set", []))[:limit]
+            for item in _received_objects(_payload_list(response, "RCSB PDB", "result_set"))[:limit]
             if item.get("identifier")
         ]
 
@@ -264,11 +289,11 @@ class ChEMBLConnector:
         params = urllib.parse.urlencode({"q": query, "limit": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/chembl/api/data/molecule/search.json?{params}")
         results = []
-        for item in _received_records(payload.get("molecules", []))[:limit]:
+        for item in _received_objects(_payload_list(payload, "ChEMBL", "molecules"))[:limit]:
             identifier = str(item.get("molecule_chembl_id", ""))
             if not identifier:
                 continue
-            structures = item.get("molecule_structures") or {}
+            structures = _obj(item.get("molecule_structures"))
             results.append(
                 {
                     "id": identifier,
@@ -292,7 +317,7 @@ class PubChemConnector:
             f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{encoded}/property/{properties}/JSON"
         )
         results = []
-        for item in _received_records(payload.get("PropertyTable", {}).get("Properties", []))[:limit]:
+        for item in _received_objects(_payload_list(payload, "PubChem", "PropertyTable", "Properties"))[:limit]:
             identifier = str(item.get("CID", ""))
             if identifier:
                 results.append(
@@ -323,7 +348,7 @@ class EuropePMCConnector:
         params = urllib.parse.urlencode({"query": query, "pageSize": limit, "format": "json"})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?{params}")
         results = []
-        for item in _received_records(payload.get("resultList", {}).get("result", []))[:limit]:
+        for item in _received_objects(_payload_list(payload, "Europe PMC", "resultList", "result"))[:limit]:
             identifier = str(item.get("id", ""))
             source = str(item.get("source", ""))
             if identifier:
@@ -348,7 +373,7 @@ class OpenAlexConnector:
         params = urllib.parse.urlencode({"search": query, "per-page": limit})
         payload = self._fetch_json(f"https://api.openalex.org/works?{params}")
         results = []
-        for item in _received_records(payload.get("results", []))[:limit]:
+        for item in _received_objects(_payload_list(payload, "OpenAlex", "results"))[:limit]:
             url = str(item.get("id", ""))
             identifier = url.rsplit("/", 1)[-1]
             if identifier:
@@ -373,10 +398,10 @@ class ClinicalTrialsConnector:
         params = urllib.parse.urlencode({"query.term": query, "pageSize": limit, "format": "json"})
         payload = self._fetch_json(f"https://clinicaltrials.gov/api/v2/studies?{params}")
         results = []
-        for item in _received_records(payload.get("studies", []))[:limit]:
-            protocol = item.get("protocolSection", {})
-            identification = protocol.get("identificationModule", {})
-            status = protocol.get("statusModule", {})
+        for item in _received_objects(_payload_list(payload, "ClinicalTrials.gov", "studies"))[:limit]:
+            protocol = _obj(item.get("protocolSection"))
+            identification = _obj(protocol.get("identificationModule"))
+            status = _obj(protocol.get("statusModule"))
             identifier = str(identification.get("nctId", ""))
             if identifier:
                 results.append(
@@ -399,8 +424,8 @@ class InterProConnector:
         params = urllib.parse.urlencode({"search": query, "page_size": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/interpro/api/entry/interpro/?{params}")
         results = []
-        for item in _received_records(payload.get("results", []))[:limit]:
-            metadata = item.get("metadata", {})
+        for item in _received_objects(_payload_list(payload, "InterPro", "results"))[:limit]:
+            metadata = _obj(item.get("metadata"))
             identifier = str(metadata.get("accession", ""))
             if identifier:
                 results.append(
@@ -429,7 +454,7 @@ class QuickGOConnector:
                 "aspect": str(item.get("aspect") or ""),
                 "url": f"https://www.ebi.ac.uk/QuickGO/term/{item.get('id', '')}",
             }
-            for item in _received_records(payload.get("results", []))[:limit]
+            for item in _received_objects(_payload_list(payload, "QuickGO", "results"))[:limit]
             if item.get("id")
         ]
 
@@ -443,7 +468,7 @@ class OLSConnector:
         params = urllib.parse.urlencode({"q": query, "rows": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/ols4/api/search?{params}")
         results = []
-        for item in _received_records(payload.get("response", {}).get("docs", []))[:limit]:
+        for item in _received_objects(_payload_list(payload, "OLS", "response", "docs"))[:limit]:
             identifier = str(item.get("obo_id") or item.get("short_form") or "")
             if identifier:
                 results.append(
@@ -473,7 +498,11 @@ class ReactomeConnector:
         query, limit = _validate(query, limit)
         params = urllib.parse.urlencode({"query": query, "cluster": "true"})
         payload = self._fetch_json(f"https://reactome.org/ContentService/search/query?{params}")
-        entries = [entry for group in payload.get("results", []) for entry in group.get("entries", [])]
+        entries = []
+        for group in _payload_list(payload, "Reactome", "results"):
+            if not isinstance(group, dict):
+                raise ValueError("Reactome upstream error: response results must contain objects")
+            entries.extend(_payload_list(group, "Reactome", "entries"))
         return [
             {
                 "id": str(item.get("stId") or item.get("id") or ""),
@@ -481,7 +510,7 @@ class ReactomeConnector:
                 "type": str(item.get("type") or ""),
                 "url": f"https://reactome.org/content/detail/{item.get('stId') or item.get('id') or ''}",
             }
-            for item in _received_records(entries)[:limit]
+            for item in _received_objects(entries)[:limit]
             if item.get("stId") or item.get("id")
         ]
 
@@ -502,7 +531,7 @@ class STRINGConnector:
                 "annotation": str(item.get("annotation") or ""),
                 "url": f"https://string-db.org/network/{item.get('stringId', '')}",
             }
-            for item in _received_records(payload)[:limit]
+            for item in _received_objects(_payload_list(payload, "STRING"))[:limit]
             if item.get("stringId")
         ]
 
@@ -525,7 +554,7 @@ class AlphaFoldConnector:
                 "cif_url": str(item.get("cifUrl") or ""),
                 "url": f"https://alphafold.ebi.ac.uk/entry/{item.get('uniprotAccession', '')}",
             }
-            for item in _received_records(payload)[:limit]
+            for item in _received_objects(_payload_list(payload, "AlphaFold"))[:limit]
             if item.get("modelEntityId")
         ]
 
@@ -546,7 +575,7 @@ class MyGeneConnector:
                 "species_taxid": str(item.get("taxid") or ""),
                 "url": f"https://www.ncbi.nlm.nih.gov/gene/{item.get('_id', '')}",
             }
-            for item in _received_records(payload.get("hits", []))[:limit]
+            for item in _received_objects(_payload_list(payload, "MyGene.info", "hits"))[:limit]
             if item.get("_id") or item.get("entrezgene")
         ]
 
@@ -569,7 +598,7 @@ class EnsemblConnector:
                 "species": "homo_sapiens",
                 "url": f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={item.get('id', '')}",
             }
-            for item in _received_records(payload)[:limit]
+            for item in _received_objects(_payload_list(payload, "Ensembl"))[:limit]
             if item.get("id")
         ]
 
@@ -607,7 +636,7 @@ class GWASCatalogConnector:
         payload = self._fetch_json(
             f"https://www.ebi.ac.uk/gwas/rest/api/v2/efo-traits?{params}"
         )
-        traits = payload.get("_embedded", {}).get("efo_traits", [])
+        traits = _payload_list(payload, "GWAS Catalog", "_embedded", "efo_traits")
         return [
             {
                 "id": str(item.get("efo_id") or ""),
@@ -615,7 +644,7 @@ class GWASCatalogConnector:
                 "ontology_uri": str(item.get("uri") or ""),
                 "url": f"https://www.ebi.ac.uk/gwas/efotraits/{item.get('efo_id', '')}",
             }
-            for item in _received_records(traits)[:limit]
+            for item in _received_objects(traits)[:limit]
             if item.get("efo_id")
         ]
 
@@ -649,7 +678,7 @@ class OpenTargetsConnector:
                 "description": str(item.get("description") or ""),
                 "url": f"https://platform.opentargets.org/{item.get('entity', 'target')}/{item.get('id', '')}",
             }
-            for item in _received_records(hits)[:limit]
+            for item in _received_objects(hits)[:limit]
             if item.get("id")
         ]
 
@@ -670,7 +699,7 @@ class GTExConnector:
                 "genome_build": str(item.get("genomeBuild") or ""),
                 "url": f"https://gtexportal.org/home/gene/{item.get('gencodeId', '')}",
             }
-            for item in _received_records(payload.get("data", []))[:limit]
+            for item in _received_objects(_payload_list(payload, "GTEx", "data"))[:limit]
             if item.get("gencodeId")
         ]
 
@@ -690,7 +719,7 @@ class HumanProteinAtlasConnector:
                 "description": str(item.get("Gene description") or ""),
                 "url": f"https://www.proteinatlas.org/{item.get('Ensembl', '')}",
             }
-            for item in _received_records(payload)[:limit]
+            for item in _received_objects(_payload_list(payload, "Human Protein Atlas"))[:limit]
             if item.get("Ensembl") or item.get("Gene")
         ]
 
@@ -705,10 +734,10 @@ class BgeeConnector:
             {"page": "gene", "action": "search", "query": query, "species_id": 9606}
         )
         payload = self._fetch_json(f"https://www.bgee.org/api/?{params}")
-        matches = payload.get("data", {}).get("result", {}).get("geneMatches", [])
+        matches = _payload_list(payload, "Bgee", "data", "result", "geneMatches")
         results: list[dict[str, str]] = []
-        for match in _received_records(matches)[:limit]:
-            item = match.get("gene", {})
+        for match in _received_objects(matches)[:limit]:
+            item = _obj(match.get("gene"))
             identifier = str(item.get("geneId") or "")
             if identifier:
                 results.append(
@@ -738,7 +767,7 @@ class BioStudiesConnector:
                 "release_date": str(item.get("release_date") or ""),
                 "url": f"https://www.ebi.ac.uk/biostudies/studies/{item.get('accession', '')}",
             }
-            for item in _received_records(payload.get("hits", []))[:limit]
+            for item in _received_objects(_payload_list(payload, "BioStudies", "hits"))[:limit]
             if item.get("accession")
         ]
 
@@ -758,7 +787,7 @@ class CBioPortalConnector:
                 "type": str(item.get("type") or ""),
                 "url": f"https://www.cbioportal.org/results/oncoprint?gene_list={item.get('hugoGeneSymbol', '')}",
             }
-            for item in _received_records(payload)[:limit]
+            for item in _received_objects(_payload_list(payload, "cBioPortal"))[:limit]
             if item.get("entrezGeneId")
         ]
 
@@ -774,8 +803,8 @@ class ChEBIConnector:
             f"https://www.ebi.ac.uk/chebi/backend/api/public/es_search/?{params}"
         )
         results: list[dict[str, str]] = []
-        for hit in _received_records(payload.get("results", []))[:limit]:
-            item = hit.get("_source", hit)
+        for hit in _received_objects(_payload_list(payload, "ChEBI", "results"))[:limit]:
+            item = _obj(hit.get("_source", hit))
             identifier = str(item.get("chebi_accession") or "")
             if identifier:
                 results.append(
@@ -805,7 +834,7 @@ class RheaConnector:
                 "status": str(item.get("status") or ""),
                 "url": f"https://www.rhea-db.org/rhea/{item.get('id', '')}",
             }
-            for item in _received_records(payload.get("results", []))[:limit]
+            for item in _received_objects(_payload_list(payload, "Rhea", "results"))[:limit]
             if item.get("id")
         ]
 
@@ -820,7 +849,7 @@ class PRIDEConnector:
         payload = self._fetch_json(
             f"https://www.ebi.ac.uk/pride/ws/archive/v3/search/projects?{params}"
         )
-        items = payload if isinstance(payload, list) else payload.get("_embedded", {}).get("projects", [])
+        items = payload if isinstance(payload, list) else _payload_list(payload, "PRIDE", "_embedded", "projects")
         return [
             {
                 "id": str(item.get("accession") or ""),
@@ -828,7 +857,7 @@ class PRIDEConnector:
                 "publication_date": str(item.get("publicationDate") or ""),
                 "url": f"https://www.ebi.ac.uk/pride/archive/projects/{item.get('accession', '')}",
             }
-            for item in _received_records(items)[:limit]
+            for item in _received_objects(items)[:limit]
             if item.get("accession")
         ]
 
@@ -849,7 +878,7 @@ class ProteomeXchangeConnector:
         if not isinstance(payload, dict):
             raise ValueError("ProteomeXchange response must be a JSON object")
 
-        identifiers = payload.get("identifiers", [])
+        identifiers = _payload_list(payload, "ProteomeXchange", "identifiers")
         returned_accessions = {
             str(term.get("value") or "").upper()
             for term in identifiers
@@ -860,9 +889,11 @@ class ProteomeXchangeConnector:
             raise ValueError("ProteomeXchange response accession did not match query")
 
         species = []
-        for group in payload.get("species", []):
-            for term in group.get("terms", []) if isinstance(group, dict) else []:
-                if term.get("name") == "taxonomy: scientific name" and term.get("value"):
+        for group in _payload_list(payload, "ProteomeXchange", "species"):
+            if not isinstance(group, dict):
+                continue
+            for term in _payload_list(group, "ProteomeXchange", "terms"):
+                if isinstance(term, dict) and term.get("name") == "taxonomy: scientific name" and term.get("value"):
                     species.append(str(term["value"]))
         return [
             {
@@ -884,8 +915,8 @@ class MGnifyConnector:
         params = urllib.parse.urlencode({"search": query, "page_size": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/metagenomics/api/v1/studies?{params}")
         results: list[dict[str, str]] = []
-        for item in _received_records(payload.get("data", []))[:limit]:
-            attributes = item.get("attributes", {})
+        for item in _received_objects(_payload_list(payload, "MGnify", "data"))[:limit]:
+            attributes = _obj(item.get("attributes"))
             identifier = str(item.get("id") or attributes.get("accession") or "")
             if identifier:
                 results.append(
@@ -915,7 +946,7 @@ class RNACentralConnector:
                 "length": str(item.get("length") or ""),
                 "url": f"https://rnacentral.org/rna/{item.get('rnacentral_id', '')}",
             }
-            for item in _received_records(payload.get("results", []))[:limit]
+            for item in _received_objects(_payload_list(payload, "RNAcentral", "results"))[:limit]
             if item.get("rnacentral_id")
         ]
 
@@ -968,7 +999,7 @@ class _PheWASConnector:
         expected = (chromosome, position, reference, alternate)
         if self._response_variant(payload) != expected:
             raise ValueError("PheWAS response variant did not match normalized query")
-        associations = payload.get(self.result_key, [])
+        associations = _payload_list(payload, "PheWAS", self.result_key)
         _received_records(associations)
 
         def p_value(item: dict[str, Any]) -> float | None:
