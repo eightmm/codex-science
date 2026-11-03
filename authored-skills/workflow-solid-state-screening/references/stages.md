@@ -27,8 +27,12 @@ with `review_status` pending. The evidence boundary is returned explicitly.
 Every stage input is an immutable path plus SHA-256 of the exact file bytes,
 including whitespace. Stage 1 binds `contract.json`; every later stage binds
 that contract and the immediately preceding stage. All filenames are fixed
-bundle-relative regular files, never symlinks. A changed input requires a new
-snapshot and new downstream identities, not reusing reviewed evidence.
+bundle-relative regular files, never symlinks. Each record is at most 64 MiB;
+the reader checks the opened file's type and size before a bounded read and
+refuses growth past that limit. JSON objects must have unique keys at every
+depth, including escaped spellings of the same key. The same bytes are parsed
+and hashed. A changed input requires a new snapshot and new downstream
+identities, not reusing reviewed evidence.
 
 | ID | Accepted input identities | Existing skills/scripts to use | Output / schema | Controls and failure handling | Human gate |
 | --- | --- | --- | --- | --- | --- |
@@ -123,6 +127,9 @@ mask scientific-contract defects. Tests require the following labelled errors:
 
 | Defect | Refusal |
 | --- | --- |
+| Missing, symlinked or non-regular record | SS_MISSING_RECORD |
+| Record over 64 MiB, including growth during reading | SS_RECORD_SIZE |
+| Duplicate JSON object key at any depth | SS_SHAPE |
 | Missing/inconsistent units | SS_UNITS |
 | Control not run / outside tolerance | SS_ANALYTIC_NOT_RUN / SS_ANALYTIC_TOLERANCE |
 | Absent/truncated series / increasing error / failed convergence | SS_CONVERGENCE_SERIES / SS_NONMONOTONE / SS_NOT_CONVERGED |

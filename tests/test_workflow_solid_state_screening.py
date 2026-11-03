@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -30,17 +31,23 @@ class SolidStateScreeningTests(unittest.TestCase):
         self.records = {name: json.loads((EXAMPLE / name).read_text()) for name in names}
         self.cases = json.loads((EXAMPLE / "negative-cases.json").read_text())["cases"]
 
-    def write_bundle(self) -> None:
+    def write_bundle(self, replacement: tuple[str, bytes, bytes] | None = None) -> None:
+        raw = {name: screening.encode_record(record) for name, record in self.records.items()}
+        if replacement and replacement[0] == "contract.json":
+            raw["contract.json"] = raw["contract.json"].replace(replacement[1], replacement[2], 1)
         previous = "contract.json"
         for _, name in screening.STAGES:
             inputs = list(dict.fromkeys(["contract.json", previous]))
             self.records[name]["inputs"] = [
-                {"path": path, "sha256": hashlib.sha256(screening.encode_record(self.records[path])).hexdigest()}
+                {"path": path, "sha256": hashlib.sha256(raw[path]).hexdigest()}
                 for path in inputs
             ]
+            raw[name] = screening.encode_record(self.records[name])
+            if replacement and replacement[0] == name:
+                raw[name] = raw[name].replace(replacement[1], replacement[2], 1)
             previous = name
-        for name, record in self.records.items():
-            (self.directory / name).write_bytes(screening.encode_record(record))
+        for name, payload in raw.items():
+            (self.directory / name).write_bytes(payload)
 
     def cli(self, *arguments: str) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(CLI), *(arguments or (str(self.directory),))],
@@ -95,6 +102,116 @@ class SolidStateScreeningTests(unittest.TestCase):
                 screening.chain_spectrum(4, value, 1)
         with self.assertRaisesRegex(ValueError, "^SS_MODEL:"):
             screening.chain_spectrum(4, 0, -1)
+
+    def test_example_claims_render_without_disagreement_notes(self) -> None:
+        from codex_science.artifact_index import render_html, render_markdown
+        manifest = json.loads((EXAMPLE / "manifest.json").read_text())
+        claims = json.loads((EXAMPLE / "claims.json").read_text())["claims"]
+        for renderer in (render_markdown, render_html):
+            with self.subTest(renderer=renderer.__name__):
+                self.assertNotIn("manifest records a different text", renderer(manifest, EXAMPLE).lower())
+        self.assertEqual({claim["id"]: claim["text"] for claim in claims},
+                         {claim["id"]: claim["text"] for claim in manifest["claims"]})
+
+    def test_record_file_types_and_size_limit(self) -> None:
+        limit = 64 * 1024 * 1024
+        self.write_bundle()
+        path = self.directory / "review-handoff.json"
+        payload = path.read_bytes()
+        path.write_bytes(payload + b" " * (limit - len(payload)))
+        self.assertEqual("contract-validated", screening.validate_bundle(self.directory)["status"])
+        result = self.cli()
+        self.assertEqual(0, result.returncode, result.stderr)
+        for payload in (b"", b"{"):
+            with self.subTest(payload=payload):
+                path.write_bytes(payload)
+                with self.assertRaisesRegex(ValueError, "^SS_SHAPE:"):
+                    screening.validate_bundle(self.directory)
+                result = self.cli()
+                self.assertEqual(1, result.returncode)
+                self.assertIn("SS_SHAPE:", result.stderr)
+        for name in self.records:
+            for kind in ("directory", "fifo", "oversized"):
+                with self.subTest(name=name, kind=kind):
+                    self.write_bundle()
+                    path = self.directory / name
+                    path.unlink()
+                    if kind == "directory":
+                        path.mkdir()
+                    elif kind == "fifo":
+                        if not hasattr(os, "mkfifo"):
+                            continue
+                        os.mkfifo(path)
+                    else:
+                        with path.open("wb") as stream:
+                            stream.truncate(limit + 1)
+                    try:
+                        code = "SS_RECORD_SIZE" if kind == "oversized" else "SS_MISSING_RECORD"
+                        original_read = Path.read_bytes
+
+                        def bounded_read(target):
+                            if kind == "oversized" and target == path:
+                                raise AssertionError("unbounded read attempted")
+                            return original_read(target)
+
+                        with patch.object(Path, "read_bytes", bounded_read):
+                            with self.assertRaisesRegex(ValueError, "^" + code + ":"):
+                                screening.validate_bundle(self.directory)
+                        result = self.cli()
+                        self.assertEqual(1, result.returncode)
+                        self.assertIn(code + ":", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                    finally:
+                        if kind == "directory":
+                            path.rmdir()
+                        else:
+                            path.unlink()
+
+    def test_opened_record_type_and_growth_are_checked(self) -> None:
+        self.write_bundle()
+        actual_fstat = os.fstat
+        for mode in (stat.S_IFIFO, stat.S_IFDIR):
+            with self.subTest(mode=mode):
+                def changed_type(descriptor):
+                    values = list(actual_fstat(descriptor))
+                    values[0] = mode
+                    return os.stat_result(values)
+                with patch.object(os, "fstat", side_effect=changed_type):
+                    with self.assertRaisesRegex(ValueError, "^SS_MISSING_RECORD:"):
+                        screening.validate_bundle(self.directory)
+        with (self.directory / "review-handoff.json").open("wb") as stream:
+            stream.truncate(64 * 1024 * 1024 + 1)
+
+        def before_growth(descriptor):
+            values = list(actual_fstat(descriptor))
+            values[6] = 0
+            return os.stat_result(values)
+
+        with patch.object(os, "fstat", side_effect=before_growth):
+            with self.assertRaisesRegex(ValueError, "^SS_RECORD_SIZE:"):
+                screening.validate_bundle(self.directory)
+
+    def test_duplicate_json_keys_are_refused_at_every_depth(self) -> None:
+        cases = [(name, b"{", b'{"schema": null,') for name in self.records]
+        cases.extend([
+            ("review-handoff.json", b'"review_status": "pending"',
+             b'"review_status": "reviewed", "review_status": "pending"'),
+            ("review-handoff.json", b'"basis": "experiment"',
+             b'"basis": null, "basis": "experiment"'),
+            ("review-handoff.json", b'"review_status": "pending"',
+             b'"review_\\u0073tatus": false, "review_status": "pending"'),
+            ("review-handoff.json", b"{", b'{"": null, "": 0,'),
+            ("review-handoff.json", b"{", b'{"synthetic": true,'),
+        ])
+        for name, old, new in cases:
+            with self.subTest(name=name, duplicate=new):
+                self.write_bundle((name, old, new))
+                with self.assertRaisesRegex(ValueError, "^SS_SHAPE:.*duplicate JSON key"):
+                    screening.validate_bundle(self.directory)
+                result = self.cli()
+                self.assertEqual(1, result.returncode)
+                self.assertIn("duplicate JSON key", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
     def test_normalizes_source_units(self) -> None:
         contract = copy.deepcopy(self.records["contract.json"])

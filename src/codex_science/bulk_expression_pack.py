@@ -8,11 +8,16 @@ import re
 import statistics
 from pathlib import Path, PurePosixPath
 
-from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, load_json_object
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES
 
 
 STAGES = ("01-design", "02-qc", "03-freeze", "04-testing", "05-enrichment", "06-handoff")
 IDENTITIES = ("organism", "genome_version", "annotation_version", "identifier_namespace")
+CLAIM_OVERREACH = re.compile(
+    r"\b(caus\w*|mechanis\w*|driv(?:e|es|en|ing)|physical[\s-]+validity|clinical\w*|truth|"
+    r"therap\w*|efficac\w*|effectiv\w*|treatment\w*|induc\w*|determin\w*|regulat\w*|"
+    r"activat\w*|repress\w*|responsib\w*|biomarker\w*|prognos\w*|predict\w*)\b", re.I,
+)
 
 
 def _require(condition: bool, code: str, message: str) -> None:
@@ -58,6 +63,29 @@ def specification_hash(specification: dict) -> str:
         raise ValueError("invalid-record: specification must be finite JSON") from error
 
 
+def _pairs(items):
+    result = {}
+    for name, value in items:
+        _require(name not in result, "invalid-record", f"duplicate JSON key: {name}")
+        result[name] = value
+    return result
+
+
+def _json_object(raw: bytes, label: str) -> dict:
+    try:
+        return _object(json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs), label)
+    except (ValueError, UnicodeError, RecursionError) as error:
+        raise ValueError(f"invalid-record: {label} must be a UTF-8 JSON object: {error}") from error
+
+
+def _json_bytes(path: Path) -> bytes:
+    _require(path.is_file(), "invalid-record", "input must be an available regular JSON file")
+    with path.open("rb") as handle:
+        raw = handle.read(DEFAULT_MAX_JSON_BYTES + 1)
+    _require(len(raw) <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the repository JSON size bound")
+    return raw
+
+
 def _input(root: Path, ref, schema: str) -> dict:
     ref = _object(ref, "input identity")
     relative = PurePosixPath(_text(ref.get("path"), "input path"))
@@ -65,14 +93,9 @@ def _input(root: Path, ref, schema: str) -> dict:
     target = root / relative
     _require(target.resolve().is_relative_to(root.resolve()) and target.is_file(),
              "unavailable", "input must be an available file within the fixture bundle")
-    with target.open("rb") as handle:
-        raw = handle.read(DEFAULT_MAX_JSON_BYTES + 1)
-    _require(len(raw) <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the repository JSON size bound")
+    raw = _json_bytes(target)
     _require(hashlib.sha256(raw).hexdigest() == ref.get("sha256"), "input-identity", "input hash mismatch")
-    try:
-        value = _object(json.loads(raw.decode("utf-8")), "input")
-    except (ValueError, UnicodeError, RecursionError) as error:
-        raise ValueError("invalid-record: input must be a UTF-8 JSON object") from error
+    value = _json_object(raw, "input")
     _require(value.get("schema") == schema and value.get("fixture") is True,
              "invalid-record", "reference inputs must be labelled synthetic fixtures")
     return value
@@ -96,7 +119,7 @@ def _specification(spec, genes: list[str]) -> dict:
     background = spec.get("enrichment_background")
     _require(isinstance(background, list) and bool(background), "enrichment-background", "explicit background universe required")
     background = _names(background, "enrichment_background")
-    _require(set(genes) <= set(background), "enrichment-background", "background must contain every tested gene")
+    _require(set(genes) == set(background), "enrichment-background", "background must equal the tested gene universe")
     return spec
 
 
@@ -107,8 +130,8 @@ def _claims(claims) -> None:
         _text(claim.get("id"), "claim id")
         text = _text(claim.get("text"), "claim text")
         _require(isinstance(claim.get("kind"), str) and claim["kind"] in {"descriptive", "associational"}
-                 and re.search(r"\b(caus\w*|mechanis\w*|drives?|physical validity|clinical\w*|truth)\b", text, re.I) is None,
-                 "claim-boundary", "association and numerical agreement cannot establish causal, physical or clinical validity")
+                 and CLAIM_OVERREACH.search(text) is None,
+                 "claim-boundary", "only descriptive or associational wording is allowed; no mechanistic, therapeutic, efficacy or outcome assertions")
         basis = claim.get("evidence_basis")
         _require(isinstance(basis, str) and basis in {"statistical", "unavailable"}, "claim-boundary", "only statistical evidence or unavailable records are allowed")
         _require(isinstance(claim.get("status"), str) and claim["status"] in {"planned", "supported", "suggestive", "conflicting", "unsupported", "withdrawn", "unavailable"},
@@ -119,7 +142,7 @@ def _claims(claims) -> None:
 
 
 def _prepare(path: Path) -> tuple[dict, dict, dict, list, list, dict]:
-    record = load_json_object(path)
+    record = _json_object(_json_bytes(path), "pack")
     _require(record.get("schema") == "bulk-expression-pack-v1" and record.get("fixture") is True,
              "invalid-record", "reference accepts only bulk-expression-pack-v1 synthetic fixtures")
     _require(record.get("stages") == list(STAGES), "stage-order", "six stages must retain their fixed order")
@@ -237,7 +260,7 @@ def _beta_fraction(a: float, b: float, x: float) -> float:
 
 
 def welch_test(first: list[float], second: list[float]) -> dict:
-    """Two-sided Welch test on supplied log-scale values; second minus first."""
+    """Two-sided Welch, second minus first; two constant groups are untestable (p=1)."""
     for group in (first, second):
         _require(isinstance(group, list) and len(group) >= 2, "invalid-record", "Welch requires two replicates per group")
         for value in group:
@@ -245,7 +268,7 @@ def welch_test(first: list[float], second: list[float]) -> dict:
     difference = statistics.mean(second) - statistics.mean(first)
     a, b = statistics.variance(first) / len(first), statistics.variance(second) / len(second)
     if a + b == 0:
-        return {"log2_fold_change": difference, "t": None, "df": None, "p_value": 1.0 if difference == 0 else 0.0}
+        return {"log2_fold_change": difference, "t": None, "df": None, "p_value": 1.0}
     t = difference / math.sqrt(a + b)
     df = (a + b) ** 2 / (a * a / (len(first) - 1) + b * b / (len(second) - 1))
     x = df / (df + t * t)
@@ -282,7 +305,7 @@ def analyze_bulk_expression(path: Path | str) -> dict:
                    for i in keep if samples[i]["condition"] == group] for group in spec["contrast"]]
         differential.append({"gene_id": row["id"], **welch_test(*groups)})
     for row, q_value in zip(differential, benjamini_hochberg([row["p_value"] for row in differential])):
-        row.update(q_value=q_value, significant=q_value <= spec["alpha"])
+        row.update(q_value=q_value, significant=row["t"] is not None and q_value <= spec["alpha"])
     selected = {row["gene_id"] for row in differential if row["significant"]}
     background = set(spec["enrichment_background"])
     enrichment = []
@@ -301,7 +324,10 @@ def analyze_bulk_expression(path: Path | str) -> dict:
             "Welch on log2(CPM+1) does not model count dispersion or adjust batch/covariates.",
             "Enrichment depends on selection, universe and gene correlation; association is never causality.",
             "Freeze records are declarations with hashes, not independent proof of historical timing.",
-            "Independent science-review and rigor classification remain with the coordinator."]}
+            "Independent science-review and rigor classification remain with the coordinator."] + [
+            f"Untestable gene {row['gene_id']}: zero within-group variance in both groups; "
+            "Welch is undefined. Retained in BH with p=1 and never selected as significant."
+            for row in differential if row["t"] is None]}
 
 
 def validate_bulk_expression_pack(path: Path | str) -> dict:

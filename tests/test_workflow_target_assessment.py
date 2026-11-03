@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
+from codex_science.target_assessment_pack import _Bundle
 from codex_science.target_assessment_pack import validate_target_assessment_pack
 
 
@@ -121,6 +122,49 @@ class TargetAssessmentTests(unittest.TestCase):
 
     def test_review_truth(self):
         self.defect("review-truth")
+
+    def record_claim(self, record_kind, result, text, kind="descriptive", status="supported"):
+        snapshots = self.read("snapshots.json")
+        record = next(source for source in snapshots["sources"]
+                      if source["records"] and source["records"][0]["id"] == "normalization-1")["records"][0]
+        record.update(kind=record_kind, result=result, statement=text)
+        self.write("snapshots.json", snapshots)
+        memo = self.read("stage-6.json")
+        memo["data"]["claims"][0].update(text=text, kind=kind, evidence=[record["id"]], status=status)
+        self.write("stage-6.json", memo)
+        register = self.read("claims.json")
+        register["claims"][0].update(text=text, permitted_inference=kind, status=status)
+        self.write("claims.json", register)
+        self.rehash()
+
+    def test_supported_claim_rejects_review_and_computed_records(self):
+        for record_kind, result in (("review-approval", "review-approval"), ("computed", "numerical-agreement")):
+            for kind in ("descriptive", "associational"):
+                for text in ("Independent review confirmed this target is effective.",
+                             "Synthetic fixture: the recorded check completed."):
+                    with self.subTest(record_kind=record_kind, kind=kind, text=text):
+                        self.record_claim(record_kind, result, text, kind=kind)
+                        with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+                            validate_target_assessment_pack(self.bundle)
+                        result_cli = self.cli()
+                        self.assertEqual(1, result_cli.returncode, result_cli.stderr)
+                        self.assertEqual("MEMO_OVERCLAIM", json.loads(result_cli.stdout)["finding"])
+        self.record_claim("review-approval", "review-approval", "Synthetic fixture: review completed.",
+                          status="suggestive")
+        validate_target_assessment_pack(self.bundle)
+
+    def test_supported_descriptive_claim_rejects_efficacy_wording(self):
+        for word in ("efficacy", "effective", "effectiveness", "efficacious", "EFFECTIVE"):
+            with self.subTest(word=word):
+                self.record_claim("descriptive", "identity", f"Synthetic fixture: {word}.")
+                with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+                    validate_target_assessment_pack(self.bundle)
+        for text, status in (("Synthetic fixture: the effect was recorded.", "supported"),
+                             ("Synthetic fixture: ineffective and effectivenesses.", "supported"),
+                             ("Synthetic fixture: efficacy remains unestablished.", "suggestive")):
+            with self.subTest(text=text, status=status):
+                self.record_claim("descriptive", "identity", text, status=status)
+                validate_target_assessment_pack(self.bundle)
 
     def test_patient_advice(self):
         self.defect("patient-advice")
@@ -373,6 +417,75 @@ class TargetAssessmentTests(unittest.TestCase):
         result = self.cli(self.bundle / "missing")
         self.assertEqual(1, result.returncode)
         self.assertEqual("PACK_INPUT", json.loads(result.stdout)["finding"])
+
+    def test_non_regular_artifacts_are_refused_before_open(self):
+        target = self.bundle / "dossier.json"
+        target.unlink()
+        for kind in ("fifo", "directory"):
+            with self.subTest(kind=kind):
+                if kind == "fifo":
+                    os.mkfifo(target)
+                else:
+                    target.mkdir()
+                try:
+                    with patch.object(Path, "read_bytes", side_effect=AssertionError("non-regular input opened")):
+                        with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
+                            validate_target_assessment_pack(self.bundle)
+                    result = self.cli()
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("PACK_INPUT", json.loads(result.stdout)["finding"])
+                finally:
+                    target.rmdir() if kind == "directory" else target.unlink()
+
+    def test_artifact_size_limit_and_same_bytes(self):
+        target = self.bundle / "dossier.json"
+        limit = 64 * 1024 * 1024
+        reference = {"path": "dossier.json", "sha256": None}
+        for size in (0, 1, limit, limit + 1):
+            with self.subTest(size=size):
+                content = b"{" if size == 1 else (b"{}" + b" " * (size - 2))[:size]
+                target.write_bytes(content)
+                bundle = _Bundle(self.bundle)
+                if size > limit:
+                    with patch.object(Path, "read_bytes", side_effect=AssertionError("oversized input opened")):
+                        with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
+                            bundle.read(reference)
+                    result = self.cli()
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertEqual("PACK_INPUT", json.loads(result.stdout)["finding"])
+                elif size < 2:
+                    with self.assertRaisesRegex(ValueError, "PACK_FORMAT"):
+                        bundle.read(reference)
+                else:
+                    self.assertEqual({}, bundle.read(reference))
+                    self.assertEqual(hashlib.sha256(content).hexdigest(), bundle.reads["dossier.json"])
+        target.write_bytes(b"{}")
+        with patch.object(Path, "read_bytes", return_value=b" " * (limit + 1)):
+            with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
+                _Bundle(self.bundle).read(reference)
+
+    def test_changed_artifact_types_and_size_are_refused_before_open(self):
+        target = self.bundle / "dossier.json"
+        reference = {"path": "dossier.json", "sha256": None}
+        for kind in ("fifo", "directory", "oversized"):
+            with self.subTest(kind=kind):
+                target.write_bytes(b"{}")
+                bundle = _Bundle(self.bundle)
+                bundle.read(reference)
+                target.unlink()
+                if kind == "fifo":
+                    os.mkfifo(target)
+                elif kind == "directory":
+                    target.mkdir()
+                else:
+                    with target.open("wb") as stream:
+                        stream.truncate(64 * 1024 * 1024 + 1)
+                try:
+                    with patch.object(Path, "read_bytes", side_effect=AssertionError("changed unsafe input opened")):
+                        with self.assertRaisesRegex(ValueError, "PACK_CHANGED"):
+                            bundle.unchanged()
+                finally:
+                    target.rmdir() if kind == "directory" else target.unlink()
 
     def test_malformed_nested_records_are_labelled(self):
         cases = (

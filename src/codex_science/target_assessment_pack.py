@@ -9,6 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
+import stat
 from pathlib import Path, PurePosixPath
 
 from codex_science.checkpoints import validate_checkpoint
@@ -26,6 +28,7 @@ SKILLS = (
 )
 IDENTITY_FIELDS = ("uniprot", "ensembl", "hgnc", "species", "isoform", "indication_id")
 PATIENT_BOUNDARY = "This memo never recommends treatment for a patient."
+MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 
 def _refuse(code, message):
@@ -97,14 +100,7 @@ class _Bundle:
         path = PurePosixPath(relative)
         _require(not path.is_absolute() and ".." not in path.parts and str(path) == relative
                  and "\\" not in relative, "artifact path must be canonical and relative", "PACK_PATH")
-        target = self.root / relative
-        _require(not any(part.is_symlink() for part in [target, *target.parents] if part != self.root),
-                 "symlink artifact refused", "PACK_PATH")
-        _require(target.resolve().is_relative_to(self.root), "artifact escapes bundle", "PACK_PATH")
-        try:
-            raw = target.read_bytes()
-        except OSError as error:
-            _refuse("PACK_INPUT", f"cannot read {relative}: {error.strerror}")
+        raw = self._read_bytes(relative)
         digest = hashlib.sha256(raw).hexdigest()
         if ref["sha256"] is not None:
             _require(ref["sha256"] == digest, f"hash mismatch: {relative}", "PACK_HASH")
@@ -113,12 +109,27 @@ class _Bundle:
         self.reads[relative] = digest
         return _json(raw)
 
+    def _read_bytes(self, relative):
+        target = self.root / relative
+        _require(not any(part.is_symlink() for part in [target, *target.parents] if part != self.root),
+                 "symlink artifact refused", "PACK_PATH")
+        _require(target.resolve().is_relative_to(self.root), "artifact escapes bundle", "PACK_PATH")
+        try:
+            info = target.lstat()
+            _require(stat.S_ISREG(info.st_mode), "artifact must be a regular file", "PACK_INPUT")
+            _require(info.st_size <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
+            raw = target.read_bytes()
+        except OSError as error:
+            _refuse("PACK_INPUT", f"cannot read {relative}: {error.strerror}")
+        _require(len(raw) <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
+        return raw
+
     def unchanged(self):
         for relative, digest in self.reads.items():
             try:
-                current = hashlib.sha256((self.root / relative).read_bytes()).hexdigest()
-            except OSError:
-                _refuse("PACK_CHANGED", "artifact disappeared during validation")
+                current = hashlib.sha256(self._read_bytes(relative)).hexdigest()
+            except ValueError:
+                _refuse("PACK_CHANGED", "artifact became unreadable during validation")
             _require(current == digest, "artifact changed during validation", "PACK_CHANGED")
 
 
@@ -275,6 +286,12 @@ def _check_claims(memo, records, claim_register):
                  "memo claim is stronger than or differs from its cited statements", "MEMO_OVERCLAIM")
         _require(isinstance(claim.get("status"), str) and claim["status"] in CLAIM_STATUSES,
                  "invalid claim-register status", "MEMO_OVERCLAIM")
+        if claim["status"] == "supported":
+            _require(all(records[ref][1]["kind"] not in ("review-approval", "computed") for ref in ids),
+                     "review approval or computation cannot support a memo claim", "MEMO_OVERCLAIM")
+            if kind == "descriptive":
+                _require(not re.search(r"\b(?:efficacy|effective|effectiveness|efficacious)\b", claim["text"], re.IGNORECASE),
+                         "descriptive evidence cannot support efficacy or effectiveness", "MEMO_OVERCLAIM")
         by_id[identifier] = claim
     _require(claim_register.get("schema_version") == 1, "claim-register schema_version must be 1")
     entries = _rows(claim_register.get("claims"), "claim register")

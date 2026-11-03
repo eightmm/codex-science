@@ -9,7 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
+import stat
 from typing import Any
 
 from codex_science.units_runtime import convert_value
@@ -24,6 +26,7 @@ STAGES = (
     ("stage-5", "review-handoff.json"),
 )
 REFINEMENTS = [4, 8, 16, 32]
+MAX_RECORD_BYTES = 64 * 1024 * 1024
 
 
 def _require(condition: bool, code: str, detail: str) -> None:
@@ -43,6 +46,31 @@ def _number(value: Any) -> float:
 
 def _same_number(actual: Any, expected: float) -> bool:
     return math.isclose(_number(actual), expected, rel_tol=1e-12, abs_tol=1e-14)
+
+
+def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+    record = {}
+    for name, value in items:
+        _require(name not in record, "SS_SHAPE", f"duplicate JSON key: {name}")
+        record[name] = value
+    return record
+
+
+def _load_record(path: Path) -> tuple[bytes, dict[str, Any]]:
+    # A replacement FIFO must not block between the path check and opening it.
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    with os.fdopen(os.open(path, flags), "rb") as stream:
+        info = os.fstat(stream.fileno())
+        _require(stat.S_ISREG(info.st_mode), "SS_MISSING_RECORD", f"{path.name}: unavailable or unsafe record")
+        _require(info.st_size <= MAX_RECORD_BYTES, "SS_RECORD_SIZE", f"{path.name}: record exceeds 64 MiB")
+        raw = stream.read(MAX_RECORD_BYTES + 1)
+    _require(len(raw) <= MAX_RECORD_BYTES, "SS_RECORD_SIZE", f"{path.name}: record exceeds 64 MiB")
+    try:
+        record = json.loads(raw, object_pairs_hook=_pairs)
+    except ValueError as error:
+        raise ValueError(f"SS_SHAPE: {path.name}: invalid JSON screening record: {error}") from error
+    _require(isinstance(record, dict), "SS_SHAPE", f"{path.name}: expected an object")
+    return raw, record
 
 
 def encode_record(record: dict[str, Any]) -> bytes:
@@ -290,12 +318,7 @@ def validate_bundle(directory: Path) -> dict[str, Any]:
         for name in ("contract.json", *(name for _, name in STAGES)):
             path = root / name
             _require(not path.is_symlink() and path.is_file(), "SS_MISSING_RECORD", f"{name}: unavailable or unsafe record")
-            raw[name] = path.read_bytes()
-            try:
-                records[name] = json.loads(raw[name])
-            except ValueError as error:
-                raise ValueError("SS_SHAPE: invalid JSON screening record") from error
-            _require(isinstance(records[name], dict), "SS_SHAPE", f"{name}: expected an object")
+            raw[name], records[name] = _load_record(path)
         contract = records["contract.json"]
         prespecified = _normalized(contract)
         previous = "contract.json"

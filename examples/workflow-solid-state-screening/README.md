@@ -17,6 +17,9 @@ Expected: exit 0, status `contract-validated`, base order `fixture-a` then
 `fixture-b`, review `pending`, and a boundary limiting validation to workflow
 behavior. `ranking.json` preserves the reversal under the declared alternative.
 `review-handoff.json` retains the experimental claim as unavailable.
+The six domain records must be regular files of at most 64 MiB each, with no
+duplicate JSON object keys at any depth. The validator hashes the exact bytes
+it parses and refuses unsafe files or oversized records before reading them.
 
 `manifest.json` illustrates registration of these domain records as ordinary
 `provenance-record` artifacts, with `claims.json` registered separately using

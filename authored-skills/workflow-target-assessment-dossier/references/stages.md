@@ -25,7 +25,12 @@ perform compute or create review receipts.
 
 An artifact reference is exactly `{"path": "relative-file", "sha256": "64 lowercase hex"}`.
 Paths must be canonical relative POSIX paths inside the bundle, without symlinks
-or parent traversal. Hash the actual UTF-8 file bytes, not reserialized JSON.
+or parent traversal. Every input must be a regular file, checked with `lstat`
+before opening; FIFOs and other special files are refused with `PACK_INPUT`.
+The per-file limit is 64 MiB (67,108,864 bytes), inclusive, checked before and
+after reading. This includes the dossier, snapshots, stages and existing
+checkpoint and claim-register sidecars. Hash the actual UTF-8 file bytes,
+not reserialized JSON; parse those same bytes.
 Stage 1 accepts the snapshot reference. Every later stage accepts that same
 snapshot reference followed by the preceding stage output reference. Preserve
 the original file and record; create a new revision when inputs change. Rebuild
@@ -142,6 +147,11 @@ ordinary bundle validation. No domain JSON is a nested claim-register.
   Do not place unregistered material claims in narrative or rationale fields.
   Claim statuses follow the existing sidecar contract; text, status and
   permitted inference must match that separate sidecar.
+  A supported claim cannot cite computed or review-approval records regardless
+  of its declared kind. Supported descriptive text also refuses the four
+  whole words `efficacy`, `effective`, `effectiveness` and `efficacious`,
+  case-insensitively, with `MEMO_OVERCLAIM`. This narrow lexical check does not
+  interpret negation or synonyms; other wording still needs independent review.
 - Next experiment requires nonempty question, control, readout, falsifier and
   decision_rule. This describes the smallest discriminating experiment and
   grants no permission to run it. Preserve limitations, alternatives,
@@ -210,7 +220,8 @@ check, delete evidence or relabel an unavailable source to pass.
 The library and CLI only read. Two concurrent calls leave inputs unchanged;
 termination between reads leaves no partial output or lock. Each file is hashed
 and parsed from the same bytes and rehashed before success to detect concurrent
-edits. Concurrent authors must publish a complete new immutable bundle; this
+edits. The final read repeats regular-file and size checks; an unsafe replacement
+is `PACK_CHANGED`. Concurrent authors must publish a complete new immutable bundle; this
 validator provides no multi-file transaction or defense against a malicious
 writer restoring old bytes between checks. The checkpoint writer and review
 receipt lifecycle remain owned by existing coordinator APIs.

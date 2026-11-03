@@ -9,7 +9,7 @@
     "Synthetic fixture acceptance is software validation, not biological, causal, physical or clinical validation.",
     "The reference cannot adjust covariates or batch and is not a count-dispersion model.",
     "Hash-bound freeze and timing declarations do not independently prove historical timing.",
-    "Claim wording checks are conservative; independent coordinator-owned review still assesses meaning and support."
+    "Claim wording checks conservatively reject listed causal, mechanistic, therapeutic, efficacy and outcome-biomarker vocabulary, including negations; unlisted paraphrases still require independent coordinator-owned review of meaning and support."
   ],
   "output_schemas": [
     "bulk-expression-pack-v1",

@@ -130,11 +130,113 @@ class BulkExpressionTests(unittest.TestCase):
         self.assertAlmostEqual(4, known["df"])
         self.assertAlmostEqual(0.2878641347266908, known["p_value"], places=12)
         self.assertAlmostEqual(0.5, welch_test([0, 2], [2, 2])["p_value"], places=12)
-        for first, second, p_value in (([0, 0], [0, 0], 1), ([0, 0], [1, 1], 0), ([0, 1], [0, 1], 1)):
+        for first, second, p_value in (([0, 0], [0, 0], 1), ([0, 0], [1, 1], 1), ([0, 1], [0, 1], 1)):
             self.assertEqual(p_value, welch_test(first, second)["p_value"])
         for first in ([], [1], [True, 2], [math.nan, 1], ["0", 1]):
             with self.subTest(first=first), self.assertRaisesRegex(ValueError, "invalid-record"):
                 welch_test(first, [1, 2])
+
+    def test_zero_variance_genes_are_untestable_in_full_bh_family(self):
+        counts = json.loads((FIXTURE / "counts.json").read_text())
+        for row in counts["genes"]:
+            row["counts"] = [1000] * 8
+        counts["genes"][0]["counts"] = [100] * 4 + [200] * 4
+        counts["genes"][1]["counts"] = [200] * 4 + [100] * 4
+        counts["genes"][2]["counts"] = [0] * 8
+        for alpha in (0, 0.05, 1):
+            with self.subTest(alpha=alpha):
+                self.pack["analysis_spec"]["alpha"] = alpha
+                self._freeze()
+                result = self._run(self.pack, counts=counts)
+                self.assertEqual(20, len(result["differential"]))
+                for row in result["differential"]:
+                    self.assertIsNone(row["t"])
+                    self.assertIsNone(row["df"])
+                    self.assertEqual(1, row["p_value"])
+                    self.assertEqual(1, row["q_value"])
+                    self.assertFalse(row["significant"])
+                    self.assertTrue(any(row["gene_id"] in reason and "zero within-group variance" in reason
+                                        for reason in result["limitations"]))
+                self.assertGreater(result["differential"][0]["log2_fold_change"], 0)
+                self.assertTrue(all(not row["overlap"] for row in result["enrichment"]))
+        mixed = json.loads((FIXTURE / "counts.json").read_text())
+        mixed["genes"][2]["counts"] = [0] * 8
+        self.pack["analysis_spec"]["alpha"] = 0.05
+        self._freeze()
+        result = self._run(self.pack, counts=mixed)
+        expected = benjamini_hochberg([row["p_value"] for row in result["differential"]])
+        self.assertEqual(expected, [row["q_value"] for row in result["differential"]])
+        self.assertEqual(1, result["differential"][2]["p_value"])
+        self.assertFalse(result["differential"][2]["significant"])
+
+    def test_background_refuses_untested_genes(self):
+        genes = self.pack["analysis_spec"]["enrichment_background"][:]
+        for background, code in ((genes + ["UNTESTED"], "enrichment-background"),
+                                 (genes[:-1], "enrichment-background"), ([], "enrichment-background"),
+                                 (0, "enrichment-background"), ("G01", "enrichment-background"),
+                                 (genes + [genes[0]], "invalid-record")):
+            with self.subTest(background=background), self.assertRaisesRegex(ValueError, "^" + code + ":"):
+                self.pack["analysis_spec"]["enrichment_background"] = background
+                self._freeze()
+                self._run(self.pack)
+        self.pack["analysis_spec"]["enrichment_background"] = list(reversed(genes))
+        self._freeze()
+        self.assertEqual(20, len(self._run(self.pack)["differential"]))
+
+    def test_claim_wording_refuses_therapeutic_and_mechanistic_assertions(self):
+        texts = (
+            "Drug X is an effective treatment for patients with this disease.",
+            "Knockdown of gene A induces the inflammatory pathway and determines the phenotype.",
+            "Gene A has therapeutic value.", "Drug X shows efficacy.",
+            "Gene A regulates the pathway.", "Gene A activates the pathway.",
+            "Gene A represses the pathway.", "Gene A is responsible for the phenotype.",
+            "Gene A is a biomarker of outcome.", "Gene A predicts survival.",
+            "Gene A establishes prognosis.", "Gene A induced inflammation.",
+            "Gene A determined the phenotype.", "Gene A regulated the pathway.",
+            "Gene A activated the pathway.", "Gene A repressed the pathway.",
+            "Drug X is EFFECTIVE.", "Gene A is a biomarker-of-outcome.",
+        )
+        for kind in ("descriptive", "associational"):
+            for text in texts:
+                with self.subTest(kind=kind, text=text), self.assertRaisesRegex(ValueError, "^claim-boundary:"):
+                    self.pack["claims"][0].update(kind=kind, text=text, status="supported")
+                    self._run(self.pack)
+        for text in ("Treated samples have higher expression in this synthetic fixture.",
+                     "Gene A expression is associated with the declared condition."):
+            self.pack["claims"][0]["text"] = text
+            self.assertEqual(text, self._run(self.pack)["claims"][0]["text"])
+
+    def test_duplicate_json_keys_are_refused_in_each_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            for filename, key in (("pack.json", None), ("counts.json", "expression"),
+                                  ("gene-sets.json", "gene_sets")):
+                for nested in (False, True):
+                    with self.subTest(filename=filename, nested=nested):
+                        record = copy.deepcopy(self.pack)
+                        for field, name in (("expression", "counts.json"), ("gene_sets", "gene-sets.json")):
+                            (folder / name).write_bytes((FIXTURE / name).read_bytes())
+                        original = (json.dumps(record) if key is None else (folder / filename).read_text())
+                        if nested:
+                            value = '"condition": "control"' if key is None else '"id": "G01"'
+                            if key == "gene_sets":
+                                value = '"id": "planted-fixture-set"'
+                            self.assertIn(value, original)
+                            raw = original.replace(value, value + ", " + value, 1).encode()
+                        else:
+                            raw = ('{"fixture": false, ' + original.lstrip()[1:]).encode()
+                        if key is not None:
+                            (folder / filename).write_bytes(raw)
+                            record["inputs"][key]["sha256"] = hashlib.sha256(raw).hexdigest()
+                            raw = json.dumps(record).encode()
+                        path = folder / "pack.json"
+                        path.write_bytes(raw)
+                        with self.assertRaisesRegex(ValueError, "^invalid-record:.*duplicate JSON key"):
+                            validate_bulk_expression_pack(path)
+
+    def test_readme_explains_refusal_and_usage_share_exit_two(self):
+        readme = (FIXTURE / "README.md").read_text()
+        self.assertRegex(readme, r"(?is)exit(?:s)? 2.*argparse.*usage")
 
     def test_threshold_edges_and_shapes(self):
         for alpha in (0, 1):
@@ -242,6 +344,17 @@ class BulkExpressionTests(unittest.TestCase):
             self._run(self.pack)
 
     def test_input_byte_bound_hash_and_json_shapes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            paths = [folder / "missing.json", folder]
+            if hasattr(os, "mkfifo"):
+                fifo = folder / "pipe.json"
+                os.mkfifo(fifo)
+                paths.append(fifo)
+            for path in paths:
+                with self.subTest(path=path), self.assertRaisesRegex(ValueError, "^invalid-record:"):
+                    with patch("pathlib.Path.open", side_effect=AssertionError("non-file input was opened")):
+                        validate_bulk_expression_pack(path)
         size = len((FIXTURE / "counts.json").read_bytes())
         with patch("codex_science.bulk_expression_pack.DEFAULT_MAX_JSON_BYTES", size):
             self._run(self.pack)

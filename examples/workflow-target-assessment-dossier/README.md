@@ -23,6 +23,13 @@ Tests apply replacements in a temporary copy, refresh the legitimate handoff
 hashes, and check the semantic refusal rather than merely a stale hash. All
 source responses are recorded snapshots; tests block socket creation.
 
+Additional regression tests cover supported descriptive claims citing review
+approval or computation, and the whole words `efficacy`, `effective`,
+`effectiveness` and `efficacious` in supported descriptive text. Inputs must be
+regular files of at most 64 MiB each; FIFO and oversized inputs are refused
+before reading, including during the final change check. These limits apply
+also to the dossier and existing sidecars. The clean replay result is unchanged.
+
 The six stage records use pack-local schemas documented in
 `authored-skills/workflow-target-assessment-dossier/references/stages.md`.
 `claims.json` and `checkpoint.json` reuse existing contracts. The checkpoint is

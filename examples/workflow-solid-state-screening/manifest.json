@@ -44,14 +44,14 @@
         "ranking.json"
       ],
       "id": "C-numerical",
-      "text": "The synthetic chain passes numerical workflow checks with a disclosed sensitivity reversal."
+      "text": "The synthetic tight-binding fixture satisfies the declared numerical workflow checks; its ranking reverses under the declared model alternative."
     },
     {
       "evidence": [
         "review-handoff.json"
       ],
       "id": "C-experiment",
-      "text": "Experimental agreement remains unavailable for this synthetic fixture."
+      "text": "Experimental agreement for the synthetic chain fixture is unavailable because no matched measurement was supplied."
     }
   ],
   "code": [],
