@@ -18,6 +18,8 @@ from codex_science.checkpoints import validate_checkpoint
 from codex_science.evidence import CLAIM_STATUSES
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_NODES = 4000000
 MAX_NUMBER = 1e100
 MAX_JSON_DEPTH = 64
 MAX_STUDIES = 200
@@ -82,6 +84,11 @@ def _pairs(items):
     return result
 
 
+def _json_nodes(raw):
+    # Upper bound before parsing: root, commas, and each non-empty container's first value.
+    return 1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw))
+
+
 def _json(raw):
     try:
         value = json.loads(raw, object_pairs_hook=_pairs,
@@ -121,6 +128,11 @@ class _Bundle:
             raise
         self.cache = {}
         self.identities = {}
+        self.signatures = {}
+        self.artifacts = {}
+        self.bytes_read = 0
+        self.nodes_read = 0
+        self.rechecked = None
 
     def __enter__(self):
         return self
@@ -194,14 +206,27 @@ class _Bundle:
                      "MA_CHANGED", "artifact replaced during validation")
             self.identities.setdefault(relative, identity)
             _require(info.st_size <= MAX_ARTIFACT_BYTES, "MA_INPUT", "artifact exceeds 64 MiB")
+            signature = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            self.signatures[relative] = signature
+            cached = self.artifacts.get(identity)
+            if cached is not None:
+                _require(signature == cached[2], "MA_CHANGED", "cached artifact changed during validation")
+                if self.rechecked is None or identity in self.rechecked:
+                    return None
+            limit = MAX_ARTIFACT_BYTES
+            if self.rechecked is None:
+                limit = min(limit, MAX_TOTAL_BYTES - self.bytes_read)
+                _require(info.st_size <= limit, "MA_LIMIT", "total input byte budget exceeded")
             # The descriptor is verified before any read, including a FIFO race.
             with os.fdopen(os.dup(fd), "rb") as stream:
-                raw = stream.read(MAX_ARTIFACT_BYTES + 1)
+                raw = stream.read(min(limit, info.st_size) + 1)
             after = os.fstat(fd)
             _require(len(raw) <= MAX_ARTIFACT_BYTES, "MA_INPUT", "artifact exceeds 64 MiB")
             _require(len(raw) == info.st_size == after.st_size
-                     and info.st_mtime_ns == after.st_mtime_ns,
+                     and info.st_mtime_ns == after.st_mtime_ns and info.st_ctime_ns == after.st_ctime_ns,
                      "MA_CHANGED", "artifact grew or changed while reading")
+            if self.rechecked is None:
+                self.bytes_read += len(raw)
             return raw
         except OSError as error:
             raise ValueError("MA_INPUT: cannot open regular bundle artifact") from error
@@ -216,7 +241,15 @@ class _Bundle:
         relative = ref["path"]
         if relative not in self.cache:
             raw = self._read_bytes(relative)
-            self.cache[relative] = (hashlib.sha256(raw).hexdigest(), _json(raw))
+            identity = self.identities[relative]
+            if raw is not None:
+                nodes = _json_nodes(raw)
+                _require(nodes <= MAX_TOTAL_NODES - self.nodes_read,
+                         "MA_LIMIT", "total JSON value budget exceeded")
+                signature = self.signatures[relative]
+                self.artifacts[identity] = (hashlib.sha256(raw).hexdigest(), _json(raw), signature)
+                self.nodes_read += nodes
+            self.cache[relative] = self.artifacts[identity][:2]
         digest, value = self.cache[relative]
         _require((root and relative == "pack.json" and ref["sha256"] is None)
                  or ref["sha256"] == digest, "MA_HASH", "artifact hash mismatch")
@@ -224,10 +257,16 @@ class _Bundle:
 
     def unchanged(self):
         self._check_root()
-        for relative, (digest, _) in self.cache.items():
-            current = hashlib.sha256(self._read_bytes(relative)).hexdigest()
-            _require(current == digest, "MA_CHANGED", "input changed during validation")
-        self._check_root()
+        self.rechecked = set()
+        try:
+            for relative, (digest, _) in self.cache.items():
+                raw = self._read_bytes(relative)
+                _require(raw is None or hashlib.sha256(raw).hexdigest() == digest,
+                         "MA_CHANGED", "input changed during validation")
+                self.rechecked.add(self.identities[relative])
+            self._check_root()
+        finally:
+            self.rechecked = None
 
 
 def _variance(row):

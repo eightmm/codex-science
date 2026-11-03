@@ -88,10 +88,112 @@ def _json(raw):
         _refuse("PACK_FORMAT", f"invalid JSON: {error}")
 
 
+def _guard(condition, code, message):
+    if not condition:
+        raise ValueError(f"{code}: {message}")
+
+
+def _signature(info):
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def _open_root(root):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = os.open(root.anchor, flags)
+    try:
+        opened = os.fstat(descriptor)
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _guard(stat.S_ISDIR(before.st_mode), "PACK_PATH", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _guard(stat.S_ISDIR(opened.st_mode)
+                       and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                       "PACK_INPUT", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 class _Bundle:
     def __init__(self, root):
-        self.root = Path(root).resolve()
+        self.root = Path(os.path.abspath(root))
+        self.fd, self.identities = _open_root(self.root)
+        self.snapshots = {}
         self.reads = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        os.close(self.fd)
+
+    def _read_bytes(self, relative):
+        path = PurePosixPath(relative)
+        opened_dirs = []
+        try:
+            directory = self.fd
+            flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            for part in path.parts[:-1]:
+                before = os.lstat(part, dir_fd=directory)
+                _guard(stat.S_ISDIR(before.st_mode), "PACK_PATH", "symlinked artifact directory refused")
+                directory = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+                opened_dirs.append(directory)
+                opened = os.fstat(directory)
+                _guard(stat.S_ISDIR(opened.st_mode)
+                       and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                       "PACK_PATH", "artifact ancestor changed during open")
+            before = os.lstat(path.name, dir_fd=directory)
+            _guard(not stat.S_ISLNK(before.st_mode), "PACK_PATH", "artifact symlinks are refused")
+            _guard(stat.S_ISREG(before.st_mode), "PACK_INPUT", "input must be an available regular JSON file")
+            _guard(before.st_size <= MAX_ARTIFACT_BYTES, "PACK_INPUT", "input exceeds the inclusive 64 MiB JSON size bound")
+            descriptor = os.open(path.name, flags, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                _guard(stat.S_ISREG(opened.st_mode), "PACK_INPUT", "input must be an available regular JSON file")
+                _guard(opened.st_size <= MAX_ARTIFACT_BYTES, "PACK_INPUT", "input exceeds the inclusive 64 MiB JSON size bound")
+                _guard(_signature(before) == _signature(opened), "PACK_CHANGED", "input changed during open")
+                raw = stream.read(MAX_ARTIFACT_BYTES + 1)
+                after = os.fstat(stream.fileno())
+            _guard(len(raw) <= MAX_ARTIFACT_BYTES, "PACK_INPUT", "input exceeds the inclusive 64 MiB JSON size bound")
+            _guard(len(raw) == opened.st_size and _signature(opened) == _signature(after),
+                   "PACK_CHANGED", "input changed during bounded read")
+            digest = hashlib.sha256(raw).hexdigest()
+            snapshot = (_signature(after), digest)
+            previous = self.snapshots.setdefault(str(path), snapshot)
+            _guard(previous == snapshot, "PACK_CHANGED", "input replaced or modified during validation")
+            self.reads[str(path)] = digest
+            return raw
+        except OSError as error:
+            raise ValueError("PACK_INPUT: unavailable input or symlinked component") from error
+        finally:
+            for descriptor in reversed(opened_dirs):
+                os.close(descriptor)
+
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _guard(identities == self.identities, "PACK_CHANGED", "bundle root replaced during validation")
+        finally:
+            os.close(descriptor)
+
+    def unchanged(self):
+        self._check_root()
+        for relative in tuple(self.snapshots):
+            try:
+                self._read_bytes(relative)
+            except ValueError:
+                _refuse("PACK_CHANGED", "artifact became unreadable or changed during validation")
+        self._check_root()
 
     def read(self, ref):
         _object(ref, "artifact reference")
@@ -102,40 +204,12 @@ class _Bundle:
         _require(not path.is_absolute() and ".." not in path.parts and str(path) == relative
                  and "\\" not in relative, "artifact path must be canonical and relative", "PACK_PATH")
         raw = self._read_bytes(relative)
-        digest = hashlib.sha256(raw).hexdigest()
+        digest = self.reads[relative]
         if ref["sha256"] is not None:
             _require(ref["sha256"] == digest, f"hash mismatch: {relative}", "PACK_HASH")
         else:
             _require(relative == "dossier.json", "missing artifact hash", "PACK_HASH")
-        self.reads[relative] = digest
         return _json(raw)
-
-    def _read_bytes(self, relative):
-        target = self.root / relative
-        _require(not any(part.is_symlink() for part in [target, *target.parents] if part != self.root),
-                 "symlink artifact refused", "PACK_PATH")
-        _require(target.resolve().is_relative_to(self.root), "artifact escapes bundle", "PACK_PATH")
-        try:
-            _require(stat.S_ISREG(target.lstat().st_mode), "artifact must be a regular file", "PACK_INPUT")
-            # Nonblocking open and descriptor checks also refuse a FIFO swapped in after lstat.
-            flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
-            with os.fdopen(os.open(target, flags), "rb") as stream:
-                info = os.fstat(stream.fileno())
-                _require(stat.S_ISREG(info.st_mode), "artifact must be a regular file", "PACK_INPUT")
-                _require(info.st_size <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
-                raw = stream.read(MAX_ARTIFACT_BYTES + 1)
-        except OSError as error:
-            _refuse("PACK_INPUT", f"cannot read {relative}: {error.strerror}")
-        _require(len(raw) <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
-        return raw
-
-    def unchanged(self):
-        for relative, digest in self.reads.items():
-            try:
-                current = hashlib.sha256(self._read_bytes(relative)).hexdigest()
-            except ValueError:
-                _refuse("PACK_CHANGED", "artifact became unreadable during validation")
-            _require(current == digest, "artifact changed during validation", "PACK_CHANGED")
 
 
 def _check_identity(target, identity, sources):
@@ -297,8 +371,23 @@ def _check_claims(memo, records, claim_register):
                      "review approval or computation cannot support a memo claim", "MEMO_OVERCLAIM")
             _require(not re.search(r"\b(?:efficacy|effective|effectiveness|efficacious)\b", claim["text"], re.IGNORECASE),
                      "memo evidence cannot support efficacy or effectiveness", "MEMO_OVERCLAIM")
+        if claim["status"] == "replicated":
+            groups = []
+            for ref in ids:
+                source = records[ref][0]
+                # As in evidence.py, explicit groups/cohorts take precedence;
+                # otherwise distinct sources are the declared independence units.
+                labels = {"dependency:" + value for value in source["dependency_groups"]}
+                labels |= {"cohort:" + value for value in source["cohorts"]}
+                labels.add("source:" + source["id"])
+                overlaps = [group for group in groups if group & labels]
+                for group in overlaps:
+                    labels |= group
+                    groups.remove(group)
+                groups.append(labels)
+            _require(len(groups) >= 2, "replication requires two independent evidence groups or sources", "MEMO_OVERCLAIM")
         by_id[identifier] = claim
-    _require(claim_register.get("schema_version") == 1, "claim-register schema_version must be 1")
+    _require(type(claim_register.get("schema_version")) is int and claim_register["schema_version"] == 1, "claim-register schema_version must be 1")
     entries = _rows(claim_register.get("claims"), "claim register")
     _require(len(entries) == len(by_id), "claim register IDs must match memo", "MEMO_OVERCLAIM")
     seen = set()
@@ -326,72 +415,80 @@ def _check_boundaries(dossier, memo):
 
 
 def _validate_pack(directory):
-    bundle = _Bundle(directory)
-    dossier = bundle.read({"path": "dossier.json", "sha256": None})
-    _require(dossier.get("schema") == "target-assessment-pack-v1", "unsupported dossier schema")
-    _require(type(dossier.get("synthetic")) is bool, "synthetic label must be boolean")
-    target = _object(dossier.get("target"), "target")
-    snapshot = bundle.read(dossier.get("snapshots"))
-    _require(snapshot.get("schema") == "target-assessment-snapshots-v1", "unsupported snapshot schema")
-    _require(snapshot.get("synthetic") is dossier["synthetic"], "snapshot synthetic label differs")
-    sources = {}
-    records = {}
-    for source in _rows(snapshot.get("sources"), "sources"):
-        source = _object(source, "source")
-        identifier = source.get("id")
-        _require(_text(identifier) and identifier not in sources, "unique source ID required")
-        _require(all(_text(source.get(k)) for k in ("skill", "release", "query")), "source provenance required")
-        _require(_strings(source.get("cohorts")) and _strings(source.get("dependency_groups")), "source dependency groups required")
-        sources[identifier] = source
-        for row in _rows(source.get("records"), "source records"):
-            row = _object(row, "source record")
-            record_id = row.get("id")
-            _require(_text(record_id) and record_id not in records and _text(row.get("statement")), "unique record ID and statement required")
-            _enum(row.get("kind"), {"descriptive", "associational", "computed", "review-approval"}, "record kind")
-            _enum(row.get("result"), {"association", "no-association", "availability", "expression", "safety-signal",
-                                      "failed-control", "negative", "numerical-agreement", "review-approval", "identity"}, "record result")
-            records[record_id] = (source, row)
-    handoffs = _rows(dossier.get("stages"), "stages")
-    _require(all(isinstance(s, dict) for s in handoffs) and [s.get("id") for s in handoffs] == list(STAGES),
-             "exactly six ordered stage IDs required", "STAGE_ORDER")
-    stages = []
-    seen_sources = []
-    for index, handoff in enumerate(handoffs):
-        stage = bundle.read(handoff.get("output"))
-        _require(stage.get("schema") == "target-assessment-stage-v1" and stage.get("id") == STAGES[index], "stage schema/ID mismatch")
-        _require(stage.get("synthetic") is dossier["synthetic"], "stage synthetic label differs")
-        expected_inputs = [dossier["snapshots"]] + ([handoffs[index - 1]["output"]] if index else [])
-        _require(stage.get("inputs") == expected_inputs, "stage must bind snapshots and preceding output by path and hash", "STAGE_HANDOFF")
-        for ref in expected_inputs:
-            bundle.read(ref)
-        data = _object(stage.get("data"), "stage data")
-        ids = data.get("source_ids")
-        _require(_strings(ids) and set(ids) <= set(sources), "invalid stage source IDs")
-        _require(sorted(sources[x]["skill"] for x in ids) == sorted(SKILLS[index]), "stage must reuse its declared existing skills")
-        seen_sources.extend(ids)
-        stages.append(data)
-    _require(len(seen_sources) == len(sources) and set(seen_sources) == set(sources), "every snapshot source belongs to one stage")
-    checkpoint = bundle.read(dossier.get("checkpoint"))
-    try:
-        validate_checkpoint(checkpoint)
-    except (ValueError, TypeError, KeyError, AttributeError) as error:
-        _refuse("PACK_CHECKPOINT", str(error))
-    _require([step["id"] for step in checkpoint["steps"]] == list(STAGES), "one checkpoint must cover all ordered stages", "PACK_CHECKPOINT")
-    claim_register = bundle.read(dossier.get("claim_register"))
-    _check_identity(target, stages[0], list(sources.values()))
-    _check_missingness(stages, sources)
-    _check_genetics(stages[1], sources, records)
-    _check_context(stages[2], sources)
-    _check_availability(stages[3])
-    _check_potency(stages[3], records)
-    _check_direction(stages[1], stages[5], records)
-    _check_go(stages[1], stages[4], stages[5], records)
-    _check_claims(stages[5], records, claim_register)
-    _check_boundaries(dossier, stages[5])
-    bundle.unchanged()
-    return {"status": "passed", "synthetic": dossier["synthetic"], "stage_count": 6,
-            "review_status": "pending", "decision": stages[5]["decision"],
-            "boundary": "Internal record consistency only; no scientific or clinical validity established."}
+    _require(stat.S_ISREG((Path(directory) / "dossier.json").lstat().st_mode),
+             "artifact must be a regular file", "PACK_INPUT")
+    with _Bundle(directory) as bundle:
+        dossier = bundle.read({"path": "dossier.json", "sha256": None})
+        _require(dossier.get("schema") == "target-assessment-pack-v1", "unsupported dossier schema")
+        _require(type(dossier.get("synthetic")) is bool, "synthetic label must be boolean")
+        target = _object(dossier.get("target"), "target")
+        snapshot = bundle.read(dossier.get("snapshots"))
+        _require(snapshot.get("schema") == "target-assessment-snapshots-v1", "unsupported snapshot schema")
+        _require(snapshot.get("synthetic") is dossier["synthetic"], "snapshot synthetic label differs")
+        sources = {}
+        records = {}
+        for source in _rows(snapshot.get("sources"), "sources"):
+            source = _object(source, "source")
+            identifier = source.get("id")
+            _require(_text(identifier) and identifier not in sources, "unique source ID required")
+            _require(all(_text(source.get(k)) for k in ("skill", "release", "query")), "source provenance required")
+            _require(_strings(source.get("cohorts")) and _strings(source.get("dependency_groups")), "source dependency groups required")
+            sources[identifier] = source
+            for row in _rows(source.get("records"), "source records"):
+                row = _object(row, "source record")
+                record_id = row.get("id")
+                _require(_text(record_id) and record_id not in records and _text(row.get("statement")), "unique record ID and statement required")
+                _enum(row.get("kind"), {"descriptive", "associational", "computed", "review-approval"}, "record kind")
+                _enum(row.get("result"), {"association", "no-association", "availability", "expression", "safety-signal",
+                                          "failed-control", "negative", "numerical-agreement", "review-approval", "identity"}, "record result")
+                records[record_id] = (source, row)
+        handoffs = _rows(dossier.get("stages"), "stages")
+        _require(all(isinstance(s, dict) for s in handoffs) and [s.get("id") for s in handoffs] == list(STAGES),
+                 "exactly six ordered stage IDs required", "STAGE_ORDER")
+        stages = []
+        seen_sources = []
+        for index, handoff in enumerate(handoffs):
+            stage = bundle.read(handoff.get("output"))
+            _require(stage.get("schema") == "target-assessment-stage-v1" and stage.get("id") == STAGES[index], "stage schema/ID mismatch")
+            _require(stage.get("synthetic") is dossier["synthetic"], "stage synthetic label differs")
+            expected_inputs = [dossier["snapshots"]] + ([handoffs[index - 1]["output"]] if index else [])
+            _require(stage.get("inputs") == expected_inputs, "stage must bind snapshots and preceding output by path and hash", "STAGE_HANDOFF")
+            for ref in expected_inputs:
+                bundle.read(ref)
+            data = _object(stage.get("data"), "stage data")
+            ids = data.get("source_ids")
+            _require(_strings(ids) and set(ids) <= set(sources), "invalid stage source IDs")
+            _require(sorted(sources[x]["skill"] for x in ids) == sorted(SKILLS[index]), "stage must reuse its declared existing skills")
+            seen_sources.extend(ids)
+            stages.append(data)
+        _require(len(seen_sources) == len(sources) and set(seen_sources) == set(sources), "every snapshot source belongs to one stage")
+        checkpoint = bundle.read(dossier.get("checkpoint"))
+        _require(type(checkpoint.get("schema_version")) is int,
+                 "checkpoint schema_version must be an integer", "PACK_CHECKPOINT")
+        budget = checkpoint.get("run_budget")
+        if isinstance(budget, dict):
+            _require(type(budget.get("policy_version")) is int,
+                     "checkpoint run_budget policy_version must be an integer", "PACK_CHECKPOINT")
+        try:
+            validate_checkpoint(checkpoint)
+        except (ValueError, TypeError, KeyError, AttributeError) as error:
+            _refuse("PACK_CHECKPOINT", str(error))
+        _require([step["id"] for step in checkpoint["steps"]] == list(STAGES), "one checkpoint must cover all ordered stages", "PACK_CHECKPOINT")
+        claim_register = bundle.read(dossier.get("claim_register"))
+        _check_identity(target, stages[0], list(sources.values()))
+        _check_missingness(stages, sources)
+        _check_genetics(stages[1], sources, records)
+        _check_context(stages[2], sources)
+        _check_availability(stages[3])
+        _check_potency(stages[3], records)
+        _check_direction(stages[1], stages[5], records)
+        _check_go(stages[1], stages[4], stages[5], records)
+        _check_claims(stages[5], records, claim_register)
+        _check_boundaries(dossier, stages[5])
+        bundle.unchanged()
+        return {"status": "passed", "synthetic": dossier["synthetic"], "stage_count": 6,
+                "review_status": "pending", "decision": stages[5]["decision"],
+                "boundary": "Internal record consistency only; no scientific or clinical validity established."}
 
 
 def validate_target_assessment_pack(directory):

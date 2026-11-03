@@ -43,3 +43,12 @@ during replay. No review receipt is generated or self-attested.
 
 See [verification evidence](VERIFICATION.md) for the focused checks, individual
 test inventory, refusal-removal probes and the owner integration dependency.
+
+Validation pins every absolute bundle ancestor without following links, reads
+artifacts relative to the pinned root, and rechecks directory/file identities
+before success. Tests deterministically swap symlinks, real directories and
+same-byte regular files at open time; these replacements are refused. The
+inclusive 64 MiB per-file cap and clean replay output are unchanged.
+Replicated memo claims require two independent groups or sources after merging
+shared cohort/source dependencies. Sidecar schema versions and checkpoint
+budget policy versions require real integers, preserving checkpoint v1–v4.

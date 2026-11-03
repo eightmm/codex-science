@@ -54,24 +54,104 @@ def _items(value: Any, label: str) -> list[Any]:
     return value
 
 
-def _read(path: Path) -> bytes:
+def _guard(condition, code, message):
+    if not condition:
+        raise ValueError(f"{code}: {message}")
+
+
+def _signature(info):
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def _open_root(root):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = os.open(root.anchor, flags)
     try:
-        if not stat.S_ISREG(path.lstat().st_mode):
-            _refuse("unsafe-artifact-path", "input must be a regular file, never a symlink")
-        # Nonblocking open and descriptor checks also cover replacement by a FIFO.
-        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
-        with os.fdopen(os.open(path, flags), "rb") as stream:
-            observed = os.fstat(stream.fileno())
-            if not stat.S_ISREG(observed.st_mode):
-                _refuse("unsafe-artifact-path", "opened input must be a regular file")
-            if observed.st_size > MAX_JSON_BYTES:
-                _refuse("invalid-json", f"input JSON exceeds {MAX_JSON_BYTES} bytes")
-            raw = stream.read(MAX_JSON_BYTES + 1)
-        if len(raw) > MAX_JSON_BYTES:
-            _refuse("invalid-json", f"input JSON exceeds {MAX_JSON_BYTES} bytes")
-        return raw
-    except OSError as error:
-        _refuse("invalid-json", str(error))
+        opened = os.fstat(descriptor)
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _guard(stat.S_ISDIR(before.st_mode), "unsafe-artifact-path", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _guard(stat.S_ISDIR(opened.st_mode)
+                       and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                       "unsafe-artifact-path", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+class _Bundle:
+    def __init__(self, root):
+        self.root = Path(os.path.abspath(root))
+        self.fd, self.identities = _open_root(self.root)
+        self.snapshots = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        os.close(self.fd)
+
+    def _read_bytes(self, relative):
+        path = PurePosixPath(relative)
+        opened_dirs = []
+        try:
+            directory = self.fd
+            flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            for part in path.parts[:-1]:
+                before = os.lstat(part, dir_fd=directory)
+                _guard(stat.S_ISDIR(before.st_mode), "unsafe-artifact-path", "symlinked artifact directory refused")
+                directory = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+                opened_dirs.append(directory)
+                opened = os.fstat(directory)
+                _guard(stat.S_ISDIR(opened.st_mode)
+                       and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                       "unsafe-artifact-path", "artifact ancestor changed during open")
+            before = os.lstat(path.name, dir_fd=directory)
+            _guard(not stat.S_ISLNK(before.st_mode), "unsafe-artifact-path", "artifact symlinks are refused")
+            _guard(stat.S_ISREG(before.st_mode), "unsafe-artifact-path", "input must be an available regular JSON file")
+            _guard(before.st_size <= MAX_JSON_BYTES, "invalid-json", "input exceeds the inclusive 64 MiB JSON size bound")
+            descriptor = os.open(path.name, flags, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                _guard(stat.S_ISREG(opened.st_mode), "unsafe-artifact-path", "input must be an available regular JSON file")
+                _guard(opened.st_size <= MAX_JSON_BYTES, "invalid-json", "input exceeds the inclusive 64 MiB JSON size bound")
+                _guard(_signature(before) == _signature(opened), "input-changed", "input changed during open")
+                raw = stream.read(MAX_JSON_BYTES + 1)
+                after = os.fstat(stream.fileno())
+            _guard(len(raw) <= MAX_JSON_BYTES, "invalid-json", "input exceeds the inclusive 64 MiB JSON size bound")
+            _guard(len(raw) == opened.st_size and _signature(opened) == _signature(after),
+                   "input-changed", "input changed during bounded read")
+            digest = hashlib.sha256(raw).hexdigest()
+            snapshot = (_signature(after), digest)
+            previous = self.snapshots.setdefault(str(path), snapshot)
+            _guard(previous == snapshot, "input-changed", "input replaced or modified during validation")
+            return raw
+        except OSError as error:
+            raise ValueError("unsafe-artifact-path: unavailable input or symlinked component") from error
+        finally:
+            for descriptor in reversed(opened_dirs):
+                os.close(descriptor)
+
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _guard(identities == self.identities, "input-changed", "bundle root replaced during validation")
+        finally:
+            os.close(descriptor)
+
+    def unchanged(self):
+        self._check_root()
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -95,22 +175,16 @@ def _load(raw: bytes, schema: str | None = None) -> dict[str, Any]:
     return value
 
 
-def _linked(root: Path, reference: Any) -> bytes:
+def _linked(root: _Bundle, reference: Any) -> bytes:
     reference = _object(reference, "artifact reference")
     relative = PurePosixPath(_text(reference.get("path"), "artifact path"))
     if relative.is_absolute() or ".." in relative.parts or "\\" in str(relative):
         _refuse("unsafe-artifact-path", "artifact path must stay in the dossier")
-    candidate = root / relative
-    if any(part.is_symlink() for part in (candidate, *candidate.parents) if part.is_relative_to(root)):
-        _refuse("unsafe-artifact-path", "artifact symlinks are refused")
-    path = candidate.resolve()
-    if not path.is_relative_to(root) or not path.is_file():
-        _refuse("unsafe-artifact-path", "artifact must be a regular file inside the dossier")
     digest = reference.get("sha256")
     if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
         _refuse("artifact-hash-mismatch", "artifact sha256 must be a lowercase SHA-256")
-    raw = _read(path)
-    if hashlib.sha256(raw).hexdigest() != digest:
+    raw = root._read_bytes(str(relative))
+    if root.snapshots[str(relative)][1] != digest:
         _refuse("artifact-hash-mismatch", f"artifact hash does not match: {relative}")
     return raw
 
@@ -158,7 +232,7 @@ def _aligned(canonical: dict[str, Any], observed: dict[str, Any], operation: Any
         _refuse("unreconciled-allele-strand", "allele, strand, locus or transcript is not reconciled")
 
 
-def _sources(root: Path, ledger: dict[str, Any]) -> dict[str, Any]:
+def _sources(root: _Bundle, ledger: dict[str, Any]) -> dict[str, Any]:
     canonical = _identity(ledger.get("identity"))
     normalized = _load(_linked(root, ledger.get("normalization_input")), "variant-identity-ledger-v1")
     if _identity(normalized.get("identity")) != canonical:
@@ -264,8 +338,8 @@ def _claims(register: dict[str, Any], rows: dict[str, dict[str, Any]]) -> int:
                 _refuse("claim-strength-exceeds-source", "clinical assertions require a descriptive quote-only statement")
         elif status in ("supported", "replicated") and CLINICAL_WORDING.search(claim["text"]):
             _refuse("claim-strength-exceeds-source", "supported claim text cannot assert clinical actionability, classification or treatment")
-        if all(row["status"] == "unavailable" for row in evidence) and status != "unavailable":
-            _refuse("missing-record-not-negative", "claims without available evidence must remain unavailable")
+        if any(row["status"] == "unavailable" for row in evidence) and status != "unavailable":
+            _refuse("missing-record-not-negative", "claims citing any unavailable evidence must remain unavailable")
         if status in ("supported", "replicated"):
             if any(row["status"] != "observed" or any(value != "passed" for value in row["controls"].values()) for row in evidence):
                 _refuse("failed-support-control", "supported claims require observed rows and passed controls")
@@ -292,20 +366,24 @@ def validate_variant_dossier(package: Path) -> dict[str, Any]:
     No files are written. Callers must hold inputs stable during validation;
     immutable run handoffs belong to the coordinator's existing manifest.
     """
-    root = Path(package).resolve()
-    dossier = _load(_read(root / "dossier.json"), "variant-dossier-v1")
-    if dossier.get("stage_ids") != list(STAGES):
-        _refuse("stage-order", "require the five fixed ordered stages")
-    if dossier.get("review_status") != "unreviewed":
-        _refuse("self-reviewed-dossier", "only the independent coordinator can attest review")
-    if dossier.get("boundaries") != list(BOUNDARIES):
-        _refuse("missing-evidence-boundary", "require the evidence-only boundaries verbatim")
-    ledger = _load(_linked(root, dossier.get("identity_ledger")), "variant-identity-ledger-v1")
-    table = _load(_linked(root, dossier.get("evidence_table")), "variant-source-evidence-v1")
-    claims = _load(_linked(root, dossier.get("bounded_claims")), "variant-bounded-claims-v1")
-    sources = _sources(root, ledger)
-    rows = _rows(table, sources)
-    count = _claims(claims, rows)
-    return {"schema": "variant-dossier-validation-v1", "status": "passed", "review_status": "unreviewed",
-            "source_count": len(sources), "claim_count": count,
-            "limitations": ["Checks declared links and structured claims; independent source and method review remains required."]}
+    try:
+        with _Bundle(package) as root:
+            dossier = _load(root._read_bytes("dossier.json"), "variant-dossier-v1")
+            if dossier.get("stage_ids") != list(STAGES):
+                _refuse("stage-order", "require the five fixed ordered stages")
+            if dossier.get("review_status") != "unreviewed":
+                _refuse("self-reviewed-dossier", "only the independent coordinator can attest review")
+            if dossier.get("boundaries") != list(BOUNDARIES):
+                _refuse("missing-evidence-boundary", "require the evidence-only boundaries verbatim")
+            ledger = _load(_linked(root, dossier.get("identity_ledger")), "variant-identity-ledger-v1")
+            table = _load(_linked(root, dossier.get("evidence_table")), "variant-source-evidence-v1")
+            claims = _load(_linked(root, dossier.get("bounded_claims")), "variant-bounded-claims-v1")
+            sources = _sources(root, ledger)
+            rows = _rows(table, sources)
+            count = _claims(claims, rows)
+            root.unchanged()
+            return {"schema": "variant-dossier-validation-v1", "status": "passed", "review_status": "unreviewed",
+                    "source_count": len(sources), "claim_count": count,
+                    "limitations": ["Checks declared links and structured claims; independent source and method review remains required."]}
+    except OSError as error:
+        _refuse("unsafe-artifact-path", "cannot pin or recheck bundle directory")

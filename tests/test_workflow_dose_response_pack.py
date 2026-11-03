@@ -3,6 +3,8 @@ import copy
 import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -491,6 +493,222 @@ class DoseResponsePackTests(unittest.TestCase):
         self.save(records)
         with self.assertRaisesRegex(ValueError, "invalid-record"):
             dose.validate_dose_response_pack(self.input)
+
+
+    def test_aggregate_byte_budget_is_checked_before_reading(self):
+        folder, entry = self.directory, self.input
+        with patch.object(os, "read", side_effect=AssertionError("must not read over budget")), \
+                patch.object(dose, "MAX_TOTAL_BYTES", 0, create=True), self.assertRaisesRegex(ValueError, "^input-limit:"):
+            dose.validate_dose_response_pack(entry)
+        with patch.object(dose, "MAX_TOTAL_BYTES", entry.stat().st_size, create=True), self.assertRaisesRegex(ValueError, "^input-limit:"):
+            dose.validate_dose_response_pack(entry)
+        with patch.object(dose, "MAX_TOTAL_BYTES", 256 * 1024 * 1024, create=True):
+            dose.validate_dose_response_pack(entry)
+
+        entry = folder / "probe.json"
+        for raw, allowance, error in ((b'{}', 2, None), (b'{}', 1, "input-limit"), (b'', 0, "invalid-json")):
+            entry.write_bytes(raw)
+            with self.subTest(raw=raw, byte_allowance=allowance), patch.object(dose, "MAX_TOTAL_BYTES", allowance, create=True):
+                def check():
+                    bundle = dose._Bundle(entry)
+                    try:
+                        return bundle.read(entry)[0]
+                    finally:
+                        getattr(bundle, "close", lambda: None)()
+                if error:
+                    with self.assertRaisesRegex(ValueError, "^" + error + ":"):
+                        check()
+                else:
+                    self.assertEqual({}, check())
+
+    def test_aggregate_json_allowance_precedes_each_parse(self):
+        folder, entry = self.directory, self.input
+        raw = entry.read_bytes()
+        first = 1 + raw.count(b",") + len(re.findall(rb"[\[{](?=\s*[^\s\]}])", raw))
+        for allowance, expected_calls in ((0, 0), (first - 1, 0), (first, 1)):
+            with self.subTest(allowance=allowance), patch.object(dose, "MAX_TOTAL_NODES", allowance, create=True), \
+                    patch.object(dose.json, "loads", wraps=json.loads) as parse:
+                with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                    dose.validate_dose_response_pack(entry)
+                self.assertEqual(expected_calls, parse.call_count)
+
+    def test_hardlinks_share_one_snapshot_and_preserve_path_checks(self):
+        folder, entry = self.directory, self.input
+        raw = b'{"value":[0,1,2]}'
+        entry = folder / "probe.json"
+        entry.write_bytes(raw)
+        for index in range(100):
+            os.link(entry, folder / f"alias-{index}.json")
+        read_sizes = []
+        original_read, original_fdopen = os.read, os.fdopen
+        def tracked_read(*args, **kwargs):
+            result = original_read(*args, **kwargs)
+            read_sizes.append(len(result))
+            return result
+        def tracked_fdopen(*args, **kwargs):
+            handle = original_fdopen(*args, **kwargs)
+            read = handle.read
+            def tracked(size=-1):
+                result = read(size)
+                read_sizes.append(len(result))
+                return result
+            handle.read = tracked
+            return handle
+        with patch.object(os, "read", side_effect=tracked_read), \
+                patch.object(os, "fdopen", side_effect=tracked_fdopen), \
+                patch.object(dose, "MAX_TOTAL_BYTES", len(raw), create=True), \
+                patch.object(dose, "MAX_TOTAL_NODES", 5, create=True), \
+                patch.object(dose, "_parse", wraps=dose._parse) as parse:
+            bundle = dose._Bundle(entry)
+            self.addCleanup(lambda: getattr(bundle, "close", lambda: None)())
+            load = lambda name: bundle.read(folder / name)[0]
+            first = load("probe.json")
+            for index in range(100):
+                self.assertIs(first, load(f"alias-{index}.json"))
+            self.assertEqual(1, parse.call_count)
+            self.assertEqual(101, len(bundle.records))
+            finish = bundle.finish
+            finish()
+            self.assertEqual(2 * len(raw), sum(read_sizes))
+            replacement = folder / "replacement.json"
+            replacement.write_bytes(raw)
+            replacement.replace(folder / "alias-99.json")
+            with self.assertRaisesRegex(ValueError, "^input-changed:"):
+                finish()
+
+    def test_json_budget_empty_zero_equal_and_malformed(self):
+        folder, entry = self.directory, self.input
+        entry = folder / "probe.json"
+        samples = ((b'{}', 1, None), (b'{"x":[{},{}]}', 4, None),
+                   (b'{"x":[{},{}]}', 3, "input-limit"),
+                   (b'{}', 0, "input-limit"), (b'', 1, "invalid-json"),
+                   (b'{"x":', 2, "invalid-json"))
+        for raw, allowance, error in samples:
+            entry.write_bytes(raw)
+            with self.subTest(raw=raw, allowance=allowance), patch.object(dose, "MAX_TOTAL_NODES", allowance, create=True):
+                def check():
+                    bundle = dose._Bundle(entry)
+                    try:
+                        return bundle.read(entry)[0]
+                    finally:
+                        getattr(bundle, "close", lambda: None)()
+                if error:
+                    with self.assertRaisesRegex(ValueError, "^" + error + ":"):
+                        check()
+                else:
+                    self.assertEqual(json.loads(raw), check())
+
+    def test_bundle_ancestor_and_root_swaps_are_refused(self):
+        original_open, original_lstat = os.open, os.lstat
+        for ancestor in (False, True):
+            for destination in ("directory", "symlink"):
+                for point in ("open", "lstat", "between-reads", "final-read"):
+                    with self.subTest(ancestor=ancestor, destination=destination, point=point), tempfile.TemporaryDirectory() as temporary:
+                        base = Path(temporary)
+                        component = base / "component"
+                        root = component / "bundle" if ancestor else component
+                        outside, saved = base / "outside", base / "saved"
+                        shutil.copytree(EXAMPLE, root)
+                        shutil.copytree(component, outside, copy_function=os.link)
+                        swapped = False
+                        entry_opens = 0
+
+                        def swap():
+                            nonlocal swapped
+                            if not swapped:
+                                swapped = True
+                                component.rename(saved)
+                                if destination == "directory":
+                                    outside.rename(component)
+                                else:
+                                    component.symlink_to(outside, target_is_directory=True)
+
+                        def racing_open(path, flags, *args, **kwargs):
+                            nonlocal entry_opens
+                            if path == "synthetic.pack.json" and kwargs.get("dir_fd") is not None:
+                                entry_opens += 1
+                                if point == "final-read" and entry_opens == 2:
+                                    swap()
+                            if kwargs.get("dir_fd") is not None and (
+                                    point == "open" and path == component.name or
+                                    point == "between-reads" and path == self.pack["assay"]["path"]):
+                                swap()
+                            return original_open(path, flags, *args, **kwargs)
+
+                        def racing_lstat(path, *args, **kwargs):
+                            info = original_lstat(path, *args, **kwargs)
+                            if point == "lstat" and path == component.name and kwargs.get("dir_fd") is not None:
+                                swap()
+                            return info
+
+                        with patch.object(os, "open", side_effect=racing_open), \
+                                patch.object(os, "lstat", side_effect=racing_lstat):
+                            with self.assertRaisesRegex(ValueError, "^(unsafe-input|input-changed):"):
+                                dose.validate_dose_response_pack(root / "synthetic.pack.json")
+                        self.assertTrue(swapped)
+
+    def test_unavailable_evidence_requires_unavailable_for_every_status(self):
+        original = self.records()
+        for field in ("kind", "result"):
+            evidence = dict(original["plate"], **{field: "unavailable"})
+            raw = json.dumps(evidence).encode()
+            (self.directory / "unavailable.json").write_bytes(raw)
+            identity = {"path": "unavailable.json", "sha256": hashlib.sha256(raw).hexdigest()}
+            for status in ("supported", "replicated", "suggestive", "unsupported", "conflicting", "withdrawn", "unavailable"):
+                records = copy.deepcopy(original)
+                records["claims"]["claims"][0].update(status=status, text="Synthetic evidence is unavailable.", support=[])
+                self.save(records)
+                current = json.loads(self.input.read_text())
+                claims = records["claims"]
+                claims["claims"][0]["support"] = [self.pack["plate"], identity]
+                raw_claims = json.dumps(claims).encode()
+                (self.directory / current["claims"]["path"]).write_bytes(raw_claims)
+                current["claims"]["sha256"] = hashlib.sha256(raw_claims).hexdigest()
+                handoff = records["handoff"]
+                handoff["inputs"]["claims"] = current["claims"]
+                raw_handoff = json.dumps(handoff).encode()
+                (self.directory / current["handoff"]["path"]).write_bytes(raw_handoff)
+                current["handoff"]["sha256"] = hashlib.sha256(raw_handoff).hexdigest()
+                self.input.write_text(json.dumps(current))
+                with self.subTest(field=field, status=status):
+                    if status == "unavailable":
+                        self.assertFalse(dose.validate_dose_response_pack(self.input)["reviewed"])
+                    else:
+                        with self.assertRaisesRegex(ValueError, "^unavailable-evidence: unavailable evidence requires an unavailable claim"):
+                            dose.validate_dose_response_pack(self.input)
+
+
+    def test_artifact_ancestor_swap_is_refused(self):
+        folder, entry = self.directory, self.input
+        nested, outside = folder / "nested", folder / "outside"
+        nested.mkdir()
+        outside.mkdir()
+        target = nested / "probe.json"
+        raw = b'{"value":0}'
+        target.write_bytes(raw)
+        os.link(target, outside / target.name)
+        original_open = os.open
+        for racing in (False, True):
+            bundle = dose._Bundle(entry)
+            swapped = False
+            def swap(path, flags, *args, **kwargs):
+                nonlocal swapped
+                if racing and path == nested.name and kwargs.get("dir_fd") is not None and not swapped:
+                    swapped = True
+                    nested.rename(folder / "saved")
+                    outside.rename(nested)
+                return original_open(path, flags, *args, **kwargs)
+            try:
+                load = lambda: bundle.read(target)[0]
+                with patch.object(os, "open", side_effect=swap):
+                    if racing:
+                        with self.assertRaisesRegex(ValueError, "^input-changed:"):
+                            load()
+                        self.assertTrue(swapped)
+                    else:
+                        self.assertEqual({"value": 0}, load())
+            finally:
+                getattr(bundle, "close", lambda: None)()
 
 
 def _negative_test(case):

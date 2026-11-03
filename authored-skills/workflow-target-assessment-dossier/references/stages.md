@@ -25,7 +25,10 @@ perform compute or create review receipts.
 
 An artifact reference is exactly `{"path": "relative-file", "sha256": "64 lowercase hex"}`.
 Paths must be canonical relative POSIX paths inside the bundle, without symlinks
-or parent traversal. Every input must be a regular file, checked with `lstat`
+or parent traversal. The absolute bundle path is walked without following
+symlinks, retaining a pinned root descriptor. Artifact paths are opened relative
+to that descriptor, with directory and file identities checked across opens.
+Every input must be a regular file, checked with `lstat`
 before opening; FIFOs and other special files are refused with `PACK_INPUT`.
 The per-file limit is 64 MiB (67,108,864 bytes), inclusive, checked before and
 after reading. This includes the dossier, snapshots, stages and existing
@@ -146,7 +149,10 @@ ordinary bundle validation. No domain JSON is a nested claim-register.
   unsupported paraphrase without pretending to understand unrestricted prose.
   Do not place unregistered material claims in narrative or rationale fields.
   Claim statuses follow the existing sidecar contract; text, status and
-  permitted inference must match that separate sidecar.
+  permitted inference must match that separate sidecar. Replicated claims need
+  at least two independent groups or sources: shared cohorts, dependency groups
+  or source IDs merge transitively; distinct sources are the fallback when no
+  groups are declared. This checks declared independence, never its truth.
   A supported, replicated or suggestive claim cannot cite computed or
   review-approval records regardless of its declared kind. The text of such a
   claim also refuses the four whole words `efficacy`, `effective`, `effectiveness` and `efficacious`,
@@ -173,6 +179,10 @@ review_status. Target contains exactly uniprot, ensembl, hgnc, species, isoform
 and indication_id, all nonempty strings. Stages is six ordered objects each
 with id and output reference. Checkpoint and claim_register are references to
 existing schema records; no field is added to those existing contracts.
+Claim-register schema_version is integer 1; checkpoint schema_version retains
+all supported integer versions 1 through 4. Booleans and floats are refused,
+including checkpoint run_budget.policy_version. Other declared integer fields
+retain their existing strict type and range checks.
 
 `target-assessment-snapshots-v1` requires schema, matching synthetic label and
 sources. Each source requires unique id, existing skill, release, exact query,
@@ -220,7 +230,9 @@ check, delete evidence or relabel an unavailable source to pass.
 The library and CLI only read. Two concurrent calls leave inputs unchanged;
 termination between reads leaves no partial output or lock. Each file is hashed
 and parsed from the same bytes and rehashed before success to detect concurrent
-edits. The final read repeats regular-file and size checks; an unsafe replacement
+edits. Every root ancestor identity is compared again before and after the final
+artifact recheck; replacements by real directories are refused as well as links.
+The final read repeats regular-file and size checks; an unsafe replacement
 is `PACK_CHANGED`. Concurrent authors must publish a complete new immutable bundle; this
 validator provides no multi-file transaction or defense against a malicious
 writer restoring old bytes between checks. The checkpoint writer and review

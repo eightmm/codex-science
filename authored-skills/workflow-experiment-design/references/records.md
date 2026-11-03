@@ -26,12 +26,21 @@ counts/seeds are integers, excluding booleans; all numbers must be finite.
 | experiment-design-validation-v1 | Output only: schema, mode, status=`ready-for-independent-review` for preregistration or `unreviewed-audit` for audit, ordered stage_ids, immutable stage inputs, power {achieved_power, planned_cost, planned_units}, deviations and limitations. It is not a claim register or a review receipt. |
 
 Identities contain `path` and lowercase 64-character hexadecimal `sha256`.
-Paths must be bundle-relative with no parent traversal, backslash or resolved
-escape; unavailable files and malformed JSON are refused. Every input, including
+Paths must be bundle-relative with no parent traversal or backslash. The bundle
+root and all artifact ancestors must be real directories; symlinks are refused.
+The reader pins the root by walking its absolute ancestors with directory
+descriptors, then opens artifacts relative to that root and compares file
+identities before and after bounded reads. Before success it rechecks the root
+and every artifact, including a second root check after rereading the files.
+Unavailable files and malformed JSON are refused. Every input, including
 the pack index and source assumptions, must be a regular file of at most 64 MiB
 (67,108,864 bytes). Duplicate keys at any nesting level are refused as
 `invalid-record` with the artifact label and `duplicate JSON key`; oversized
-inputs use `input-too-large`. The validator parses the exact bytes it hashes.
+inputs use `input-too-large`. Aggregate unique input bytes are capped at 768 MiB
+per snapshot: twelve possible files at the existing 64 MiB limit. Hardlink
+aliases share a cached byte snapshot and are read once per capture/recheck pass.
+This bound preserves every previously writable record; no runtime writes these
+pack-local schemas. The validator parses the exact bytes it hashes.
 Source assumptions
 are ordinary hash-bound JSON artifacts, not new globally validated records.
 The `fixture` labels in examples are descriptive, not required in real records.
@@ -49,7 +58,7 @@ are allowed. Cluster, paired, binary, survival, adaptive or sequential power
 requires specialist design; this approximation does not qualify those designs.
 Effect/variance provenance must be reviewed; hashes do not establish independence.
 Both source artifacts are compared against the bundle's `results` and `analysis`
-identities. A matching resolved path or SHA-256 is refused as `own-result-effect`,
+identities. A matching SHA-256 is refused as `own-result-effect`,
 including renamed copies and symlink aliases, whatever `effect_source.origin`
 declares. Other forms of undisclosed derivation still require independent review.
 

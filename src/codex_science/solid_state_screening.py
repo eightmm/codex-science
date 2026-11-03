@@ -10,7 +10,7 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import stat
 from typing import Any
 
@@ -27,6 +27,7 @@ STAGES = (
 )
 REFINEMENTS = [4, 8, 16, 32]
 MAX_RECORD_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = (len(STAGES) + 1) * MAX_RECORD_BYTES
 
 
 def _require(condition: bool, code: str, detail: str) -> None:
@@ -56,15 +57,129 @@ def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
     return record
 
 
-def _load_record(path: Path) -> tuple[bytes, dict[str, Any]]:
-    # A replacement FIFO must not block between the path check and opening it.
-    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
-    with os.fdopen(os.open(path, flags), "rb") as stream:
-        info = os.fstat(stream.fileno())
-        _require(stat.S_ISREG(info.st_mode), "SS_MISSING_RECORD", f"{path.name}: unavailable or unsafe record")
-        _require(info.st_size <= MAX_RECORD_BYTES, "SS_RECORD_SIZE", f"{path.name}: record exceeds 64 MiB")
-        raw = stream.read(MAX_RECORD_BYTES + 1)
-    _require(len(raw) <= MAX_RECORD_BYTES, "SS_RECORD_SIZE", f"{path.name}: record exceeds 64 MiB")
+def _signature(info):
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def _open_root(root):
+    """Pin every ancestor so a transient pathname swap cannot redirect reads."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = os.open(root.anchor, flags)
+    try:
+        opened = os.fstat(descriptor)
+        _require(stat.S_ISDIR(opened.st_mode), "SS_MISSING_RECORD", "root must be a directory")
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _require(stat.S_ISDIR(before.st_mode), "SS_MISSING_RECORD", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _require(stat.S_ISDIR(opened.st_mode)
+                         and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "SS_MISSING_RECORD", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+class _Bundle:
+    def __init__(self, root):
+        self.root = root
+        self.snapshots = {}
+        self.cache = {}
+        self.total_bytes = 0
+        self.fd, self.identities = _open_root(root)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        os.close(self.fd)
+
+    def _read(self, relative, label, checked=None):
+        opened_dirs = []
+        try:
+            directory = self.fd
+            flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            for part in relative.parts[:-1]:
+                before = os.lstat(part, dir_fd=directory)
+                _require(stat.S_ISDIR(before.st_mode), "SS_MISSING_RECORD", "artifact ancestors must be real directories")
+                directory = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+                opened_dirs.append(directory)
+                actual = os.fstat(directory)
+                _require(stat.S_ISDIR(actual.st_mode)
+                         and (before.st_dev, before.st_ino) == (actual.st_dev, actual.st_ino),
+                         "SS_MISSING_RECORD", "artifact directory replaced")
+            before = os.lstat(relative.name, dir_fd=directory)
+            _require(stat.S_ISREG(before.st_mode), "SS_MISSING_RECORD", f"{label} must be a regular file")
+            _require(before.st_size <= MAX_RECORD_BYTES, "SS_RECORD_SIZE", f"{label} exceeds 64 MiB")
+            descriptor = os.open(relative.name, flags, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                actual = os.fstat(stream.fileno())
+                _require(stat.S_ISREG(actual.st_mode), "SS_MISSING_RECORD", "input must be a regular file")
+                _require(before.st_size == actual.st_size, "SS_RECORD_SIZE", "input size changed during open")
+                _require(_signature(before) == _signature(actual),
+                         "SS_MISSING_RECORD", "input changed during open")
+                signature = _signature(actual)
+                identity = signature[:2]
+                cached = self.cache.get(identity)
+                if cached is not None:
+                    _require(signature == cached[1], "SS_MISSING_RECORD", "cached input changed")
+                    if checked is None or identity in checked:
+                        return cached[0], signature
+                limit = MAX_RECORD_BYTES if checked is not None else min(MAX_RECORD_BYTES, MAX_TOTAL_BYTES - self.total_bytes)
+                _require(actual.st_size <= limit, "SS_RECORD_SIZE", "aggregate input byte budget exceeded")
+                raw = stream.read(limit + 1)
+                after = os.fstat(stream.fileno())
+            _require(len(raw) <= limit, "SS_RECORD_SIZE", "input grew beyond its byte budget")
+            _require(len(raw) == actual.st_size and _signature(actual) == _signature(after),
+                     "SS_MISSING_RECORD", "input changed during bounded read")
+            return raw, signature
+        except OSError as error:
+            raise ValueError(f"SS_MISSING_RECORD: {label}: unavailable or unsafe input") from error
+        finally:
+            for descriptor in reversed(opened_dirs):
+                os.close(descriptor)
+
+    def read(self, relative, label):
+        name = relative.as_posix()
+        if name not in self.snapshots:
+            raw, signature = self._read(relative, label)
+            identity = signature[:2]
+            if identity not in self.cache:
+                self.cache[identity] = (raw, signature, hashlib.sha256(raw).hexdigest())
+                self.total_bytes += len(raw)
+            self.snapshots[name] = self.cache[identity]
+        return self.snapshots[name][0]
+
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _require(identities == self.identities, "SS_MISSING_RECORD", "bundle root replaced")
+        finally:
+            os.close(descriptor)
+
+    def finish(self):
+        self._check_root()
+        checked = set()
+        for name, (_, signature, digest) in self.snapshots.items():
+            raw, current = self._read(PurePosixPath(name), name, checked)
+            _require(current == signature and hashlib.sha256(raw).hexdigest() == digest,
+                     "SS_MISSING_RECORD", "input replaced during validation")
+            checked.add(current[:2])
+        self._check_root()
+
+
+def _load_record(bundle: _Bundle, path: Path) -> tuple[bytes, dict[str, Any]]:
+    raw = bundle.read(PurePosixPath(path.name), path.name)
     try:
         record = json.loads(raw, object_pairs_hook=_pairs)
     except ValueError as error:
@@ -226,7 +341,7 @@ def reference_bundle(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _check_control(data: dict[str, Any], tolerance: float) -> None:
     _require(data["ran"] is True, "SS_ANALYTIC_NOT_RUN", "analytic control must run before candidates are scored")
-    _require(data["sites"] == 2 and data["expected"] == [-1.0, 1.0],
+    _require(type(data["sites"]) is int and data["sites"] == 2 and data["expected"] == [-1.0, 1.0],
              "SS_ANALYTIC_REFERENCE", "dimer control must use the fixed closed-form spectrum")
     observed = data["observed"]
     _require(isinstance(observed, list) and len(observed) == 2, "SS_ANALYTIC_REFERENCE", "both eigenvalues required")
@@ -312,43 +427,46 @@ def _check_claims(data: dict[str, Any], exploratory: bool) -> None:
 def validate_bundle(directory: Path) -> dict[str, Any]:
     """Validate one immutable, ordered fixture snapshot; refuse with labelled errors."""
     try:
-        root = Path(directory).resolve()
-        raw = {}
-        records = {}
-        for name in ("contract.json", *(name for _, name in STAGES)):
-            path = root / name
-            _require(not path.is_symlink() and path.is_file(), "SS_MISSING_RECORD", f"{name}: unavailable or unsafe record")
-            raw[name], records[name] = _load_record(path)
-        contract = records["contract.json"]
-        prespecified = _normalized(contract)
-        previous = "contract.json"
-        for stage_id, name in STAGES:
-            stage = records[name]
-            _require(stage["schema"] == STAGE_SCHEMA and stage["stage_id"] == stage_id and stage["synthetic"] is True,
-                     "SS_STAGE_ORDER", "fixed ordered stage IDs and schemas are required")
-            inputs = list(dict.fromkeys(["contract.json", previous]))
-            wanted = [{"path": item, "sha256": hashlib.sha256(raw[item]).hexdigest()} for item in inputs]
-            _require(stage["inputs"] == wanted, "SS_IDENTITY", f"{name}: path-plus-hash handoff differs")
-            previous = name
-        normalized = records["normalized.json"]["data"]
-        thresholds = normalized["thresholds_used"]
-        _require(set(thresholds) == set(contract["thresholds"])
-                 and all(_number(v) >= 0 for v in thresholds.values()), "SS_THRESHOLDS", "invalid effective thresholds")
-        exploratory = normalized["exploratory"]
-        _require(type(exploratory) is bool and (thresholds == contract["thresholds"] or exploratory),
-                 "SS_POSTHOC_THRESHOLDS", "changed thresholds require an exploratory label")
-        _require({k: v for k, v in normalized.items() if k not in ("thresholds_used", "exploratory")}
-                 == {k: v for k, v in prespecified.items() if k not in ("thresholds_used", "exploratory")},
-                 "SS_NORMALIZATION", "normalized model/units must preserve the supplied contract")
-        _check_control(records["analytic-control.json"]["data"], thresholds["analytic_abs"])
-        expected = reference_bundle(dict(contract, thresholds=thresholds))
-        _check_convergence(records["convergence.json"]["data"], expected["convergence.json"]["data"], thresholds)
-        _check_ranking(records["ranking.json"]["data"], expected["ranking.json"]["data"])
-        _check_claims(records["review-handoff.json"]["data"], exploratory)
-        return {"status": "exploratory" if exploratory else "contract-validated", "synthetic": True,
-                "review_status": "pending", "order": records["ranking.json"]["data"]["order"],
-                "evidence_boundary": "Workflow contract only; materials-property accuracy is unvalidated."}
+        with _Bundle(Path(os.path.abspath(directory))) as bundle:
+            return _validate_snapshot(bundle)
     except (KeyError, TypeError, AttributeError, IndexError, OverflowError, RecursionError) as error:
         raise ValueError("SS_SHAPE: malformed or incomplete screening record") from error
     except (OSError, RuntimeError) as error:
         raise ValueError("SS_MISSING_RECORD: screening evidence unavailable") from error
+
+
+def _validate_snapshot(bundle: _Bundle) -> dict[str, Any]:
+    raw = {}
+    records = {}
+    for name in ("contract.json", *(name for _, name in STAGES)):
+        raw[name], records[name] = _load_record(bundle, Path(name))
+    contract = records["contract.json"]
+    prespecified = _normalized(contract)
+    previous = "contract.json"
+    for stage_id, name in STAGES:
+        stage = records[name]
+        _require(stage["schema"] == STAGE_SCHEMA and stage["stage_id"] == stage_id and stage["synthetic"] is True,
+                 "SS_STAGE_ORDER", "fixed ordered stage IDs and schemas are required")
+        inputs = list(dict.fromkeys(["contract.json", previous]))
+        wanted = [{"path": item, "sha256": hashlib.sha256(raw[item]).hexdigest()} for item in inputs]
+        _require(stage["inputs"] == wanted, "SS_IDENTITY", f"{name}: path-plus-hash handoff differs")
+        previous = name
+    normalized = records["normalized.json"]["data"]
+    thresholds = normalized["thresholds_used"]
+    _require(set(thresholds) == set(contract["thresholds"])
+             and all(_number(v) >= 0 for v in thresholds.values()), "SS_THRESHOLDS", "invalid effective thresholds")
+    exploratory = normalized["exploratory"]
+    _require(type(exploratory) is bool and (thresholds == contract["thresholds"] or exploratory),
+             "SS_POSTHOC_THRESHOLDS", "changed thresholds require an exploratory label")
+    _require({k: v for k, v in normalized.items() if k not in ("thresholds_used", "exploratory")}
+             == {k: v for k, v in prespecified.items() if k not in ("thresholds_used", "exploratory")},
+             "SS_NORMALIZATION", "normalized model/units must preserve the supplied contract")
+    _check_control(records["analytic-control.json"]["data"], thresholds["analytic_abs"])
+    expected = reference_bundle(dict(contract, thresholds=thresholds))
+    _check_convergence(records["convergence.json"]["data"], expected["convergence.json"]["data"], thresholds)
+    _check_ranking(records["ranking.json"]["data"], expected["ranking.json"]["data"])
+    _check_claims(records["review-handoff.json"]["data"], exploratory)
+    bundle.finish()
+    return {"status": "exploratory" if exploratory else "contract-validated", "synthetic": True,
+            "review_status": "pending", "order": records["ranking.json"]["data"]["order"],
+            "evidence_boundary": "Workflow contract only; materials-property accuracy is unvalidated."}

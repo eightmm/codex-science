@@ -16,3 +16,12 @@ timeout 180 env PYTHONPATH=src:tests python3 -m unittest tests.test_workflow_var
 The test suite also exercises reconciled reverse complement, independent versus dependent groups, denominator and position boundaries, preserved failed controls/negative results, malformed JSON, path escapes and CLI output protection. Maturity L4 denotes this deterministic acceptance coverage only. A passing report gives no independent review, diagnosis, recommendation or scientific validity.
 
 Additional regressions cover clinical wording in supported and replicated claim text, the complete descriptive `Source assertion (quoted only): "SOURCE WORDING"` form for `clinical_assertion`, replacement between hashing and parsing, duplicate JSON keys in every input and nested objects, the inclusive 64 MiB JSON cap and growth during reading, non-regular files and FIFO replacement, and symlinked `dossier.json`. The cap matches the earlier loader's limit. All inputs must be regular files; hashing and parsing share the same bounded bytes. Keyword screening remains conservative English matching and does not replace independent semantic review. The checked-in clean example and its expected validation report are unchanged.
+
+Validation pins every absolute bundle ancestor without following links, reads
+artifacts relative to the pinned root, and rechecks directory/file identities
+before success. Tests deterministically swap symlinks, real directories and
+same-byte regular files at open time; these replacements are refused. The
+inclusive 64 MiB per-file cap and clean replay output are unchanged.
+A claim with any unavailable citation must be unavailable, including mixed
+observed/unavailable support for contradicted or inconclusive claims. Artifact
+changes after hashing are refused during the final consistency check.

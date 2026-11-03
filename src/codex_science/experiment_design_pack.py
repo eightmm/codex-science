@@ -18,6 +18,8 @@ from typing import Any
 
 STAGES = ("01-question", "02-power", "03-randomisation", "04-analysis-plan", "05-controls", "06-review-handoff")
 _MAX_JSON_BYTES = 64 * 1024 * 1024
+# Index, six stages, two assumptions, analysis, results and the used plan.
+_MAX_TOTAL_BYTES = 12 * _MAX_JSON_BYTES
 
 
 def _require(condition: bool, code: str, message: str) -> None:
@@ -73,15 +75,12 @@ def _time(value: Any, label: str) -> datetime:
 
 
 def _read_bytes(path: Path, label: str) -> bytes:
-    _require(stat.S_ISREG(path.stat().st_mode), "unavailable-artifact", f"{label} must be a regular file")
-    # Nonblocking open and descriptor checks also refuse a FIFO swapped in after stat.
-    with os.fdopen(os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)), "rb") as stream:
-        info = os.fstat(stream.fileno())
-        _require(stat.S_ISREG(info.st_mode), "unavailable-artifact", f"{label} must be a regular file")
-        _require(info.st_size <= _MAX_JSON_BYTES, "input-too-large", f"{label} exceeds {_MAX_JSON_BYTES} bytes")
-        raw = stream.read(_MAX_JSON_BYTES + 1)
-    _require(len(raw) <= _MAX_JSON_BYTES, "input-too-large", f"{label} exceeds {_MAX_JSON_BYTES} bytes")
-    return raw
+    info = os.lstat(path)
+    _require(stat.S_ISREG(info.st_mode), "unavailable-artifact", f"{label} must be a regular file")
+    _require(info.st_size <= _MAX_JSON_BYTES, "input-too-large", f"{label} exceeds {_MAX_JSON_BYTES} bytes")
+    absolute = Path(os.path.abspath(path))
+    with _Bundle(absolute.parent) as reader:
+        return reader.read(PurePosixPath(absolute.name), label)
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict:
@@ -104,15 +103,138 @@ def _load(path: Path) -> dict:
     return _json(_read_bytes(path, path.name), path.name)
 
 
-def _artifact(root: Path, identity: Any, label: str) -> dict:
+def _signature(info):
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def _open_root(root):
+    """Pin every ancestor so a transient pathname swap cannot redirect reads."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = os.open(root.anchor, flags)
+    try:
+        opened = os.fstat(descriptor)
+        _require(stat.S_ISDIR(opened.st_mode), "unavailable-artifact", "root must be a directory")
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _require(stat.S_ISDIR(before.st_mode), "unavailable-artifact", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _require(stat.S_ISDIR(opened.st_mode)
+                         and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "unavailable-artifact", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+class _Bundle:
+    def __init__(self, root):
+        self.root = root
+        self.snapshots = {}
+        self.cache = {}
+        self.total_bytes = 0
+        self.fd, self.identities = _open_root(root)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        os.close(self.fd)
+
+    def _read(self, relative, label, checked=None):
+        opened_dirs = []
+        try:
+            directory = self.fd
+            flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            for part in relative.parts[:-1]:
+                before = os.lstat(part, dir_fd=directory)
+                _require(stat.S_ISDIR(before.st_mode), "unavailable-artifact", "artifact ancestors must be real directories")
+                directory = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+                opened_dirs.append(directory)
+                actual = os.fstat(directory)
+                _require(stat.S_ISDIR(actual.st_mode)
+                         and (before.st_dev, before.st_ino) == (actual.st_dev, actual.st_ino),
+                         "unavailable-artifact", "artifact directory replaced")
+            before = os.lstat(relative.name, dir_fd=directory)
+            _require(stat.S_ISREG(before.st_mode), "unavailable-artifact", f"{label} must be a regular file")
+            _require(before.st_size <= _MAX_JSON_BYTES, "input-too-large", f"{label} exceeds 64 MiB")
+            descriptor = os.open(relative.name, flags, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                actual = os.fstat(stream.fileno())
+                _require(stat.S_ISREG(actual.st_mode), "unavailable-artifact", "input must be a regular file")
+                _require(before.st_size == actual.st_size, "input-too-large", "input size changed during open")
+                _require(_signature(before) == _signature(actual),
+                         "unavailable-artifact", "input changed during open")
+                signature = _signature(actual)
+                identity = signature[:2]
+                cached = self.cache.get(identity)
+                if cached is not None:
+                    _require(signature == cached[1], "unavailable-artifact", "cached input changed")
+                    if checked is None or identity in checked:
+                        return cached[0], signature
+                limit = _MAX_JSON_BYTES if checked is not None else min(_MAX_JSON_BYTES, _MAX_TOTAL_BYTES - self.total_bytes)
+                _require(actual.st_size <= limit, "input-too-large", "aggregate input byte budget exceeded")
+                raw = stream.read(limit + 1)
+                after = os.fstat(stream.fileno())
+            _require(len(raw) <= limit, "input-too-large", "input grew beyond its byte budget")
+            _require(len(raw) == actual.st_size and _signature(actual) == _signature(after),
+                     "unavailable-artifact", "input changed during bounded read")
+            return raw, signature
+        except OSError as error:
+            raise ValueError(f"unavailable-artifact: {label}: unavailable or unsafe input") from error
+        finally:
+            for descriptor in reversed(opened_dirs):
+                os.close(descriptor)
+
+    def read(self, relative, label):
+        name = relative.as_posix()
+        if name not in self.snapshots:
+            raw, signature = self._read(relative, label)
+            identity = signature[:2]
+            if identity not in self.cache:
+                self.cache[identity] = (raw, signature, hashlib.sha256(raw).hexdigest())
+                self.total_bytes += len(raw)
+            self.snapshots[name] = self.cache[identity]
+        return self.snapshots[name][0]
+
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _require(identities == self.identities, "unavailable-artifact", "bundle root replaced")
+        finally:
+            os.close(descriptor)
+
+    def finish(self):
+        self._check_root()
+        checked = set()
+        for name, (_, signature, digest) in self.snapshots.items():
+            raw, current = self._read(PurePosixPath(name), name, checked)
+            _require(current == signature and hashlib.sha256(raw).hexdigest() == digest,
+                     "unavailable-artifact", "input replaced during validation")
+            checked.add(current[:2])
+        self._check_root()
+
+
+def _artifact(root: Path | _Bundle, identity: Any, label: str) -> dict:
     identity = _object(identity, label)
     relative = PurePosixPath(_text(identity.get("path"), f"{label}.path"))
     _require(not relative.is_absolute() and ".." not in relative.parts and "\\" not in str(relative), "invalid-path", label)
-    path = root.joinpath(*relative.parts).resolve()
-    _require(path.is_relative_to(root) and path.is_file(), "unavailable-artifact", label)
     digest = identity.get("sha256")
     _require(isinstance(digest, str) and len(digest) == 64 and all(c in "0123456789abcdef" for c in digest), "invalid-record", f"{label}.sha256")
-    raw = _read_bytes(path, label)
+    if isinstance(root, _Bundle):
+        raw = root.read(relative, label)
+    else:
+        with _Bundle(Path(os.path.abspath(root))) as reader:
+            raw = reader.read(relative, label)
     _require(hashlib.sha256(raw).hexdigest() == digest, "artifact-hash-mismatch", label)
     return _json(raw, label)
 
@@ -141,19 +263,20 @@ def _analysis_rules(plan: dict) -> None:
         _text(plan.get("sequential_error_control"), "sequential_error_control")
 
 
-def _power(root: Path, power: dict, question: dict, family: dict, bundle: dict) -> dict:
+def _power(root: _Bundle, power: dict, question: dict, family: dict, bundle: dict) -> dict:
     source = _object(power.get("effect_source"), "effect_source")
     _require(source.get("origin") in ("external", "independent-pilot", "scientific-minimum"), "own-result-effect", "power cannot use this study's own result")
     sources = ((source.get("artifact"), "effect_source.artifact"), (power.get("variance_source"), "variance_source"))
-    for identity, label in sources:
-        _artifact(root, identity, label)
     for name in ("results", "analysis"):
         output = bundle.get(name)
         if output is not None:
-            _artifact(root, output, name)
             for identity, label in sources:
-                same_path = (root / identity["path"]).resolve() == (root / output["path"]).resolve()
-                _require(not same_path and identity["sha256"] != output["sha256"], "own-result-effect", f"{label} cannot use this study's {name}")
+                identity = _object(identity, label)
+                output = _object(output, name)
+                _require(identity.get("sha256") != output.get("sha256"), "own-result-effect", f"{label} cannot use this study's {name}")
+            _artifact(root, output, name)
+    for identity, label in sources:
+        _artifact(root, identity, label)
     _require(power.get("count_unit") == question["experimental_unit"], "pseudoreplication", "sample size must count experimental units, not observational repeats")
     _require(power.get("method") == "normal-approximation-two-group", "unsupported-power-method", "supply a two-group normal approximation; complex designs need specialist review")
     effect = _number(power.get("assumed_effect"), "assumed_effect", 0)
@@ -206,7 +329,7 @@ def _claims(claims: Any) -> None:
         _require(isinstance(evidence, str) and evidence in permitted and isinstance(assertion, str) and assertion in permitted[evidence], "inference-boundary", "association, computation, absence and approval cannot establish stronger claims")
 
 
-def _audit(root: Path, bundle: dict, plan: dict, family: dict, controls: dict) -> list[dict]:
+def _audit(root: _Bundle, bundle: dict, plan: dict, family: dict, controls: dict) -> list[dict]:
     analysis = _artifact(root, bundle.get("analysis"), "analysis")
     _require(analysis.get("schema") == "experiment-analysis-v1", "invalid-record", "analysis schema")
     used_identity = analysis.get("used_plan")
@@ -264,9 +387,15 @@ def validate_experiment_design_pack(path: Path, *, mode: str = "preregister") ->
 
 def _validate_pack(path: Path, *, mode: str) -> dict:
     _require(mode in ("preregister", "audit"), "invalid-mode", "choose preregister or audit")
-    path = Path(path).resolve()
-    root = path.parent
-    bundle = _load(path)
+    path = Path(os.path.abspath(path))
+    with _Bundle(path.parent) as root:
+        result = _validate_snapshot(root, path.name, mode=mode)
+        root.finish()
+        return result
+
+
+def _validate_snapshot(root: _Bundle, entry: str, *, mode: str) -> dict:
+    bundle = _json(root.read(PurePosixPath(entry), entry), entry)
     _require(bundle.get("schema") == "experiment-design-pack-v1", "invalid-record", "pack schema")
     records = {name: _artifact(root, bundle.get(name), name) for name in ("question", "power", "randomisation", "analysis_plan", "controls", "handoff")}
     for name, record in records.items():

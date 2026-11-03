@@ -188,6 +188,121 @@ class TargetAssessmentTests(unittest.TestCase):
     def test_patient_advice(self):
         self.defect("patient-advice")
 
+    def test_replicated_claim_requires_independent_sources(self):
+        self.record_claim("descriptive", "identity", "Synthetic identity observation.", status="replicated")
+        with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+            validate_target_assessment_pack(self.bundle)
+        for ids, independent in (([], False), (["normalization-1"], False),
+                                 (["ot-1", "gwas-1"], False), (["pubchem-1", "pubchem-2"], False),
+                                 (["normalization-1", "pdb-1"], True)):
+            with self.subTest(ids=ids):
+                memo = self.read("stage-6.json")
+                records = {row["id"]: row for source in self.read("snapshots.json")["sources"]
+                           for row in source["records"]}
+                text = "; ".join(records[identifier]["statement"] for identifier in ids)
+                memo["data"]["claims"][0].update(evidence=ids, text=text)
+                self.write("stage-6.json", memo)
+                register = self.read("claims.json")
+                register["claims"][0]["text"] = text
+                self.write("claims.json", register)
+                self.rehash()
+                if independent:
+                    validate_target_assessment_pack(self.bundle)
+                else:
+                    with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+                        validate_target_assessment_pack(self.bundle)
+
+    def test_sidecar_versions_require_integer_types(self):
+        for name, code in (("claims.json", "PACK_FORMAT"), ("checkpoint.json", "PACK_CHECKPOINT")):
+            for version in (True, 1.0, False, 0, "1", "", None, [], {}):
+                with self.subTest(name=name, version=version):
+                    data = self.read(name)
+                    data["schema_version"] = version
+                    self.write(name, data)
+                    self.rehash()
+                    with self.assertRaisesRegex(ValueError, code):
+                        validate_target_assessment_pack(self.bundle)
+            data["schema_version"] = 1
+            self.write(name, data)
+            self.rehash()
+            validate_target_assessment_pack(self.bundle)
+
+        for name, field, code in (("stage-2.json", "independent_support_count", "GENETIC_DEPENDENCE"),
+                                  ("snapshots.json", "donor_count", "EXPRESSION_CONTEXT")):
+            original = self.read(name)
+            for value in (True, 1.0, "", None):
+                data = json.loads(json.dumps(original))
+                if field == "donor_count":
+                    data["sources"][5]["records"][0]["context"][field] = value
+                else:
+                    data["data"][field] = value
+                self.write(name, data)
+                self.rehash()
+                with self.assertRaisesRegex(ValueError, code):
+                    validate_target_assessment_pack(self.bundle)
+            self.write(name, original)
+            self.rehash()
+
+    def test_checkpoint_integer_fields_and_legacy_versions(self):
+        legacy = self.read("checkpoint.json")
+        modern = dict(legacy)
+        modern.update({
+            "schema_version": 4, "session_key": "a" * 64,
+            "continuation_count": 0, "idle_continuations": 0,
+            "continuation_budget": 100, "revision": 0,
+            "outer_goal": {"mode": "none", "phase": "not_applicable", "task_key": None, "receipt": None},
+            "review_receipt": None, "wait": None, "termination_reason": "",
+            "done_criteria": [{"id": "synthetic-criterion", "text": "Synthetic acceptance",
+                               "status": "pending", "evidence_refs": [], "evidence_sha256": {}}],
+            "rigor": {"tier": "standard", "history": [
+                {"tier": "standard", "at": "2026-01-01T00:00:00Z", "reason": "Synthetic fixture"}]},
+            "run_budget": {"policy_version": 1, "tier": "standard", "max_failed_attempts_per_class": 2,
+                           "max_review_rounds": 1, "deadline_at": None},
+            "review_rounds": [],
+        })
+        for field in ("policy_version", "max_failed_attempts_per_class", "max_review_rounds"):
+            original = modern["run_budget"][field]
+            for value in (True, float(original), None, "", "1", 0, -1):
+                with self.subTest(field=field, value=value):
+                    modern["run_budget"][field] = value
+                    self.write("checkpoint.json", modern)
+                    self.rehash()
+                    with self.assertRaisesRegex(ValueError, "PACK_CHECKPOINT"):
+                        validate_target_assessment_pack(self.bundle)
+            modern["run_budget"][field] = original
+        for field in ("continuation_count", "idle_continuations", "continuation_budget", "revision"):
+            original = modern[field]
+            for value in (True, float(original), None, "", "1", -1):
+                with self.subTest(field=field, value=value):
+                    modern[field] = value
+                    self.write("checkpoint.json", modern)
+                    self.rehash()
+                    with self.assertRaisesRegex(ValueError, "PACK_CHECKPOINT"):
+                        validate_target_assessment_pack(self.bundle)
+            modern[field] = original
+        modern["wait"] = {"reason": "Synthetic external wait", "next_action": "Inspect synthetic result",
+                          "terminal_rule": "Synthetic result arrived", "recorded_at": "2026-01-01T00:00:00Z",
+                          "poll_interval_seconds": 1}
+        for value in (True, 1.0, 0, -1, None, "", "1"):
+            modern["wait"]["poll_interval_seconds"] = value
+            self.write("checkpoint.json", modern)
+            self.rehash()
+            with self.assertRaisesRegex(ValueError, "PACK_CHECKPOINT"):
+                validate_target_assessment_pack(self.bundle)
+        modern["wait"]["poll_interval_seconds"] = 1
+        for version in (1, 2, 3, 4):
+            checkpoint = dict(legacy if version < 3 else modern)
+            if version == 2:
+                for field in ("session_key", "continuation_count", "idle_continuations"):
+                    checkpoint[field] = modern[field]
+            if version == 3:
+                for field in ("run_budget", "review_rounds"):
+                    checkpoint.pop(field)
+            checkpoint["schema_version"] = version
+            self.write("checkpoint.json", checkpoint)
+            self.rehash()
+            validate_target_assessment_pack(self.bundle)
+
     def test_failed_control(self):
         self.defect("failed-control")
 
@@ -579,15 +694,116 @@ class TargetAssessmentTests(unittest.TestCase):
         self.assertEqual(results[0], results[1])
         self.assertEqual(before, {p.name: p.read_bytes() for p in self.bundle.iterdir()})
         original_open = os.open
+        relative_opens = []
 
         def edit_during_read(path, *args, **kwargs):
-            if Path(path) == self.bundle / "claims.json":
+            if str(path) == "claims.json" or Path(path) == self.bundle / "claims.json":
+                relative_opens.append(kwargs.get("dir_fd") is not None)
                 (self.bundle / "snapshots.json").write_bytes(b"{}")
             return original_open(path, *args, **kwargs)
 
         with patch("os.open", edit_during_read):
             with self.assertRaisesRegex(ValueError, "PACK_CHANGED"):
                 validate_target_assessment_pack(self.bundle)
+        self.assertIn(True, relative_opens)
+
+    def test_directory_swaps_are_refused(self):
+        for phase in ("ancestor-symlink", "ancestor-directory", "pinned-root",
+                      "artifact-symlink", "artifact-directory", "leaf-regular", "growth-during-read"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                ancestor = base / "ancestor"
+                root = ancestor / "bundle"
+                shutil.copytree(self.bundle, root)
+                nested = root / "nested"
+                leaf = "snapshots.json"
+                nested.mkdir()
+                (root / leaf).rename(nested / leaf)
+
+                def refresh(value):
+                    if isinstance(value, dict):
+                        if set(value) == {"path", "sha256"}:
+                            if value["path"] == leaf:
+                                value["path"] = "nested/" + leaf
+                            value["sha256"] = hashlib.sha256((root / value["path"]).read_bytes()).hexdigest()
+                        else:
+                            for child in value.values():
+                                refresh(child)
+                    elif isinstance(value, list):
+                        for child in value:
+                            refresh(child)
+
+                for name in [f"stage-{index}.json" for index in range(1, 7)] + ["dossier.json"]:
+                    data = json.loads((root / name).read_text())
+                    refresh(data)
+                    (root / name).write_text(json.dumps(data))
+                outside = base / "outside"
+                shutil.copytree(ancestor, outside)
+                saved = base / "saved"
+                original_open = os.open
+                original_fdopen = os.fdopen
+                swapped = []
+
+                def swap_at_open(candidate, flags, *args, **kwargs):
+                    relative = kwargs.get("dir_fd") is not None
+                    first = "dossier.json"
+                    trigger = ((relative and str(candidate) == ancestor.name)
+                               or (not relative and Path(candidate) == root / first))
+                    if phase == "pinned-root":
+                        trigger = str(candidate) == first or Path(candidate) == root / first
+                    if phase.startswith("artifact"):
+                        trigger = ((relative and str(candidate) == nested.name)
+                                   or (not relative and Path(candidate) == nested / leaf))
+                    if phase == "leaf-regular":
+                        trigger = ((relative and str(candidate) == leaf)
+                                   or (not relative and Path(candidate) == nested / leaf))
+                    if phase == "growth-during-read":
+                        trigger = False
+                    if swapped or not trigger:
+                        return original_open(candidate, flags, *args, **kwargs)
+                    swapped.append(True)
+                    changed = (root if phase == "pinned-root" else nested / leaf if phase == "leaf-regular"
+                               else nested if phase.startswith("artifact") else ancestor)
+                    changed.rename(saved)
+                    if phase.endswith("symlink"):
+                        target = outside / "bundle" / nested.name if phase.startswith("artifact") else outside
+                        changed.symlink_to(target, target_is_directory=True)
+                    elif phase == "leaf-regular":
+                        shutil.copyfile(saved, changed)
+                    else:
+                        shutil.copytree(saved, changed)
+                    try:
+                        return original_open(candidate, flags, *args, **kwargs)
+                    finally:
+                        if phase != "pinned-root":
+                            changed.unlink() if changed.is_symlink() or changed.is_file() else shutil.rmtree(changed)
+                            saved.rename(changed)
+
+                def grow_during_read(descriptor, *args, **kwargs):
+                    stream = original_fdopen(descriptor, *args, **kwargs)
+                    original_read = stream.read
+
+                    def read_and_grow(limit):
+                        raw = original_read(limit)
+                        if phase == "growth-during-read" and not swapped:
+                            swapped.append(True)
+                            with (root / "dossier.json").open("ab") as output:
+                                output.write(b" ")
+                        return raw
+
+                    stream.read = read_and_grow
+                    return stream
+
+                try:
+                    with patch("os.open", side_effect=swap_at_open), \
+                            patch("os.fdopen", side_effect=grow_during_read):
+                        with self.assertRaisesRegex(ValueError, "PACK_"):
+                            validate_target_assessment_pack(root)
+                    self.assertTrue(swapped, "swap hook was not reached")
+                finally:
+                    if saved.exists():
+                        shutil.rmtree(root)
+                        saved.rename(root)
 
     def test_pack_contract_and_frozen_tasks(self):
         from codex_science.reference_contract import validate_reference_index

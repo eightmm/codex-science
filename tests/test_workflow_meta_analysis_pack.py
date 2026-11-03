@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -778,6 +779,118 @@ class MetaAnalysisPackTests(unittest.TestCase):
                     pack.validate_meta_analysis_pack(self.bundle)
             record[field] = original
             self.write(name, data)
+
+
+    def test_aggregate_byte_budget_is_checked_before_reading(self):
+        folder, entry = self.bundle, self.bundle / "pack.json"
+        original_fdopen = os.fdopen
+        def guarded_fdopen(*args, **kwargs):
+            handle = original_fdopen(*args, **kwargs)
+            handle.read = lambda *args: self.fail("must not read over budget")
+            return handle
+        with patch.object(os, "fdopen", side_effect=guarded_fdopen), \
+                patch.object(pack, "MAX_TOTAL_BYTES", 0, create=True), self.assertRaisesRegex(ValueError, "^MA_LIMIT:"):
+            pack.validate_meta_analysis_pack(folder)
+        with patch.object(pack, "MAX_TOTAL_BYTES", entry.stat().st_size, create=True), self.assertRaisesRegex(ValueError, "^MA_LIMIT:"):
+            pack.validate_meta_analysis_pack(folder)
+        with patch.object(pack, "MAX_TOTAL_BYTES", 256 * 1024 * 1024, create=True):
+            pack.validate_meta_analysis_pack(folder)
+
+        entry = folder / "probe.json"
+        for raw, allowance, error in ((b'{}', 2, None), (b'{}', 1, "MA_LIMIT"), (b'', 0, "MA_JSON")):
+            entry.write_bytes(raw)
+            digest = hashlib.sha256(raw).hexdigest()
+            with self.subTest(raw=raw, byte_allowance=allowance), patch.object(pack, "MAX_TOTAL_BYTES", allowance, create=True):
+                def check():
+                    bundle = pack._Bundle(folder)
+                    try:
+                        return bundle.read({"path": entry.name, "sha256": digest})
+                    finally:
+                        bundle.__exit__(None, None, None)
+                if error:
+                    with self.assertRaisesRegex(ValueError, "^" + error + ":"):
+                        check()
+                else:
+                    self.assertEqual({}, check())
+
+    def test_aggregate_json_allowance_precedes_each_parse(self):
+        folder, entry = self.bundle, self.bundle / "pack.json"
+        raw = entry.read_bytes()
+        first = 1 + raw.count(b",") + len(re.findall(rb"[\[{](?=\s*[^\s\]}])", raw))
+        for allowance, expected_calls in ((0, 0), (first - 1, 0), (first, 1)):
+            with self.subTest(allowance=allowance), patch.object(pack, "MAX_TOTAL_NODES", allowance, create=True), \
+                    patch.object(pack.json, "loads", wraps=json.loads) as parse:
+                with self.assertRaisesRegex(ValueError, "^MA_LIMIT:"):
+                    pack.validate_meta_analysis_pack(folder)
+                self.assertEqual(expected_calls, parse.call_count)
+
+    def test_hardlinks_share_one_snapshot_and_preserve_path_checks(self):
+        folder, entry = self.bundle, self.bundle / "pack.json"
+        raw = b'{"value":[0,1,2]}'
+        digest = hashlib.sha256(raw).hexdigest()
+        entry = folder / "probe.json"
+        entry.write_bytes(raw)
+        for index in range(100):
+            os.link(entry, folder / f"alias-{index}.json")
+        read_sizes = []
+        original_read, original_fdopen = os.read, os.fdopen
+        def tracked_read(*args, **kwargs):
+            result = original_read(*args, **kwargs)
+            read_sizes.append(len(result))
+            return result
+        def tracked_fdopen(*args, **kwargs):
+            handle = original_fdopen(*args, **kwargs)
+            read = handle.read
+            def tracked(size=-1):
+                result = read(size)
+                read_sizes.append(len(result))
+                return result
+            handle.read = tracked
+            return handle
+        with patch.object(os, "read", side_effect=tracked_read), \
+                patch.object(os, "fdopen", side_effect=tracked_fdopen), \
+                patch.object(pack, "MAX_TOTAL_BYTES", len(raw), create=True), \
+                patch.object(pack, "MAX_TOTAL_NODES", 5, create=True), \
+                patch.object(pack, "_json", wraps=pack._json) as parse:
+            bundle = pack._Bundle(folder)
+            self.addCleanup(bundle.__exit__, None, None, None)
+            load = lambda name: bundle.read({"path": name, "sha256": digest})
+            first = load("probe.json")
+            for index in range(100):
+                self.assertIs(first, load(f"alias-{index}.json"))
+            self.assertEqual(1, parse.call_count)
+            self.assertEqual(101, len(bundle.cache))
+            finish = bundle.unchanged
+            finish()
+            self.assertEqual(2 * len(raw), sum(read_sizes))
+            replacement = folder / "replacement.json"
+            replacement.write_bytes(raw)
+            replacement.replace(folder / "alias-99.json")
+            with self.assertRaisesRegex(ValueError, "^MA_CHANGED:"):
+                finish()
+
+    def test_json_budget_empty_zero_equal_and_malformed(self):
+        folder, entry = self.bundle, self.bundle / "pack.json"
+        entry = folder / "probe.json"
+        samples = ((b'{}', 1, None), (b'{"x":[{},{}]}', 4, None),
+                   (b'{"x":[{},{}]}', 3, "MA_LIMIT"),
+                   (b'{}', 0, "MA_LIMIT"), (b'', 1, "MA_JSON"),
+                   (b'{"x":', 2, "MA_JSON"))
+        for raw, allowance, error in samples:
+            entry.write_bytes(raw)
+            digest = hashlib.sha256(raw).hexdigest()
+            with self.subTest(raw=raw, allowance=allowance), patch.object(pack, "MAX_TOTAL_NODES", allowance, create=True):
+                def check():
+                    bundle = pack._Bundle(folder)
+                    try:
+                        return bundle.read({"path": entry.name, "sha256": digest})
+                    finally:
+                        bundle.__exit__(None, None, None)
+                if error:
+                    with self.assertRaisesRegex(ValueError, "^" + error + ":"):
+                        check()
+                else:
+                    self.assertEqual(json.loads(raw), check())
 
 
 # Each seeded defect has its own unittest identity and drives both public APIs.

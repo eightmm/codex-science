@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -391,6 +392,89 @@ class BulkExpressionTests(unittest.TestCase):
             path.write_text(json.dumps(self.pack))
             with self.assertRaisesRegex(ValueError, "input-identity"):
                 validate_bulk_expression_pack(path)
+
+    def test_directory_swaps_are_refused(self):
+        for phase in ("ancestor-symlink", "ancestor-directory", "pinned-root",
+                      "artifact-symlink", "artifact-directory", "leaf-regular", "growth-during-read"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                ancestor = base / "ancestor"
+                root = ancestor / "bundle"
+                shutil.copytree(FIXTURE, root)
+                nested = root / "nested"
+                leaf = "counts.json"
+                nested.mkdir()
+                (root / leaf).rename(nested / leaf)
+                record = json.loads((root / "pack.json").read_text())
+                record["inputs"]["expression"]["path"] = "nested/" + leaf
+                (root / "pack.json").write_text(json.dumps(record))
+                outside = base / "outside"
+                shutil.copytree(ancestor, outside)
+                saved = base / "saved"
+                original_open = os.open
+                original_fdopen = os.fdopen
+                swapped = []
+
+                def swap_at_open(candidate, flags, *args, **kwargs):
+                    relative = kwargs.get("dir_fd") is not None
+                    first = "pack.json"
+                    trigger = ((relative and str(candidate) == ancestor.name)
+                               or (not relative and Path(candidate) == root / first))
+                    if phase == "pinned-root":
+                        trigger = str(candidate) == first or Path(candidate) == root / first
+                    if phase.startswith("artifact"):
+                        trigger = ((relative and str(candidate) == nested.name)
+                                   or (not relative and Path(candidate) == nested / leaf))
+                    if phase == "leaf-regular":
+                        trigger = ((relative and str(candidate) == leaf)
+                                   or (not relative and Path(candidate) == nested / leaf))
+                    if phase == "growth-during-read":
+                        trigger = False
+                    if swapped or not trigger:
+                        return original_open(candidate, flags, *args, **kwargs)
+                    swapped.append(True)
+                    changed = (root if phase == "pinned-root" else nested / leaf if phase == "leaf-regular"
+                               else nested if phase.startswith("artifact") else ancestor)
+                    changed.rename(saved)
+                    if phase.endswith("symlink"):
+                        target = outside / "bundle" / nested.name if phase.startswith("artifact") else outside
+                        changed.symlink_to(target, target_is_directory=True)
+                    elif phase == "leaf-regular":
+                        shutil.copyfile(saved, changed)
+                    else:
+                        shutil.copytree(saved, changed)
+                    try:
+                        return original_open(candidate, flags, *args, **kwargs)
+                    finally:
+                        if phase != "pinned-root":
+                            changed.unlink() if changed.is_symlink() or changed.is_file() else shutil.rmtree(changed)
+                            saved.rename(changed)
+
+                def grow_during_read(descriptor, *args, **kwargs):
+                    stream = original_fdopen(descriptor, *args, **kwargs)
+                    original_read = stream.read
+
+                    def read_and_grow(limit):
+                        raw = original_read(limit)
+                        if phase == "growth-during-read" and not swapped:
+                            swapped.append(True)
+                            with (root / "pack.json").open("ab") as output:
+                                output.write(b" ")
+                        return raw
+
+                    stream.read = read_and_grow
+                    return stream
+
+                try:
+                    with patch("os.open", side_effect=swap_at_open), \
+                            patch("os.fdopen", side_effect=grow_during_read):
+                        with self.assertRaisesRegex(ValueError, "invalid-record|invalid-pack|unavailable|input-changed"):
+                            validate_bulk_expression_pack(root / "pack.json")
+                    self.assertTrue(swapped, "swap hook was not reached")
+                finally:
+                    if saved.exists():
+                        shutil.rmtree(root)
+                        saved.rename(root)
 
     def test_cli_output_errors_and_preservation(self):
         with tempfile.TemporaryDirectory() as temporary:

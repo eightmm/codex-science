@@ -85,6 +85,140 @@ class SolidStateScreeningTests(unittest.TestCase):
         self.assertEqual(result, json.loads(first.stdout))
         self.assertEqual(before, {path.name: path.read_bytes() for path in EXAMPLE.glob("*.json")})
 
+    def test_refuses_transient_root_ancestor_swaps(self) -> None:
+        self.write_bundle()
+        for replacement in ("symlink", "directory"):
+            with self.subTest(replacement=replacement):
+                ancestor = self.directory / "ancestor"
+                outside = self.directory / "outside"
+                saved = self.directory / "saved"
+                for parent in (ancestor, outside):
+                    directory = parent / "bundle"
+                    directory.mkdir(parents=True, exist_ok=True)
+                    for name in self.records:
+                        (directory / name).write_bytes((self.directory / name).read_bytes())
+                actual_open, actual_lstat = os.open, os.lstat
+                armed = swapped = False
+
+                def observe(path, *args, **kwargs):
+                    nonlocal armed
+                    info = actual_lstat(path, *args, **kwargs)
+                    if Path(path).name == ancestor.name:
+                        armed = True
+                    return info
+
+                def swap(path, flags, *args, **kwargs):
+                    nonlocal swapped
+                    target = Path(path)
+                    if armed and not swapped and (target.name == ancestor.name or target == ancestor / "bundle/contract.json"):
+                        swapped = True
+                        ancestor.rename(saved)
+                        if replacement == "symlink":
+                            ancestor.symlink_to(outside, target_is_directory=True)
+                        else:
+                            outside.rename(ancestor)
+                        try:
+                            return actual_open(path, flags, *args, **kwargs)
+                        finally:
+                            if replacement == "symlink":
+                                ancestor.unlink()
+                            else:
+                                ancestor.rename(outside)
+                            saved.rename(ancestor)
+                    return actual_open(path, flags, *args, **kwargs)
+
+                with patch.object(os, "lstat", side_effect=observe), patch.object(os, "open", side_effect=swap):
+                    with self.assertRaises(ValueError):
+                        screening.validate_bundle(ancestor / "bundle")
+                self.assertTrue(swapped)
+
+    def test_refuses_root_replacement_at_final_recheck(self) -> None:
+        self.write_bundle()
+        directory = self.directory / "bundle"
+        replacement = self.directory / "replacement"
+        for target in (directory, replacement):
+            target.mkdir()
+            for name in self.records:
+                (target / name).write_bytes((self.directory / name).read_bytes())
+        reference_bundle = screening.reference_bundle
+
+        def swap(contract):
+            directory.rename(self.directory / "saved")
+            replacement.rename(directory)
+            return reference_bundle(contract)
+
+        with patch.object(screening, "reference_bundle", side_effect=swap):
+            with self.assertRaises(ValueError):
+                screening.validate_bundle(directory)
+
+    def test_aggregate_budget(self) -> None:
+        self.write_bundle()
+        total = sum((self.directory / name).stat().st_size for name in self.records)
+        for limit in (0, total - 1, total):
+            with self.subTest(limit=limit), patch.object(screening, "MAX_TOTAL_BYTES", limit, create=True):
+                if limit < total:
+                    with self.assertRaisesRegex(ValueError, "^SS_RECORD_SIZE:"):
+                        screening.validate_bundle(self.directory)
+                else:
+                    self.assertEqual("contract-validated", screening.validate_bundle(self.directory)["status"])
+
+    def test_control_sites_requires_integer(self) -> None:
+        for value in (2.0, True, False, "", "2", None, 0, 1, 2):
+            with self.subTest(sites=value):
+                self.records["analytic-control.json"]["data"]["sites"] = value
+                self.write_bundle()
+                if type(value) is int and value == 2:
+                    self.assertEqual("contract-validated", screening.validate_bundle(self.directory)["status"])
+                else:
+                    with self.assertRaisesRegex(ValueError, "^SS_ANALYTIC_REFERENCE:"):
+                        screening.validate_bundle(self.directory)
+
+    def test_refuses_artifact_changed_after_parsing(self) -> None:
+        self.write_bundle()
+        reference_bundle = screening.reference_bundle
+
+        def change(contract):
+            with (self.directory / "contract.json").open("ab") as stream:
+                stream.write(b" ")
+            return reference_bundle(contract)
+
+        with patch.object(screening, "reference_bundle", side_effect=change):
+            with self.assertRaisesRegex(ValueError, "^SS_MISSING_RECORD:"):
+                screening.validate_bundle(self.directory)
+
+    def test_hardlink_aliases_are_not_read_twice(self) -> None:
+        self.write_bundle()
+        original = self.directory / "convergence.json"
+        alias = self.directory / "ranking.json"
+        alias.unlink()
+        alias.hardlink_to(original)
+        identity = original.stat().st_dev, original.stat().st_ino
+        actual_fdopen = os.fdopen
+        reads = []
+
+        class Reader:
+            def __init__(self, stream):
+                self.stream = stream
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return self.stream.__exit__(*args)
+
+            def fileno(self):
+                return self.stream.fileno()
+
+            def read(self, limit):
+                info = os.fstat(self.fileno())
+                reads.append((info.st_dev, info.st_ino))
+                return self.stream.read(limit)
+
+        with patch.object(os, "fdopen", side_effect=lambda *args: Reader(actual_fdopen(*args))):
+            with self.assertRaisesRegex(ValueError, "^SS_STAGE_ORDER:"):
+                screening.validate_bundle(self.directory)
+        self.assertEqual(1, reads.count(identity))
+
     def test_closed_form_spectrum_and_zero_limits(self) -> None:
         for sites in (1, 4, 8, 16, 32):
             with self.subTest(sites=sites):

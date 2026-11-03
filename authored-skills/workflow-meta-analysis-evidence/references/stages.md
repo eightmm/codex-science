@@ -179,6 +179,18 @@ are hidden during pathname inspection. Descriptors close on success, refusal or
 interruption. Empty/malformed files, special files, growth,
 replacement and final hash changes are labelled refusals, never hangs.
 
+The aggregate raw-byte budget is `MAX_TOTAL_BYTES = 256 * 1024 * 1024`
+(256 MiB), checked against each new artifact's descriptor size before reading.
+The aggregate JSON-value allowance is `MAX_TOTAL_NODES = 4000000`: before parsing,
+count the root, every comma and the first value of every nonempty container with
+a non-consuming lookahead. This conservative upper bound also counts matching
+bytes inside strings. Equality passes; exhausted budgets refuse further unique
+artifacts. Snapshots are keyed by `(st_dev, st_ino)`, so hardlink aliases share
+one initial read, hash and parse and consume each budget once. Path identities
+remain separate for hash checks and reporting. Final checks re-read each unique
+inode once and check every referenced path; they do not consume the budgets again.
+Byte or JSON-value exhaustion is `MA_LIMIT`.
+
 `meta-analysis-validation-v1` is stdout only: `status`, `synthetic`,
 `evidence=statistical only`, `review_status=pending`, `independent_studies`,
 `headline_model`, `results`. It grants no scientific acceptance or independent
@@ -204,7 +216,7 @@ fidelity or causal interpretation is tested. Human gates apply only before
 installation, restricted transfers, new hosts, GPU/remote/heavy compute or
 interpretation-changing choices; this pack performs none of those operations.
 
-Refusal codes: `MA_FORMAT` (record shape), `MA_JSON` (encoding, duplicate keys,
+Refusal codes: `MA_LIMIT` (aggregate bytes or JSON values), `MA_FORMAT` (record shape), `MA_JSON` (encoding, duplicate keys,
 nesting or numbers), `MA_PATH` (canonical path), `MA_INPUT` (unreadable or special
 file), `MA_CHANGED` (growth, replacement or final change), `MA_HASH` (identity
 mismatch), `MA_STAGES` (ordered handoff), `MA_PROTOCOL` (freeze), `MA_MIN_STUDIES`

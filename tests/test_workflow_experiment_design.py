@@ -102,6 +102,169 @@ class ExperimentDesignPackTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(before, {path.name: path.read_bytes() for path in EXAMPLE.iterdir() if path.is_file()})
 
+    def test_refuses_transient_root_ancestor_swaps(self) -> None:
+        for replacement in ("symlink", "directory"):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                ancestor, outside, saved = (base / name for name in ("ancestor", "outside", "saved"))
+                for parent in (ancestor, outside):
+                    directory = parent / "bundle"
+                    directory.mkdir(parents=True)
+                    for source in EXAMPLE.glob("*.json"):
+                        (directory / source.name).write_bytes(source.read_bytes())
+                actual_open, actual_lstat = os.open, os.lstat
+                armed = swapped = False
+
+                def observe(path, *args, **kwargs):
+                    nonlocal armed
+                    info = actual_lstat(path, *args, **kwargs)
+                    if Path(path).name == ancestor.name:
+                        armed = True
+                    return info
+
+                def swap(path, flags, *args, **kwargs):
+                    nonlocal swapped
+                    target = Path(path)
+                    if armed and not swapped and (target.name == ancestor.name or target == ancestor / "bundle/preregister.json"):
+                        swapped = True
+                        ancestor.rename(saved)
+                        if replacement == "symlink":
+                            ancestor.symlink_to(outside, target_is_directory=True)
+                        else:
+                            outside.rename(ancestor)
+                        try:
+                            return actual_open(path, flags, *args, **kwargs)
+                        finally:
+                            if replacement == "symlink":
+                                ancestor.unlink()
+                            else:
+                                ancestor.rename(outside)
+                            saved.rename(ancestor)
+                    return actual_open(path, flags, *args, **kwargs)
+
+                with patch.object(os, "lstat", side_effect=observe), patch.object(os, "open", side_effect=swap):
+                    with self.assertRaises(ValueError):
+                        validate_experiment_design_pack(ancestor / "bundle/preregister.json")
+                self.assertTrue(swapped)
+
+    def test_refuses_root_replacement_at_final_recheck(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            directory, replacement, saved = (base / name for name in ("bundle", "replacement", "saved"))
+            for target in (directory, replacement):
+                target.mkdir()
+                for source in EXAMPLE.glob("*.json"):
+                    (target / source.name).write_bytes(source.read_bytes())
+            family = experiment_pack._family
+            swapped = False
+
+            def swap(plan):
+                nonlocal swapped
+                if not swapped:
+                    swapped = True
+                    directory.rename(saved)
+                    replacement.rename(directory)
+                return family(plan)
+
+            with patch.object(experiment_pack, "_family", side_effect=swap):
+                with self.assertRaises(ValueError):
+                    validate_experiment_design_pack(directory / "preregister.json")
+            self.assertTrue(swapped)
+
+    def test_refuses_artifact_directory_swaps(self) -> None:
+        for replacement in ("symlink", "directory"):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                for source in EXAMPLE.glob("*.json"):
+                    (directory / source.name).write_bytes(source.read_bytes())
+                nested, outside, saved = (directory / name for name in ("nested", "outside", "saved"))
+                for target in (nested, outside):
+                    target.mkdir()
+                    (target / "question.json").write_bytes((directory / "question.json").read_bytes())
+                path = directory / "preregister.json"
+                bundle = json.loads(path.read_text())
+                bundle["question"]["path"] = "nested/question.json"
+                hand_path = directory / bundle["handoff"]["path"]
+                hand = json.loads(hand_path.read_text())
+                hand["inputs"]["question"] = bundle["question"]
+                hand_path.write_text(json.dumps(hand))
+                bundle["handoff"]["sha256"] = hashlib.sha256(hand_path.read_bytes()).hexdigest()
+                path.write_text(json.dumps(bundle))
+                self.assertEqual("ready-for-independent-review", validate_experiment_design_pack(path)["status"])
+                actual_open = os.open
+                swapped = False
+
+                def swap(target, flags, *args, **kwargs):
+                    nonlocal swapped
+                    if not swapped and (Path(target).name == nested.name or Path(target) == nested / "question.json"):
+                        swapped = True
+                        nested.rename(saved)
+                        if replacement == "symlink":
+                            nested.symlink_to(outside, target_is_directory=True)
+                        else:
+                            outside.rename(nested)
+                        try:
+                            return actual_open(target, flags, *args, **kwargs)
+                        finally:
+                            if replacement == "symlink":
+                                nested.unlink()
+                            else:
+                                nested.rename(outside)
+                            saved.rename(nested)
+                    return actual_open(target, flags, *args, **kwargs)
+
+                with patch.object(os, "open", side_effect=swap):
+                    with self.assertRaisesRegex(ValueError, "unavailable-artifact:"):
+                        validate_experiment_design_pack(path)
+                self.assertTrue(swapped)
+
+    def test_refuses_artifact_changed_after_parsing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for source in EXAMPLE.glob("*.json"):
+                (directory / source.name).write_bytes(source.read_bytes())
+            family = experiment_pack._family
+
+            def change(plan):
+                with (directory / "question.json").open("ab") as stream:
+                    stream.write(b" ")
+                return family(plan)
+
+            with patch.object(experiment_pack, "_family", side_effect=change):
+                with self.assertRaisesRegex(ValueError, "unavailable-artifact:"):
+                    validate_experiment_design_pack(directory / "preregister.json")
+
+    def test_aggregate_budget_and_hardlink_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for source in EXAMPLE.glob("*.json"):
+                (directory / source.name).write_bytes(source.read_bytes())
+            path = directory / "preregister.json"
+            bundle = json.loads(path.read_text())
+            power_path = directory / bundle["power"]["path"]
+            power = json.loads(power_path.read_text())
+            original = directory / power["variance_source"]["path"]
+            alias = directory / "source-alias.json"
+            alias.hardlink_to(original)
+            power["variance_source"]["path"] = alias.name
+            power_path.write_text(json.dumps(power))
+            bundle["power"]["sha256"] = hashlib.sha256(power_path.read_bytes()).hexdigest()
+            hand_path = directory / bundle["handoff"]["path"]
+            hand = json.loads(hand_path.read_text())
+            hand["inputs"]["power"] = bundle["power"]
+            hand_path.write_text(json.dumps(hand))
+            bundle["handoff"]["sha256"] = hashlib.sha256(hand_path.read_bytes()).hexdigest()
+            path.write_text(json.dumps(bundle))
+            names = {path.name, *(bundle[name]["path"] for name in ("question", "power", "randomisation", "analysis_plan", "controls", "handoff")), original.name}
+            total = sum((directory / name).stat().st_size for name in names)
+            for limit in (0, total - 1, total):
+                with self.subTest(limit=limit), patch.object(experiment_pack, "_MAX_TOTAL_BYTES", limit, create=True):
+                    if limit < total:
+                        with self.assertRaisesRegex(ValueError, "input-too-large:"):
+                            validate_experiment_design_pack(path)
+                    else:
+                        self.assertEqual("ready-for-independent-review", validate_experiment_design_pack(path)["status"])
+
     def test_refuses_plan_hash_mismatch(self) -> None:
         self.assert_case("plan-hash-mismatch")
 

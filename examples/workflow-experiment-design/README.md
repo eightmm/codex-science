@@ -53,3 +53,9 @@ The pack validator writes nothing. Repeated/concurrent calls do not modify
 these files. A killed validation leaves inputs intact; any partial stdout
 must be discarded. Tests likewise use unique temporary copies, preserving
 checked-in records and any other worker's inputs.
+
+The reader pins every root ancestor and opens artifacts through directory
+descriptors, refusing symlinks and identity changes. It rechecks all inputs and
+the root before success. Each input remains limited to 64 MiB, with a 768 MiB
+aggregate snapshot budget covering all twelve possible inputs; hardlink aliases
+share cached bytes. No record or output schema changes.

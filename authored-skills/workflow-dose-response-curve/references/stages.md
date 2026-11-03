@@ -21,6 +21,25 @@ IDs in `plan.json`, with the existing `{id, description, status}` shape. Registe
 domain artifacts as ordinary files; use a separate existing claim-register for
 coordinator claims. No global schema, receipt fields, engine or MCP change.
 
+The aggregate raw-byte budget is `MAX_TOTAL_BYTES = 256 * 1024 * 1024`
+(256 MiB), checked against each new artifact's descriptor size before reading.
+The aggregate JSON-value allowance is `MAX_TOTAL_NODES = 4000000`: before parsing,
+count the root, every comma and the first value of every nonempty container with
+a non-consuming lookahead. This conservative upper bound also counts matching
+bytes inside strings. Equality passes; exhausted budgets refuse further unique
+artifacts. Snapshots are keyed by `(st_dev, st_ino)`, so hardlink aliases share
+one initial read, hash and parse and consume each budget once. Path identities
+remain separate for hash checks and reporting. Final checks re-read each unique
+inode once and check every referenced path; they do not consume the budgets again.
+Byte or JSON-value exhaustion is `input-limit`. The absolute bundle directory
+is walked component by component with `O_DIRECTORY|O_NOFOLLOW`, comparing each
+pre-open lstat device/inode with fstat. Its final descriptor stays pinned for all
+artifact reads. Artifact directories use the same identity checks; files require
+`O_NONBLOCK|O_NOFOLLOW`, matching lstat/fstat signatures and bounded reads. Root
+identity is checked again before and after the final artifact checks. Descriptors
+close on success, refusal or interruption. Two concurrent calls write nothing;
+killing either leaves no artifact, partial output file or receipt.
+
 ## Claim gate
 
 Positive statuses `supported`, `replicated`, and `suggestive` cannot cite records
@@ -45,7 +64,9 @@ artifact whose path **and** hash differ from every study artifact (assay, plate,
 uncertainty, claims, handoff); same-content copies are refused. This check rejects
 self-citation but does not authenticate external evidence or independence.
 Empty support requires `unavailable` status; unsupported, conflicting and
-withdrawn claims also require support. Missing support is never negative evidence. A computed agreement
+withdrawn claims also require support. If any cited record has `kind` or `result`
+`unavailable`, every claim status must be `unavailable` (`unavailable-evidence`).
+Missing support is never negative evidence. A computed agreement
 is never physical or clinical validity. Review approval is never truth.
 
 ## Human decision gates

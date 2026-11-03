@@ -27,9 +27,17 @@ with `review_status` pending. The evidence boundary is returned explicitly.
 Every stage input is an immutable path plus SHA-256 of the exact file bytes,
 including whitespace. Stage 1 binds `contract.json`; every later stage binds
 that contract and the immediately preceding stage. All filenames are fixed
-bundle-relative regular files, never symlinks. Each record is at most 64 MiB;
+bundle-relative regular files, never symlinks. The root is pinned by walking
+every absolute ancestor with directory descriptors and refusing symlinks or
+identity changes. Records are opened relative to the pinned descriptor, with
+identities checked around each read. Before success the reader rechecks the
+root, every record, and the root again. Each record is at most 64 MiB;
 the reader checks the opened file's type and size before a bounded read and
-refuses growth past that limit. JSON objects must have unique keys at every
+refuses growth past that limit. Unique input bytes are capped at 384 MiB per
+snapshot, preserving all six records at the existing per-record maximum.
+Hardlink aliases share cached bytes and are read once per capture/recheck pass.
+The reference model has always emitted exactly these six records and integer
+dimer sites. JSON objects must have unique keys at every
 depth, including escaped spellings of the same key. The same bytes are parsed
 and hashed. A changed input requires a new snapshot and new downstream
 identities, not reusing reviewed evidence.
@@ -85,7 +93,8 @@ has eigenvalues [-1,1]. Zero hopping has the degenerate onsite spectrum.
 - Normalization data: `energy_unit`, `length_unit`, `lattice_spacing`, normalized
   `candidates`, `thresholds_used`, boolean `exploratory`. Effective thresholds
   differing from the contract require the exploratory label even when stricter.
-- Analytic data: boolean `ran`, `sites` 2, `observed` and fixed `expected` spectra.
+- Analytic data: boolean `ran`, integer `sites` 2 (excluding booleans and floats),
+  `observed` and fixed `expected` spectra.
 - Convergence data: `candidates` in contract order, each with `candidate_id`,
   full `series` of `sites`/`value`, `reference_limit`, `final_error`, `converged`.
   Values are recomputed against the declared Hamiltonian; plausible monotonic
@@ -128,7 +137,7 @@ mask scientific-contract defects. Tests require the following labelled errors:
 | Defect | Refusal |
 | --- | --- |
 | Missing, symlinked or non-regular record | SS_MISSING_RECORD |
-| Record over 64 MiB, including growth during reading | SS_RECORD_SIZE |
+| Record over 64 MiB, aggregate over 384 MiB, or size changes during reading | SS_RECORD_SIZE |
 | Duplicate JSON object key at any depth | SS_SHAPE |
 | Missing/inconsistent units | SS_UNITS |
 | Control not run / outside tolerance | SS_ANALYTIC_NOT_RUN / SS_ANALYTIC_TOLERANCE |

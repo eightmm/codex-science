@@ -98,8 +98,10 @@ single coordinator checkpoint, manifest, assumptions, dependencies, conflicts,
 exclusions, uncertainty, applicability limits and reference-use ledger. Register
 domain records as ordinary artifacts with a descriptive kind, never as a
 claim-register. Domain observations use `recorded` or `unavailable`; claim
-adjudication uses the existing claim-register statuses. No new global schema or
-receipt key is introduced. Hash changes invalidate downstream handoffs and
+adjudication uses the existing claim-register statuses. A replicated memo claim
+requires two independent groups or sources after merging shared dependencies.
+Schema and policy versions use real integers; booleans and floats are refused.
+No new global schema or receipt key is introduced. Hash changes invalidate downstream handoffs and
 require a new review packet under the coordinator's existing rules.
 
 ## Boundaries

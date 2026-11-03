@@ -15,6 +15,8 @@ from codex_science.bulk_expression_pack import benjamini_hochberg, welch_test as
 
 STAGES = ("01-design", "02-qc", "03-aggregation", "04-comparison", "05-handoff")
 MAX_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_NODES = 4000000
 MAX_DEPTH = 64
 IDENTITIES = ("organism", "genome_version", "annotation_version", "identifier_namespace")
 POSITIVE = {"supported", "replicated", "suggestive"}
@@ -97,6 +99,11 @@ def _float(value):
     return _number(float(value), "JSON number", -1e100)
 
 
+def _json_nodes(raw):
+    # Upper bound before parsing: root, commas, and each non-empty container's first value.
+    return 1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw))
+
+
 def _json(raw):
     try:
         root = _obj(json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,
@@ -136,16 +143,52 @@ def _signature(info):
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
 
-def _read(root, relative):
-    """Open components by descriptor so replacing a parent cannot follow a symlink."""
-    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
-    descriptors = []
+def _open_root(root):
+    """Pin each directory component and retain its descriptor-relative identity."""
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_DIRECTORY
+    descriptor = os.open(root.anchor, flags)
     try:
-        directory = os.open(root.anchor, flags | os.O_DIRECTORY)
-        descriptors.append(directory)
-        for part in (*root.parts[1:], *relative.parts[:-1]):
-            directory = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
-            descriptors.append(directory)
+        opened = os.fstat(descriptor)
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _require(stat.S_ISDIR(before.st_mode), "input-file", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _require(stat.S_ISDIR(opened.st_mode)
+                         and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "input-changed", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _read(root, relative, *, bundle=None, checked=None):
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+    directory = None
+    try:
+        directory = _open_root(root)[0] if bundle is None else os.dup(bundle.descriptor)
+        for part in relative.parts[:-1]:
+            before = os.lstat(part, dir_fd=directory)
+            _require(stat.S_ISDIR(before.st_mode), "input-file", "symlinked artifact component")
+            child = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+            try:
+                opened = os.fstat(child)
+                _require((before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "input-changed", "artifact ancestor changed")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(directory)
+            directory = child
         before = os.lstat(relative.name, dir_fd=directory)
         _require(stat.S_ISREG(before.st_mode) and before.st_size <= MAX_BYTES,
                  "input-file", "input must be a regular file at most 64 MiB")
@@ -155,33 +198,79 @@ def _read(root, relative):
             _require(stat.S_ISREG(opened.st_mode) and opened.st_size <= MAX_BYTES
                      and _signature(before) == _signature(opened),
                      "input-file", "input changed or is not a bounded regular file")
-            raw = handle.read(MAX_BYTES + 1)
+            signature = _signature(opened)
+            if bundle is not None and relative.as_posix() == bundle.entry and bundle.entry not in bundle.cache:
+                _require(signature == bundle.entry_signature, "input-file", "entry changed during root pinning")
+            identity = signature[:2]
+            cached = bundle.artifacts.get(identity) if bundle is not None else None
+            if cached is not None:
+                _require(signature == cached[2], "input-changed", "cached input changed")
+                if checked is None or identity in checked:
+                    return None, signature
+            limit = MAX_BYTES
+            if bundle is not None and checked is None:
+                limit = min(limit, MAX_TOTAL_BYTES - bundle.bytes_read)
+                _require(opened.st_size <= limit, "input-limit", "total input byte budget exceeded")
+            raw = handle.read(min(limit, opened.st_size) + 1)
             after = os.fstat(handle.fileno())
         _require(len(raw) <= MAX_BYTES and len(raw) == opened.st_size
-                 and _signature(opened) == _signature(after), "input-file", "input grew or changed while reading")
-        return raw, _signature(after)
+                 and signature == _signature(after), "input-file", "input grew or changed while reading")
+        if bundle is not None and checked is None:
+            bundle.bytes_read += len(raw)
+        return raw, signature
     except OSError as error:
         raise ValueError("input-file: unavailable regular file or symlinked component") from error
     finally:
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
+        if directory is not None:
+            os.close(directory)
 
 
 class _Bundle:
     def __init__(self, path):
-        # abspath preserves symlinks, unlike resolve; _read refuses them.
         absolute = Path(os.path.abspath(path))
         self.root = absolute.parent
+        self.entry = absolute.name
         self.cache = {}
-        self.pack = self.load({"path": absolute.name}, check_hash=False)
+        self.artifacts = {}
+        self.bytes_read = 0
+        self.nodes_read = 0
+        self.descriptor = None
+        try:
+            # Record the entry before pinning so mutations during that walk are refused too.
+            self.entry_signature = _signature(os.lstat(absolute))
+            self.descriptor, self.root_identities = _open_root(self.root)
+            self.pack = self.load({"path": absolute.name}, check_hash=False)
+        except BaseException as error:
+            self.close()
+            if isinstance(error, OSError):
+                raise ValueError("input-file: unavailable regular file or symlinked component") from error
+            raise
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
+        if self.descriptor is not None:
+            os.close(self.descriptor)
+            self.descriptor = None
 
     def load(self, identity, schema=None, check_hash=True):
         identity = _fields(identity, ("path", "sha256"), "artifact identity")
         path = _relative(identity.get("path"))
         name = path.as_posix()
         if name not in self.cache:
-            raw, signature = _read(self.root, path)
-            self.cache[name] = (_json(raw), hashlib.sha256(raw).hexdigest(), signature)
+            raw, signature = _read(self.root, path, bundle=self)
+            key = signature[:2]
+            if raw is not None:
+                nodes = _json_nodes(raw)
+                _require(nodes <= MAX_TOTAL_NODES - self.nodes_read,
+                         "input-limit", "total JSON value budget exceeded")
+                self.artifacts[key] = (_json(raw), hashlib.sha256(raw).hexdigest(), signature)
+                self.nodes_read += nodes
+            self.cache[name] = self.artifacts[key]
         value, digest, _ = self.cache[name]
         if check_hash:
             expected = identity.get("sha256")
@@ -192,12 +281,22 @@ class _Bundle:
                      "invalid-record", f"expected synthetic fixture {schema}")
         return value
 
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _require(identities == self.root_identities, "input-changed", "bundle root replaced")
+        finally:
+            os.close(descriptor)
+
     def recheck(self):
-        # Parsing uses one cached snapshot. A separate final read only verifies identity.
+        self._check_root()
+        checked = set()
         for name, (_, digest, signature) in self.cache.items():
-            raw, current = _read(self.root, _relative(name))
-            _require(current == signature and hashlib.sha256(raw).hexdigest() == digest,
+            raw, current = _read(self.root, _relative(name), bundle=self, checked=checked)
+            _require(current == signature and (raw is None or hashlib.sha256(raw).hexdigest() == digest),
                      "input-changed", "input was replaced or changed during validation")
+            checked.add(current[:2])
+        self._check_root()
 
 
 def welch_test(first, second, minimum=2):
@@ -442,11 +541,13 @@ def _analyze(bundle):
 def validate_single_cell_pseudobulk_pack(path: Path | str) -> dict:
     """Validate snapshots, compute donor-level evidence and recheck all input hashes; write nothing."""
     try:
-        bundle = _Bundle(path)
-        result = _analyze(bundle)
-        bundle.recheck()
-        result["input_identities"] = [{"path": name, "sha256": item[1]} for name, item in sorted(bundle.cache.items())]
-        return result
+        with _Bundle(path) as bundle:
+            result = _analyze(bundle)
+            bundle.recheck()
+            result["input_identities"] = [{"path": name, "sha256": item[1]} for name, item in sorted(bundle.cache.items())]
+            return result
+    except OSError as error:
+        raise ValueError("input-file: unavailable regular file or symlinked component") from error
     except (TypeError, KeyError, IndexError, RecursionError, OverflowError, ZeroDivisionError) as error:
         raise ValueError("invalid-record: malformed or numerically degenerate synthetic bundle") from error
     except ValueError as error:

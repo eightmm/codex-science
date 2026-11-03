@@ -10,6 +10,23 @@ Every artifact identity is `{path, sha256}` with a lowercase SHA-256 of the actu
 
 The reader checks lstat identity, opens with O_NONBLOCK and O_NOFOLLOW, checks descriptor type and size, and reads at most 64 MiB plus one byte. It refuses nonregular, swapped, growing and oversized files. Each artifact is parsed from one cached byte snapshot; final separate reads recheck hashes and file identities, including the entry pack. Concurrent replacement is refused even if the replacement has identical content. There is no lock or cross-file transaction: the final recheck detects changes observed during the run, not edits made after validation returns. Two concurrent calls write nothing; killing either leaves no output, partial file or receipt.
 
+The aggregate raw-byte budget is `MAX_TOTAL_BYTES = 256 * 1024 * 1024`
+(256 MiB), checked against each new artifact's descriptor size before reading.
+The aggregate JSON-value allowance is `MAX_TOTAL_NODES = 4000000`: before parsing,
+count the root, every comma and the first value of every nonempty container with
+a non-consuming lookahead. This conservative upper bound also counts matching
+bytes inside strings. Equality passes; exhausted budgets refuse further unique
+artifacts. Snapshots are keyed by `(st_dev, st_ino)`, so hardlink aliases share
+one initial read, hash and parse and consume each budget once. Path identities
+remain separate for hash checks and reporting. Final checks re-read each unique
+inode once and check every referenced path; they do not consume the budgets again.
+Byte or JSON-value exhaustion is `input-limit`. The absolute bundle directory is
+walked component by component with `O_DIRECTORY|O_NOFOLLOW`, checking each opened
+directory against its pre-open lstat device/inode. Its final descriptor remains
+pinned for every artifact read. Artifact ancestors have the same identity checks;
+the root is checked again before and after the final artifact checks. Descriptors
+close on success, refusal or interruption.
+
 UTF-8 JSON requires an object root. Nested duplicate keys, NaN/Infinity, numbers with absolute magnitude above 1e100, and container depth above 64 (root depth zero) are refused. Recursion and malformed values become labelled ValueErrors. Integer fields require JSON integers and reject bools, all floats (including integral values such as 3.0) and strings. A hash is not a signature or evidence of historical preregistration.
 
 ## Pack-local schemas

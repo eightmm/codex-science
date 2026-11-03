@@ -3,7 +3,6 @@ import hashlib
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -214,6 +213,19 @@ class VariantDossierTests(unittest.TestCase):
     def test_retrieval_cannot_replace_the_frozen_normalization_identity(self):
         self.seed("normalization-ledger-mismatch")
 
+    def test_any_unavailable_citation_requires_unavailable_status(self):
+        change(self.root, "bounded-claims.json", "/claims/0/basis", "source_observation")
+        for support in (["clinvar"], ["clinvar", "gnomad"]):
+            for status in ("supported", "contradicted", "inconclusive", "unavailable", "replicated"):
+                with self.subTest(support=support, status=status):
+                    change(self.root, "bounded-claims.json", "/claims/0/evidence_sources", support)
+                    change(self.root, "bounded-claims.json", "/claims/0/status", status)
+                    if status == "unavailable":
+                        self.assertEqual("passed", validate_variant_dossier(self.root)["status"])
+                    else:
+                        with self.assertRaisesRegex(ValueError, "^missing-record-not-negative:"):
+                            validate_variant_dossier(self.root)
+
     def test_supported_clinical_prose_is_refused(self):
         change(self.root, "bounded-claims.json", "/claims/0/evidence_sources", ["gnomad", "dbsnp"])
         for index in (1, 2):
@@ -313,12 +325,24 @@ class VariantDossierTests(unittest.TestCase):
             self.assertEqual("passed", validate_variant_dossier(self.root)["status"])
             path.write_bytes(equal + b" ")
             bind(self.root)
-            for reported_size in (limit + 1, 0):
-                with self.subTest(reported_size=reported_size):
-                    observed = mock.Mock(st_mode=stat.S_IFREG, st_size=reported_size)
-                    with mock.patch("os.fstat", return_value=observed):
-                        with self.assertRaisesRegex(ValueError, "^invalid-json:.*exceeds"):
-                            validate_variant_dossier(self.root)
+            with self.assertRaisesRegex(ValueError, "^invalid-json:.*exceeds"):
+                validate_variant_dossier(self.root)
+            original_open = os.open
+            grew = []
+
+            def grow_before_open(candidate, flags, *args, **kwargs):
+                if str(candidate) == path.name and kwargs.get("dir_fd") is not None and not grew:
+                    grew.append(True)
+                    with path.open("ab") as stream:
+                        stream.write(b" ")
+                return original_open(candidate, flags, *args, **kwargs)
+
+            path.write_bytes(equal)
+            bind(self.root)
+            with mock.patch("os.open", side_effect=grow_before_open):
+                with self.assertRaisesRegex(ValueError, "^invalid-json:.*exceeds"):
+                    validate_variant_dossier(self.root)
+            self.assertTrue(grew)
             for raw in (b"", b"0", b"[]", b"{", b"\xff"):
                 with self.subTest(raw=raw):
                     path.write_bytes(raw)
@@ -347,30 +371,27 @@ class VariantDossierTests(unittest.TestCase):
                         path.rmdir() if kind == "directory" else path.unlink()
                         path.write_bytes(original)
         path = self.root / "evidence-table.json"
-        original_is_file = Path.is_file
-        original_read = Path.read_bytes
+        original_lstat = os.lstat
+        replaced = []
 
-        def replace_with_fifo(candidate):
-            result = original_is_file(candidate)
-            if candidate == path and result:
+        def replace_after_lstat(candidate, *args, **kwargs):
+            observed = original_lstat(candidate, *args, **kwargs)
+            if str(candidate) == path.name and kwargs.get("dir_fd") is not None and not replaced:
+                replaced.append(True)
                 path.unlink()
                 os.mkfifo(path)
-            return result
+            return observed
 
-        def guarded_read(candidate):
-            if candidate == path:
-                self.fail("replacement FIFO reached a blocking read")
-            return original_read(candidate)
-
-        with mock.patch.object(Path, "is_file", replace_with_fifo), mock.patch.object(Path, "read_bytes", guarded_read):
+        with mock.patch("os.lstat", side_effect=replace_after_lstat):
             with self.assertRaisesRegex(ValueError, "^unsafe-artifact-path:"):
                 validate_variant_dossier(self.root)
+        self.assertTrue(replaced)
         path.unlink()
         write(path, read(EXAMPLE / "synthetic-dossier/evidence-table.json"))
         original_open = os.open
 
         def replace_before_open(candidate, flags, *args, **kwargs):
-            if Path(candidate) == path:
+            if str(candidate) == path.name or Path(candidate) == path:
                 path.unlink()
                 os.mkfifo(path)
             return original_open(candidate, flags, *args, **kwargs)
@@ -480,6 +501,84 @@ class VariantDossierTests(unittest.TestCase):
                 change(self.root, target, pointer, value)
                 with self.assertRaisesRegex(ValueError, "^" + code + ":"):
                     validate_variant_dossier(self.root)
+
+    def test_directory_swaps_are_refused(self):
+        for phase in ("ancestor-symlink", "ancestor-directory", "pinned-root",
+                      "artifact-symlink", "artifact-directory", "leaf-regular", "growth-during-read"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                ancestor = base / "ancestor"
+                root = ancestor / "bundle"
+                shutil.copytree(self.root, root)
+                nested = root / "snapshots"
+                leaf = "clinvar.json"
+                outside = base / "outside"
+                shutil.copytree(ancestor, outside)
+                saved = base / "saved"
+                original_open = os.open
+                original_fdopen = os.fdopen
+                swapped = []
+
+                def swap_at_open(candidate, flags, *args, **kwargs):
+                    relative = kwargs.get("dir_fd") is not None
+                    first = "dossier.json"
+                    trigger = ((relative and str(candidate) == ancestor.name)
+                               or (not relative and Path(candidate) == root / first))
+                    if phase == "pinned-root":
+                        trigger = str(candidate) == first or Path(candidate) == root / first
+                    if phase.startswith("artifact"):
+                        trigger = ((relative and str(candidate) == nested.name)
+                                   or (not relative and Path(candidate) == nested / leaf))
+                    if phase == "leaf-regular":
+                        trigger = ((relative and str(candidate) == leaf)
+                                   or (not relative and Path(candidate) == nested / leaf))
+                    if phase == "growth-during-read":
+                        trigger = False
+                    if swapped or not trigger:
+                        return original_open(candidate, flags, *args, **kwargs)
+                    swapped.append(True)
+                    changed = (root if phase == "pinned-root" else nested / leaf if phase == "leaf-regular"
+                               else nested if phase.startswith("artifact") else ancestor)
+                    changed.rename(saved)
+                    if phase.endswith("symlink"):
+                        target = outside / "bundle" / nested.name if phase.startswith("artifact") else outside
+                        changed.symlink_to(target, target_is_directory=True)
+                    elif phase == "leaf-regular":
+                        shutil.copyfile(saved, changed)
+                    else:
+                        shutil.copytree(saved, changed)
+                    try:
+                        return original_open(candidate, flags, *args, **kwargs)
+                    finally:
+                        if phase != "pinned-root":
+                            changed.unlink() if changed.is_symlink() or changed.is_file() else shutil.rmtree(changed)
+                            saved.rename(changed)
+
+                def grow_during_read(descriptor, *args, **kwargs):
+                    stream = original_fdopen(descriptor, *args, **kwargs)
+                    original_read = stream.read
+
+                    def read_and_grow(limit):
+                        raw = original_read(limit)
+                        if phase == "growth-during-read" and not swapped:
+                            swapped.append(True)
+                            with (root / "dossier.json").open("ab") as output:
+                                output.write(b" ")
+                        return raw
+
+                    stream.read = read_and_grow
+                    return stream
+
+                try:
+                    with mock.patch("os.open", side_effect=swap_at_open), \
+                            mock.patch("os.fdopen", side_effect=grow_during_read):
+                        with self.assertRaisesRegex(ValueError, "unsafe-artifact-path|input-changed"):
+                            validate_variant_dossier(root)
+                    self.assertTrue(swapped, "swap hook was not reached")
+                finally:
+                    if saved.exists():
+                        shutil.rmtree(root)
+                        saved.rename(root)
 
     def test_pack_contract_reuses_plan_and_existing_skills(self):
         skill = ROOT / "authored-skills/workflow-variant-evidence-dossier"

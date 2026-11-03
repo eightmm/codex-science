@@ -80,29 +80,115 @@ def _json_object(raw: bytes, label: str) -> dict:
         raise ValueError(f"invalid-record: {label} must be a UTF-8 JSON object: {error}") from error
 
 
-def _json_bytes(path: Path) -> bytes:
+def _signature(info):
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def _open_root(root):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = os.open(root.anchor, flags)
     try:
-        _require(stat.S_ISREG(path.lstat().st_mode), "invalid-record", "input must be an available regular JSON file")
-        # Nonblocking open and descriptor checks also refuse a FIFO swapped in after lstat.
-        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
-        with os.fdopen(os.open(path, flags), "rb") as handle:
-            _require(stat.S_ISREG(os.fstat(handle.fileno()).st_mode), "invalid-record", "input must be an available regular JSON file")
-            raw = handle.read(DEFAULT_MAX_JSON_BYTES + 1)
-    except OSError as error:
-        raise ValueError(f"invalid-record: cannot read input: {error.strerror}") from error
-    _require(len(raw) <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the repository JSON size bound")
-    return raw
+        opened = os.fstat(descriptor)
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _require(stat.S_ISDIR(before.st_mode), "invalid-record", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _require(stat.S_ISDIR(opened.st_mode)
+                         and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "invalid-record", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
-def _input(root: Path, ref, schema: str) -> dict:
+class _Bundle:
+    def __init__(self, root):
+        self.root = Path(os.path.abspath(root))
+        self.fd, self.identities = _open_root(self.root)
+        self.snapshots = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        os.close(self.fd)
+
+    def _read_bytes(self, relative):
+        path = PurePosixPath(relative)
+        opened_dirs = []
+        try:
+            directory = self.fd
+            flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            for part in path.parts[:-1]:
+                before = os.lstat(part, dir_fd=directory)
+                _require(stat.S_ISDIR(before.st_mode), "invalid-record", "symlinked artifact directory refused")
+                directory = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+                opened_dirs.append(directory)
+                opened = os.fstat(directory)
+                _require(stat.S_ISDIR(opened.st_mode)
+                       and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                       "invalid-record", "artifact ancestor changed during open")
+            before = os.lstat(path.name, dir_fd=directory)
+            _require(not stat.S_ISLNK(before.st_mode), "invalid-record", "artifact symlinks are refused")
+            _require(stat.S_ISREG(before.st_mode), "invalid-record", "input must be an available regular JSON file")
+            _require(before.st_size <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the inclusive 64 MiB JSON size bound")
+            descriptor = os.open(path.name, flags, dir_fd=directory)
+            with os.fdopen(descriptor, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                _require(stat.S_ISREG(opened.st_mode), "invalid-record", "input must be an available regular JSON file")
+                _require(opened.st_size <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the inclusive 64 MiB JSON size bound")
+                _require(_signature(before) == _signature(opened), "input-changed", "input changed during open")
+                raw = stream.read(DEFAULT_MAX_JSON_BYTES + 1)
+                after = os.fstat(stream.fileno())
+            _require(len(raw) <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the inclusive 64 MiB JSON size bound")
+            _require(len(raw) == opened.st_size and _signature(opened) == _signature(after),
+                   "input-changed", "input changed during bounded read")
+            digest = hashlib.sha256(raw).hexdigest()
+            snapshot = (_signature(after), digest)
+            previous = self.snapshots.setdefault(str(path), snapshot)
+            _require(previous == snapshot, "input-changed", "input replaced or modified during validation")
+            return raw
+        except OSError as error:
+            raise ValueError("invalid-record: unavailable input or symlinked component") from error
+        finally:
+            for descriptor in reversed(opened_dirs):
+                os.close(descriptor)
+
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _require(identities == self.identities, "input-changed", "bundle root replaced during validation")
+        finally:
+            os.close(descriptor)
+
+    def unchanged(self):
+        self._check_root()
+        for relative in tuple(self.snapshots):
+            self._read_bytes(relative)
+        self._check_root()
+
+
+def _input(root: _Bundle, ref, schema: str) -> dict:
     ref = _object(ref, "input identity")
     relative = PurePosixPath(_text(ref.get("path"), "input path"))
     _require(not relative.is_absolute() and ".." not in relative.parts, "input-identity", "input path must be relative")
-    target = root / relative
-    _require(target.resolve().is_relative_to(root.resolve()) and target.is_file(),
-             "unavailable", "input must be an available file within the fixture bundle")
-    raw = _json_bytes(target)
-    _require(hashlib.sha256(raw).hexdigest() == ref.get("sha256"), "input-identity", "input hash mismatch")
+    try:
+        raw = root._read_bytes(str(relative))
+    except ValueError as error:
+        if isinstance(error.__cause__, FileNotFoundError):
+            raise ValueError("unavailable: input must be an available file within the fixture bundle") from error
+        raise
+    _require(root.snapshots[str(relative)][1] == ref.get("sha256"), "input-identity", "input hash mismatch")
     value = _json_object(raw, "input")
     _require(value.get("schema") == schema and value.get("fixture") is True,
              "invalid-record", "reference inputs must be labelled synthetic fixtures")
@@ -149,14 +235,14 @@ def _claims(claims) -> None:
     _names([claim["id"] for claim in claims], "claim ids", empty=True)
 
 
-def _prepare(path: Path) -> tuple[dict, dict, dict, list, list, dict]:
-    record = _json_object(_json_bytes(path), "pack")
+def _prepare(path: Path, bundle: _Bundle) -> tuple[dict, dict, dict, list, list, dict]:
+    record = _json_object(bundle._read_bytes(path.name), "pack")
     _require(record.get("schema") == "bulk-expression-pack-v1" and record.get("fixture") is True,
              "invalid-record", "reference accepts only bulk-expression-pack-v1 synthetic fixtures")
     _require(record.get("stages") == list(STAGES), "stage-order", "six stages must retain their fixed order")
     inputs = _object(record.get("inputs"), "inputs")
-    expression = _input(path.parent, inputs.get("expression"), "bulk-expression-counts-v1")
-    collection = _input(path.parent, inputs.get("gene_sets"), "bulk-expression-gene-sets-v1")
+    expression = _input(bundle, inputs.get("expression"), "bulk-expression-counts-v1")
+    collection = _input(bundle, inputs.get("gene_sets"), "bulk-expression-gene-sets-v1")
     design = _object(record.get("design"), "design")
     for field in IDENTITIES:
         identity = _text(design.get(field), field)
@@ -304,38 +390,45 @@ def hypergeometric_tail(population: int, members: int, draws: int, overlap: int)
 
 def analyze_bulk_expression(path: Path | str) -> dict:
     """Validate all controls before computing statistics; never execute external tools."""
-    path = Path(path)
-    record, expression, collection, samples, rows, spec = _prepare(path)
-    keep, qc = _qc(record, samples, rows, spec)
-    differential = []
-    for row in rows:
-        groups = [[math.log2(1 + row["counts"][i] * 1_000_000 / qc[i]["library_size"])
-                   for i in keep if samples[i]["condition"] == group] for group in spec["contrast"]]
-        differential.append({"gene_id": row["id"], **welch_test(*groups)})
-    for row, q_value in zip(differential, benjamini_hochberg([row["p_value"] for row in differential])):
-        row.update(q_value=q_value, significant=row["t"] is not None and q_value <= spec["alpha"])
-    selected = {row["gene_id"] for row in differential if row["significant"]}
-    background = set(spec["enrichment_background"])
-    enrichment = []
-    for gene_set in collection["sets"]:
-        members = set(gene_set["genes"]) & background
-        overlap = selected & members
-        enrichment.append({"set_id": gene_set["id"], "overlap": sorted(overlap), "members_in_background": len(members),
-                           "p_value": hypergeometric_tail(len(background), len(members), len(selected), len(overlap))})
-    for row, q_value in zip(enrichment, benjamini_hochberg([row["p_value"] for row in enrichment])):
-        row.update(q_value=q_value, significant=q_value <= spec["enrichment_alpha"])
-    return {"schema": "bulk-expression-result-v1", "fixture": True, "evidence_level": "statistical-only",
-            "inputs": record["inputs"], "frozen_sha256": record["frozen_sha256"], "analysis_sha256": specification_hash(spec),
-            "stages": list(STAGES), "exploratory": record["exploratory"], "qc": qc,
-            "differential": differential, "enrichment": enrichment, "claims": record["claims"],
-            "review": "unavailable", "limitations": ["Synthetic fixture; no biological, physical or clinical validation.",
-            "Welch on log2(CPM+1) does not model count dispersion or adjust batch/covariates.",
-            "Enrichment depends on selection, universe and gene correlation; association is never causality.",
-            "Freeze records are declarations with hashes, not independent proof of historical timing.",
-            "Independent science-review and rigor classification remain with the coordinator."] + [
-            f"Untestable gene {row['gene_id']}: zero within-group variance in both groups; "
-            "Welch is undefined. Retained in BH with p=1 and never selected as significant."
-            for row in differential if row["t"] is None]}
+    path = Path(os.path.abspath(path))
+    try:
+        _require(stat.S_ISREG(path.lstat().st_mode), "invalid-record",
+                 "input must be an available regular JSON file")
+    except OSError as error:
+        raise ValueError("invalid-record: cannot read input") from error
+    with _Bundle(path.parent) as bundle:
+        record, expression, collection, samples, rows, spec = _prepare(path, bundle)
+        keep, qc = _qc(record, samples, rows, spec)
+        differential = []
+        for row in rows:
+            groups = [[math.log2(1 + row["counts"][i] * 1_000_000 / qc[i]["library_size"])
+                       for i in keep if samples[i]["condition"] == group] for group in spec["contrast"]]
+            differential.append({"gene_id": row["id"], **welch_test(*groups)})
+        for row, q_value in zip(differential, benjamini_hochberg([row["p_value"] for row in differential])):
+            row.update(q_value=q_value, significant=row["t"] is not None and q_value <= spec["alpha"])
+        selected = {row["gene_id"] for row in differential if row["significant"]}
+        background = set(spec["enrichment_background"])
+        enrichment = []
+        for gene_set in collection["sets"]:
+            members = set(gene_set["genes"]) & background
+            overlap = selected & members
+            enrichment.append({"set_id": gene_set["id"], "overlap": sorted(overlap), "members_in_background": len(members),
+                               "p_value": hypergeometric_tail(len(background), len(members), len(selected), len(overlap))})
+        for row, q_value in zip(enrichment, benjamini_hochberg([row["p_value"] for row in enrichment])):
+            row.update(q_value=q_value, significant=q_value <= spec["enrichment_alpha"])
+        bundle.unchanged()
+        return {"schema": "bulk-expression-result-v1", "fixture": True, "evidence_level": "statistical-only",
+                "inputs": record["inputs"], "frozen_sha256": record["frozen_sha256"], "analysis_sha256": specification_hash(spec),
+                "stages": list(STAGES), "exploratory": record["exploratory"], "qc": qc,
+                "differential": differential, "enrichment": enrichment, "claims": record["claims"],
+                "review": "unavailable", "limitations": ["Synthetic fixture; no biological, physical or clinical validation.",
+                "Welch on log2(CPM+1) does not model count dispersion or adjust batch/covariates.",
+                "Enrichment depends on selection, universe and gene correlation; association is never causality.",
+                "Freeze records are declarations with hashes, not independent proof of historical timing.",
+                "Independent science-review and rigor classification remain with the coordinator."] + [
+                f"Untestable gene {row['gene_id']}: zero within-group variance in both groups; "
+                "Welch is undefined. Retained in BH with p=1 and never selected as significant."
+                for row in differential if row["t"] is None]}
 
 
 def validate_bulk_expression_pack(path: Path | str) -> dict:

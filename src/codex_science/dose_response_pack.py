@@ -20,6 +20,8 @@ from statistics import mean, stdev
 
 STAGES = ("01-assay", "02-qc", "03-fit", "04-uncertainty", "05-review-handoff")
 MAX_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_NODES = 4000000
 PARAMETERS = ("bottom", "top", "potency", "hill")
 POSITIVE = {"supported", "replicated", "suggestive"}
 UNAVAILABLE_POSITIVE_WORDING = r"\b(?:supported|replicated|suggestive|significan\w*|potency\s+estimate)\b"
@@ -85,6 +87,11 @@ def _constant(value):
     raise ValueError(f"invalid-json: non-finite constant {value}")
 
 
+def _json_nodes(raw):
+    # Upper bound before parsing: root, commas, and each non-empty container's first value.
+    return 1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw))
+
+
 def _parse(raw):
     try:
         value = json.loads(raw, object_pairs_hook=_pairs, parse_constant=_constant)
@@ -114,25 +121,78 @@ def _relative(value):
     return relative.parts
 
 
-def _safe_bytes(path):
-    """Open every component without following links, including replacement races."""
-    absolute = Path(os.path.abspath(path))
-    directory = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY)
+def _signature(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def _open_root(root):
+    """Pin each directory component and retain its descriptor-relative identity."""
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_DIRECTORY
+    descriptor = os.open(root.anchor, flags)
     try:
-        for part in absolute.parts[1:-1]:
-            info = os.stat(part, dir_fd=directory, follow_symlinks=False)
-            _require(stat.S_ISDIR(info.st_mode), "unsafe-input", "parent must be a real directory")
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+        opened = os.fstat(descriptor)
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _require(stat.S_ISDIR(before.st_mode), "unsafe-input", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _require(stat.S_ISDIR(opened.st_mode)
+                         and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "input-changed", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _safe_bytes(path, *, bundle=None, checked=None):
+    absolute = Path(os.path.abspath(path))
+    root = absolute.parent if bundle is None else bundle.root
+    relative = absolute.relative_to(root)
+    directory = _open_root(root)[0] if bundle is None else os.dup(bundle.descriptor)
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+    try:
+        for part in relative.parts[:-1]:
+            before = os.lstat(part, dir_fd=directory)
+            _require(stat.S_ISDIR(before.st_mode), "unsafe-input", "parent must be a real directory")
+            child = os.open(part, flags | os.O_DIRECTORY, dir_fd=directory)
+            try:
+                opened = os.fstat(child)
+                _require((before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "input-changed", "artifact ancestor changed")
+            except BaseException:
+                os.close(child)
+                raise
             os.close(directory)
             directory = child
-        info = os.stat(absolute.name, dir_fd=directory, follow_symlinks=False)
+        info = os.lstat(relative.name, dir_fd=directory)
         _require(stat.S_ISREG(info.st_mode), "unsafe-input", "input must be a regular non-symlink file")
-        descriptor = os.open(absolute.name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory)
+        descriptor = os.open(relative.name, flags, dir_fd=directory)
         try:
             before = os.fstat(descriptor)
             _require(stat.S_ISREG(before.st_mode), "unsafe-input", "opened input must be regular")
             _require(before.st_size <= MAX_BYTES, "input-too-large", "input exceeds 64 MiB")
-            chunks, remaining = [], MAX_BYTES + 1
+            signature = _signature(before)
+            _require(_signature(info) == signature, "input-changed", "input changed during open")
+            identity = signature[:2]
+            cached = bundle.artifacts.get(identity) if bundle is not None else None
+            if cached is not None:
+                _require(signature == cached[2], "input-changed", "cached input changed")
+                if checked is None or identity in checked:
+                    return None, signature
+            limit = MAX_BYTES
+            if bundle is not None and checked is None:
+                limit = min(limit, MAX_TOTAL_BYTES - bundle.bytes_read)
+                _require(before.st_size <= limit, "input-limit", "total input byte budget exceeded")
+            chunks, remaining = [], min(limit, before.st_size) + 1
             while remaining:
                 chunk = os.read(descriptor, min(remaining, 1024 * 1024))
                 if not chunk:
@@ -142,10 +202,11 @@ def _safe_bytes(path):
             raw = b"".join(chunks)
             after = os.fstat(descriptor)
             _require(len(raw) <= MAX_BYTES, "input-too-large", "input grew beyond 64 MiB")
-            signature = lambda item: (item.st_dev, item.st_ino, item.st_size, item.st_mtime_ns, item.st_ctime_ns)
-            _require(signature(info) == signature(before) == signature(after) and len(raw) == after.st_size,
+            _require(signature == _signature(after) and len(raw) == after.st_size,
                      "input-changed", "input changed during read")
-            return raw, signature(after)
+            if bundle is not None and checked is None:
+                bundle.bytes_read += len(raw)
+            return raw, signature
         finally:
             os.close(descriptor)
     finally:
@@ -157,11 +218,33 @@ class _Bundle:
         self.path = Path(os.path.abspath(path))
         self.root = self.path.parent
         self.records = {}
+        self.artifacts = {}
+        self.bytes_read = 0
+        self.nodes_read = 0
+        self.descriptor, self.root_identities = _open_root(self.root)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
+        if self.descriptor is not None:
+            os.close(self.descriptor)
+            self.descriptor = None
 
     def read(self, path):
         if path not in self.records:
-            raw, signature = _safe_bytes(path)
-            self.records[path] = (_parse(raw), hashlib.sha256(raw).hexdigest(), signature)
+            raw, signature = _safe_bytes(path, bundle=self)
+            identity = signature[:2]
+            if raw is not None:
+                nodes = _json_nodes(raw)
+                _require(nodes <= MAX_TOTAL_NODES - self.nodes_read,
+                         "input-limit", "total JSON value budget exceeded")
+                self.artifacts[identity] = (_parse(raw), hashlib.sha256(raw).hexdigest(), signature)
+                self.nodes_read += nodes
+            self.records[path] = self.artifacts[identity]
         return self.records[path]
 
     def artifact(self, identity, schema=None):
@@ -176,12 +259,22 @@ class _Bundle:
             _require(record.get("schema") == schema, "invalid-record", f"expected {schema}")
         return record
 
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _require(identities == self.root_identities, "input-changed", "bundle root replaced")
+        finally:
+            os.close(descriptor)
+
     def finish(self):
-        # Parse once, then re-read bytes only for the final identity check.
+        self._check_root()
+        checked = set()
         for path, (_, digest, signature) in self.records.items():
-            raw, current = _safe_bytes(path)
-            _require(signature == current and hashlib.sha256(raw).hexdigest() == digest,
+            raw, current = _safe_bytes(path, bundle=self, checked=checked)
+            _require(signature == current and (raw is None or hashlib.sha256(raw).hexdigest() == digest),
                      "input-changed", "input was replaced during validation")
+            checked.add(current[:2])
+        self._check_root()
 
 
 def _constraints(value):
@@ -521,6 +614,8 @@ def _claims(bundle, record, fits, intervals, pack):
                      "claim-boundary", "unavailable claim cannot assert positive evidence")
         for identity in support:
             evidence = bundle.artifact(identity)
+            _require(status == "unavailable" or "unavailable" not in (evidence.get("kind"), evidence.get("result")),
+                     "unavailable-evidence", "unavailable evidence requires an unavailable claim")
             if status in POSITIVE:
                 declared = str(evidence.get("kind", "")) + " " + str(evidence.get("result", ""))
                 _require(re.search(r"comput|numerical|simulat|review|approv", declared, re.I) is None
@@ -547,8 +642,7 @@ def _claims(bundle, record, fits, intervals, pack):
     return sorted(identifiers)
 
 
-def _validate(path):
-    bundle = _Bundle(path)
+def _validate(bundle):
     pack = bundle.read(bundle.path)[0]
     _require(pack.get("schema") == "dose-response-pack-v1", "invalid-record", "dose-response-pack-v1 required")
     _boolean(pack.get("fixture"), "fixture")
@@ -633,6 +727,7 @@ def validate_dose_response_pack(path):
     _require(isinstance(path, (str, Path)) and "\x00" not in str(path),
              "invalid-path", "input path must be text or Path without null characters")
     try:
-        return _validate(Path(path))
+        with _Bundle(Path(path)) as bundle:
+            return _validate(bundle)
     except (OSError, OverflowError, RecursionError) as error:
         raise ValueError("unsafe-input: unavailable, unsafe, oversized or changed input") from error
