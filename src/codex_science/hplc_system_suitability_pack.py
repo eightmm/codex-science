@@ -406,7 +406,7 @@ def sample_rsd(values, minimum):
         return "unavailable"
     mean = math.fsum(values) / len(values)
     deviation = statistics.stdev(values)
-    _require(deviation > 0, "degenerate-rsd", "zero replicate variance cannot establish precision")
+    _require(deviation > 1e-12 * abs(mean), "degenerate-rsd", "zero replicate variance cannot establish precision")
     return 100 * deviation / mean
 
 
@@ -474,7 +474,7 @@ def compute_suitability(table, rules, applied_limits=None):
             nearest = None
             for peak in neighbors:
                 distance = abs(peak["retention_time"] - analyte["retention_time"])
-                if nearest is None or (distance < best and not math.isclose(distance, best, rel_tol=1e-9)):
+                if nearest is None or (distance < best and not math.isclose(distance, best, rel_tol=1e-12)):
                     nearest, best = peak, distance
             resolution = (2 * abs(nearest["retention_time"] - analyte["retention_time"]) /
                           (nearest["width_baseline"] + analyte["width_baseline"])) if nearest else "unavailable"

@@ -219,6 +219,20 @@ class ArrheniusPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^invalid-record:'):
             pack.compute_arrhenius(self.documents['rates'], self.documents['rules'])
 
+    def test_roundoff_replicate_variance_is_zero(self):
+        rules, rates = self.documents['rules'], self.documents['rates']
+        for kind, rows in (('runs', rules['runs']), ('rows', rates['rows'])):
+            third = [{**row, 'replicate_id': 'r3', 'run_id': row['run_id'][:-2] + 'r3'} for row in rows if row['replicate_id'] == 'r1']
+            rows.extend(third)
+        temperatures = sorted({row['temperature_kelvin'] for row in rates['rows']})
+        for row in rates['rows']:
+            row['rate'] = math.exp((0.09, 0.18, 0.2, 0.34)[temperatures.index(row['temperature_kelvin'])])
+        fit = pack.compute_arrhenius(rates, rules)
+        self.assertEqual(fit['lack_of_fit'], 'unavailable')
+        self.assertTrue(all(row['variance_log_rate'] == 0.0 for row in fit['temperatures']))
+        with self.assertRaisesRegex(ValueError, '^replicate-variance:'):
+            pack.compute_arrhenius(rates, rules, 'replicate-variance')
+
     def test_identity_controls_and_empty_rules(self):
         for target, code in (('run_id', 'duplicate-run'), ('replicate_id', 'run-identity')):
             rows = copy.deepcopy(self.documents['rates'])

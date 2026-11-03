@@ -108,6 +108,14 @@ class WBPackTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, '^invalid-record:'):
                 pack.welch_fold_interval([1, 2, 3], [2, 3, 4], level)
 
+    def test_roundoff_control_spread_is_zero_cv(self):
+        rows, rules = self.documents['table']['rows'], self.documents['report']['applied_rules']
+        for row in rows:
+            row['loading_control_intensity'] = 100
+        rules['maximum_loading_control_cv'] = 0
+        self.assertEqual(pack.compute_densitometry(self.documents['table'], rules)['loading_control_cv'], 0)
+        self.assertEqual(pack._moments([0.1] * 6)[1], 0.0)
+
     def test_unreliable_excluded_and_small_groups_unavailable(self):
         for row in self.documents['table']['rows']:
             if row['lane_id'] == 'b3':

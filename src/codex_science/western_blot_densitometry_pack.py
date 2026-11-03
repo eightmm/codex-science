@@ -369,7 +369,7 @@ def _t_quantile(df, level):
 def _moments(values):
     mean = math.fsum(values) / len(values)
     variance = math.fsum((value - mean) ** 2 for value in values) / (len(values) - 1)
-    return mean, variance
+    return mean, (variance if variance > (1e-12 * mean) ** 2 else 0.0)
 
 
 def welch_fold_interval(first, reference, level=.95, minimum=3):

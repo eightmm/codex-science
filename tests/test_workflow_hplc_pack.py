@@ -572,6 +572,20 @@ class HPLCPackTests(unittest.TestCase):
         self.assertEqual(numbers['injections'][0]['nearest_peak_id'], peaks[1]['peak_id'])
         self.assertAlmostEqual(numbers['injections'][0]['resolution']['value'], 2.0)
 
+    def test_nearer_peak_wins_over_relative_near_tie(self):
+        peaks = self.documents['table']['rows'][0]['peaks']
+        for peak, time, width in zip(peaks, (0.2, 0.09999999995, 0.3), (0.05, 0.05, 0.5)):
+            peak.update(retention_time=time, width_baseline=width)
+        self.documents['rules']['reference_peak_id'] = None
+        record = pack.compute_suitability(self.documents['table'], self.documents['rules'])['injections'][0]
+        self.assertEqual(record['nearest_peak_id'], peaks[2]['peak_id'])
+        self.assertAlmostEqual(record['resolution']['value'], 0.2 / 0.55, places=9)
+        self.assertEqual(record['resolution']['status'], 'fail')
+
+    def test_roundoff_replicate_spread_is_degenerate_rsd(self):
+        with self.assertRaisesRegex(ValueError, '^degenerate-rsd:'):
+            pack.sample_rsd([0.1, 0.3 - 0.2, 0.1, 0.3 - 0.2, 0.1], 5)
+
     def test_lstat_race_and_final_root_replacement(self):
         real_lstat=os.lstat
         component=self.root.name

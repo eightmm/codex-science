@@ -451,6 +451,8 @@ def _fit(rates, rules, weighting):
         count = len(values)
         mean = math.fsum(values) / count
         pure_error = math.fsum((value - mean) ** 2 for value in values)
+        if pure_error <= 1e-24 * math.fsum(value * value for value in values):
+            pure_error = 0.0
         collapsed.append({'temperature_kelvin': temperature, 'n_replicates': count, 'mean_log_rate': mean,
                           'variance_log_rate': pure_error / (count - 1) if count > 1 else 'unavailable'})
     n = len(collapsed)

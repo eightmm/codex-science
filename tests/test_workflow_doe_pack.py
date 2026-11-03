@@ -176,6 +176,15 @@ class DOEPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^degenerate-error:'):
             pack.compute_factorial_effects(self.documents['table'], self.documents['rules'])
 
+    def test_unreplicated_run_does_not_inflate_error_threshold(self):
+        rules_runs = {row['run_id']: row for row in self.documents['rules']['runs']}
+        rules_runs['r09']['replicates'] = 1
+        for row in self.documents['table']['rows']:
+            row['responses'] = [1e10] if row['run_id'] == 'r09' else [1 - 1e-6, 1 + 1e-6]
+        result = pack.compute_factorial_effects(self.documents['table'], self.documents['rules'])
+        self.assertEqual(result['pure_error']['df'], 8)
+        self.assertAlmostEqual(result['pure_error']['sum_squares'], 16e-12, delta=1e-13)
+
     def test_table_identity_counts_resolution_and_response_types(self):
         mutations = [('table',['rows',0,'run_id'],'r02','duplicate-run'),
                      ('table',['rows',0,'responses'],[1],'replicate-count'),
