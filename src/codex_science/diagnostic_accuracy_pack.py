@@ -96,7 +96,12 @@ def _integer(value):
     return _number(int(value), "JSON integer")
 
 
-def _json(raw):
+def _json(raw, allowance=None):
+    allowance = MAX_NODES if allowance is None else allowance
+    # Upper bound on value count before json.loads allocates the tree: the root,
+    # one value per comma, and the first value of every non-empty container.
+    _require(1 + raw.count(b",") + len(re.findall(rb"[\[{]\s*[^\s\]}]", raw)) <= allowance,
+             "input-limit", "too many JSON values")
     try:
         root = _obj(json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,
                               parse_constant=_constant, parse_int=_integer,
@@ -106,7 +111,7 @@ def _json(raw):
         while pending:
             value, depth = pending.pop()
             nodes += 1
-            _require(nodes <= MAX_NODES, "input-limit", "too many JSON values")
+            _require(nodes <= allowance, "input-limit", "too many JSON values")
             if type(value) in (dict, list):
                 _require(depth <= MAX_DEPTH, "invalid-json", "JSON nesting exceeds limit")
                 _require(len(value) <= MAX_ITEMS, "input-limit", "too many JSON entries")
@@ -117,7 +122,7 @@ def _json(raw):
                     pending.append((child, depth + 1))
             elif type(value) is str:
                 _require(len(value) <= MAX_TEXT, "input-limit", "JSON string exceeds limit")
-        return root
+        return root, nodes
     except (UnicodeError, RecursionError, OverflowError) as error:
         raise ValueError("invalid-json: bounded finite UTF-8 JSON object required") from error
     except json.JSONDecodeError as error:
@@ -177,6 +182,12 @@ class _Bundle:
         self.identity = os.fstat(self.descriptor)
         self.cache = {}
         self.bytes_read = 0
+        self.nodes = 0
+
+    def _parse(self, raw):
+        root, count = _json(raw, MAX_NODES - self.nodes)
+        self.nodes += count
+        return root
 
     def close(self):
         os.close(self.descriptor)
@@ -221,7 +232,7 @@ class _Bundle:
         name = _relative(identity["path"]).as_posix()
         if name not in self.cache:
             raw, signature = self._read(_relative(name))
-            self.cache[name] = (_json(raw), hashlib.sha256(raw).hexdigest(), signature)
+            self.cache[name] = (self._parse(raw), hashlib.sha256(raw).hexdigest(), signature)
             self.bytes_read += len(raw)
         record, digest, _ = self.cache[name]
         expected = identity["sha256"]
@@ -233,7 +244,7 @@ class _Bundle:
 
     def entry(self):
         raw, signature = self._read(_relative(self.path.name))
-        self.cache[self.path.name] = (_json(raw), hashlib.sha256(raw).hexdigest(), signature)
+        self.cache[self.path.name] = (self._parse(raw), hashlib.sha256(raw).hexdigest(), signature)
         self.bytes_read += len(raw)
         return self.cache[self.path.name][0]
 

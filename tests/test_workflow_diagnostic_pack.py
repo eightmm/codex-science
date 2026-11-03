@@ -311,6 +311,16 @@ class DiagnosticHardeningTests(FixtureCase):
             with patch.object(self.api, "MAX_TOTAL_BYTES", bound), self.assertRaisesRegex(ValueError, "^input-limit:"):
                 self.api.validate_diagnostic_accuracy_pack(path)
 
+    def test_json_node_budget_is_checked_before_parse_and_across_the_bundle(self):
+        with patch.object(self.api, "MAX_NODES", 64), patch.object(self.api.json, "loads", side_effect=AssertionError("parsed")):
+            with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                self.api._json(b"{" + b",".join(b'"k%d":[]' % index for index in range(70)) + b"}")
+        path = FIXTURE / "pack.json"
+        with patch.object(self.api, "MAX_NODES", 138):
+            self.api.validate_diagnostic_accuracy_pack(path)
+        with patch.object(self.api, "MAX_NODES", 137), self.assertRaisesRegex(ValueError, "^input-limit:"):
+            self.api.validate_diagnostic_accuracy_pack(path)
+
     def test_bad_bundle_path_is_labelled(self):
         with self.assertRaisesRegex(ValueError, "^input-path:"):
             self.api.validate_diagnostic_accuracy_pack("bad\x00directory/pack.json")
@@ -330,7 +340,7 @@ class DiagnosticHardeningTests(FixtureCase):
                 ("MAX_DEPTH", b'{}', {})):
             bound = 0 if name == "MAX_DEPTH" else 1
             with self.subTest(name=name), patch.object(self.api, name, bound):
-                self.assertEqual(expected, self.api._json(raw))
+                self.assertEqual(expected, self.api._json(raw)[0])
                 oversized = b'{"x":[]}' if name != "MAX_ITEMS" else b'{"x":[],"y":[]}'
                 with self.assertRaisesRegex(ValueError, "^(input-limit|invalid-json):"):
                     self.api._json(oversized)
@@ -489,7 +499,7 @@ class DiagnosticHardeningTests(FixtureCase):
             (folder / "pack.json").write_bytes(raw)
             with self.subTest(raw=raw[:35]), self.assertRaisesRegex(ValueError, "^(invalid-json|invalid-record|input-limit):"):
                 self.api.validate_diagnostic_accuracy_pack(folder / "pack.json")
-        self.assertEqual({"x": "abc"}, self.api._json(b'{"x":"abc"}'))
+        self.assertEqual({"x": "abc"}, self.api._json(b'{"x":"abc"}')[0])
         with patch.object(self.api, "MAX_TEXT", 3):
             self.api._json(b'{"x":"abc"}')
             with self.assertRaisesRegex(ValueError, "^input-limit:"):

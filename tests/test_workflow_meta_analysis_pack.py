@@ -373,6 +373,20 @@ class MetaAnalysisPackTests(unittest.TestCase):
         self.rehash()
         self.assertEqual("passed", pack.validate_meta_analysis_pack(self.bundle)["status"])
 
+    def test_unavailable_evidence_forces_unavailable_claim_for_every_status(self):
+        claims = self.read("claims.json")
+        evidence = self.read("evidence.json")
+        for field in ("kind", "result"):
+            changed = copy.deepcopy(evidence)
+            changed["records"][0][field] = "unavailable"
+            self.write("evidence.json", changed)
+            for status in sorted(pack.CLAIM_STATUSES - {"unavailable"}):
+                claims["claims"][0]["status"] = status
+                self.write("claims.json", claims)
+                self.rehash()
+                with self.subTest(field=field, status=status), self.assertRaisesRegex(ValueError, "^MA_CLAIM_EVIDENCE:"):
+                    pack.validate_meta_analysis_pack(self.bundle)
+
     def test_unavailable_claim_wording(self):
         claims = self.read("claims.json")
         claims["claims"][0]["status"] = "unavailable"

@@ -468,6 +468,10 @@ def _claims(bundle, handoff, too_few, outputs):
         _require(bool(refs) or claim["status"] == "unavailable",
                  "MA_CLAIM", "claim without evidence must be unavailable")
         positive = claim["status"] in POSITIVE
+        _require(claim["status"] == "unavailable" or not any(
+                     "unavailable" in (item.get(field) for field in ("kind", "result"))
+                     for ref in refs for item in records[ref]),
+                 "MA_CLAIM_EVIDENCE", "unavailable evidence requires an unavailable claim")
         if too_few:
             _require(not re.search(r"pooled\s+estimate|significan\w*|\bp\s*[<=>]", claim["text"], re.I),
                      "MA_MIN_STUDIES", "no pooled estimate or significance claim below frozen minimum")
