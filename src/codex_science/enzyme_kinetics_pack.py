@@ -602,4 +602,3 @@ def validate_enzyme_kinetics_pack(path):
     finally:
         if bundle is not None:
             bundle.close()
-

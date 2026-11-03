@@ -168,6 +168,13 @@ class BatchComputationTests(FixtureCase):
         self.rules['permutations']['seed'] = 0
         self.assertEqual(0, self.compute()['metrics']['batch_permanova']['seed'])
 
+    def test_numerically_tied_permutations_count_as_exceedances(self):
+        self.matrix['features'] = ['fixture-tied']
+        self.matrix['values'] = [[2, 4, 2, 1, 3, 4, 4, 5]]
+        self.rules['permutations'].update(seed=1729, count=99)
+        # Exact arithmetic: observed pseudo-F is 1/17 and every permutation reaches it.
+        self.assertEqual(1.0, self.compute()['metrics']['batch_permanova']['p_value'])
+
     def test_inclusive_detection_and_qc_thresholds(self):
         metrics = self.compute()['metrics']
         self.rules['thresholds'].update(median_batch_r2=metrics['median_batch_r2'],

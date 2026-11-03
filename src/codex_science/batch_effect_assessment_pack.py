@@ -549,7 +549,7 @@ def reference_computation(rules, matrix):
                 raise
             failed += 1
             continue
-        exceedances += value >= observed
+        exceedances += value > observed or math.isclose(value, observed, rel_tol=1e-9, abs_tol=1e-12)
     _require((count - failed) / count >= rules["permutations"]["minimum_success_fraction"],
              "permutation-success", "too few successful stratified permutations")
     p_value = (1 + exceedances + failed) / (count + 1)

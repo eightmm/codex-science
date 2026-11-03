@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,15 @@ class CheckEntrypointTests(unittest.TestCase):
     def test_ci_runs_the_same_complete_fast_entrypoint_as_developers(self) -> None:
         workflow = (self.root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("run: ./scripts/check.sh fast", workflow)
+
+    def test_fast_gate_pack_validators_name_existing_fixtures(self) -> None:
+        text = (self.root / "scripts" / "check.sh").read_text(encoding="utf-8")
+        invoked = re.findall(r"scripts/(validate_\w+_pack\.py) \\\n\s+(examples/\S+\.json)", text)
+        self.assertGreater(len(invoked), 20)
+        for script, fixture in invoked:
+            with self.subTest(script=script):
+                self.assertTrue((self.root / "scripts" / script).is_file(), script)
+                self.assertTrue((self.root / fixture).is_file(), fixture)
 
     def test_ci_runs_one_full_history_release_gate_before_required_checks(self) -> None:
         workflow = (self.root / ".github" / "workflows" / "ci.yml").read_text(

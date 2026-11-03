@@ -104,7 +104,7 @@ run_science_contracts() (
   uv run python scripts/validate_sample_size_power_pack.py \
     examples/workflow-sample-size-power/pack.json >/dev/null
   uv run python scripts/validate_enzyme_kinetics_pack.py \
-    examples/workflow-enzyme-kinetics/pack.json >/dev/null
+    examples/workflow-enzyme-kinetics/noisy.pack.json >/dev/null
   uv run python scripts/validate_qpcr_relative_quantification_pack.py \
     examples/workflow-qpcr-relative-quantification/pack.json >/dev/null
   uv run python scripts/validate_stability_shelf_life_pack.py \
