@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import stat
 from pathlib import Path, PurePosixPath
@@ -115,10 +116,14 @@ class _Bundle:
                  "symlink artifact refused", "PACK_PATH")
         _require(target.resolve().is_relative_to(self.root), "artifact escapes bundle", "PACK_PATH")
         try:
-            info = target.lstat()
-            _require(stat.S_ISREG(info.st_mode), "artifact must be a regular file", "PACK_INPUT")
-            _require(info.st_size <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
-            raw = target.read_bytes()
+            _require(stat.S_ISREG(target.lstat().st_mode), "artifact must be a regular file", "PACK_INPUT")
+            # Nonblocking open and descriptor checks also refuse a FIFO swapped in after lstat.
+            flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+            with os.fdopen(os.open(target, flags), "rb") as stream:
+                info = os.fstat(stream.fileno())
+                _require(stat.S_ISREG(info.st_mode), "artifact must be a regular file", "PACK_INPUT")
+                _require(info.st_size <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
+                raw = stream.read(MAX_ARTIFACT_BYTES + 1)
         except OSError as error:
             _refuse("PACK_INPUT", f"cannot read {relative}: {error.strerror}")
         _require(len(raw) <= MAX_ARTIFACT_BYTES, "artifact exceeds 64 MiB", "PACK_INPUT")
@@ -286,12 +291,11 @@ def _check_claims(memo, records, claim_register):
                  "memo claim is stronger than or differs from its cited statements", "MEMO_OVERCLAIM")
         _require(isinstance(claim.get("status"), str) and claim["status"] in CLAIM_STATUSES,
                  "invalid claim-register status", "MEMO_OVERCLAIM")
-        if claim["status"] == "supported":
+        if claim["status"] in ("supported", "replicated", "suggestive"):
             _require(all(records[ref][1]["kind"] not in ("review-approval", "computed") for ref in ids),
                      "review approval or computation cannot support a memo claim", "MEMO_OVERCLAIM")
-            if kind == "descriptive":
-                _require(not re.search(r"\b(?:efficacy|effective|effectiveness|efficacious)\b", claim["text"], re.IGNORECASE),
-                         "descriptive evidence cannot support efficacy or effectiveness", "MEMO_OVERCLAIM")
+            _require(not re.search(r"\b(?:efficacy|effective|effectiveness|efficacious)\b", claim["text"], re.IGNORECASE),
+                     "memo evidence cannot support efficacy or effectiveness", "MEMO_OVERCLAIM")
         by_id[identifier] = claim
     _require(claim_register.get("schema_version") == 1, "claim-register schema_version must be 1")
     entries = _rows(claim_register.get("claims"), "claim register")

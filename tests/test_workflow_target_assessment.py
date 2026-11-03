@@ -149,9 +149,22 @@ class TargetAssessmentTests(unittest.TestCase):
                         result_cli = self.cli()
                         self.assertEqual(1, result_cli.returncode, result_cli.stderr)
                         self.assertEqual("MEMO_OVERCLAIM", json.loads(result_cli.stdout)["finding"])
+        for status in ("replicated", "suggestive"):
+            for record_kind, result in (("review-approval", "review-approval"), ("computed", "numerical-agreement")):
+                with self.subTest(status=status, record_kind=record_kind):
+                    self.record_claim(record_kind, result, "Synthetic fixture: review completed.", status=status)
+                    with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+                        validate_target_assessment_pack(self.bundle)
         self.record_claim("review-approval", "review-approval", "Synthetic fixture: review completed.",
-                          status="suggestive")
+                          status="unavailable")
         validate_target_assessment_pack(self.bundle)
+        for kind in ("descriptive", "associational"):
+            for status in ("supported", "replicated", "suggestive"):
+                with self.subTest(kind=kind, status=status):
+                    self.record_claim("descriptive" if kind == "descriptive" else "associational", "identity",
+                                      "Drug X is an effective treatment for this disease.", kind=kind, status=status)
+                    with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+                        validate_target_assessment_pack(self.bundle)
 
     def test_supported_descriptive_claim_rejects_efficacy_wording(self):
         for word in ("efficacy", "effective", "effectiveness", "efficacious", "EFFECTIVE"):
@@ -161,7 +174,7 @@ class TargetAssessmentTests(unittest.TestCase):
                     validate_target_assessment_pack(self.bundle)
         for text, status in (("Synthetic fixture: the effect was recorded.", "supported"),
                              ("Synthetic fixture: ineffective and effectivenesses.", "supported"),
-                             ("Synthetic fixture: efficacy remains unestablished.", "suggestive")):
+                             ("Synthetic fixture: efficacy remains unestablished.", "unavailable")):
             with self.subTest(text=text, status=status):
                 self.record_claim("descriptive", "identity", text, status=status)
                 validate_target_assessment_pack(self.bundle)
@@ -428,7 +441,7 @@ class TargetAssessmentTests(unittest.TestCase):
                 else:
                     target.mkdir()
                 try:
-                    with patch.object(Path, "read_bytes", side_effect=AssertionError("non-regular input opened")):
+                    with patch("os.open", side_effect=AssertionError("non-regular input opened")):
                         with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
                             validate_target_assessment_pack(self.bundle)
                     result = self.cli()
@@ -436,6 +449,18 @@ class TargetAssessmentTests(unittest.TestCase):
                     self.assertEqual("PACK_INPUT", json.loads(result.stdout)["finding"])
                 finally:
                     target.rmdir() if kind == "directory" else target.unlink()
+
+    def test_fifo_swapped_in_after_lstat_is_refused_without_blocking(self):
+        target = self.bundle / "dossier.json"
+        regular = os.lstat(target)
+        target.unlink()
+        os.mkfifo(target)
+        try:
+            with patch.object(Path, "lstat", return_value=regular):
+                with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
+                    _Bundle(self.bundle).read({"path": "dossier.json", "sha256": None})
+        finally:
+            target.unlink()
 
     def test_artifact_size_limit_and_same_bytes(self):
         target = self.bundle / "dossier.json"
@@ -447,9 +472,8 @@ class TargetAssessmentTests(unittest.TestCase):
                 target.write_bytes(content)
                 bundle = _Bundle(self.bundle)
                 if size > limit:
-                    with patch.object(Path, "read_bytes", side_effect=AssertionError("oversized input opened")):
-                        with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
-                            bundle.read(reference)
+                    with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
+                        bundle.read(reference)
                     result = self.cli()
                     self.assertEqual(1, result.returncode, result.stderr)
                     self.assertEqual("PACK_INPUT", json.loads(result.stdout)["finding"])
@@ -460,7 +484,10 @@ class TargetAssessmentTests(unittest.TestCase):
                     self.assertEqual({}, bundle.read(reference))
                     self.assertEqual(hashlib.sha256(content).hexdigest(), bundle.reads["dossier.json"])
         target.write_bytes(b"{}")
-        with patch.object(Path, "read_bytes", return_value=b" " * (limit + 1)):
+        small = os.stat(target)
+        with target.open("wb") as stream:
+            stream.truncate(limit + 1)
+        with patch("os.fstat", return_value=small):
             with self.assertRaisesRegex(ValueError, "PACK_INPUT"):
                 _Bundle(self.bundle).read(reference)
 
@@ -481,9 +508,8 @@ class TargetAssessmentTests(unittest.TestCase):
                     with target.open("wb") as stream:
                         stream.truncate(64 * 1024 * 1024 + 1)
                 try:
-                    with patch.object(Path, "read_bytes", side_effect=AssertionError("changed unsafe input opened")):
-                        with self.assertRaisesRegex(ValueError, "PACK_CHANGED"):
-                            bundle.unchanged()
+                    with self.assertRaisesRegex(ValueError, "PACK_CHANGED"):
+                        bundle.unchanged()
                 finally:
                     target.rmdir() if kind == "directory" else target.unlink()
 
@@ -546,14 +572,14 @@ class TargetAssessmentTests(unittest.TestCase):
             results = list(pool.map(validate_target_assessment_pack, [self.bundle, self.bundle]))
         self.assertEqual(results[0], results[1])
         self.assertEqual(before, {p.name: p.read_bytes() for p in self.bundle.iterdir()})
-        original_read = Path.read_bytes
+        original_open = os.open
 
-        def edit_during_read(path):
-            if path == self.bundle / "claims.json":
+        def edit_during_read(path, *args, **kwargs):
+            if Path(path) == self.bundle / "claims.json":
                 (self.bundle / "snapshots.json").write_bytes(b"{}")
-            return original_read(path)
+            return original_open(path, *args, **kwargs)
 
-        with patch.object(Path, "read_bytes", edit_during_read):
+        with patch("os.open", edit_during_read):
             with self.assertRaisesRegex(ValueError, "PACK_CHANGED"):
                 validate_target_assessment_pack(self.bundle)
 

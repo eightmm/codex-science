@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import statistics
+import stat
 from pathlib import Path, PurePosixPath
 
 from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES
@@ -79,9 +81,15 @@ def _json_object(raw: bytes, label: str) -> dict:
 
 
 def _json_bytes(path: Path) -> bytes:
-    _require(path.is_file(), "invalid-record", "input must be an available regular JSON file")
-    with path.open("rb") as handle:
-        raw = handle.read(DEFAULT_MAX_JSON_BYTES + 1)
+    try:
+        _require(stat.S_ISREG(path.lstat().st_mode), "invalid-record", "input must be an available regular JSON file")
+        # Nonblocking open and descriptor checks also refuse a FIFO swapped in after lstat.
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+        with os.fdopen(os.open(path, flags), "rb") as handle:
+            _require(stat.S_ISREG(os.fstat(handle.fileno()).st_mode), "invalid-record", "input must be an available regular JSON file")
+            raw = handle.read(DEFAULT_MAX_JSON_BYTES + 1)
+    except OSError as error:
+        raise ValueError(f"invalid-record: cannot read input: {error.strerror}") from error
     _require(len(raw) <= DEFAULT_MAX_JSON_BYTES, "invalid-record", "input exceeds the repository JSON size bound")
     return raw
 

@@ -147,9 +147,9 @@ ordinary bundle validation. No domain JSON is a nested claim-register.
   Do not place unregistered material claims in narrative or rationale fields.
   Claim statuses follow the existing sidecar contract; text, status and
   permitted inference must match that separate sidecar.
-  A supported claim cannot cite computed or review-approval records regardless
-  of its declared kind. Supported descriptive text also refuses the four
-  whole words `efficacy`, `effective`, `effectiveness` and `efficacious`,
+  A supported, replicated or suggestive claim cannot cite computed or
+  review-approval records regardless of its declared kind. The text of such a
+  claim also refuses the four whole words `efficacy`, `effective`, `effectiveness` and `efficacious`,
   case-insensitively, with `MEMO_OVERCLAIM`. This narrow lexical check does not
   interpret negation or synonyms; other wording still needs independent review.
 - Next experiment requires nonempty question, control, readout, falsifier and

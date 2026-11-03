@@ -343,6 +343,19 @@ class BulkExpressionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "claim-boundary"):
             self._run(self.pack)
 
+    def test_fifo_swapped_in_after_lstat_is_refused_without_blocking(self):
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("mkfifo is unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            regular = folder / "regular.json"
+            regular.write_bytes(b"{}")
+            fifo = folder / "pipe.json"
+            os.mkfifo(fifo)
+            with patch.object(Path, "lstat", return_value=os.lstat(regular)):
+                with self.assertRaisesRegex(ValueError, "^invalid-record:"):
+                    validate_bulk_expression_pack(fifo)
+
     def test_input_byte_bound_hash_and_json_shapes(self):
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)
@@ -353,7 +366,7 @@ class BulkExpressionTests(unittest.TestCase):
                 paths.append(fifo)
             for path in paths:
                 with self.subTest(path=path), self.assertRaisesRegex(ValueError, "^invalid-record:"):
-                    with patch("pathlib.Path.open", side_effect=AssertionError("non-file input was opened")):
+                    with patch("os.open", side_effect=AssertionError("non-file input was opened")):
                         validate_bulk_expression_pack(path)
         size = len((FIXTURE / "counts.json").read_bytes())
         with patch("codex_science.bulk_expression_pack.DEFAULT_MAX_JSON_BYTES", size):
