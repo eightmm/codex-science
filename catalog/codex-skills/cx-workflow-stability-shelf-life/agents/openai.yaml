@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Stability Shelf Life"
+  short_description: "Audited scientific workflow for cx-workflow-stability-shelf-life"
+  default_prompt: "Use $cx-workflow-stability-shelf-life for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

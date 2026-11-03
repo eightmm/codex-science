@@ -1674,6 +1674,18 @@
       "status": "active"
     },
     {
+      "description": "Assess technical batch structure in supplied omics matrices with frozen design rules, exact confounding checks and group-restricted permutations. Use before biological comparisons; never for batch correction.",
+      "executable_count": 0,
+      "instruction_line_count": 107,
+      "license": "MIT",
+      "name": "cx-workflow-batch-effect-assessment",
+      "path": "authored-skills/workflow-batch-effect-assessment",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Conduct a fixed-stage bulk expression differential analysis from an admitted dataset and declared design through QC, a frozen contrast, multiplicity-controlled testing, supplied gene-set enrichment, and independent review handoff. Use for bulk RNA expression association questions; not single-cell analysis, causal mechanisms, clinical inference, or automatic installation and execution of external tools.",
       "executable_count": 0,
       "instruction_line_count": 49,
@@ -1692,6 +1704,18 @@
       "license": "MIT",
       "name": "cx-workflow-calibration-lod",
       "path": "authored-skills/workflow-calibration-lod",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check cohort quality in an already-called synthetic small-variant genotype table using frozen filters, controls-only exact Hardy-Weinberg tests, trio consistency and X heterozygosity. Use for offline arithmetic checks of tab-free JSON fixtures; never for VCF parsing or variant interpretation.",
+      "executable_count": 0,
+      "instruction_line_count": 39,
+      "license": "MIT",
+      "name": "cx-workflow-callset-qc",
+      "path": "authored-skills/workflow-callset-qc",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1728,6 +1752,18 @@
       "license": "MIT",
       "name": "cx-workflow-dose-response-curve",
       "path": "authored-skills/workflow-dose-response-curve",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check Michaelis-Menten Vmax, Km, kcat and Jacobian uncertainty from supplied synthetic initial-rate fixtures under frozen linear-window and depletion rules; offline arithmetic only, with no inhibitor or biological claims.",
+      "executable_count": 0,
+      "instruction_line_count": 123,
+      "license": "MIT",
+      "name": "cx-workflow-enzyme-kinetics",
+      "path": "authored-skills/workflow-enzyme-kinetics",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1854,6 +1890,18 @@
       "status": "active"
     },
     {
+      "description": "Check already-measured real-time PCR Cq tables with dilution-derived amplification efficiencies, frozen reference genes, censored nondetections, replicate controls and biological-unit fold-change intervals. Use for offline synthetic arithmetic checks; never infer gene regulation or clinical relevance.",
+      "executable_count": 0,
+      "instruction_line_count": 92,
+      "license": "MIT",
+      "name": "cx-workflow-qpcr-relative-quantification",
+      "path": "authored-skills/workflow-qpcr-relative-quantification",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Check frozen sample sizes, detectable effects, multiplicity and attrition for planned two-group continuous or binary laboratory and preclinical outcomes; exclude clinical trial design and observed-power arguments.",
       "executable_count": 0,
       "instruction_line_count": 47,
@@ -1884,6 +1932,18 @@
       "license": "MIT",
       "name": "cx-workflow-solid-state-screening",
       "path": "authored-skills/workflow-solid-state-screening",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check synthetic attribute measurements over storage time using frozen batch pooling and a one-sided mean bound against a specification. Use for supplied stability-study fixtures with censored-value controls and capped extrapolation; refuse expiry or product suitability conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 103,
+      "license": "MIT",
+      "name": "cx-workflow-stability-shelf-life",
+      "path": "authored-skills/workflow-stability-shelf-life",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -4071,8 +4131,8 @@
     }
   ],
   "summary": {
-    "active": 201,
+    "active": 206,
     "inactive": 113,
-    "total": 314
+    "total": 319
   }
 }

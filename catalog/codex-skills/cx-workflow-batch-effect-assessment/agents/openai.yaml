@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Batch Effect Assessment"
+  short_description: "Audited scientific workflow for cx-workflow-batch-effect-assessm"
+  default_prompt: "Use $cx-workflow-batch-effect-assessment for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
