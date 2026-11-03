@@ -1,0 +1,8 @@
+{
+  "description": "Artificial target identity; no biological structure.",
+  "residues": [
+    "T:1",
+    "T:2"
+  ],
+  "synthetic": true
+}

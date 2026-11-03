@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "tasks": [
+    {
+      "id": "known-contrast",
+      "expected_difference": 2.0,
+      "expected_status": "qualified-descriptive"
+    },
+    {
+      "id": "unit-mismatch",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "missing-frame",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "nonmonotonic-time",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "topology-mismatch",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "selection-mismatch",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "unresolved-pbc",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "duplicate-replica",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "duplicate-source",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "drift",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "failed-control",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "insufficient-blocks",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    },
+    {
+      "id": "insufficient-replicas",
+      "expected": "invalid or exploratory with unavailable contrast SE"
+    }
+  ]
+}

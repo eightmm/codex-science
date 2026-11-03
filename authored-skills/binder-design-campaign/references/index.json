@@ -1,0 +1,106 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Defines workflow record checks; no model execution or measured binding validation.",
+      "id": "campaign-stages",
+      "path": "references/stages.md",
+      "purpose": "Compatible routes, stage outputs, pack-local evidence and failure semantics.",
+      "read_when": [
+        "starting a binder campaign",
+        "building campaign handoffs",
+        "selecting candidates"
+      ],
+      "required_before": [
+        "campaign-start",
+        "candidate-selection",
+        "campaign-claim"
+      ],
+      "search_patterns": [
+        "## Route matrix",
+        "## Pack-local record",
+        "## Evidence and failure semantics"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Preparation guidance and inspected source behavior; no installed antibody backend or efficacy evidence.",
+      "id": "antibody-vhh",
+      "path": "references/antibody-vhh.md",
+      "purpose": "Paired Fv and VHH frameworks, CDRs, HLT transforms and external RFantibody boundaries.",
+      "read_when": [
+        "preparing antibody or VHH inputs",
+        "selecting an antibody-specific route"
+      ],
+      "required_before": [
+        "antibody-preparation",
+        "antibody-method-selection"
+      ],
+      "search_patterns": [
+        "## Format and framework",
+        "## Transform audit",
+        "## Validation and interpretation"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "A plan template is not an execution or completion receipt.",
+      "id": "campaign-plan",
+      "path": "references/plan.json",
+      "purpose": "Ordered existing manifest plan-step shapes for coordinator initialization.",
+      "read_when": [
+        "initializing campaign plan steps"
+      ],
+      "required_before": [
+        "campaign-plan-init"
+      ],
+      "search_patterns": [
+        "intake",
+        "review"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Documentation-based method discovery; no installed executor, real pilot or efficacy evidence.",
+      "id": "method-discovery",
+      "path": "references/method-discovery.md",
+      "purpose": "Search, admission and additive method descriptors without runtime backend changes.",
+      "read_when": [
+        "selecting or adding a binder design method"
+      ],
+      "required_before": [
+        "method-selection"
+      ],
+      "search_patterns": [
+        "## Search before selection",
+        "## Additive method descriptor"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Documentation-based method discovery; no installed executor, real pilot or efficacy evidence.",
+      "id": "method-seeds",
+      "path": "references/methods.json",
+      "purpose": "Dated documented methods, applicability, official sources and honest execution status.",
+      "read_when": [
+        "selecting or adding a binder design method"
+      ],
+      "required_before": [
+        "method-selection"
+      ],
+      "search_patterns": [
+        "boltzgen",
+        "rfdiffusion3",
+        "proteina-complexa"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "binder-design-campaign"
+}

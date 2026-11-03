@@ -1,0 +1,37 @@
+[
+  {
+    "id": "intake",
+    "description": "Freeze system, condition and trajectory lineage",
+    "status": "pending"
+  },
+  {
+    "id": "plan",
+    "description": "Freeze observable, analyzer, controls and thresholds",
+    "status": "pending"
+  },
+  {
+    "id": "validate",
+    "description": "Check topology, units, frames and PBC",
+    "status": "pending"
+  },
+  {
+    "id": "measure",
+    "description": "Export matched observable series",
+    "status": "pending"
+  },
+  {
+    "id": "diagnose",
+    "description": "Compute replica/block summaries and drift",
+    "status": "pending"
+  },
+  {
+    "id": "compare",
+    "description": "Qualify independent-replica contrast",
+    "status": "pending"
+  },
+  {
+    "id": "review",
+    "description": "Hash artifacts and obtain independent review",
+    "status": "pending"
+  }
+]

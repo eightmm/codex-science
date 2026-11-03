@@ -112,6 +112,18 @@
       "status": "active"
     },
     {
+      "description": "Coordinate a protein minibinder, antibody Fv, or VHH design campaign from target/epitope and scaffold inputs through route selection, pilot, generation, candidate filtering, validation, and a reviewed dossier. Use for a complete binder-design workflow; a computational shortlist does not establish binding or affinity.",
+      "executable_count": 0,
+      "instruction_line_count": 107,
+      "license": "MIT",
+      "name": "cx-binder-design-campaign",
+      "path": "authored-skills/binder-design-campaign",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Normalize genes, proteins, variants, diseases, phenotypes, compounds, reactions, tissues, cell types, organisms, studies, and accessions before multi-source biomedical research. Use whenever aliases, assemblies, releases, or identifier namespaces could change retrieval.",
       "executable_count": 0,
       "instruction_line_count": 31,
@@ -1180,6 +1192,18 @@
       "status": "active"
     },
     {
+      "description": "Evaluate protein substitutions through reference mapping, current method discovery, model or supplied-score assessment, per-protein baseline/rank comparison, and independently reviewed candidates. Includes bounded CPU analysis without model downloads.",
+      "executable_count": 0,
+      "instruction_line_count": 67,
+      "license": "MIT",
+      "name": "cx-protein-variant-evaluation",
+      "path": "authored-skills/protein-variant-evaluation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Design or score protein sequences for fixed backbones with ProteinMPNN, LigandMPNN, or SolubleMPNN. Use for backbone-conditioned design, ligand-context design, soluble-protein design, residue constraints, or side-chain packing.",
       "executable_count": 0,
       "instruction_line_count": 92,
@@ -1506,6 +1530,18 @@
       "status": "active"
     },
     {
+      "description": "Compare existing molecular trajectories or exported observable series with frozen topology, atom selection, units and PBC handling, independent replica statistics, block uncertainty and drift diagnostics. No simulation launch.",
+      "executable_count": 0,
+      "instruction_line_count": 40,
+      "license": "MIT",
+      "name": "cx-trajectory-comparison",
+      "path": "authored-skills/trajectory-comparison",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Synthesize target, ligand, mechanism, exposure, safety, pharmacogenomic, trial, and regulatory evidence for translational pharmacology questions. Use for target-drug-indication landscapes, not prescribing.",
       "executable_count": 0,
       "instruction_line_count": 31,
@@ -1560,6 +1596,18 @@
       "license": "MIT",
       "name": "cx-variant-evidence-synthesis",
       "path": "authored-skills/variant-evidence-synthesis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Conduct a controlled virtual-screening campaign from target/library preparation through method discovery, redock controls, existing docking or rescoring engines, compound-level state/pose aggregation, labeled enrichment analysis and reviewed shortlist. Also analyze supplied score tables offline without claiming docking execution.",
+      "executable_count": 0,
+      "instruction_line_count": 75,
+      "license": "MIT",
+      "name": "cx-virtual-screening-campaign",
+      "path": "authored-skills/virtual-screening-campaign",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3711,8 +3759,8 @@
     }
   ],
   "summary": {
-    "active": 171,
+    "active": 175,
     "inactive": 113,
-    "total": 284
+    "total": 288
   }
 }

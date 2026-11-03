@@ -1,0 +1,174 @@
+{
+  "acceptance": "accepted_analysis",
+  "attempts": [
+    {
+      "compound_id": "compound-1",
+      "id": "compound-1-state-1-pose",
+      "score": -8.9,
+      "state_id": "compound-1-state-1",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-1",
+      "id": "compound-1-state-2-pose",
+      "score": -8.8,
+      "state_id": "compound-1-state-2",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-2",
+      "id": "compound-2-state-1-pose",
+      "score": -7.9,
+      "state_id": "compound-2-state-1",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-2",
+      "id": "compound-2-state-2-pose",
+      "score": -7.8,
+      "state_id": "compound-2-state-2",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-3",
+      "id": "compound-3-state-1-pose",
+      "score": -3.9,
+      "state_id": "compound-3-state-1",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-3",
+      "id": "compound-3-state-2-pose",
+      "score": -3.8,
+      "state_id": "compound-3-state-2",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-4",
+      "id": "compound-4-state-1-pose",
+      "score": -2.9,
+      "state_id": "compound-4-state-1",
+      "status": "ok"
+    },
+    {
+      "compound_id": "compound-4",
+      "id": "compound-4-state-2-pose",
+      "score": -2.8,
+      "state_id": "compound-4-state-2",
+      "status": "ok"
+    }
+  ],
+  "compounds": [
+    {
+      "active": true,
+      "attempt_counts": {
+        "ok": 2
+      },
+      "best_attempt_id": "compound-1-state-1-pose",
+      "chemical_identity": "synthetic-identity-1",
+      "id": "compound-1",
+      "oriented_score": 8.9,
+      "partition": "test",
+      "retained": true,
+      "scaffold_group": "scaffold-1",
+      "score": -8.9,
+      "status": "evaluable",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "active": true,
+      "attempt_counts": {
+        "ok": 2
+      },
+      "best_attempt_id": "compound-2-state-1-pose",
+      "chemical_identity": "synthetic-identity-2",
+      "id": "compound-2",
+      "oriented_score": 7.9,
+      "partition": "test",
+      "retained": true,
+      "scaffold_group": "scaffold-2",
+      "score": -7.9,
+      "status": "evaluable",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "active": false,
+      "attempt_counts": {
+        "ok": 2
+      },
+      "best_attempt_id": "compound-3-state-1-pose",
+      "chemical_identity": "synthetic-identity-3",
+      "id": "compound-3",
+      "oriented_score": 3.9,
+      "partition": "test",
+      "retained": true,
+      "scaffold_group": "scaffold-3",
+      "score": -3.9,
+      "status": "evaluable",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "active": false,
+      "attempt_counts": {
+        "ok": 2
+      },
+      "best_attempt_id": "compound-4-state-1-pose",
+      "chemical_identity": "synthetic-identity-4",
+      "id": "compound-4",
+      "oriented_score": 2.9,
+      "partition": "test",
+      "retained": true,
+      "scaffold_group": "scaffold-4",
+      "score": -2.9,
+      "status": "evaluable",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    }
+  ],
+  "contract_sha256": "40f8e9741c87dcbdaf98516200420c90cbe11b5d97570edf1a0934ac2f9c3552",
+  "controls": [
+    {
+      "essential": true,
+      "evidence_ref": "synthetic-control-only",
+      "id": "redock",
+      "kind": "positive_redock",
+      "status": "passed"
+    }
+  ],
+  "denominators": {
+    "attempt_status": {
+      "ok": 8
+    },
+    "compounds": 4,
+    "planned_attempts": 8,
+    "test_evaluable": 4,
+    "test_labeled_evaluable": 4,
+    "test_retained": 4
+  },
+  "engine_executed": false,
+  "input_sha256": "2f2a8665dc7f7e5ca65d4949e18e156ecb2f7c2ad9cbdd789008c951d4fe6fa9",
+  "kind": "virtual-screening-analysis-v1",
+  "limitations": [
+    "Supplied-score analysis only; no docking or chemical identity verification.",
+    "Metrics are conditional on labeled evaluable test compounds, before shortlist filtering.",
+    "No uncertainty interval or prospective affinity/binding validation is supplied."
+  ],
+  "metrics": {
+    "actives": 2,
+    "average_precision": 1.0,
+    "constant_score_average_precision": 0.5,
+    "enrichment_factor": 2.0,
+    "expected_hits_with_fractional_ties": 2.0,
+    "n": 4,
+    "random_expected_enrichment": 1.0,
+    "status": "computed",
+    "top_k_effective": 2
+  },
+  "process_completed": true,
+  "reasons": [],
+  "run_id": "synthetic-offline-screen",
+  "schema_version": 1
+}

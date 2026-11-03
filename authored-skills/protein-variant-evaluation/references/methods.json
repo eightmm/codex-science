@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-11-03",
+  "evidence_boundary": "Official documentation inspected; no model execution or efficacy validation.",
+  "methods": [
+    {
+      "id": "esm-family",
+      "evidence_level": "documented",
+      "sources": [
+        "https://github.com/facebookresearch/esm",
+        "https://raw.githubusercontent.com/facebookresearch/esm/main/examples/variant-prediction/README.md"
+      ],
+      "route": "esm2-protein-embeddings",
+      "applicability": "Sequence-conditioned masked model scoring with explicit formula; ESM-1v examples are not ESM-2 validation.",
+      "limitations": "Archived repository; verify release, checkpoint terms, context and overlap at selection."
+    },
+    {
+      "id": "proteinmpnn",
+      "evidence_level": "documented",
+      "sources": [
+        "https://raw.githubusercontent.com/dauparas/ProteinMPNN/main/README.md"
+      ],
+      "route": "proteinmpnn-sequence-design",
+      "applicability": "Backbone-conditioned supplied-sequence scoring; score-only and negative-log-probability documented.",
+      "limitations": "Requires backbone residue/chain mapping; no functional or pathogenicity calibration."
+    }
+  ]
+}

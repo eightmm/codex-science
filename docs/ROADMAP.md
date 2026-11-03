@@ -26,8 +26,8 @@ Public references:
 
 ### Highest-impact gaps
 
-1. **Uneven native-skill depth.** Some executors have strong preflight, validation, and stop rules, while several evidence-synthesis skills are compact routing notes without explicit decision, evidence, output, and boundary contracts. (Status: all first-party skills now meet L3, the documentation contract; L4 executable acceptance covers 15 skills.)
-2. **No enforced native-skill quality standard.** A skill can be active and discoverable without demonstrating claim semantics, source-dependency handling, artifact outputs, or acceptance criteria. (Status: a machine-checked L0–L4 standard is enforced by `src/codex_science/skill_maturity.py` and `scripts/audit_native_skill_maturity.py`; the passing audit reports 135 skills: L0 0, L1 0, L2 0, L3 120, L4 15. All meet L3; five newly added L4 acceptance fixtures are deterministic software validation, not empirical results.)
+1. **Uneven native-skill depth.** Some executors have strong preflight, validation, and stop rules, while several evidence-synthesis skills are compact routing notes without explicit decision, evidence, output, and boundary contracts. (Status: all first-party skills now meet L3, the documentation contract; L4 executable acceptance covers 19 skills.)
+2. **No enforced native-skill quality standard.** A skill can be active and discoverable without demonstrating claim semantics, source-dependency handling, artifact outputs, or acceptance criteria. (Status: a machine-checked L0–L4 standard is enforced by `src/codex_science/skill_maturity.py` and `scripts/audit_native_skill_maturity.py`; the passing audit reports 139 skills: L0 0, L1 0, L2 0, L3 120, L4 19. All meet L3; five newly added L4 acceptance fixtures are deterministic software validation, not empirical results.)
 3. **Evidence is recorded but not yet a first-class graph.** Claim IDs exist, but support, contradiction, duplication, shared-cohort, source-propagation, and model-training dependencies need a consistent representation. (Status: typed relations are defined in `src/codex_science/evidence_graph_v2.py` (`RELATION_TYPES`: `supports`, `contradicts`, `depends_on`, `duplicates`, `derived_from`, `shares_cohort`, `shares_samples`, `propagated_from`, `training_overlap`), with type checks, independence and acyclicity rules (`INDEPENDENCE_RELATIONS`, `ACYCLIC_RELATIONS`, cycle detection) and `impacted_nodes`; `scripts/build_evidence_graph.py` builds `evidence_graph.json` from `claims.json` and `studies.json` plus `--extra` nodes and edges. Mapping: support → `supports`, contradiction → `contradicts`, duplication → `duplicates`, shared cohort → `shares_cohort`/`shares_samples`, source propagation → `propagated_from`/`derived_from`, model-training dependency → `training_overlap`. Use in real evaluation runs is not established.)
 4. **Literature work is connector-rich but conductor-light.** Discovery exists; systematic query design, deduplication, eligibility, study-level extraction, evidence grading, and updateable review snapshots need a native end-to-end contract. (Status: the `authored-skills/literature-review/SKILL.md` conductor and `src/codex_science/literature_v2.py` provide the review workflow; `src/codex_science/literature_saturation.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py` add bounded stopping and offline trace/support checks. These do not establish recall or semantic support.)
 5. **Model execution needs benchmark contracts.** Successful inference is not validation. Every model family needs task-specific baselines, leakage audits, calibration or abstention, sensitivity analyses, and acceptance examples. (Status: `scripts/validate_model_registry_v2.py` and `models/registry-v2.json` define a versioned model registry; `src/codex_science/model_registry_v2.py` checks receipt fingerprints against registry, model-contract, and acceptance-bundle changes. Per-family benchmark coverage remains incomplete.)
@@ -367,9 +367,33 @@ gave `continue` or `insufficient_data` in every task, never a stop signal.
 In run23, full-protein-folding timed out at the cap while its second review
 round was in progress.
 
-1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 135 first-party skills; skill-depth gaps remain.)
+1. Land and use the native-skill standard and strengthened tier-1 skills. (Status: the audit in `scripts/audit_native_skill_maturity.py` passes for 139 first-party skills; skill-depth gaps remain.)
 2. Add the literature-review conductor and claim/evidence sidecars without changing the stable manifest schema. (Status: the conductor and literature helpers are implemented in `authored-skills/literature-review/SKILL.md`, `src/codex_science/literature_v2.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py`.)
 3. Build the SBDD acceptance example and seeded leakage review cases. (Status: `examples/sbdd-acceptance/benchmark.json` and `examples/sbdd-acceptance/seeded-leaks.json` provide the acceptance benchmark and leakage fixtures; execution is implemented in `src/codex_science/sbdd_execution.py`.)
 4. Add a model registry and invalidate receipts on model, weight, database, or code revision changes. (Status: registry v2 validation compares caller-supplied current code and weight revisions and each supplied current database revision with the receipt; callers that omit current revisions do not get revision-based staleness checks. Registry, model-contract, and acceptance-bundle hashes are also checked.)
 5. Expand connector semantics and drift tests for the highest-value missing evidence lanes. (Status: v3 pagination/snapshot semantics and bounded contract checks are implemented in `src/codex_science/transport_v3.py` and `scripts/validate_connector_contracts.py`; broader drift coverage remains.)
 6. Add artifact annotations and hash-aware review-resolution UX. (Status: `scripts/annotate_run.py` adds, resolves, and lists hash-anchored annotations with an append-only resolution ledger rendered by the workbench; reviewer assignment is not implemented.)
+
+## Compute workflow packs (2026-11-03)
+
+The first implemented set is binder design, virtual screening, protein variant
+evaluation and existing-trajectory comparison. Each composes current skills,
+loads method details progressively and admits source-backed method descriptors.
+Offline arithmetic and contract acceptance are separate from model/engine runs,
+independent scientific review and prospective biological validation.
+
+The bounded survey also identified the following follow-ups. These are candidates,
+not implemented packs or approvals to install tools or run experiments. Choose a
+pack when a real input and decision make its controls and acceptance measurable.
+
+| Candidate | Existing foundation | First discriminating output/control |
+| --- | --- | --- |
+| Ligand-based QSAR and property screening | Audited RDKit/DeepChem catalog plus existing docking validation | Scaffold-disjoint baseline/calibration; refuse cross-split identities and unsupported assay transfer |
+| Single-cell integration and annotation audit | `public-omics-dataset-discovery`, `scvi-tools-analysis`, `scgpt-single-cell` | Donor-aware held-out comparison; retain batch/biology confounding and unavailable cell labels |
+| Proteomics identification/quantification | `mass-spectrometry-identification` and audited pyOpenMS | Target-decoy/FDR and sample-level controls before differential claims |
+| XRD/scattering model comparison | `xray-diffraction-scattering`, `spectroscopy-spectral-inference` | Calibration/blank checks, competing fits and full-pattern residuals |
+| Structure-prediction agreement audit | Existing AF/Boltz/Chai/Protenix executors | Common construct/atom maps and model-lineage disagreements; agreement is not a measured structure |
+
+Method sources and current availability must be checked again when selecting a
+follow-up. Catalog presence and this survey do not establish an executable or
+scientifically validated workflow.

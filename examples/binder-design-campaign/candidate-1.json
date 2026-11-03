@@ -1,0 +1,80 @@
+{
+  "metrics": {
+    "interface_proxy": 0.8
+  },
+  "residues": [
+    {
+      "aa": "C",
+      "chain": "H",
+      "position": 1,
+      "protected": true,
+      "region": "framework",
+      "source_id": "original-H:1"
+    },
+    {
+      "aa": "A",
+      "chain": "H",
+      "position": 2,
+      "protected": false,
+      "region": "H1",
+      "source_id": "original-H:2"
+    },
+    {
+      "aa": "C",
+      "chain": "H",
+      "position": 3,
+      "protected": false,
+      "region": "H1",
+      "source_id": "original-H:2A"
+    },
+    {
+      "aa": "D",
+      "chain": "H",
+      "position": 4,
+      "protected": false,
+      "region": "framework",
+      "source_id": "original-H:4"
+    },
+    {
+      "aa": "C",
+      "chain": "H",
+      "position": 5,
+      "protected": false,
+      "region": "H2",
+      "source_id": "original-H:5"
+    },
+    {
+      "aa": "F",
+      "chain": "H",
+      "position": 6,
+      "protected": false,
+      "region": "framework",
+      "source_id": "original-H:6"
+    },
+    {
+      "aa": "C",
+      "chain": "H",
+      "position": 7,
+      "protected": false,
+      "region": "H3",
+      "source_id": "original-H:7"
+    },
+    {
+      "aa": "G",
+      "chain": "H",
+      "position": 8,
+      "protected": false,
+      "region": "H3",
+      "source_id": "original-H:8"
+    },
+    {
+      "aa": "C",
+      "chain": "H",
+      "position": 9,
+      "protected": true,
+      "region": "framework",
+      "source_id": "original-H:9"
+    }
+  ],
+  "synthetic": true
+}

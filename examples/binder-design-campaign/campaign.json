@@ -1,0 +1,136 @@
+{
+  "artifacts": {
+    "backbone-1": {
+      "path": "backbone-1.json",
+      "sha256": "a9dd91bc8a813fb172d0c119b28825a77b94e2da5268ed1f7dd14a38b87e3c9e"
+    },
+    "backbone-2": {
+      "path": "backbone-2.json",
+      "sha256": "a9dd91bc8a813fb172d0c119b28825a77b94e2da5268ed1f7dd14a38b87e3c9e"
+    },
+    "candidate-1": {
+      "path": "candidate-1.json",
+      "sha256": "02debef65378c0d65c287bca70071ac117bd14026a248ce98a233ac9c9b5af0b"
+    },
+    "candidate-2": {
+      "path": "candidate-2.json",
+      "sha256": "8da2723cf8be679e9be87d3ec7c7bce39ce7306becaf55844f82aa77fb15e6a7"
+    },
+    "candidate-3": {
+      "path": "candidate-3.json",
+      "sha256": "f4ca8cf8de9282fced132e17b94b93fef5a52ccc1a5697b4c5428e32939df065"
+    },
+    "failure-3": {
+      "path": "failure-3.json",
+      "sha256": "da78de7d8a9cce795ff705d8bc01bdc36b216d754515d936c18cdb6b38d418ce"
+    },
+    "mapping": {
+      "path": "mapping.json",
+      "sha256": "5f1c76ff6e534cb83e0976265c7975aeb330eb894089d751829466b928dacf4e"
+    },
+    "negative-control": {
+      "path": "negative-control.json",
+      "sha256": "bf788e2594feb4c1a0d51c013eac13cf60d2910f3d7a1f7f61a97b62e504024b"
+    },
+    "positive-control": {
+      "path": "positive-control.json",
+      "sha256": "e78ccdc58eb0c586adff62e4f824d7abc368cc6959830adcbb8d16f77f2b39d9"
+    },
+    "scaffold": {
+      "path": "scaffold.json",
+      "sha256": "d6fa65955bb30cbe3e8d3911b2a037112bcfe492d4d3c9f1c75f2334780e50c7"
+    },
+    "selected-method": {
+      "path": "method.json",
+      "sha256": "b0452950a250aca25c4211974e19b5f170cb3b4f0577f7cc71e10f7560818dcd"
+    },
+    "target": {
+      "path": "target.json",
+      "sha256": "3bbac0904796cfb8f110dedf6841dde35ba089f58c7b80e0670171749378a8e8"
+    }
+  },
+  "attempts": [
+    {
+      "artifact": "backbone-1",
+      "id": "attempt-1",
+      "status": "generated"
+    },
+    {
+      "artifact": "backbone-2",
+      "id": "attempt-2",
+      "status": "generated"
+    },
+    {
+      "artifact": "failure-3",
+      "id": "attempt-3",
+      "status": "failed"
+    }
+  ],
+  "candidates": [
+    {
+      "artifact": "candidate-1",
+      "attempt_id": "attempt-1",
+      "id": "candidate-1",
+      "parent_artifact": "backbone-1",
+      "reason": "Passes invented fixture threshold",
+      "status": "retained"
+    },
+    {
+      "artifact": "candidate-2",
+      "attempt_id": "attempt-2",
+      "id": "candidate-2",
+      "parent_artifact": "backbone-2",
+      "reason": "Below invented fixture threshold",
+      "status": "excluded"
+    },
+    {
+      "artifact": "candidate-3",
+      "attempt_id": "attempt-2",
+      "id": "candidate-3",
+      "parent_artifact": "backbone-2",
+      "reason": "Missing invented interface metric",
+      "status": "unevaluable"
+    }
+  ],
+  "claims": [
+    {
+      "kind": "workflow_integrity",
+      "status": "supported"
+    },
+    {
+      "kind": "computational_screen",
+      "status": "unavailable"
+    }
+  ],
+  "contract": {
+    "path": "contract.json",
+    "sha256": "fd83fd6f60e420da1f76fe1190fffa66ebf8dc2f4884250b8cae7233c242c539"
+  },
+  "controls": [
+    {
+      "artifact": "positive-control",
+      "id": "positive",
+      "kind": "positive",
+      "required": true,
+      "status": "passed"
+    },
+    {
+      "artifact": "negative-control",
+      "id": "negative",
+      "kind": "negative",
+      "required": true,
+      "status": "passed"
+    }
+  ],
+  "funnel": {
+    "attempted": 3,
+    "candidates": 3,
+    "excluded": 1,
+    "failed": 1,
+    "generated": 2,
+    "retained": 1,
+    "unevaluable": 1
+  },
+  "mode": "synthetic_fixture",
+  "schema": "binder-campaign-v1"
+}

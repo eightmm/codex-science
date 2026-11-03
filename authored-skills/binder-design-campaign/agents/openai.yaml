@@ -1,0 +1,4 @@
+interface:
+  display_name: "Binder Design Campaign"
+  short_description: "Coordinate minibinder, antibody and VHH design"
+  default_prompt: "Use $binder-design-campaign to plan and carry this binder design through generation, validation and a reviewed candidate dossier within the approved resource envelope."

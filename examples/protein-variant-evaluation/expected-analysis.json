@@ -1,0 +1,152 @@
+{
+  "schema": "protein-variant-analysis-v1",
+  "execution": "offline-supplied-score-analysis",
+  "baseline": {
+    "definition": "negative substitution count",
+    "direction": "higher",
+    "units": "substitutions",
+    "model_free": true
+  },
+  "proteins": [
+    {
+      "id": "toy-A",
+      "reference_sha256": "443c1c9d0b0605f650b20465b79e545d06dd27fc1cb01984a516aef66266a318",
+      "coordinate_offset": 10,
+      "split": "test",
+      "homology_group": "toy-family-A",
+      "score_definitions": {
+        "model": {
+          "direction": "lower",
+          "units": "toy-NLL",
+          "definition": "synthetic supplied negative log score; not a model execution"
+        },
+        "assay": {
+          "direction": "higher",
+          "units": "toy-response",
+          "definition": "synthetic response; not measured biology"
+        }
+      },
+      "controls": [
+        {
+          "id": "sequence-sanity",
+          "essential": true,
+          "status": "passed",
+          "evidence": "synthetic fixture reference mapping"
+        }
+      ],
+      "variants": [
+        {
+          "id": "WT",
+          "sequence": "ACDEFG",
+          "sequence_sha256": "443c1c9d0b0605f650b20465b79e545d06dd27fc1cb01984a516aef66266a318",
+          "edit_distance": 0,
+          "baseline": 0,
+          "model": {
+            "status": "ok",
+            "value": 0,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 4,
+            "units": "toy-response"
+          },
+          "model_rank": 1.0
+        },
+        {
+          "id": "single",
+          "sequence": "VCDEFG",
+          "sequence_sha256": "e0a243171cd3ece66ff9730e7a1c50f23e19fff9fd3b887f00b7473e85e14247",
+          "edit_distance": 1,
+          "baseline": -1,
+          "model": {
+            "status": "ok",
+            "value": 1,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 3,
+            "units": "toy-response"
+          },
+          "model_rank": 2.5
+        },
+        {
+          "id": "double",
+          "sequence": "VSDEFG",
+          "sequence_sha256": "52076aee464d20fb0f469e92cb2f4752f1b890ab019265730d3c8caf6b5b6c3c",
+          "edit_distance": 2,
+          "baseline": -2,
+          "model": {
+            "status": "ok",
+            "value": 1,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 3,
+            "units": "toy-response"
+          },
+          "model_rank": 2.5
+        },
+        {
+          "id": "triple",
+          "sequence": "VSNEFG",
+          "sequence_sha256": "3e75f538eb2266e38253d64fbda598b9a0686afe88e79ba67f5e117fa3b5b061",
+          "edit_distance": 3,
+          "baseline": -3,
+          "model": {
+            "status": "ok",
+            "value": 3,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 1,
+            "units": "toy-response"
+          },
+          "model_rank": 4.0
+        },
+        {
+          "id": "unscored",
+          "sequence": "ACDEYG",
+          "sequence_sha256": "25e9609b3be75eec852ff6cfac44ca4b480a7ff3d9bcff81b0ed0f4091c49546",
+          "edit_distance": 1,
+          "baseline": -1,
+          "model": {
+            "status": "failed",
+            "value": null,
+            "units": "toy-NLL",
+            "reason": "seeded inference failure; no inference attempted"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 2,
+            "units": "toy-response"
+          }
+        }
+      ],
+      "total": 5,
+      "paired": 4,
+      "model_vs_assay_spearman": {
+        "value": 1.0,
+        "reason": null,
+        "n": 4
+      },
+      "baseline_vs_assay_spearman": {
+        "value": 0.9486832980505138,
+        "reason": null,
+        "n": 4
+      },
+      "candidate_status": "unreviewed",
+      "review_required": true
+    }
+  ],
+  "pooled_metric": null,
+  "limitations": [
+    "No model executed.",
+    "Declared homology groups checked; homology and pretraining overlap not independently established.",
+    "Scores do not establish function, pathogenicity or clinical effect.",
+    "Candidates require independent review."
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trajectory Comparison"
+  short_description: "Compare existing trajectory observables with replica uncertainty"
+  default_prompt: "Use $trajectory-comparison to compare existing molecular trajectory observables with identity checks and qualified uncertainty."

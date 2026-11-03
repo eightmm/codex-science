@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "skill": "protein-variant-evaluation",
+  "declared_maturity": "L4",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "output_schemas": [
+    "protein-variant-analysis-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/protein-variant-evaluation/input.json",
+    "benchmarks/protein-variant-evaluation/tasks.json"
+  ],
+  "test_files": [
+    "tests/test_protein_variant_workflow.py"
+  ],
+  "seeded_failures": [
+    "wrong-wt-offset",
+    "duplicate-identity",
+    "split-homology-leakage",
+    "unsupported-indel",
+    "overlapping-edit",
+    "constant-ranks",
+    "missing-score",
+    "failed-essential-control",
+    "wrong-direction-units",
+    "nonfinite-numeric"
+  ],
+  "limitations": [
+    "L4 covers offline contract analysis only; no PLM, ProteinMPNN or structure model executed.",
+    "Declared homology groups and control statuses are not independently verified.",
+    "Synthetic rankings provide no biological, clinical or held-out predictive evidence."
+  ]
+}

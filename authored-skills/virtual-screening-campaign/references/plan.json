@@ -1,0 +1,37 @@
+[
+  {
+    "description": "Freeze target, library, chemical/state identities and prediction unit",
+    "id": "intake",
+    "status": "pending"
+  },
+  {
+    "description": "Search official methods; freeze aggregation, direction, splits and controls",
+    "id": "plan",
+    "status": "pending"
+  },
+  {
+    "description": "Resolve approval envelope and pass preparation/redock controls",
+    "id": "pilot",
+    "status": "pending"
+  },
+  {
+    "description": "Run approved existing engine; retain all planned attempts",
+    "id": "execute",
+    "status": "pending"
+  },
+  {
+    "description": "Aggregate states/poses and compute labeled ranking statistics",
+    "id": "analyze",
+    "status": "pending"
+  },
+  {
+    "description": "Preserve complete funnel and qualify shortlist against controls",
+    "id": "select",
+    "status": "pending"
+  },
+  {
+    "description": "Package hashes, independent review and next falsifying observation",
+    "id": "review",
+    "status": "pending"
+  }
+]

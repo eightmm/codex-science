@@ -1,0 +1,4 @@
+interface:
+  display_name: "Virtual Screening Campaign"
+  short_description: "Run controlled screening and analyze full compound funnels"
+  default_prompt: "Use $virtual-screening-campaign to plan controlled virtual screening and evaluate supplied or approved engine scores."

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "pack": "protein-variant-evaluation",
+  "execution": "offline-synthetic-cpu",
+  "tasks": [
+    {
+      "id": "sequence-rank",
+      "input": "examples/protein-variant-evaluation/input.json",
+      "expected": "Explicit offset-mapped sequences, tied ranks, model rho 1, preserved failed score; no pooled metric."
+    },
+    {
+      "id": "seeded-failures",
+      "test": "tests/test_protein_variant_workflow.py",
+      "expected": "Reject WT/offset, duplicate/leakage, indel/edit and malformed score defects; null constants and missing correlations; failed essential controls block candidates."
+    }
+  ]
+}

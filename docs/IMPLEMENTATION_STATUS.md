@@ -21,12 +21,19 @@
   `output_cap`; the resume driver stops with code `turn_failed` and reason
   `output_cap`, while runner receipts use `last_message_present` for empty or
   capped last-message output.
-- All 135 first-party skills meet L3 (the documentation contract); the audit
-  reports 135 skills: L0 0, L1 0, L2 0, L3 120, L4 15. Five additional skills now
+- All 139 first-party skills meet L3 (the documentation contract); the audit
+  reports 139 skills: L0 0, L1 0, L2 0, L3 120, L4 19. Five additional skills now
   have L4 executable acceptance fixtures with named seeded failures exercised
   through their public entry points. These deterministic fixtures validate
   software contracts, not empirical results. Existing endpoints, attribution, and gates
   remain, with one retired ChEBI link replaced.
+- Binder-design campaign adds a conductor for minibinders, paired Fv and VHH,
+  dated method discovery and additive descriptors, plus offline record checks.
+  Its L4 scope is contract acceptance; all listed method executions remain unrun.
+- Virtual-screening, protein-variant and trajectory-comparison conductors add
+  actual bounded stdlib analysis of supplied scores/sequences/observable series,
+  failure-aware controls and current-method discovery. Their L4 fixtures test
+  offline contracts; docking, PLM and MD engine execution remain separate.
 - Implemented rigor classification and completion reporting, a frozen
   literature-review task set with dry-run-first runner and receipt grader,
   saturation estimation, and citation provenance tracing.

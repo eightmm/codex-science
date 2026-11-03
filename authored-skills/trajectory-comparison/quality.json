@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "skill": "trajectory-comparison",
+  "declared_maturity": "L4",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "output_schemas": [
+    "trajectory-comparison-result-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/trajectory-comparison/series.json",
+    "benchmarks/trajectory-comparison/tasks.json"
+  ],
+  "seeded_failures": [
+    "unit-mismatch",
+    "missing-frame",
+    "nonmonotonic-time",
+    "topology-mismatch",
+    "selection-mismatch",
+    "unresolved-pbc",
+    "duplicate-replica",
+    "duplicate-source",
+    "drift",
+    "failed-control",
+    "insufficient-blocks",
+    "insufficient-replicas"
+  ],
+  "test_files": [
+    "tests/test_trajectory_comparison_workflow.py"
+  ],
+  "limitations": [
+    "L4 covers offline exported-series analysis contracts only.",
+    "No MDAnalysis, OpenMM or GROMACS execution; no coordinate/PBC validation.",
+    "Declared independence and block lengths require external scientific review; stable RMSD never proves convergence."
+  ]
+}

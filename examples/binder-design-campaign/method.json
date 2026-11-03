@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-11-03",
+  "execution": "not_run",
+  "formats": [
+    "paired_fv",
+    "vhh"
+  ],
+  "framework_cdr_aware": true,
+  "id": "rfantibody",
+  "input_contract": "Antigen/framework structure; H/L or H-only CDR definitions; audit source-to-HLT maps/crops.",
+  "output_contract": "Antibody-finetuned diffusion -> CDR-aware ProteinMPNN -> conditioned RF2; retain Quiver/PDB tags and failures.",
+  "resource_notes": "External CUDA environment and individual model assets; not an installed runtime adapter.",
+  "review_state": "documented",
+  "sequence_stage": "cdr-aware",
+  "sources": [
+    "https://github.com/RosettaCommons/RFantibody",
+    "https://github.com/RosettaCommons/RFantibody/blob/main/scripts/util/chothia2HLT.py"
+  ],
+  "terms": "MIT repository; separately inspect individual assets and dependencies."
+}

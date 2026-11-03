@@ -1,0 +1,115 @@
+{
+  "schema": "protein-variant-input-v1",
+  "fixture": "synthetic CC0 author-created sequences and scores",
+  "proteins": [
+    {
+      "id": "toy-A",
+      "reference": "ACDEFG",
+      "coordinate_offset": 10,
+      "split": "test",
+      "homology_group": "toy-family-A",
+      "model": {
+        "direction": "lower",
+        "units": "toy-NLL",
+        "definition": "synthetic supplied negative log score; not a model execution"
+      },
+      "assay": {
+        "direction": "higher",
+        "units": "toy-response",
+        "definition": "synthetic response; not measured biology"
+      },
+      "controls": [
+        {
+          "id": "sequence-sanity",
+          "essential": true,
+          "status": "passed",
+          "evidence": "synthetic fixture reference mapping"
+        }
+      ],
+      "variants": [
+        {
+          "id": "WT",
+          "substitutions": [],
+          "model": {
+            "status": "ok",
+            "value": 0,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 4,
+            "units": "toy-response"
+          }
+        },
+        {
+          "id": "single",
+          "substitutions": [
+            "A11V"
+          ],
+          "model": {
+            "status": "ok",
+            "value": 1,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 3,
+            "units": "toy-response"
+          }
+        },
+        {
+          "id": "double",
+          "substitutions": [
+            "A11V",
+            "C12S"
+          ],
+          "model": {
+            "status": "ok",
+            "value": 1,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 3,
+            "units": "toy-response"
+          }
+        },
+        {
+          "id": "triple",
+          "substitutions": [
+            "A11V",
+            "C12S",
+            "D13N"
+          ],
+          "model": {
+            "status": "ok",
+            "value": 3,
+            "units": "toy-NLL"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 1,
+            "units": "toy-response"
+          }
+        },
+        {
+          "id": "unscored",
+          "substitutions": [
+            "F15Y"
+          ],
+          "model": {
+            "status": "failed",
+            "value": null,
+            "units": "toy-NLL",
+            "reason": "seeded inference failure; no inference attempted"
+          },
+          "assay": {
+            "status": "ok",
+            "value": 2,
+            "units": "toy-response"
+          }
+        }
+      ]
+    }
+  ]
+}
