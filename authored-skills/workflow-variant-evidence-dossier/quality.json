@@ -38,7 +38,7 @@
   "limitations": [
     "L4 covers deterministic synthetic offline acceptance only; no live-source, biological or clinical validation.",
     "Existing gene and trait search adapters may lack variant identity and association details; missing evidence remains unavailable.",
-    "The validator checks declared structured claim limits and dependency groups, not every semantic overclaim or undisclosed cohort overlap.",
+    "The validator checks declared structured claim limits, conservative English clinical wording, an explicit quote-only clinical assertion form and dependency groups, not every semantic overclaim or undisclosed cohort overlap.",
     "Raw transport, normalization against a reference genome, source-native field extraction, and independent review are not implemented by this pack."
   ]
 }

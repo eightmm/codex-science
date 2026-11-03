@@ -2,16 +2,27 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
+import stat
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from codex_science.cli_io import load_json_object
 from codex_science.connector_contract import replay_snapshot
 
 
 STAGES = ("01-normalize", "02-retrieve", "03-reconcile", "04-bound-claims", "05-review-handoff")
 SOURCES = {"clinvar", "gnomad", "dbsnp", "gwas_catalog", "ensembl"}
+MAX_JSON_BYTES = 64 * 1024 * 1024
+CLINICAL_WORDING = re.compile(
+    r"\b(?:actionab(?:le|ility)|pathogenic(?:ity)?|benign|"
+    r"treat(?:ment|ments|ed|ing|s)?|therap(?:y|ies|eutic(?:s|ally)?)|"
+    r"recommend(?:ation|ations|ed|ing|s)?|prescri(?:be|bes|bed|bing|ption|ptions)|"
+    r"diagnos(?:is|es|e|ed|ing|tic)|(?:start|initiate|use|administer)\s+"
+    r"(?:drug|medication|chemotherapy|therapy|treatment))\b",
+    re.IGNORECASE,
+)
 BOUNDARIES = (
     "Evidence only; no diagnosis or clinical recommendation.",
     "Association is never causality.",
@@ -43,17 +54,48 @@ def _items(value: Any, label: str) -> list[Any]:
     return value
 
 
-def _load(path: Path, schema: str | None = None) -> dict[str, Any]:
+def _read(path: Path) -> bytes:
     try:
-        value = load_json_object(path)
-    except (OSError, ValueError) as error:
+        if not stat.S_ISREG(path.lstat().st_mode):
+            _refuse("unsafe-artifact-path", "input must be a regular file, never a symlink")
+        # Nonblocking open and descriptor checks also cover replacement by a FIFO.
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+        with os.fdopen(os.open(path, flags), "rb") as stream:
+            observed = os.fstat(stream.fileno())
+            if not stat.S_ISREG(observed.st_mode):
+                _refuse("unsafe-artifact-path", "opened input must be a regular file")
+            if observed.st_size > MAX_JSON_BYTES:
+                _refuse("invalid-json", f"input JSON exceeds {MAX_JSON_BYTES} bytes")
+            raw = stream.read(MAX_JSON_BYTES + 1)
+        if len(raw) > MAX_JSON_BYTES:
+            _refuse("invalid-json", f"input JSON exceeds {MAX_JSON_BYTES} bytes")
+        return raw
+    except OSError as error:
+        _refuse("invalid-json", str(error))
+
+
+def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+    result = {}
+    for name, value in items:
+        if name in result:
+            raise ValueError(f"duplicate JSON key: {name}")
+        result[name] = value
+    return result
+
+
+def _load(raw: bytes, schema: str | None = None) -> dict[str, Any]:
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs)
+        if not isinstance(value, dict):
+            raise ValueError("input JSON must be an object")
+    except (UnicodeError, ValueError, RecursionError) as error:
         _refuse("invalid-json", str(error))
     if schema is not None and value.get("schema") != schema:
         _refuse("schema-mismatch", f"expected {schema}")
     return value
 
 
-def _linked(root: Path, reference: Any) -> Path:
+def _linked(root: Path, reference: Any) -> bytes:
     reference = _object(reference, "artifact reference")
     relative = PurePosixPath(_text(reference.get("path"), "artifact path"))
     if relative.is_absolute() or ".." in relative.parts or "\\" in str(relative):
@@ -67,9 +109,10 @@ def _linked(root: Path, reference: Any) -> Path:
     digest = reference.get("sha256")
     if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
         _refuse("artifact-hash-mismatch", "artifact sha256 must be a lowercase SHA-256")
-    if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+    raw = _read(path)
+    if hashlib.sha256(raw).hexdigest() != digest:
         _refuse("artifact-hash-mismatch", f"artifact hash does not match: {relative}")
-    return path
+    return raw
 
 
 def _identity(raw: Any) -> dict[str, Any]:
@@ -215,6 +258,12 @@ def _claims(register: dict[str, Any], rows: dict[str, dict[str, Any]]) -> int:
         status = claim.get("status")
         if status not in ("supported", "contradicted", "inconclusive", "unavailable", "replicated"):
             _refuse("invalid-claim-status", "unsupported bounded claim status")
+        if claim["basis"] == "clinical_assertion":
+            quoted = re.fullmatch(r'Source assertion \(quoted only\): "([^"\r\n]+)"\.?', claim["text"])
+            if claim["kind"] != "descriptive" or quoted is None or not quoted[1].strip():
+                _refuse("claim-strength-exceeds-source", "clinical assertions require a descriptive quote-only statement")
+        elif status in ("supported", "replicated") and CLINICAL_WORDING.search(claim["text"]):
+            _refuse("claim-strength-exceeds-source", "supported claim text cannot assert clinical actionability, classification or treatment")
         if all(row["status"] == "unavailable" for row in evidence) and status != "unavailable":
             _refuse("missing-record-not-negative", "claims without available evidence must remain unavailable")
         if status in ("supported", "replicated"):
@@ -244,7 +293,7 @@ def validate_variant_dossier(package: Path) -> dict[str, Any]:
     immutable run handoffs belong to the coordinator's existing manifest.
     """
     root = Path(package).resolve()
-    dossier = _load(root / "dossier.json", "variant-dossier-v1")
+    dossier = _load(_read(root / "dossier.json"), "variant-dossier-v1")
     if dossier.get("stage_ids") != list(STAGES):
         _refuse("stage-order", "require the five fixed ordered stages")
     if dossier.get("review_status") != "unreviewed":

@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -212,6 +213,218 @@ class VariantDossierTests(unittest.TestCase):
 
     def test_retrieval_cannot_replace_the_frozen_normalization_identity(self):
         self.seed("normalization-ledger-mismatch")
+
+    def test_supported_clinical_prose_is_refused(self):
+        change(self.root, "bounded-claims.json", "/claims/0/evidence_sources", ["gnomad", "dbsnp"])
+        for index in (1, 2):
+            change(self.root, "evidence-table.json", f"/rows/{index}/evidence_type", "clinical_assertion")
+        for basis in ("source_observation", "clinical_assertion"):
+            change(self.root, "bounded-claims.json", "/claims/0/basis", basis)
+            for status in ("supported", "replicated"):
+                change(self.root, "bounded-claims.json", "/claims/0/status", status)
+                for text in (
+                    "This variant is clinically actionable.",
+                    "This variant has clinical actionability.",
+                    "Classify this variant as pathogenic.",
+                    "This variant is likely benign.",
+                    "Treatment is indicated for this variant.",
+                    "We recommend a synthetic intervention.",
+                    "Prescribe synthetic medication.",
+                    "Start chemotherapy.",
+                ):
+                    with self.subTest(basis=basis, status=status, text=text):
+                        change(self.root, "bounded-claims.json", "/claims/0/text", text)
+                        with self.assertRaisesRegex(ValueError, "^claim-strength-exceeds-source:"):
+                            validate_variant_dossier(self.root)
+
+    def test_clinical_assertions_require_a_complete_quote_only_statement(self):
+        change(self.root, "evidence-table.json", "/rows/1/evidence_type", "clinical_assertion")
+        change(self.root, "bounded-claims.json", "/claims/0/basis", "clinical_assertion")
+        quote = 'Source assertion (quoted only): "Pathogenic; treatment recommended."'
+        for status in ("supported", "contradicted", "inconclusive", "unavailable"):
+            change(self.root, "bounded-claims.json", "/claims/0/status", status)
+            change(self.root, "bounded-claims.json", "/claims/0/text", quote)
+            self.assertEqual("passed", validate_variant_dossier(self.root)["status"])
+            for text in (
+                "Synthetic source assertion observed.",
+                'Source assertion: "Pathogenic."',
+                'Source assertion (quoted only): ""',
+                'Source assertion (quoted only): " "',
+                quote + " We recommend treatment.",
+                'Source assertion (quoted only): "Pathogenic.\nTreat now."',
+            ):
+                with self.subTest(status=status, text=text):
+                    change(self.root, "bounded-claims.json", "/claims/0/text", text)
+                    with self.assertRaisesRegex(ValueError, "^claim-strength-exceeds-source:"):
+                        validate_variant_dossier(self.root)
+
+    def test_hash_checked_bytes_are_the_bytes_parsed(self):
+        paths = [self.root / name for name in (
+            "identity-ledger.json", "identity-ledger.normalized.json",
+            "evidence-table.json", "bounded-claims.json",
+        )] + sorted((self.root / "snapshots").glob("*.json"))
+        original_hash = hashlib.sha256
+        for path in paths:
+            with self.subTest(path=path.relative_to(self.root)):
+                original = path.read_bytes()
+                replaced = []
+
+                def replace_after_hash(raw):
+                    result = original_hash(raw)
+                    if raw == original:
+                        path.write_bytes(b"{}")
+                        replaced.append(path)
+                    return result
+
+                try:
+                    with mock.patch("codex_science.variant_dossier.hashlib.sha256", side_effect=replace_after_hash):
+                        self.assertEqual("passed", validate_variant_dossier(self.root)["status"])
+                    self.assertEqual([path], replaced)
+                finally:
+                    path.write_bytes(original)
+
+    def test_oversized_artifact_is_refused_before_reading_or_hashing(self):
+        path = self.root / "evidence-table.json"
+        with path.open("wb") as stream:
+            stream.truncate(64 * 1024 * 1024 + 1)
+        original_read = Path.read_bytes
+
+        def guarded_read(candidate):
+            if candidate == path:
+                self.fail("oversized artifact reached an unbounded read")
+            return original_read(candidate)
+
+        with mock.patch.object(Path, "read_bytes", guarded_read):
+            with self.assertRaisesRegex(ValueError, "^invalid-json:.*exceeds"):
+                validate_variant_dossier(self.root)
+        result = self.cli()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("exceeds", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_json_size_cap_edges_and_growth_during_read(self):
+        path = self.root / "evidence-table.json"
+        original = path.read_bytes()
+        limit = max(len(item.read_bytes()) for item in self.root.rglob("*.json")) + 16
+        equal = original + b" " * (limit - len(original))
+        with mock.patch("codex_science.variant_dossier.MAX_JSON_BYTES", limit, create=True):
+            path.write_bytes(equal)
+            bind(self.root)
+            self.assertEqual("passed", validate_variant_dossier(self.root)["status"])
+            path.write_bytes(equal + b" ")
+            bind(self.root)
+            for reported_size in (limit + 1, 0):
+                with self.subTest(reported_size=reported_size):
+                    observed = mock.Mock(st_mode=stat.S_IFREG, st_size=reported_size)
+                    with mock.patch("os.fstat", return_value=observed):
+                        with self.assertRaisesRegex(ValueError, "^invalid-json:.*exceeds"):
+                            validate_variant_dossier(self.root)
+            for raw in (b"", b"0", b"[]", b"{", b"\xff"):
+                with self.subTest(raw=raw):
+                    path.write_bytes(raw)
+                    bind(self.root)
+                    with self.assertRaisesRegex(ValueError, "^invalid-json:"):
+                        validate_variant_dossier(self.root)
+
+    def test_nonregular_inputs_and_fifo_replacement_are_refused(self):
+        for name in ("dossier.json", "evidence-table.json", "snapshots/dbsnp.json"):
+            path = self.root / name
+            original = path.read_bytes()
+            for kind in ("directory", "fifo"):
+                with self.subTest(name=name, kind=kind):
+                    path.unlink()
+                    if kind == "directory":
+                        path.mkdir()
+                    else:
+                        os.mkfifo(path)
+                    try:
+                        with self.assertRaisesRegex(ValueError, "^unsafe-artifact-path:"):
+                            validate_variant_dossier(self.root)
+                        result = self.cli()
+                        self.assertEqual(1, result.returncode)
+                        self.assertNotIn("Traceback", result.stderr)
+                    finally:
+                        path.rmdir() if kind == "directory" else path.unlink()
+                        path.write_bytes(original)
+        path = self.root / "evidence-table.json"
+        original_is_file = Path.is_file
+        original_read = Path.read_bytes
+
+        def replace_with_fifo(candidate):
+            result = original_is_file(candidate)
+            if candidate == path and result:
+                path.unlink()
+                os.mkfifo(path)
+            return result
+
+        def guarded_read(candidate):
+            if candidate == path:
+                self.fail("replacement FIFO reached a blocking read")
+            return original_read(candidate)
+
+        with mock.patch.object(Path, "is_file", replace_with_fifo), mock.patch.object(Path, "read_bytes", guarded_read):
+            with self.assertRaisesRegex(ValueError, "^unsafe-artifact-path:"):
+                validate_variant_dossier(self.root)
+        path.unlink()
+        write(path, read(EXAMPLE / "synthetic-dossier/evidence-table.json"))
+        original_open = os.open
+
+        def replace_before_open(candidate, flags, *args, **kwargs):
+            if Path(candidate) == path:
+                path.unlink()
+                os.mkfifo(path)
+            return original_open(candidate, flags, *args, **kwargs)
+
+        with mock.patch("os.open", side_effect=replace_before_open):
+            with self.assertRaisesRegex(ValueError, "^unsafe-artifact-path:"):
+                validate_variant_dossier(self.root)
+
+    def test_duplicate_json_keys_are_refused_at_every_input(self):
+        paths = sorted(self.root.rglob("*.json"))
+        for path in paths:
+            with self.subTest(path=path.relative_to(self.root)):
+                original = path.read_bytes()
+                payload = read(path)
+                key = next(iter(payload))
+                prefix = "{" + json.dumps(key) + ":null,"
+                path.write_text(prefix + original.decode("utf-8")[1:], encoding="utf-8")
+                if path.name == "identity-ledger.json":
+                    dossier = read(self.root / "dossier.json")
+                    dossier["identity_ledger"]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                    write(self.root / "dossier.json", dossier)
+                elif path.name != "dossier.json":
+                    bind(self.root)
+                try:
+                    with self.assertRaisesRegex(ValueError, "^invalid-json:.*duplicate JSON key"):
+                        validate_variant_dossier(self.root)
+                    result = self.cli()
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("duplicate JSON key", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                finally:
+                    path.write_bytes(original)
+                    bind(self.root)
+        path = self.root / "evidence-table.json"
+        raw = path.read_text(encoding="utf-8")
+        path.write_text(raw.replace('"positive": "passed"', '"positive": "failed", "positive": "passed"', 1), encoding="utf-8")
+        bind(self.root)
+        with self.assertRaisesRegex(ValueError, "^invalid-json:.*duplicate JSON key: positive"):
+            validate_variant_dossier(self.root)
+
+    def test_symlinked_dossier_is_refused(self):
+        path = self.root / "dossier.json"
+        original = path.read_bytes()
+        target = self.root.parent / "saved-dossier.json"
+        target.write_bytes(original)
+        path.unlink()
+        path.symlink_to(target)
+        with self.assertRaisesRegex(ValueError, "^unsafe-artifact-path:"):
+            validate_variant_dossier(self.root)
+        result = self.cli()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("unsafe-artifact-path:", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(original, target.read_bytes())
 
     def test_identity_cannot_be_borrowed_from_another_snapshot_record(self):
         snapshot = read(self.root / "snapshots/dbsnp.json")
