@@ -95,7 +95,7 @@ class WBPackTests(unittest.TestCase):
         self.assertAlmostEqual(pack._t_quantile(2, .95), math.sqrt(2*.95**2 / (1-.95**2)), places=10)
         self.assertAlmostEqual(pack._t_quantile(4, .95), 2.7764451051977987, places=10)
         for values, code in (([], 'invalid-record'), ([1, 2], 'insufficient-biological-units'),
-                             ([1, 1, 1], 'degenerate-variance'), ([0, 1, 2], 'invalid-record'),
+                             ([1, 1, 1], 'degenerate-variance'), ([0.1, 0.3 - 0.2, 0.1], 'degenerate-variance'), ([0, 1, 2], 'invalid-record'),
                              ([True, 1, 2], 'invalid-record'), ([1, float('nan'), 2], 'invalid-record')):
             with self.subTest(values=values), self.assertRaisesRegex(ValueError, '^' + code + ':'):
                 pack.welch_fold_interval(values, [1, 2, 3])
@@ -440,7 +440,8 @@ class WBPackTests(unittest.TestCase):
 
     def test_claim_kind_and_result_not_labels(self):
         for kind, result in (('review-approval', 'observed'), ('observed', 'review-approval'),
-                             ('computed', 'observed'), ('observed', 'numerical-agreement')):
+                             ('computed', 'observed'), ('observed', 'numerical-agreement'),
+                             ('observed', 'arithmetic-only'), ('wb-result-v1', 'observed')):
             self.evidence(kind, result)
             with self.subTest(kind=kind, result=result), self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
                 pack.validate_western_blot_densitometry_pack(self.save())

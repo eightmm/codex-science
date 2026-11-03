@@ -39,7 +39,7 @@ OVERREACH = re.compile(
     r"physical[\s-]+validity|patient[\s-]+benefit\w*|quality|stabil\w*|stabl\w*|perform\w*|approv\w*|certif\w*|compliance|compliant)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 
 
 def _require(condition, code, message):
@@ -372,8 +372,8 @@ def _quantities(edges, weights, lower, upper, basis):
         for left, right, weight in zip(edges, edges[1:], weights):
             mass = inside * weight
             following = math.fsum((cumulative, mass))
-            if mass > 0 and probability <= following:
-                fraction = (probability - cumulative) / mass
+            if mass > 0 and (probability <= following or math.isclose(probability, following, rel_tol=1e-12)):
+                fraction = min(1.0, max(0.0, (probability - cumulative) / mass))
                 percentiles.append(left + (right - left) * fraction)
                 break
             cumulative = following

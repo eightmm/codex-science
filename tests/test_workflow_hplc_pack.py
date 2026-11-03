@@ -562,6 +562,16 @@ class HPLCPackTests(unittest.TestCase):
         rows[0]['peaks'][0]['signal_to_noise']=0
         self.assertEqual(pack.compute_suitability(self.documents['table'],self.documents['rules'])['injections'][0]['signal_to_noise']['status'],'fail')
 
+    def test_decimal_distance_tie_uses_first_neighbor(self):
+        peaks = self.documents['table']['rows'][0]['peaks']
+        for peak, time in zip(peaks, (0.2, 0.1, 0.3)):
+            peak.update(retention_time=time, width_baseline=0.05)
+        peaks[2]['width_baseline'] = 0.5
+        self.documents['rules']['reference_peak_id'] = None
+        numbers = pack.compute_suitability(self.documents['table'], self.documents['rules'])
+        self.assertEqual(numbers['injections'][0]['nearest_peak_id'], peaks[1]['peak_id'])
+        self.assertAlmostEqual(numbers['injections'][0]['resolution']['value'], 2.0)
+
     def test_lstat_race_and_final_root_replacement(self):
         real_lstat=os.lstat
         component=self.root.name

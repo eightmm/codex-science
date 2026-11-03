@@ -142,6 +142,10 @@ class PSDPackTests(unittest.TestCase):
         statistics = self.compute()['measurements'][0]['statistics']
         self.assertEqual([statistics[key] for key in pack.METRICS[:3]], [3.2, 4, 4.8])
 
+    def test_boundary_rounding_does_not_jump_over_empty_bins(self):
+        values = pack._quantities([0, 1, 100, 101], [9, 0, 89], .01, .01, 'count')
+        self.assertEqual(values[pack.METRICS[0]], 1)
+
     def test_agreement_bounds_equal_zero_and_disagreement(self):
         for key in ('d50_relative_range_max', 'span_relative_range_max'):
             self.documents['rules'][key] = 0
@@ -479,7 +483,8 @@ class PSDPackTests(unittest.TestCase):
 
     def test_claim_kind_and_result_not_labels(self):
         for kind, result in (('review-approval', 'observed'), ('observed', 'review-approval'),
-                             ('computed', 'observed'), ('observed', 'numerical-agreement')):
+                             ('computed', 'observed'), ('observed', 'numerical-agreement'),
+                             ('observed', 'arithmetic-only'), ('psd-result-v1', 'observed')):
             self.evidence(kind, result)
             with self.subTest(kind=kind, result=result), self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
                 pack.validate_particle_size_distribution_pack(self.save())

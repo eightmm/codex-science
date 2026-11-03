@@ -37,7 +37,7 @@ OVERREACH = re.compile(
     r"process[\s-]+safety|reaction[\s-]+order|safe\w*)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 
 
 def _require(condition, code, message):
@@ -490,7 +490,9 @@ def _fit(rates, rules, weighting):
     ymean = math.fsum(w * y for w, y in zip(weights, ys)) / total
     sxx = math.fsum(w * (x - xmean) ** 2 for w, x in zip(weights, xs))
     syy = math.fsum(w * (y - ymean) ** 2 for w, y in zip(weights, ys))
-    _require(sxx > 0 and syy > 0, 'degenerate-fit', 'temperature or log-rate variance is zero')
+    _require(sxx > 1e-24 * math.fsum(w * x * x for w, x in zip(weights, xs))
+             and syy > 1e-24 * math.fsum(w * y * y for w, y in zip(weights, ys)),
+             'degenerate-fit', 'temperature or log-rate variance is zero')
     slope = math.fsum(w * (x - xmean) * (y - ymean) for w, x, y in zip(weights, xs, ys)) / sxx
     intercept = ymean - slope * xmean
     residuals = [y - (ymean + slope * (x - xmean)) for x, y in zip(xs, ys)]

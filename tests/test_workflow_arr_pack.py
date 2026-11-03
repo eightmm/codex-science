@@ -211,6 +211,10 @@ class ArrheniusPackTests(unittest.TestCase):
             row['rate'] = 1
         with self.assertRaisesRegex(ValueError, '^degenerate-fit:'):
             pack.compute_arrhenius(self.documents['rates'], self.documents['rules'])
+        for index, row in enumerate(self.documents['rates']['rows']):
+            row['rate'] = math.exp(0.1) * (1 + 2e-16 * (index // 2 % 2))
+        with self.assertRaisesRegex(ValueError, '^degenerate-fit:'):
+            pack.compute_arrhenius(self.documents['rates'], self.documents['rules'])
         self.documents['rates']['rows'] = []
         with self.assertRaisesRegex(ValueError, '^invalid-record:'):
             pack.compute_arrhenius(self.documents['rates'], self.documents['rules'])
@@ -537,7 +541,8 @@ class ArrheniusPackTests(unittest.TestCase):
 
     def test_claim_kind_and_result_not_labels(self):
         for kind, result in (('review-approval', 'observed'), ('observed', 'review-approval'),
-                             ('computed', 'observed'), ('observed', 'numerical-agreement')):
+                             ('computed', 'observed'), ('observed', 'numerical-agreement'),
+                             ('observed', 'arithmetic-only'), ('arr-result-v1', 'observed')):
             for status in pack.POSITIVE:
                 self.evidence(kind, result)
                 self.documents['report']['claims'][0]['status'] = status

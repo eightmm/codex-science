@@ -471,7 +471,11 @@ def compute_suitability(table, rules, applied_limits=None):
             reference = rules["reference_peak_id"]
             _require(reference is None or reference in indexed, "peak-identity", "frozen reference peak missing")
             neighbors = [peak for key, peak in indexed.items() if key != rules["analyte_peak_id"]]
-            nearest = min(neighbors, key=lambda peak: abs(peak["retention_time"] - analyte["retention_time"])) if neighbors else None
+            nearest = None
+            for peak in neighbors:
+                distance = abs(peak["retention_time"] - analyte["retention_time"])
+                if nearest is None or (distance < best and not math.isclose(distance, best, rel_tol=1e-9)):
+                    nearest, best = peak, distance
             resolution = (2 * abs(nearest["retention_time"] - analyte["retention_time"]) /
                           (nearest["width_baseline"] + analyte["width_baseline"])) if nearest else "unavailable"
             sn = analyte["signal_to_noise"] if analyte["signal_to_noise"] is not None else "unavailable"

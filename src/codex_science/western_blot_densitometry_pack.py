@@ -41,7 +41,7 @@ OVERREACH = re.compile(
     r"physical[\s-]+validity|patient[\s-]+benefit\w*|protein[\s-]+abundan\w*|express\w*)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 
 
 def _require(condition, code, message):
@@ -388,7 +388,7 @@ def welch_fold_interval(first, reference, level=.95, minimum=3):
             _number(value, "normalised biological value", 1e-24, 1e24)
     mean, variance = _moments(first)
     baseline, baseline_variance = _moments(reference)
-    _require(variance > 0 and baseline_variance > 0,
+    _require(variance > (1e-12 * mean) ** 2 and baseline_variance > (1e-12 * baseline) ** 2,
              "degenerate-variance", "zero within-group variance cannot support a Welch interval")
     a = variance / len(first) / mean ** 2
     b = baseline_variance / len(reference) / baseline ** 2

@@ -171,6 +171,10 @@ class DOEPackTests(unittest.TestCase):
             row['responses'] = [1,1]
         with self.assertRaisesRegex(ValueError, '^degenerate-error:'):
             pack.compute_factorial_effects(self.documents['table'], self.documents['rules'])
+        for row in self.documents['table']['rows']:
+            row['responses'] = [0.1, 0.3 - 0.2]
+        with self.assertRaisesRegex(ValueError, '^degenerate-error:'):
+            pack.compute_factorial_effects(self.documents['table'], self.documents['rules'])
 
     def test_table_identity_counts_resolution_and_response_types(self):
         mutations = [('table',['rows',0,'run_id'],'r02','duplicate-run'),
@@ -519,7 +523,8 @@ class DOEPackTests(unittest.TestCase):
 
     def test_claim_kind_and_result_not_labels(self):
         for kind, result in (('review-approval', 'observed'), ('observed', 'review-approval'),
-                             ('computed', 'observed'), ('observed', 'numerical-agreement')):
+                             ('computed', 'observed'), ('observed', 'numerical-agreement'),
+                             ('observed', 'arithmetic-only'), ('doe-result-v1', 'observed')):
             self.evidence(kind, result)
             with self.subTest(kind=kind, result=result), self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
                 pack.validate_factorial_doe_pack(self.save())
