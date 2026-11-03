@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "fixture-computation",
+      "kind": "computed",
+      "origin": "internal",
+      "result": "numerical-agreement",
+      "source": {
+        "path": "data.json",
+        "sha256": "d8d31c40cf443ab0cecc93f0f2b2f88ff5e0ad70222d7b1cfd6790c274be1060"
+      }
+    }
+  ],
+  "schema": "growth-evidence-v1"
+}

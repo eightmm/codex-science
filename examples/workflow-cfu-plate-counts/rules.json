@@ -1,0 +1,115 @@
+{
+  "detection_rule": "one-sided-poisson-upper",
+  "dilution_ratio": 10,
+  "duplicate_maximum_ratio": 2,
+  "fixture": "synthetic fixture",
+  "interval_level": 0.95,
+  "interval_method": "garwood-exact",
+  "minimum_countable_plates": 2,
+  "plates": [
+    {
+      "dilution_factor": 0.1,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p01",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.01,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p02",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.01,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p03",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.001,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p04",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.001,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p05",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.0001,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p06",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.01,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p07",
+      "sample_id": "B",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.001,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p08",
+      "sample_id": "B",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.01,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p09",
+      "sample_id": "C",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.001,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p10",
+      "sample_id": "C",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.01,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p11",
+      "sample_id": "D",
+      "volume_ml": 0.1
+    },
+    {
+      "dilution_factor": 0.001,
+      "maximum": 300,
+      "minimum": 30,
+      "plate_id": "p12",
+      "sample_id": "D",
+      "volume_ml": 0.1
+    }
+  ],
+  "sample_ids": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "schema": "cfu-rules-v1",
+  "weighted_mean_rule": "sum-counts-over-sum-volume-equivalents"
+}

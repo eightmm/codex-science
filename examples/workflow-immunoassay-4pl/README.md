@@ -1,0 +1,13 @@
+# Synthetic immunoassay 4PL fixtures
+
+All files here are redistributable synthetic software fixtures, generated from y=.1+2*x/(4+x) with .05 raw blank. They contain no patient or real assay measurements. Concentration units are deliberately marked fixture-ng/mL. No numerical agreement establishes physical or clinical validity.
+
+The accepting noiseless entry is pack.json; the noisy entry is pack-noisy.json. They share the frozen design.json and use their respective plate, report, evidence and expected files. Each identity hashes the supplied bytes. The validator reads inputs without modifying them. Run `python3 scripts/validate_immunoassay_4pl_pack.py examples/workflow-immunoassay-4pl/pack.json` from the repository. Success prints unreviewed JSON on stdout. Refusals print JSON with finding on stderr and exit 2. Argument errors follow that same refusal contract.
+
+Six standard levels (1,2,4,8,16,32) each have two responses. Unknown A has in-well concentrations 8 at dilution 1 and 4 at dilution 2, yielding a dilution-corrected recovery ratio of 1. Unknown LOW and HIGH are outside the accepted standard range and must have null concentration values. These labels test arithmetic boundaries, not a lower/upper assay quantification limit established experimentally.
+
+The noisy synthetic fixture adds minus/plus .002 OD to every nonblank pair and minus/plus .0005 to the blank pair. Means stay unchanged. Standard residual SSE is .000048, residual degrees of freedom are eight, and response CV is sqrt(2)*.002/mean*100. The focused tests derive the parameter-error covariance independently by cofactors. Expected files are checked against those hand calculations; they are not independent scientific evidence.
+
+negative-cases.json freezes 28 negative-case selectors and their distinct named findings. The test module tests/test_workflow_imm_pack.py materializes each selector on a temporary copy of these synthetic fixtures and refreshes hashes so the intended defect, rather than a stale digest, is tested. It exercises every selector through both public Python validation and the CLI. Selectors cover extrapolation, nonconvergence, unconstrained asymptotes, dropped standards, ignored dilution/CV failures, post-outcome blank changes, unit mismatch, bounded claims, evidence aliases, unavailable records and freeze/order integrity. Negative data and failed controls remain visible; they are never discarded to obtain acceptance.
+
+All runtime records are read-only. Concurrent calls leave the fixture bytes unchanged; interruption may truncate stdout. The coordinator captures results atomically through its existing artifact system and owns independent review. No new global schemas or receipt fields are introduced.

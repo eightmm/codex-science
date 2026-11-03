@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic arithmetic only; no biological interpretation or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen controls, bounded synthetic event identities, reference arithmetic, local schemas and claim refusals.",
+      "read_when": [
+        "freezing cytometry rules",
+        "admitting synthetic events",
+        "computing gates",
+        "validating claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "event-admission",
+        "compensation-gating",
+        "claim-validation",
+        "review-handoff"
+      ],
+      "search_patterns": [
+        "## 01-rule-freeze",
+        "## 03-compensation-gates",
+        "## Pack-local schemas"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Declared ordering cannot establish execution or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest plan shape and ordered IDs for one coordinator checkpoint.",
+      "read_when": [
+        "creating the run plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rule-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-flow-cytometry-qc"
+}

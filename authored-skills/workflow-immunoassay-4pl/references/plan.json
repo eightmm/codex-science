@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash analyte, standards, map, blank, curve and numerical controls before responses.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Check synthetic plate identities, complete unique wells, blanks, finite responses and replicate CV.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Fit constrained 4PL with parameter errors, accepted range and dilution controls; never extrapolate.",
+      "id": "03-fit",
+      "status": "pending"
+    },
+    {
+      "description": "Recompute the supplied report and retain failed controls, nulls and unavailable evidence.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

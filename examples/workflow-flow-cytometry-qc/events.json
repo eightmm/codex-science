@@ -1,0 +1,164 @@
+{
+  "fixture": "synthetic fixture",
+  "samples": [
+    {
+      "compensation_applied": 0,
+      "events": [
+        {
+          "id": "sample-a-0",
+          "time": 0.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 11.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 4.0
+          }
+        },
+        {
+          "id": "sample-a-1",
+          "time": 0.4,
+          "values": {
+            "DYE": 0,
+            "FITC": 7.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 3.2
+          }
+        },
+        {
+          "id": "sample-a-2",
+          "time": 1.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 2.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 2.2
+          }
+        },
+        {
+          "id": "sample-a-3",
+          "time": 1.4,
+          "values": {
+            "DYE": 0,
+            "FITC": 3.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 2.4
+          }
+        },
+        {
+          "id": "sample-a-4",
+          "time": 2.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 9.0,
+            "FSC-A": 20,
+            "FSC-H": 10,
+            "PE": 3.6
+          }
+        },
+        {
+          "id": "sample-a-5",
+          "time": 2.4,
+          "values": {
+            "DYE": 3,
+            "FITC": 9.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 3.6
+          }
+        }
+      ],
+      "id": "sample-a",
+      "role": "sample",
+      "status": "available"
+    },
+    {
+      "compensation_applied": 0,
+      "events": [
+        {
+          "id": "sample-b-0",
+          "time": 0.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 11.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 4.0
+          }
+        },
+        {
+          "id": "sample-b-1",
+          "time": 1.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 7.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 3.2
+          }
+        },
+        {
+          "id": "sample-b-2",
+          "time": 2.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 2.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 2.2
+          }
+        }
+      ],
+      "id": "sample-b",
+      "role": "sample",
+      "status": "available"
+    },
+    {
+      "compensation_applied": 0,
+      "events": [
+        {
+          "id": "fmo-0",
+          "time": 0.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 2.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 2.2
+          }
+        },
+        {
+          "id": "fmo-1",
+          "time": 1.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 2.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 2.2
+          }
+        },
+        {
+          "id": "fmo-2",
+          "time": 2.1,
+          "values": {
+            "DYE": 0,
+            "FITC": 2.0,
+            "FSC-A": 10,
+            "FSC-H": 10,
+            "PE": 2.2
+          }
+        }
+      ],
+      "id": "fmo",
+      "role": "FMO",
+      "status": "available"
+    }
+  ],
+  "scale": "linear",
+  "schema": "flow-cytometry-qc-events-v1",
+  "units": "arbitrary units"
+}

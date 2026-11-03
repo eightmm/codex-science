@@ -1,0 +1,4 @@
+interface:
+  display_name: "CFU Plate Counts"
+  short_description: "Check frozen dilution plate arithmetic and exact Poisson bounds"
+  default_prompt: "Use $workflow-cfu-plate-counts to freeze plate rules, check supplied synthetic colony counts, compute countable-only CFU per mL and exact bounds, and hand bounded artifacts to independent review."

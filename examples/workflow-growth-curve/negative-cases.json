@@ -1,0 +1,340 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "computation",
+            "wells",
+            2,
+            "parameters",
+            "carrying_capacity"
+          ],
+          "target": "report",
+          "value": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 1.6
+          }
+        }
+      ],
+      "finding": "saturation-capacity",
+      "name": "saturated-capacity"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "background_applied"
+          ],
+          "target": "data",
+          "value": "none"
+        }
+      ],
+      "finding": "blank-subtraction",
+      "name": "blank-not-subtracted"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "window_points"
+          ],
+          "target": "report",
+          "value": 2
+        }
+      ],
+      "finding": "post-outcome-window",
+      "name": "post-outcome-window"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "wells",
+            2,
+            "od",
+            0
+          ],
+          "target": "data",
+          "value": 0.01
+        }
+      ],
+      "finding": "nonpositive-log-od",
+      "name": "negative-log-od"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "computation",
+            "groups",
+            0,
+            "parameters",
+            "carrying_capacity",
+            "well_ids"
+          ],
+          "target": "report",
+          "value": [
+            "A1",
+            "A2",
+            "A3"
+          ]
+        }
+      ],
+      "finding": "unreliable-summary",
+      "name": "unreliable-summary"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "computation",
+            "groups",
+            0,
+            "parameters",
+            "carrying_capacity",
+            "n_biological_units"
+          ],
+          "target": "report",
+          "value": 2
+        }
+      ],
+      "finding": "technical-replication",
+      "name": "technical-replication"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "wells",
+            2,
+            "times",
+            1
+          ],
+          "target": "data",
+          "value": 1.1
+        }
+      ],
+      "finding": "time-grid",
+      "name": "grid-mismatch"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture proves fitness."
+        }
+      ],
+      "finding": "claim-overreach",
+      "name": "fitness"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture proves resistance."
+        }
+      ],
+      "finding": "claim-overreach",
+      "name": "resistance"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture proves drug effect."
+        }
+      ],
+      "finding": "claim-overreach",
+      "name": "drug-effect"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes a mechanism."
+        }
+      ],
+      "finding": "claim-overreach",
+      "name": "mechanism"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture has clinical relevance."
+        }
+      ],
+      "finding": "claim-overreach",
+      "name": "clinical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        },
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "report",
+          "value": {
+            "evidence": [
+              "fixture-computation"
+            ],
+            "id": "fixture-arithmetic",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Synthetic fixture OD increased."
+          }
+        }
+      ],
+      "finding": "non-evidence-support",
+      "name": "review-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "report",
+          "value": {
+            "evidence": [
+              "fixture-computation"
+            ],
+            "id": "fixture-arithmetic",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Synthetic fixture OD increased."
+          }
+        }
+      ],
+      "finding": "non-evidence-support",
+      "name": "computed-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "finding": "external-alias",
+      "name": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "unavailable"
+        },
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "report",
+          "value": {
+            "evidence": [
+              "fixture-computation"
+            ],
+            "id": "fixture-arithmetic",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Synthetic fixture OD increased."
+          }
+        }
+      ],
+      "finding": "unavailable-evidence",
+      "name": "unavailable-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        }
+      ],
+      "finding": "missing-evidence",
+      "name": "empty-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Supported synthetic fixture result."
+        }
+      ],
+      "finding": "unavailable-positive",
+      "name": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_before_od_read"
+          ],
+          "target": "pack",
+          "value": false
+        }
+      ],
+      "finding": "protocol-freeze",
+      "name": "unfrozen"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

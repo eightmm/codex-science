@@ -1,0 +1,89 @@
+{
+  "after_balance_seen": false,
+  "attempts": 1,
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U01"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U02"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U03"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U04"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U05"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U06"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U07"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U08"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U09"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U10"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U11"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U12"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U13"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U14"
+    },
+    {
+      "arm": "B",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U15"
+    },
+    {
+      "arm": "A",
+      "recorded_at": "2030-01-02T00:00:00Z",
+      "unit_id": "U16"
+    }
+  ],
+  "schema": "randomization-audit-allocation-v1",
+  "schema_version": 1
+}

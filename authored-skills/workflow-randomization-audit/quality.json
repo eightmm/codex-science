@@ -1,0 +1,71 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-randomization-audit/pack.json",
+    "examples/workflow-randomization-audit/expected.json",
+    "examples/workflow-randomization-audit/blocked/pack.json",
+    "examples/workflow-randomization-audit/blocked/expected.json",
+    "examples/workflow-randomization-audit/stratified/pack.json",
+    "examples/workflow-randomization-audit/stratified/expected.json",
+    "examples/workflow-randomization-audit/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 denotes offline synthetic software acceptance only; no real experiment or biological outcome is validated.",
+    "The fixed-roster simple route is complete randomization, not independent Bernoulli assignment; block-prefix deviations are explicit.",
+    "Zero pooled variance and incomplete or unavailable tables are refused, not reported as balanced. Imbalance flags are retained without rerandomization.",
+    "Hash-bound declarations cannot prove historical freeze timing or genuine independence; review remains coordinator-owned and unavailable.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also refuses unbiased, valid*, confirmatory, truth and patient benefit*. Negations are refused; the gate is incomplete for other paraphrases.",
+    "Computed agreement and review approval are refused as positive support; any unavailable citation requires an unavailable claim. Single-bundle replication is refused.",
+    "New pack-local schemas have no earlier runtime writer or stored record class. Validator is read-only; cancellation may leave partial captured stdout only."
+  ],
+  "output_schemas": [
+    "randomization-audit-pack-v1",
+    "randomization-audit-protocol-v1",
+    "randomization-audit-units-v1",
+    "randomization-audit-allocation-v1",
+    "randomization-audit-report-v1",
+    "randomization-audit-evidence-v1",
+    "randomization-audit-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "late-allocation",
+    "false-reproduction",
+    "unlabelled-rerandomization",
+    "ignored-strata",
+    "changed-block-size",
+    "block-capacity",
+    "ratio-violation",
+    "ignored-imbalance",
+    "blinding-missing",
+    "unavailable-unit",
+    "overreach-unbiased",
+    "overreach-valid",
+    "overreach-causal",
+    "overreach-confirmatory",
+    "overreach-clinical",
+    "missing-stratum",
+    "rule-freeze",
+    "unknown-arm",
+    "duplicate-unit",
+    "computed-kind",
+    "computed-result",
+    "review-approval",
+    "empty-positive",
+    "unavailable-positive",
+    "mixed-unavailable",
+    "replicated-single",
+    "external-alias",
+    "bool-seed",
+    "zero-block-size",
+    "wrong-random-version"
+  ],
+  "skill": "workflow-randomization-audit",
+  "test_files": [
+    "tests/test_workflow_rand_pack.py"
+  ]
+}

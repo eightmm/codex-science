@@ -1,0 +1,56 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-flow-cytometry-qc/pack.json",
+    "examples/workflow-flow-cytometry-qc/expected.json",
+    "examples/workflow-flow-cytometry-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic acceptance only, never validation of real events, cell identity, function, disease association or clinical relevance.",
+    "Hash freezing cannot prove historical timing; source labels cannot prove independence; independent review remains coordinator-owned and unavailable here.",
+    "Conservative incomplete English whole-word prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also refuses diagnos*, disease*, cell identity, functional state, physical validity and truth, including negations.",
+    "Computed agreement and review approval cannot support positive claims; missing sources require unavailable claims, never negative evidence. Replicated is always refused.",
+    "Raw bytes are limited to 64 MiB per file and 256 MiB across distinct inodes, with 4,000,000 JSON values per bundle.",
+    "Inclusive interval and rectangular gates only; FMO boundary positive rate uses live-control events as its frozen denominator; no instrument acquisition or gate inference."
+  ],
+  "output_schemas": [
+    "flow-cytometry-qc-pack-v1",
+    "flow-cytometry-qc-rules-v1",
+    "flow-cytometry-qc-events-v1",
+    "flow-cytometry-qc-report-v1",
+    "flow-cytometry-qc-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "post-outcome-gates",
+    "singular-matrix",
+    "compensation-twice",
+    "low-gate-percentage",
+    "ignored-fmo",
+    "doublets-retained",
+    "dead-retained",
+    "unknown-channel",
+    "flow-unstable",
+    "unavailable-zero",
+    "cell-identity",
+    "function",
+    "disease",
+    "diagnostic",
+    "clinical",
+    "causal",
+    "physical",
+    "review-approval",
+    "computed-positive",
+    "missing-evidence",
+    "unavailable-positive",
+    "external-alias"
+  ],
+  "skill": "workflow-flow-cytometry-qc",
+  "test_files": [
+    "tests/test_workflow_flow_pack.py"
+  ]
+}

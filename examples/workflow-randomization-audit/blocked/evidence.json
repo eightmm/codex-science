@@ -1,0 +1,37 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "E1",
+      "kind": "computed-record",
+      "origin": "internal",
+      "result": "numerical-agreement",
+      "source": {
+        "path": "report.json",
+        "sha256": "e3f22c3fa3b64c9978948e4cdb5f72b0d068cec454b39cc80c207a9f8473cf4d"
+      }
+    },
+    {
+      "id": "E2",
+      "kind": "unavailable",
+      "origin": "internal",
+      "result": "unavailable",
+      "source": {
+        "path": "report.json",
+        "sha256": "e3f22c3fa3b64c9978948e4cdb5f72b0d068cec454b39cc80c207a9f8473cf4d"
+      }
+    },
+    {
+      "id": "E3",
+      "kind": "observation",
+      "origin": "internal",
+      "result": "recorded-table",
+      "source": {
+        "path": "units.json",
+        "sha256": "28a4dfe460a32460e95b841ff37d7cb200facb445b5cc6e56e6fe46e7c93e3e5"
+      }
+    }
+  ],
+  "schema": "randomization-audit-evidence-v1",
+  "schema_version": 1
+}

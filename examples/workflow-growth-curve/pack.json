@@ -1,0 +1,24 @@
+{
+  "data": {
+    "path": "data.json",
+    "sha256": "d8d31c40cf443ab0cecc93f0f2b2f88ff5e0ad70222d7b1cfd6790c274be1060"
+  },
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "5bf86459ba1f498e3e14ca50739e9f5db809c853dfed55fa516cc60d21af801c"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_od_read": true,
+  "frozen_protocol_sha256": "588c6e84af8df8694e2392cc03c2d92d3d66532b8976670b0888252fcc4a0a75",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "588c6e84af8df8694e2392cc03c2d92d3d66532b8976670b0888252fcc4a0a75"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "1f0291fe5c0fa4b4aebbd7fad7cbfcf820a33caef679e258645e8241e5454970"
+  },
+  "schema": "growth-pack-v1"
+}

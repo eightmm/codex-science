@@ -1,0 +1,91 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "Independent evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "computation": {
+    "balance": [
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "baseline",
+        "flag": true,
+        "metric": "smd",
+        "scope": "overall",
+        "value": -0.3872983346207417
+      },
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "marker",
+        "flag": true,
+        "metric": "risk_difference",
+        "scope": "overall",
+        "value": -0.25
+      }
+    ],
+    "balanced": false,
+    "counts": {
+      "A": 4,
+      "B": 4
+    },
+    "stratum_counts": {}
+  },
+  "exploratory": false,
+  "finding": "reproduced",
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "allocation.json",
+      "sha256": "7e6237e93208395286cef5c80875c9b10b101dc499d4d5dd1e53a86144cb7fdf"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "bb210d000866ee392c77d6ab0f28669c43f57d50325afcece74396df413de9c0"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "777f2e4649aefce86fdfcd12b425e229a9f0d61921775d4e75b95c2bd6010ff3"
+    },
+    {
+      "path": "protocol.json",
+      "sha256": "32c15137e8d5dfc5a9e39539ee13180632718497aae99d90ea85f85708352043"
+    },
+    {
+      "path": "report.json",
+      "sha256": "e3f22c3fa3b64c9978948e4cdb5f72b0d068cec454b39cc80c207a9f8473cf4d"
+    },
+    {
+      "path": "units.json",
+      "sha256": "28a4dfe460a32460e95b841ff37d7cb200facb445b5cc6e56e6fe46e7c93e3e5"
+    }
+  ],
+  "limitations": [
+    "Synthetic allocation arithmetic only; independent review remains unavailable.",
+    "Hash-bound declarations cannot establish historical timing or source independence.",
+    "Lexical wording checks are conservative English checks and incomplete.",
+    "Imbalance flags are retained; no rerandomization or outcome inference is performed."
+  ],
+  "protocol_sha256": "32c15137e8d5dfc5a9e39539ee13180632718497aae99d90ea85f85708352043",
+  "reproduced": true,
+  "review": "unavailable",
+  "schema": "randomization-audit-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-table-qc",
+    "03-reproduction",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "arithmetic-only"
+}

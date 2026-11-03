@@ -220,6 +220,51 @@
       "require_reference_contract": true
     },
     {
+      "skill": "workflow-flow-cytometry-qc",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-growth-curve",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-cfu-plate-counts",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-randomization-audit",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-immunoassay-4pl",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
       "skill": "codex-science",
       "minimum_maturity": "L3",
       "required_roles": [

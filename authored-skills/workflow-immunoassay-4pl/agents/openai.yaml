@@ -1,0 +1,4 @@
+interface:
+  display_name: "Immunoassay 4PL Check"
+  short_description: "Check synthetic OD curves and bracketed interpolation"
+  default_prompt: "Use $workflow-immunoassay-4pl to freeze the curve rules, check supplied synthetic plate optical densities and dilution controls, preserve failures, and prepare an independent review handoff."

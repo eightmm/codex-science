@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "fixture": "synthetic fixture",
+  "pack": "workflow-growth-curve",
+  "tasks": [
+    {
+      "id": "fixture-hand-arithmetic",
+      "question": "Do the synthetic logistic well descriptors match hand arithmetic after frozen blank subtraction?",
+      "input": "examples/workflow-growth-curve/pack.json",
+      "acceptance_criteria": [
+        "A1 maximum log slope = log(2.5)/2, lag = -35/27, observed maximum = 0.8, AUC = 2, doubling = 2*log(2)/log(2.5).",
+        "Capacity mean = 0.7 and SE = 0.1; AUC mean = 1.75 and SE = 0.25 over two reliable technical wells and one biological unit.",
+        "Saturated A3 and noisy non-converged A4 remain visible and excluded. No claim of logistic fitted rate recovery."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "memory_mib": 256,
+        "network": false,
+        "gpu": false
+      }
+    },
+    {
+      "id": "fixture-seeded-refusals",
+      "question": "Does each synthetic defect refuse with its stated finding?",
+      "input": "examples/workflow-growth-curve/negative-cases.json",
+      "acceptance_criteria": [
+        "All 19 seeded cases refuse through the public function and JSON CLI.",
+        "CLI argument errors emit finding on stderr with exit 2; help is stdout exit 0.",
+        "Unsafe paths, replaced ancestors, resource limits and strict JSON fail without hanging or writing."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "memory_mib": 256,
+        "network": false,
+        "gpu": false
+      }
+    }
+  ]
+}

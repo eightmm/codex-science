@@ -1,0 +1,56 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-cfu-plate-counts/pack.json",
+    "examples/workflow-cfu-plate-counts/expected.json",
+    "examples/workflow-cfu-plate-counts/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; no biological, assay or clinical validity is established.",
+    "Exact Poisson intervals assume independent counts and known exposures; countability selection can affect coverage.",
+    "The below-countable detection convention is a model-based upper bound, never a validated assay detection limit. Above-countable bounds are range bounds, not confidence intervals.",
+    "Hashes cannot establish historical freeze timing or true source independence. The pack always leaves independent review unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, steril*, safe* and poten*. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computed agreement and review approval never support positive claims; one synthetic fixture never establishes replication.",
+    "Inputs are read-only, bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "cfu-pack-v1",
+    "cfu-rules-v1",
+    "cfu-counts-v1",
+    "cfu-report-v1",
+    "cfu-evidence-v1",
+    "cfu-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "outside-range-pooled",
+    "uncountable-zero",
+    "missing-dilution",
+    "missing-volume",
+    "omitted-interval",
+    "normal-interval",
+    "zero-lod",
+    "discordant-duplicates",
+    "post-hoc-range",
+    "unavailable-zero",
+    "missing-plate",
+    "bad-dilution",
+    "unfrozen-rules",
+    "overreach-sterility",
+    "overreach-safety",
+    "overreach-efficacy",
+    "overreach-potency",
+    "overreach-clinical-relevance",
+    "overreach-causality",
+    "overreach-physical-validity"
+  ],
+  "skill": "workflow-cfu-plate-counts",
+  "test_files": [
+    "tests/test_workflow_cfu_pack.py"
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "controls": [
+    {
+      "control": "fmo",
+      "count": 0,
+      "gate": "positive",
+      "parent_count": 3,
+      "percentage": 0.0
+    },
+    {
+      "control": "fmo",
+      "count": 0,
+      "gate": "bright",
+      "parent_count": 3,
+      "percentage": 0.0
+    }
+  ],
+  "events_sha256": "8b6796b4518d9b75e251b7f05ff933c55b3da7a4d38299ada073d298e02b1a66",
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "kind": "computed",
+  "rules_sha256": "d612993c908a3d176ffb46d358ce3f7b8ee78378a6fccf0980ce8b7abf929a0b",
+  "samples": [
+    {
+      "gates": [
+        {
+          "count": 6,
+          "id": "stability",
+          "parent": "input",
+          "parent_count": 6,
+          "percentage": 100.0
+        },
+        {
+          "count": 5,
+          "id": "singlets",
+          "parent": "stability",
+          "parent_count": 6,
+          "percentage": 83.33333333333333
+        },
+        {
+          "count": 4,
+          "id": "live",
+          "parent": "singlets",
+          "parent_count": 5,
+          "percentage": 80.0
+        },
+        {
+          "count": 2,
+          "id": "positive",
+          "parent": "live",
+          "parent_count": 4,
+          "percentage": 50.0
+        },
+        {
+          "count": 1,
+          "id": "bright",
+          "parent": "positive",
+          "parent_count": 2,
+          "percentage": "unavailable"
+        }
+      ],
+      "id": "sample-a",
+      "stability": {
+        "bin_counts": [
+          2,
+          2,
+          2
+        ],
+        "rates": [
+          2.0,
+          2.0,
+          2.0
+        ],
+        "variation": 0.0
+      },
+      "status": "available"
+    },
+    {
+      "gates": [
+        {
+          "count": 3,
+          "id": "stability",
+          "parent": "input",
+          "parent_count": 3,
+          "percentage": 100.0
+        },
+        {
+          "count": 3,
+          "id": "singlets",
+          "parent": "stability",
+          "parent_count": 3,
+          "percentage": 100.0
+        },
+        {
+          "count": 3,
+          "id": "live",
+          "parent": "singlets",
+          "parent_count": 3,
+          "percentage": 100.0
+        },
+        {
+          "count": 2,
+          "id": "positive",
+          "parent": "live",
+          "parent_count": 3,
+          "percentage": 66.66666666666667
+        },
+        {
+          "count": 1,
+          "id": "bright",
+          "parent": "positive",
+          "parent_count": 2,
+          "percentage": "unavailable"
+        }
+      ],
+      "id": "sample-b",
+      "stability": {
+        "bin_counts": [
+          1,
+          1,
+          1
+        ],
+        "rates": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "variation": 0.0
+      },
+      "status": "available"
+    },
+    {
+      "gates": [
+        {
+          "count": 3,
+          "id": "stability",
+          "parent": "input",
+          "parent_count": 3,
+          "percentage": 100.0
+        },
+        {
+          "count": 3,
+          "id": "singlets",
+          "parent": "stability",
+          "parent_count": 3,
+          "percentage": 100.0
+        },
+        {
+          "count": 3,
+          "id": "live",
+          "parent": "singlets",
+          "parent_count": 3,
+          "percentage": 100.0
+        },
+        {
+          "count": 0,
+          "id": "positive",
+          "parent": "live",
+          "parent_count": 3,
+          "percentage": "unavailable"
+        },
+        {
+          "count": 0,
+          "id": "bright",
+          "parent": "positive",
+          "parent_count": 0,
+          "percentage": "unavailable"
+        }
+      ],
+      "id": "fmo",
+      "stability": {
+        "bin_counts": [
+          1,
+          1,
+          1
+        ],
+        "rates": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "variation": 0.0
+      },
+      "status": "available"
+    }
+  ],
+  "schema": "flow-cytometry-qc-report-v1"
+}

@@ -1,0 +1,31 @@
+{
+  "design": {
+    "path": "design.json",
+    "sha256": "f383a10c2b6457f73eae08ebc0b8d47aa3ee31d0cecee810767b5d3f48b31c13"
+  },
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "8a5594d364f3351b6fa737b473a9ca63af617cee02792c690e3b3c301a401704"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_responses": true,
+  "frozen_design_sha256": "f383a10c2b6457f73eae08ebc0b8d47aa3ee31d0cecee810767b5d3f48b31c13",
+  "plate": {
+    "path": "plate.json",
+    "sha256": "0806f06daceed22407208506abb671b670444557d7d8ee3d2d8ddbc1bc3e2e7e"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "995bb0f8aa2ec3ece713e9bccab9e023d19407aa75b4e947d214150766e178b4"
+  },
+  "schema": "immunoassay-pack-v1",
+  "stages": [
+    "01-freeze",
+    "02-qc",
+    "03-fit",
+    "04-summary",
+    "05-handoff"
+  ]
+}

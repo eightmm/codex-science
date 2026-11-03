@@ -1,0 +1,4 @@
+{
+  "description": "Hand-specified matrix: measured FITC = true FITC + 0.5 PE; measured PE = 0.2 FITC + true PE.",
+  "fixture": "synthetic fixture"
+}

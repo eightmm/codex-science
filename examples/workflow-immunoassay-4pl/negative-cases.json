@@ -1,0 +1,117 @@
+{
+  "cases": [
+    {
+      "case": "extrapolation",
+      "finding": "extrapolation"
+    },
+    {
+      "case": "nonconvergence",
+      "finding": "fit-not-converged"
+    },
+    {
+      "case": "asymptotes",
+      "finding": "curve-parameters"
+    },
+    {
+      "case": "standards-dropped",
+      "finding": "standard-exclusion"
+    },
+    {
+      "case": "parallelism",
+      "finding": "parallelism-ignored"
+    },
+    {
+      "case": "replicate-cv",
+      "finding": "replicate-cv-ignored"
+    },
+    {
+      "case": "post-blank",
+      "finding": "post-hoc-blank"
+    },
+    {
+      "case": "units",
+      "finding": "units-mismatch"
+    },
+    {
+      "case": "clinical-cutoff",
+      "finding": "claim-overreach"
+    },
+    {
+      "case": "diagnostic-accuracy",
+      "finding": "claim-overreach"
+    },
+    {
+      "case": "regulatory-validity",
+      "finding": "claim-overreach"
+    },
+    {
+      "case": "patient-meaning",
+      "finding": "claim-overreach"
+    },
+    {
+      "case": "causal",
+      "finding": "claim-overreach"
+    },
+    {
+      "case": "physical-validity",
+      "finding": "claim-overreach"
+    },
+    {
+      "case": "review-kind",
+      "finding": "non-evidence-support"
+    },
+    {
+      "case": "review-result",
+      "finding": "non-evidence-support"
+    },
+    {
+      "case": "computed-kind",
+      "finding": "non-evidence-support"
+    },
+    {
+      "case": "computed-result",
+      "finding": "non-evidence-support"
+    },
+    {
+      "case": "external-alias",
+      "finding": "external-alias"
+    },
+    {
+      "case": "independent-alias",
+      "finding": "external-alias"
+    },
+    {
+      "case": "preregistered-alias",
+      "finding": "external-alias"
+    },
+    {
+      "case": "missing-evidence",
+      "finding": "unavailable-evidence"
+    },
+    {
+      "case": "unavailable-mixed",
+      "finding": "unavailable-evidence"
+    },
+    {
+      "case": "unavailable-positive",
+      "finding": "unavailable-positive"
+    },
+    {
+      "case": "replicated",
+      "finding": "claim-replication"
+    },
+    {
+      "case": "freeze",
+      "finding": "design-freeze"
+    },
+    {
+      "case": "stage-order",
+      "finding": "stage-order"
+    },
+    {
+      "case": "recovery",
+      "finding": "reported-result"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

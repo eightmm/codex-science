@@ -1,0 +1,36 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Sample A counts 6,5,4,2,1; sample B 3,3,3,2,1.",
+        "Bright percentages unavailable; both FMO positive rates zero.",
+        "Output unreviewed and arithmetic-only; all source hashes preserved."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "id": "flow-hand-counts",
+      "input": "examples/workflow-flow-cytometry-qc/pack.json",
+      "question": "Do compensated synthetic counts and parent-relative percentages match the frozen rules?"
+    },
+    {
+      "acceptance_criteria": [
+        "Each named defect is exercised by tests/test_workflow_flow_pack.py.",
+        "Public CLI emits labelled JSON refusals with exit 2 and no traceback.",
+        "No source files are written by validation."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "id": "flow-seeded-refusals",
+      "input": "examples/workflow-flow-cytometry-qc/negative-cases.json",
+      "question": "Does every seeded defect refuse for its stated finding?"
+    }
+  ]
+}

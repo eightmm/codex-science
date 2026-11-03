@@ -1,0 +1,19 @@
+{
+  "counts": {
+    "path": "counts.json",
+    "sha256": "479994d0f646af4283678092d17da41908c25b6a5821539095d9f1b6c898d265"
+  },
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_counts_read": true,
+  "frozen_rules_sha256": "e38d5ea4ea52bbe1e1a83be879f7bfa02edd8a9b9f26def9e31be17c4fc7044b",
+  "report": {
+    "path": "report.json",
+    "sha256": "d3b6c8f3b9b12f036e7b1f7cd886902cbf30c7a1be84361c6c534e93d421df6f"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "e38d5ea4ea52bbe1e1a83be879f7bfa02edd8a9b9f26def9e31be17c4fc7044b"
+  },
+  "schema": "cfu-pack-v1"
+}

@@ -1,0 +1,36 @@
+{
+  "algorithm": "stdlib-mt19937-fisher-yates-v1",
+  "allocation_concealment": "Synthetic fixture: roster withheld until assignment.",
+  "allocation_ratio": [
+    1,
+    1
+  ],
+  "arms": [
+    "A",
+    "B"
+  ],
+  "blinding": "Synthetic fixture: masked labels for the operator.",
+  "block_size": 4,
+  "covariates": {
+    "baseline": "continuous",
+    "marker": "binary"
+  },
+  "fixture": "synthetic fixture",
+  "method": "stratified-permuted-block",
+  "minimum_per_arm": 2,
+  "outcome_available_at": "2030-01-03T00:00:00Z",
+  "schema": "randomization-audit-protocol-v1",
+  "schema_version": 1,
+  "seed": 1729,
+  "strata": [
+    "batch"
+  ],
+  "thresholds": {
+    "risk_difference": 0.2,
+    "smd": 0.3
+  },
+  "units": {
+    "path": "units.json",
+    "sha256": "0a3c219d19df83fa548e968c575373de0402a074297f7b4784ddf3a40edfb132"
+  }
+}

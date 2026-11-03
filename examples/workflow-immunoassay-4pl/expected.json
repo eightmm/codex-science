@@ -1,0 +1,195 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "OD"
+      ],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "suggestive",
+      "text": "The synthetic fixture contains optical density values."
+    }
+  ],
+  "computation": {
+    "blank_cv": 0.0,
+    "blank_cv_flag": false,
+    "blank_mean": 0.05,
+    "fit": {
+      "converged": true,
+      "degrees_of_freedom": 8,
+      "iterations": 6,
+      "parameters": [
+        0.10000000000936746,
+        2.0999999999950183,
+        4.000000000020594,
+        1.0000000000094968
+      ],
+      "sse": 3.198923982302309e-24,
+      "standard_errors": [
+        3.3453003302713394e-12,
+        1.979510480746413e-12,
+        1.0058471787414853e-11,
+        3.418105567674967e-12
+      ]
+    },
+    "parallelism": [
+      {
+        "id": "A",
+        "ratios": [
+          1.0000000000017502
+        ],
+        "status": "passed"
+      },
+      {
+        "id": "LOW",
+        "ratios": [],
+        "status": "unavailable"
+      },
+      {
+        "id": "HIGH",
+        "ratios": [],
+        "status": "unavailable"
+      }
+    ],
+    "qc_passed": true,
+    "quantifiable_range": [
+      1,
+      32
+    ],
+    "samples": [
+      {
+        "concentration": 7.999999999992102,
+        "cv": 0.0,
+        "cv_flag": false,
+        "dilution": 1,
+        "id": "A",
+        "response_mean": 1.4333333333333333,
+        "status": "in-range"
+      },
+      {
+        "concentration": 4.000000000003052,
+        "cv": 0.0,
+        "cv_flag": false,
+        "dilution": 2,
+        "id": "A",
+        "response_mean": 1.1,
+        "status": "in-range"
+      },
+      {
+        "concentration": null,
+        "cv": 0.0,
+        "cv_flag": false,
+        "dilution": 1,
+        "id": "LOW",
+        "response_mean": 0.21764705882352942,
+        "status": "below-range"
+      },
+      {
+        "concentration": null,
+        "cv": 0.0,
+        "cv_flag": false,
+        "dilution": 1,
+        "id": "HIGH",
+        "response_mean": 1.9823529411764704,
+        "status": "above-range"
+      }
+    ],
+    "standards": [
+      {
+        "accepted": true,
+        "back_calculated": 0.9999999999980087,
+        "concentration": 1,
+        "cv": 0.0,
+        "cv_flag": false,
+        "id": "S1",
+        "recovery_ratio": 0.9999999999980087,
+        "response_mean": 0.5
+      },
+      {
+        "accepted": true,
+        "back_calculated": 2.0000000000028324,
+        "concentration": 2,
+        "cv": 0.0,
+        "cv_flag": false,
+        "id": "S2",
+        "recovery_ratio": 1.0000000000014162,
+        "response_mean": 0.7666666666666666
+      },
+      {
+        "accepted": true,
+        "back_calculated": 4.000000000003052,
+        "concentration": 4,
+        "cv": 0.0,
+        "cv_flag": false,
+        "id": "S3",
+        "recovery_ratio": 1.000000000000763,
+        "response_mean": 1.1
+      },
+      {
+        "accepted": true,
+        "back_calculated": 7.999999999992102,
+        "concentration": 8,
+        "cv": 0.0,
+        "cv_flag": false,
+        "id": "S4",
+        "recovery_ratio": 0.9999999999990128,
+        "response_mean": 1.4333333333333333
+      },
+      {
+        "accepted": true,
+        "back_calculated": 15.999999999977334,
+        "concentration": 16,
+        "cv": 0.0,
+        "cv_flag": false,
+        "id": "S5",
+        "recovery_ratio": 0.9999999999985834,
+        "response_mean": 1.7000000000000002
+      },
+      {
+        "accepted": true,
+        "back_calculated": 32.000000000081556,
+        "concentration": 32,
+        "cv": 0.0,
+        "cv_flag": false,
+        "id": "S6",
+        "recovery_ratio": 1.0000000000025486,
+        "response_mean": 1.8777777777777778
+      }
+    ],
+    "used_standards": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6"
+    ]
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "pack.json",
+      "sha256": "97a19f144b14f3f899dfbc502ab384451afecb166ea21834db6cbdc979ae0596"
+    },
+    {
+      "path": "design.json",
+      "sha256": "f383a10c2b6457f73eae08ebc0b8d47aa3ee31d0cecee810767b5d3f48b31c13"
+    },
+    {
+      "path": "plate.json",
+      "sha256": "0806f06daceed22407208506abb671b670444557d7d8ee3d2d8ddbc1bc3e2e7e"
+    },
+    {
+      "path": "report.json",
+      "sha256": "995bb0f8aa2ec3ece713e9bccab9e023d19407aa75b4e947d214150766e178b4"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "8a5594d364f3351b6fa737b473a9ca63af617cee02792c690e3b3c301a401704"
+    }
+  ],
+  "review": "unavailable",
+  "schema": "immunoassay-result-v1",
+  "status": "accepted"
+}

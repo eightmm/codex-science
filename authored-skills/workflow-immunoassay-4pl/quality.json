@@ -1,0 +1,66 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-immunoassay-4pl/pack.json",
+    "examples/workflow-immunoassay-4pl/pack-noisy.json",
+    "examples/workflow-immunoassay-4pl/expected.json",
+    "examples/workflow-immunoassay-4pl/expected-noisy.json",
+    "examples/workflow-immunoassay-4pl/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 establishes synthetic software acceptance only, never physical or clinical validity.",
+    "Only increasing constrained 4PL, uniformly weighted standard replicates, frozen Levenberg-Marquardt starts and no standard exclusion are implemented.",
+    "Local Jacobian parameter standard errors omit dilution, standard preparation, model error and real assay calibration; synthetic agreement is not validation.",
+    "Hashes and freeze declarations cannot prove historical preregistration or actual independence.",
+    "The conservative incomplete English whole-word prefix gate uses word-character suffixes for caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. It also refuses diagnos*, patient*, truth, physical validity and cutoff/cut-off wording; independent review must assess unlisted paraphrases.",
+    "A single synthetic plate cannot establish replication; coordinator-owned science-review and rigor classification remain unavailable.",
+    "No CI wiring is added by this worker; unittest discovery exercises the checked-in fixtures and seeded refusals."
+  ],
+  "output_schemas": [
+    "immunoassay-pack-v1",
+    "immunoassay-design-v1",
+    "immunoassay-plate-v1",
+    "immunoassay-report-v1",
+    "immunoassay-evidence-v1",
+    "immunoassay-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "extrapolation",
+    "nonconvergence",
+    "asymptotes",
+    "standards-dropped",
+    "parallelism",
+    "replicate-cv",
+    "post-blank",
+    "units",
+    "clinical-cutoff",
+    "diagnostic-accuracy",
+    "regulatory-validity",
+    "patient-meaning",
+    "causal",
+    "physical-validity",
+    "review-kind",
+    "review-result",
+    "computed-kind",
+    "computed-result",
+    "external-alias",
+    "independent-alias",
+    "preregistered-alias",
+    "missing-evidence",
+    "unavailable-mixed",
+    "unavailable-positive",
+    "replicated",
+    "freeze",
+    "stage-order",
+    "recovery"
+  ],
+  "skill": "workflow-immunoassay-4pl",
+  "test_files": [
+    "tests/test_workflow_imm_pack.py"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-growth-curve",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "growth-pack-v1",
+    "growth-protocol-v1",
+    "growth-data-v1",
+    "growth-report-v1",
+    "growth-evidence-v1",
+    "growth-result-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/workflow-growth-curve/pack.json",
+    "examples/workflow-growth-curve/expected.json",
+    "examples/workflow-growth-curve/negative-cases.json"
+  ],
+  "test_files": [
+    "tests/test_workflow_growth_pack.py"
+  ],
+  "seeded_failures": [
+    "saturated-capacity",
+    "blank-not-subtracted",
+    "post-outcome-window",
+    "negative-log-od",
+    "unreliable-summary",
+    "technical-replication",
+    "grid-mismatch",
+    "fitness",
+    "resistance",
+    "drug-effect",
+    "mechanism",
+    "clinical",
+    "review-kind",
+    "computed-result",
+    "external-alias",
+    "unavailable-evidence",
+    "empty-evidence",
+    "unavailable-positive",
+    "unfrozen"
+  ],
+  "limitations": [
+    "L4 means offline synthetic fixture acceptance only; biological, physical and clinical validity remain unavailable.",
+    "One model-free closed-form OLS method; observed maximum is a carrying-capacity proxy, never a fitted asymptote.",
+    "Declared upstream non-convergence conservatively excludes a well; this calculator itself has no iterative fit.",
+    "Well-level errors are descriptive, never evidence of biological replication. Zero variance leaves uncertainty unavailable.",
+    "Hashes cannot prove historical freeze timing or genuine independent sources. Review remains coordinator-owned and unavailable.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also fitness, resistan*, drug effect*, truth, physical validity and patient benefit. Includes negations and is incomplete for unlisted paraphrases.",
+    "All synthetic seeded failures are exercised through public entry points with their named findings."
+  ]
+}

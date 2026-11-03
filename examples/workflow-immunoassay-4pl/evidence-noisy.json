@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "OD",
+      "kind": "synthetic",
+      "origin": "internal",
+      "result": "observed",
+      "source": {
+        "path": "plate-noisy.json",
+        "sha256": "e3b982a8fb3438e123a6d03b3344b0deaa5fd12543e2dc947d27015c32fe19fd"
+      }
+    }
+  ],
+  "schema": "immunoassay-evidence-v1"
+}

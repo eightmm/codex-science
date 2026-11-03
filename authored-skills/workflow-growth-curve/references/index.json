@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no physical or clinical validity or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Five growth stages, exact local schemas, reference arithmetic, safety limits and refusal controls.",
+      "read_when": [
+        "freezing growth rules",
+        "admitting synthetic OD",
+        "computing per-well parameters",
+        "preparing independent review"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "data-admission",
+        "growth-computation",
+        "group-summary",
+        "review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Limits and immutable input admission",
+        "## 03-per-well"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage ordering cannot prove execution, historical preregistration or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape and one coordinator checkpoint in five fixed stages.",
+      "read_when": [
+        "creating a coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rule-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-growth-curve"
+}

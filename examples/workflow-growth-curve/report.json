@@ -1,0 +1,243 @@
+{
+  "claims": [
+    {
+      "evidence": [],
+      "id": "fixture-arithmetic",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Biological evidence remains unavailable in these synthetic fixtures."
+    }
+  ],
+  "computation": {
+    "carrying_capacity_definition": "observed-maximum-proxy",
+    "groups": [
+      {
+        "condition": "fixture-medium",
+        "parameters": {
+          "area_under_curve": {
+            "mean": 1.75,
+            "n": 2,
+            "n_biological_units": 1,
+            "reason": "none",
+            "replicate_unit": "well",
+            "standard_error": 0.25,
+            "status": "descriptive",
+            "well_ids": [
+              "A1",
+              "A2"
+            ]
+          },
+          "carrying_capacity": {
+            "mean": 0.7000000000000001,
+            "n": 2,
+            "n_biological_units": 1,
+            "reason": "none",
+            "replicate_unit": "well",
+            "standard_error": 0.09999999999999998,
+            "status": "descriptive",
+            "well_ids": [
+              "A1",
+              "A2"
+            ]
+          },
+          "doubling_time": {
+            "mean": 1.5129415947320601,
+            "n": 2,
+            "n_biological_units": 1,
+            "reason": "zero-variance-uncertainty-unavailable",
+            "replicate_unit": "well",
+            "standard_error": "unavailable",
+            "status": "descriptive",
+            "well_ids": [
+              "A1",
+              "A2"
+            ]
+          },
+          "lag_time": {
+            "mean": -1.2962962962962963,
+            "n": 2,
+            "n_biological_units": 1,
+            "reason": "zero-variance-uncertainty-unavailable",
+            "replicate_unit": "well",
+            "standard_error": "unavailable",
+            "status": "descriptive",
+            "well_ids": [
+              "A1",
+              "A2"
+            ]
+          },
+          "maximum_specific_growth_rate": {
+            "mean": 0.45814536593707744,
+            "n": 2,
+            "n_biological_units": 1,
+            "reason": "zero-variance-uncertainty-unavailable",
+            "replicate_unit": "well",
+            "standard_error": "unavailable",
+            "status": "descriptive",
+            "well_ids": [
+              "A1",
+              "A2"
+            ]
+          }
+        },
+        "strain": "fixture-strain"
+      }
+    ],
+    "wells": [
+      {
+        "biological_unit": "fixture-culture-1",
+        "condition": "fixture-medium",
+        "parameters": {
+          "area_under_curve": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 2.0
+          },
+          "carrying_capacity": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 0.8
+          },
+          "doubling_time": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 1.5129415947320601
+          },
+          "lag_time": {
+            "reason": "none",
+            "status": "reliable",
+            "value": -1.2962962962962958
+          },
+          "maximum_specific_growth_rate": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 0.4581453659370775
+          }
+        },
+        "replicate_type": "technical",
+        "strain": "fixture-strain",
+        "well": "A1",
+        "window_indices": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "biological_unit": "fixture-culture-1",
+        "condition": "fixture-medium",
+        "parameters": {
+          "area_under_curve": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 1.5
+          },
+          "carrying_capacity": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 0.6000000000000001
+          },
+          "doubling_time": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 1.5129415947320604
+          },
+          "lag_time": {
+            "reason": "none",
+            "status": "reliable",
+            "value": -1.2962962962962967
+          },
+          "maximum_specific_growth_rate": {
+            "reason": "none",
+            "status": "reliable",
+            "value": 0.45814536593707744
+          }
+        },
+        "replicate_type": "technical",
+        "strain": "fixture-strain",
+        "well": "A2",
+        "window_indices": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "biological_unit": "fixture-culture-1",
+        "condition": "fixture-medium",
+        "parameters": {
+          "area_under_curve": {
+            "reason": "saturation",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "carrying_capacity": {
+            "reason": "saturation",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "doubling_time": {
+            "reason": "saturation",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "lag_time": {
+            "reason": "saturation",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "maximum_specific_growth_rate": {
+            "reason": "saturation",
+            "status": "unreliable",
+            "value": "unavailable"
+          }
+        },
+        "replicate_type": "technical",
+        "strain": "fixture-strain",
+        "well": "A3",
+        "window_indices": []
+      },
+      {
+        "biological_unit": "fixture-culture-1",
+        "condition": "fixture-medium",
+        "parameters": {
+          "area_under_curve": {
+            "reason": "non-converged",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "carrying_capacity": {
+            "reason": "non-converged",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "doubling_time": {
+            "reason": "non-converged",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "lag_time": {
+            "reason": "non-converged",
+            "status": "unreliable",
+            "value": "unavailable"
+          },
+          "maximum_specific_growth_rate": {
+            "reason": "non-converged",
+            "status": "unreliable",
+            "value": "unavailable"
+          }
+        },
+        "replicate_type": "technical",
+        "strain": "fixture-strain",
+        "well": "A4",
+        "window_indices": []
+      }
+    ]
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture arithmetic with saturated and non-converged wells excluded.",
+  "protocol_sha256": "588c6e84af8df8694e2392cc03c2d92d3d66532b8976670b0888252fcc4a0a75",
+  "schema": "growth-report-v1",
+  "window_points": 3
+}

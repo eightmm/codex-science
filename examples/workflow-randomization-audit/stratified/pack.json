@@ -1,0 +1,33 @@
+{
+  "allocation": {
+    "path": "allocation.json",
+    "sha256": "5efcb6bdd79dbbc44116803dc3a7a3d13b0ae016612d5f00fc93595b40a32290"
+  },
+  "allocation_read_at": "2030-01-02T12:00:00Z",
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "b08a904356c682d8b4398c1624959dd7bf3d37a0eefb7f49569688dbd4a3a4e8"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_at": "2030-01-01T00:00:00Z",
+  "frozen_protocol_sha256": "c5af723d9c9ca0baa17388c29fde29af46985d1020d654bb5510fe6445644c14",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "c5af723d9c9ca0baa17388c29fde29af46985d1020d654bb5510fe6445644c14"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "27f6fc75f70b7b8fc05ff3750810106f75247a6dce739c2f0fe4dbc6d85f2a0e"
+  },
+  "schema": "randomization-audit-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-table-qc",
+    "03-reproduction",
+    "04-summary",
+    "05-handoff"
+  ]
+}

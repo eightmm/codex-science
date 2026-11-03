@@ -1,0 +1,183 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 0,
+        "marker": 0
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U01"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 2,
+        "marker": 0
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U02"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 1,
+        "marker": 0
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U03"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 3,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U04"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 5,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U05"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 4,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U06"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 7,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U07"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 6,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S1"
+      },
+      "unit_id": "U08"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 0,
+        "marker": 0
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U09"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 1,
+        "marker": 0
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U10"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 3,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U11"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 2,
+        "marker": 0
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U12"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 4,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U13"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 5,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U14"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 7,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U15"
+    },
+    {
+      "available": true,
+      "covariates": {
+        "baseline": 6,
+        "marker": 1
+      },
+      "strata": {
+        "batch": "S2"
+      },
+      "unit_id": "U16"
+    }
+  ],
+  "schema": "randomization-audit-units-v1",
+  "schema_version": 1
+}

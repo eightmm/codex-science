@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flow Cytometry QC"
+  short_description: "Check frozen synthetic cytometry gates and compensated counts"
+  default_prompt: "Use $workflow-flow-cytometry-qc to freeze panel and controls, check synthetic event identities, solve compensation, apply singlet/live/population gates and hand arithmetic evidence to independent review."

@@ -1,0 +1,47 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "counts"
+      ],
+      "id": "qc-counts",
+      "kind": "descriptive",
+      "status": "unsupported",
+      "text": "Synthetic gate counts are arithmetic fixtures."
+    }
+  ],
+  "events": {
+    "path": "events.json",
+    "sha256": "8b6796b4518d9b75e251b7f05ff933c55b3da7a4d38299ada073d298e02b1a66"
+  },
+  "evidence": [
+    {
+      "id": "counts",
+      "kind": "computed",
+      "origin": "internal",
+      "result": "computed",
+      "source": {
+        "path": "report.json",
+        "sha256": "3ce2c4e060e1959e4f9281f43578cc3b08401633c6408e435730609df0e2dabd"
+      }
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_rules_sha256": "d612993c908a3d176ffb46d358ce3f7b8ee78378a6fccf0980ce8b7abf929a0b",
+  "report": {
+    "path": "report.json",
+    "sha256": "3ce2c4e060e1959e4f9281f43578cc3b08401633c6408e435730609df0e2dabd"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "d612993c908a3d176ffb46d358ce3f7b8ee78378a6fccf0980ce8b7abf929a0b"
+  },
+  "schema": "flow-cytometry-qc-pack-v1",
+  "stages": [
+    "01-rule-freeze",
+    "02-event-qc",
+    "03-compensation-gates",
+    "04-summary",
+    "05-handoff"
+  ]
+}

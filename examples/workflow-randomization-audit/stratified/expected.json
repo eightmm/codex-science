@@ -1,0 +1,144 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "Independent evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "computation": {
+    "balance": [
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "baseline",
+        "flag": true,
+        "metric": "smd",
+        "scope": "overall",
+        "value": -0.4183300132670378
+      },
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "marker",
+        "flag": true,
+        "metric": "risk_difference",
+        "scope": "overall",
+        "value": -0.25
+      },
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "baseline",
+        "flag": true,
+        "metric": "smd",
+        "scope": "stratum:[\"S1\"]",
+        "value": -0.3872983346207417
+      },
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "marker",
+        "flag": true,
+        "metric": "risk_difference",
+        "scope": "stratum:[\"S1\"]",
+        "value": -0.25
+      },
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "baseline",
+        "flag": true,
+        "metric": "smd",
+        "scope": "stratum:[\"S2\"]",
+        "value": -0.3872983346207417
+      },
+      {
+        "arms": [
+          "A",
+          "B"
+        ],
+        "covariate": "marker",
+        "flag": true,
+        "metric": "risk_difference",
+        "scope": "stratum:[\"S2\"]",
+        "value": -0.25
+      }
+    ],
+    "balanced": false,
+    "counts": {
+      "A": 8,
+      "B": 8
+    },
+    "stratum_counts": {
+      "stratum:[\"S1\"]": {
+        "A": 4,
+        "B": 4
+      },
+      "stratum:[\"S2\"]": {
+        "A": 4,
+        "B": 4
+      }
+    }
+  },
+  "exploratory": false,
+  "finding": "reproduced",
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "allocation.json",
+      "sha256": "5efcb6bdd79dbbc44116803dc3a7a3d13b0ae016612d5f00fc93595b40a32290"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "b08a904356c682d8b4398c1624959dd7bf3d37a0eefb7f49569688dbd4a3a4e8"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "d9dff3e39fab0d400cb004472a5d3f77fd293b415cf21f76ca26c829f56c8153"
+    },
+    {
+      "path": "protocol.json",
+      "sha256": "c5af723d9c9ca0baa17388c29fde29af46985d1020d654bb5510fe6445644c14"
+    },
+    {
+      "path": "report.json",
+      "sha256": "27f6fc75f70b7b8fc05ff3750810106f75247a6dce739c2f0fe4dbc6d85f2a0e"
+    },
+    {
+      "path": "units.json",
+      "sha256": "0a3c219d19df83fa548e968c575373de0402a074297f7b4784ddf3a40edfb132"
+    }
+  ],
+  "limitations": [
+    "Synthetic allocation arithmetic only; independent review remains unavailable.",
+    "Hash-bound declarations cannot establish historical timing or source independence.",
+    "Lexical wording checks are conservative English checks and incomplete.",
+    "Imbalance flags are retained; no rerandomization or outcome inference is performed."
+  ],
+  "protocol_sha256": "c5af723d9c9ca0baa17388c29fde29af46985d1020d654bb5510fe6445644c14",
+  "reproduced": true,
+  "review": "unavailable",
+  "schema": "randomization-audit-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-table-qc",
+    "03-reproduction",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "arithmetic-only"
+}

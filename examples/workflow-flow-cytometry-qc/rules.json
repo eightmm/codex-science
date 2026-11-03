@@ -1,0 +1,141 @@
+{
+  "compensation": {
+    "matrix": [
+      [
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1,
+        0.5
+      ],
+      [
+        0,
+        0,
+        0,
+        0.2,
+        1
+      ]
+    ],
+    "source": {
+      "path": "compensation-source.json",
+      "sha256": "735c599da6c389021eabc49238b25b028d49fe30954475867bed581d7ae1ae21"
+    }
+  },
+  "controls": [
+    {
+      "channel": "FITC",
+      "id": "fmo",
+      "max_positive_percentage": 10,
+      "type": "FMO"
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "hashed_before_events": true,
+  "live": {
+    "channel": "DYE",
+    "max": 1
+  },
+  "min_gate_events": 2,
+  "min_percentage_events": 3,
+  "order": [
+    "stability",
+    "singlets",
+    "live",
+    "positive",
+    "bright"
+  ],
+  "outcomes_seen": false,
+  "panel": [
+    {
+      "channel": "FSC-A",
+      "fluorochrome": "scatter-area"
+    },
+    {
+      "channel": "FSC-H",
+      "fluorochrome": "scatter-height"
+    },
+    {
+      "channel": "DYE",
+      "fluorochrome": "synthetic-dye"
+    },
+    {
+      "channel": "FITC",
+      "fluorochrome": "FITC"
+    },
+    {
+      "channel": "PE",
+      "fluorochrome": "PE"
+    }
+  ],
+  "populations": [
+    {
+      "bounds": [
+        {
+          "channel": "FITC",
+          "high": 100,
+          "high_control": "fmo",
+          "low": 5,
+          "low_control": "fmo"
+        }
+      ],
+      "id": "positive",
+      "parent": "live"
+    },
+    {
+      "bounds": [
+        {
+          "channel": "FITC",
+          "high": 100,
+          "high_control": "fmo",
+          "low": 9,
+          "low_control": "fmo"
+        }
+      ],
+      "id": "bright",
+      "parent": "positive"
+    }
+  ],
+  "scale": "linear",
+  "schema": "flow-cytometry-qc-rules-v1",
+  "singlet": {
+    "area": "FSC-A",
+    "height": "FSC-H",
+    "ratio_bounds": [
+      0.8,
+      1.2
+    ]
+  },
+  "time": {
+    "bin_edges": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "max_rate_variation": 0.5,
+    "units": "seconds"
+  },
+  "units": "arbitrary units"
+}

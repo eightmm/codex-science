@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Hash rules and unit-table identity before allocation is read.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit complete immutable synthetic units and pre-outcome assignment times.",
+      "id": "02-table-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Regenerate the seed and method; check ratios, blocks and strata.",
+      "id": "03-reproduction",
+      "status": "pending"
+    },
+    {
+      "description": "Retain baseline balance flags and exact reproduction discrepancies.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

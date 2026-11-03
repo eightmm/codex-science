@@ -1,0 +1,58 @@
+{
+  "assignments": [
+    {
+      "biological_unit": "fixture-culture-1",
+      "condition": "fixture-medium",
+      "replicate_type": "technical",
+      "strain": "fixture-strain",
+      "well": "A1"
+    },
+    {
+      "biological_unit": "fixture-culture-1",
+      "condition": "fixture-medium",
+      "replicate_type": "technical",
+      "strain": "fixture-strain",
+      "well": "A2"
+    },
+    {
+      "biological_unit": "fixture-culture-1",
+      "condition": "fixture-medium",
+      "replicate_type": "technical",
+      "strain": "fixture-strain",
+      "well": "A3"
+    },
+    {
+      "biological_unit": "fixture-culture-1",
+      "condition": "fixture-medium",
+      "replicate_type": "technical",
+      "strain": "fixture-strain",
+      "well": "A4"
+    }
+  ],
+  "background": "subtract-pointwise-blank-mean",
+  "blank_stability": 0.001,
+  "blank_wells": [
+    "B1",
+    "B2"
+  ],
+  "conditions": [
+    "fixture-medium"
+  ],
+  "fit_method": "closed-form-ols",
+  "fixture": "synthetic fixture",
+  "linear_range_upper": 0.9,
+  "maximum_contamination_flags": 0,
+  "minimum_points": 3,
+  "minimum_wells": 2,
+  "model": "model-free-maximum-slope",
+  "schema": "growth-protocol-v1",
+  "start_values": [],
+  "strains": [
+    "fixture-strain"
+  ],
+  "time_grid": "equal-no-interpolation",
+  "time_unit": "hour",
+  "tolerance": 1e-12,
+  "window_points": 3,
+  "window_rule": "largest-log-od-slope-first-tie"
+}

@@ -1,0 +1,63 @@
+{
+  "control_percentages": [
+    0,
+    0
+  ],
+  "counts": {
+    "fmo": [
+      3,
+      3,
+      3,
+      0,
+      0
+    ],
+    "sample-a": [
+      6,
+      5,
+      4,
+      2,
+      1
+    ],
+    "sample-b": [
+      3,
+      3,
+      3,
+      2,
+      1
+    ]
+  },
+  "fixture": "synthetic fixture",
+  "percentages": {
+    "fmo": [
+      100,
+      100,
+      100,
+      "unavailable",
+      "unavailable"
+    ],
+    "sample-a": [
+      100,
+      83.33333333333333,
+      80,
+      50,
+      "unavailable"
+    ],
+    "sample-b": [
+      100,
+      100,
+      100,
+      66.66666666666667,
+      "unavailable"
+    ]
+  },
+  "sample-a_rates": [
+    2,
+    2,
+    2
+  ],
+  "sample-b_rates": [
+    1,
+    1,
+    1
+  ]
+}

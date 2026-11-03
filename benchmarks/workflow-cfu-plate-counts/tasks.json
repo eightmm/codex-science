@@ -1,0 +1,41 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "A uses p02 through p05 only: 660 / 0.0022 = 300000 CFU/mL.",
+        "Report exact Garwood interval and log10 with sample n 4.",
+        "B has only a positive upper bound, C only a lower bound, D remains unavailable.",
+        "Independent review remains unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "countable-weighted-cfu",
+      "inputs": [
+        "examples/workflow-cfu-plate-counts/pack.json"
+      ],
+      "question": "Which synthetic plates enter the frozen weighted CFU estimate, and what are its bounds?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every mutation is exercised independently through the public validator.",
+        "Boundary and unavailable evidence findings precede later arithmetic errors.",
+        "No file is written and every CLI refusal is JSON with exit 2."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-cfu-plate-counts/negative-cases.json"
+      ],
+      "question": "Does every synthetic negative case refuse for its declared finding?"
+    }
+  ]
+}

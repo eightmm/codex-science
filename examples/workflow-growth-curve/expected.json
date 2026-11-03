@@ -1,0 +1,27 @@
+{
+  "excluded_wells": [
+    "A3",
+    "A4"
+  ],
+  "fixture": "synthetic fixture",
+  "group_auc_mean": 1.75,
+  "group_auc_standard_error": 0.25,
+  "group_capacity_mean": 0.7,
+  "group_capacity_standard_error": 0.1,
+  "logistic_generator": {
+    "carrying_capacity": 1,
+    "midpoint": 2,
+    "rate": 0.6931471805599453
+  },
+  "reference_A1": {
+    "area_under_curve": 2,
+    "carrying_capacity": 0.8,
+    "doubling_time": 1.51294159473206,
+    "lag_time": -1.2962962962962963,
+    "maximum_specific_growth_rate": 0.45814536593707755
+  },
+  "reliable_wells": [
+    "A1",
+    "A2"
+  ]
+}

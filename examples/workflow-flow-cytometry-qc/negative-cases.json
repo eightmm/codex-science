@@ -1,0 +1,462 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "outcomes_seen"
+          ],
+          "target": "rules",
+          "value": true
+        }
+      ],
+      "finding": "post-outcome-gates",
+      "id": "post-outcome-gates"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "compensation",
+            "matrix"
+          ],
+          "target": "rules",
+          "value": [
+            [
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ]
+        }
+      ],
+      "finding": "compensation-singular",
+      "id": "singular-matrix"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            0,
+            "compensation_applied"
+          ],
+          "target": "events",
+          "value": 1
+        }
+      ],
+      "finding": "compensation-twice",
+      "id": "compensation-twice"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            0,
+            "gates",
+            4,
+            "percentage"
+          ],
+          "target": "report",
+          "value": 0
+        }
+      ],
+      "finding": "percentage-unavailable",
+      "id": "low-gate-percentage"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            2,
+            "events",
+            0,
+            "values",
+            "FITC"
+          ],
+          "target": "events",
+          "value": 7
+        }
+      ],
+      "finding": "fmo-positive-rate",
+      "id": "ignored-fmo"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            0,
+            "gates"
+          ],
+          "target": "report",
+          "value": [
+            {
+              "count": 6,
+              "id": "stability",
+              "parent": "input",
+              "parent_count": 6,
+              "percentage": 100.0
+            },
+            {
+              "count": 4,
+              "id": "live",
+              "parent": "singlets",
+              "parent_count": 5,
+              "percentage": 80.0
+            },
+            {
+              "count": 2,
+              "id": "positive",
+              "parent": "live",
+              "parent_count": 4,
+              "percentage": 50.0
+            },
+            {
+              "count": 1,
+              "id": "bright",
+              "parent": "positive",
+              "parent_count": 2,
+              "percentage": "unavailable"
+            }
+          ]
+        }
+      ],
+      "finding": "doublets-retained",
+      "id": "doublets-retained"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            0,
+            "gates"
+          ],
+          "target": "report",
+          "value": [
+            {
+              "count": 6,
+              "id": "stability",
+              "parent": "input",
+              "parent_count": 6,
+              "percentage": 100.0
+            },
+            {
+              "count": 5,
+              "id": "singlets",
+              "parent": "stability",
+              "parent_count": 6,
+              "percentage": 83.33333333333333
+            },
+            {
+              "count": 2,
+              "id": "positive",
+              "parent": "live",
+              "parent_count": 4,
+              "percentage": 50.0
+            },
+            {
+              "count": 1,
+              "id": "bright",
+              "parent": "positive",
+              "parent_count": 2,
+              "percentage": "unavailable"
+            }
+          ]
+        }
+      ],
+      "finding": "dead-retained",
+      "id": "dead-retained"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "populations",
+            0,
+            "bounds",
+            0,
+            "channel"
+          ],
+          "target": "rules",
+          "value": "UNKNOWN"
+        }
+      ],
+      "finding": "channel-not-in-panel",
+      "id": "unknown-channel"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            0,
+            "events",
+            1,
+            "time"
+          ],
+          "target": "events",
+          "value": 1.0
+        }
+      ],
+      "finding": "flow-unstable",
+      "id": "flow-unstable"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "samples",
+            1,
+            "status"
+          ],
+          "target": "events",
+          "value": "unavailable"
+        },
+        {
+          "path": [
+            "samples",
+            1,
+            "events"
+          ],
+          "target": "events",
+          "value": []
+        }
+      ],
+      "finding": "percentage-unavailable",
+      "id": "unavailable-zero"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The events establish cell identity."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "cell-identity"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The functional state is established."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "function"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The gate establishes disease association."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "disease"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The gate has diagnostic relevance."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "diagnostic"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The gate has clinical relevance."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "clinical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "This causes a change."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "causal"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "Numerical agreement establishes physical validity."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "physical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "evidence",
+            0,
+            "kind"
+          ],
+          "target": "pack",
+          "value": "review-approval"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "pack",
+          "value": "supported"
+        }
+      ],
+      "finding": "non-evidence-support",
+      "id": "review-approval"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "pack",
+          "value": "suggestive"
+        }
+      ],
+      "finding": "non-evidence-support",
+      "id": "computed-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "pack",
+          "value": []
+        }
+      ],
+      "finding": "missing-evidence",
+      "id": "missing-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "pack",
+          "value": "unavailable"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The fixture is supported."
+        }
+      ],
+      "finding": "unavailable-positive",
+      "id": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "evidence",
+            0,
+            "origin"
+          ],
+          "target": "pack",
+          "value": "independent"
+        }
+      ],
+      "finding": "external-alias",
+      "id": "external-alias"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

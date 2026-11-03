@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "id": "01-rule-freeze",
+      "description": "Hash the complete model-free growth protocol before OD values are read.",
+      "status": "pending"
+    },
+    {
+      "id": "02-data-qc",
+      "description": "Admit immutable well identities, stable blanks, equal time grids and declared QC flags.",
+      "status": "pending"
+    },
+    {
+      "id": "03-per-well",
+      "description": "Compute five descriptive parameters and preserve every unreliable well and reason.",
+      "status": "pending"
+    },
+    {
+      "id": "04-group-summary",
+      "description": "Summarize reliable wells only, retaining denominators and biological-unit identities.",
+      "status": "pending"
+    },
+    {
+      "id": "05-handoff",
+      "description": "Register ordinary domain artifacts and separate claims for coordinator-owned review.",
+      "status": "pending"
+    }
+  ]
+}

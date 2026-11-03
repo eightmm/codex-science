@@ -1,0 +1,4 @@
+interface:
+  display_name: "Growth Curve Parameters"
+  short_description: "Check blank-corrected OD growth parameters and reliable-well summaries"
+  default_prompt: "Use $workflow-growth-curve to freeze growth-curve rules, check supplied synthetic OD fixtures, calculate per-well parameters and hand bounded arithmetic to independent review."

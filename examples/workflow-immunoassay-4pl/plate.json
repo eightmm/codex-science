@@ -1,0 +1,96 @@
+{
+  "analyte": "synthetic-analyte",
+  "fixture": "synthetic fixture",
+  "schema": "immunoassay-plate-v1",
+  "units": "fixture-ng/mL",
+  "wells": [
+    {
+      "response": 0.05,
+      "well": "W001"
+    },
+    {
+      "response": 0.05,
+      "well": "W002"
+    },
+    {
+      "response": 0.55,
+      "well": "W003"
+    },
+    {
+      "response": 0.55,
+      "well": "W004"
+    },
+    {
+      "response": 0.8166666666666667,
+      "well": "W005"
+    },
+    {
+      "response": 0.8166666666666667,
+      "well": "W006"
+    },
+    {
+      "response": 1.1500000000000001,
+      "well": "W007"
+    },
+    {
+      "response": 1.1500000000000001,
+      "well": "W008"
+    },
+    {
+      "response": 1.4833333333333334,
+      "well": "W009"
+    },
+    {
+      "response": 1.4833333333333334,
+      "well": "W010"
+    },
+    {
+      "response": 1.7500000000000002,
+      "well": "W011"
+    },
+    {
+      "response": 1.7500000000000002,
+      "well": "W012"
+    },
+    {
+      "response": 1.9277777777777778,
+      "well": "W013"
+    },
+    {
+      "response": 1.9277777777777778,
+      "well": "W014"
+    },
+    {
+      "response": 1.4833333333333334,
+      "well": "W015"
+    },
+    {
+      "response": 1.4833333333333334,
+      "well": "W016"
+    },
+    {
+      "response": 1.1500000000000001,
+      "well": "W017"
+    },
+    {
+      "response": 1.1500000000000001,
+      "well": "W018"
+    },
+    {
+      "response": 0.2676470588235294,
+      "well": "W019"
+    },
+    {
+      "response": 0.2676470588235294,
+      "well": "W020"
+    },
+    {
+      "response": 2.0323529411764705,
+      "well": "W021"
+    },
+    {
+      "response": 2.0323529411764705,
+      "well": "W022"
+    }
+  ]
+}

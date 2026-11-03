@@ -1,0 +1,55 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-immunoassay-4pl",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Recover a=.1,d=2.1,c=4,b=1 within relative 1e-8.",
+        "Keep accepted range [1,32], interpolate A at 8 and 4 and report dilution recovery ratio 1.",
+        "LOW and HIGH have below-range/above-range labels with null concentrations; review remains unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-noiseless",
+      "input": "examples/workflow-immunoassay-4pl/pack.json",
+      "question": "Does the synthetic noiseless plate recover the planted curve and refuse out-of-range interpolation?"
+    },
+    {
+      "acceptance_criteria": [
+        "SSE=12*.002^2=.000048 with eight residual degrees of freedom.",
+        "Response CV=sqrt(2)*.002/mean*100; parameter errors match independent cofactor inversion of the Jacobian information."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-noisy",
+      "input": "examples/workflow-immunoassay-4pl/pack-noisy.json",
+      "question": "Do synthetic paired OD perturbations preserve means and give hand-checkable residual and parameter uncertainty?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 28 seeded cases refuse; CLI refusals are JSON on stderr with exit 2 and finding.",
+        "Removing each relevant guard makes its individual seeded test fail.",
+        "Malformed JSON, nonregular files, size/value budgets and root/ancestor/file swaps refuse without traceback or hanging.",
+        "Repeated and concurrent validation leave input bytes unchanged."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-refusals",
+      "input": "examples/workflow-immunoassay-4pl/negative-cases.json",
+      "question": "Does every synthetic seeded defect refuse for its stated reason through Python and CLI?"
+    }
+  ]
+}

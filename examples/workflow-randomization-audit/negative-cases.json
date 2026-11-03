@@ -1,0 +1,601 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "recorded_at"
+          ],
+          "target": "allocation",
+          "value": "2030-01-04T00:00:00Z"
+        }
+      ],
+      "finding": "allocation-after-outcomes",
+      "fixture": ".",
+      "id": "late-allocation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "arm"
+          ],
+          "target": "allocation",
+          "value": "B"
+        },
+        {
+          "path": [
+            "rows",
+            3,
+            "arm"
+          ],
+          "target": "allocation",
+          "value": "A"
+        }
+      ],
+      "finding": "allocation-not-reproduced",
+      "fixture": ".",
+      "id": "false-reproduction"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "attempts"
+          ],
+          "target": "allocation",
+          "value": 2
+        },
+        {
+          "path": [
+            "after_balance_seen"
+          ],
+          "target": "allocation",
+          "value": true
+        }
+      ],
+      "finding": "rerandomization-unlabelled",
+      "fixture": ".",
+      "id": "unlabelled-rerandomization"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "applied_strata"
+          ],
+          "target": "report",
+          "value": []
+        }
+      ],
+      "finding": "strata-ignored",
+      "fixture": "stratified",
+      "id": "ignored-strata"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "block_size"
+          ],
+          "target": "report",
+          "value": 6
+        }
+      ],
+      "finding": "block-size",
+      "fixture": "blocked",
+      "id": "changed-block-size"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "arm"
+          ],
+          "target": "allocation",
+          "value": "B"
+        },
+        {
+          "path": [
+            "rows",
+            4,
+            "arm"
+          ],
+          "target": "allocation",
+          "value": "A"
+        }
+      ],
+      "finding": "block-size",
+      "fixture": "blocked",
+      "id": "block-capacity"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "arm"
+          ],
+          "target": "allocation",
+          "value": "B"
+        }
+      ],
+      "finding": "allocation-ratio",
+      "fixture": ".",
+      "id": "ratio-violation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "balanced"
+          ],
+          "target": "report",
+          "value": true
+        }
+      ],
+      "finding": "covariate-imbalance",
+      "fixture": ".",
+      "id": "ignored-imbalance"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "blinding"
+          ],
+          "target": "protocol",
+          "value": null
+        }
+      ],
+      "finding": "blinding-missing",
+      "fixture": ".",
+      "id": "blinding-missing"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "available"
+          ],
+          "target": "units",
+          "value": false
+        }
+      ],
+      "finding": "unit-unavailable",
+      "fixture": ".",
+      "id": "unavailable-unit"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "The study is unbiased."
+        }
+      ],
+      "finding": "claim-overreach",
+      "fixture": ".",
+      "id": "overreach-unbiased"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "The study is valid."
+        }
+      ],
+      "finding": "claim-overreach",
+      "fixture": ".",
+      "id": "overreach-valid"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Allocation proves a causal effect."
+        }
+      ],
+      "finding": "claim-overreach",
+      "fixture": ".",
+      "id": "overreach-causal"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "The experiment is confirmatory."
+        }
+      ],
+      "finding": "claim-overreach",
+      "fixture": ".",
+      "id": "overreach-confirmatory"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "The result is clinically meaningful."
+        }
+      ],
+      "finding": "claim-overreach",
+      "fixture": ".",
+      "id": "overreach-clinical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "strata"
+          ],
+          "target": "units",
+          "value": {}
+        }
+      ],
+      "finding": "invalid-record",
+      "fixture": "stratified",
+      "id": "missing-stratum"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_at"
+          ],
+          "target": "pack",
+          "value": "2030-01-03T00:00:00Z"
+        }
+      ],
+      "finding": "rule-freeze",
+      "fixture": ".",
+      "id": "rule-freeze"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "arm"
+          ],
+          "target": "allocation",
+          "value": "C"
+        }
+      ],
+      "finding": "unknown-arm",
+      "fixture": ".",
+      "id": "unknown-arm"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            1,
+            "unit_id"
+          ],
+          "target": "units",
+          "value": "U01"
+        }
+      ],
+      "finding": "duplicate-unit",
+      "fixture": ".",
+      "id": "duplicate-unit"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The roster matches."
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "support"
+          ],
+          "target": "report",
+          "value": [
+            "E1"
+          ]
+        }
+      ],
+      "finding": "non-evidence",
+      "fixture": ".",
+      "id": "computed-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "suggestive"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The roster matches."
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "support"
+          ],
+          "target": "report",
+          "value": [
+            "E1"
+          ]
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observation"
+        }
+      ],
+      "finding": "non-evidence",
+      "fixture": ".",
+      "id": "computed-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The roster matches."
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "support"
+          ],
+          "target": "report",
+          "value": [
+            "E1"
+          ]
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "accepted"
+        }
+      ],
+      "finding": "non-evidence",
+      "fixture": ".",
+      "id": "review-approval"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        }
+      ],
+      "finding": "unavailable-evidence",
+      "fixture": ".",
+      "id": "empty-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The evidence is significant."
+        }
+      ],
+      "finding": "unavailable-positive",
+      "fixture": ".",
+      "id": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "conflicting"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "support"
+          ],
+          "target": "report",
+          "value": [
+            "E2",
+            "E3"
+          ]
+        }
+      ],
+      "finding": "unavailable-evidence",
+      "fixture": ".",
+      "id": "mixed-unavailable"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "replicated"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The roster matches."
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "support"
+          ],
+          "target": "report",
+          "value": [
+            "E3"
+          ]
+        }
+      ],
+      "finding": "claim-replication",
+      "fixture": ".",
+      "id": "replicated-single"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "finding": "evidence-independence",
+      "fixture": ".",
+      "id": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "seed"
+          ],
+          "target": "protocol",
+          "value": true
+        }
+      ],
+      "finding": "invalid-record",
+      "fixture": ".",
+      "id": "bool-seed"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "block_size"
+          ],
+          "target": "protocol",
+          "value": 0
+        }
+      ],
+      "finding": "invalid-record",
+      "fixture": "blocked",
+      "id": "zero-block-size"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "algorithm"
+          ],
+          "target": "protocol",
+          "value": "stdlib-unknown"
+        }
+      ],
+      "finding": "random-procedure",
+      "fixture": ".",
+      "id": "wrong-random-version"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

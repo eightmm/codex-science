@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash panel, compensation, controls, thresholds and gate order before event admission.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit synthetic event identities, panel channels, units, monotonic time and explicit missingness.",
+      "id": "02-event-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Solve compensation and apply frozen exclusions, population gates, FMO and rate checks.",
+      "id": "03-compensation-gates",
+      "status": "pending"
+    },
+    {
+      "description": "Compare counts, parent denominators and unavailable percentages to the reference arithmetic.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic software acceptance and procedural rules only; never physical or clinical validity or review approval.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Immutable input identities, fixed numerical controls, local record shapes, safe read-only CLI and claim boundaries.",
+      "read_when": [
+        "freezing curve rules",
+        "admitting synthetic optical densities",
+        "computing bracketed interpolation",
+        "handing off claims"
+      ],
+      "required_before": [
+        "01-freeze",
+        "02-qc",
+        "03-fit",
+        "04-summary",
+        "05-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-fit: constrained arithmetic",
+        "## 05-handoff: bounded claims and review"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic software acceptance and procedural rules only; never physical or clinical validity or review approval.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape for one ordered coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-immunoassay-4pl"
+}

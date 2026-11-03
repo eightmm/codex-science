@@ -1,0 +1,4 @@
+interface:
+  display_name: "Randomization Allocation Audit"
+  short_description: "Check frozen seeded arm assignments and covariate balance"
+  default_prompt: "Use $workflow-randomization-audit to check a synthetic seeded allocation and retain baseline imbalance flags for independent review."

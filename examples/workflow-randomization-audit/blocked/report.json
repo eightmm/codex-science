@@ -1,0 +1,50 @@
+{
+  "applied_strata": [],
+  "balance": [
+    {
+      "arms": [
+        "A",
+        "B"
+      ],
+      "covariate": "baseline",
+      "flag": true,
+      "metric": "smd",
+      "scope": "overall",
+      "value": -0.3872983346207417
+    },
+    {
+      "arms": [
+        "A",
+        "B"
+      ],
+      "covariate": "marker",
+      "flag": true,
+      "metric": "risk_difference",
+      "scope": "overall",
+      "value": -0.25
+    }
+  ],
+  "balanced": false,
+  "block_size": 4,
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "Independent evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "counts": {
+    "A": 4,
+    "B": 4
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture: seed match with retained imbalance flags.",
+  "protocol_sha256": "32c15137e8d5dfc5a9e39539ee13180632718497aae99d90ea85f85708352043",
+  "reproduced": true,
+  "schema": "randomization-audit-report-v1",
+  "schema_version": 1,
+  "stratum_counts": {}
+}

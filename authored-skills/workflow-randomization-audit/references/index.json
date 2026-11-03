@@ -1,0 +1,50 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline arithmetic controls only; no study merit or independent-review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Immutable inputs, local schemas, algorithm, limits and refusal controls.",
+      "read_when": [
+        "freezing rules",
+        "admitting synthetic units",
+        "computing balance",
+        "checking claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "table-qc",
+        "allocation-reproduction",
+        "claim-handling"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-reproduction",
+        "## Claim and evidence gate"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Plan shape cannot prove execution or historical freeze timing.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape for one checkpoint and five ordered stages.",
+      "read_when": [
+        "creating coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-randomization-audit"
+}

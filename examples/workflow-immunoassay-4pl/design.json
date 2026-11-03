@@ -1,0 +1,197 @@
+{
+  "analyte": "synthetic-analyte",
+  "blank_rule": "subtract-mean",
+  "fitting": {
+    "damping": 0.001,
+    "iteration_cap": 200,
+    "method": "levenberg-marquardt",
+    "start": [
+      0.15,
+      2,
+      3.5,
+      1.1
+    ],
+    "tolerance": 1e-12
+  },
+  "fixture": "synthetic fixture",
+  "maximum_cv": 10,
+  "parallelism_band": [
+    0.8,
+    1.2
+  ],
+  "parameterisation": "increasing-a-d-c-b",
+  "plate_map": [
+    {
+      "dilution": 1,
+      "id": "B",
+      "kind": "blank",
+      "well": "W001"
+    },
+    {
+      "dilution": 1,
+      "id": "B",
+      "kind": "blank",
+      "well": "W002"
+    },
+    {
+      "dilution": 1,
+      "id": "S1",
+      "kind": "standard",
+      "well": "W003"
+    },
+    {
+      "dilution": 1,
+      "id": "S1",
+      "kind": "standard",
+      "well": "W004"
+    },
+    {
+      "dilution": 1,
+      "id": "S2",
+      "kind": "standard",
+      "well": "W005"
+    },
+    {
+      "dilution": 1,
+      "id": "S2",
+      "kind": "standard",
+      "well": "W006"
+    },
+    {
+      "dilution": 1,
+      "id": "S3",
+      "kind": "standard",
+      "well": "W007"
+    },
+    {
+      "dilution": 1,
+      "id": "S3",
+      "kind": "standard",
+      "well": "W008"
+    },
+    {
+      "dilution": 1,
+      "id": "S4",
+      "kind": "standard",
+      "well": "W009"
+    },
+    {
+      "dilution": 1,
+      "id": "S4",
+      "kind": "standard",
+      "well": "W010"
+    },
+    {
+      "dilution": 1,
+      "id": "S5",
+      "kind": "standard",
+      "well": "W011"
+    },
+    {
+      "dilution": 1,
+      "id": "S5",
+      "kind": "standard",
+      "well": "W012"
+    },
+    {
+      "dilution": 1,
+      "id": "S6",
+      "kind": "standard",
+      "well": "W013"
+    },
+    {
+      "dilution": 1,
+      "id": "S6",
+      "kind": "standard",
+      "well": "W014"
+    },
+    {
+      "dilution": 1,
+      "id": "A",
+      "kind": "sample",
+      "well": "W015"
+    },
+    {
+      "dilution": 1,
+      "id": "A",
+      "kind": "sample",
+      "well": "W016"
+    },
+    {
+      "dilution": 2,
+      "id": "A",
+      "kind": "sample",
+      "well": "W017"
+    },
+    {
+      "dilution": 2,
+      "id": "A",
+      "kind": "sample",
+      "well": "W018"
+    },
+    {
+      "dilution": 1,
+      "id": "LOW",
+      "kind": "sample",
+      "well": "W019"
+    },
+    {
+      "dilution": 1,
+      "id": "LOW",
+      "kind": "sample",
+      "well": "W020"
+    },
+    {
+      "dilution": 1,
+      "id": "HIGH",
+      "kind": "sample",
+      "well": "W021"
+    },
+    {
+      "dilution": 1,
+      "id": "HIGH",
+      "kind": "sample",
+      "well": "W022"
+    }
+  ],
+  "recovery_band": [
+    0.8,
+    1.2
+  ],
+  "schema": "immunoassay-design-v1",
+  "standard_exclusion": "none",
+  "standards": [
+    {
+      "concentration": 1,
+      "id": "S1",
+      "replicates": 2
+    },
+    {
+      "concentration": 2,
+      "id": "S2",
+      "replicates": 2
+    },
+    {
+      "concentration": 4,
+      "id": "S3",
+      "replicates": 2
+    },
+    {
+      "concentration": 8,
+      "id": "S4",
+      "replicates": 2
+    },
+    {
+      "concentration": 16,
+      "id": "S5",
+      "replicates": 2
+    },
+    {
+      "concentration": 32,
+      "id": "S6",
+      "replicates": 2
+    }
+  ],
+  "units": "fixture-ng/mL",
+  "weighting": "uniform"
+}

@@ -1,0 +1,232 @@
+{
+  "cases": [
+    {
+      "finding": "countable-selection",
+      "id": "outside-range-pooled",
+      "path": [
+        "samples",
+        0,
+        "included_plate_ids"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": [
+        "p01",
+        "p02",
+        "p03",
+        "p04",
+        "p05"
+      ]
+    },
+    {
+      "finding": "flagged-as-zero",
+      "id": "uncountable-zero",
+      "path": [
+        "rows",
+        11,
+        "count"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 0
+    },
+    {
+      "finding": "plate-exposure",
+      "id": "missing-dilution",
+      "path": [
+        "rows",
+        0,
+        "dilution_factor"
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "plate-exposure",
+      "id": "missing-volume",
+      "path": [
+        "rows",
+        0,
+        "volume_ml"
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "poisson-interval",
+      "id": "omitted-interval",
+      "path": [
+        "samples",
+        0,
+        "interval"
+      ],
+      "remove": true,
+      "target": "report",
+      "value": null
+    },
+    {
+      "finding": "poisson-interval",
+      "id": "normal-interval",
+      "path": [
+        "interval_method"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "normal-approximation"
+    },
+    {
+      "finding": "lod-zero",
+      "id": "zero-lod",
+      "path": [
+        "samples",
+        1,
+        "lod_upper_cfu_per_ml"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0
+    },
+    {
+      "finding": "duplicate-disagreement",
+      "id": "discordant-duplicates",
+      "path": [
+        "rows",
+        2,
+        "count"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 100
+    },
+    {
+      "finding": "post-hoc-range",
+      "id": "post-hoc-range",
+      "path": [
+        "countable_ranges",
+        "p01",
+        "maximum"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 1100
+    },
+    {
+      "finding": "unavailable-as-zero",
+      "id": "unavailable-zero",
+      "path": [
+        "samples",
+        3,
+        "cfu_per_ml"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0
+    },
+    {
+      "finding": "missing-plate",
+      "id": "missing-plate",
+      "path": [
+        "rows",
+        11
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "plate-exposure",
+      "id": "bad-dilution",
+      "path": [
+        "rows",
+        0,
+        "dilution_factor"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 0.2
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_counts_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-sterility",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes sterility"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-safety",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes safety"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-efficacy",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes efficacy"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-potency",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes potency"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-clinical-relevance",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes clinical relevance"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes causality"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes physical validity"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

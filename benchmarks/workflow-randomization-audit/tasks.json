@@ -1,0 +1,63 @@
+{
+  "fixture": "synthetic fixture",
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Exact allocation match; A=4, B=4",
+        "SMD -sqrt(3/20), binary difference -1/4",
+        "Both flags true, balanced false, review unavailable"
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "bundle": "examples/workflow-randomization-audit/pack.json",
+      "id": "seeded-simple",
+      "question": "Does seed 1729 reproduce the fixed-ratio synthetic roster and retain both imbalance flags?"
+    },
+    {
+      "acceptance_criteria": [
+        "Two A and two B in each full block",
+        "Exact seed match and retained flags"
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "bundle": "examples/workflow-randomization-audit/blocked/pack.json",
+      "id": "seeded-blocks",
+      "question": "Are full synthetic blocks consistent with ratio 1:1 and size 4?"
+    },
+    {
+      "acceptance_criteria": [
+        "Each stratum A=4, B=4",
+        "Overall SMD -sqrt(7/40)",
+        "Per-stratum SMD -sqrt(3/20) and risk difference -1/4"
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "bundle": "examples/workflow-randomization-audit/stratified/pack.json",
+      "id": "seeded-strata",
+      "question": "Are synthetic strata kept separate with both overall and subgroup balance?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every case exercised through the public validator",
+        "Boundary refusals retain their stated order"
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "cases": "examples/workflow-randomization-audit/negative-cases.json",
+      "id": "refuse-defects",
+      "question": "Does each synthetic negative control fail with its frozen finding code?"
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "count": 1000,
+      "dilution_factor": 0.1,
+      "flag": "observed",
+      "plate_id": "p01",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 300,
+      "dilution_factor": 0.01,
+      "flag": "observed",
+      "plate_id": "p02",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 300,
+      "dilution_factor": 0.01,
+      "flag": "observed",
+      "plate_id": "p03",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 30,
+      "dilution_factor": 0.001,
+      "flag": "observed",
+      "plate_id": "p04",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 30,
+      "dilution_factor": 0.001,
+      "flag": "observed",
+      "plate_id": "p05",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 1,
+      "dilution_factor": 0.0001,
+      "flag": "observed",
+      "plate_id": "p06",
+      "sample_id": "A",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 0,
+      "dilution_factor": 0.01,
+      "flag": "observed",
+      "plate_id": "p07",
+      "sample_id": "B",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 0,
+      "dilution_factor": 0.001,
+      "flag": "observed",
+      "plate_id": "p08",
+      "sample_id": "B",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 400,
+      "dilution_factor": 0.01,
+      "flag": "observed",
+      "plate_id": "p09",
+      "sample_id": "C",
+      "volume_ml": 0.1
+    },
+    {
+      "count": 500,
+      "dilution_factor": 0.001,
+      "flag": "observed",
+      "plate_id": "p10",
+      "sample_id": "C",
+      "volume_ml": 0.1
+    },
+    {
+      "count": null,
+      "dilution_factor": 0.01,
+      "flag": "unavailable",
+      "plate_id": "p11",
+      "sample_id": "D",
+      "volume_ml": 0.1
+    },
+    {
+      "count": null,
+      "dilution_factor": 0.001,
+      "flag": "spreader",
+      "plate_id": "p12",
+      "sample_id": "D",
+      "volume_ml": 0.1
+    }
+  ],
+  "schema": "cfu-counts-v1"
+}
