@@ -1,0 +1,39 @@
+{
+  "assay": {
+    "path": "synthetic.assay.json",
+    "sha256": "4959998b74ff26ebf5d85dbe750d75a1df67a6f2d519b441564f99fc515cb5f6"
+  },
+  "claims": {
+    "path": "synthetic.claims.json",
+    "sha256": "a560bcc9ee4b64724b8e25740985be01b8553fa5edb3d49d168d23d41f71db00"
+  },
+  "fit": {
+    "path": "negative.changed-constraints.fit.json",
+    "sha256": "fba5ab8d6555b10c04407dde8f918e9479fb32d2e07b5617f6f3649654ce6bde"
+  },
+  "fixture": true,
+  "handoff": {
+    "path": "negative.changed-constraints.handoff.json",
+    "sha256": "2ee73eeec2860cf77535cecfdf8c6bcf1f69b012b5ca7577fec662f67f24d6c2"
+  },
+  "plate": {
+    "path": "synthetic.plate.json",
+    "sha256": "c7c1a8ff17cc3af3a86eae7ec8db9f213e084d618e78cb62f48a41edca9023fd"
+  },
+  "qc": {
+    "path": "synthetic.qc.json",
+    "sha256": "df47a7d9134c867293159c3dc1c1c68c1902f96e1f1b5fe7facf35f12e34f7f6"
+  },
+  "schema": "dose-response-pack-v1",
+  "stages": [
+    "01-assay",
+    "02-qc",
+    "03-fit",
+    "04-uncertainty",
+    "05-review-handoff"
+  ],
+  "uncertainty": {
+    "path": "negative.changed-constraints.uncertainty.json",
+    "sha256": "d54f1f6d9bb8b9812cc17c38b06abc8db7009f7fdafe18c233e232810696dac6"
+  }
+}

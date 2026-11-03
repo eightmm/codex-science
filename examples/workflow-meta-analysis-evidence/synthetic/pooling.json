@@ -1,0 +1,89 @@
+{
+  "headline_model": "random",
+  "results": {
+    "fixed": {
+      "ci_high": 1.7982524007428382,
+      "ci_low": -0.46491906740950506,
+      "estimate": 0.6666666666666666,
+      "standard_error": 0.5773502691896257
+    },
+    "i_squared": 88.0,
+    "leave_one_out": [
+      {
+        "fixed": {
+          "ci_high": 2.885903824349678,
+          "ci_low": 0.11409617565032204,
+          "estimate": 1.5,
+          "standard_error": 0.7071067811865476
+        },
+        "i_squared": 92.0,
+        "omitted_study": "A",
+        "q": 12.5,
+        "random": {
+          "ci_high": 6.399909961350135,
+          "ci_low": -3.3999099613501347,
+          "estimate": 1.5,
+          "standard_error": 2.5
+        },
+        "reversal": false,
+        "tau_squared": 11.5
+      },
+      {
+        "fixed": {
+          "ci_high": 2.885903824349678,
+          "ci_low": 0.11409617565032204,
+          "estimate": 1.5,
+          "standard_error": 0.7071067811865476
+        },
+        "i_squared": 92.0,
+        "omitted_study": "B",
+        "q": 12.5,
+        "random": {
+          "ci_high": 6.399909961350135,
+          "ci_low": -3.3999099613501347,
+          "estimate": 1.5,
+          "standard_error": 2.5
+        },
+        "reversal": false,
+        "tau_squared": 11.5
+      },
+      {
+        "fixed": {
+          "ci_high": 0.38590382434967796,
+          "ci_low": -2.385903824349678,
+          "estimate": -1.0,
+          "standard_error": 0.7071067811865476
+        },
+        "i_squared": 0.0,
+        "omitted_study": "C",
+        "q": 0.0,
+        "random": {
+          "ci_high": 0.38590382434967796,
+          "ci_low": -2.385903824349678,
+          "estimate": -1.0,
+          "standard_error": 0.7071067811865476
+        },
+        "reversal": true,
+        "tau_squared": 0.0
+      }
+    ],
+    "q": 16.666666666666668,
+    "random": {
+      "ci_high": 3.9332733075667567,
+      "ci_low": -2.5999399742334237,
+      "estimate": 0.6666666666666666,
+      "standard_error": 1.6666666666666667
+    },
+    "small_study": {
+      "availability": "unavailable",
+      "estimate": null,
+      "method": "Egger intercept (descriptive only)",
+      "reason": "Requires at least three studies and varying precision.",
+      "status": "exploratory"
+    },
+    "tau_squared": 7.333333333333334
+  },
+  "schema": "meta-analysis-pooling-v1",
+  "status": "computed",
+  "synthetic": true
+}

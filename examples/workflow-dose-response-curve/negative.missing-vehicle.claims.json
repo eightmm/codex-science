@@ -1,0 +1,26 @@
+{
+  "claims": [
+    {
+      "id": "fixture-observation",
+      "kind": "descriptive",
+      "origin": "this-fixture",
+      "status": "supported",
+      "support": [
+        {
+          "path": "negative.missing-vehicle.plate.json",
+          "sha256": "09fd5d10c5f8488f5d9dccf8767d3c503fe7291ebeadb1efc0dd2340f44ca530"
+        }
+      ],
+      "text": "Synthetic plate response varies across the tested concentrations."
+    }
+  ],
+  "comparisons": [
+    {
+      "basis": "overlapping-95-percent-intervals",
+      "conclusion": "unranked",
+      "left": "fixture-A",
+      "right": "fixture-B"
+    }
+  ],
+  "schema": "dose-response-claims-v1"
+}

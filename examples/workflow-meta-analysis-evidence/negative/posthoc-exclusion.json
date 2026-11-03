@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "file": "gate.json",
+      "pointer": "/exclusions",
+      "value": [
+        {
+          "exploratory": false,
+          "reason": "Synthetic post-result choice",
+          "study_id": "C",
+          "timing": "after-results"
+        }
+      ]
+    }
+  ],
+  "expected_code": "MA_POSTHOC",
+  "synthetic": true
+}

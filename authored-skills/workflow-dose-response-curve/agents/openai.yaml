@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dose-response Curve Pack"
+  short_description: "Freeze assays, fit synthetic curves and bound potency claims"
+  default_prompt: "Use $workflow-dose-response-curve to check a frozen in-vitro assay, biological replication, control separation, constrained EC50 or IC50 fit and intervals before independent review."

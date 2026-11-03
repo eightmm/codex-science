@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "checkpoint.json",
+      "pointer": "/steps/0/id",
+      "value": "wrong-stage"
+    }
+  ],
+  "expected_code": "MA_CHECKPOINT",
+  "synthetic": true
+}

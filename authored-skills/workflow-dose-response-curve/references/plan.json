@@ -1,0 +1,9 @@
+{
+  "plan": [
+    {"id": "01-assay", "description": "Freeze compound identities, units, assay, controls, replicates and all fitting rules before outcomes", "status": "pending"},
+    {"id": "02-qc", "description": "Check frozen control separation, counts, units and reasoned exclusions; retain failures", "status": "pending"},
+    {"id": "03-fit", "description": "Fit the frozen constrained monotone 4PL; refuse extrapolation, nonconvergence and boundary hits", "status": "pending"},
+    {"id": "04-uncertainty", "description": "Compute seeded biological-block potency and Hill intervals; compare intervals only", "status": "pending"},
+    {"id": "05-review-handoff", "description": "Register ordinary hashed artifacts and separate claims; hand off to coordinator-owned independent review", "status": "pending"}
+  ]
+}

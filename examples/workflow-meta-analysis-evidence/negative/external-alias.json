@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "evidence.json",
+      "pointer": "/records/0/provenance",
+      "value": "independent"
+    }
+  ],
+  "expected_code": "MA_EXTERNAL",
+  "synthetic": true
+}

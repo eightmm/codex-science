@@ -1,0 +1,8 @@
+{
+  "exclusions": [],
+  "failures": [],
+  "schema": "dose-response-qc-v1",
+  "separation": 0.9866666666666667,
+  "status": "passed",
+  "window": 900.0
+}

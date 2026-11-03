@@ -1,0 +1,15 @@
+{
+  "claims": [
+    {
+      "falsifier": "A source mismatch or dependent cohort.",
+      "id": "fixture-association",
+      "next_action": "Independent record and method review.",
+      "permitted_inference": "associational",
+      "required_support": "Traceable toy study observation only.",
+      "status": "suggestive",
+      "text": "Synthetic fixture only: study A records an association on the toy score scale.",
+      "uncertainty": "Synthetic fixture, not empirical evidence."
+    }
+  ],
+  "schema_version": 1
+}

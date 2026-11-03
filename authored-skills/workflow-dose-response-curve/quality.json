@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-dose-response-curve",
+  "roles": ["conductor", "analyzer"],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "dose-response-pack-v1", "dose-response-assay-v1", "dose-response-plate-v1",
+    "dose-response-qc-v1", "dose-response-fit-v1", "dose-response-uncertainty-v1",
+    "dose-response-claims-v1", "dose-response-handoff-v1", "dose-response-validation-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/workflow-dose-response-curve/synthetic.pack.json",
+    "examples/workflow-dose-response-curve/expected.json",
+    "examples/workflow-dose-response-curve/negative-cases.json"
+  ],
+  "seeded_failures": [
+    "potency-extrapolation", "plateau-not-reached", "insufficient-concentrations",
+    "insufficient-replicates", "pseudoreplication", "missing-control", "controls-failed",
+    "unit-mismatch", "unreportable-fit", "unlabelled-deviation", "outlier-rule",
+    "point-ranking", "overlapping-intervals", "claim-boundary", "computed-claim",
+    "own-evidence", "outcome-dependent-freeze", "self-review"
+  ],
+  "test_files": ["tests/test_workflow_dose_response_pack.py"],
+  "limitations": [
+    "Synthetic CPU/offline acceptance only; no real assay, biological, physical or clinical validation.",
+    "Local monotone 4PL optimizer and small fixture bootstrap do not establish global convergence, model adequacy or interval coverage.",
+    "Hashes prove byte identity, not preregistration timing, truthful labels, independent replication or independent review.",
+    "Positive claim wording refuses the whole words bind/binds/binding, affinity/affinities, any word starting with inhibit or activat (inhibitor, inhibitory, activator included), plus existing causal, mechanism, therapeutic, clinical, efficacy, safety and prescribing terms, using case-insensitive word boundaries; this English lexical gate is incomplete and independent method and claim review remain necessary.",
+    "Registry, generated inventory and shared check integration are reserved to the owning agent."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "studies.json",
+      "pointer": "/studies/0/unit",
+      "value": "milli-toy-score"
+    }
+  ],
+  "expected_code": "MA_UNITS",
+  "synthetic": true
+}

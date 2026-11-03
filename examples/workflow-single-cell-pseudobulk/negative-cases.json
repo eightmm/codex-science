@@ -1,0 +1,125 @@
+{
+  "cases": [
+    {
+      "finding": "pseudoreplication",
+      "id": "pseudoreplication",
+      "path": "negative-pseudoreplication.json"
+    },
+    {
+      "finding": "donor-confounding",
+      "id": "donor-confounding",
+      "path": "negative-donor-confounding.json"
+    },
+    {
+      "finding": "donor-confounding",
+      "id": "donor-adjustment",
+      "path": "negative-donor-adjustment.json"
+    },
+    {
+      "finding": "batch-confounding",
+      "id": "batch-confounding",
+      "path": "negative-batch-confounding.json"
+    },
+    {
+      "finding": "insufficient-donors",
+      "id": "insufficient-donors",
+      "path": "negative-insufficient-donors.json"
+    },
+    {
+      "finding": "label-evidence",
+      "id": "missing-marker",
+      "path": "negative-missing-marker.json"
+    },
+    {
+      "finding": "circular-label",
+      "id": "circular-label",
+      "path": "negative-circular-label.json"
+    },
+    {
+      "finding": "post-result-change",
+      "id": "post-result-qc",
+      "path": "negative-post-result-qc.json"
+    },
+    {
+      "finding": "post-result-change",
+      "id": "post-result-aggregation",
+      "path": "negative-post-result-aggregation.json"
+    },
+    {
+      "finding": "minimum-cells",
+      "id": "minimum-cells",
+      "path": "negative-minimum-cells.json"
+    },
+    {
+      "finding": "multiple-testing",
+      "id": "no-correction",
+      "path": "negative-no-correction.json"
+    },
+    {
+      "finding": "multiple-testing",
+      "id": "filtered-correction",
+      "path": "negative-filtered-correction.json"
+    },
+    {
+      "finding": "identifier-mismatch",
+      "id": "namespace-mismatch",
+      "path": "negative-namespace-mismatch.json"
+    },
+    {
+      "finding": "identifier-mismatch",
+      "id": "annotation-mismatch",
+      "path": "negative-annotation-mismatch.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal-mechanism",
+      "path": "negative-causal-mechanism.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "trajectory",
+      "path": "negative-trajectory.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "fate",
+      "path": "negative-fate.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "clinical",
+      "path": "negative-clinical.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "physical",
+      "path": "negative-physical.json"
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "review-approval",
+      "path": "negative-review-approval.json"
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "computed-kind",
+      "path": "negative-computed-kind.json"
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "computed-result",
+      "path": "negative-computed-result.json"
+    },
+    {
+      "finding": "unavailable-evidence",
+      "id": "unavailable-as-negative",
+      "path": "negative-unavailable-as-negative.json"
+    },
+    {
+      "finding": "label-independence",
+      "id": "external-alias",
+      "path": "negative-external-alias.json"
+    }
+  ],
+  "fixture": true
+}

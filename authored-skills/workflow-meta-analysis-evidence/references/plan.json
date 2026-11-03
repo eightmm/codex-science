@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "plan": [
+    {
+      "id": "stage-01",
+      "description": "Freeze question, eligibility, scale, direction, model, thresholds and subgroups before extraction.",
+      "status": "pending"
+    },
+    {
+      "id": "stage-02",
+      "description": "Record extracted effects, variance, sample sizes and cohort identities.",
+      "status": "pending"
+    },
+    {
+      "id": "stage-03",
+      "description": "Gate independence, comparability, conversions and exploratory deviations.",
+      "status": "pending"
+    },
+    {
+      "id": "stage-04",
+      "description": "Compute fixed and DL random effects, heterogeneity and sensitivity.",
+      "status": "pending"
+    },
+    {
+      "id": "stage-05",
+      "description": "Bound statistical claims and hand off to independent science review.",
+      "status": "pending"
+    }
+  ]
+}

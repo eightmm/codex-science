@@ -1,0 +1,39 @@
+{
+  "assay": {
+    "path": "synthetic.assay.json",
+    "sha256": "4959998b74ff26ebf5d85dbe750d75a1df67a6f2d519b441564f99fc515cb5f6"
+  },
+  "claims": {
+    "path": "negative.too-few-technical-replicates.claims.json",
+    "sha256": "5b8d7f8150a117f95e09cf7bd3430e172ee1482da51bab2bafa39e9cd200a6f1"
+  },
+  "fit": {
+    "path": "negative.too-few-technical-replicates.fit.json",
+    "sha256": "a5a9ba82c87f92779ad79f12f326ee803ab0c0e3572063187fd12b79fdd5c2a2"
+  },
+  "fixture": true,
+  "handoff": {
+    "path": "negative.too-few-technical-replicates.handoff.json",
+    "sha256": "34bef79d9bfb66757f29aca8900c282587dd12fa46e6773d241a84cba5186089"
+  },
+  "plate": {
+    "path": "negative.too-few-technical-replicates.plate.json",
+    "sha256": "fbae822cb7798dad641a2f4bd50d82b3bf1ffebb1a169df2fa7e80f2c735e489"
+  },
+  "qc": {
+    "path": "synthetic.qc.json",
+    "sha256": "df47a7d9134c867293159c3dc1c1c68c1902f96e1f1b5fe7facf35f12e34f7f6"
+  },
+  "schema": "dose-response-pack-v1",
+  "stages": [
+    "01-assay",
+    "02-qc",
+    "03-fit",
+    "04-uncertainty",
+    "05-review-handoff"
+  ],
+  "uncertainty": {
+    "path": "negative.too-few-technical-replicates.uncertainty.json",
+    "sha256": "820bb29526084da04be29b6c235e2473d8b71b0668e05d3c612256cdd8efc1b1"
+  }
+}

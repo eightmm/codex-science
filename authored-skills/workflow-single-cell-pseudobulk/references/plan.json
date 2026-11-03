@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Admit and hash design, identifiers, cell-label evidence and pre-result controls.",
+      "id": "01-design",
+      "status": "pending"
+    },
+    {
+      "description": "Retain cell and gene QC measurements, thresholds and failures.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Aggregate eligible independent biological units and cell types using the frozen rule.",
+      "id": "03-aggregation",
+      "status": "pending"
+    },
+    {
+      "description": "Compute donor-level log-scale Welch tests and BH across the complete tested family.",
+      "id": "04-comparison",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

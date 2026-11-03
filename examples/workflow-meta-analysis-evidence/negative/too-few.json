@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "protocol.json",
+      "pointer": "/min_studies",
+      "value": 4
+    }
+  ],
+  "expected_code": "MA_MIN_STUDIES",
+  "synthetic": true
+}

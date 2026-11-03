@@ -1,0 +1,59 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-single-cell-pseudobulk/pack.json",
+    "examples/workflow-single-cell-pseudobulk/expected.json",
+    "examples/workflow-single-cell-pseudobulk/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixture acceptance is software validation, never biological, physical, causal or clinical validation.",
+    "The unadjusted log2(CPM+1) Welch reference does not model count dispersion, paired donors or covariates, and cannot establish power or independent replication.",
+    "Hash-bound input and freeze declarations cannot independently prove historical timing or actual source independence.",
+    "Statistical-only claims cannot establish binding, affinity, inhibition, activation or mechanism; case-insensitive whole-word families bind, affinit, inhibit, activat and mechanis are refused alongside causal, therapeutic, clinical and efficacy wording, even in negations.",
+    "Conservative wording checks cannot adjudicate every paraphrase; coordinator-owned independent source, record and method review remains mandatory."
+  ],
+  "output_schemas": [
+    "single-cell-pseudobulk-pack-v1",
+    "single-cell-pseudobulk-design-v1",
+    "single-cell-pseudobulk-counts-v1",
+    "single-cell-pseudobulk-gene-sets-v1",
+    "single-cell-pseudobulk-labels-v1",
+    "single-cell-pseudobulk-evidence-v1",
+    "single-cell-pseudobulk-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "pseudoreplication",
+    "donor-confounding",
+    "donor-adjustment",
+    "batch-confounding",
+    "insufficient-donors",
+    "missing-marker",
+    "circular-label",
+    "post-result-qc",
+    "post-result-aggregation",
+    "minimum-cells",
+    "no-correction",
+    "filtered-correction",
+    "namespace-mismatch",
+    "annotation-mismatch",
+    "causal-mechanism",
+    "trajectory",
+    "fate",
+    "clinical",
+    "physical",
+    "review-approval",
+    "computed-kind",
+    "computed-result",
+    "unavailable-as-negative",
+    "external-alias"
+  ],
+  "skill": "workflow-single-cell-pseudobulk",
+  "test_files": [
+    "tests/test_workflow_single_cell_pseudobulk_pack.py"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "pooling.json",
+      "pointer": "/headline_model",
+      "value": "fixed"
+    }
+  ],
+  "expected_code": "MA_HETEROGENEITY",
+  "synthetic": true
+}

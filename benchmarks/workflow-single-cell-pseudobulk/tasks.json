@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "pack": "workflow-single-cell-pseudobulk",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Only EFFECT is BH-significant at declared alpha 0.05.",
+        "BATCH and NULL remain nonsignificant; ZERO is excluded before testing.",
+        "Eight independent biological units remain; four donors per condition.",
+        "Four failed cells and eight underfilled unit/cell-type pairs remain in exclusions.",
+        "Output is statistical-only and review stays unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-condition-and-batch-control",
+      "input": "examples/workflow-single-cell-pseudobulk/pack.json",
+      "question": "Does the planted donor-level condition effect survive a balanced planted batch effect in synthetic fixtures?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 24 negative fixtures raise their named ValueError.",
+        "Removing each relevant refusal guard makes its individual seeded-defect test fail.",
+        "No input is written; no external execution, installation or network occurs."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-seeded-refusals",
+      "input": "examples/workflow-single-cell-pseudobulk/negative-cases.json",
+      "question": "Does every frozen seeded defect stop with its labelled reason?"
+    }
+  ]
+}

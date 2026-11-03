@@ -1,0 +1,35 @@
+{
+  "claim_ids": [
+    "fixture-observation"
+  ],
+  "created_at": "2026-01-04T00:00:00Z",
+  "inputs": {
+    "assay": {
+      "path": "negative.post-outcome-freeze.assay.json",
+      "sha256": "e3ee5260caefd6a7d362c838324a3b17ba1b2304c397b303faa92cb3cf605f88"
+    },
+    "claims": {
+      "path": "synthetic.claims.json",
+      "sha256": "a560bcc9ee4b64724b8e25740985be01b8553fa5edb3d49d168d23d41f71db00"
+    },
+    "fit": {
+      "path": "negative.post-outcome-freeze.fit.json",
+      "sha256": "7974a3ff6cd30122a92e7daf46e53fdd3e20b5f4787b48567d2516673d7ada20"
+    },
+    "plate": {
+      "path": "synthetic.plate.json",
+      "sha256": "c7c1a8ff17cc3af3a86eae7ec8db9f213e084d618e78cb62f48a41edca9023fd"
+    },
+    "qc": {
+      "path": "synthetic.qc.json",
+      "sha256": "df47a7d9134c867293159c3dc1c1c68c1902f96e1f1b5fe7facf35f12e34f7f6"
+    },
+    "uncertainty": {
+      "path": "negative.post-outcome-freeze.uncertainty.json",
+      "sha256": "a4b60eb38ff7f5d0ab2d1bb6e7e0c62cdea4b13fd0edc8b4cea5d728ab5d2793"
+    }
+  },
+  "reviewed": false,
+  "schema": "dose-response-handoff-v1",
+  "status": "ready-for-independent-review"
+}

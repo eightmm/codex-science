@@ -1,0 +1,36 @@
+{
+  "annotation_version": "fixture-annotation-v1",
+  "cell_types": [
+    "T",
+    "rare"
+  ],
+  "fixture": true,
+  "genome_version": "fixture-genome-v1",
+  "identifier_namespace": "fixture-gene",
+  "labels": [
+    {
+      "cell_type": "T",
+      "genes": [],
+      "method": "marker",
+      "origin": "external",
+      "source": {
+        "path": "marker-reference.json",
+        "sha256": "3cb4f476505730faa0a22d2c95aa0fc5574717cc9e5177e6b34381eaeba0b103"
+      }
+    },
+    {
+      "cell_type": "rare",
+      "genes": [
+        "MARK"
+      ],
+      "method": "marker",
+      "origin": "external",
+      "source": {
+        "path": "marker-reference.json",
+        "sha256": "3cb4f476505730faa0a22d2c95aa0fc5574717cc9e5177e6b34381eaeba0b103"
+      }
+    }
+  ],
+  "organism": "synthetic-organism",
+  "schema": "single-cell-pseudobulk-labels-v1"
+}

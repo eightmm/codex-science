@@ -1,0 +1,43 @@
+{
+  "attempts": [],
+  "blocker": "",
+  "current_step": "stage-05",
+  "deliverable": "Synthetic statistical evidence, independent review pending.",
+  "done_criteria": [
+    "Hash-bound stage handoffs validate.",
+    "Independent review remains pending."
+  ],
+  "goal": "Synthetic fixture: pool toy-score associations.",
+  "next_action": "Coordinator hands off to independent science review.",
+  "pending_decisions": [],
+  "schema_version": 1,
+  "state": "active",
+  "steps": [
+    {
+      "id": "stage-01",
+      "status": "completed",
+      "title": "Synthetic stage 1"
+    },
+    {
+      "id": "stage-02",
+      "status": "completed",
+      "title": "Synthetic stage 2"
+    },
+    {
+      "id": "stage-03",
+      "status": "completed",
+      "title": "Synthetic stage 3"
+    },
+    {
+      "id": "stage-04",
+      "status": "completed",
+      "title": "Synthetic stage 4"
+    },
+    {
+      "id": "stage-05",
+      "status": "in_progress",
+      "title": "Synthetic stage 5"
+    }
+  ],
+  "updated_at": "2026-01-01T00:00:00Z"
+}

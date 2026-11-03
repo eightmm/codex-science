@@ -1,0 +1,72 @@
+{
+  "assay": {
+    "path": "negative.unreasoned-exclusion.assay.json",
+    "sha256": "bc655df7ad4706840cb4cd43606df1a1e22b5968298c817335d05ed3fdf656f2"
+  },
+  "fits": [
+    {
+      "boundary": false,
+      "compound": "fixture-A",
+      "converged": true,
+      "iterations": 5,
+      "loss": 1.4829361435884854e-06,
+      "parameters": {
+        "bottom": 0.05012645542317826,
+        "hill": 1.1905606333875705,
+        "potency": 29.68232207762781,
+        "top": 0.9507592460328198
+      }
+    },
+    {
+      "boundary": false,
+      "compound": "fixture-B",
+      "converged": true,
+      "iterations": 5,
+      "loss": 4.232718218479779e-06,
+      "parameters": {
+        "bottom": 0.050135097449330174,
+        "hill": 1.1910446258319487,
+        "potency": 32.83464077654067,
+        "top": 0.9505332827118547
+      }
+    }
+  ],
+  "fitted_at": "2026-01-03T00:00:00Z",
+  "full_efficacy": false,
+  "kind": "computed",
+  "label": "prespecified",
+  "plate": {
+    "path": "negative.unreasoned-exclusion.plate.json",
+    "sha256": "53027d0a670e8b6c8d541579156c1eb2879ff136e0ab55b1a0903b517335cfac"
+  },
+  "result": "numerical",
+  "schema": "dose-response-fit-v1",
+  "status": "reported",
+  "used": {
+    "constraints": {
+      "bottom": [
+        -0.2,
+        0.2
+      ],
+      "hill": [
+        0.2,
+        3.0
+      ],
+      "potency": [
+        0.01,
+        10000.0
+      ],
+      "top": [
+        0.8,
+        1.2
+      ]
+    },
+    "model": "4pl",
+    "optimizer": {
+      "max_iterations": 120,
+      "method": "bounded-lm-v1",
+      "tolerance": 1e-08
+    },
+    "outlier_rule": "exclude-flagged-before-fit"
+  }
+}

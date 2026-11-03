@@ -1,0 +1,22 @@
+{
+  "annotation_version": "fixture-annotation-v1",
+  "fixture": true,
+  "genome_version": "fixture-genome-v1",
+  "identifier_namespace": "fixture-gene",
+  "organism": "synthetic-organism",
+  "schema": "single-cell-pseudobulk-gene-sets-v1",
+  "sets": [
+    {
+      "genes": [
+        "EFFECT"
+      ],
+      "id": "fixture-planted"
+    },
+    {
+      "genes": [
+        "BATCH"
+      ],
+      "id": "fixture-batch-control"
+    }
+  ]
+}

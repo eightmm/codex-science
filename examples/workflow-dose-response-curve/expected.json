@@ -1,0 +1,49 @@
+{
+  "fixture": true,
+  "generating_parameters": {
+    "fixture-A": {
+      "bottom": 0.05,
+      "hill": 1.2,
+      "potency": 30.0,
+      "top": 0.95
+    },
+    "fixture-B": {
+      "bottom": 0.05,
+      "hill": 1.2,
+      "potency": 33.0,
+      "top": 0.95
+    }
+  },
+  "tolerance": {
+    "hill_absolute": 0.12,
+    "plateau_absolute": 0.02,
+    "potency_relative": 0.1
+  },
+  "validation": {
+    "claim_ids": [
+      "fixture-observation"
+    ],
+    "evidence_boundary": "In-vitro statistical evidence only; synthetic fixture, no physical or clinical validation.",
+    "fit_status": "reported",
+    "fixture": true,
+    "label": "prespecified",
+    "qc": {
+      "exclusions": [],
+      "failures": [],
+      "schema": "dose-response-qc-v1",
+      "separation": 0.9866666666666667,
+      "status": "passed",
+      "window": 900.0
+    },
+    "reviewed": false,
+    "schema": "dose-response-validation-v1",
+    "stages": [
+      "01-assay",
+      "02-qc",
+      "03-fit",
+      "04-uncertainty",
+      "05-review-handoff"
+    ],
+    "status": "ready-for-independent-review"
+  }
+}

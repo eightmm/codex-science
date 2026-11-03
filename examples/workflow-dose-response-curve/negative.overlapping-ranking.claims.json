@@ -1,0 +1,26 @@
+{
+  "claims": [
+    {
+      "id": "fixture-observation",
+      "kind": "descriptive",
+      "origin": "this-fixture",
+      "status": "supported",
+      "support": [
+        {
+          "path": "synthetic.plate.json",
+          "sha256": "c7c1a8ff17cc3af3a86eae7ec8db9f213e084d618e78cb62f48a41edca9023fd"
+        }
+      ],
+      "text": "Synthetic plate response varies across the tested concentrations."
+    }
+  ],
+  "comparisons": [
+    {
+      "basis": "nonoverlapping-95-percent-intervals",
+      "conclusion": "left-more-potent",
+      "left": "fixture-A",
+      "right": "fixture-B"
+    }
+  ],
+  "schema": "dose-response-claims-v1"
+}

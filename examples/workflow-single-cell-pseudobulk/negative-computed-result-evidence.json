@@ -1,0 +1,12 @@
+{
+  "cell_types": [
+    "T"
+  ],
+  "fixture": true,
+  "genes": [
+    "EFFECT"
+  ],
+  "kind": "statistical-evidence",
+  "result": "numerical-agreement",
+  "schema": "single-cell-pseudobulk-evidence-v1"
+}

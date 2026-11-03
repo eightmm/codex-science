@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "protocol.json",
+      "pointer": "/frozen_before_extraction",
+      "value": false
+    }
+  ],
+  "expected_code": "MA_PROTOCOL",
+  "synthetic": true
+}

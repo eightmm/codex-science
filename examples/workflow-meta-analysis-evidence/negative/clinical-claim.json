@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "claims.json",
+      "pointer": "/claims/0/text",
+      "value": "Synthetic fixture: recommend clinical treatment."
+    }
+  ],
+  "expected_code": "MA_CLAIM_BOUNDARY",
+  "synthetic": true
+}

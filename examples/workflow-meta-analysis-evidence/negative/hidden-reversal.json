@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "handoff.json",
+      "pointer": "/loo_reversals",
+      "value": []
+    }
+  ],
+  "expected_code": "MA_LOO",
+  "synthetic": true
+}

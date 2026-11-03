@@ -1,0 +1,99 @@
+{
+  "checkpoint": {
+    "path": "checkpoint.json",
+    "sha256": "408e9fdfd97aecb7ee13dfc2d8491ca85f334da50e279aacdbd360b5b50ab381"
+  },
+  "schema": "meta-analysis-pack-v1",
+  "stages": [
+    {
+      "id": "stage-01",
+      "inputs": [],
+      "output": {
+        "path": "protocol.json",
+        "sha256": "3aa92f8a7035e2a464019d842da7eab8487da1af446ab1d934a32238986e48f9"
+      },
+      "schema": "meta-analysis-stage-v1"
+    },
+    {
+      "id": "stage-02",
+      "inputs": [
+        {
+          "path": "protocol.json",
+          "sha256": "3aa92f8a7035e2a464019d842da7eab8487da1af446ab1d934a32238986e48f9"
+        }
+      ],
+      "output": {
+        "path": "studies.json",
+        "sha256": "356c73ccf4591ea393bce07d6408accd8d3b7a6af155b6b8ddad424921c6b0d0"
+      },
+      "schema": "meta-analysis-stage-v1"
+    },
+    {
+      "id": "stage-03",
+      "inputs": [
+        {
+          "path": "protocol.json",
+          "sha256": "3aa92f8a7035e2a464019d842da7eab8487da1af446ab1d934a32238986e48f9"
+        },
+        {
+          "path": "studies.json",
+          "sha256": "356c73ccf4591ea393bce07d6408accd8d3b7a6af155b6b8ddad424921c6b0d0"
+        }
+      ],
+      "output": {
+        "path": "gate.json",
+        "sha256": "332b0fd4e2d0a24b8752ad5fee5d5f20498dc1dc698469ae2f893d0665679478"
+      },
+      "schema": "meta-analysis-stage-v1"
+    },
+    {
+      "id": "stage-04",
+      "inputs": [
+        {
+          "path": "protocol.json",
+          "sha256": "3aa92f8a7035e2a464019d842da7eab8487da1af446ab1d934a32238986e48f9"
+        },
+        {
+          "path": "studies.json",
+          "sha256": "356c73ccf4591ea393bce07d6408accd8d3b7a6af155b6b8ddad424921c6b0d0"
+        },
+        {
+          "path": "gate.json",
+          "sha256": "332b0fd4e2d0a24b8752ad5fee5d5f20498dc1dc698469ae2f893d0665679478"
+        }
+      ],
+      "output": {
+        "path": "pooling.json",
+        "sha256": "d7b2b0e095692059736755076cf6eefe3372965e7e717e2644c3a600aad56d2c"
+      },
+      "schema": "meta-analysis-stage-v1"
+    },
+    {
+      "id": "stage-05",
+      "inputs": [
+        {
+          "path": "protocol.json",
+          "sha256": "3aa92f8a7035e2a464019d842da7eab8487da1af446ab1d934a32238986e48f9"
+        },
+        {
+          "path": "studies.json",
+          "sha256": "356c73ccf4591ea393bce07d6408accd8d3b7a6af155b6b8ddad424921c6b0d0"
+        },
+        {
+          "path": "gate.json",
+          "sha256": "332b0fd4e2d0a24b8752ad5fee5d5f20498dc1dc698469ae2f893d0665679478"
+        },
+        {
+          "path": "pooling.json",
+          "sha256": "d7b2b0e095692059736755076cf6eefe3372965e7e717e2644c3a600aad56d2c"
+        }
+      ],
+      "output": {
+        "path": "handoff.json",
+        "sha256": "aedf4ccc882a6f520344312500492312698f12fc5f94367ff681c79b629bb0ec"
+      },
+      "schema": "meta-analysis-stage-v1"
+    }
+  ],
+  "synthetic": true
+}

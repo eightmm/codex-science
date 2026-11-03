@@ -1,0 +1,147 @@
+{
+  "analysis_spec": {
+    "aggregation": "mean-raw-counts",
+    "alpha": 0.05,
+    "cell_types": [
+      "T"
+    ],
+    "contrast": [
+      "control",
+      "exposed"
+    ],
+    "correction": "BH",
+    "correction_scope": "all-tested-gene-cell-type-pairs",
+    "minimum_donors": 3,
+    "model": "welch-log2-cpm",
+    "qc": {
+      "gene_min_units": 2,
+      "max_mito_fraction": 0.2,
+      "min_cells": 3,
+      "min_counts": 100,
+      "min_genes": 4
+    },
+    "replicate_unit": "donor",
+    "test_genes": [
+      "EFFECT",
+      "BATCH",
+      "NULL",
+      "ZERO"
+    ]
+  },
+  "claims": [
+    {
+      "cell_type": "T",
+      "gene_id": "EFFECT",
+      "id": "fixture-association",
+      "kind": "associational",
+      "status": "suggestive",
+      "support": [
+        {
+          "path": "observation.json",
+          "sha256": "52705b26fab61cca2ff534172767ac57891576e5f8c371127af8f2430be62272"
+        }
+      ],
+      "text": "Synthetic fixture EFFECT counts are associated with the declared condition in T cells."
+    }
+  ],
+  "exploratory": false,
+  "fixture": true,
+  "freeze_before_results": true,
+  "frozen_design_sha256": "4ce1a8a1bae7252e1e485abdcb7fbbaadcba0f2da79d19262085677c83b736e3",
+  "frozen_sha256": "68ee490883673e0453ceb9717464daca38ee00bc62ad1ea25cd76226880e867c",
+  "frozen_spec": {
+    "aggregation": "sum-raw-counts",
+    "alpha": 0.05,
+    "cell_types": [
+      "T"
+    ],
+    "contrast": [
+      "control",
+      "exposed"
+    ],
+    "correction": "BH",
+    "correction_scope": "all-tested-gene-cell-type-pairs",
+    "minimum_donors": 3,
+    "model": "welch-log2-cpm",
+    "qc": {
+      "gene_min_units": 2,
+      "max_mito_fraction": 0.2,
+      "min_cells": 3,
+      "min_counts": 100,
+      "min_genes": 4
+    },
+    "replicate_unit": "donor",
+    "test_genes": [
+      "EFFECT",
+      "BATCH",
+      "NULL",
+      "ZERO"
+    ]
+  },
+  "included_units": [
+    {
+      "cell_type": "T",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U2"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U3"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U4"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U5"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U6"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U7"
+    },
+    {
+      "cell_type": "T",
+      "unit_id": "U8"
+    }
+  ],
+  "inputs": {
+    "counts": {
+      "path": "counts.json",
+      "sha256": "7d7663c0feff899844bddd1afd541560567ba0e55d080b6620e2cbecbacd62c2"
+    },
+    "design": {
+      "path": "design.json",
+      "sha256": "4ce1a8a1bae7252e1e485abdcb7fbbaadcba0f2da79d19262085677c83b736e3"
+    },
+    "gene_sets": {
+      "path": "gene-sets.json",
+      "sha256": "04b62a5d8da63ab93c7ca54866d65d8fe4c21684db31fd790dda5d653cc91566"
+    },
+    "labels": {
+      "path": "labels.json",
+      "sha256": "27c13ef56d9eff7b937249eecb9f9dc1792ba6b4232e057a6889e0b06844398b"
+    }
+  },
+  "schema": "single-cell-pseudobulk-pack-v1",
+  "stages": [
+    "01-design",
+    "02-qc",
+    "03-aggregation",
+    "04-comparison",
+    "05-handoff"
+  ],
+  "study_outputs": [
+    {
+      "path": "observation.json",
+      "sha256": "52705b26fab61cca2ff534172767ac57891576e5f8c371127af8f2430be62272"
+    }
+  ]
+}

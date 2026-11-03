@@ -32,6 +32,32 @@
       "require_reference_contract": true
     },
     {
+      "skill": "workflow-meta-analysis-evidence",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-dose-response-curve",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-single-cell-pseudobulk",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
       "skill": "codex-science",
       "minimum_maturity": "L3",
       "required_roles": [

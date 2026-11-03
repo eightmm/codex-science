@@ -1,0 +1,72 @@
+{
+  "assay": {
+    "path": "synthetic.assay.json",
+    "sha256": "4959998b74ff26ebf5d85dbe750d75a1df67a6f2d519b441564f99fc515cb5f6"
+  },
+  "fits": [
+    {
+      "boundary": false,
+      "compound": "fixture-A",
+      "converged": true,
+      "iterations": 5,
+      "loss": 1.4829361435884854e-06,
+      "parameters": {
+        "bottom": 0.05012645542317826,
+        "hill": 1.1905606333875705,
+        "potency": 29.68232207762781,
+        "top": 0.9507592460328198
+      }
+    },
+    {
+      "boundary": false,
+      "compound": "fixture-B",
+      "converged": true,
+      "iterations": 5,
+      "loss": 4.232718218479779e-06,
+      "parameters": {
+        "bottom": 0.050135097449330174,
+        "hill": 1.1910446258319487,
+        "potency": 32.83464077654067,
+        "top": 0.9505332827118547
+      }
+    }
+  ],
+  "fitted_at": "2026-01-03T00:00:00Z",
+  "full_efficacy": false,
+  "kind": "computed",
+  "label": "prespecified",
+  "plate": {
+    "path": "negative.too-few-biological-replicates.plate.json",
+    "sha256": "dce753b61168dd3e88838b9212d38fbdfac665a477e3bdef5a63a268a3fc7d1b"
+  },
+  "result": "numerical",
+  "schema": "dose-response-fit-v1",
+  "status": "reported",
+  "used": {
+    "constraints": {
+      "bottom": [
+        -0.2,
+        0.2
+      ],
+      "hill": [
+        0.2,
+        3.0
+      ],
+      "potency": [
+        0.01,
+        10000.0
+      ],
+      "top": [
+        0.8,
+        1.2
+      ]
+    },
+    "model": "4pl",
+    "optimizer": {
+      "max_iterations": 120,
+      "method": "bounded-lm-v1",
+      "tolerance": 1e-08
+    },
+    "outlier_rule": "none"
+  }
+}

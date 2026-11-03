@@ -1,0 +1,26 @@
+{
+  "claim_evidence": {
+    "fixture-association": [
+      "fixture-source-A"
+    ]
+  },
+  "claims": {
+    "path": "claims.json",
+    "sha256": "40b4a38ab14d842a9804ce7898a6eb20a93ea3131fa2396ff47118bed02eee01"
+  },
+  "evidence": {
+    "path": "evidence.json",
+    "sha256": "6cd72d7e9f0049c0f7434dd4b85d98d049b6b8d3ee4f813c00263b219762c4a9"
+  },
+  "limitations": [
+    "Synthetic fixture only; third cohort has a planted heterogeneous effect.",
+    "Normal Wald intervals and DL variance are approximate, especially with few studies.",
+    "No calibrated small-study test; check remains exploratory."
+  ],
+  "loo_reversals": [
+    "C"
+  ],
+  "review_status": "pending",
+  "schema": "meta-analysis-handoff-v1",
+  "synthetic": true
+}

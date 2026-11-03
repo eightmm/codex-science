@@ -1,0 +1,14 @@
+{
+  "cell_types": [
+    "T",
+    "rare"
+  ],
+  "fixture": true,
+  "genes": [
+    "MARK",
+    "EFFECT"
+  ],
+  "kind": "marker-evidence",
+  "result": "marker-support",
+  "schema": "single-cell-pseudobulk-evidence-v1"
+}

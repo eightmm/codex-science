@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-meta-analysis-evidence",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Define frozen controls, local schemas, refusal checks and immutable handoffs.",
+      "read_when": [
+        "before meta-analysis-freeze",
+        "before meta-analysis-pooling",
+        "before meta-analysis-validation",
+        "before meta-analysis-handoff"
+      ],
+      "required_before": [
+        "meta-analysis-freeze",
+        "meta-analysis-pooling",
+        "meta-analysis-validation",
+        "meta-analysis-handoff"
+      ],
+      "search_patterns": [
+        "Stage",
+        "Schema"
+      ],
+      "authority": "Pack-local evidence synthesis contract; existing coordinator contracts unchanged",
+      "version": "1",
+      "evidence_boundary": "Statistical record consistency only; synthetic acceptance does not establish source truth or independent review."
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Register five ordered steps using the existing manifest plan shape.",
+      "read_when": [
+        "before meta-analysis-plan-registration"
+      ],
+      "required_before": [
+        "meta-analysis-plan-registration"
+      ],
+      "search_patterns": [
+        "plan",
+        "stage-01",
+        "stage-05"
+      ],
+      "authority": "Pack-local evidence synthesis contract; existing coordinator contracts unchanged",
+      "version": "1",
+      "evidence_boundary": "Statistical record consistency only; synthetic acceptance does not establish source truth or independent review."
+    }
+  ]
+}

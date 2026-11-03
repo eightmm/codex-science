@@ -1,0 +1,40 @@
+{
+  "bootstrap": {
+    "interval_level": 0.95,
+    "minimum_success_fraction": 0.8,
+    "resamples": 40,
+    "seed": 1729
+  },
+  "fit": {
+    "path": "negative.unreasoned-exclusion.fit.json",
+    "sha256": "a09a7398eddef4b83746d4b9d73d966fa34b99697b29b8b395deac054dc0813b"
+  },
+  "intervals": [
+    {
+      "compound": "fixture-A",
+      "hill": [
+        1.1799936630246097,
+        1.2032100441849531
+      ],
+      "potency": [
+        26.156655045602896,
+        34.39455518312238
+      ],
+      "successful_resamples": 40
+    },
+    {
+      "compound": "fixture-B",
+      "hill": [
+        1.182015877161108,
+        1.205810265783034
+      ],
+      "potency": [
+        29.094023654401827,
+        37.70941443374824
+      ],
+      "successful_resamples": 40
+    }
+  ],
+  "schema": "dose-response-uncertainty-v1",
+  "status": "reported"
+}

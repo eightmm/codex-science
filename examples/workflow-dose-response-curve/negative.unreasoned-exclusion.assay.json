@@ -1,0 +1,71 @@
+{
+  "bootstrap": {
+    "interval_level": 0.95,
+    "minimum_success_fraction": 0.8,
+    "resamples": 40,
+    "seed": 1729
+  },
+  "compounds": [
+    {
+      "form": "Synthetic neutral placeholder A",
+      "id": "fixture-A"
+    },
+    {
+      "form": "Synthetic neutral placeholder B",
+      "id": "fixture-B"
+    }
+  ],
+  "concentrations": [
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    30.0,
+    100.0,
+    300.0,
+    1000.0
+  ],
+  "constraints": {
+    "bottom": [
+      -0.2,
+      0.2
+    ],
+    "hill": [
+      0.2,
+      3.0
+    ],
+    "potency": [
+      0.01,
+      10000.0
+    ],
+    "top": [
+      0.8,
+      1.2
+    ]
+  },
+  "control_window_minimum": 100.0,
+  "direction": "increasing",
+  "endpoint": "Synthetic normalised response",
+  "fixture": true,
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "metric": "EC50",
+  "minimum_biological_replicates": 3,
+  "minimum_concentrations": 6,
+  "minimum_control_replicates": 3,
+  "minimum_technical_replicates": 2,
+  "model": "4pl",
+  "normalisation": "vehicle-positive-linear",
+  "optimizer": {
+    "max_iterations": 120,
+    "method": "bounded-lm-v1",
+    "tolerance": 1e-08
+  },
+  "outcomes_seen": false,
+  "outlier_rule": "exclude-flagged-before-fit",
+  "plateau_fraction": 0.95,
+  "schema": "dose-response-assay-v1",
+  "separation_threshold": 0.5,
+  "system": "Synthetic plate fixture; no cells or patients",
+  "unit": "nM"
+}

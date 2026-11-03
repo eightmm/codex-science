@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "evidence.json",
+      "pointer": "/records/0/result",
+      "value": "review-approved"
+    }
+  ],
+  "expected_code": "MA_CLAIM_EVIDENCE",
+  "synthetic": true
+}

@@ -1,0 +1,518 @@
+{
+  "schema_version": 1,
+  "fixture": "Frozen synthetic fixtures; no real pharmacology",
+  "tasks": [
+    {
+      "id": "synthetic-recovery",
+      "question": "Does the seeded synthetic fixture recover its generating curves and preserve overlapping uncertainty?",
+      "fixture": "examples/workflow-dose-response-curve/synthetic.pack.json",
+      "expected": "accept",
+      "acceptance_criteria": [
+        "potency within 10 percent; Hill within 0.12; plateaus within 0.02",
+        "whole biological-block bootstrap",
+        "ready-for-independent-review only"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "extrapolated-potency",
+      "question": "Is potency outside the tested range refused?",
+      "fixture": "examples/workflow-dose-response-curve/negative.extrapolated-potency.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal potency-extrapolation",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "unreached-plateau",
+      "question": "Is full assay response refused without the upper plateau?",
+      "fixture": "examples/workflow-dose-response-curve/negative.unreached-plateau.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal plateau-not-reached",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "too-few-concentrations",
+      "question": "Does an incomplete concentration series stop fitting?",
+      "fixture": "examples/workflow-dose-response-curve/negative.too-few-concentrations.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal insufficient-concentrations",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "too-few-biological-replicates",
+      "question": "Are biological replicates counted independently?",
+      "fixture": "examples/workflow-dose-response-curve/negative.too-few-biological-replicates.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal insufficient-replicates",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "too-few-technical-replicates",
+      "question": "Are technical-repeat minimums enforced?",
+      "fixture": "examples/workflow-dose-response-curve/negative.too-few-technical-replicates.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal insufficient-replicates",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "technical-as-biological",
+      "question": "Do technical wells fail as independent biological replicates?",
+      "fixture": "examples/workflow-dose-response-curve/negative.technical-as-biological.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal pseudoreplication",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "missing-vehicle",
+      "question": "Is absent vehicle unavailable rather than negative evidence?",
+      "fixture": "examples/workflow-dose-response-curve/negative.missing-vehicle.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal missing-control",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "missing-positive",
+      "question": "Is a missing positive control refused?",
+      "fixture": "examples/workflow-dose-response-curve/negative.missing-positive.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal missing-control",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "failed-controls",
+      "question": "Do controls below the frozen separation threshold block potency?",
+      "fixture": "examples/workflow-dose-response-curve/negative.failed-controls.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal controls-failed",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "unrecorded-unit-conversion",
+      "question": "Is nM/uM mixing refused without conversion provenance?",
+      "fixture": "examples/workflow-dose-response-curve/negative.unrecorded-unit-conversion.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unit-mismatch",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "nonconverged-fit",
+      "question": "Is a nonconverged fit refused as a reported result?",
+      "fixture": "examples/workflow-dose-response-curve/negative.nonconverged-fit.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unreportable-fit",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "boundary-fit",
+      "question": "Is a boundary-hitting fit refused as a result?",
+      "fixture": "examples/workflow-dose-response-curve/negative.boundary-fit.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unreportable-fit",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "changed-model",
+      "question": "Must post-outcome model changes be exploratory?",
+      "fixture": "examples/workflow-dose-response-curve/negative.changed-model.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unlabelled-deviation",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "changed-constraints",
+      "question": "Must post-outcome constraint changes be exploratory?",
+      "fixture": "examples/workflow-dose-response-curve/negative.changed-constraints.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unlabelled-deviation",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "changed-outlier-rule",
+      "question": "Must post-outcome outlier rule changes be exploratory?",
+      "fixture": "examples/workflow-dose-response-curve/negative.changed-outlier-rule.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unlabelled-deviation",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "unreasoned-exclusion",
+      "question": "Must exclusions retain a recorded reason?",
+      "fixture": "examples/workflow-dose-response-curve/negative.unreasoned-exclusion.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal outlier-rule",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "point-ranking",
+      "question": "Can points alone rank compounds?",
+      "fixture": "examples/workflow-dose-response-curve/negative.point-ranking.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal point-ranking",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "overlapping-ranking",
+      "question": "Do overlapping intervals preclude ordering?",
+      "fixture": "examples/workflow-dose-response-curve/negative.overlapping-ranking.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal overlapping-intervals",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "clinical-claim",
+      "question": "Does positive claim text stay within in-vitro evidence?",
+      "fixture": "examples/workflow-dose-response-curve/negative.clinical-claim.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal claim-boundary",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "safety-claim",
+      "question": "Does positive claim text stay within in-vitro evidence?",
+      "fixture": "examples/workflow-dose-response-curve/negative.safety-claim.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal claim-boundary",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "dose-claim",
+      "question": "Does positive claim text stay within in-vitro evidence?",
+      "fixture": "examples/workflow-dose-response-curve/negative.dose-claim.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal claim-boundary",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "causality-claim",
+      "question": "Does positive claim text stay within in-vitro evidence?",
+      "fixture": "examples/workflow-dose-response-curve/negative.causality-claim.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal claim-boundary",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "mechanism-claim",
+      "question": "Does positive claim text stay within in-vitro evidence?",
+      "fixture": "examples/workflow-dose-response-curve/negative.mechanism-claim.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal claim-boundary",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "computed-support",
+      "question": "Can a computed numerical record support a positive empirical claim?",
+      "fixture": "examples/workflow-dose-response-curve/negative.computed-support.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal computed-claim",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "review-as-truth",
+      "question": "Can review approval establish scientific truth?",
+      "fixture": "examples/workflow-dose-response-curve/negative.review-as-truth.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal computed-claim",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "computed-result-disguise",
+      "question": "Is declared result checked as well as record kind?",
+      "fixture": "examples/workflow-dose-response-curve/negative.computed-result-disguise.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal computed-claim",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "own-independent",
+      "question": "Does a label fail to make this run independent?",
+      "fixture": "examples/workflow-dose-response-curve/negative.own-independent.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal own-evidence",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "own-external",
+      "question": "Does a label fail to make this run independent?",
+      "fixture": "examples/workflow-dose-response-curve/negative.own-external.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal own-evidence",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "own-preregistered",
+      "question": "Does a label fail to make this run independent?",
+      "fixture": "examples/workflow-dose-response-curve/negative.own-preregistered.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal own-evidence",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "post-outcome-freeze",
+      "question": "Does freezing after outcomes stop confirmation?",
+      "fixture": "examples/workflow-dose-response-curve/negative.post-outcome-freeze.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal outcome-dependent-freeze",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "self-review",
+      "question": "Does producer approval fail as independent review?",
+      "fixture": "examples/workflow-dose-response-curve/negative.self-review.pack.json",
+      "expected": "refuse",
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal self-review",
+        "no traceback or input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      }
+    }
+  ]
+}

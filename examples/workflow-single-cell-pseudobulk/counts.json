@@ -1,0 +1,563 @@
+{
+  "annotation_version": "fixture-annotation-v1",
+  "cells": [
+    {
+      "cell_type": "T",
+      "counts": [
+        15,
+        39,
+        44,
+        100,
+        10,
+        792,
+        0
+      ],
+      "doublet": false,
+      "id": "U1-C0",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        16,
+        39,
+        47,
+        100,
+        10,
+        788,
+        0
+      ],
+      "doublet": false,
+      "id": "U1-C1",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        19,
+        39,
+        43,
+        100,
+        10,
+        789,
+        0
+      ],
+      "doublet": false,
+      "id": "U1-C2",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        19,
+        40,
+        47,
+        100,
+        10,
+        784,
+        0
+      ],
+      "doublet": false,
+      "id": "U1-C3",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        24,
+        158,
+        54,
+        100,
+        10,
+        654,
+        0
+      ],
+      "doublet": false,
+      "id": "U2-C0",
+      "unit_id": "U2"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        23,
+        159,
+        55,
+        100,
+        10,
+        653,
+        0
+      ],
+      "doublet": false,
+      "id": "U2-C1",
+      "unit_id": "U2"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        24,
+        159,
+        55,
+        100,
+        10,
+        652,
+        0
+      ],
+      "doublet": false,
+      "id": "U2-C2",
+      "unit_id": "U2"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        22,
+        161,
+        55,
+        100,
+        10,
+        652,
+        0
+      ],
+      "doublet": false,
+      "id": "U2-C3",
+      "unit_id": "U2"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        20,
+        39,
+        41,
+        100,
+        10,
+        790,
+        0
+      ],
+      "doublet": false,
+      "id": "U3-C0",
+      "unit_id": "U3"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        21,
+        38,
+        40,
+        100,
+        10,
+        791,
+        0
+      ],
+      "doublet": false,
+      "id": "U3-C1",
+      "unit_id": "U3"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        17,
+        40,
+        41,
+        100,
+        10,
+        792,
+        0
+      ],
+      "doublet": false,
+      "id": "U3-C2",
+      "unit_id": "U3"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        21,
+        41,
+        41,
+        100,
+        10,
+        787,
+        0
+      ],
+      "doublet": false,
+      "id": "U3-C3",
+      "unit_id": "U3"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        21,
+        161,
+        58,
+        100,
+        10,
+        650,
+        0
+      ],
+      "doublet": false,
+      "id": "U4-C0",
+      "unit_id": "U4"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        21,
+        158,
+        59,
+        100,
+        10,
+        652,
+        0
+      ],
+      "doublet": false,
+      "id": "U4-C1",
+      "unit_id": "U4"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        22,
+        159,
+        60,
+        100,
+        10,
+        649,
+        0
+      ],
+      "doublet": false,
+      "id": "U4-C2",
+      "unit_id": "U4"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        23,
+        160,
+        56,
+        100,
+        10,
+        651,
+        0
+      ],
+      "doublet": false,
+      "id": "U4-C3",
+      "unit_id": "U4"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        249,
+        38,
+        45,
+        100,
+        10,
+        558,
+        0
+      ],
+      "doublet": false,
+      "id": "U5-C0",
+      "unit_id": "U5"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        246,
+        41,
+        44,
+        100,
+        10,
+        559,
+        0
+      ],
+      "doublet": false,
+      "id": "U5-C1",
+      "unit_id": "U5"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        248,
+        38,
+        47,
+        100,
+        10,
+        557,
+        0
+      ],
+      "doublet": false,
+      "id": "U5-C2",
+      "unit_id": "U5"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        248,
+        39,
+        43,
+        100,
+        10,
+        560,
+        0
+      ],
+      "doublet": false,
+      "id": "U5-C3",
+      "unit_id": "U5"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        251,
+        162,
+        53,
+        100,
+        10,
+        424,
+        0
+      ],
+      "doublet": false,
+      "id": "U6-C0",
+      "unit_id": "U6"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        253,
+        158,
+        57,
+        100,
+        10,
+        422,
+        0
+      ],
+      "doublet": false,
+      "id": "U6-C1",
+      "unit_id": "U6"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        250,
+        162,
+        55,
+        100,
+        10,
+        423,
+        0
+      ],
+      "doublet": false,
+      "id": "U6-C2",
+      "unit_id": "U6"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        251,
+        159,
+        55,
+        100,
+        10,
+        425,
+        0
+      ],
+      "doublet": false,
+      "id": "U6-C3",
+      "unit_id": "U6"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        247,
+        38,
+        41,
+        100,
+        10,
+        564,
+        0
+      ],
+      "doublet": false,
+      "id": "U7-C0",
+      "unit_id": "U7"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        248,
+        42,
+        43,
+        100,
+        10,
+        557,
+        0
+      ],
+      "doublet": false,
+      "id": "U7-C1",
+      "unit_id": "U7"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        247,
+        40,
+        42,
+        100,
+        10,
+        561,
+        0
+      ],
+      "doublet": false,
+      "id": "U7-C2",
+      "unit_id": "U7"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        251,
+        39,
+        42,
+        100,
+        10,
+        558,
+        0
+      ],
+      "doublet": false,
+      "id": "U7-C3",
+      "unit_id": "U7"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        255,
+        161,
+        59,
+        100,
+        10,
+        415,
+        0
+      ],
+      "doublet": false,
+      "id": "U8-C0",
+      "unit_id": "U8"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        255,
+        160,
+        59,
+        100,
+        10,
+        416,
+        0
+      ],
+      "doublet": false,
+      "id": "U8-C1",
+      "unit_id": "U8"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        252,
+        161,
+        56,
+        100,
+        10,
+        421,
+        0
+      ],
+      "doublet": false,
+      "id": "U8-C2",
+      "unit_id": "U8"
+    },
+    {
+      "cell_type": "rare",
+      "counts": [
+        255,
+        158,
+        56,
+        100,
+        10,
+        421,
+        0
+      ],
+      "doublet": false,
+      "id": "U8-C3",
+      "unit_id": "U8"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        20,
+        40,
+        50,
+        100,
+        10,
+        780,
+        0
+      ],
+      "doublet": true,
+      "id": "fixture-doublet",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "doublet": false,
+      "id": "fixture-low",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        20,
+        40,
+        50,
+        100,
+        500,
+        290,
+        0
+      ],
+      "doublet": false,
+      "id": "fixture-mito",
+      "unit_id": "U1"
+    },
+    {
+      "cell_type": "T",
+      "counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "doublet": false,
+      "id": "fixture-empty",
+      "unit_id": "U1"
+    }
+  ],
+  "fixture": true,
+  "genes": [
+    "EFFECT",
+    "BATCH",
+    "NULL",
+    "MARK",
+    "MT",
+    "HOUSE",
+    "ZERO"
+  ],
+  "genome_version": "fixture-genome-v1",
+  "identifier_namespace": "fixture-gene",
+  "mitochondrial_genes": [
+    "MT"
+  ],
+  "organism": "synthetic-organism",
+  "schema": "single-cell-pseudobulk-counts-v1",
+  "seed": 20261103
+}

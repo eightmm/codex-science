@@ -1,0 +1,67 @@
+{
+  "adjustment": [],
+  "annotation_version": "fixture-annotation-v1",
+  "biological_units": [
+    {
+      "batch": "control",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "control",
+      "donor_id": "D1",
+      "id": "U1"
+    },
+    {
+      "batch": "control",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "control",
+      "donor_id": "D2",
+      "id": "U2"
+    },
+    {
+      "batch": "control",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "control",
+      "donor_id": "D3",
+      "id": "U3"
+    },
+    {
+      "batch": "control",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "control",
+      "donor_id": "D4",
+      "id": "U4"
+    },
+    {
+      "batch": "exposed",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "exposed",
+      "donor_id": "D5",
+      "id": "U5"
+    },
+    {
+      "batch": "exposed",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "exposed",
+      "donor_id": "D6",
+      "id": "U6"
+    },
+    {
+      "batch": "exposed",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "exposed",
+      "donor_id": "D7",
+      "id": "U7"
+    },
+    {
+      "batch": "exposed",
+      "chemistry": "fixture-chemistry-v1",
+      "condition": "exposed",
+      "donor_id": "D8",
+      "id": "U8"
+    }
+  ],
+  "fixture": true,
+  "genome_version": "fixture-genome-v1",
+  "identifier_namespace": "fixture-gene",
+  "organism": "synthetic-organism",
+  "schema": "single-cell-pseudobulk-design-v1"
+}

@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "claims.json",
+      "pointer": "/claims/0/text",
+      "value": "Synthetic fixture: pooled association causes recovery."
+    }
+  ],
+  "expected_code": "MA_CLAIM_BOUNDARY",
+  "synthetic": true
+}

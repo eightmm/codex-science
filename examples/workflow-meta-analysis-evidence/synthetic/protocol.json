@@ -1,0 +1,14 @@
+{
+  "direction": "exposed-minus-comparator",
+  "effect_measure": "mean_difference",
+  "eligibility": "Synthetic independent cohorts A, B and C, preserving all signs.",
+  "frozen_before_extraction": true,
+  "i_squared_threshold": 50,
+  "min_studies": 3,
+  "model": "random",
+  "question": "Synthetic fixture: what is the pooled toy-score association?",
+  "schema": "meta-analysis-protocol-v1",
+  "subgroups": [],
+  "tau_squared_threshold": 10,
+  "unit": "toy-score"
+}

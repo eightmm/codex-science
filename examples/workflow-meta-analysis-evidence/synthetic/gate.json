@@ -1,0 +1,12 @@
+{
+  "conversions": [],
+  "exclusions": [],
+  "included_studies": [
+    "A",
+    "B",
+    "C"
+  ],
+  "schema": "meta-analysis-gate-v1",
+  "subgroups": [],
+  "synthetic": true
+}

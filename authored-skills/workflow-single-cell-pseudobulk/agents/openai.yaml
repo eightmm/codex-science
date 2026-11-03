@@ -1,0 +1,4 @@
+interface:
+  display_name: "Single-cell Pseudobulk"
+  short_description: "Compare donor-level scRNA counts with frozen controls"
+  default_prompt: "Use $workflow-single-cell-pseudobulk to freeze biological units and QC, aggregate supplied synthetic counts, compare conditions without pseudoreplication and hand off bounded evidence for independent review."

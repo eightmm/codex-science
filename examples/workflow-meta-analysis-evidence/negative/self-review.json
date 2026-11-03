@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "handoff.json",
+      "pointer": "/review_status",
+      "value": "passed"
+    }
+  ],
+  "expected_code": "MA_REVIEW",
+  "synthetic": true
+}

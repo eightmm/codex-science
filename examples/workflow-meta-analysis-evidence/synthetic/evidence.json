@@ -1,0 +1,17 @@
+{
+  "records": [
+    {
+      "artifact": {
+        "path": "source-A.json",
+        "sha256": "98ce8b8c2adc2c990ec3d02899832327485395e00889388776587a6196dda219"
+      },
+      "id": "fixture-source-A",
+      "kind": "observed-effect",
+      "provenance": "recorded",
+      "result": "recorded",
+      "text": "Synthetic fixture only: study A records an association on the toy score scale."
+    }
+  ],
+  "schema": "meta-analysis-evidence-v1",
+  "synthetic": true
+}

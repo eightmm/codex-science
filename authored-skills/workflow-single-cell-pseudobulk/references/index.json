@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software fixture acceptance only; no biological validity or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Input identities, five stages, local record shapes, refusal controls and read-only CLI.",
+      "read_when": [
+        "admitting supplied single-cell counts",
+        "freezing cell and gene controls",
+        "computing biological-unit pseudobulk",
+        "validating or handing off condition evidence"
+      ],
+      "required_before": [
+        "dataset-admission",
+        "qc",
+        "aggregation",
+        "condition-comparison",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Invocation and identities",
+        "## 04-comparison: statistical evidence"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage ordering cannot prove execution, preregistration timing or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest plan step shape for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-design",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-single-cell-pseudobulk"
+}

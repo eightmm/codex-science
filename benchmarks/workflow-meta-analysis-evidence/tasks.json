@@ -1,0 +1,438 @@
+{
+  "schema": "meta-analysis-benchmark-v1",
+  "synthetic": true,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "FE mean = 2/3; Q = 50/3; DL tau squared = 22/3; I squared = 88 percent.",
+        "RE standard error = 5/3; omission of C reverses sign.",
+        "Statistical evidence only; review pending."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "passed",
+      "fixture": "examples/workflow-meta-analysis-evidence/synthetic/pack.json",
+      "id": "synthetic-clean",
+      "question": "Synthetic fixture: what is the pooled toy-score association?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_INDEPENDENCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/cohort-overlap.json",
+      "id": "synthetic-cohort-overlap",
+      "question": "Synthetic fixture: does the cohort-overlap defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_INDEPENDENCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/participant-overlap.json",
+      "id": "synthetic-participant-overlap",
+      "question": "Synthetic fixture: does the participant-overlap defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_INDEPENDENCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/group-overlap.json",
+      "id": "synthetic-group-overlap",
+      "question": "Synthetic fixture: does the group-overlap defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_COMPARABILITY",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/mixed-scales.json",
+      "id": "synthetic-mixed-scales",
+      "question": "Synthetic fixture: does the mixed-scales defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_COMPARABILITY",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/opposite-direction.json",
+      "id": "synthetic-opposite-direction",
+      "question": "Synthetic fixture: does the opposite-direction defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_HETEROGENEITY",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/fixed-headline.json",
+      "id": "synthetic-fixed-headline",
+      "question": "Synthetic fixture: does the fixed-headline defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_POSTHOC",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/posthoc-exclusion.json",
+      "id": "synthetic-posthoc-exclusion",
+      "question": "Synthetic fixture: does the posthoc-exclusion defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_POSTHOC",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/posthoc-subgroup.json",
+      "id": "synthetic-posthoc-subgroup",
+      "question": "Synthetic fixture: does the posthoc-subgroup defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_POSTHOC",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/unfrozen-subgroup.json",
+      "id": "synthetic-unfrozen-subgroup",
+      "question": "Synthetic fixture: does the unfrozen-subgroup defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_VARIANCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/missing-variance.json",
+      "id": "synthetic-missing-variance",
+      "question": "Synthetic fixture: does the missing-variance defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_VARIANCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/zero-variance.json",
+      "id": "synthetic-zero-variance",
+      "question": "Synthetic fixture: does the zero-variance defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_VARIANCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/negative-variance.json",
+      "id": "synthetic-negative-variance",
+      "question": "Synthetic fixture: does the negative-variance defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_UNITS",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/mixed-units.json",
+      "id": "synthetic-mixed-units",
+      "question": "Synthetic fixture: does the mixed-units defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_MIN_STUDIES",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/too-few.json",
+      "id": "synthetic-too-few",
+      "question": "Synthetic fixture: does the too-few defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_LOO",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/hidden-reversal.json",
+      "id": "synthetic-hidden-reversal",
+      "question": "Synthetic fixture: does the hidden-reversal defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_CLAIM_BOUNDARY",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/causal-claim.json",
+      "id": "synthetic-causal-claim",
+      "question": "Synthetic fixture: does the causal-claim defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_CLAIM_BOUNDARY",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/clinical-claim.json",
+      "id": "synthetic-clinical-claim",
+      "question": "Synthetic fixture: does the clinical-claim defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_CLAIM_EVIDENCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/computed-support.json",
+      "id": "synthetic-computed-support",
+      "question": "Synthetic fixture: does the computed-support defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_CLAIM_EVIDENCE",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/review-support.json",
+      "id": "synthetic-review-support",
+      "question": "Synthetic fixture: does the review-support defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_EXTERNAL",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/external-alias.json",
+      "id": "synthetic-external-alias",
+      "question": "Synthetic fixture: does the external-alias defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_PRESERVATION",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/missing-as-negative.json",
+      "id": "synthetic-missing-as-negative",
+      "question": "Synthetic fixture: does the missing-as-negative defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_PRESERVATION",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/failed-control.json",
+      "id": "synthetic-failed-control",
+      "question": "Synthetic fixture: does the failed-control defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_REVIEW",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/self-review.json",
+      "id": "synthetic-self-review",
+      "question": "Synthetic fixture: does the self-review defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_PROTOCOL",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/unfrozen-protocol.json",
+      "id": "synthetic-unfrozen-protocol",
+      "question": "Synthetic fixture: does the unfrozen-protocol defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Refuse the stated defect without writing inputs or calling a network.",
+        "Retain failed controls and negative results."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_NUMERIC",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/wrong-numbers.json",
+      "id": "synthetic-wrong-numbers",
+      "question": "Synthetic fixture: does the wrong-numbers defect refuse with its named finding?",
+      "synthetic": true
+    },
+    {
+      "acceptance_criteria": [
+        "Require one existing checkpoint with all five ordered stage IDs."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "expected": "MA_CHECKPOINT",
+      "fixture": "examples/workflow-meta-analysis-evidence/negative/checkpoint-order.json",
+      "id": "synthetic-checkpoint-order",
+      "question": "Synthetic fixture: does an unordered coordinator checkpoint refuse?",
+      "synthetic": true
+    }
+  ]
+}

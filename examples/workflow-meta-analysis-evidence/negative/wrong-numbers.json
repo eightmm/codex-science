@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "pooling.json",
+      "pointer": "/results/q",
+      "value": 0
+    }
+  ],
+  "expected_code": "MA_NUMERIC",
+  "synthetic": true
+}

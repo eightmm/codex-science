@@ -1,0 +1,35 @@
+{
+  "claim_ids": [
+    "fixture-observation"
+  ],
+  "created_at": "2026-01-04T00:00:00Z",
+  "inputs": {
+    "assay": {
+      "path": "synthetic.assay.json",
+      "sha256": "4959998b74ff26ebf5d85dbe750d75a1df67a6f2d519b441564f99fc515cb5f6"
+    },
+    "claims": {
+      "path": "negative.missing-vehicle.claims.json",
+      "sha256": "d5c4fae6b21a2c1d0bd7050dd0bebed448f4cdb634408665aa613fc7e757472c"
+    },
+    "fit": {
+      "path": "negative.missing-vehicle.fit.json",
+      "sha256": "d8ea4d27cf09494b9a66c3b511cd9d1b9415f292703de5a1bd480aaa35b2e237"
+    },
+    "plate": {
+      "path": "negative.missing-vehicle.plate.json",
+      "sha256": "09fd5d10c5f8488f5d9dccf8767d3c503fe7291ebeadb1efc0dd2340f44ca530"
+    },
+    "qc": {
+      "path": "negative.missing-vehicle.qc.json",
+      "sha256": "427010bd26345bd85b436bb0283866e26f3f1a3f0f4cdfbb728937f1976b57da"
+    },
+    "uncertainty": {
+      "path": "negative.missing-vehicle.uncertainty.json",
+      "sha256": "fe3f83047819af1f303ad30407d59798ac746ca224c724beee971ed9623255c9"
+    }
+  },
+  "reviewed": false,
+  "schema": "dose-response-handoff-v1",
+  "status": "ready-for-independent-review"
+}

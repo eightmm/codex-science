@@ -1,0 +1,191 @@
+{
+  "cases": [
+    {
+      "code": "potency-extrapolation",
+      "id": "extrapolated-potency",
+      "pack": "negative.extrapolated-potency.pack.json",
+      "question": "Is potency outside the tested range refused?"
+    },
+    {
+      "code": "plateau-not-reached",
+      "id": "unreached-plateau",
+      "pack": "negative.unreached-plateau.pack.json",
+      "question": "Is full assay response refused without the upper plateau?"
+    },
+    {
+      "code": "insufficient-concentrations",
+      "id": "too-few-concentrations",
+      "pack": "negative.too-few-concentrations.pack.json",
+      "question": "Does an incomplete concentration series stop fitting?"
+    },
+    {
+      "code": "insufficient-replicates",
+      "id": "too-few-biological-replicates",
+      "pack": "negative.too-few-biological-replicates.pack.json",
+      "question": "Are biological replicates counted independently?"
+    },
+    {
+      "code": "insufficient-replicates",
+      "id": "too-few-technical-replicates",
+      "pack": "negative.too-few-technical-replicates.pack.json",
+      "question": "Are technical-repeat minimums enforced?"
+    },
+    {
+      "code": "pseudoreplication",
+      "id": "technical-as-biological",
+      "pack": "negative.technical-as-biological.pack.json",
+      "question": "Do technical wells fail as independent biological replicates?"
+    },
+    {
+      "code": "missing-control",
+      "id": "missing-vehicle",
+      "pack": "negative.missing-vehicle.pack.json",
+      "question": "Is absent vehicle unavailable rather than negative evidence?"
+    },
+    {
+      "code": "missing-control",
+      "id": "missing-positive",
+      "pack": "negative.missing-positive.pack.json",
+      "question": "Is a missing positive control refused?"
+    },
+    {
+      "code": "controls-failed",
+      "id": "failed-controls",
+      "pack": "negative.failed-controls.pack.json",
+      "question": "Do controls below the frozen separation threshold block potency?"
+    },
+    {
+      "code": "unit-mismatch",
+      "id": "unrecorded-unit-conversion",
+      "pack": "negative.unrecorded-unit-conversion.pack.json",
+      "question": "Is nM/uM mixing refused without conversion provenance?"
+    },
+    {
+      "code": "unreportable-fit",
+      "id": "nonconverged-fit",
+      "pack": "negative.nonconverged-fit.pack.json",
+      "question": "Is a nonconverged fit refused as a reported result?"
+    },
+    {
+      "code": "unreportable-fit",
+      "id": "boundary-fit",
+      "pack": "negative.boundary-fit.pack.json",
+      "question": "Is a boundary-hitting fit refused as a result?"
+    },
+    {
+      "code": "unlabelled-deviation",
+      "id": "changed-model",
+      "pack": "negative.changed-model.pack.json",
+      "question": "Must post-outcome model changes be exploratory?"
+    },
+    {
+      "code": "unlabelled-deviation",
+      "id": "changed-constraints",
+      "pack": "negative.changed-constraints.pack.json",
+      "question": "Must post-outcome constraint changes be exploratory?"
+    },
+    {
+      "code": "unlabelled-deviation",
+      "id": "changed-outlier-rule",
+      "pack": "negative.changed-outlier-rule.pack.json",
+      "question": "Must post-outcome outlier rule changes be exploratory?"
+    },
+    {
+      "code": "outlier-rule",
+      "id": "unreasoned-exclusion",
+      "pack": "negative.unreasoned-exclusion.pack.json",
+      "question": "Must exclusions retain a recorded reason?"
+    },
+    {
+      "code": "point-ranking",
+      "id": "point-ranking",
+      "pack": "negative.point-ranking.pack.json",
+      "question": "Can points alone rank compounds?"
+    },
+    {
+      "code": "overlapping-intervals",
+      "id": "overlapping-ranking",
+      "pack": "negative.overlapping-ranking.pack.json",
+      "question": "Do overlapping intervals preclude ordering?"
+    },
+    {
+      "code": "claim-boundary",
+      "id": "clinical-claim",
+      "pack": "negative.clinical-claim.pack.json",
+      "question": "Does positive claim text stay within in-vitro evidence?"
+    },
+    {
+      "code": "claim-boundary",
+      "id": "safety-claim",
+      "pack": "negative.safety-claim.pack.json",
+      "question": "Does positive claim text stay within in-vitro evidence?"
+    },
+    {
+      "code": "claim-boundary",
+      "id": "dose-claim",
+      "pack": "negative.dose-claim.pack.json",
+      "question": "Does positive claim text stay within in-vitro evidence?"
+    },
+    {
+      "code": "claim-boundary",
+      "id": "causality-claim",
+      "pack": "negative.causality-claim.pack.json",
+      "question": "Does positive claim text stay within in-vitro evidence?"
+    },
+    {
+      "code": "claim-boundary",
+      "id": "mechanism-claim",
+      "pack": "negative.mechanism-claim.pack.json",
+      "question": "Does positive claim text stay within in-vitro evidence?"
+    },
+    {
+      "code": "computed-claim",
+      "id": "computed-support",
+      "pack": "negative.computed-support.pack.json",
+      "question": "Can a computed numerical record support a positive empirical claim?"
+    },
+    {
+      "code": "computed-claim",
+      "id": "review-as-truth",
+      "pack": "negative.review-as-truth.pack.json",
+      "question": "Can review approval establish scientific truth?"
+    },
+    {
+      "code": "computed-claim",
+      "id": "computed-result-disguise",
+      "pack": "negative.computed-result-disguise.pack.json",
+      "question": "Is declared result checked as well as record kind?"
+    },
+    {
+      "code": "own-evidence",
+      "id": "own-independent",
+      "pack": "negative.own-independent.pack.json",
+      "question": "Does a label fail to make this run independent?"
+    },
+    {
+      "code": "own-evidence",
+      "id": "own-external",
+      "pack": "negative.own-external.pack.json",
+      "question": "Does a label fail to make this run independent?"
+    },
+    {
+      "code": "own-evidence",
+      "id": "own-preregistered",
+      "pack": "negative.own-preregistered.pack.json",
+      "question": "Does a label fail to make this run independent?"
+    },
+    {
+      "code": "outcome-dependent-freeze",
+      "id": "post-outcome-freeze",
+      "pack": "negative.post-outcome-freeze.pack.json",
+      "question": "Does freezing after outcomes stop confirmation?"
+    },
+    {
+      "code": "self-review",
+      "id": "self-review",
+      "pack": "negative.self-review.pack.json",
+      "question": "Does producer approval fail as independent review?"
+    }
+  ],
+  "fixture": true
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meta-analysis Evidence"
+  short_description: "Pool extracted effects with frozen evidence gates"
+  default_prompt: "Use $workflow-meta-analysis-evidence for extracted study effects, cohort independence, frozen pooling and independent review handoff."

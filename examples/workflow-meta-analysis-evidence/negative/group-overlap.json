@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "studies.json",
+      "pointer": "/studies/1/independence_group",
+      "value": "fixture-group-A"
+    }
+  ],
+  "expected_code": "MA_INDEPENDENCE",
+  "synthetic": true
+}

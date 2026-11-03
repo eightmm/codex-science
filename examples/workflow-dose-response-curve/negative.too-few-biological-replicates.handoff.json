@@ -1,0 +1,35 @@
+{
+  "claim_ids": [
+    "fixture-observation"
+  ],
+  "created_at": "2026-01-04T00:00:00Z",
+  "inputs": {
+    "assay": {
+      "path": "synthetic.assay.json",
+      "sha256": "4959998b74ff26ebf5d85dbe750d75a1df67a6f2d519b441564f99fc515cb5f6"
+    },
+    "claims": {
+      "path": "negative.too-few-biological-replicates.claims.json",
+      "sha256": "b0c8fefade8405c7b4b559200108da10789905e4a4e79353dd0b3207a15490c9"
+    },
+    "fit": {
+      "path": "negative.too-few-biological-replicates.fit.json",
+      "sha256": "a827bdd7f89c90d5c9529972ffbb0dcac143276603e9a3b56c84edb8f6d8f99a"
+    },
+    "plate": {
+      "path": "negative.too-few-biological-replicates.plate.json",
+      "sha256": "dce753b61168dd3e88838b9212d38fbdfac665a477e3bdef5a63a268a3fc7d1b"
+    },
+    "qc": {
+      "path": "synthetic.qc.json",
+      "sha256": "df47a7d9134c867293159c3dc1c1c68c1902f96e1f1b5fe7facf35f12e34f7f6"
+    },
+    "uncertainty": {
+      "path": "negative.too-few-biological-replicates.uncertainty.json",
+      "sha256": "246c7a0bc10f1c8729d8863015f47107ec371c61e98e6677ecec7e3aebd270d5"
+    }
+  },
+  "reviewed": false,
+  "schema": "dose-response-handoff-v1",
+  "status": "ready-for-independent-review"
+}

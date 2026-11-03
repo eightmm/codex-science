@@ -1,0 +1,17 @@
+{
+  "changes": [
+    {
+      "file": "gate.json",
+      "pointer": "/subgroups",
+      "value": [
+        {
+          "exploratory": false,
+          "name": "favorable",
+          "timing": "after-results"
+        }
+      ]
+    }
+  ],
+  "expected_code": "MA_POSTHOC",
+  "synthetic": true
+}

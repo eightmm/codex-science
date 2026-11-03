@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "file": "studies.json",
+      "pointer": "/studies/0/variance",
+      "value": null
+    }
+  ],
+  "expected_code": "MA_VARIANCE",
+  "synthetic": true
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-dose-response-curve",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages", "path": "references/stages.md",
+      "purpose": "Frozen stage inputs, thresholds, composition, failures and human gates",
+      "read_when": ["assay-freeze", "curve-fitting", "uncertainty", "claim-handoff"],
+      "required_before": ["assay-freeze", "curve-fitting", "uncertainty", "claim-handoff"],
+      "search_patterns": ["## Ordered stages", "## Claim gate", "## Human decision gates"],
+      "authority": "repository-contract", "version": "1",
+      "evidence_boundary": "Procedure and synthetic acceptance only; no experimental or clinical validation."
+    },
+    {
+      "id": "records", "path": "references/records.md",
+      "purpose": "Pack-local schemas, numerical assumptions, command signatures and security limits",
+      "read_when": ["record-authoring", "pack-validation"],
+      "required_before": ["record-authoring", "pack-validation"],
+      "search_patterns": ["## Local schemas", "## Commands", "## Input safety"],
+      "authority": "repository-contract", "version": "1",
+      "evidence_boundary": "Identity and deterministic fixture consistency do not establish truth or preregistration."
+    },
+    {
+      "id": "plan", "path": "references/plan.json",
+      "purpose": "Five ordered stage IDs using existing manifest plan step fields",
+      "read_when": ["checkpoint-planning"], "required_before": ["checkpoint-planning"],
+      "search_patterns": ["\"plan\"", "\"id\""],
+      "authority": "repository-contract", "version": "1",
+      "evidence_boundary": "Planning only; no execution engine or scientific evidence."
+    }
+  ]
+}

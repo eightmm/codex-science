@@ -1,0 +1,12 @@
+{
+  "cell_types": [
+    "T"
+  ],
+  "fixture": true,
+  "genes": [
+    "EFFECT"
+  ],
+  "kind": "computed-record",
+  "result": "donor-level-association",
+  "schema": "single-cell-pseudobulk-evidence-v1"
+}

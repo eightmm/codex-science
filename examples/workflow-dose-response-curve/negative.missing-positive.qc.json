@@ -1,0 +1,10 @@
+{
+  "exclusions": [],
+  "failures": [
+    "missing-control"
+  ],
+  "schema": "dose-response-qc-v1",
+  "separation": null,
+  "status": "failed",
+  "window": null
+}

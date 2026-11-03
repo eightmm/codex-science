@@ -1,0 +1,8 @@
+{
+  "kind": "observed-effect",
+  "result": "recorded",
+  "schema": "meta-analysis-source-v1",
+  "study_id": "A",
+  "synthetic": true,
+  "text": "Synthetic fixture only: study A records an association on the toy score scale."
+}
