@@ -149,6 +149,12 @@ class TargetAssessmentTests(unittest.TestCase):
                         result_cli = self.cli()
                         self.assertEqual(1, result_cli.returncode, result_cli.stderr)
                         self.assertEqual("MEMO_OVERCLAIM", json.loads(result_cli.stdout)["finding"])
+        for status in ("supported", "replicated"):
+            for result in ("review-approval", "numerical-agreement"):
+                with self.subTest(status=status, declared_result=result):
+                    self.record_claim("descriptive", result, "Synthetic fixture: the recorded check completed.", status=status)
+                    with self.assertRaisesRegex(ValueError, "MEMO_OVERCLAIM"):
+                        validate_target_assessment_pack(self.bundle)
         for status in ("replicated", "suggestive"):
             for record_kind, result in (("review-approval", "review-approval"), ("computed", "numerical-agreement")):
                 with self.subTest(status=status, record_kind=record_kind):

@@ -292,7 +292,8 @@ def _check_claims(memo, records, claim_register):
         _require(isinstance(claim.get("status"), str) and claim["status"] in CLAIM_STATUSES,
                  "invalid claim-register status", "MEMO_OVERCLAIM")
         if claim["status"] in ("supported", "replicated", "suggestive"):
-            _require(all(records[ref][1]["kind"] not in ("review-approval", "computed") for ref in ids),
+            _require(all(records[ref][1]["kind"] not in ("review-approval", "computed")
+                         and records[ref][1]["result"] not in ("review-approval", "numerical-agreement") for ref in ids),
                      "review approval or computation cannot support a memo claim", "MEMO_OVERCLAIM")
             _require(not re.search(r"\b(?:efficacy|effective|effectiveness|efficacious)\b", claim["text"], re.IGNORECASE),
                      "memo evidence cannot support efficacy or effectiveness", "MEMO_OVERCLAIM")

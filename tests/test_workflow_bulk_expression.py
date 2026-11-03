@@ -352,8 +352,9 @@ class BulkExpressionTests(unittest.TestCase):
             regular.write_bytes(b"{}")
             fifo = folder / "pipe.json"
             os.mkfifo(fifo)
-            with patch.object(Path, "lstat", return_value=os.lstat(regular)):
-                with self.assertRaisesRegex(ValueError, "^invalid-record:"):
+            with patch.object(Path, "lstat", return_value=os.lstat(regular)), \
+                    patch.object(Path, "is_file", return_value=True):
+                with self.assertRaisesRegex(ValueError, "^invalid-record: input must be an available regular JSON file"):
                     validate_bulk_expression_pack(fifo)
 
     def test_input_byte_bound_hash_and_json_shapes(self):
