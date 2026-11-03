@@ -21,8 +21,8 @@
   `output_cap`; the resume driver stops with code `turn_failed` and reason
   `output_cap`, while runner receipts use `last_message_present` for empty or
   capped last-message output.
-- All 139 first-party skills meet L3 (the documentation contract); the audit
-  reports 139 skills: L0 0, L1 0, L2 0, L3 120, L4 19. Five additional skills now
+- All 144 first-party skills meet L3 (the documentation contract); the audit
+  reports 144 skills: L0 0, L1 0, L2 0, L3 120, L4 24. Five additional skills now
   have L4 executable acceptance fixtures with named seeded failures exercised
   through their public entry points. These deterministic fixtures validate
   software contracts, not empirical results. Existing endpoints, attribution, and gates
