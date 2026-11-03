@@ -55,7 +55,7 @@ accepts the shared `limit` argument but ignores it.
 | HMDB | gated | Public search returned HTTP 403; source-specific reuse terms apply |
 | GeneBass burden | gated | No stable documented public API verified |
 | eQTL Catalogue | cataloged | Prefer versioned bulk releases until a stable query API is verified |
-| MetaboLights search | cataloged | Current study-list endpoint does not apply a specific search query |
+| MetaboLights search | cataloged | Searches the EBI Search `metabolights` domain (`ebisearch/ws/rest/metabolights`); only `MTBLS<digits>` entries are returned, titled by the first `name` field |
 | PharmGKB | gated | License and data-use terms require source-specific review |
 | CIViC/IPD | cataloged | Useful sources, but not required for the first safe MCP tranche |
 

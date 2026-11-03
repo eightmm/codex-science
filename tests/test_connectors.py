@@ -61,7 +61,6 @@ class TypedPayloadTests(unittest.TestCase):
         (JASPARConnector, "jaspar", "results", "matrix_id"),
         (UniBindConnector, "unibind", "results", "id"),
         (ArrayExpressConnector, "arrayexpress", "hits", "accession"),
-        (MetaboLightsConnector, "metabolights", "content", "studyIdentifier"),
         (OpenFDAConnector, "openfda", "results", "id"),
         (BindingDBConnector, "bindingdb", "affinities", "monomerid"),
         (EMDBConnector, "emdb", "results", "emdb_id"),
@@ -226,6 +225,30 @@ class TypedPayloadTests(unittest.TestCase):
                 changed = {**snapshot, "receipt": {**snapshot["receipt"], "query_id": value}}
                 with self.subTest(value=value), self.assertRaisesRegex(ValueError, "snapshot receipt query_id mismatch"):
                     replay_snapshot(changed)
+
+    def test_metabolights_uses_ebi_search_and_validates_entries(self):
+        seen = []
+        payload = {"hitCount": 3, "entries": [
+            {"id": " MTBLS1 ", "source": "metabolights", "fields": {"name": ["Glucose study"], "description": ["d"]}},
+            {"id": "other-1", "fields": {"name": ["skipped"]}}, {"id": None}, {"id": "MTBLS2", "fields": {"name": []}},
+            {"id": "MTBLS3", "fields": None},
+        ]}
+        def fetch(url):
+            seen.append(url)
+            return payload
+        connector = MetaboLightsConnector(fetch_json=fetch)
+        records = connector.search(" glucose plasma ", limit=5)
+        self.assertEqual("https://www.ebi.ac.uk/ebisearch/ws/rest/metabolights?query=glucose+plasma&format=json&size=5&fields=name", seen[0])
+        self.assertEqual([("MTBLS1", "Glucose study"), ("MTBLS2", "MTBLS2"), ("MTBLS3", "MTBLS3")], [(r["id"], r["title"]) for r in records])
+        self.assertEqual({"id", "title", "release_date", "url"}, set(records[0]))
+        self.assertEqual("https://www.ebi.ac.uk/metabolights/MTBLS1", records[0]["url"])
+        self.assertEqual(1, len(connector.search("x", limit=1)))
+        result = execute_connector(connector, QueryRequest("metabolights", "search", {"query": "x"}, page_size=1))
+        self.assertEqual("bounded", result.receipt.completeness)
+        self.assertEqual("complete", execute_connector(MetaboLightsConnector(fetch_json=lambda _: {"entries": []}), QueryRequest("metabolights", "search", {"query": "x"})).receipt.completeness)
+        for bad in (None, [], {}, {"error": "x", "entries": []}, {"entries": None}, {"entries": {}}, {"content": ["MTBLS1"]}, {"entries": ["MTBLS1"]}, {"entries": [{"id": 5}]}, {"entries": [{"id": " "}]}):
+            with self.subTest(payload=bad), self.assertRaises(ValueError):
+                MetaboLightsConnector(fetch_json=lambda _: bad).search("x")
 
     def test_malformed_shapes_cannot_create_negative_receipts(self):
         for cls, source, container, _ in self.cases:

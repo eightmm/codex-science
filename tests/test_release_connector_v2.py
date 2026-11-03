@@ -859,7 +859,7 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
             {"results": [{"matrix_id": "MA0001", "name": "Motif", "collection": "CORE"}]},
             [{"id": "ds1", "tf_name": "TF", "species": "human"}],
             {"hits": [{"accession": "E-MTAB-1", "title": "Study"}]},
-            {"content": [{"studyIdentifier": " MTBLS1", "title": "Metabolome"}]},
+            {"entries": [{"id": " MTBLS1", "fields": {"name": ["Metabolome"]}}]},
             {"results": [{"openfda": {"spl_id": ["spl1"], "brand_name": ["Brand"], "product_type": ["HUMAN PRESCRIPTION DRUG"]}}]},
             {"affinities": [{"monomerid": "42", "ligand_name": "Ligand", "affinity_type": "Ki", "affinity": 3}]},
             {"results": [{"emdb_id": "EMD-1"}]},

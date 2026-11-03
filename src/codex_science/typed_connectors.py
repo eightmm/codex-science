@@ -188,13 +188,29 @@ class ArrayExpressConnector:
         return [{"id": _record_id(item, "accession"), "title": str(item.get("title") or item.get("accession") or ""), "repository": "ArrayExpress/BioStudies", "release_date": str(item.get("release_date") or ""), "url": f"https://www.ebi.ac.uk/biostudies/arrayexpress/studies/{_quote(_record_id(item, 'accession'))}"} for item in _received_records(_response_items(payload, ("hits",)))[:limit] if _record_id(item, "accession")]
 
 
+METABOLIGHTS_ID_RE = re.compile(r"^MTBLS[0-9]+$")
+
+
+def _metabolights_record(entry: Any) -> dict[str, str] | None:
+    identifier = _record_id(entry, "id")
+    if not METABOLIGHTS_ID_RE.fullmatch(identifier):
+        return None
+    fields = entry.get("fields")
+    names = fields.get("name") if isinstance(fields, dict) else None
+    first = next((name for name in (names if isinstance(names, list) else [names]) if isinstance(name, str) and name.strip()), "")
+    return {"id": identifier, "title": first.strip() or identifier, "release_date": "", "url": f"https://www.ebi.ac.uk/metabolights/{_quote(identifier)}"}
+
+
 class MetaboLightsConnector:
     def __init__(self, *, fetch_json: Callable[[str], Any] = fetch_json) -> None: self._fetch_json = fetch_json
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, limit = _validate(query, limit)
-        payload = self._fetch_json(f"https://www.ebi.ac.uk/metabolights/ws/studies?{urllib.parse.urlencode({'search': query})}")
-        items = _response_items(payload, ("content", "studies"))
-        return [{"id": _record_id(item, "studyIdentifier", "accession"), "title": str(item.get("title") or item.get("studyIdentifier") or ""), "release_date": str(item.get("releaseDate") or ""), "url": f"https://www.ebi.ac.uk/metabolights/{_quote(_record_id(item, 'studyIdentifier', 'accession'))}"} for item in _received_records(items)[:limit] if _record_id(item, "studyIdentifier", "accession")]
+        params = urllib.parse.urlencode({"query": query, "format": "json", "size": limit, "fields": "name"})
+        payload = self._fetch_json(f"https://www.ebi.ac.uk/ebisearch/ws/rest/metabolights?{params}")
+        if not isinstance(payload, dict):
+            raise ValueError("response must contain a result list: entries")
+        records = (_metabolights_record(entry) for entry in _received_records(_response_items(payload, ("entries",)))[:limit])
+        return [record for record in records if record]
 
 
 class OpenFDAConnector:
