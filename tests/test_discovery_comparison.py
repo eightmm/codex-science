@@ -320,6 +320,11 @@ class DiscoveryComparisonTests(unittest.TestCase):
         report = evaluate_comparison(contract, records, root)
         self.assertEqual("rejected", report["status"])
         self.assertTrue(any(e["code"] == "evaluator_refs" for e in report["errors"]), report["errors"][:3])
+        self.assertFalse(any(str(root.resolve()) in e["message"] for e in report["errors"]), report["errors"][:3])
+        result_file.chmod(0); evaluator_file.chmod(0o644)
+        report = evaluate_comparison(contract, records, root)
+        self.assertFalse(any(str(root.resolve()) in e["message"] for e in report["errors"]), report["errors"][:3])
+        self.assertTrue(any(records[0]["result_ref"]["path"] in e["message"] for e in report["errors"] if e["code"] == "result_ref"))
 
     def _cli_fixture(self, ordinary_fails=False):
         root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)

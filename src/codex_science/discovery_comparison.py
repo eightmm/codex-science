@@ -64,9 +64,12 @@ def _checked_refs(value, field, root, hashes, max_bytes=None):
     refs = _refs(value, field, None)
     for ref in refs:
         path = _confined_file(root, ref["path"])
-        if max_bytes is not None and path.stat().st_size > max_bytes:
-            raise ValueError(f"{field} file exceeds {max_bytes} bytes: {ref['path']}")
-        if path not in hashes: hashes[path] = _file_hash(path)
+        try:
+            if max_bytes is not None and path.stat().st_size > max_bytes:
+                raise ValueError(f"{field} file exceeds {max_bytes} bytes: {ref['path']}")
+            if path not in hashes: hashes[path] = _file_hash(path)
+        except OSError as error:
+            raise OSError(f"cannot read {ref['path']}: {error.strerror or type(error).__name__}") from error
         if hashes[path] != ref["sha256"]: raise ValueError(f"{field} hash mismatch: {ref['path']}")
     return refs
 
