@@ -223,7 +223,8 @@ class HTSReferenceTests(_Fixture):
     def test_cli_success_refusal_help_and_no_writes(self):
         before = {p.name: p.read_bytes() for p in self.folder.iterdir()}
         for args, expected in (([str(self.folder / 'pack.json')], 0),
-                               ([str(self.folder / 'missing.json')], 2), (['--help'], 0)):
+                               ([str(self.folder / 'missing.json')], 2), ([], 2),
+                               ([str(self.folder / 'pack.json'), 'extra'], 2), (['--help'], 0)):
             result = subprocess.run([sys.executable, str(CLI), *args], capture_output=True,
                                     text=True, timeout=CALL_TIMEOUT)
             self.assertEqual(expected, result.returncode, result.stderr)
@@ -419,6 +420,23 @@ class HTSHardeningTests(_Fixture):
             return original(bundle)
         with patch.object(self.api._Bundle, 'recheck', replaced):
             self.refusal('input-changed')
+
+    def test_ancestor_replaced_with_same_bundle_inode(self):
+        original = self.api._Bundle.recheck
+        parent = self.folder.parent
+        moved = parent.with_name(parent.name + '-old')
+        def replaced(bundle):
+            parent.rename(moved)
+            parent.mkdir()
+            (moved / self.folder.name).rename(self.folder)
+            return original(bundle)
+        try:
+            with patch.object(self.api._Bundle, 'recheck', replaced):
+                self.refusal('input-changed')
+        finally:
+            self.folder.rename(moved / self.folder.name)
+            parent.rmdir()
+            moved.rename(parent)
 
     def test_claim_families_unavailable_mixed_and_independence(self):
         for family in self.api.WORDING_FAMILIES:

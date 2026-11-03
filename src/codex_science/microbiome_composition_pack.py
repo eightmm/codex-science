@@ -123,7 +123,7 @@ def _integer(value):
 
 def _json(raw, allowance):
     # This conservative upper bound also counts commas inside strings.
-    nodes = 1 + raw.count(b",") + len(re.findall(rb"[\[{](?=\s*[^\s\]}])", raw))
+    nodes = 1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw))
     _require(nodes <= allowance, "input-limit", "bundle JSON value allowance exceeded")
     try:
         value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,

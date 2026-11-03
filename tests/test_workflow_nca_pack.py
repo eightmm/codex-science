@@ -231,6 +231,9 @@ class NcaTests(unittest.TestCase):
             with self.subTest(raw=raw[:30]):
                 with self.assertRaisesRegex(ValueError, "^invalid-json:"):
                     nca._json(raw, nca.MAX_JSON_VALUES)
+        with patch.object(nca.re, "findall", side_effect=AssertionError("unbounded match list")):
+            with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                nca._json(b'{"x":[[],[],[],[]]}', 1)
         for value, expected in [(b'{}', 1), (b'{"a":1}', 2)]:
             self.assertEqual(expected, nca._json(value, expected)[1])
             with self.assertRaisesRegex(ValueError, "^input-limit:"):

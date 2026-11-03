@@ -475,6 +475,9 @@ class MicrobiomePackTests(unittest.TestCase):
         with patch.object(pack.json, "loads", side_effect=AssertionError("must not parse")):
             with self.assertRaisesRegex(ValueError, "^input-limit:"):
                 pack._json(b'{"x":[[],[],[],[]]}', 1)
+        with patch.object(pack.re, "findall", side_effect=AssertionError("unbounded match list")):
+            with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                pack._json(b'{"x":[[],[],[],[]]}', 1)
         for raw in (b'{"x":[[],[],[],[]]}', b'{"x":[{},{}]}'):
             upper = 1 + raw.count(b",") + len(pack.re.findall(rb"[\[{](?=\s*[^\s\]}])", raw))
             _, charged = pack._json(raw, upper)

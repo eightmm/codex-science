@@ -173,6 +173,8 @@ def _open_root(root):
     flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_DIRECTORY
     descriptor = os.open(root.anchor, flags)
     try:
+        anchor = os.fstat(descriptor)
+        identities = [(anchor.st_dev, anchor.st_ino)]
         for part in root.parts[1:]:
             before = os.lstat(part, dir_fd=descriptor)
             _require(stat.S_ISDIR(before.st_mode), "input-root", "root ancestors must be real directories")
@@ -183,12 +185,13 @@ def _open_root(root):
                 raise ValueError("input-root: root ancestor changed during open")
             os.close(descriptor)
             descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
         resolved = root.resolve(strict=True)
         current = os.stat(resolved, follow_symlinks=False)
         opened = os.fstat(descriptor)
         _require(resolved == root and (opened.st_dev, opened.st_ino) == (current.st_dev, current.st_ino),
                  "input-root", "root changed or resolved through a symlink")
-        return descriptor
+        return descriptor, identities
     except BaseException:
         os.close(descriptor)
         raise
@@ -203,9 +206,7 @@ class _Bundle:
         self.artifacts = {}
         self.bytes_read = 0
         self.nodes_read = 0
-        self.descriptor = _open_root(self.root)
-        opened = os.fstat(self.descriptor)
-        self.root_identity = (opened.st_dev, opened.st_ino)
+        self.descriptor, self.root_identities = _open_root(self.root)
 
     def __enter__(self):
         return self
@@ -280,27 +281,23 @@ class _Bundle:
         value, digest, _ = self.cache[name]
         return value, digest
 
-    def recheck(self):
-        descriptor = _open_root(self.root)
+    def _check_root(self, phase):
+        descriptor, identities = _open_root(self.root)
         try:
-            current = os.fstat(descriptor)
-            _require((current.st_dev, current.st_ino) == self.root_identity,
-                     "input-changed", "bundle root replaced during validation")
+            _require(identities == self.root_identities,
+                     "input-changed", f"bundle root or ancestor replaced during {phase}")
         finally:
             os.close(descriptor)
+
+    def recheck(self):
+        self._check_root("validation")
         checked = set()
         for name, (_, digest, signature) in self.cache.items():
             raw, current = self.read(_relative(name), checked=checked)
             _require(current == signature and (raw is None or hashlib.sha256(raw).hexdigest() == digest),
                      "input-changed", "input replaced or modified during validation")
             checked.add(current[:2])
-        descriptor = _open_root(self.root)
-        try:
-            current = os.fstat(descriptor)
-            _require((current.st_dev, current.st_ino) == self.root_identity,
-                     "input-changed", "bundle root replaced during recheck")
-        finally:
-            os.close(descriptor)
+        self._check_root("recheck")
 
 
 def _record(value, schema, fields):

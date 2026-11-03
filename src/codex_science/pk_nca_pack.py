@@ -123,7 +123,7 @@ def _float(value):
 
 
 def _json(raw, allowance):
-    estimate = 1 + raw.count(b",") + len(re.findall(rb"[\[{](?=\s*[^\s\]}])", raw))
+    estimate = 1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw))
     _require(estimate <= allowance, "input-limit", "bundle JSON value allowance exceeded")
     try:
         root = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,

@@ -13,11 +13,16 @@ sys.path.insert(0, str(ROOT / "src"))
 from codex_science.hts_plate_qc_pack import validate_hts_plate_qc_pack  # noqa: E402
 
 
+class _Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ValueError(f"invalid-arguments: {message}")
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _Parser(description=__doc__)
     parser.add_argument("bundle", type=Path, help="hts-pack-v1 JSON with hashed synthetic fixtures")
-    args = parser.parse_args()
     try:
+        args = parser.parse_args()
         result = validate_hts_plate_qc_pack(args.bundle)
         print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
     except ValueError as error:
