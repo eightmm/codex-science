@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Peak Replicate Qc"
+  short_description: "Audited scientific workflow for cx-workflow-peak-replicate-qc"
+  default_prompt: "Use $cx-workflow-peak-replicate-qc for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

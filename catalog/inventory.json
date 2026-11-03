@@ -1686,6 +1686,30 @@
       "status": "active"
     },
     {
+      "description": "Check supplied synthetic assay standards and blanks with frozen linear calibration, back-calculated deviations, explicit refits and detection or quantification limits. Use for offline arithmetic checks of already-measured fixtures; excludes clinical cut-offs and extrapolated concentrations.",
+      "executable_count": 0,
+      "instruction_line_count": 105,
+      "license": "MIT",
+      "name": "cx-workflow-calibration-lod",
+      "path": "authored-skills/workflow-calibration-lod",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check guide counts from an already-sequenced pooled CRISPR knockout screen against a frozen guide library, matched replicates and non-targeting controls. Use for synthetic count-table QC, guide log2 changes and gene summaries; exclude essentiality, drug targets and biological conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 41,
+      "license": "MIT",
+      "name": "cx-workflow-crispr-screen-qc",
+      "path": "authored-skills/workflow-crispr-screen-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Evaluate diagnostic accuracy of supplied per-subject continuous scores against a reference standard using frozen thresholds, bias refusals, Wilson intervals and tie-aware ROC AUC. Use for sensitivity, specificity and prevalence-qualified predictive values; does not establish patient benefit.",
       "executable_count": 0,
       "instruction_line_count": 106,
@@ -1770,12 +1794,36 @@
       "status": "active"
     },
     {
+      "description": "Check an already-acquired untargeted LC-MS feature table using pooled QC, blanks, injection order and a dilution series before differential comparisons. Use for offline arithmetic checks of supplied synthetic intensities; never for compound identification or biomedical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 101,
+      "license": "MIT",
+      "name": "cx-workflow-metabolomics-feature-qc",
+      "path": "authored-skills/workflow-metabolomics-feature-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Compare microbial community composition between two conditions from supplied sample-by-taxon integer counts. Use for 16S or shotgun taxon tables, CLR, diversity and stratified PERMANOVA; exclude sequence processing, absolute microbial load and medical decisions.",
       "executable_count": 0,
       "instruction_line_count": 47,
       "license": "MIT",
       "name": "cx-workflow-microbiome-composition",
       "path": "authored-skills/workflow-microbiome-composition",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied genomic enrichment peak intervals, library read counts, FRiP, reciprocal replicate overlap and blacklist exclusions under frozen genome and consensus rules. Use for offline ChIP-seq or accessibility peak QC; no peak calling or biological interpretation.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-peak-replicate-qc",
+      "path": "authored-skills/workflow-peak-replicate-qc",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1800,6 +1848,18 @@
       "license": "MIT",
       "name": "cx-workflow-proteomics-differential-abundance",
       "path": "authored-skills/workflow-proteomics-differential-abundance",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check frozen sample sizes, detectable effects, multiplicity and attrition for planned two-group continuous or binary laboratory and preclinical outcomes; exclude clinical trial design and observed-power arguments.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-sample-size-power",
+      "path": "authored-skills/workflow-sample-size-power",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -4011,8 +4071,8 @@
     }
   ],
   "summary": {
-    "active": 196,
+    "active": 201,
     "inactive": 113,
-    "total": 309
+    "total": 314
   }
 }
