@@ -4,8 +4,10 @@ All examples under `examples/workflow-experiment-design/` are deterministic,
 redistributable **synthetic fixtures**, not scientific evidence, performed
 experiments or review receipts. Read the complete example JSON for the selected
 route. The Python validator is authoritative for required fields and refusals.
-No existing runtime writes these local schemas; no earlier stored record class
-changes validation. All records are JSON objects. Required strings are nonempty;
+No existing runtime writes these local schemas. Previously accepted hand-authored
+pack records with duplicate JSON keys, files over 64 MiB, or power sources matching
+the study's own outputs are now refused. Existing runtime record classes and
+clean example reports are unchanged. All records are JSON objects. Required strings are nonempty;
 counts/seeds are integers, excluding booleans; all numbers must be finite.
 
 ## Local schemas
@@ -25,7 +27,12 @@ counts/seeds are integers, excluding booleans; all numbers must be finite.
 
 Identities contain `path` and lowercase 64-character hexadecimal `sha256`.
 Paths must be bundle-relative with no parent traversal, backslash or resolved
-escape; unavailable files and malformed JSON are refused. Source assumptions
+escape; unavailable files and malformed JSON are refused. Every input, including
+the pack index and source assumptions, must be a regular file of at most 64 MiB
+(67,108,864 bytes). Duplicate keys at any nesting level are refused as
+`invalid-record` with the artifact label and `duplicate JSON key`; oversized
+inputs use `input-too-large`. The validator parses the exact bytes it hashes.
+Source assumptions
 are ordinary hash-bound JSON artifacts, not new globally validated records.
 The `fixture` labels in examples are descriptive, not required in real records.
 
@@ -41,6 +48,10 @@ Total cost is sum(planned * cost_per_unit). Zero cost/attrition and zero seeds
 are allowed. Cluster, paired, binary, survival, adaptive or sequential power
 requires specialist design; this approximation does not qualify those designs.
 Effect/variance provenance must be reviewed; hashes do not establish independence.
+Both source artifacts are compared against the bundle's `results` and `analysis`
+identities. A matching resolved path or SHA-256 is refused as `own-result-effect`,
+including renamed copies and symlink aliases, whatever `effect_source.origin`
+declares. Other forms of undisclosed derivation still require independent review.
 
 The post-hoc deviation kinds are `changed-outcome`, `changed-threshold`,
 `added-comparison`, `dropped-comparison`, `post-hoc-exclusion`, `dropped-exclusion`,

@@ -10,7 +10,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from codex_science import experiment_design_pack as experiment_pack
 from codex_science.experiment_design_pack import STAGES, validate_experiment_design_pack
 
 
@@ -33,7 +35,7 @@ class ExperimentDesignPackTests(unittest.TestCase):
         self.assertNotIn("Traceback", result.stderr)
         self.assertEqual("", result.stdout)
 
-    def altered(self, record_name: str, mutate, *, mode: str = "preregister") -> subprocess.CompletedProcess:
+    def altered(self, record_name: str, mutate, *, mode: str = "preregister", transform=None) -> subprocess.CompletedProcess:
         # Each call has its own directory; parallel tests cannot rewrite fixtures.
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -48,6 +50,8 @@ class ExperimentDesignPackTests(unittest.TestCase):
                 record = json.loads(target.read_text())
                 mutate(record)
                 raw = (json.dumps(record, sort_keys=True) + "\n").encode()
+                if transform is not None:
+                    raw = transform(raw)
                 target.write_bytes(raw)
                 bundle[record_name]["sha256"] = hashlib.sha256(raw).hexdigest()
                 if record_name in ("question", "power", "randomisation", "analysis_plan", "controls"):
@@ -59,7 +63,10 @@ class ExperimentDesignPackTests(unittest.TestCase):
                     raw_hand = (json.dumps(hand, sort_keys=True) + "\n").encode()
                     hand_path.write_bytes(raw_hand)
                     bundle["handoff"]["sha256"] = hashlib.sha256(raw_hand).hexdigest()
-            bundle_path.write_text(json.dumps(bundle))
+            raw_bundle = json.dumps(bundle).encode()
+            if record_name == "bundle" and transform is not None:
+                raw_bundle = transform(raw_bundle)
+            bundle_path.write_bytes(raw_bundle)
             return self.cli(bundle_path, mode)
 
     def test_synthetic_preregistration_and_finished_audit(self) -> None:
@@ -103,6 +110,137 @@ class ExperimentDesignPackTests(unittest.TestCase):
 
     def test_refuses_own_result_effect(self) -> None:
         self.assert_case("own-result-effect")
+
+    def test_refuses_own_outputs_as_power_sources_despite_origin(self) -> None:
+        bundle = json.loads((EXAMPLE / "audit.json").read_text())
+        for origin in ("external", "independent-pilot", "scientific-minimum"):
+            for output in ("results", "analysis"):
+                for source in ("effect_source", "variance_source"):
+                    with self.subTest(origin=origin, output=output, source=source):
+                        def change(power):
+                            power["effect_source"]["origin"] = origin
+                            if source == "effect_source":
+                                power[source]["artifact"] = copy.deepcopy(bundle[output])
+                            else:
+                                power[source] = copy.deepcopy(bundle[output])
+                        result = self.altered("power", change, mode="audit")
+                        self.assertEqual(1, result.returncode, result.stdout)
+                        self.assertIn("own-result-effect:", result.stderr)
+
+        for output in ("results", "analysis"):
+            for alias in ("copy", "symlink"):
+                with self.subTest(output=output, alias=alias), tempfile.TemporaryDirectory() as temporary:
+                    directory = Path(temporary)
+                    for source in EXAMPLE.glob("*.json"):
+                        (directory / source.name).write_bytes(source.read_bytes())
+                    local_bundle = copy.deepcopy(bundle)
+                    output_path = directory / local_bundle[output]["path"]
+                    alias_path = directory / "source-alias.json"
+                    if alias == "copy":
+                        alias_path.write_bytes(output_path.read_bytes())
+                    else:
+                        alias_path.symlink_to(output_path.name)
+                    power = json.loads((directory / "power.json").read_text())
+                    power["effect_source"] = {"origin": "external", "artifact": {"path": alias_path.name, "sha256": local_bundle[output]["sha256"]}}
+                    raw = json.dumps(power).encode()
+                    (directory / "power.json").write_bytes(raw)
+                    local_bundle["power"]["sha256"] = hashlib.sha256(raw).hexdigest()
+                    handoff = json.loads((directory / "handoff.json").read_text())
+                    handoff["inputs"]["power"] = copy.deepcopy(local_bundle["power"])
+                    raw = json.dumps(handoff).encode()
+                    (directory / "handoff.json").write_bytes(raw)
+                    local_bundle["handoff"]["sha256"] = hashlib.sha256(raw).hexdigest()
+                    (directory / "audit.json").write_text(json.dumps(local_bundle))
+                    result = self.cli(directory / "audit.json", "audit")
+                    self.assertEqual(1, result.returncode, result.stdout)
+                    self.assertIn("own-result-effect:", result.stderr)
+
+    def test_refuses_non_regular_inputs_before_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            candidates = [directory, Path(os.devnull)]
+            if hasattr(os, "mkfifo"):
+                fifo = directory / "pipe.json"
+                os.mkfifo(fifo)
+                candidates.append(fifo)
+            for path in candidates:
+                with self.subTest(path=path.name):
+                    with patch.object(Path, "read_bytes", side_effect=AssertionError("non-regular input was read")):
+                        with self.assertRaisesRegex(ValueError, "unavailable-artifact:"):
+                            experiment_pack._load(path)
+                        with self.assertRaisesRegex(ValueError, "unavailable-artifact:"):
+                            experiment_pack._artifact(path.parent, {"path": path.name, "sha256": "0" * 64}, "source")
+                    result = self.cli(path)
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("unavailable-artifact:", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+            if hasattr(os, "mkfifo"):
+                regular = directory / "regular.json"
+                regular.write_text("{}")
+                with patch.object(Path, "stat", return_value=regular.stat()), patch.object(Path, "read_bytes", side_effect=AssertionError("non-regular input was read")):
+                    with self.assertRaisesRegex(ValueError, "unavailable-artifact:"):
+                        experiment_pack._load(fifo)
+
+    def test_bounds_input_bytes_and_parses_the_hashed_bytes(self) -> None:
+        limit = 64 * 1024 * 1024
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "record.json"
+            for raw in (b"", b"0", b"[ ]", b"{", b"\xff"):
+                with self.subTest(raw=raw):
+                    path.write_bytes(raw)
+                    identity = {"path": path.name, "sha256": hashlib.sha256(raw).hexdigest()}
+                    for load in (lambda: experiment_pack._load(path), lambda: experiment_pack._artifact(path.parent, identity, "source")):
+                        with self.assertRaisesRegex(ValueError, "invalid-record:"):
+                            load()
+            raw = b"{}" + b" " * (limit - 2)
+            path.write_bytes(raw)
+            identity = {"path": path.name, "sha256": hashlib.sha256(raw).hexdigest()}
+            self.assertEqual({}, experiment_pack._load(path))
+            self.assertEqual({}, experiment_pack._artifact(path.parent, identity, "source"))
+            with path.open("ab") as stream:
+                stream.write(b" ")
+            with patch.object(Path, "read_bytes", side_effect=AssertionError("oversized input was read")):
+                with self.assertRaisesRegex(ValueError, "input-too-large:"):
+                    experiment_pack._load(path)
+                with self.assertRaisesRegex(ValueError, "input-too-large:"):
+                    experiment_pack._artifact(path.parent, identity, "source")
+            result = self.cli(path)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("input-too-large:", result.stderr)
+
+            path.write_bytes(b"{}" + b" " * 63)
+            info = path.stat()
+            small = os.stat_result((*info[:6], 0, *info[7:]))
+            with patch.object(experiment_pack, "_MAX_JSON_BYTES", 64, create=True), patch.object(os, "fstat", return_value=small):
+                with self.assertRaisesRegex(ValueError, "input-too-large:"):
+                    experiment_pack._load(path)
+
+            raw = b"{}"
+            path.write_bytes(raw)
+            identity["sha256"] = hashlib.sha256(raw).hexdigest()
+            sha256 = hashlib.sha256
+            def replace_after_hash(data):
+                path.write_text("[]")
+                return sha256(data)
+            with patch.object(experiment_pack.hashlib, "sha256", side_effect=replace_after_hash):
+                self.assertEqual({}, experiment_pack._artifact(path.parent, identity, "source"))
+
+    def test_refuses_duplicate_keys_in_bundle(self) -> None:
+        result = self.altered("bundle", lambda bundle: None, transform=lambda raw: b'{"schema": null, ' + raw[1:])
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("invalid-record:", result.stderr)
+        self.assertIn("duplicate JSON key: schema", result.stderr)
+        self.assertIn("preregister.json", result.stderr)
+
+    def test_refuses_duplicate_keys_in_artifacts(self) -> None:
+        for key in (b"origin", b"ori\\u0067in"):
+            with self.subTest(key=key):
+                result = self.altered("power", lambda power: None, transform=lambda raw: raw.replace(b'"origin": "independent-pilot"', b'"origin": "study-results", "' + key + b'": "independent-pilot"'))
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn("invalid-record:", result.stderr)
+                self.assertIn("duplicate JSON key: origin", result.stderr)
+                self.assertIn("power", result.stderr)
 
     def test_refuses_unlabelled_outcome_or_threshold(self) -> None:
         self.assert_case("unlabelled-deviation")

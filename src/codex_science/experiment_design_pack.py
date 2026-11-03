@@ -8,6 +8,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import stat
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from statistics import NormalDist
@@ -15,6 +17,7 @@ from typing import Any
 
 
 STAGES = ("01-question", "02-power", "03-randomisation", "04-analysis-plan", "05-controls", "06-review-handoff")
+_MAX_JSON_BYTES = 64 * 1024 * 1024
 
 
 def _require(condition: bool, code: str, message: str) -> None:
@@ -69,11 +72,36 @@ def _time(value: Any, label: str) -> datetime:
         raise ValueError(f"invalid-record: {label} must be a timezone-aware ISO timestamp") from error
 
 
-def _load(path: Path) -> dict:
+def _read_bytes(path: Path, label: str) -> bytes:
+    _require(stat.S_ISREG(path.stat().st_mode), "unavailable-artifact", f"{label} must be a regular file")
+    # Nonblocking open and descriptor checks also refuse a FIFO swapped in after stat.
+    with os.fdopen(os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)), "rb") as stream:
+        info = os.fstat(stream.fileno())
+        _require(stat.S_ISREG(info.st_mode), "unavailable-artifact", f"{label} must be a regular file")
+        _require(info.st_size <= _MAX_JSON_BYTES, "input-too-large", f"{label} exceeds {_MAX_JSON_BYTES} bytes")
+        raw = stream.read(_MAX_JSON_BYTES + 1)
+    _require(len(raw) <= _MAX_JSON_BYTES, "input-too-large", f"{label} exceeds {_MAX_JSON_BYTES} bytes")
+    return raw
+
+
+def _pairs(items: list[tuple[str, Any]]) -> dict:
+    result = {}
+    for name, value in items:
+        if name in result:
+            raise ValueError(f"duplicate JSON key: {name}")
+        result[name] = value
+    return result
+
+
+def _json(raw: bytes, label: str) -> dict:
     try:
-        return _object(json.loads(path.read_bytes()), str(path))
+        return _object(json.loads(raw, object_pairs_hook=_pairs), label)
     except (UnicodeError, ValueError, RecursionError) as error:
-        raise ValueError(f"invalid-record: unreadable JSON: {path.name}") from error
+        raise ValueError(f"invalid-record: unreadable JSON: {label}: {error}") from error
+
+
+def _load(path: Path) -> dict:
+    return _json(_read_bytes(path, path.name), path.name)
 
 
 def _artifact(root: Path, identity: Any, label: str) -> dict:
@@ -84,12 +112,9 @@ def _artifact(root: Path, identity: Any, label: str) -> dict:
     _require(path.is_relative_to(root) and path.is_file(), "unavailable-artifact", label)
     digest = identity.get("sha256")
     _require(isinstance(digest, str) and len(digest) == 64 and all(c in "0123456789abcdef" for c in digest), "invalid-record", f"{label}.sha256")
-    raw = path.read_bytes()
+    raw = _read_bytes(path, label)
     _require(hashlib.sha256(raw).hexdigest() == digest, "artifact-hash-mismatch", label)
-    try:
-        return _object(json.loads(raw), label)
-    except (UnicodeError, ValueError, RecursionError) as error:
-        raise ValueError(f"invalid-record: unreadable JSON: {label}") from error
+    return _json(raw, label)
 
 
 def _family(plan: dict) -> dict[str, dict]:
@@ -116,11 +141,19 @@ def _analysis_rules(plan: dict) -> None:
         _text(plan.get("sequential_error_control"), "sequential_error_control")
 
 
-def _power(root: Path, power: dict, question: dict, family: dict) -> dict:
+def _power(root: Path, power: dict, question: dict, family: dict, bundle: dict) -> dict:
     source = _object(power.get("effect_source"), "effect_source")
     _require(source.get("origin") in ("external", "independent-pilot", "scientific-minimum"), "own-result-effect", "power cannot use this study's own result")
-    _artifact(root, source.get("artifact"), "effect_source.artifact")
-    _artifact(root, power.get("variance_source"), "variance_source")
+    sources = ((source.get("artifact"), "effect_source.artifact"), (power.get("variance_source"), "variance_source"))
+    for identity, label in sources:
+        _artifact(root, identity, label)
+    for name in ("results", "analysis"):
+        output = bundle.get(name)
+        if output is not None:
+            _artifact(root, output, name)
+            for identity, label in sources:
+                same_path = (root / identity["path"]).resolve() == (root / output["path"]).resolve()
+                _require(not same_path and identity["sha256"] != output["sha256"], "own-result-effect", f"{label} cannot use this study's {name}")
     _require(power.get("count_unit") == question["experimental_unit"], "pseudoreplication", "sample size must count experimental units, not observational repeats")
     _require(power.get("method") == "normal-approximation-two-group", "unsupported-power-method", "supply a two-group normal approximation; complex designs need specialist review")
     effect = _number(power.get("assumed_effect"), "assumed_effect", 0)
@@ -251,7 +284,7 @@ def _validate_pack(path: Path, *, mode: str) -> dict:
     _require((len(family) == 1 or multiplicity == "bonferroni") and all(item["threshold"] <= alpha / len(family) for item in family.values()), "multiplicity-ignored", "thresholds must cover the entire declared primary family")
     _analysis_rules(plan)
     _require(plan.get("outcomes_seen") is False, "outcome-dependent-plan", "frozen plan must precede outcomes")
-    power_summary = _power(root, records["power"], question, family)
+    power_summary = _power(root, records["power"], question, family, bundle)
     assignment = records["randomisation"]
     for field in ("assignment_seed", "blinding_seed"):
         _integer(assignment.get(field), field)
