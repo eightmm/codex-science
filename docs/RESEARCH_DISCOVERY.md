@@ -279,7 +279,11 @@ python3 scripts/science_project.py discovery decision --run-dir "$RUN" \
 
 The matched ordinary/prior/RDL comparison API currently takes an input object
 with `contract` and `records`; it validates receipts and reports incomplete or
-rejected grids rather than filling them. A passed report validates declared
+rejected grids rather than filling them. The frozen grid (tasks x seeds x 3 arms x repetitions) may hold at most
+100,000 cells; a larger contract is `rejected` with a `grid_size` error before any
+cell is built. Referenced result and receipt files are read as JSON objects of at
+most 64 MiB; an unreadable, oversized, over-nested or non-object file is an error
+entry in the report. A passed report validates declared
 contract and artifact consistency only. Execution authenticity remains unverified
 and empirical research effectiveness is not established, even when the supplied
 contract declares `synthetic: false`. Trusted collection and independent evaluation

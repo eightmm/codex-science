@@ -225,6 +225,17 @@ class DiscoveryEvidenceTests(unittest.TestCase):
             "limitations": "fixture only", "source_refs": [ref]}})
         self.assertEqual("comparison_recorded", result["novelty"]["status"])
 
+    def test_novelty_assessment_echoes_only_validated_keys(self):
+        cycle = self.start()
+        ref = write_ref(self.root, "primary-source.json", {"source": "local test source"})
+        comparison = {"scope": " one declared source ", "search_cutoff": "2026-09-18", "difference": "unreviewed claimed difference",
+                      "limitations": "fixture only", "source_refs": [dict(ref, extra="x")], "verdict": "NOVEL - PROVEN", "status": "passed"}
+        result = assess_cycle(cycle, self.root, {"novelty_comparison": comparison})
+        self.assertEqual({"scope", "search_cutoff", "difference", "limitations", "source_refs"}, set(result["novelty"]["comparison"]))
+        self.assertEqual("one declared source", result["novelty"]["comparison"]["scope"])
+        self.assertEqual([ref], result["novelty"]["comparison"]["source_refs"])
+        self.assertNotIn("NOVEL - PROVEN", json.dumps(result))
+
     def test_observed_decision_requires_preregistered_mapping_and_measured_artifact(self):
         contract = json.loads((ROOT / "examples/statistical-decision-analysis/input.json").read_text())
         assumption_ref = write_ref(self.root, "assumptions.json", contract)

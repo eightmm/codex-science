@@ -4,7 +4,8 @@ import hashlib, json, math
 from pathlib import Path
 from statistics import mean
 from typing import Any, Mapping
-from .research_cycle import _confined_file, _refs
+from .cli_io import DEFAULT_MAX_JSON_BYTES, load_json_object
+from .research_cycle import _confined_file, _file_hash, _refs
 
 ARMS = ("ordinary", "prior", "rdl")
 SCHEMA = "comparison-contract-v1"
@@ -12,6 +13,18 @@ RECEIPT_SCHEMA = "comparison-execution-receipt-v1"
 RESULT_SCHEMA = "comparison-result-v1"
 
 _SCOPE = "declared_contract_and_artifact_consistency"
+MAX_CELLS = 100_000
+
+
+def _load_ref_json(root: Path, ref_path: str) -> dict[str, Any]:
+    # Reports may be shared, so errors name the run-relative ref path, not the resolved absolute one.
+    path = _confined_file(root, ref_path)
+    try:
+        return load_json_object(path)
+    except ValueError as error:
+        raise ValueError(str(error).replace(str(path), ref_path)) from error
+    except OSError as error:
+        raise OSError(f"cannot read {ref_path}: {error.strerror or type(error).__name__}") from error
 
 def _report(status, errors, violations, aggregation, missing_cells=None, synthetic=None):
     return {"status": status, "errors": errors, "violations": violations,
@@ -32,13 +45,30 @@ def _err(errors, code, message): errors.append({"code": code, "message": message
 def _frozen_contract(contract): return {k: v for k, v in contract.items() if k != "contract_digest"}
 
 def _same_json(left, right):
-    if isinstance(left, Mapping) and isinstance(right, Mapping):
-        return left.keys() == right.keys() and all(_same_json(left[key], right[key]) for key in left)
-    if type(left) is not type(right):
-        return False
-    if isinstance(left, list):
-        return len(left) == len(right) and all(_same_json(a, b) for a, b in zip(left, right))
-    return left == right
+    # Explicit stack: nesting depth must not consume interpreter frames.
+    stack = [(left, right)]
+    while stack:
+        a, b = stack.pop()
+        if isinstance(a, Mapping) and isinstance(b, Mapping):
+            if a.keys() != b.keys(): return False
+            stack.extend((a[key], b[key]) for key in a)
+        elif type(a) is not type(b): return False
+        elif isinstance(a, list):
+            if len(a) != len(b): return False
+            stack.extend(zip(a, b))
+        elif a != b: return False
+    return True
+
+def _checked_refs(value, field, root, hashes, max_bytes=None):
+    """Like research_cycle._refs with a root, hashing each resolved file once per evaluation."""
+    refs = _refs(value, field, None)
+    for ref in refs:
+        path = _confined_file(root, ref["path"])
+        if max_bytes is not None and path.stat().st_size > max_bytes:
+            raise ValueError(f"{field} file exceeds {max_bytes} bytes: {ref['path']}")
+        if path not in hashes: hashes[path] = _file_hash(path)
+        if hashes[path] != ref["sha256"]: raise ValueError(f"{field} hash mismatch: {ref['path']}")
+    return refs
 
 def _mean(values):
     if not values:
@@ -53,7 +83,7 @@ def _mean(values):
     return result
 
 def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, Any]], root: Path) -> dict[str, Any]:
-    errors=[]; violations=[]; root=Path(root).resolve()
+    errors=[]; violations=[]; root=Path(root).resolve(); hashes={}
     if not isinstance(contract, Mapping) or contract.get("schema") != SCHEMA:
         return _report("rejected", [{"code":"contract_schema","message":f"schema must be {SCHEMA}"}], [], {})
     if not isinstance(records,list): return _report("rejected", [{"code":"records_type","message":"records must be a list"}], [], {})
@@ -71,7 +101,7 @@ def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, 
         for task in tasks:
             if (not isinstance(task,Mapping) or not isinstance(task.get("id"),str) or not task.get("id") or not isinstance(task.get("digest"),str) or len(task["digest"])!=64 or not isinstance(task.get("spec"),Mapping) or not isinstance(task["spec"].get("question"),str) or not task["spec"]["question"].strip()): _err(errors,"task_spec","each task requires a non-empty structured spec.question and 64-character digest"); continue
             try: digest_ok="spec" in task and _digest(task["spec"])==task["digest"]
-            except (TypeError,ValueError): digest_ok=False
+            except (TypeError,ValueError,RecursionError): digest_ok=False
             if not digest_ok: _err(errors,"task_digest",f"task {task.get('id')!r} digest mismatch"); continue
             task_ids.append(task["id"]); task_digests[task["id"]]=task["digest"]
     if len(set(task_ids))!=len(task_ids): _err(errors,"tasks_duplicate","task ids must be unique")
@@ -95,15 +125,19 @@ def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, 
     evaluation=contract.get("evaluation")
     if not isinstance(evaluation, Mapping) or any(not isinstance(evaluation.get(k),str) or not evaluation[k].strip() for k in ("split_identity","holdout_identity","baseline_identity","access_policy","review_protocol")): _err(errors,"evaluation_identity","evaluation requires split, holdout, baseline, access policy, and review protocol identities")
     evaluator_refs=[]
-    try: evaluator_refs=_refs(contract.get("evaluator_refs"),"evaluator_refs",root)
-    except (TypeError,ValueError) as exc: _err(errors,"evaluator_refs",str(exc))
+    try: evaluator_refs=_checked_refs(contract.get("evaluator_refs"),"evaluator_refs",root,hashes)
+    except (TypeError,ValueError,OSError) as exc: _err(errors,"evaluator_refs",str(exc))
     evaluator_sha=contract.get("evaluator_sha256")
     if not isinstance(evaluator_sha,str) or not evaluator_sha or evaluator_sha not in {r["sha256"] for r in evaluator_refs}: _err(errors,"evaluator_identity","evaluator_sha256 must identify a hashed evaluator_ref")
     contract_digest=contract.get("contract_digest")
     try: actual_digest=_digest(_frozen_contract(contract))
-    except (TypeError,ValueError,OverflowError): actual_digest=""
+    except (TypeError,ValueError,OverflowError,RecursionError): actual_digest=""
     if not isinstance(contract_digest,str) or contract_digest!=actual_digest: _err(errors,"contract_digest","contract_digest does not match frozen contract")
     if errors:
+        return _report("rejected", errors, [], {}, synthetic=synthetic)
+    cells=len(task_ids)*len(seeds)*len(ARMS)*repetitions
+    if cells>MAX_CELLS:
+        _err(errors,"grid_size",f"frozen grid has {cells} cells; at most {MAX_CELLS} (tasks x seeds x arms x repetitions) are evaluated")
         return _report("rejected", errors, [], {}, synthetic=synthetic)
     try: expected={(task,seed,arm,rep) for task in task_ids for seed in seeds for arm in ARMS for rep in range(repetitions)}
     except TypeError: _err(errors,"cell_identity","task/seed identities must be hashable"); expected=set()
@@ -118,7 +152,7 @@ def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, 
             seen.add(key)
             if key not in expected: _err(errors,"unexpected_cell",f"record {index} is outside frozen grid"); continue
         except TypeError: _err(errors,"cell_identity",f"record {index} has unhashable cell identity"); continue
-        local=_validate_record(record,evaluator_refs,evaluator_sha,contract_digest,task_digests,model,tools,arm_versions,budget,root,metric_ids,synthetic,index)
+        local=_validate_record(record,evaluator_refs,evaluator_sha,contract_digest,task_digests,model,tools,arm_versions,budget,root,metric_ids,synthetic,index,hashes)
         if any(e["code"] == "budget_overrun" for e in local):
             violations.append({"type":"budget_overrun","cell":list(key)})
         if local:
@@ -140,7 +174,7 @@ def evaluate_comparison(contract: Mapping[str, Any], records: list[Mapping[str, 
         if unpaired: errors.extend(unpaired); status="incomplete"
     return _report(status, errors, violations, aggregation, [list(x) for x in missing], synthetic)
 
-def _validate_record(record,evaluator_refs,evaluator_sha,contract_digest,task_digests,model,tools,arm_versions,budget,root,metric_ids,synthetic,index):
+def _validate_record(record,evaluator_refs,evaluator_sha,contract_digest,task_digests,model,tools,arm_versions,budget,root,metric_ids,synthetic,index,hashes):
     errors=[]
     def bad(code,msg): _err(errors,code,f"record {index}: {msg}")
     task,seed,arm,rep=record.get("task_id"),record.get("seed"),record.get("arm"),record.get("repetition")
@@ -149,17 +183,17 @@ def _validate_record(record,evaluator_refs,evaluator_sha,contract_digest,task_di
     if isinstance(cost,Mapping) and isinstance(cost.get("tokens"),int) and _finite(cost.get("wall_time_seconds")) and (cost["tokens"]>budget["tokens"] or cost["wall_time_seconds"]>budget["wall_time_seconds"]): bad("budget_overrun","budget overrun is recorded as a protocol violation")
     if not _same_json(record.get("model"),model): bad("model_drift","model identity differs")
     if not _same_json(record.get("tools"),tools): bad("tool_drift","tools identity differs")
-    try: result_ref=_refs([record.get("result_ref")],"result_ref",root)[0]
-    except (TypeError,ValueError,IndexError) as exc: bad("result_ref",str(exc)); result_ref=None
-    try: receipt_ref=_refs([record.get("execution_receipt_ref")],"execution_receipt_ref",root)[0]
-    except (TypeError,ValueError,IndexError) as exc: bad("receipt_ref",str(exc)); receipt_ref=None
+    try: result_ref=_checked_refs([record.get("result_ref")],"result_ref",root,hashes,DEFAULT_MAX_JSON_BYTES)[0]
+    except (TypeError,ValueError,IndexError,OSError) as exc: bad("result_ref",str(exc)); result_ref=None
+    try: receipt_ref=_checked_refs([record.get("execution_receipt_ref")],"execution_receipt_ref",root,hashes,DEFAULT_MAX_JSON_BYTES)[0]
+    except (TypeError,ValueError,IndexError,OSError) as exc: bad("receipt_ref",str(exc)); receipt_ref=None
     result=receipt=None
     if result_ref:
-        try: result=json.loads(_confined_file(root,result_ref["path"]).read_text(encoding="utf-8"))
-        except (OSError,ValueError,json.JSONDecodeError) as exc: bad("result_json",str(exc))
+        try: result=_load_ref_json(root,result_ref["path"])
+        except (OSError,ValueError) as exc: bad("result_json",str(exc))
     if receipt_ref:
-        try: receipt=json.loads(_confined_file(root,receipt_ref["path"]).read_text(encoding="utf-8"))
-        except (OSError,ValueError,json.JSONDecodeError) as exc: bad("receipt_json",str(exc))
+        try: receipt=_load_ref_json(root,receipt_ref["path"])
+        except (OSError,ValueError) as exc: bad("receipt_json",str(exc))
     if not isinstance(result,Mapping) or result.get("schema")!=RESULT_SCHEMA: bad("result_schema","result file schema invalid")
     else:
         for key,value in (("task_id",task),("seed",seed),("arm",arm),("repetition",rep),("contract_digest",contract_digest)):

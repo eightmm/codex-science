@@ -100,6 +100,7 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
     refs[snapshot_path] = stream_sha256(run_dir / snapshot_path)[0]
     axes: dict[str, list[dict[str, Any]]] = {mode: [] for mode in ("record", "source", "method", "reproduction")}
     review_refs = _refs(payload.get("review_refs", []), "review_refs", run_dir)
+    supplied_review_refs = list(review_refs)
     registered_reviews = []
     artifact_hashes: dict[str, str] = {}
     registry_digest = None
@@ -168,17 +169,17 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
         comparison = payload["novelty_comparison"]
         if not isinstance(comparison, Mapping):
             raise ValueError("novelty_comparison must be an object")
-        for key in ("scope", "search_cutoff", "difference", "limitations"):
-            _text(comparison.get(key), f"novelty comparison {key}")
+        recorded = {key: _text(comparison.get(key), f"novelty comparison {key}")
+                    for key in ("scope", "search_cutoff", "difference", "limitations")}
         sources = _refs(comparison.get("source_refs"), "novelty source_refs", run_dir)
         if not sources:
             raise ValueError("novelty comparison requires primary-source records")
-        novelty = {"status": "comparison_recorded", "comparison": dict(comparison),
+        novelty = {"status": "comparison_recorded", "comparison": dict(recorded, source_refs=sources),
                    "evidence_boundary": "Source identity checked; attribution, search completeness and novelty require scientific review."}
     return {"schema_version": 1, "cycle_hash": cycle["cycle_hash"], "revision": revision,
             "execution_integrity": "recorded_identities_validated",
             "review_axes": review_axes, "novelty": novelty,
-            "review_scope": {"registered_receipts": registered_reviews, "supplied_receipts": payload.get("review_refs", []),
+            "review_scope": {"registered_receipts": registered_reviews, "supplied_receipts": supplied_review_refs,
                              "complete_beyond_registered_bundle": "unknown", "authoritative_overall_pass": False},
             "method_effects": [{"experiment_id": item["id"], "method_effect": item.get("method_effect", "not_assessed"),
                                 "explanation_support": item.get("explanation_support", {})}

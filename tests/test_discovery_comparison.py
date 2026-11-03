@@ -258,6 +258,69 @@ class DiscoveryComparisonTests(unittest.TestCase):
                 json.dumps(report, allow_nan=False)
                 self.assertTrue(any(e["code"] in ("budget", "cost", "metrics") for e in report["errors"]), report)
 
+    def test_deep_nesting_and_unreadable_references_are_labelled_errors(self):
+        root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+        deep = []
+        for _ in range(600): deep = [deep]
+        contract["model"]["extra"] = deep
+        contract["contract_digest"] = _digest(_frozen_contract(contract))
+        report = evaluate_comparison(contract, records, root)
+        self.assertEqual("rejected", report["status"])
+        self.assertTrue(any(e["code"] == "receipt_identity" for e in report["errors"]), report["errors"][:3])
+        root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+        for key, path in (("result_ref", "results/task-a-ordinary.json"), ("execution_receipt_ref", "receipts/task-a-prior.json")):
+            ref = next(r for r in records if r["task_id"] == "task-a")[key] if key == "result_ref" else records[1][key]
+            (root / ref["path"]).write_text("[" * 100000, encoding="utf-8")
+            ref["sha256"] = hashlib.sha256((root / ref["path"]).read_bytes()).hexdigest()
+        report = evaluate_comparison(contract, records, root)
+        self.assertEqual("rejected", report["status"])
+        codes = {e["code"] for e in report["errors"]}
+        self.assertTrue({"result_json", "receipt_json"} <= codes, codes)
+        self.assertTrue(any("nesting" in e["message"] for e in report["errors"]))
+        json_errors = [e["message"] for e in report["errors"] if e["code"] in ("result_json", "receipt_json")]
+        self.assertTrue(any("results/task-a-ordinary.json" in m for m in json_errors), json_errors)
+        self.assertFalse(any(str(root.resolve()) in m for m in json_errors), json_errors)
+
+    def test_oversized_grid_is_refused_before_it_is_built(self):
+        for repetitions, accepted in ((16667, False), (16666, True)):
+            with self.subTest(repetitions=repetitions):
+                root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+                contract["seeds"] = [7]; contract["repetitions"] = repetitions
+                contract["contract_digest"] = _digest(_frozen_contract(contract))
+                report = evaluate_comparison(contract, [], root)
+                self.assertEqual(accepted, not any(e["code"] == "grid_size" for e in report["errors"]), report["errors"][:2])
+        contract["repetitions"] = 50_000_000
+        contract["contract_digest"] = _digest(_frozen_contract(contract))
+        report = evaluate_comparison(contract, [], root)
+        self.assertEqual(["grid_size"], [e["code"] for e in report["errors"]])
+
+    def test_shared_referenced_file_is_hashed_once_and_size_capped(self):
+        from unittest import mock
+        import codex_science.discovery_comparison as module
+        root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+        with mock.patch.object(module, "_file_hash", wraps=module._file_hash) as hasher:
+            evaluate_comparison(contract, records, root)
+            evaluate_comparison(contract, records + records, root)
+        paths = [call.args[0] for call in hasher.call_args_list]
+        self.assertEqual(len(paths) // 2, len(set(paths)))
+        with mock.patch.object(module, "DEFAULT_MAX_JSON_BYTES", 10):
+            report = evaluate_comparison(contract, records, root)
+        self.assertTrue(any(e["code"] == "result_ref" and "exceeds" in e["message"] for e in report["errors"]))
+
+    @unittest.skipIf(os.geteuid() == 0, "permission bits do not bind root")
+    def test_unreadable_files_become_error_entries(self):
+        root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
+        result_file, evaluator_file = root / records[0]["result_ref"]["path"], root / "evaluator.json"
+        self.addCleanup(lambda: [t.chmod(0o644) for t in (result_file, evaluator_file)])
+        result_file.chmod(0)
+        report = evaluate_comparison(contract, records, root)
+        self.assertEqual("rejected", report["status"])
+        self.assertTrue(any(e["code"] == "result_ref" for e in report["errors"]), report["errors"][:3])
+        result_file.chmod(0o644); evaluator_file.chmod(0)
+        report = evaluate_comparison(contract, records, root)
+        self.assertEqual("rejected", report["status"])
+        self.assertTrue(any(e["code"] == "evaluator_refs" for e in report["errors"]), report["errors"][:3])
+
     def _cli_fixture(self, ordinary_fails=False):
         root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)
         if ordinary_fails: _set_outcome(root, contract, records, "ordinary", "failure", {})
