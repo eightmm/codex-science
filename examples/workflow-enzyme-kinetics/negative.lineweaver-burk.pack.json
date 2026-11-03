@@ -1,0 +1,51 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [
+        {
+          "origin": "study",
+          "path": "evidence.json",
+          "sha256": "2d8c1b7dc392b49b6303518f7f0954daac0543e7f7606dd0342be48ec42cbc05"
+        }
+      ],
+      "text": "Synthetic arithmetic only; independent measured evidence is unavailable."
+    }
+  ],
+  "fixture": true,
+  "freeze_before_rates": true,
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "frozen_protocol_sha256": "bab7ad988d60db685b680f8388f340f888ab01e62936a9c8dfb908de7aaaaf59",
+  "inputs": {
+    "data": {
+      "path": "negative.lineweaver-burk.data.json",
+      "sha256": "47b90bd837bf3a7c54f4e73d2ffc2b435ed22b4ba80c036e88fbbd9696f0716c"
+    },
+    "protocol": {
+      "path": "negative.lineweaver-burk.protocol.json",
+      "sha256": "bab7ad988d60db685b680f8388f340f888ab01e62936a9c8dfb908de7aaaaf59"
+    },
+    "report": {
+      "path": "negative.lineweaver-burk.report.json",
+      "sha256": "3ffd961896b8261ad2604da1dce28f9d5e224412aa93475ef4d5466c18bd663e"
+    }
+  },
+  "rates_read_at": "2026-01-01T00:01:00Z",
+  "schema": "enzyme-kinetics-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-identity-qc",
+    "03-fit",
+    "04-summary",
+    "05-handoff"
+  ],
+  "study_outputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "2d8c1b7dc392b49b6303518f7f0954daac0543e7f7606dd0342be48ec42cbc05"
+    }
+  ]
+}

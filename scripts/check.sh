@@ -103,6 +103,16 @@ run_science_contracts() (
     examples/workflow-calibration-lod/pack.json >/dev/null
   uv run python scripts/validate_sample_size_power_pack.py \
     examples/workflow-sample-size-power/pack.json >/dev/null
+  uv run python scripts/validate_enzyme_kinetics_pack.py \
+    examples/workflow-enzyme-kinetics/pack.json >/dev/null
+  uv run python scripts/validate_qpcr_relative_quantification_pack.py \
+    examples/workflow-qpcr-relative-quantification/pack.json >/dev/null
+  uv run python scripts/validate_stability_shelf_life_pack.py \
+    examples/workflow-stability-shelf-life/pack.json >/dev/null
+  uv run python scripts/validate_batch_effect_assessment_pack.py \
+    examples/workflow-batch-effect-assessment/pack.json >/dev/null
+  uv run python scripts/validate_callset_qc_pack.py \
+    examples/workflow-callset-qc/pack.json >/dev/null
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

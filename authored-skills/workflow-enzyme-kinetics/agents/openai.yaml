@@ -1,0 +1,4 @@
+interface:
+  display_name: "Enzyme Kinetics"
+  short_description: "Check frozen synthetic rates, nonlinear fits and Km bracketing"
+  default_prompt: "Use $workflow-enzyme-kinetics to check supplied synthetic progress curves under frozen Michaelis-Menten fitting, linear-window and depletion rules, preserve uncertainty and failures, and hand off bounded arithmetic records for independent review."

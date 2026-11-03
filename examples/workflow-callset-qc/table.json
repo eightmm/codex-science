@@ -1,0 +1,338 @@
+{
+  "fixture": true,
+  "genome_build": "synthetic-build-v1",
+  "samples": [
+    "father",
+    "mother",
+    "child",
+    "control-a",
+    "control-b",
+    "bad-sample"
+  ],
+  "schema": "callset-qc-table-v1",
+  "schema_version": 1,
+  "sites": [
+    {
+      "alt": "G",
+      "calls": [
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 20,
+          "depth": 20,
+          "gt": "1/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "1",
+      "id": "fixture-site-1",
+      "position": 10,
+      "quality": 30,
+      "ref": "A"
+    },
+    {
+      "alt": "C",
+      "calls": [
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 20,
+          "depth": 20,
+          "gt": "1/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "1",
+      "id": "fixture-site-2",
+      "position": 20,
+      "quality": 30,
+      "ref": "A"
+    },
+    {
+      "alt": "G",
+      "calls": [
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 20,
+          "depth": 20,
+          "gt": "1/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "1",
+      "id": "fixture-site-3",
+      "position": 30,
+      "quality": 5,
+      "ref": "A"
+    },
+    {
+      "alt": "C",
+      "calls": [
+        {
+          "alt_depth": 0,
+          "depth": 1,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "1",
+      "id": "fixture-site-4",
+      "position": 40,
+      "quality": 30,
+      "ref": "A"
+    },
+    {
+      "alt": "G",
+      "calls": [
+        {
+          "alt_depth": 2,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "1",
+      "id": "fixture-site-5",
+      "position": 50,
+      "quality": 30,
+      "ref": "A"
+    },
+    {
+      "alt": "C",
+      "calls": [
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "1",
+      "id": "fixture-site-6",
+      "position": 60,
+      "quality": 30,
+      "ref": "A"
+    },
+    {
+      "alt": "G",
+      "calls": [
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 10,
+          "depth": 20,
+          "gt": "0/1",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 20,
+          "gt": "0/0",
+          "quality": 30
+        },
+        {
+          "alt_depth": 0,
+          "depth": 0,
+          "gt": "./.",
+          "quality": 0
+        }
+      ],
+      "chrom": "X",
+      "id": "fixture-site-7",
+      "position": 70,
+      "quality": 30,
+      "ref": "C"
+    }
+  ]
+}

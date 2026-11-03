@@ -1,0 +1,109 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "calculation"
+      ],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Biological interpretation remains unavailable."
+    }
+  ],
+  "computation": [
+    {
+      "calibrator": "calibrator",
+      "censored_n": {
+        "calibrator": 0,
+        "contrast": 0
+      },
+      "contrast": "contrast",
+      "fold_change": 1.0526315789473681,
+      "gene": "T",
+      "interval": "unavailable",
+      "log2_fold_change": 0.07400058144377653,
+      "n": {
+        "calibrator": 2,
+        "contrast": 2
+      },
+      "reference_gene": "R",
+      "samples": [
+        {
+          "biological_id": "calibrator-1",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": -0.5,
+          "relative_quantity": 0.7071067811865476,
+          "sample_id": "calibrator-1"
+        },
+        {
+          "biological_id": "calibrator-2",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": 0.5,
+          "relative_quantity": 1.4142135623730951,
+          "sample_id": "calibrator-2"
+        },
+        {
+          "biological_id": "contrast-1",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": -0.4259994185562235,
+          "relative_quantity": 0.7443229275647867,
+          "sample_id": "contrast-1"
+        },
+        {
+          "biological_id": "contrast-2",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": 0.5740005814437765,
+          "relative_quantity": 1.4886458551295734,
+          "sample_id": "contrast-2"
+        }
+      ]
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "09bec2f553af05d5bcf08f734a71f427aef6e309672c9013ece071c90e38b779"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "ee82bf6a0e87b695c0736687c57c676fce1e411896b4ae49d95c92099a122818"
+    },
+    {
+      "path": "protocol.json",
+      "sha256": "3a9bc9d2c1c1152273a8d568bd0413b6a36fc9ca183f7bb94b6225db806eb9ae"
+    },
+    {
+      "path": "report.json",
+      "sha256": "ff4d7bba51e65ef2b79e03b96794075f4773eb204ae982dff9538cfd99de3957"
+    },
+    {
+      "path": "table.json",
+      "sha256": "452d0a6a901ff796a8c30c89338b817fa7dc38ccec4d5f9a4252a9a6f36fd730"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures establish arithmetic behavior only.",
+    "Hashes cannot establish historical freezing or independent source authenticity.",
+    "Fixed single reference, unpaired two-condition contrast and 95 percent Welch interval only.",
+    "Censored biological units are counted and omitted from detected-value estimates.",
+    "Independent review is coordinator-owned and unavailable here.",
+    "English lexical claim checks are conservative and incomplete."
+  ],
+  "review": "unavailable",
+  "schema": "qpcr-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-qc",
+    "03-quantification",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "arithmetic-only"
+}

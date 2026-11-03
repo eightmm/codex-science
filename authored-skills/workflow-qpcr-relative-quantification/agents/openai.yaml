@@ -1,0 +1,4 @@
+interface:
+  display_name: "qPCR Relative Quantification"
+  short_description: "Check frozen Cq controls and efficiency-corrected quantities"
+  default_prompt: "Use $workflow-qpcr-relative-quantification to check synthetic Cq arithmetic with dilution-derived efficiency, biological-unit intervals, censored nondetections and independent review handoff."

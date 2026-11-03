@@ -1,0 +1,7 @@
+{
+  "fixture": true,
+  "kind": "observed-technical-record",
+  "result": "numerical-agreement",
+  "schema": "batch-effect-evidence-v1",
+  "schema_version": 1
+}

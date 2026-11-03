@@ -1,0 +1,267 @@
+{
+  "failed_controls": [
+    "mendelian:fixture-trio",
+    "sex-check:father"
+  ],
+  "fixture": true,
+  "hwe_scope": "controls-only",
+  "mendelian": [
+    {
+      "error_count": 1,
+      "errors": [
+        "fixture-site-2"
+      ],
+      "id": "fixture-trio",
+      "informative": 5,
+      "unavailable_sites": [
+        "fixture-site-6"
+      ]
+    }
+  ],
+  "missing_rule": "unavailable",
+  "removed_samples": [
+    {
+      "id": "bad-sample",
+      "reasons": [
+        "minimum-call-rate",
+        "heterozygosity-unavailable"
+      ]
+    }
+  ],
+  "removed_sites": [
+    {
+      "id": "fixture-site-3",
+      "reasons": [
+        "minimum-quality"
+      ]
+    },
+    {
+      "id": "fixture-site-4",
+      "reasons": [
+        "minimum-depth"
+      ]
+    },
+    {
+      "id": "fixture-site-5",
+      "reasons": [
+        "allele-balance"
+      ]
+    },
+    {
+      "id": "fixture-site-6",
+      "reasons": [
+        "maximum-missingness"
+      ]
+    }
+  ],
+  "retained_samples": [
+    "father",
+    "mother",
+    "child",
+    "control-a",
+    "control-b"
+  ],
+  "retained_sites": [
+    "fixture-site-1",
+    "fixture-site-2",
+    "fixture-site-7"
+  ],
+  "samples": [
+    {
+      "call_rate": 1.0,
+      "called": 3,
+      "heterozygosity": 0.3333333333333333,
+      "heterozygous": 1,
+      "id": "father",
+      "titv": {
+        "status": "outside-range",
+        "transitions": 0,
+        "transversions": 1,
+        "value": 0.0
+      }
+    },
+    {
+      "call_rate": 1.0,
+      "called": 3,
+      "heterozygosity": 0.6666666666666666,
+      "heterozygous": 2,
+      "id": "mother",
+      "titv": {
+        "status": "within-range",
+        "transitions": 1,
+        "transversions": 1,
+        "value": 1.0
+      }
+    },
+    {
+      "call_rate": 1.0,
+      "called": 3,
+      "heterozygosity": 0.3333333333333333,
+      "heterozygous": 1,
+      "id": "child",
+      "titv": {
+        "status": "within-range",
+        "transitions": 1,
+        "transversions": 1,
+        "value": 1.0
+      }
+    },
+    {
+      "call_rate": 1.0,
+      "called": 3,
+      "heterozygosity": 0.6666666666666666,
+      "heterozygous": 2,
+      "id": "control-a",
+      "titv": {
+        "status": "within-range",
+        "transitions": 1,
+        "transversions": 2,
+        "value": 0.5
+      }
+    },
+    {
+      "call_rate": 1.0,
+      "called": 3,
+      "heterozygosity": 0.6666666666666666,
+      "heterozygous": 2,
+      "id": "control-b",
+      "titv": {
+        "status": "within-range",
+        "transitions": 1,
+        "transversions": 1,
+        "value": 1.0
+      }
+    },
+    {
+      "call_rate": 0.0,
+      "called": 0,
+      "heterozygosity": null,
+      "heterozygous": 0,
+      "id": "bad-sample",
+      "titv": {
+        "status": "unavailable",
+        "transitions": 0,
+        "transversions": 0,
+        "value": null
+      }
+    }
+  ],
+  "schema": "callset-qc-report-v1",
+  "schema_version": 1,
+  "sex_checks": [
+    {
+      "id": "father",
+      "status": "contradiction",
+      "x_called": 1,
+      "x_heterozygosity": 1.0
+    },
+    {
+      "id": "mother",
+      "status": "consistent",
+      "x_called": 1,
+      "x_heterozygosity": 1.0
+    },
+    {
+      "id": "child",
+      "status": "unavailable",
+      "x_called": 1,
+      "x_heterozygosity": 0.0
+    },
+    {
+      "id": "control-a",
+      "status": "consistent",
+      "x_called": 1,
+      "x_heterozygosity": 1.0
+    },
+    {
+      "id": "control-b",
+      "status": "unavailable",
+      "x_called": 1,
+      "x_heterozygosity": 0.0
+    },
+    {
+      "id": "bad-sample",
+      "status": "unavailable",
+      "x_called": 0,
+      "x_heterozygosity": null
+    }
+  ],
+  "sites": [
+    {
+      "hwe": {
+        "controls_called": 4,
+        "p_value": 1.0,
+        "reason": null,
+        "status": "computed"
+      },
+      "id": "fixture-site-1",
+      "missingness": 0.16666666666666666
+    },
+    {
+      "hwe": {
+        "controls_called": 4,
+        "p_value": 1.0,
+        "reason": null,
+        "status": "computed"
+      },
+      "id": "fixture-site-2",
+      "missingness": 0.16666666666666666
+    },
+    {
+      "hwe": {
+        "controls_called": 4,
+        "p_value": 1.0,
+        "reason": null,
+        "status": "computed"
+      },
+      "id": "fixture-site-3",
+      "missingness": 0.16666666666666666
+    },
+    {
+      "hwe": {
+        "controls_called": 4,
+        "p_value": 1.0,
+        "reason": null,
+        "status": "computed"
+      },
+      "id": "fixture-site-4",
+      "missingness": 0.16666666666666666
+    },
+    {
+      "hwe": {
+        "controls_called": 4,
+        "p_value": 0.31428571428571433,
+        "reason": null,
+        "status": "computed"
+      },
+      "id": "fixture-site-5",
+      "missingness": 0.16666666666666666
+    },
+    {
+      "hwe": {
+        "controls_called": 2,
+        "p_value": 1.0,
+        "reason": null,
+        "status": "computed"
+      },
+      "id": "fixture-site-6",
+      "missingness": 0.6666666666666666
+    },
+    {
+      "hwe": {
+        "controls_called": 4,
+        "p_value": null,
+        "reason": "non-autosomal",
+        "status": "unavailable"
+      },
+      "id": "fixture-site-7",
+      "missingness": 0.16666666666666666
+    }
+  ],
+  "titv": {
+    "status": "within-range",
+    "transitions": 1,
+    "transversions": 2,
+    "value": 0.5
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no physical or clinical validity.",
+      "id": "callset-stages",
+      "path": "references/stages.md",
+      "purpose": "Synthetic callset schemas, bounded arithmetic, immutable identities and refusal boundaries.",
+      "read_when": [
+        "freezing rules",
+        "reading genotypes",
+        "computing QC",
+        "drafting claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "table-admission",
+        "qc-computation",
+        "claim-authoring",
+        "review-handoff"
+      ],
+      "search_patterns": [
+        "## Resource limits",
+        "## 01-freeze",
+        "## 03-metrics",
+        "## 05-handoff and claim gate"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Planning only; steps confer neither review nor truth.",
+      "id": "callset-plan",
+      "path": "references/plan.json",
+      "purpose": "Five ordered steps using the existing manifest plan shape.",
+      "read_when": [
+        "initializing the coordinator checkpoint"
+      ],
+      "required_before": [
+        "checkpoint-initialization"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-callset-qc"
+}

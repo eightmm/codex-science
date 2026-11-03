@@ -1,0 +1,55 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-callset-qc/pack.json",
+    "examples/workflow-callset-qc/expected.json",
+    "examples/workflow-callset-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixtures and stdlib arithmetic only; no physical, biological, clinical, diagnostic or causal validity. No real VCF parsing, haploid/PAR, indel or multiallelic model.",
+    "Declared hashes and freeze timestamps cannot prove historical timing or source authenticity; coordinator-owned independent review stays unavailable in pack output.",
+    "Conservative case-insensitive whole-word English prefix families consume remaining word characters: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, driv* including drive and drives, induc*. Additionally pathogen*, diagnos*, disease association separated by whitespace or hyphens, truth, physical validity separated by whitespace or hyphens. This lexical gate is incomplete and refuses negations too.",
+    "Unavailable text additionally refuses supported, replicated, suggestive and significan*. Any cited kind or result unavailable in evidence or source requires unavailable status even with mixed evidence. Known pack report/result sources are always computed. Positive claims check both kind and result for review, approv, comput, numer, physical, clinic and truth. Replicated is refused for a single synthetic fixture.",
+    "HWE is unavailable for monomorphic or insufficient controls and X; it does not by itself exclude a site. X uses a declared diploid heterozygosity proxy and does not establish sex identity."
+  ],
+  "output_schemas": [
+    "callset-qc-pack-v1",
+    "callset-qc-rules-v1",
+    "callset-qc-table-v1",
+    "callset-qc-report-v1",
+    "callset-qc-evidence-v1",
+    "callset-qc-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "unnamed-site-filter",
+    "hwe-on-cases",
+    "hwe-on-whole-cohort",
+    "unstated-strand-handling",
+    "unstated-multiallelic-handling",
+    "unfrozen-heterozygosity",
+    "mendelian-errors-ignored",
+    "unavailable-as-reference",
+    "post-outcome-filters",
+    "sex-check-contradiction-ignored",
+    "omitted-site-filter",
+    "pathogenicity",
+    "causal-variant",
+    "disease-association",
+    "clinical-actionability",
+    "diagnosis",
+    "changed-missing-call-rate",
+    "empty-evidence",
+    "unavailable-positive",
+    "late-freeze",
+    "stage-order"
+  ],
+  "skill": "workflow-callset-qc",
+  "test_files": [
+    "tests/test_workflow_vcf_pack.py"
+  ]
+}

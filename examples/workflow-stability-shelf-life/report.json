@@ -1,0 +1,33 @@
+{
+  "bound_sides": "one-sided",
+  "bound_type": "mean-response",
+  "claims": [
+    {
+      "evidence": [
+        "arithmetic"
+      ],
+      "id": "fixture-arithmetic",
+      "kind": "descriptive",
+      "status": "unsupported",
+      "text": "The synthetic fixture contains three fitted batch records."
+    }
+  ],
+  "evaluation_time": 6,
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture: sequential F tests select individual regression arithmetic.",
+  "poolability_tested": true,
+  "protocol_sha256": "8214f2e690357a44aee480baa5980055bd83145b3a0594b9fba6866a4eaf7732",
+  "schema": "stability-shelf-life-report-v1",
+  "selected_model": "individual",
+  "specification_limit": 4,
+  "summary": {
+    "df": {
+      "batch-a": 2,
+      "batch-b": 2,
+      "batch-c": 2
+    },
+    "earliest_crossing": 2.8389306894276536,
+    "n": 12
+  }
+}

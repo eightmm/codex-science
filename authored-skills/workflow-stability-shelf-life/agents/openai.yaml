@@ -1,0 +1,4 @@
+interface:
+  display_name: "Synthetic Stability Regression"
+  short_description: "Check frozen batch pooling and bounded mean-response crossings"
+  default_prompt: "Use $workflow-stability-shelf-life to freeze synthetic measured-attribute rules, check batch/time records, compute sequential poolability tests and capped one-sided mean-response bound crossings, and hand off arithmetic-only artifacts for independent review."

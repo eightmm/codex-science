@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze synthetic build, sample declarations and all filters before genotype access.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit hashed tab-free JSON identities and closed genotype/allele vocabularies.",
+      "id": "02-table-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Recompute controls-only exact Hardy-Weinberg, missingness, sample metrics, trio and X checks.",
+      "id": "03-metrics",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve every exclusion reason, unavailable denominator and failed control.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

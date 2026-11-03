@@ -1,0 +1,98 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "calculation"
+      ],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Biological interpretation remains unavailable."
+    }
+  ],
+  "efficiency_source": "dilution-series",
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic Cq arithmetic fixture",
+  "n_unit": "biological",
+  "protocol_sha256": "c597f1bd35f248b0f672e83f5b70c60940b1ab7bd509974a417ffeda34d90488",
+  "reference_gene": "R",
+  "schema": "qpcr-report-v1",
+  "schema_version": 1,
+  "summary": [
+    {
+      "calibrator": "calibrator",
+      "censored_n": {
+        "calibrator": 0,
+        "contrast": 0
+      },
+      "contrast": "contrast",
+      "fold_change": 1.0526315789473681,
+      "gene": "T",
+      "interval": {
+        "confidence": 0.95,
+        "df": 4.0,
+        "lower": -2.192957354083743,
+        "upper": 2.340958516971296
+      },
+      "log2_fold_change": 0.07400058144377653,
+      "n": {
+        "calibrator": 3,
+        "contrast": 3
+      },
+      "reference_gene": "R",
+      "samples": [
+        {
+          "biological_id": "calibrator-1",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": -1.0,
+          "relative_quantity": 0.5,
+          "sample_id": "calibrator-1"
+        },
+        {
+          "biological_id": "calibrator-2",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": 0.0,
+          "relative_quantity": 1.0,
+          "sample_id": "calibrator-2"
+        },
+        {
+          "biological_id": "calibrator-3",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": 1.0,
+          "relative_quantity": 2.0,
+          "sample_id": "calibrator-3"
+        },
+        {
+          "biological_id": "contrast-1",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": -0.9259994185562235,
+          "relative_quantity": 0.5263157894736841,
+          "sample_id": "contrast-1"
+        },
+        {
+          "biological_id": "contrast-2",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": 0.07400058144377653,
+          "relative_quantity": 1.0526315789473681,
+          "sample_id": "contrast-2"
+        },
+        {
+          "biological_id": "contrast-3",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": 1.0740005814437765,
+          "relative_quantity": 2.1052631578947363,
+          "sample_id": "contrast-3"
+        }
+      ]
+    }
+  ],
+  "technical_rule": "refuse-spread",
+  "undetermined_rule": "censored"
+}

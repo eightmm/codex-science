@@ -1,0 +1,245 @@
+{
+  "cases": [
+    {
+      "finding": "unnamed-site-filter",
+      "id": "unnamed-site-filter",
+      "operation": "set",
+      "path": [
+        "removed_sites",
+        0,
+        "reasons"
+      ],
+      "target": "qc",
+      "value": []
+    },
+    {
+      "finding": "hwe-controls-only",
+      "id": "hwe-on-cases",
+      "operation": "set",
+      "path": [
+        "hwe_scope"
+      ],
+      "target": "qc",
+      "value": "cases"
+    },
+    {
+      "finding": "hwe-controls-only",
+      "id": "hwe-on-whole-cohort",
+      "operation": "set",
+      "path": [
+        "site_filters",
+        "hwe_scope"
+      ],
+      "target": "rules",
+      "value": "whole-cohort"
+    },
+    {
+      "finding": "allele-handling",
+      "id": "unstated-strand-handling",
+      "operation": "set",
+      "path": [
+        "strand_ambiguous"
+      ],
+      "target": "rules",
+      "value": "unstated"
+    },
+    {
+      "finding": "allele-handling",
+      "id": "unstated-multiallelic-handling",
+      "operation": "set",
+      "path": [
+        "multiallelic"
+      ],
+      "target": "rules",
+      "value": "unstated"
+    },
+    {
+      "finding": "unfrozen-heterozygosity",
+      "id": "unfrozen-heterozygosity",
+      "operation": "remove",
+      "path": [
+        "sample_filters",
+        "heterozygosity_range"
+      ],
+      "target": "rules",
+      "value": null
+    },
+    {
+      "finding": "mendelian-ignored",
+      "id": "mendelian-errors-ignored",
+      "operation": "set",
+      "path": [
+        "mendelian",
+        0,
+        "error_count"
+      ],
+      "target": "qc",
+      "value": 0
+    },
+    {
+      "finding": "unavailable-as-reference",
+      "id": "unavailable-as-reference",
+      "operation": "set",
+      "path": [
+        "missing_rule"
+      ],
+      "target": "qc",
+      "value": "reference"
+    },
+    {
+      "finding": "post-outcome-filters",
+      "id": "post-outcome-filters",
+      "operation": "changed-rules",
+      "path": [
+        "titv_range"
+      ],
+      "target": "rules",
+      "value": [
+        0,
+        5
+      ]
+    },
+    {
+      "finding": "sex-contradiction-ignored",
+      "id": "sex-check-contradiction-ignored",
+      "operation": "set",
+      "path": [
+        "sex_checks",
+        0,
+        "status"
+      ],
+      "target": "qc",
+      "value": "consistent"
+    },
+    {
+      "finding": "site-filter-mismatch",
+      "id": "omitted-site-filter",
+      "operation": "remove",
+      "path": [
+        "removed_sites",
+        0
+      ],
+      "target": "qc",
+      "value": null
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "pathogenicity",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "text"
+      ],
+      "target": "pack",
+      "value": "Synthetic variants show pathogenicity."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal-variant",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "text"
+      ],
+      "target": "pack",
+      "value": "Synthetic data identify a causal variant."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "disease-association",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "text"
+      ],
+      "target": "pack",
+      "value": "Synthetic data show disease association."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "clinical-actionability",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "text"
+      ],
+      "target": "pack",
+      "value": "Synthetic data show clinical actionability."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "diagnosis",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "text"
+      ],
+      "target": "pack",
+      "value": "Synthetic data establish diagnosis."
+    },
+    {
+      "finding": "qc-report-mismatch",
+      "id": "changed-missing-call-rate",
+      "operation": "set",
+      "path": [
+        "samples",
+        5,
+        "call_rate"
+      ],
+      "target": "qc",
+      "value": 1
+    },
+    {
+      "finding": "empty-evidence",
+      "id": "empty-evidence",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "status"
+      ],
+      "target": "pack",
+      "value": "supported"
+    },
+    {
+      "finding": "unavailable-positive",
+      "id": "unavailable-positive",
+      "operation": "set",
+      "path": [
+        "claims",
+        0,
+        "text"
+      ],
+      "target": "pack",
+      "value": "Synthetic evidence is supported."
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "late-freeze",
+      "operation": "set",
+      "path": [
+        "freeze",
+        "frozen_at"
+      ],
+      "target": "pack",
+      "value": "2026-01-03T00:00:00Z"
+    },
+    {
+      "finding": "stage-order",
+      "id": "stage-order",
+      "operation": "set",
+      "path": [
+        "stages",
+        0
+      ],
+      "target": "pack",
+      "value": "02-table-qc"
+    }
+  ],
+  "fixture": true
+}

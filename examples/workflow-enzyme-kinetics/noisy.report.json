@@ -1,0 +1,103 @@
+{
+  "calculation": {
+    "bracketed": true,
+    "converged": true,
+    "covariance_Vmax_Km": 1.1266712164937858e-05,
+    "df": 4,
+    "excluded_ids": [],
+    "iterations": 6,
+    "last_iterate": {
+      "Km": 1.9840167711818428,
+      "Vmax": 0.039852352700982065
+    },
+    "parameters": {
+      "Km": 1.9840167711818428,
+      "Vmax": 0.039852352700982065,
+      "kcat": 19.926176350491033,
+      "kcat/Km": 10.043350761909826
+    },
+    "rates": [
+      {
+        "depletion_fraction": 0.054533333333333336,
+        "id": "S1",
+        "n": 4,
+        "r_squared": 1.0,
+        "rate": 0.004544444444444446,
+        "substrate": 0.25
+      },
+      {
+        "depletion_fraction": 0.047400000000000005,
+        "id": "S2",
+        "n": 4,
+        "r_squared": 1.0,
+        "rate": 0.0079,
+        "substrate": 0.5
+      },
+      {
+        "depletion_fraction": 0.040600000000000004,
+        "id": "S3",
+        "n": 4,
+        "r_squared": 1.0,
+        "rate": 0.013533333333333336,
+        "substrate": 1
+      },
+      {
+        "depletion_fraction": 0.029700000000000004,
+        "id": "S4",
+        "n": 4,
+        "r_squared": 1.0,
+        "rate": 0.019800000000000005,
+        "substrate": 2
+      },
+      {
+        "depletion_fraction": 0.020075000000000003,
+        "id": "S5",
+        "n": 4,
+        "r_squared": 1.0,
+        "rate": 0.02676666666666667,
+        "substrate": 4
+      },
+      {
+        "depletion_fraction": 0.0119625,
+        "id": "S6",
+        "n": 4,
+        "r_squared": 1.0,
+        "rate": 0.0319,
+        "substrate": 8
+      }
+    ],
+    "reliability": "reliable",
+    "residual_pattern": {
+      "flag": false,
+      "sign_changes": 5
+    },
+    "residuals": [
+      8.472493662050554e-05,
+      -0.00012175596463890812,
+      0.00017806231547031273,
+      -0.00020611693668147468,
+      0.00012746813172591354,
+      -3.2921279549978644e-05
+    ],
+    "sse": 1.1352514484100662e-07,
+    "standard_errors": {
+      "Km": 0.04033156857983104,
+      "Vmax": 0.00031125598780969713,
+      "kcat": 0.15562799390484855,
+      "kcat/Km": 0.1381638539354581
+    },
+    "units": {
+      "Km": "uM",
+      "Vmax": "uM/s",
+      "kcat": "1/s",
+      "kcat/Km": "1/(uM*s)"
+    }
+  },
+  "exploratory": false,
+  "fixture": true,
+  "method": "gauss-newton",
+  "model": "Michaelis-Menten",
+  "schema": "enzyme-kinetics-report-v1",
+  "schema_version": 1,
+  "weighting": "none"
+}

@@ -1,0 +1,63 @@
+{
+  "features": [
+    "fixture-feature-1",
+    "fixture-feature-2",
+    "fixture-missing",
+    "fixture-constant"
+  ],
+  "fixture": true,
+  "samples": [
+    "fixture-0",
+    "fixture-1",
+    "fixture-2",
+    "fixture-3",
+    "fixture-4",
+    "fixture-5",
+    "fixture-6",
+    "fixture-7"
+  ],
+  "schema": "batch-effect-matrix-v1",
+  "schema_version": 1,
+  "values": [
+    [
+      0,
+      2,
+      4,
+      6,
+      2,
+      4,
+      6,
+      8
+    ],
+    [
+      1,
+      5,
+      9,
+      13,
+      5,
+      9,
+      13,
+      17
+    ],
+    [
+      null,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    [
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3
+    ]
+  ]
+}

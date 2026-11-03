@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Hash all sample identities, reference choices and assay thresholds before Cq admission.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit unique wells, dilution efficiencies, NTC controls and censored Cq values.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute efficiency-corrected biological quantities and 95 percent Welch intervals.",
+      "id": "03-quantification",
+      "status": "pending"
+    },
+    {
+      "description": "Compare all synthetic sample quantities, biological n and unavailable intervals.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

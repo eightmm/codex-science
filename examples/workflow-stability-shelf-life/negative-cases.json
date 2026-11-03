@@ -1,0 +1,614 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "poolability_tested"
+          ],
+          "target": "report",
+          "value": false
+        }
+      ],
+      "code": "poolability-required",
+      "id": "untested-pooling"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "selected_model"
+          ],
+          "target": "report",
+          "value": "pooled"
+        }
+      ],
+      "code": "poolability-decision",
+      "id": "wrong-pooling"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "evaluation_time"
+          ],
+          "target": "report",
+          "value": 6.001
+        }
+      ],
+      "code": "extrapolation-limit",
+      "id": "excess-extrapolation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "bound_sides"
+          ],
+          "target": "report",
+          "value": "two-sided"
+        }
+      ],
+      "code": "one-sided-required",
+      "id": "two-sided"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "bound_type"
+          ],
+          "target": "report",
+          "value": "prediction"
+        }
+      ],
+      "code": "mean-bound-required",
+      "id": "prediction-bound"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "specification_limit"
+          ],
+          "target": "report",
+          "value": 3
+        }
+      ],
+      "code": "post-outcome-specification",
+      "id": "post-outcome-limit"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "censored"
+          ],
+          "target": "data",
+          "value": true
+        },
+        {
+          "path": [
+            "rows",
+            0,
+            "result"
+          ],
+          "target": "data",
+          "value": 0
+        }
+      ],
+      "code": "below-quantification-zero",
+      "id": "censored-zero"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "time"
+          ],
+          "target": "data",
+          "value": 0.1
+        }
+      ],
+      "code": "missing-baseline",
+      "id": "missing-baseline"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows"
+          ],
+          "target": "data",
+          "value": [
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 10.1,
+              "time": 0,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 8.9,
+              "time": 1,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.9,
+              "time": 2,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.1,
+              "time": 3,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 10.1,
+              "time": 0,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 8.9,
+              "time": 1,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.9,
+              "time": 2,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.1,
+              "time": 3,
+              "units": "fixture-unit"
+            }
+          ]
+        }
+      ],
+      "code": "insufficient-batches",
+      "id": "few-batches"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows"
+          ],
+          "target": "data",
+          "value": [
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 10.1,
+              "time": 0,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 8.9,
+              "time": 1,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-a",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.9,
+              "time": 2,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 10.1,
+              "time": 0,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 8.9,
+              "time": 1,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-b",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.9,
+              "time": 2,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-c",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 10.1,
+              "time": 0,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-c",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 7.9,
+              "time": 1,
+              "units": "fixture-unit"
+            },
+            {
+              "batch": "batch-c",
+              "censored": false,
+              "quantification_limit": null,
+              "result": 5.9,
+              "time": 2,
+              "units": "fixture-unit"
+            }
+          ]
+        }
+      ],
+      "code": "insufficient-time-points",
+      "id": "few-times"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes shelf life."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "shelf-life-claim"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes an expiry date."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "expiry-claim"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes regulatory acceptability."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "regulatory-claim"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes product safety."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "safety-claim"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes clinical relevance."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "clinical-claim"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            1,
+            "time"
+          ],
+          "target": "data",
+          "value": 0
+        }
+      ],
+      "code": "duplicate-measurement",
+      "id": "duplicate-measurement"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            1,
+            "time"
+          ],
+          "target": "data",
+          "value": 2.5
+        }
+      ],
+      "code": "time-order",
+      "id": "time-order"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "units"
+          ],
+          "target": "data",
+          "value": "other-fixture-unit"
+        }
+      ],
+      "code": "unit-mismatch",
+      "id": "mixed-units"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_before_results_read"
+          ],
+          "target": "pack",
+          "value": false
+        }
+      ],
+      "code": "rule-freeze",
+      "id": "unfrozen"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "stages"
+          ],
+          "target": "pack",
+          "value": [
+            "05-handoff",
+            "04-summary",
+            "03-regression",
+            "02-data-qc",
+            "01-rule-freeze"
+          ]
+        }
+      ],
+      "code": "stage-order",
+      "id": "stage-order"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "review-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "computed-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "suggestive"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "computed-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "report",
+          "value": []
+        }
+      ],
+      "code": "missing-evidence",
+      "id": "empty-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "unavailable"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The synthetic fixture is supported."
+        }
+      ],
+      "code": "unavailable-positive",
+      "id": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "unavailable"
+        }
+      ],
+      "code": "unavailable-evidence",
+      "id": "unavailable-citation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "code": "external-alias",
+      "id": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The synthetic signal causes a response."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "causal-wording"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The synthetic fixture establishes physical validity."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "physical-validity"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "summary",
+            "n"
+          ],
+          "target": "report",
+          "value": 13
+        }
+      ],
+      "code": "reported-number",
+      "id": "wrong-summary"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "schema": "stability-shelf-life-negative-fixtures-v1"
+}

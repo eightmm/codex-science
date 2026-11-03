@@ -1,0 +1,53 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; not scientific evidence or independent review.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen Cq identities, local records, limits, arithmetic and bounded claims.",
+      "read_when": [
+        "freezing rules",
+        "admitting synthetic Cq",
+        "computing relative quantities",
+        "authoring claims and review handoff"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "data-admission",
+        "reference-computation",
+        "summary-authoring",
+        "claim-authoring",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Limits",
+        "## 03-quantification",
+        "## Claim boundaries"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; not scientific evidence or independent review.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-qpcr-relative-quantification"
+}

@@ -1,0 +1,83 @@
+{
+  "allele_balance": [
+    0.25,
+    0.75
+  ],
+  "fixture": true,
+  "genome_build": "synthetic-build-v1",
+  "multiallelic": "refuse",
+  "sample_filters": {
+    "heterozygosity_range": [
+      0.1,
+      0.9
+    ],
+    "minimum_call_rate": 0.8
+  },
+  "samples": [
+    {
+      "control": true,
+      "family": "fixture-trio",
+      "id": "father",
+      "sex": "male"
+    },
+    {
+      "control": true,
+      "family": "fixture-trio",
+      "id": "mother",
+      "sex": "female"
+    },
+    {
+      "control": false,
+      "family": "fixture-trio",
+      "id": "child",
+      "sex": "unknown"
+    },
+    {
+      "control": true,
+      "family": "unrelated",
+      "id": "control-a",
+      "sex": "female"
+    },
+    {
+      "control": true,
+      "family": "unrelated",
+      "id": "control-b",
+      "sex": "unknown"
+    },
+    {
+      "control": false,
+      "family": "unrelated",
+      "id": "bad-sample",
+      "sex": "unknown"
+    }
+  ],
+  "schema": "callset-qc-rules-v1",
+  "schema_version": 1,
+  "sex_check": {
+    "enabled": true,
+    "female_minimum": 0.5,
+    "male_maximum": 0.1,
+    "minimum_sites": 1
+  },
+  "site_filters": {
+    "hwe_p_cutoff": 0.01,
+    "hwe_scope": "controls-only",
+    "maximum_missingness": 0.4,
+    "minimum_controls": 2,
+    "minimum_depth": 10,
+    "minimum_quality": 20
+  },
+  "strand_ambiguous": "retain-labelled",
+  "titv_range": [
+    0.25,
+    1
+  ],
+  "trios": [
+    {
+      "child": "child",
+      "father": "father",
+      "id": "fixture-trio",
+      "mother": "mother"
+    }
+  ]
+}

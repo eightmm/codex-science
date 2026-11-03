@@ -1,0 +1,25 @@
+{
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "4ad5c9ddd4b3b9bc8c1c918db1dd9519c884c099cdab7e73a54c6e681c2d83f4"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_cq_read": true,
+  "frozen_protocol_sha256": "c597f1bd35f248b0f672e83f5b70c60940b1ab7bd509974a417ffeda34d90488",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "c597f1bd35f248b0f672e83f5b70c60940b1ab7bd509974a417ffeda34d90488"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "05ce78cb810c83e6fa245906ccb954ae0611dd4cb4ccc2aebbec2c526819f4a4"
+  },
+  "schema": "qpcr-pack-v1",
+  "schema_version": 1,
+  "table": {
+    "path": "table.json",
+    "sha256": "8502c62967d7501f0c3d03f52faa3c45b910f08490ada3599308f8147a693c66"
+  }
+}

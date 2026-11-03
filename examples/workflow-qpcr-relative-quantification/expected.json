@@ -1,0 +1,130 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "calculation"
+      ],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Biological interpretation remains unavailable."
+    }
+  ],
+  "computation": [
+    {
+      "calibrator": "calibrator",
+      "censored_n": {
+        "calibrator": 0,
+        "contrast": 0
+      },
+      "contrast": "contrast",
+      "fold_change": 1.0526315789473681,
+      "gene": "T",
+      "interval": {
+        "confidence": 0.95,
+        "df": 4.0,
+        "lower": -2.192957354083743,
+        "upper": 2.340958516971296
+      },
+      "log2_fold_change": 0.07400058144377653,
+      "n": {
+        "calibrator": 3,
+        "contrast": 3
+      },
+      "reference_gene": "R",
+      "samples": [
+        {
+          "biological_id": "calibrator-1",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": -1.0,
+          "relative_quantity": 0.5,
+          "sample_id": "calibrator-1"
+        },
+        {
+          "biological_id": "calibrator-2",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": 0.0,
+          "relative_quantity": 1.0,
+          "sample_id": "calibrator-2"
+        },
+        {
+          "biological_id": "calibrator-3",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": 1.0,
+          "relative_quantity": 2.0,
+          "sample_id": "calibrator-3"
+        },
+        {
+          "biological_id": "contrast-1",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": -0.9259994185562235,
+          "relative_quantity": 0.5263157894736841,
+          "sample_id": "contrast-1"
+        },
+        {
+          "biological_id": "contrast-2",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": 0.07400058144377653,
+          "relative_quantity": 1.0526315789473681,
+          "sample_id": "contrast-2"
+        },
+        {
+          "biological_id": "contrast-3",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": 1.0740005814437765,
+          "relative_quantity": 2.1052631578947363,
+          "sample_id": "contrast-3"
+        }
+      ]
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "4ad5c9ddd4b3b9bc8c1c918db1dd9519c884c099cdab7e73a54c6e681c2d83f4"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "2c2aa843d0dbc505707ebafc44a7512f705ebbbf3f295f080af635a39c5031d6"
+    },
+    {
+      "path": "protocol.json",
+      "sha256": "c597f1bd35f248b0f672e83f5b70c60940b1ab7bd509974a417ffeda34d90488"
+    },
+    {
+      "path": "report.json",
+      "sha256": "05ce78cb810c83e6fa245906ccb954ae0611dd4cb4ccc2aebbec2c526819f4a4"
+    },
+    {
+      "path": "table.json",
+      "sha256": "8502c62967d7501f0c3d03f52faa3c45b910f08490ada3599308f8147a693c66"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures establish arithmetic behavior only.",
+    "Hashes cannot establish historical freezing or independent source authenticity.",
+    "Fixed single reference, unpaired two-condition contrast and 95 percent Welch interval only.",
+    "Censored biological units are counted and omitted from detected-value estimates.",
+    "Independent review is coordinator-owned and unavailable here.",
+    "English lexical claim checks are conservative and incomplete."
+  ],
+  "review": "unavailable",
+  "schema": "qpcr-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-qc",
+    "03-quantification",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "arithmetic-only"
+}

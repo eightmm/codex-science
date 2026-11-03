@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "pack": "workflow-callset-qc",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Retained site IDs are 1, 2 and 7; overall Ti/Tv is 1/2.",
+        "First-site control counts 1,2,1 give exact HWE p=1; separate 2,0,2 gives 3/35.",
+        "Father heterozygosity is 1/3; bad-sample call rate is zero and heterozygosity unavailable.",
+        "Every removal reason and trio error, missing trio comparison and X contradiction remains visible.",
+        "No writes or review self-attestation."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-hand-qc",
+      "input": "examples/workflow-callset-qc/pack.json",
+      "question": "Do the frozen synthetic calls reproduce hand-counted controls and retain failed trio and X checks?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 21 seeded mutations raise their named labelled ValueError.",
+        "Each seeded case fails with its named guard disabled.",
+        "Nonregular files, identity swaps, untrusted JSON and resource budgets refuse without hangs or writes."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-refusal-controls",
+      "input": "examples/workflow-callset-qc/negative-cases.json",
+      "question": "Does each synthetic defect refuse for its own stated reason and fail its test if that guard is disabled?"
+    }
+  ]
+}

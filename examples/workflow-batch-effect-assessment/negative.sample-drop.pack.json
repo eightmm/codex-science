@@ -1,0 +1,43 @@
+{
+  "claims": [
+    {
+      "id": "fixture-scope",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "External evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "fixture": true,
+  "freeze_before_matrix": true,
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "frozen_rules_sha256": "295e569d421afc3db6f73fc3f1e50774c17ec68df0b671b8b1f641a5a366e182",
+  "group_adjusted": false,
+  "inputs": {
+    "matrix": {
+      "path": "negative.sample-drop.matrix.json",
+      "sha256": "33c425fa8b9b89bdd571163800dfe88b7b8f04520c248227da0c00e23aa250ea"
+    },
+    "rules": {
+      "path": "rules.json",
+      "sha256": "295e569d421afc3db6f73fc3f1e50774c17ec68df0b671b8b1f641a5a366e182"
+    }
+  },
+  "matrix_read_at": "2026-01-02T00:00:00Z",
+  "schema": "batch-effect-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-rule-freeze",
+    "02-matrix-qc",
+    "03-metrics",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "batch-structure-detected",
+  "study_outputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "2452ffcaf41cd58e909e55203421ae0927f424e2192925d8e1f6b4c70dd6efbc"
+    }
+  ]
+}

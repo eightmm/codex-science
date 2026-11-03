@@ -1,0 +1,69 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-stability-shelf-life/pack.json",
+    "examples/workflow-stability-shelf-life/expected.json",
+    "examples/workflow-stability-shelf-life/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 denotes offline synthetic fixture acceptance with hand-derived numbers and exercised seeded refusals, never a labelled shelf life, product-quality, safety, regulatory or clinical claim.",
+    "One-sided mean-response bounds are pointwise and conditional on linear independent homoscedastic normal residuals; model adequacy and simultaneous coverage remain unverified.",
+    "OLS refuses correctly retained censored values, perfect lines and zero time variance instead of substituting values or returning misleading significance.",
+    "Hash declarations cannot independently establish historical freeze timing, real source identity or independence. Review and rigor remain coordinator-owned; this pack leaves review unavailable.",
+    "Conservative English case-insensitive whole-word prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Incomplete for unlisted paraphrases and includes negations. Additional refusals cover truth, shelf life (joined, spaced or hyphenated), expir*, product quality, product safety, physical validity and patient benefit*. Phrase separators accept spaces or hyphens.",
+    "Unavailable text additionally refuses supported, replicated, suggestive and significan*. Any unavailable kind/result citation requires unavailable status including mixed lists. Empty evidence requires unavailable; replicated is always refused for this single synthetic fixture.",
+    "Positive statuses cannot cite records whose kind or result contains review, approv, comput, numer, agreement, truth, physical or clinic. A source declared external, independent or preregistered cannot alias study artifacts by path or hash.",
+    "Raw artifacts are bounded to 64 MiB each and 256 MiB per bundle across distinct inodes; JSON values are bounded before parsing. Input files and every ancestor are rechecked before acceptance."
+  ],
+  "output_schemas": [
+    "stability-shelf-life-pack-v1",
+    "stability-shelf-life-protocol-v1",
+    "stability-shelf-life-data-v1",
+    "stability-shelf-life-report-v1",
+    "stability-shelf-life-evidence-v1",
+    "stability-shelf-life-result-v1",
+    "stability-shelf-life-expected-fixture-v1",
+    "stability-shelf-life-negative-fixtures-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "untested-pooling",
+    "wrong-pooling",
+    "excess-extrapolation",
+    "two-sided",
+    "prediction-bound",
+    "post-outcome-limit",
+    "censored-zero",
+    "missing-baseline",
+    "few-batches",
+    "few-times",
+    "shelf-life-claim",
+    "expiry-claim",
+    "regulatory-claim",
+    "safety-claim",
+    "clinical-claim",
+    "duplicate-measurement",
+    "time-order",
+    "mixed-units",
+    "unfrozen",
+    "stage-order",
+    "review-kind",
+    "computed-kind",
+    "computed-result",
+    "empty-evidence",
+    "unavailable-positive",
+    "unavailable-citation",
+    "external-alias",
+    "causal-wording",
+    "physical-validity",
+    "wrong-summary"
+  ],
+  "skill": "workflow-stability-shelf-life",
+  "test_files": [
+    "tests/test_workflow_stab_pack.py"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "concentration_unit": "uM",
+  "enzyme_concentration": 0.002,
+  "enzyme_unit": "uM",
+  "exclusion_rule": "none",
+  "fixture": true,
+  "max_iterations": 1,
+  "method": "gauss-newton",
+  "min_levels": 6,
+  "model": "Michaelis-Menten",
+  "product_unit": "uM",
+  "rate_unit": "uM/s",
+  "schema": "enzyme-kinetics-protocol-v1",
+  "schema_version": 1,
+  "start": {
+    "Km": 1.5,
+    "Vmax": 0.03
+  },
+  "substrate": "synthetic-substrate",
+  "substrate_levels": [
+    0.25,
+    0.5,
+    1,
+    2,
+    4,
+    8
+  ],
+  "time_unit": "s",
+  "tolerance": 1e-10,
+  "weighting": "none",
+  "window": {
+    "max_depletion_fraction": 0.1,
+    "min_points": 4,
+    "min_r_squared": 0.99,
+    "start": 0,
+    "stop": 3
+  }
+}

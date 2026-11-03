@@ -1,0 +1,28 @@
+{
+  "alpha": 0.25,
+  "attribute": "synthetic measured signal",
+  "batches": [
+    "batch-a",
+    "batch-b",
+    "batch-c"
+  ],
+  "confidence_level": 0.95,
+  "direction": "lower",
+  "extrapolation_multiple": 2,
+  "fixture": "synthetic fixture",
+  "minimum_batches": 3,
+  "minimum_time_points": 4,
+  "model": "linear-in-time",
+  "poolability_rule": "slope-then-intercept-else-individual",
+  "schema": "stability-shelf-life-protocol-v1",
+  "specification_limit": 4,
+  "storage_condition": "synthetic constant condition",
+  "time_points": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "time_unit": "fixture-month",
+  "units": "fixture-unit"
+}

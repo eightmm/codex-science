@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "arithmetic",
+      "kind": "computed",
+      "origin": "internal",
+      "result": "numerical agreement",
+      "source": {
+        "path": "data.json",
+        "sha256": "afe58551fe0a41993101cf977fc2e54589f650447a9784d5a5e550973a31e21c"
+      }
+    }
+  ],
+  "schema": "stability-shelf-life-evidence-v1"
+}

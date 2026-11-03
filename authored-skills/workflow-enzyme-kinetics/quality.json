@@ -1,0 +1,54 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-enzyme-kinetics/noiseless.pack.json",
+    "examples/workflow-enzyme-kinetics/noisy.pack.json",
+    "examples/workflow-enzyme-kinetics/expected.json",
+    "examples/workflow-enzyme-kinetics/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 establishes synthetic software/arithmetic acceptance only, never physical, biological or clinical validity or independent review. No live experiment or CI wiring is added by this pack; the owner retains batch gate integration.",
+    "Hashes and declared timestamps cannot prove historical freezing or source authenticity. Rigor classification and independent review remain with the coordinator.",
+    "Only Michaelis-Menten, unweighted nonlinear Gauss-Newton, fixed reference units and no exclusions are implemented; substrate inhibition is outside this route. An exploratory model change still requires a separate frozen bundle.",
+    "Asymptotic Jacobian standard errors assume an adequate model and fixed known enzyme concentration; enzyme uncertainty is not propagated. Residual sign patterns are diagnostics, not proof of model adequacy.",
+    "Positive scientific statuses, including replicated, are refused for a single synthetic fixture; computed agreement and review approval are never positive scientific evidence.",
+    "Conservative English case-insensitive whole-word lexical gate with word-character prefix suffixes: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Extra refusals cover truth, physical validity separated by whitespace or hyphen, diagnos*, patient* and drug*. It is incomplete and refuses negations too.",
+    "Unavailable text additionally refuses supported, replicated, suggestive and significan*. Any unavailable kind/result citation requires unavailable status, including mixed support. Both evidence kind and result are checked for review, approv, comput, numer, agreement, truth, physical and clinic.",
+    "Expected-fixture and negative-fixture schemas describe test metadata; the CLI does not admit them as scientific records. No existing global schema or stored record class changes."
+  ],
+  "output_schemas": [
+    "enzyme-kinetics-pack-v1",
+    "enzyme-kinetics-protocol-v1",
+    "enzyme-kinetics-data-v1",
+    "enzyme-kinetics-report-v1",
+    "enzyme-kinetics-evidence-v1",
+    "enzyme-kinetics-result-v1",
+    "enzyme-kinetics-expected-fixture-v1",
+    "enzyme-kinetics-negative-fixture-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "outside-window",
+    "lineweaver-burk",
+    "unbracketed-km",
+    "nonconverged-vmax",
+    "depletion",
+    "km-units",
+    "missing-enzyme",
+    "changed-model",
+    "missing-standard-errors",
+    "inhibition",
+    "mechanism",
+    "binding-affinity",
+    "drug-activity",
+    "clinical-relevance"
+  ],
+  "skill": "workflow-enzyme-kinetics",
+  "test_files": [
+    "tests/test_workflow_kin_pack.py"
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-stability-shelf-life",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Per-batch n=4, df=2, Sxx=5, SSE=0.04, MSE=0.02; total n=12.",
+        "Sequential slope F=250/3 on 2 and 6 df; p approximately 0.0000419593; individual fits selected.",
+        "One-sided df=2 t percentile=sqrt(162/19); earliest mean-bound crossing approximately 2.83893068942765, capped at time 6.",
+        "All inputs remain unchanged; review unavailable; status arithmetic-only."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 512,
+        "network": false
+      },
+      "id": "fixture-different-slope",
+      "input": "examples/workflow-stability-shelf-life/pack.json",
+      "question": "Does synthetic stability arithmetic preserve the planted slope difference and hand-derived crossing?"
+    },
+    {
+      "acceptance_criteria": [
+        "Equal slopes and intercepts pool with residual df 10 and SSE 0.12; different intercepts restore individual fits.",
+        "Upper and lower directions, zero-time crossing, horizon equality and no crossing preserve the frozen cap.",
+        "Changed specification refuses unless exploratory and recomputed."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 512,
+        "network": false
+      },
+      "id": "fixture-model-edges",
+      "input": "examples/workflow-stability-shelf-life/pack.json",
+      "question": "Do the frozen pooling and directional bound rules hold at their model and crossing edges?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every checked-in seeded defect refuses with its stated code through API and CLI.",
+        "Removing each relevant refusal makes its seeded test fail.",
+        "FIFO, symlink, ancestor/root swaps, hardlink aliases, duplicate keys and aggregate budgets are exercised without network or writes.",
+        "Missing, extra and unknown CLI arguments produce stderr JSON refusals with exit 2; help remains stdout usage with exit 0."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 512,
+        "network": false
+      },
+      "id": "fixture-refusal-controls",
+      "input": "examples/workflow-stability-shelf-life/negative-cases.json",
+      "question": "Does every synthetic defect refuse before it can acquire a scientific claim?"
+    }
+  ]
+}

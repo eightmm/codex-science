@@ -1,0 +1,189 @@
+{
+  "assays": [
+    {
+      "dilution_series": [
+        {
+          "cq": 30.0,
+          "log10_input": 0
+        },
+        {
+          "cq": 26.67807190511264,
+          "log10_input": 1
+        },
+        {
+          "cq": 23.356143810225277,
+          "log10_input": 2
+        }
+      ],
+      "efficiency": 1.0,
+      "gene": "T",
+      "r_squared": 1.0
+    },
+    {
+      "dilution_series": [
+        {
+          "cq": 30.0,
+          "log10_input": 0
+        },
+        {
+          "cq": 26.41260239659031,
+          "log10_input": 1
+        },
+        {
+          "cq": 22.825204793180617,
+          "log10_input": 2
+        }
+      ],
+      "efficiency": 0.9,
+      "gene": "R",
+      "r_squared": 1.0
+    }
+  ],
+  "conditions": [
+    "calibrator",
+    "contrast"
+  ],
+  "confidence": 0.95,
+  "detection_cq": 35,
+  "efficiency_range": [
+    0.8,
+    1.1
+  ],
+  "fixture": "synthetic fixture",
+  "max_technical_spread": 0.5,
+  "minimum_interval_n": 3,
+  "ntc_min_cq": 35,
+  "ntc_wells": [
+    {
+      "gene": "T",
+      "well_id": "NTC-T"
+    },
+    {
+      "gene": "R",
+      "well_id": "NTC-R"
+    }
+  ],
+  "reference_gene": "R",
+  "reference_rule": "fixed-single-reference",
+  "samples": [
+    {
+      "biological_id": "calibrator-1",
+      "condition": "calibrator",
+      "id": "calibrator-1",
+      "technical_replicates": 2,
+      "wells": [
+        {
+          "gene": "T",
+          "technical_replicate": 1,
+          "well_id": "calibrator-1-T-1"
+        },
+        {
+          "gene": "T",
+          "technical_replicate": 2,
+          "well_id": "calibrator-1-T-2"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 1,
+          "well_id": "calibrator-1-R-1"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 2,
+          "well_id": "calibrator-1-R-2"
+        }
+      ]
+    },
+    {
+      "biological_id": "calibrator-2",
+      "condition": "calibrator",
+      "id": "calibrator-2",
+      "technical_replicates": 2,
+      "wells": [
+        {
+          "gene": "T",
+          "technical_replicate": 1,
+          "well_id": "calibrator-2-T-1"
+        },
+        {
+          "gene": "T",
+          "technical_replicate": 2,
+          "well_id": "calibrator-2-T-2"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 1,
+          "well_id": "calibrator-2-R-1"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 2,
+          "well_id": "calibrator-2-R-2"
+        }
+      ]
+    },
+    {
+      "biological_id": "contrast-1",
+      "condition": "contrast",
+      "id": "contrast-1",
+      "technical_replicates": 2,
+      "wells": [
+        {
+          "gene": "T",
+          "technical_replicate": 1,
+          "well_id": "contrast-1-T-1"
+        },
+        {
+          "gene": "T",
+          "technical_replicate": 2,
+          "well_id": "contrast-1-T-2"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 1,
+          "well_id": "contrast-1-R-1"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 2,
+          "well_id": "contrast-1-R-2"
+        }
+      ]
+    },
+    {
+      "biological_id": "contrast-2",
+      "condition": "contrast",
+      "id": "contrast-2",
+      "technical_replicates": 2,
+      "wells": [
+        {
+          "gene": "T",
+          "technical_replicate": 1,
+          "well_id": "contrast-2-T-1"
+        },
+        {
+          "gene": "T",
+          "technical_replicate": 2,
+          "well_id": "contrast-2-T-2"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 1,
+          "well_id": "contrast-2-R-1"
+        },
+        {
+          "gene": "R",
+          "technical_replicate": 2,
+          "well_id": "contrast-2-R-2"
+        }
+      ]
+    }
+  ],
+  "schema": "qpcr-protocol-v1",
+  "schema_version": 1,
+  "statistic": "log2-fold-change-welch-t",
+  "targets": [
+    "T"
+  ],
+  "undetermined_rule": "censored"
+}

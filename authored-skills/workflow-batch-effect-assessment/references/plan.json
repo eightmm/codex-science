@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze sample identities, design, filters, transformation, thresholds and group-restricted permutations before reading the matrix.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit hashed unique sample/feature identities and finite observed values, retaining missingness and named exclusions.",
+      "id": "02-matrix-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute exact confounding rank, unadjusted variance/centroid metrics, stratified permutation pseudo-F and QC dispersion.",
+      "id": "03-metrics",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve failed controls and classify technical structure under the frozen thresholds, with confounding unassessable.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary hashed artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only, never physical or clinical validity.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen identities, synthetic arithmetic, local schemas, limits, refusals and review handoff.",
+      "read_when": [
+        "freezing enzyme and substrate rules",
+        "admitting progress curves",
+        "checking nonlinear fit arithmetic",
+        "authoring bounded claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "data-admission",
+        "reference-computation",
+        "claim-authoring",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Limits",
+        "## 03-fit",
+        "## Claim boundaries"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Ordered steps cannot establish historical freezing, source authenticity, truth or independent review.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Five ordered existing manifest plan step shapes for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-enzyme-kinetics"
+}

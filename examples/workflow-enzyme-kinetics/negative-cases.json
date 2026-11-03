@@ -1,0 +1,91 @@
+{
+  "cases": [
+    {
+      "field": "rate_window",
+      "finding": "rate-window",
+      "id": "outside-window",
+      "target": "data"
+    },
+    {
+      "field": "method",
+      "finding": "primary-fit",
+      "id": "lineweaver-burk",
+      "target": "report"
+    },
+    {
+      "field": "substrate_levels",
+      "finding": "km-unreliable",
+      "id": "unbracketed-km",
+      "target": "protocol"
+    },
+    {
+      "field": "max_iterations",
+      "finding": "fit-nonconverged",
+      "id": "nonconverged-vmax",
+      "target": "protocol"
+    },
+    {
+      "field": "product",
+      "finding": "substrate-depletion",
+      "id": "depletion",
+      "target": "data"
+    },
+    {
+      "field": "units",
+      "finding": "unit-mismatch",
+      "id": "km-units",
+      "target": "report"
+    },
+    {
+      "field": "enzyme_concentration",
+      "finding": "enzyme-missing",
+      "id": "missing-enzyme",
+      "target": "protocol"
+    },
+    {
+      "field": "model",
+      "finding": "post-outcome-model",
+      "id": "changed-model",
+      "target": "report"
+    },
+    {
+      "field": "standard_errors",
+      "finding": "standard-errors",
+      "id": "missing-standard-errors",
+      "target": "report"
+    },
+    {
+      "field": "text",
+      "finding": "claim-boundary",
+      "id": "inhibition",
+      "target": "claim"
+    },
+    {
+      "field": "text",
+      "finding": "claim-boundary",
+      "id": "mechanism",
+      "target": "claim"
+    },
+    {
+      "field": "text",
+      "finding": "claim-boundary",
+      "id": "binding-affinity",
+      "target": "claim"
+    },
+    {
+      "field": "text",
+      "finding": "claim-boundary",
+      "id": "drug-activity",
+      "target": "claim"
+    },
+    {
+      "field": "text",
+      "finding": "claim-boundary",
+      "id": "clinical-relevance",
+      "target": "claim"
+    }
+  ],
+  "fixture": true,
+  "schema": "enzyme-kinetics-negative-fixture-v1",
+  "schema_version": 1
+}

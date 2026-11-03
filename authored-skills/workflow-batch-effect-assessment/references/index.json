@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no biological validity or review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen inputs, five stages, numerical controls, local schemas, immutable admission and claim refusals.",
+      "read_when": [
+        "freezing a sample sheet",
+        "admitting a matrix",
+        "computing technical batch metrics",
+        "handing off bounded claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "matrix-admission",
+        "reference-computation",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Limits and immutable admission",
+        "## 03-metrics",
+        "## Claim boundaries"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Ordering and hashes cannot prove historical timing or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest plan shape with five ordered steps and one coordinator checkpoint.",
+      "read_when": [
+        "authoring the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rule-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-batch-effect-assessment"
+}

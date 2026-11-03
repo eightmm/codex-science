@@ -1,0 +1,91 @@
+{
+  "assessment": {
+    "confounding": {
+      "columns": 3,
+      "confounded": true,
+      "rank": 2,
+      "single_batch_groups": [
+        "X",
+        "Y"
+      ]
+    },
+    "exploratory": false,
+    "failed_controls": [
+      "confounded-design"
+    ],
+    "filtered_features": [
+      {
+        "feature": "fixture-missing",
+        "missing": 1,
+        "reason": "missing-values"
+      },
+      {
+        "feature": "fixture-constant",
+        "missing": 0,
+        "reason": "zero-variance"
+      }
+    ],
+    "metrics": null,
+    "missing_counts": {
+      "fixture-constant": 0,
+      "fixture-feature-1": 0,
+      "fixture-feature-2": 0,
+      "fixture-missing": 1
+    },
+    "retained_features": [
+      "fixture-feature-1",
+      "fixture-feature-2"
+    ],
+    "sample_count": 8,
+    "status": "unassessable",
+    "unavailable_samples": []
+  },
+  "claims": [
+    {
+      "id": "fixture-scope",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "External evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "evidence_level": "arithmetic-only",
+  "fixture": true,
+  "input_identities": [
+    {
+      "path": "confounded.pack.json",
+      "sha256": "86b6e973bbb647850a2f5737089aaad6b61ff443e5f90e72c95acf9593feaaaa"
+    },
+    {
+      "path": "confounded.rules.json",
+      "sha256": "eb45707e67ee55eee92f73aa96130af6a30f7f4b5a6274afcc315608125bd3be"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "2452ffcaf41cd58e909e55203421ae0927f424e2192925d8e1f6b4c70dd6efbc"
+    },
+    {
+      "path": "matrix.json",
+      "sha256": "880896ed655eaa852e1e7cdd8fb51001a53414d81d434027f9d4caba577e4303"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures establish software behavior only.",
+    "Hash and timestamp declarations cannot prove historical freeze timing or independence.",
+    "One-way metrics are unadjusted; group-restricted permutations do not identify attribution.",
+    "Not-detected is limited to the frozen thresholds, features and finite permutation resolution.",
+    "The conservative English wording gate is incomplete and also refuses negations.",
+    "Unavailable QC samples are not negative controls; independent source, record and method review remains required."
+  ],
+  "review": "unavailable",
+  "rules_sha256": "eb45707e67ee55eee92f73aa96130af6a30f7f4b5a6274afcc315608125bd3be",
+  "schema": "batch-effect-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-rule-freeze",
+    "02-matrix-qc",
+    "03-metrics",
+    "04-summary",
+    "05-handoff"
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "confounding_rule": "group-single-batch-or-rank-deficient",
+  "covariates": [],
+  "exploratory": false,
+  "feature_filter": {
+    "frozen": true,
+    "method": "complete-nonconstant",
+    "uses_group_labels": false
+  },
+  "fixture": true,
+  "minimum_samples": 4,
+  "permutations": {
+    "count": 199,
+    "minimum_success_fraction": 0.9,
+    "seed": 1729,
+    "strata": "group"
+  },
+  "samples": [
+    {
+      "available": true,
+      "batch": "X",
+      "covariates": {},
+      "group": "X",
+      "id": "fixture-0",
+      "qc": true,
+      "reason": null,
+      "replicate": "rep-X0"
+    },
+    {
+      "available": true,
+      "batch": "X",
+      "covariates": {},
+      "group": "X",
+      "id": "fixture-1",
+      "qc": false,
+      "reason": null,
+      "replicate": "rep-X1"
+    },
+    {
+      "available": true,
+      "batch": "X",
+      "covariates": {},
+      "group": "X",
+      "id": "fixture-2",
+      "qc": true,
+      "reason": null,
+      "replicate": "rep-X0"
+    },
+    {
+      "available": true,
+      "batch": "X",
+      "covariates": {},
+      "group": "X",
+      "id": "fixture-3",
+      "qc": false,
+      "reason": null,
+      "replicate": "rep-X1"
+    },
+    {
+      "available": true,
+      "batch": "Y",
+      "covariates": {},
+      "group": "Y",
+      "id": "fixture-4",
+      "qc": false,
+      "reason": null,
+      "replicate": "rep-Y0"
+    },
+    {
+      "available": true,
+      "batch": "Y",
+      "covariates": {},
+      "group": "Y",
+      "id": "fixture-5",
+      "qc": false,
+      "reason": null,
+      "replicate": "rep-Y1"
+    },
+    {
+      "available": true,
+      "batch": "Y",
+      "covariates": {},
+      "group": "Y",
+      "id": "fixture-6",
+      "qc": false,
+      "reason": null,
+      "replicate": "rep-Y0"
+    },
+    {
+      "available": true,
+      "batch": "Y",
+      "covariates": {},
+      "group": "Y",
+      "id": "fixture-7",
+      "qc": false,
+      "reason": null,
+      "replicate": "rep-Y1"
+    }
+  ],
+  "schema": "batch-effect-rules-v1",
+  "schema_version": 1,
+  "thresholds": {
+    "batch_silhouette": 0.5,
+    "median_batch_r2": 0.5,
+    "permutation_alpha": 0.1,
+    "qc_dispersion": 100
+  },
+  "thresholds_changed_after_outcomes": false,
+  "transformation": "identity"
+}

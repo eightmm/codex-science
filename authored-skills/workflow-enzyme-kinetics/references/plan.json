@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash synthetic concentrations, units, linear window, nonlinear fit, weighting and exclusions before reading rates.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable curve identities, monotonic time, frozen-window rates, depletion and consistent units.",
+      "id": "02-identity-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute Michaelis-Menten parameters, Jacobian uncertainty, convergence, Km bracketing and residual diagnostics.",
+      "id": "03-fit",
+      "status": "pending"
+    },
+    {
+      "description": "Compare all reported arithmetic, preserve failed controls, negative results, exclusions and unavailable evidence.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claim-register entries for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

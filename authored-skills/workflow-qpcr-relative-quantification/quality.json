@@ -1,0 +1,70 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-qpcr-relative-quantification/pack.json",
+    "examples/workflow-qpcr-relative-quantification/expected.json",
+    "examples/workflow-qpcr-relative-quantification/small-n/pack.json",
+    "examples/workflow-qpcr-relative-quantification/small-n/expected.json",
+    "examples/workflow-qpcr-relative-quantification/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 establishes offline synthetic software acceptance only; never biological, physical or clinical validity.",
+    "Only fixed single-reference, unpaired two-condition, detected-value estimates and 95 percent Welch intervals; no geNorm, paired design or multiplicity adjustment.",
+    "Censored biological samples are retained and counted but omitted from detected-value estimates; n below three yields unavailable intervals and zero variance refuses.",
+    "Hashes and declarations cannot establish historical freezing or source independence. Coordinator owns rigor and independent review; review remains unavailable.",
+    "Conservative incomplete case-insensitive English whole-word prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also biomarker words, target validity, physical validity and truth; includes negations.",
+    "Every unavailable source requires unavailable claims, even with observed evidence; computed records and review approval cannot support positive claims. Replicated is refused.",
+    "Distinct inode raw inputs are bounded to 64 MiB each and 256 MiB total; hardlinks share read and parse caches and a 4000000-value conservative JSON allowance."
+  ],
+  "output_schemas": [
+    "qpcr-pack-v1",
+    "qpcr-protocol-v1",
+    "qpcr-cq-table-v1",
+    "qpcr-report-v1",
+    "qpcr-evidence-v1",
+    "qpcr-result-v1",
+    "qpcr-negative-fixtures-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "undetermined-to-40",
+    "undetermined-to-zero",
+    "technical-spread",
+    "efficiency-range",
+    "no-dilution-series",
+    "assumed-efficiency",
+    "post-hoc-reference",
+    "technical-as-biological-n",
+    "ntc-amplification",
+    "missing-interval",
+    "small-n-interval",
+    "regulation",
+    "mechanism",
+    "biomarker",
+    "target-validity",
+    "clinical",
+    "causality",
+    "physical-validity",
+    "computed-kind",
+    "computed-result",
+    "review-kind",
+    "review-result",
+    "empty-evidence",
+    "unavailable-positive",
+    "unavailable-evidence",
+    "external-alias",
+    "replication",
+    "protocol-freeze",
+    "efficiency-mismatch",
+    "r-squared-mismatch",
+    "censored-as-zero"
+  ],
+  "skill": "workflow-qpcr-relative-quantification",
+  "test_files": [
+    "tests/test_workflow_qpcr_pack.py"
+  ]
+}

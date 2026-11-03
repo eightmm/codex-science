@@ -1,0 +1,77 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "calculation"
+      ],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Biological interpretation remains unavailable."
+    }
+  ],
+  "efficiency_source": "dilution-series",
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic Cq arithmetic fixture",
+  "n_unit": "biological",
+  "protocol_sha256": "3a9bc9d2c1c1152273a8d568bd0413b6a36fc9ca183f7bb94b6225db806eb9ae",
+  "reference_gene": "R",
+  "schema": "qpcr-report-v1",
+  "schema_version": 1,
+  "summary": [
+    {
+      "calibrator": "calibrator",
+      "censored_n": {
+        "calibrator": 0,
+        "contrast": 0
+      },
+      "contrast": "contrast",
+      "fold_change": 1.0526315789473681,
+      "gene": "T",
+      "interval": "unavailable",
+      "log2_fold_change": 0.07400058144377653,
+      "n": {
+        "calibrator": 2,
+        "contrast": 2
+      },
+      "reference_gene": "R",
+      "samples": [
+        {
+          "biological_id": "calibrator-1",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": -0.5,
+          "relative_quantity": 0.7071067811865476,
+          "sample_id": "calibrator-1"
+        },
+        {
+          "biological_id": "calibrator-2",
+          "censored": false,
+          "condition": "calibrator",
+          "log2_relative_quantity": 0.5,
+          "relative_quantity": 1.4142135623730951,
+          "sample_id": "calibrator-2"
+        },
+        {
+          "biological_id": "contrast-1",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": -0.4259994185562235,
+          "relative_quantity": 0.7443229275647867,
+          "sample_id": "contrast-1"
+        },
+        {
+          "biological_id": "contrast-2",
+          "censored": false,
+          "condition": "contrast",
+          "log2_relative_quantity": 0.5740005814437765,
+          "relative_quantity": 1.4886458551295734,
+          "sample_id": "contrast-2"
+        }
+      ]
+    }
+  ],
+  "technical_rule": "refuse-spread",
+  "undetermined_rule": "censored"
+}

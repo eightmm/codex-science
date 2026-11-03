@@ -1,0 +1,4 @@
+interface:
+  display_name: "Batch Effect Assessment"
+  short_description: "Check technical batch structure with frozen confounding controls"
+  default_prompt: "Use $workflow-batch-effect-assessment to freeze a supplied sample sheet and omics matrix, compute bounded technical metrics offline and hand off arithmetic evidence for independent review."

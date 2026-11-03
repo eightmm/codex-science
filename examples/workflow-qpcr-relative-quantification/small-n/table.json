@@ -1,0 +1,79 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "cq": 20.9,
+      "well_id": "calibrator-1-T-1"
+    },
+    {
+      "cq": 21.1,
+      "well_id": "calibrator-1-T-2"
+    },
+    {
+      "cq": 19.9,
+      "well_id": "calibrator-1-R-1"
+    },
+    {
+      "cq": 20.1,
+      "well_id": "calibrator-1-R-2"
+    },
+    {
+      "cq": 19.9,
+      "well_id": "calibrator-2-T-1"
+    },
+    {
+      "cq": 20.1,
+      "well_id": "calibrator-2-T-2"
+    },
+    {
+      "cq": 19.9,
+      "well_id": "calibrator-2-R-1"
+    },
+    {
+      "cq": 20.1,
+      "well_id": "calibrator-2-R-2"
+    },
+    {
+      "cq": 19.9,
+      "well_id": "contrast-1-T-1"
+    },
+    {
+      "cq": 20.1,
+      "well_id": "contrast-1-T-2"
+    },
+    {
+      "cq": 18.9,
+      "well_id": "contrast-1-R-1"
+    },
+    {
+      "cq": 19.1,
+      "well_id": "contrast-1-R-2"
+    },
+    {
+      "cq": 18.9,
+      "well_id": "contrast-2-T-1"
+    },
+    {
+      "cq": 19.1,
+      "well_id": "contrast-2-T-2"
+    },
+    {
+      "cq": 18.9,
+      "well_id": "contrast-2-R-1"
+    },
+    {
+      "cq": 19.1,
+      "well_id": "contrast-2-R-2"
+    },
+    {
+      "cq": "undetermined",
+      "well_id": "NTC-T"
+    },
+    {
+      "cq": "undetermined",
+      "well_id": "NTC-R"
+    }
+  ],
+  "schema": "qpcr-cq-table-v1",
+  "schema_version": 1
+}

@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash the synthetic measured attribute, specification, batch/time grid, linear model, poolability alpha and bounded extrapolation before reading outcomes.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit hash-bound synthetic measurements, units, unique increasing times, baseline, minimum counts and explicit censoring without substitution.",
+      "id": "02-data-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute per-batch fits, sequential slope/intercept F tests and pooled or individual one-sided mean-response bound crossings within the frozen horizon.",
+      "id": "03-regression",
+      "status": "pending"
+    },
+    {
+      "description": "Reconcile n, degrees of freedom, selected model, capped crossing, negative results and any exploratory specification change.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary domain artifacts and separate claims with one checkpoint for coordinator-owned independent review, leaving review unavailable.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

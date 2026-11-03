@@ -1,0 +1,42 @@
+{
+  "fixture": true,
+  "pack": "workflow-batch-effect-assessment",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Batch R-squared 2/3 and F 12; group R-squared 1/6 and F 6/5.",
+        "Batch centroid score 2/3, group centroid score 1/10, pseudo-F 12.",
+        "Seed 1729, count 199, group-only strata give p-value 0.075.",
+        "Missing/constant features retain named reasons; QC distance is 4 times square root of 5.",
+        "No writes; review unavailable; arithmetic-only evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-balanced-hand-controls",
+      "input": "examples/workflow-batch-effect-assessment/pack.json",
+      "question": "Do the balanced synthetic fixtures reproduce exact variance ratios, centroid scores and bounded within-group permutations?"
+    },
+    {
+      "acceptance_criteria": [
+        "Confounded design rank 2 for 3 columns yields unassessable and null metrics.",
+        "All 27 seeded cases raise the named ValueError; each individual case fails with its guard disabled.",
+        "Malformed JSON, unsafe files, races, exceeded aggregate/dimension limits and invalid CLI arguments are labelled refusals.",
+        "Unavailable evidence never becomes negative evidence or scientific support."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-confounding-and-refusals",
+      "input": "examples/workflow-batch-effect-assessment/negative-cases.json",
+      "question": "Does exact rank preserve unassessable confounding and does each seeded defect fail for its distinct stated reason?"
+    }
+  ]
+}

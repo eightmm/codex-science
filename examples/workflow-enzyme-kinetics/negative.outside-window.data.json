@@ -1,0 +1,151 @@
+{
+  "concentration_unit": "uM",
+  "curves": [
+    {
+      "id": "S1",
+      "product": [
+        0.0,
+        0.0044444444444444444,
+        0.008888888888888889,
+        0.013333333333333332,
+        0.013343333333333332
+      ],
+      "rate": 0.0044444444444444444,
+      "rate_window": {
+        "start": 0,
+        "stop": 4
+      },
+      "substrate": 0.25,
+      "time": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "S2",
+      "product": [
+        0.0,
+        0.008,
+        0.016,
+        0.024,
+        0.02401
+      ],
+      "rate": 0.008,
+      "rate_window": {
+        "start": 0,
+        "stop": 3
+      },
+      "substrate": 0.5,
+      "time": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "S3",
+      "product": [
+        0.0,
+        0.013333333333333334,
+        0.02666666666666667,
+        0.04,
+        0.040010000000000004
+      ],
+      "rate": 0.013333333333333334,
+      "rate_window": {
+        "start": 0,
+        "stop": 3
+      },
+      "substrate": 1,
+      "time": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "S4",
+      "product": [
+        0.0,
+        0.02,
+        0.04,
+        0.06,
+        0.06001
+      ],
+      "rate": 0.02,
+      "rate_window": {
+        "start": 0,
+        "stop": 3
+      },
+      "substrate": 2,
+      "time": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "S5",
+      "product": [
+        0.0,
+        0.02666666666666667,
+        0.05333333333333334,
+        0.08,
+        0.08001
+      ],
+      "rate": 0.02666666666666667,
+      "rate_window": {
+        "start": 0,
+        "stop": 3
+      },
+      "substrate": 4,
+      "time": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "S6",
+      "product": [
+        0.0,
+        0.032,
+        0.064,
+        0.096,
+        0.09601
+      ],
+      "rate": 0.032,
+      "rate_window": {
+        "start": 0,
+        "stop": 3
+      },
+      "substrate": 8,
+      "time": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  ],
+  "enzyme_concentration": 0.002,
+  "enzyme_unit": "uM",
+  "fixture": true,
+  "product_unit": "uM",
+  "rate_unit": "uM/s",
+  "schema": "enzyme-kinetics-data-v1",
+  "schema_version": 1,
+  "time_unit": "s"
+}

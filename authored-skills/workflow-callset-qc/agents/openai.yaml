@@ -1,0 +1,4 @@
+interface:
+  display_name: "Synthetic Callset QC"
+  short_description: "Check frozen cohort QC for synthetic genotype tables"
+  default_prompt: "Use $workflow-callset-qc for offline synthetic callset QC with frozen rules, controls-only exact HWE, complete exclusions, trio checks and independent review handoff."

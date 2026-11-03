@@ -1,0 +1,17 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "calculation",
+      "kind": "computed",
+      "origin": "internal",
+      "result": "arithmetic-only",
+      "source": {
+        "path": "table.json",
+        "sha256": "452d0a6a901ff796a8c30c89338b817fa7dc38ccec4d5f9a4252a9a6f36fd730"
+      }
+    }
+  ],
+  "schema": "qpcr-evidence-v1",
+  "schema_version": 1
+}

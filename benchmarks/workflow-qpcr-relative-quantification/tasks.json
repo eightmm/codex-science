@@ -1,0 +1,55 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-qpcr-relative-quantification",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Fold change 2/1.9; log2 fold change 1-log2(1.9).",
+        "Biological n=3 per condition, df=4 and 95 percent margin=2.7764451051977987*sqrt(2/3).",
+        "All sample quantities, censoring counts and input hashes preserved; review unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-hand-derived-contrast",
+      "input": "examples/workflow-qpcr-relative-quantification/pack.json",
+      "question": "Does the synthetic efficiency-corrected contrast match hand arithmetic with biological n?"
+    },
+    {
+      "acceptance_criteria": [
+        "Biological n=2 per condition; interval unavailable.",
+        "No technical well increases biological n and no unavailable value becomes zero."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-small-n",
+      "input": "examples/workflow-qpcr-relative-quantification/small-n/pack.json",
+      "question": "Does the synthetic small-n contrast preserve an unavailable interval?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 31 cases refuse through Python and CLI; removing each named guard makes its test fail.",
+        "CLI refusal is JSON on stderr with exit 2, including argument errors; help is usage with exit 0.",
+        "Special files, symlink swaps, malformed JSON, aggregate limits and evidence overreach refuse without hangs or tracebacks.",
+        "Repeated, concurrent and interrupted readers never mutate input artifacts."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-qpcr-relative-quantification/negative-cases.json",
+      "question": "Do all synthetic seeded defects refuse with their stated finding?"
+    }
+  ]
+}

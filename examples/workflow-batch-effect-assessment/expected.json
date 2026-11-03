@@ -1,0 +1,129 @@
+{
+  "assessment": {
+    "confounding": {
+      "columns": 3,
+      "confounded": false,
+      "rank": 3,
+      "single_batch_groups": []
+    },
+    "exploratory": false,
+    "failed_controls": [],
+    "filtered_features": [
+      {
+        "feature": "fixture-missing",
+        "missing": 1,
+        "reason": "missing-values"
+      },
+      {
+        "feature": "fixture-constant",
+        "missing": 0,
+        "reason": "zero-variance"
+      }
+    ],
+    "metrics": {
+      "batch_permanova": {
+        "count": 199,
+        "p_value": 0.075,
+        "pseudo_f": 11.999999999999996,
+        "seed": 1729,
+        "strata": "group",
+        "successful": 199
+      },
+      "batch_silhouette": 0.6666666666666666,
+      "group_silhouette": 0.10000000000000002,
+      "median_batch_r2": 0.6666666666666665,
+      "median_group_r2": 0.16666666666666669,
+      "per_feature": [
+        {
+          "batch": {
+            "f": 12.0,
+            "r_squared": 0.6666666666666666
+          },
+          "feature": "fixture-feature-1",
+          "group": {
+            "f": 1.2000000000000002,
+            "r_squared": 0.16666666666666666
+          }
+        },
+        {
+          "batch": {
+            "f": 11.999999999999996,
+            "r_squared": 0.6666666666666665
+          },
+          "feature": "fixture-feature-2",
+          "group": {
+            "f": 1.2000000000000006,
+            "r_squared": 0.16666666666666674
+          }
+        }
+      ],
+      "qc_dispersion": {
+        "distance_sd": 0.0,
+        "pairs": 1,
+        "rms_distance": 8.94427190999916,
+        "status": "available"
+      }
+    },
+    "missing_counts": {
+      "fixture-constant": 0,
+      "fixture-feature-1": 0,
+      "fixture-feature-2": 0,
+      "fixture-missing": 1
+    },
+    "retained_features": [
+      "fixture-feature-1",
+      "fixture-feature-2"
+    ],
+    "sample_count": 8,
+    "status": "batch-structure-detected",
+    "unavailable_samples": []
+  },
+  "claims": [
+    {
+      "id": "fixture-scope",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "External evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "evidence_level": "arithmetic-only",
+  "fixture": true,
+  "input_identities": [
+    {
+      "path": "evidence.json",
+      "sha256": "2452ffcaf41cd58e909e55203421ae0927f424e2192925d8e1f6b4c70dd6efbc"
+    },
+    {
+      "path": "matrix.json",
+      "sha256": "880896ed655eaa852e1e7cdd8fb51001a53414d81d434027f9d4caba577e4303"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "3109f227c48daa91a238d15e648e740d1b47b4e2de62880e900432aeee0f651f"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "295e569d421afc3db6f73fc3f1e50774c17ec68df0b671b8b1f641a5a366e182"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures establish software behavior only.",
+    "Hash and timestamp declarations cannot prove historical freeze timing or independence.",
+    "One-way metrics are unadjusted; group-restricted permutations do not identify attribution.",
+    "Not-detected is limited to the frozen thresholds, features and finite permutation resolution.",
+    "The conservative English wording gate is incomplete and also refuses negations.",
+    "Unavailable QC samples are not negative controls; independent source, record and method review remains required."
+  ],
+  "review": "unavailable",
+  "rules_sha256": "295e569d421afc3db6f73fc3f1e50774c17ec68df0b671b8b1f641a5a366e182",
+  "schema": "batch-effect-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-rule-freeze",
+    "02-matrix-qc",
+    "03-metrics",
+    "04-summary",
+    "05-handoff"
+  ]
+}

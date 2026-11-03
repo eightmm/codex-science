@@ -1,0 +1,141 @@
+{
+  "cases": [
+    {
+      "finding": "confounded-absence",
+      "id": "confounded-absence",
+      "path": "negative.confounded-absence.pack.json"
+    },
+    {
+      "finding": "confounded-absence",
+      "id": "confounded-text",
+      "path": "negative.confounded-text.pack.json"
+    },
+    {
+      "finding": "group-adjustment",
+      "id": "collinear-adjustment",
+      "path": "negative.collinear-adjustment.pack.json"
+    },
+    {
+      "finding": "group-adjustment",
+      "id": "adjusted-text",
+      "path": "negative.adjusted-text.pack.json"
+    },
+    {
+      "finding": "permutation-strata",
+      "id": "unstratified-permutation",
+      "path": "negative.unstratified-permutation.pack.json"
+    },
+    {
+      "finding": "feature-filter",
+      "id": "group-filter",
+      "path": "negative.group-filter.pack.json"
+    },
+    {
+      "finding": "sample-drop",
+      "id": "sample-drop",
+      "path": "negative.sample-drop.pack.json"
+    },
+    {
+      "finding": "post-outcome-threshold",
+      "id": "post-outcome-threshold",
+      "path": "negative.post-outcome-threshold.pack.json"
+    },
+    {
+      "finding": "unavailable-batch",
+      "id": "unavailable-batch",
+      "path": "negative.unavailable-batch.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "corrected",
+      "path": "negative.corrected.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "removed",
+      "path": "negative.removed.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "biological-signal",
+      "path": "negative.biological-signal.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "differential-expression",
+      "path": "negative.differential-expression.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "mechanism",
+      "path": "negative.mechanism.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "clinical",
+      "path": "negative.clinical.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal",
+      "path": "negative.causal.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "physical-validity",
+      "path": "negative.physical-validity.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "review-truth",
+      "path": "negative.review-truth.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "review-approval",
+      "path": "negative.review-approval.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "computed-kind",
+      "path": "negative.computed-kind.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "computed-result",
+      "path": "negative.computed-result.pack.json"
+    },
+    {
+      "finding": "claim-support",
+      "id": "empty-evidence",
+      "path": "negative.empty-evidence.pack.json"
+    },
+    {
+      "finding": "unavailable-positive",
+      "id": "unavailable-positive",
+      "path": "negative.unavailable-positive.pack.json"
+    },
+    {
+      "finding": "unavailable-evidence",
+      "id": "unavailable-evidence",
+      "path": "negative.unavailable-evidence.pack.json"
+    },
+    {
+      "finding": "evidence-independence",
+      "id": "outside-alias",
+      "path": "negative.outside-alias.pack.json"
+    },
+    {
+      "finding": "claim-replication",
+      "id": "replicated",
+      "path": "negative.replicated.pack.json"
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "late-freeze",
+      "path": "negative.late-freeze.pack.json"
+    }
+  ],
+  "fixture": true,
+  "schema_version": 1
+}

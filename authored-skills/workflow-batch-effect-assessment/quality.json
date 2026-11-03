@@ -1,0 +1,62 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-batch-effect-assessment/pack.json",
+    "examples/workflow-batch-effect-assessment/expected.json",
+    "examples/workflow-batch-effect-assessment/confounded.pack.json",
+    "examples/workflow-batch-effect-assessment/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic software acceptance only; no biological inference, source authenticity, correction, physical validity, causality or clinical validity is established.",
+    "Exact rank uses decimal rational values. One-way metrics and within-group permutations cannot establish adjusted attribution. Missing and constant features are excluded by the frozen label-free rule; no imputation or group-based filtering is supported.",
+    "Hash/timestamp declarations cannot prove historical timing or independence. One table never establishes replication. Missing QC comparisons remain unavailable.",
+    "The conservative case-insensitive whole-word English gate permits word-character suffixes for caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. It also refuses truth, physical validity, biological signal, differential expression, correct*, remov*, and group-adjust* wording. It is incomplete and refuses negations too.",
+    "Confounded absence wording is refused. Unavailable text additionally refuses supported, replicated, suggestive and significan*. Any unavailable kind or result forces unavailable status. Positive support checks both kind and result; outside labels are checked against own output paths and hashes.",
+    "Rigor and independent source, record and method review stay with the coordinator; pack review remains unavailable."
+  ],
+  "output_schemas": [
+    "batch-effect-pack-v1",
+    "batch-effect-rules-v1",
+    "batch-effect-matrix-v1",
+    "batch-effect-evidence-v1",
+    "batch-effect-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "confounded-absence",
+    "confounded-text",
+    "collinear-adjustment",
+    "adjusted-text",
+    "unstratified-permutation",
+    "group-filter",
+    "sample-drop",
+    "post-outcome-threshold",
+    "unavailable-batch",
+    "corrected",
+    "removed",
+    "biological-signal",
+    "differential-expression",
+    "mechanism",
+    "clinical",
+    "causal",
+    "physical-validity",
+    "review-truth",
+    "review-approval",
+    "computed-kind",
+    "computed-result",
+    "empty-evidence",
+    "unavailable-positive",
+    "unavailable-evidence",
+    "outside-alias",
+    "replicated",
+    "late-freeze"
+  ],
+  "skill": "workflow-batch-effect-assessment",
+  "test_files": [
+    "tests/test_workflow_batch_pack.py"
+  ]
+}

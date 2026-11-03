@@ -1,0 +1,49 @@
+{
+  "claims": [
+    {
+      "id": "fixture-scope",
+      "kind": "descriptive",
+      "status": "supported",
+      "support": [
+        {
+          "origin": "study",
+          "path": "negative.computed-result.evidence.json",
+          "sha256": "77c95bfa0024b4ae511e2339be7c211cab759508bafb36702ee254eec383c687"
+        }
+      ],
+      "text": "The synthetic technical record is supported."
+    }
+  ],
+  "fixture": true,
+  "freeze_before_matrix": true,
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "frozen_rules_sha256": "295e569d421afc3db6f73fc3f1e50774c17ec68df0b671b8b1f641a5a366e182",
+  "group_adjusted": false,
+  "inputs": {
+    "matrix": {
+      "path": "matrix.json",
+      "sha256": "880896ed655eaa852e1e7cdd8fb51001a53414d81d434027f9d4caba577e4303"
+    },
+    "rules": {
+      "path": "rules.json",
+      "sha256": "295e569d421afc3db6f73fc3f1e50774c17ec68df0b671b8b1f641a5a366e182"
+    }
+  },
+  "matrix_read_at": "2026-01-02T00:00:00Z",
+  "schema": "batch-effect-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-rule-freeze",
+    "02-matrix-qc",
+    "03-metrics",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "batch-structure-detected",
+  "study_outputs": [
+    {
+      "path": "negative.computed-result.evidence.json",
+      "sha256": "77c95bfa0024b4ae511e2339be7c211cab759508bafb36702ee254eec383c687"
+    }
+  ]
+}

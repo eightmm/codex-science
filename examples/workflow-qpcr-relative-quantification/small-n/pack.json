@@ -1,0 +1,25 @@
+{
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "09bec2f553af05d5bcf08f734a71f427aef6e309672c9013ece071c90e38b779"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_cq_read": true,
+  "frozen_protocol_sha256": "3a9bc9d2c1c1152273a8d568bd0413b6a36fc9ca183f7bb94b6225db806eb9ae",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "3a9bc9d2c1c1152273a8d568bd0413b6a36fc9ca183f7bb94b6225db806eb9ae"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "ff4d7bba51e65ef2b79e03b96794075f4773eb204ae982dff9538cfd99de3957"
+  },
+  "schema": "qpcr-pack-v1",
+  "schema_version": 1,
+  "table": {
+    "path": "table.json",
+    "sha256": "452d0a6a901ff796a8c30c89338b817fa7dc38ccec4d5f9a4252a9a6f36fd730"
+  }
+}

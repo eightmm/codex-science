@@ -1,0 +1,102 @@
+{
+  "computation": {
+    "bound": {
+      "confidence_level": 0.95,
+      "kind": "mean-response",
+      "sides": "one-sided"
+    },
+    "crossings": {
+      "batch-a": 5.273228478591699,
+      "batch-b": 5.273228478591699,
+      "batch-c": 2.8389306894276536
+    },
+    "df": {
+      "batch-a": 2,
+      "batch-b": 2,
+      "batch-c": 2
+    },
+    "earliest_crossing": 2.8389306894276536,
+    "maximum_time": 6,
+    "n": 12,
+    "observed_duration": 3,
+    "per_batch": {
+      "batch-a": {
+        "df": 2,
+        "intercept": 10.0,
+        "mse": 0.019999999999999858,
+        "n": 4,
+        "slope": -1.0,
+        "sse": 0.039999999999999716,
+        "sxx": 5.0,
+        "x_mean": 1.5
+      },
+      "batch-b": {
+        "df": 2,
+        "intercept": 10.0,
+        "mse": 0.019999999999999858,
+        "n": 4,
+        "slope": -1.0,
+        "sse": 0.039999999999999716,
+        "sxx": 5.0,
+        "x_mean": 1.5
+      },
+      "batch-c": {
+        "df": 2,
+        "intercept": 10.0,
+        "mse": 0.019999999999999858,
+        "n": 4,
+        "slope": -2.0,
+        "sse": 0.039999999999999716,
+        "sxx": 5.0,
+        "x_mean": 1.5
+      }
+    },
+    "poolability": {
+      "intercept": "not-tested-after-slope-rejection",
+      "slope": {
+        "df1": 2,
+        "df2": 6,
+        "f": 83.33333333333391,
+        "p": 4.1959300169522826e-05
+      }
+    },
+    "selected_fits": {
+      "batch-a": {
+        "df": 2,
+        "intercept": 10.0,
+        "mse": 0.019999999999999858,
+        "n": 4,
+        "slope": -1.0,
+        "sse": 0.039999999999999716,
+        "sxx": 5.0,
+        "x_mean": 1.5
+      },
+      "batch-b": {
+        "df": 2,
+        "intercept": 10.0,
+        "mse": 0.019999999999999858,
+        "n": 4,
+        "slope": -1.0,
+        "sse": 0.039999999999999716,
+        "sxx": 5.0,
+        "x_mean": 1.5
+      },
+      "batch-c": {
+        "df": 2,
+        "intercept": 10.0,
+        "mse": 0.019999999999999858,
+        "n": 4,
+        "slope": -2.0,
+        "sse": 0.039999999999999716,
+        "sxx": 5.0,
+        "x_mean": 1.5
+      }
+    },
+    "selected_model": "individual",
+    "t_quantiles": {
+      "2": 2.9199855803537202
+    }
+  },
+  "fixture": "synthetic fixture",
+  "schema": "stability-shelf-life-expected-fixture-v1"
+}

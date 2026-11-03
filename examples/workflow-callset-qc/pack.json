@@ -1,0 +1,45 @@
+{
+  "claims": [
+    {
+      "id": "fixture-efficacy-unavailable",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "Synthetic fixture arithmetic only; biological interpretation unavailable."
+    }
+  ],
+  "fixture": true,
+  "freeze": {
+    "before_genotypes": true,
+    "frozen_at": "2026-01-01T00:00:00Z",
+    "genotypes_read_at": "2026-01-02T00:00:00Z",
+    "rules": {
+      "path": "rules.json",
+      "sha256": "7573642de9e2d0c9a7b929d2d010c47c79bbb94d5c9272041cea37a1fe67c92a"
+    }
+  },
+  "inputs": {
+    "qc": {
+      "path": "qc.json",
+      "sha256": "6a05788062cb8b1719d39b073c2c35136cb3a75738393b5c3a5630efcf926091"
+    },
+    "rules": {
+      "path": "rules.json",
+      "sha256": "7573642de9e2d0c9a7b929d2d010c47c79bbb94d5c9272041cea37a1fe67c92a"
+    },
+    "table": {
+      "path": "table.json",
+      "sha256": "32833ce5b22d917e370d29c86b11fd9c2caeb72f8d9da574ddc69805be0a167c"
+    }
+  },
+  "mode": "frozen",
+  "schema": "callset-qc-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-table-qc",
+    "03-metrics",
+    "04-summary",
+    "05-handoff"
+  ]
+}

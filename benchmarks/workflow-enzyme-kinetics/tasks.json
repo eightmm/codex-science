@@ -1,0 +1,59 @@
+{
+  "fixture": true,
+  "pack": "workflow-enzyme-kinetics",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Vmax 0.04 uM/s, Km 2 uM, kcat 20 per second and efficiency 10 per uM per second within absolute one ten billionth.",
+        "First rate is one divided by 225 uM/s and fourth rate is 0.02 uM/s; outside-window points never enter the rate.",
+        "Converged, bracketed, reliable; all four standard errors below one ten billionth; review unavailable.",
+        "A second call returns the identical result and all source bytes remain unchanged."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-noiseless-hand-control",
+      "input": "examples/workflow-enzyme-kinetics/noiseless.pack.json",
+      "question": "Do frozen synthetic curves reproduce hand-derived Michaelis-Menten parameters and window rates?"
+    },
+    {
+      "acceptance_criteria": [
+        "Vmax 0.039852352700982065 uM/s within one billionth and Km 1.9840167711818428 uM within one ten millionth.",
+        "Vmax standard error 0.00031125598780969713 uM/s within one ten billionth; Km standard error from the independent two-column Jacobian.",
+        "SSE 0.00000011352514484100662 with residual variance SSE divided by 4; retain residual diagnostics.",
+        "kcat and efficiency propagate the frozen enzyme concentration; output remains synthetic arithmetic only."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-noisy-jacobian-control",
+      "input": "examples/workflow-enzyme-kinetics/noisy.pack.json",
+      "question": "Does the noisy synthetic fixture reproduce nonlinear estimates and independently recomputed Jacobian uncertainty?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 14 cases raise their named labelled ValueError through the API and JSON refusal with exit 2 through the CLI.",
+        "Each matching regression test fails when its specific guard is removed and passes after restoration.",
+        "Missing, extra and unknown CLI arguments are JSON refusals with no traceback; help stays plain usage with exit 0.",
+        "Pinned ancestors, root replacement, special files, symlinks, growth, integer fields, JSON and aggregate/dimension limits refuse without hanging.",
+        "Unavailable, computed and review evidence and every forbidden wording family retain distinct boundary findings; no positive synthetic claim is admitted."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-enzyme-kinetics/negative-cases.json",
+      "question": "Does each of the 14 planted defects refuse for its distinct stated reason before later generic gates?"
+    }
+  ]
+}

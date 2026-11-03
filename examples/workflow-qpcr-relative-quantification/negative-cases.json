@@ -1,0 +1,731 @@
+{
+  "cases": [
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "undetermined_rule"
+          ],
+          "target": "report",
+          "value": 40
+        }
+      ],
+      "code": "censoring-rule",
+      "id": "undetermined-to-40"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "undetermined_rule"
+          ],
+          "target": "report",
+          "value": 0
+        }
+      ],
+      "code": "censoring-rule",
+      "id": "undetermined-to-zero"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "max_technical_spread"
+          ],
+          "target": "protocol",
+          "value": 0.1
+        }
+      ],
+      "code": "technical-spread",
+      "id": "technical-spread"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "efficiency_range",
+            1
+          ],
+          "target": "protocol",
+          "value": 0.99
+        }
+      ],
+      "code": "efficiency-range",
+      "id": "efficiency-range"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "assays",
+            0,
+            "dilution_series"
+          ],
+          "target": "protocol",
+          "value": []
+        }
+      ],
+      "code": "dilution-series",
+      "id": "no-dilution-series"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "efficiency_source"
+          ],
+          "target": "report",
+          "value": "assumed-100-percent"
+        }
+      ],
+      "code": "dilution-series",
+      "id": "assumed-efficiency"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "reference_gene"
+          ],
+          "target": "report",
+          "value": "T"
+        }
+      ],
+      "code": "post-hoc-reference",
+      "id": "post-hoc-reference"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "n_unit"
+          ],
+          "target": "report",
+          "value": "technical"
+        }
+      ],
+      "code": "biological-n",
+      "id": "technical-as-biological-n"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "rows",
+            24,
+            "cq"
+          ],
+          "target": "table",
+          "value": 20
+        }
+      ],
+      "code": "ntc-amplification",
+      "id": "ntc-amplification"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "summary",
+            0,
+            "interval"
+          ],
+          "remove": true,
+          "target": "report",
+          "value": null
+        }
+      ],
+      "code": "interval-required",
+      "id": "missing-interval"
+    },
+    {
+      "base": "small-n",
+      "changes": [
+        {
+          "path": [
+            "summary",
+            0,
+            "interval"
+          ],
+          "target": "report",
+          "value": {
+            "confidence": 0.95,
+            "df": 2,
+            "lower": -1,
+            "upper": 1
+          }
+        }
+      ],
+      "code": "interval-small-n",
+      "id": "small-n-interval"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The gene is regulated."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "regulation"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Expression change explains the mechanism."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "mechanism"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "This is a biomarker."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "biomarker"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Target validity is established."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "target-validity"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Clinical relevance is established."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "clinical"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Association causes the outcome."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "causality"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Numerical agreement establishes physical validity."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "physical-validity"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Synthetic values agree."
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "computed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "computed-kind"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Synthetic values agree."
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "computed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "computed-result"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Synthetic values agree."
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "passed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "review-kind"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Synthetic values agree."
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "review-approved"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "review-result"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "unsupported"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "report",
+          "value": []
+        }
+      ],
+      "code": "missing-evidence",
+      "id": "empty-evidence"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The finding is significant."
+        }
+      ],
+      "code": "unavailable-positive",
+      "id": "unavailable-positive"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "unsupported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "unavailable"
+        }
+      ],
+      "code": "unavailable-evidence",
+      "id": "unavailable-evidence"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "code": "external-alias",
+      "id": "external-alias"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "replicated"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Synthetic values agree."
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "measured"
+        }
+      ],
+      "code": "claim-replication",
+      "id": "replication"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "frozen_before_cq_read"
+          ],
+          "target": "pack",
+          "value": false
+        }
+      ],
+      "code": "protocol-freeze",
+      "id": "protocol-freeze"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "assays",
+            1,
+            "efficiency"
+          ],
+          "target": "protocol",
+          "value": 1.0
+        }
+      ],
+      "code": "efficiency-mismatch",
+      "id": "efficiency-mismatch"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "assays",
+            0,
+            "r_squared"
+          ],
+          "target": "protocol",
+          "value": 0.5
+        }
+      ],
+      "code": "r-squared-mismatch",
+      "id": "r-squared-mismatch"
+    },
+    {
+      "base": ".",
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "cq"
+          ],
+          "target": "table",
+          "value": "undetermined"
+        },
+        {
+          "path": [
+            "rows",
+            1,
+            "cq"
+          ],
+          "target": "table",
+          "value": "undetermined"
+        },
+        {
+          "path": [
+            "summary"
+          ],
+          "target": "report",
+          "value": [
+            {
+              "calibrator": "calibrator",
+              "censored_n": {
+                "calibrator": 1,
+                "contrast": 0
+              },
+              "contrast": "contrast",
+              "fold_change": 0.7443229275647867,
+              "gene": "T",
+              "interval": "unavailable",
+              "log2_fold_change": -0.4259994185562235,
+              "n": {
+                "calibrator": 2,
+                "contrast": 3
+              },
+              "reference_gene": "R",
+              "samples": [
+                {
+                  "biological_id": "calibrator-1",
+                  "censored": true,
+                  "condition": "calibrator",
+                  "log2_relative_quantity": "unavailable",
+                  "relative_quantity": 0,
+                  "sample_id": "calibrator-1"
+                },
+                {
+                  "biological_id": "calibrator-2",
+                  "censored": false,
+                  "condition": "calibrator",
+                  "log2_relative_quantity": -0.5,
+                  "relative_quantity": 0.7071067811865476,
+                  "sample_id": "calibrator-2"
+                },
+                {
+                  "biological_id": "calibrator-3",
+                  "censored": false,
+                  "condition": "calibrator",
+                  "log2_relative_quantity": 0.5,
+                  "relative_quantity": 1.4142135623730951,
+                  "sample_id": "calibrator-3"
+                },
+                {
+                  "biological_id": "contrast-1",
+                  "censored": false,
+                  "condition": "contrast",
+                  "log2_relative_quantity": -1.4259994185562235,
+                  "relative_quantity": 0.37216146378239334,
+                  "sample_id": "contrast-1"
+                },
+                {
+                  "biological_id": "contrast-2",
+                  "censored": false,
+                  "condition": "contrast",
+                  "log2_relative_quantity": -0.4259994185562235,
+                  "relative_quantity": 0.7443229275647867,
+                  "sample_id": "contrast-2"
+                },
+                {
+                  "biological_id": "contrast-3",
+                  "censored": false,
+                  "condition": "contrast",
+                  "log2_relative_quantity": 0.5740005814437765,
+                  "relative_quantity": 1.4886458551295734,
+                  "sample_id": "contrast-3"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "code": "summary-mismatch",
+      "id": "censored-as-zero"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "schema": "qpcr-negative-fixtures-v1",
+  "schema_version": 1
+}

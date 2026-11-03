@@ -1,0 +1,102 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "batch": "batch-a",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 10.1,
+      "time": 0,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-a",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 8.9,
+      "time": 1,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-a",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 7.9,
+      "time": 2,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-a",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 7.1,
+      "time": 3,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-b",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 10.1,
+      "time": 0,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-b",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 8.9,
+      "time": 1,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-b",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 7.9,
+      "time": 2,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-b",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 7.1,
+      "time": 3,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-c",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 10.1,
+      "time": 0,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-c",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 7.9,
+      "time": 1,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-c",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 5.9,
+      "time": 2,
+      "units": "fixture-unit"
+    },
+    {
+      "batch": "batch-c",
+      "censored": false,
+      "quantification_limit": null,
+      "result": 4.1,
+      "time": 3,
+      "units": "fixture-unit"
+    }
+  ],
+  "schema": "stability-shelf-life-data-v1"
+}
