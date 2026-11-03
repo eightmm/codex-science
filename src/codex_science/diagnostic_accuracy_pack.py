@@ -100,7 +100,7 @@ def _json(raw, allowance=None):
     allowance = MAX_NODES if allowance is None else allowance
     # Upper bound on value count before json.loads allocates the tree: the root,
     # one value per comma, and the first value of every non-empty container.
-    _require(1 + raw.count(b",") + len(re.findall(rb"[\[{](?=\s*[^\s\]}])", raw)) <= allowance,
+    _require(1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw)) <= allowance,
              "input-limit", "too many JSON values")
     try:
         root = _obj(json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,

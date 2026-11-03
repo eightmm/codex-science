@@ -1,0 +1,84 @@
+{
+  "applied_specification": {
+    "biological_unit": "subject",
+    "contrast": [
+      "reference",
+      "shifted"
+    ],
+    "covariates": [
+      "batch",
+      "extraction_batch",
+      "sequencing_run"
+    ],
+    "distance": "aitchison",
+    "diversity_indices": [
+      "shannon",
+      "simpson"
+    ],
+    "fdr_alpha": 0.05,
+    "minimum_group_size": 3,
+    "minimum_read_depth": 100,
+    "permutation_strata": [
+      "batch",
+      "extraction_batch",
+      "sequencing_run"
+    ],
+    "permutations": 199,
+    "prevalence_filter": 0.2,
+    "pseudocount": 0.5,
+    "seed": 1729,
+    "zero_rule": "add-pseudocount"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "associational",
+      "status": "supported",
+      "support": [
+        {
+          "path": "evidence-taxon-01.json",
+          "sha256": "6d1c7fb76aeb861da1f64ca7b88cfba91a037459698ee0d19f37127f2b42b171"
+        }
+      ],
+      "taxon_id": "taxon-01",
+      "text": "The planted taxon shows a relative composition difference in the synthetic fixture."
+    }
+  ],
+  "design": {
+    "path": "design.json",
+    "sha256": "40bd7fb0f743406b480fa8e1a13c88e77b0af04462ba217a3b2f05a5e3ccf698"
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "report": {
+    "path": "expected.json",
+    "sha256": "ba46f2a2e0eedd7b5994f40e41be7e144854200d7bd1278df8044b99b9e6c9b5"
+  },
+  "schema": "microbiome-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-design",
+    "02-qc",
+    "03-composition",
+    "04-taxa",
+    "05-handoff"
+  ],
+  "study_outputs": [
+    {
+      "path": "evidence-taxon-01.json",
+      "sha256": "6d1c7fb76aeb861da1f64ca7b88cfba91a037459698ee0d19f37127f2b42b171"
+    },
+    {
+      "path": "evidence-taxon-11.json",
+      "sha256": "f8ee98e8762689fa061a514555455f9aa1213b765b81155314336911652343fe"
+    },
+    {
+      "path": "evidence-community.json",
+      "sha256": "d474d4b7a7a952778628c78ebbc83e407fb39cb43b72e82283fbadc37309b055"
+    }
+  ],
+  "table": {
+    "path": "counts.json",
+    "sha256": "3ca7e5c08e024a3741ac76bdb8fe25f4303fa0b8921fba7ba9c5adc7389aced9"
+  }
+}

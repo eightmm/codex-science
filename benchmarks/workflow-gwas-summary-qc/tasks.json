@@ -1,0 +1,40 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-gwas-summary-qc",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Exactly fixture-v00 is a positional signal at threshold 5e-8.",
+        "Normal tail agrees with math.erfc(6/sqrt(2)); lambda_GC agrees with 0.36/0.4549.",
+        "Inconsistent and ambiguous rows remain excluded; review is unavailable.",
+        "Input bytes remain unchanged; output is statistical-association-evidence-only."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-planted-signal",
+      "input": "examples/workflow-gwas-summary-qc/pack.json",
+      "question": "Does the frozen synthetic fixture retain one positional signal and explicit QC exclusions?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every named case fails at its stated code, before any generic mismatch or later gate.",
+        "Both public entry points return labelled refusals.",
+        "Disabling each stated check makes its regression assertion fail."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-gwas-summary-qc/negative-cases.json",
+      "question": "Are all seeded defects refused for their exact stated reason?"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "21af23a63d541cf5444ef7ccde1242e684e1b07a35bf290464b4077f522e80b3"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_rules_sha256": "999f8249f918e381d89e5d36c05df8694186033d7b626432ec45868d1ed6756f",
+  "report": {
+    "path": "report.json",
+    "sha256": "da48effb1fc49a92f460abe6f7b5e9e865022fae60545c32ea50ec20cbe4e06b"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "999f8249f918e381d89e5d36c05df8694186033d7b626432ec45868d1ed6756f"
+  },
+  "schema": "gso-pack-v1",
+  "stages": [
+    "01-freeze",
+    "02-identity",
+    "03-testing",
+    "04-redundancy",
+    "05-handoff"
+  ]
+}

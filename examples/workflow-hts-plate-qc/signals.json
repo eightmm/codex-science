@@ -1,0 +1,522 @@
+{
+  "assay": "synthetic-assay",
+  "fixture": true,
+  "instrument": "synthetic-reader",
+  "plates": [
+    {
+      "plate_id": "P1",
+      "wells": [
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 99,
+          "well_id": "A1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 9,
+          "well_id": "A2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "EDGE",
+          "value": 80,
+          "well_id": "A3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-A4",
+          "value": 10,
+          "well_id": "A4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 11,
+          "well_id": "A5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 101,
+          "well_id": "A6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 9,
+          "well_id": "B1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-B2",
+          "value": 10,
+          "well_id": "B2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "HIT",
+          "value": 60,
+          "well_id": "B3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-B4",
+          "value": 10,
+          "well_id": "B4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-B5",
+          "value": 10,
+          "well_id": "B5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 11,
+          "well_id": "B6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 12,
+          "well_id": "C1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-C2",
+          "value": 10,
+          "well_id": "C2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "HIT",
+          "value": 60,
+          "well_id": "C3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-C4",
+          "value": 10,
+          "well_id": "C4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-C5",
+          "value": 10,
+          "well_id": "C5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 12,
+          "well_id": "C6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-D1",
+          "value": 10,
+          "well_id": "D1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-D2",
+          "value": 10,
+          "well_id": "D2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-D3",
+          "value": 12,
+          "well_id": "D3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-D4",
+          "value": 12,
+          "well_id": "D4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-D5",
+          "value": 12,
+          "well_id": "D5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-D6",
+          "value": 12,
+          "well_id": "D6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 13,
+          "well_id": "E1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-E2",
+          "value": 12,
+          "well_id": "E2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-E3",
+          "value": 12,
+          "well_id": "E3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-E4",
+          "value": 12,
+          "well_id": "E4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-E5",
+          "value": 12,
+          "well_id": "E5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 15,
+          "well_id": "E6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 99,
+          "well_id": "F1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 13,
+          "well_id": "F2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-F3",
+          "value": 12,
+          "well_id": "F3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 1,
+          "sample_id": "NULL-F4",
+          "value": 12,
+          "well_id": "F4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 15,
+          "well_id": "F5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 101,
+          "well_id": "F6"
+        }
+      ]
+    },
+    {
+      "plate_id": "P2",
+      "wells": [
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 19,
+          "well_id": "A1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 9,
+          "well_id": "A2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "EDGE",
+          "value": 80,
+          "well_id": "A3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-A4",
+          "value": 10,
+          "well_id": "A4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 11,
+          "well_id": "A5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 21,
+          "well_id": "A6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 9,
+          "well_id": "B1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-B2",
+          "value": 10,
+          "well_id": "B2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 3,
+          "sample_id": "HIT",
+          "value": 999,
+          "well_id": "B3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-B4",
+          "value": 10,
+          "well_id": "B4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-B5",
+          "value": 10,
+          "well_id": "B5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 11,
+          "well_id": "B6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 12,
+          "well_id": "C1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-C2",
+          "value": 10,
+          "well_id": "C2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 4,
+          "sample_id": "HIT",
+          "value": 60,
+          "well_id": "C3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-C4",
+          "value": 10,
+          "well_id": "C4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-C5",
+          "value": 10,
+          "well_id": "C5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 12,
+          "well_id": "C6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-D1",
+          "value": 10,
+          "well_id": "D1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-D2",
+          "value": 10,
+          "well_id": "D2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-D3",
+          "value": 12,
+          "well_id": "D3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-D4",
+          "value": 12,
+          "well_id": "D4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-D5",
+          "value": 12,
+          "well_id": "D5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-D6",
+          "value": 12,
+          "well_id": "D6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 13,
+          "well_id": "E1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-E2",
+          "value": 12,
+          "well_id": "E2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-E3",
+          "value": 12,
+          "well_id": "E3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-E4",
+          "value": 12,
+          "well_id": "E4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-E5",
+          "value": 12,
+          "well_id": "E5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 15,
+          "well_id": "E6"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 19,
+          "well_id": "F1"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 13,
+          "well_id": "F2"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-F3",
+          "value": 12,
+          "well_id": "F3"
+        },
+        {
+          "observed": true,
+          "replicate_id": 2,
+          "sample_id": "NULL-F4",
+          "value": 12,
+          "well_id": "F4"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 15,
+          "well_id": "F5"
+        },
+        {
+          "observed": true,
+          "replicate_id": 0,
+          "sample_id": "CONTROL",
+          "value": 21,
+          "well_id": "F6"
+        }
+      ]
+    }
+  ],
+  "schema": "hts-signals-v1"
+}

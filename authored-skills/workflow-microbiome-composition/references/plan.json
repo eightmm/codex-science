@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash contrast, independent units, covariates, depth, filters, zero rule, diversity, permutations and FDR before counts.",
+      "id": "01-design",
+      "status": "pending"
+    },
+    {
+      "description": "Admit unique integer count identities and preserve blanks, low-depth exclusions and confounding checks.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute the frozen filtered CLR, Shannon, Simpson and seeded within-strata Aitchison PERMANOVA.",
+      "id": "03-composition",
+      "status": "pending"
+    },
+    {
+      "description": "Compare taxa with Welch and full-family BH, retaining control and below-prevalence taxa as untested.",
+      "id": "04-taxa",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

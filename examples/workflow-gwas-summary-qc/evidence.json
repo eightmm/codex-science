@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "E1",
+      "kind": "observational-table",
+      "origin": "internal",
+      "result": "recorded",
+      "source": {
+        "path": "table.json",
+        "sha256": "8c9e9f7103c1a45600a7120aac3b2c13ba38cf00326318082ee596c001e15499"
+      }
+    }
+  ],
+  "schema": "gwas-summary-qc-evidence-v1"
+}

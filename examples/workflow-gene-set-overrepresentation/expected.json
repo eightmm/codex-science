@@ -1,0 +1,124 @@
+{
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "computation": {
+    "collection_version": "synthetic-sets-v1",
+    "correction": "BH-all-tested-sets",
+    "exploratory": false,
+    "findings": [
+      [
+        "combined:planted",
+        "combined:redundant"
+      ]
+    ],
+    "jaccard": [
+      {
+        "first": "combined:planted",
+        "jaccard": 0.8333333333333334,
+        "second": "combined:redundant"
+      }
+    ],
+    "list_sizes": {
+      "combined": 6
+    },
+    "namespace": "gene_symbol",
+    "organism": "synthetic organism",
+    "rows": [
+      {
+        "id": "combined:planted",
+        "overlap": 5,
+        "p_value": 4.210349037935245e-05,
+        "q_value": 8.42069807587049e-05,
+        "size": 5,
+        "status": "significant",
+        "tested": true
+      },
+      {
+        "id": "combined:redundant",
+        "overlap": 6,
+        "p_value": 1.684139615174098e-06,
+        "q_value": 6.736558460696392e-06,
+        "size": 6,
+        "status": "significant",
+        "tested": true
+      },
+      {
+        "id": "combined:raw_only",
+        "overlap": 3,
+        "p_value": 0.04130352406214475,
+        "q_value": 0.055071365416193,
+        "size": 5,
+        "status": "non-significant",
+        "tested": true
+      },
+      {
+        "id": "combined:empty",
+        "overlap": 0,
+        "p_value": 1.0,
+        "q_value": 1.0,
+        "size": 3,
+        "status": "non-significant",
+        "tested": true
+      },
+      {
+        "id": "combined:outside_bounds",
+        "overlap": 0,
+        "p_value": null,
+        "q_value": null,
+        "size": 1,
+        "status": "untested",
+        "tested": false
+      }
+    ],
+    "universe_size": 30
+  },
+  "fixture": "synthetic fixture",
+  "input_identities": [
+    {
+      "path": "pack.json",
+      "sha256": "45130e17604a042332e351969e0fef574b8a20f709935d76d3468d0bb5bf8696"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "999f8249f918e381d89e5d36c05df8694186033d7b626432ec45868d1ed6756f"
+    },
+    {
+      "path": "upstream.json",
+      "sha256": "79db9514ad0d48ca67d4b4fac751df669a826bafcbcba765093623610d69966d"
+    },
+    {
+      "path": "genes.json",
+      "sha256": "af5fbb92fc75f808f4892c0c503cdee281152c6d25529e5c70949833dbc2b0fe"
+    },
+    {
+      "path": "collection.json",
+      "sha256": "5bc646de07735b0fbc958b3a626b8d1aaacc956600582f1a0ffbb533923507cb"
+    },
+    {
+      "path": "report.json",
+      "sha256": "da48effb1fc49a92f460abe6f7b5e9e865022fae60545c32ea50ec20cbe4e06b"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "21af23a63d541cf5444ef7ccde1242e684e1b07a35bf290464b4077f522e80b3"
+    }
+  ],
+  "review": "unavailable",
+  "rules_sha256": "999f8249f918e381d89e5d36c05df8694186033d7b626432ec45868d1ed6756f",
+  "schema": "gso-result-v1",
+  "stages": [
+    "01-freeze",
+    "02-identity",
+    "03-testing",
+    "04-redundancy",
+    "05-handoff"
+  ],
+  "status": "statistical-overrepresentation-only"
+}

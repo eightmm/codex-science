@@ -1,0 +1,31 @@
+{
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "91171bd2a8b2abe591996b0f1e9b720fbec7874b9199d4f9c1cc72fe5cb5dfd6"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_table_read": true,
+  "frozen_protocol_sha256": "91971572a29803894430c3127f0f9412848b97e42590ed81ad97f1b0d96a5465",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "91971572a29803894430c3127f0f9412848b97e42590ed81ad97f1b0d96a5465"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "7bba995ec7c93da6442137e563b753069aa2ae1342b79fd44f7ff78123c4ee44"
+  },
+  "schema": "gwas-summary-qc-pack-v1",
+  "stages": [
+    "01-freeze",
+    "02-harmonization",
+    "03-consistency",
+    "04-signals",
+    "05-handoff"
+  ],
+  "table": {
+    "path": "table.json",
+    "sha256": "8c9e9f7103c1a45600a7120aac3b2c13ba38cf00326318082ee596c001e15499"
+  }
+}

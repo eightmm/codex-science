@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gene-set Over-representation"
+  short_description: "Test frozen gene lists with exact tails, FDR and overlap grouping"
+  default_prompt: "Use $workflow-gene-set-overrepresentation to freeze selection and tested-gene identities, check the supplied local collection, compute exact enrichment and hand bounded findings to independent review."

@@ -1,0 +1,120 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "sample_id": "HIT",
+      "status": "supported",
+      "support": [
+        {
+          "path": "evidence.json",
+          "sha256": "94f79e718d2ca1d7d1c6324ae924d72caa8f8560b346e46bfaea686204fd6169"
+        }
+      ],
+      "text": "Synthetic screening signal for HIT only."
+    }
+  ],
+  "evidence_level": "screening-signal-only",
+  "exploratory": false,
+  "fixture": true,
+  "hits": [
+    {
+      "edge": false,
+      "plate_id": "P1",
+      "replicate_id": 1,
+      "robust_z": 16.187778227438287,
+      "sample_id": "HIT",
+      "well_id": "B3"
+    },
+    {
+      "edge": false,
+      "plate_id": "P1",
+      "replicate_id": 2,
+      "robust_z": 16.187778227438287,
+      "sample_id": "HIT",
+      "well_id": "C3"
+    }
+  ],
+  "input_identities": [
+    {
+      "path": "pack.json",
+      "sha256": "8aa788f3884c8a24145dd8567f0639cf7b42eec7718200dfb248b5746722acc1"
+    },
+    {
+      "path": "layout.json",
+      "sha256": "dc3232c9055692fea03957299b10eb01fac1291745e2de7a0ca3562872cf31d6"
+    },
+    {
+      "path": "signals.json",
+      "sha256": "dd419e14f76144bff84683dffab31c0f74833d8eab822ee5d5108fdaa57ddb94"
+    },
+    {
+      "path": "reported.json",
+      "sha256": "1f2bbaae7b249a71eea6b699dfe9a712761c2518a07bede8cdc9d1b5372d610d"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "94f79e718d2ca1d7d1c6324ae924d72caa8f8560b346e46bfaea686204fd6169"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures only; no biological or physical validity.",
+    "Content hashes do not prove historical freezing or independence.",
+    "Conservative English claim wording gate is incomplete.",
+    "Coordinator owns rigor classification and independent science-review."
+  ],
+  "plates": [
+    {
+      "drift": 4.0,
+      "drift_flagged": true,
+      "mad": 2.0,
+      "median": 12.0,
+      "plate_id": "P1",
+      "reasons": [],
+      "signal_to_background": 8.333333333333334,
+      "ssmd": 33.1483153540389,
+      "status": "passed",
+      "z_prime": 0.8791423491915441
+    },
+    {
+      "drift": 4.0,
+      "drift_flagged": true,
+      "mad": 2.0,
+      "median": 12.0,
+      "plate_id": "P2",
+      "reasons": [
+        "minimum-zprime"
+      ],
+      "signal_to_background": 1.6666666666666667,
+      "ssmd": 3.013483214003536,
+      "status": "failed",
+      "z_prime": -0.32943415889301453
+    }
+  ],
+  "replicates": [
+    {
+      "agreeing_replicates": 2,
+      "contributors": [
+        {
+          "plate_id": "P1",
+          "well_id": "B3"
+        },
+        {
+          "plate_id": "P1",
+          "well_id": "C3"
+        }
+      ],
+      "mean_signal": 60.0,
+      "sample_id": "HIT"
+    }
+  ],
+  "review": "unavailable",
+  "schema": "hts-result-v1",
+  "stages": [
+    "01-freeze",
+    "02-inventory",
+    "03-qc",
+    "04-hits",
+    "05-handoff"
+  ]
+}

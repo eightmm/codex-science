@@ -1,0 +1,60 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-pk-nca-profile",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Observed Cmax 16, Tmax 0.",
+        "AUC(0-tlast) 15/ln(2), lambda_z ln(2), half-life 1, AUC(0-inf) 16/ln(2), fraction 1/16.",
+        "Below-limit tail remains censored; poor terminal fit has unreliable parameters and is excluded.",
+        "Group n=2, source hashes unchanged, review unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "memory_mib": 256,
+        "network_calls": 0
+      },
+      "id": "hand-arithmetic",
+      "question": "Do the supplied synthetic exponential profiles reproduce the hand-derived NCA quantities?"
+    },
+    {
+      "acceptance_criteria": [
+        "below-limit-zero: below-limit-zero",
+        "excess-extrapolation: extrapolated-fraction",
+        "too-few-terminal-points: terminal-points",
+        "poor-terminal-fit: terminal-fit",
+        "nonmonotonic-time: profile-time",
+        "duplicate-time: profile-time",
+        "mixed-units: units-mismatch",
+        "missing-dose: dose-units",
+        "missing-dose-units: dose-units",
+        "unreliable-group: unreliable-group",
+        "interpolated-cmax: cmax-interpolated",
+        "changed-rules: post-hoc-rules",
+        "bioavailability: claim-boundary",
+        "safe-dose: claim-boundary",
+        "recommended-dose: claim-boundary",
+        "exposure-response: claim-boundary",
+        "human-exposure: claim-boundary",
+        "efficacy: claim-boundary",
+        "clinical-relevance: claim-boundary",
+        "computed-positive: claim-computed",
+        "review-result: claim-computed",
+        "review-kind: claim-computed",
+        "external-alias: external-alias",
+        "empty-evidence: unavailable-evidence",
+        "unavailable-mixed: unavailable-evidence",
+        "unavailable-positive: unavailable-positive",
+        "replication: replication"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "memory_mib": 256,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "question": "Does each synthetic seeded defect receive its stated labelled refusal?"
+    }
+  ]
+}

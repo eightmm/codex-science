@@ -1,0 +1,46 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic software acceptance and procedure only; no causal, physical or clinical validity or review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen stages, local schemas, numerical checks and refusal boundaries.",
+      "read_when": [
+        "validating supplied GWAS summary rows"
+      ],
+      "required_before": [
+        "protocol-freeze",
+        "table-admission",
+        "reference-computation",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Bounds and record validation"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic software acceptance and procedure only; no causal, physical or clinical validity or review attestation.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape with five ordered stage IDs.",
+      "read_when": [
+        "creating a coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-gwas-summary-qc"
+}

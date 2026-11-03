@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "computed",
+      "kind": "computed",
+      "origin": "internal",
+      "result": "computed arithmetic",
+      "source": {
+        "path": "report.json",
+        "sha256": "86c5e45210f5ecd6f90bcb7897df3ee6a0d011777880522fca7f96e7f8d9c179"
+      }
+    }
+  ],
+  "schema": "pk-nca-evidence-v1"
+}

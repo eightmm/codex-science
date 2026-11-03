@@ -1,0 +1,158 @@
+{
+  "fixture": "synthetic fixture",
+  "namespace": "gene_symbol",
+  "organism": "synthetic organism",
+  "rows": [
+    {
+      "direction": "up",
+      "gene": "G01",
+      "selected": true
+    },
+    {
+      "direction": "up",
+      "gene": "G02",
+      "selected": true
+    },
+    {
+      "direction": "up",
+      "gene": "G03",
+      "selected": true
+    },
+    {
+      "direction": "up",
+      "gene": "G04",
+      "selected": true
+    },
+    {
+      "direction": "down",
+      "gene": "G05",
+      "selected": true
+    },
+    {
+      "direction": "down",
+      "gene": "G06",
+      "selected": true
+    },
+    {
+      "direction": "none",
+      "gene": "G07",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G08",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G09",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G10",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G11",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G12",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G13",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G14",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G15",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G16",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G17",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G18",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G19",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G20",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G21",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G22",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G23",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G24",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G25",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G26",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G27",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G28",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G29",
+      "selected": false
+    },
+    {
+      "direction": "none",
+      "gene": "G30",
+      "selected": false
+    }
+  ],
+  "schema": "gso-upstream-v1"
+}

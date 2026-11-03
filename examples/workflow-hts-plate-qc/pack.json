@@ -1,0 +1,46 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "sample_id": "HIT",
+      "status": "supported",
+      "support": [
+        {
+          "path": "evidence.json",
+          "sha256": "94f79e718d2ca1d7d1c6324ae924d72caa8f8560b346e46bfaea686204fd6169"
+        }
+      ],
+      "text": "Synthetic screening signal for HIT only."
+    }
+  ],
+  "exploratory": false,
+  "fixture": true,
+  "frozen_layout": {
+    "path": "layout.json",
+    "sha256": "dc3232c9055692fea03957299b10eb01fac1291745e2de7a0ca3562872cf31d6"
+  },
+  "inputs": {
+    "layout": {
+      "path": "layout.json",
+      "sha256": "dc3232c9055692fea03957299b10eb01fac1291745e2de7a0ca3562872cf31d6"
+    },
+    "reported": {
+      "path": "reported.json",
+      "sha256": "1f2bbaae7b249a71eea6b699dfe9a712761c2518a07bede8cdc9d1b5372d610d"
+    },
+    "signals": {
+      "path": "signals.json",
+      "sha256": "dd419e14f76144bff84683dffab31c0f74833d8eab822ee5d5108fdaa57ddb94"
+    }
+  },
+  "schema": "hts-pack-v1",
+  "stages": [
+    "01-freeze",
+    "02-inventory",
+    "03-qc",
+    "04-hits",
+    "05-handoff"
+  ],
+  "study_outputs": []
+}

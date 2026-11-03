@@ -1,0 +1,42 @@
+{
+  "fixture": true,
+  "pack": "workflow-hts-plate-qc",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "P1 Z-prime=0.8791423491915441; P2 Z-prime=-0.32943415889301453 and P2 failed.",
+        "Only P1 B3/C3 are hits; mean signal=60; P2 B3=999 never enters the mean.",
+        "Both positional drifts=4 are flagged above frozen limit=3.",
+        "Median=12, MAD=2 and robust z=48/(1.4826*2); controls never become hits.",
+        "Evidence is screening-signal-only and independent review is unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-two-plates",
+      "input": "examples/workflow-hts-plate-qc/pack.json",
+      "question": "Does control QC preserve the planted screening signal while excluding the failed plate and edge well?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 31 recipes refuse for their stated codes.",
+        "Guard removal makes each individual seeded test fail.",
+        "Hostile inputs, aliases, roots, bounds and JSON types refuse without hangs or CLI tracebacks.",
+        "No writes, network, installations, remote execution or GPU use."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-refusals",
+      "input": "examples/workflow-hts-plate-qc/negative-cases.json",
+      "question": "Does each seeded defect refuse for its named reason, and does removing its guard break its test?"
+    }
+  ]
+}

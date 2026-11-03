@@ -1,0 +1,65 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-hts-plate-qc/pack.json",
+    "examples/workflow-hts-plate-qc/expected.json",
+    "examples/workflow-hts-plate-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixture acceptance establishes software behavior only, never biological, physical, causal or clinical validity.",
+    "Small fixtures are not real 384-well screens; sparse negative-control drift cannot assess rows without controls.",
+    "Only observed signals are admitted; content hashes cannot prove historical freezing or detect dishonest undeclared zero filling.",
+    "Conservative, incomplete English whole-word prefix gate uses \\w*: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Additionally activ*, poten*, truth and physical validity are refused. Independent review assesses unlisted paraphrases.",
+    "Within-screen agreeing replicates are not independent studies; replicated status is refused.",
+    "Coordinator-owned rigor classification and independent science-review remain unavailable."
+  ],
+  "output_schemas": [
+    "hts-pack-v1",
+    "hts-layout-v1",
+    "hts-signals-v1",
+    "hts-evidence-v1",
+    "hts-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "failed-plate-hit",
+    "edge-column-controls",
+    "solvent-absent",
+    "missing-as-zero",
+    "duplicate-well",
+    "control-hit",
+    "post-threshold",
+    "post-edge",
+    "failed-plate-mean",
+    "drift-unflagged",
+    "zero-variance-pass",
+    "excluded-edge-hit",
+    "claim-activity",
+    "claim-potency",
+    "claim-inhibition",
+    "claim-mechanism",
+    "claim-causal",
+    "claim-clinical",
+    "claim-physical",
+    "claim-truth",
+    "review-kind",
+    "review-result",
+    "computed-kind",
+    "computed-result",
+    "external-alias",
+    "unavailable-negative",
+    "unavailable-positive",
+    "absent-negative",
+    "unavailable-assertion",
+    "single-study-replication",
+    "stage-order"
+  ],
+  "skill": "workflow-hts-plate-qc",
+  "test_files": [
+    "tests/test_workflow_hts_pack.py"
+  ]
+}

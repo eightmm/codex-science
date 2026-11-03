@@ -1,0 +1,132 @@
+{
+  "computation": {
+    "group": {
+      "n": 2,
+      "parameters": {
+        "auc_0_inf": {
+          "geometric_mean": 23.083120654223414,
+          "n": 2,
+          "range": [
+            23.083120654223414,
+            23.083120654223414
+          ]
+        },
+        "auc_0_tlast": {
+          "geometric_mean": 21.640425613334454,
+          "n": 2,
+          "range": [
+            21.64042561333445,
+            21.64042561333445
+          ]
+        },
+        "cmax": {
+          "geometric_mean": 15.999999999999998,
+          "n": 2,
+          "range": [
+            16,
+            16
+          ]
+        },
+        "extrapolated_fraction": {
+          "geometric_mean": 0.0625,
+          "n": 2,
+          "range": [
+            0.0625,
+            0.0625
+          ]
+        },
+        "half_life": {
+          "geometric_mean": 1.0,
+          "n": 2,
+          "range": [
+            1.0,
+            1.0
+          ]
+        },
+        "lambda_z": {
+          "geometric_mean": 0.6931471805599453,
+          "n": 2,
+          "range": [
+            0.6931471805599453,
+            0.6931471805599453
+          ]
+        },
+        "tmax": {
+          "geometric_mean": "unavailable",
+          "n": 2,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "subject_ids": [
+        "clean",
+        "below-limit-tail"
+      ]
+    },
+    "subjects": [
+      {
+        "adjusted_r_squared": 1.0,
+        "auc_0_inf": 23.083120654223414,
+        "auc_0_tlast": 21.64042561333445,
+        "cmax": 16,
+        "cmax_source": "observed",
+        "extrapolated_fraction": 0.0625,
+        "half_life": 1.0,
+        "lambda_z": 0.6931471805599453,
+        "reasons": [],
+        "status": "reliable",
+        "subject_id": "clean",
+        "terminal_points": 3,
+        "tmax": 0
+      },
+      {
+        "adjusted_r_squared": 1.0,
+        "auc_0_inf": 23.083120654223414,
+        "auc_0_tlast": 21.64042561333445,
+        "cmax": 16,
+        "cmax_source": "observed",
+        "extrapolated_fraction": 0.0625,
+        "half_life": 1.0,
+        "lambda_z": 0.6931471805599453,
+        "reasons": [],
+        "status": "reliable",
+        "subject_id": "below-limit-tail",
+        "terminal_points": 3,
+        "tmax": 0
+      },
+      {
+        "adjusted_r_squared": 0.5273851032162705,
+        "auc_0_inf": "unreliable",
+        "auc_0_tlast": 23.392952406938093,
+        "cmax": 16,
+        "cmax_source": "observed",
+        "extrapolated_fraction": 0.05808968918244122,
+        "half_life": "unreliable",
+        "lambda_z": 0.6931471805599453,
+        "reasons": [
+          "terminal-fit"
+        ],
+        "status": "unreliable",
+        "subject_id": "unreliable-slope",
+        "terminal_points": 3,
+        "tmax": 0
+      }
+    ]
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "review": "unavailable",
+  "rules_sha256": "ac10610831981180f4b6379ef04622a4b0d1e40c634bb739f1738ad54f09ea84",
+  "schema": "pk-nca-result-v1",
+  "stages": [
+    "01-rule-freeze",
+    "02-profile-qc",
+    "03-subject-parameters",
+    "04-group-summary",
+    "05-handoff"
+  ],
+  "statement": "Arithmetic summaries of the supplied profiles only.",
+  "status": "arithmetic-only"
+}

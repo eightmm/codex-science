@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plate Screen Quality Control"
+  short_description: "Check frozen plate controls and replicate-agreed screening signals"
+  default_prompt: "Use $workflow-hts-plate-qc for already-read plate signals, frozen controls, Z-prime and SSMD, positional drift, robust-z hits and independent review handoff."

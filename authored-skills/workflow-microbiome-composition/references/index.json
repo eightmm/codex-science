@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no causal, biological or clinical validation or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen choices, immutable identities, local record shapes, numerical methods, bounds and refusal controls.",
+      "read_when": [
+        "freezing a two-condition design",
+        "admitting counted taxon tables",
+        "computing or validating composition evidence",
+        "handing off claims"
+      ],
+      "required_before": [
+        "design-freeze",
+        "table-admission",
+        "composition-computation",
+        "taxon-testing",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Bounds fixed before computation",
+        "## 03-composition: CLR, diversity and permutation evidence"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage order is not proof of execution, historical freezing or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Five ordered stages using the existing manifest step shape and one coordinator checkpoint.",
+      "read_when": [
+        "creating a coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-design",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-microbiome-composition"
+}

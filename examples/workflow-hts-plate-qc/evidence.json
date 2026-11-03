@@ -1,0 +1,8 @@
+{
+  "fixture": true,
+  "kind": "screening-evidence",
+  "origin": "study",
+  "result": "screening-signal",
+  "sample_id": "HIT",
+  "schema": "hts-evidence-v1"
+}

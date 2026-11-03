@@ -1,0 +1,36 @@
+{
+  "fixture": "synthetic fixture",
+  "frozen_before_counts": true,
+  "schema": "microbiome-design-v1",
+  "schema_version": 1,
+  "specification": {
+    "biological_unit": "subject",
+    "contrast": [
+      "reference",
+      "shifted"
+    ],
+    "covariates": [
+      "batch",
+      "extraction_batch",
+      "sequencing_run"
+    ],
+    "distance": "aitchison",
+    "diversity_indices": [
+      "shannon",
+      "simpson"
+    ],
+    "fdr_alpha": 0.05,
+    "minimum_group_size": 3,
+    "minimum_read_depth": 100,
+    "permutation_strata": [
+      "batch",
+      "extraction_batch",
+      "sequencing_run"
+    ],
+    "permutations": 199,
+    "prevalence_filter": 0.2,
+    "pseudocount": 0.5,
+    "seed": 1729,
+    "zero_rule": "add-pseudocount"
+  }
+}

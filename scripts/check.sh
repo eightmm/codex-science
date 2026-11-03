@@ -83,6 +83,16 @@ run_science_contracts() (
     examples/workflow-survival-time-to-event/pack.json >/dev/null
   uv run python scripts/validate_diagnostic_accuracy_pack.py \
     examples/workflow-diagnostic-accuracy/pack.json >/dev/null
+  uv run python scripts/validate_hts_plate_qc_pack.py \
+    examples/workflow-hts-plate-qc/pack.json >/dev/null
+  uv run python scripts/validate_gwas_summary_qc_pack.py \
+    examples/workflow-gwas-summary-qc/pack.json >/dev/null
+  uv run python scripts/validate_gene_set_overrepresentation_pack.py \
+    examples/workflow-gene-set-overrepresentation/pack.json >/dev/null
+  uv run python scripts/validate_pk_nca_pack.py \
+    examples/workflow-pk-nca-profile/pack.json >/dev/null
+  uv run python scripts/validate_microbiome_composition_pack.py \
+    examples/workflow-microbiome-composition/pack.json >/dev/null
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

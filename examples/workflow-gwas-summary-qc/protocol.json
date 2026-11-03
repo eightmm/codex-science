@@ -1,0 +1,15 @@
+{
+  "ancestry": "synthetic ancestry",
+  "effect_allele_convention": "beta refers to effect_allele",
+  "fixture": "synthetic fixture",
+  "genome_build": "synthetic-build-1",
+  "inflation_limit": 1.2,
+  "minimum_frequency": 0.01,
+  "minimum_n": 1000,
+  "p_relative_tolerance": 1e-10,
+  "p_threshold": 5e-08,
+  "schema": "gwas-summary-qc-protocol-v1",
+  "schema_version": 1,
+  "trait": "synthetic trait",
+  "window_bp": 250000
+}

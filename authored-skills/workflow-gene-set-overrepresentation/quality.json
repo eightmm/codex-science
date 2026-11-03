@@ -1,0 +1,76 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-gene-set-overrepresentation/pack.json",
+    "examples/workflow-gene-set-overrepresentation/expected.json",
+    "examples/workflow-gene-set-overrepresentation/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic software acceptance, never biological, physical or clinical validation.",
+    "Hash-bound declarations cannot prove historical freeze timing, true organism identity, collection fitness or independent sources.",
+    "The fixed selection rule admits exactly upstream selected flags; directional lists are nonempty up and down lists. Full-universe or empty selected lists are refused.",
+    "BH covers all tested set/list pairs together; size-excluded sets remain untested. Connected significant sets form one dependent finding.",
+    "The single synthetic study cannot establish replication; independent review remains coordinator-owned and unavailable here.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. The gate also refuses truth, physical validity and patient benefit, includes negations and is incomplete for unlisted paraphrases.",
+    "Absent or unavailable cited records require unavailable claims; review approval and computed agreement cannot support positive claims.",
+    "Raw files are bounded to 64 MiB each, 256 MiB across distinct inodes and a conservative 4000000-value bundle allowance before JSON allocation. No stored records change validation."
+  ],
+  "output_schemas": [
+    "gso-pack-v1",
+    "gso-rules-v1",
+    "gso-upstream-v1",
+    "gso-list-v1",
+    "gso-collection-v1",
+    "gso-report-v1",
+    "gso-evidence-v1",
+    "gso-result-v1",
+    "gso-negative-fixtures-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "whole-genome",
+    "universe-subset",
+    "outside-universe",
+    "namespace",
+    "identifier-form",
+    "duplicate-list",
+    "post-selection",
+    "set-size-tested",
+    "set-size-nonsignificant",
+    "raw-correction",
+    "raw-significant",
+    "independent-overlap",
+    "direction-ignored",
+    "empty-enriched",
+    "selection-changed",
+    "collection-version",
+    "rule-freeze",
+    "claim-activated",
+    "claim-regulated",
+    "claim-driving",
+    "claim-causal",
+    "claim-pathway-mechanism",
+    "claim-therapeutic",
+    "claim-clinical-action",
+    "claim-efficacy",
+    "claim-physical-validity",
+    "review-kind",
+    "review-result",
+    "computed-kind",
+    "computed-result",
+    "external-alias",
+    "empty-evidence",
+    "unavailable-positive",
+    "missing-evidence",
+    "unavailable-mixed",
+    "replicated"
+  ],
+  "skill": "workflow-gene-set-overrepresentation",
+  "test_files": [
+    "tests/test_workflow_enrichment_pack.py"
+  ]
+}

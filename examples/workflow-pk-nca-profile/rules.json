@@ -1,0 +1,41 @@
+{
+  "below_limit_rule": "censored",
+  "concentration_unit": "ng/mL",
+  "dose_unit": "mg/kg",
+  "fixture": "synthetic fixture",
+  "lloq": 0.2,
+  "maximum_extrapolated_fraction": 0.2,
+  "minimum_adjusted_r_squared": 0.95,
+  "minimum_terminal_points": 3,
+  "nominal_dose": 1,
+  "parameters": [
+    "cmax",
+    "tmax",
+    "auc_0_tlast",
+    "lambda_z",
+    "half_life",
+    "auc_0_inf",
+    "extrapolated_fraction"
+  ],
+  "route": "nominal intravenous fixture",
+  "sampling_schedule": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "schema": "pk-nca-rules-v1",
+  "subject_unit": "synthetic animal",
+  "substitution": null,
+  "system": "animal",
+  "terminal_window": [
+    2,
+    3,
+    4
+  ],
+  "time_unit": "h",
+  "trapezoid": "linear-up/log-down"
+}

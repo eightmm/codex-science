@@ -1,0 +1,74 @@
+{
+  "collection_version": "synthetic-sets-v1",
+  "correction": "BH-all-tested-sets",
+  "exploratory": false,
+  "findings": [
+    [
+      "combined:planted",
+      "combined:redundant"
+    ]
+  ],
+  "fixture": "synthetic fixture",
+  "jaccard": [
+    {
+      "first": "combined:planted",
+      "jaccard": 0.8333333333333334,
+      "second": "combined:redundant"
+    }
+  ],
+  "list_sizes": {
+    "combined": 6
+  },
+  "namespace": "gene_symbol",
+  "organism": "synthetic organism",
+  "rows": [
+    {
+      "id": "combined:planted",
+      "overlap": 5,
+      "p_value": 4.210349037935245e-05,
+      "q_value": 8.42069807587049e-05,
+      "size": 5,
+      "status": "significant",
+      "tested": true
+    },
+    {
+      "id": "combined:redundant",
+      "overlap": 6,
+      "p_value": 1.684139615174098e-06,
+      "q_value": 6.736558460696392e-06,
+      "size": 6,
+      "status": "significant",
+      "tested": true
+    },
+    {
+      "id": "combined:raw_only",
+      "overlap": 3,
+      "p_value": 0.04130352406214475,
+      "q_value": 0.055071365416193,
+      "size": 5,
+      "status": "non-significant",
+      "tested": true
+    },
+    {
+      "id": "combined:empty",
+      "overlap": 0,
+      "p_value": 1.0,
+      "q_value": 1.0,
+      "size": 3,
+      "status": "non-significant",
+      "tested": true
+    },
+    {
+      "id": "combined:outside_bounds",
+      "overlap": 0,
+      "p_value": null,
+      "q_value": null,
+      "size": 1,
+      "status": "untested",
+      "tested": false
+    }
+  ],
+  "rules_sha256": "999f8249f918e381d89e5d36c05df8694186033d7b626432ec45868d1ed6756f",
+  "schema": "gso-report-v1",
+  "universe_size": 30
+}

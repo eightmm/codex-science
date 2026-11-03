@@ -1,0 +1,497 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "subjects",
+            1,
+            "points",
+            5,
+            "concentration"
+          ],
+          "target": "profiles",
+          "value": 0
+        }
+      ],
+      "code": "below-limit-zero",
+      "name": "below-limit-zero"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "maximum_extrapolated_fraction"
+          ],
+          "target": "rules",
+          "value": 0.01
+        },
+        {
+          "path": [
+            "computation",
+            "subjects",
+            0,
+            "auc_0_inf"
+          ],
+          "target": "report",
+          "value": 23
+        }
+      ],
+      "code": "extrapolated-fraction",
+      "name": "excess-extrapolation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "minimum_terminal_points"
+          ],
+          "target": "rules",
+          "value": 4
+        },
+        {
+          "path": [
+            "computation",
+            "subjects",
+            0,
+            "auc_0_inf"
+          ],
+          "target": "report",
+          "value": 23
+        }
+      ],
+      "code": "terminal-points",
+      "name": "too-few-terminal-points"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "subjects",
+            0,
+            "points",
+            3,
+            "concentration"
+          ],
+          "target": "profiles",
+          "value": 3.9
+        },
+        {
+          "path": [
+            "computation",
+            "subjects",
+            0,
+            "auc_0_inf"
+          ],
+          "target": "report",
+          "value": 23
+        }
+      ],
+      "code": "terminal-fit",
+      "name": "poor-terminal-fit"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "subjects",
+            0,
+            "points",
+            2,
+            "time"
+          ],
+          "target": "profiles",
+          "value": 0.5
+        }
+      ],
+      "code": "profile-time",
+      "name": "nonmonotonic-time"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "subjects",
+            0,
+            "points",
+            2,
+            "time"
+          ],
+          "target": "profiles",
+          "value": 1
+        }
+      ],
+      "code": "profile-time",
+      "name": "duplicate-time"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "subjects",
+            1,
+            "concentration_unit"
+          ],
+          "target": "profiles",
+          "value": "mg/L"
+        }
+      ],
+      "code": "units-mismatch",
+      "name": "mixed-units"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "nominal_dose"
+          ],
+          "target": "rules",
+          "value": null
+        }
+      ],
+      "code": "dose-units",
+      "name": "missing-dose"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "dose_unit"
+          ],
+          "target": "rules",
+          "value": ""
+        }
+      ],
+      "code": "dose-units",
+      "name": "missing-dose-units"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "computation",
+            "group",
+            "subject_ids"
+          ],
+          "target": "report",
+          "value": [
+            "clean",
+            "below-limit-tail",
+            "unreliable-slope"
+          ]
+        }
+      ],
+      "code": "unreliable-group",
+      "name": "unreliable-group"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "computation",
+            "subjects",
+            0,
+            "cmax_source"
+          ],
+          "target": "report",
+          "value": "interpolated"
+        }
+      ],
+      "code": "cmax-interpolated",
+      "name": "interpolated-cmax"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "minimum_adjusted_r_squared"
+          ],
+          "target": "rules",
+          "value": 0.9
+        }
+      ],
+      "code": "post-hoc-rules",
+      "name": "changed-rules"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Bioavailability is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "bioavailability"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "A safe dose is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "safe-dose"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "A recommended dose is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "recommended-dose"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Exposure-response is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "exposure-response"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Human exposure is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "human-exposure"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Efficacy is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "efficacy"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Clinical relevance is established."
+        }
+      ],
+      "code": "claim-boundary",
+      "name": "clinical-relevance"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        }
+      ],
+      "code": "claim-computed",
+      "name": "computed-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "review approval"
+        }
+      ],
+      "code": "claim-computed",
+      "name": "review-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "suggestive"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review approval"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        }
+      ],
+      "code": "claim-computed",
+      "name": "review-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "code": "external-alias",
+      "name": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "report",
+          "value": []
+        }
+      ],
+      "code": "unavailable-evidence",
+      "name": "empty-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "unavailable"
+        }
+      ],
+      "code": "unavailable-evidence",
+      "name": "unavailable-mixed"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "unavailable"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "report",
+          "value": []
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Supported by the fixture."
+        }
+      ],
+      "code": "unavailable-positive",
+      "name": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "replicated"
+        }
+      ],
+      "code": "replication",
+      "name": "replication"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

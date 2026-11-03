@@ -1,0 +1,27 @@
+{
+  "alpha": 0.05,
+  "collection": {
+    "path": "collection.json",
+    "sha256": "5bc646de07735b0fbc958b3a626b8d1aaacc956600582f1a0ffbb533923507cb"
+  },
+  "collection_version": "synthetic-sets-v1",
+  "directional": false,
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "genes": {
+    "path": "genes.json",
+    "sha256": "af5fbb92fc75f808f4892c0c503cdee281152c6d25529e5c70949833dbc2b0fe"
+  },
+  "max_set_size": 10,
+  "min_set_size": 3,
+  "namespace": "gene_symbol",
+  "organism": "synthetic organism",
+  "overlap_limit": 0.8,
+  "schema": "gso-rules-v1",
+  "selected_before_sets": true,
+  "selection_rule": "Use exactly upstream selected flags; split up and down when directional is true.",
+  "upstream": {
+    "path": "upstream.json",
+    "sha256": "79db9514ad0d48ca67d4b4fac751df669a826bafcbcba765093623610d69966d"
+  }
+}

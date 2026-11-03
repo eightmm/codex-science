@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash complete plate layout and hit rules before signal admission.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit instrument, assay, plate/well and observed signal identities.",
+      "id": "02-inventory",
+      "status": "pending"
+    },
+    {
+      "description": "Retain control separation, positional flags and failed plates.",
+      "id": "03-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute same-plate robust scores and passing-plate replicate agreement.",
+      "id": "04-hits",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

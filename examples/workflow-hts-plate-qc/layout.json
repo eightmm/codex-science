@@ -1,0 +1,38 @@
+{
+  "assay": "synthetic-assay",
+  "baseline": "all-samples",
+  "columns": 6,
+  "direction": "higher",
+  "edge_rule": "exclude",
+  "fixture": true,
+  "hit_threshold": 5,
+  "instrument": "synthetic-reader",
+  "maximum_drift": 3,
+  "minimum_controls": 2,
+  "minimum_samples": 3,
+  "minimum_ssmd": 3,
+  "minimum_z_prime": 0.5,
+  "negative_controls": [
+    "A2",
+    "A5",
+    "B1",
+    "B6",
+    "E1",
+    "E6",
+    "F2",
+    "F5"
+  ],
+  "positive_controls": [
+    "A1",
+    "A6",
+    "F1",
+    "F6"
+  ],
+  "replicate_requirement": 2,
+  "rows": 6,
+  "schema": "hts-layout-v1",
+  "solvent_controls": [
+    "C1",
+    "C6"
+  ]
+}

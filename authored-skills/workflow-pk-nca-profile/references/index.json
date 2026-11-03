@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic fixture acceptance only; no biological validation or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Input identities, five stages, local shapes, reference math, bounds and refusals.",
+      "read_when": [
+        "freezing rules",
+        "admitting concentration-time profiles",
+        "computing or validating parameters",
+        "preparing independent review"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "profile-admission",
+        "nca-computation",
+        "group-summary",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-subject-parameters",
+        "## 05-handoff and bounded claims"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic fixture acceptance only; no biological validation or independent review attestation.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape and ordered coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rule-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-pk-nca-profile"
+}

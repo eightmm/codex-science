@@ -1,0 +1,604 @@
+{
+  "cases": [
+    {
+      "alias": false,
+      "code": "failed-plate-hit",
+      "edits": [
+        {
+          "artifact": "reported",
+          "path": [
+            "hits",
+            0,
+            "plate_id"
+          ],
+          "value": "P2"
+        }
+      ],
+      "freeze": true,
+      "id": "failed-plate-hit"
+    },
+    {
+      "alias": false,
+      "code": "positional-confound",
+      "edits": [
+        {
+          "artifact": "layout",
+          "path": [
+            "positive_controls"
+          ],
+          "value": [
+            "A1",
+            "B1",
+            "C1",
+            "D1"
+          ]
+        }
+      ],
+      "freeze": true,
+      "id": "edge-column-controls"
+    },
+    {
+      "alias": false,
+      "code": "solvent-absent",
+      "edits": [
+        {
+          "artifact": "layout",
+          "path": [
+            "solvent_controls"
+          ],
+          "value": []
+        }
+      ],
+      "freeze": true,
+      "id": "solvent-absent"
+    },
+    {
+      "alias": false,
+      "code": "missing-signal",
+      "edits": [
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            8,
+            "observed"
+          ],
+          "value": false
+        },
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            8,
+            "value"
+          ],
+          "value": 0
+        }
+      ],
+      "freeze": true,
+      "id": "missing-as-zero"
+    },
+    {
+      "alias": false,
+      "code": "duplicate-well",
+      "edits": [
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            1
+          ],
+          "value": {
+            "observed": true,
+            "replicate_id": 0,
+            "sample_id": "CONTROL",
+            "value": 99,
+            "well_id": "A1"
+          }
+        }
+      ],
+      "freeze": true,
+      "id": "duplicate-well"
+    },
+    {
+      "alias": false,
+      "code": "control-hit",
+      "edits": [
+        {
+          "artifact": "reported",
+          "path": [
+            "hits",
+            0,
+            "well_id"
+          ],
+          "value": "A1"
+        }
+      ],
+      "freeze": true,
+      "id": "control-hit"
+    },
+    {
+      "alias": false,
+      "code": "post-outcome-change",
+      "edits": [
+        {
+          "artifact": "layout",
+          "path": [
+            "hit_threshold"
+          ],
+          "value": 4
+        }
+      ],
+      "freeze": false,
+      "id": "post-threshold"
+    },
+    {
+      "alias": false,
+      "code": "post-outcome-change",
+      "edits": [
+        {
+          "artifact": "layout",
+          "path": [
+            "edge_rule"
+          ],
+          "value": "flag"
+        }
+      ],
+      "freeze": false,
+      "id": "post-edge"
+    },
+    {
+      "alias": false,
+      "code": "failed-plate-replicate",
+      "edits": [
+        {
+          "artifact": "reported",
+          "path": [
+            "replicates",
+            0,
+            "contributors",
+            0,
+            "plate_id"
+          ],
+          "value": "P2"
+        }
+      ],
+      "freeze": true,
+      "id": "failed-plate-mean"
+    },
+    {
+      "alias": false,
+      "code": "positional-drift",
+      "edits": [
+        {
+          "artifact": "reported",
+          "path": [
+            "plates",
+            0,
+            "drift_flagged"
+          ],
+          "value": false
+        }
+      ],
+      "freeze": true,
+      "id": "drift-unflagged"
+    },
+    {
+      "alias": false,
+      "code": "undefined-zprime",
+      "edits": [
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            0,
+            "value"
+          ],
+          "value": 100
+        },
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            5,
+            "value"
+          ],
+          "value": 100
+        },
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            30,
+            "value"
+          ],
+          "value": 100
+        },
+        {
+          "artifact": "signals",
+          "path": [
+            "plates",
+            0,
+            "wells",
+            35,
+            "value"
+          ],
+          "value": 100
+        }
+      ],
+      "freeze": true,
+      "id": "zero-variance-pass"
+    },
+    {
+      "alias": false,
+      "code": "edge-hit",
+      "edits": [
+        {
+          "artifact": "reported",
+          "path": [
+            "hits",
+            0,
+            "well_id"
+          ],
+          "value": "A3"
+        }
+      ],
+      "freeze": true,
+      "id": "excluded-edge-hit"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT is an active compound."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-activity"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT has potency."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-potency"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT produces inhibition."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-inhibition"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT has a mechanism."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-mechanism"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT causes a response."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-causal"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT supports clinical action."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-clinical"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "HIT has physical validity."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-physical"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "Review approval is truth."
+        }
+      ],
+      "freeze": true,
+      "id": "claim-truth"
+    },
+    {
+      "alias": false,
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "kind"
+          ],
+          "value": "review-approval"
+        }
+      ],
+      "freeze": true,
+      "id": "review-kind"
+    },
+    {
+      "alias": false,
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "result"
+          ],
+          "value": "review-approved"
+        }
+      ],
+      "freeze": true,
+      "id": "review-result"
+    },
+    {
+      "alias": false,
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "kind"
+          ],
+          "value": "computed-record"
+        }
+      ],
+      "freeze": true,
+      "id": "computed-kind"
+    },
+    {
+      "alias": false,
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "result"
+          ],
+          "value": "computed-agreement"
+        }
+      ],
+      "freeze": true,
+      "id": "computed-result"
+    },
+    {
+      "alias": true,
+      "code": "dependent-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "origin"
+          ],
+          "value": "external"
+        }
+      ],
+      "freeze": true,
+      "id": "external-alias"
+    },
+    {
+      "alias": false,
+      "code": "unavailable-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "result"
+          ],
+          "value": "unavailable"
+        },
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "value": "unsupported"
+        }
+      ],
+      "freeze": true,
+      "id": "unavailable-negative"
+    },
+    {
+      "alias": false,
+      "code": "unavailable-evidence",
+      "edits": [
+        {
+          "artifact": "evidence",
+          "path": [
+            "kind"
+          ],
+          "value": "unavailable"
+        }
+      ],
+      "freeze": true,
+      "id": "unavailable-positive"
+    },
+    {
+      "alias": false,
+      "code": "unavailable-evidence",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "support"
+          ],
+          "value": []
+        },
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "value": "unsupported"
+        }
+      ],
+      "freeze": true,
+      "id": "absent-negative"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "value": "unavailable"
+        },
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "value": "Supported screening signal."
+        }
+      ],
+      "freeze": true,
+      "id": "unavailable-assertion"
+    },
+    {
+      "alias": false,
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "value": "replicated"
+        }
+      ],
+      "freeze": true,
+      "id": "single-study-replication"
+    },
+    {
+      "alias": false,
+      "code": "stage-order",
+      "edits": [
+        {
+          "artifact": "pack",
+          "path": [
+            "stages"
+          ],
+          "value": [
+            "02-inventory",
+            "01-freeze",
+            "03-qc",
+            "04-hits",
+            "05-handoff"
+          ]
+        }
+      ],
+      "freeze": true,
+      "id": "stage-order"
+    }
+  ],
+  "description": "Synthetic fixture mutation recipes; each is materialized as an immutable bundle in a temporary directory by the named tests.",
+  "fixture": true
+}

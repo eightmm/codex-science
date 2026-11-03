@@ -1,0 +1,121 @@
+{
+  "ambiguous": [
+    "fixture-ambiguous"
+  ],
+  "claims": [
+    {
+      "evidence": [
+        "E1"
+      ],
+      "id": "C1",
+      "kind": "associational",
+      "status": "suggestive",
+      "text": "The supplied synthetic fixture records one positional signal."
+    },
+    {
+      "evidence": [],
+      "id": "C2",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent review is unavailable."
+    }
+  ],
+  "excluded": [
+    {
+      "id": "fixture-inconsistent",
+      "reasons": [
+        "p-inconsistent"
+      ]
+    },
+    {
+      "id": "fixture-ambiguous",
+      "reasons": [
+        "ambiguous-strand"
+      ]
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "frequency_checked": [
+    "fixture-v00",
+    "fixture-v01",
+    "fixture-v02",
+    "fixture-v03",
+    "fixture-v04",
+    "fixture-v05",
+    "fixture-v06",
+    "fixture-v07",
+    "fixture-v08",
+    "fixture-v09",
+    "fixture-v10",
+    "fixture-v11",
+    "fixture-v12",
+    "fixture-v13",
+    "fixture-v14",
+    "fixture-v15",
+    "fixture-v16",
+    "fixture-v17",
+    "fixture-v18",
+    "fixture-v19",
+    "fixture-v20",
+    "fixture-v21",
+    "fixture-v22",
+    "fixture-v23",
+    "fixture-v24",
+    "fixture-v25",
+    "fixture-v26",
+    "fixture-v27",
+    "fixture-v28",
+    "fixture-v29",
+    "fixture-inconsistent"
+  ],
+  "headline": "Synthetic fixture positional signals; statistical association evidence only",
+  "inflated": false,
+  "lambda_gc": 0.7913827214772476,
+  "p_threshold": 5e-08,
+  "protocol_sha256": "91971572a29803894430c3127f0f9412848b97e42590ed81ad97f1b0d96a5465",
+  "schema": "gwas-summary-qc-report-v1",
+  "signals": [
+    {
+      "chromosome": "1",
+      "id": "fixture-v00",
+      "inflated_risk": false,
+      "label": "positional signal",
+      "p": 1.9731752900754024e-09,
+      "position": 1000000
+    }
+  ],
+  "validated": [
+    "fixture-v00",
+    "fixture-v01",
+    "fixture-v02",
+    "fixture-v03",
+    "fixture-v04",
+    "fixture-v05",
+    "fixture-v06",
+    "fixture-v07",
+    "fixture-v08",
+    "fixture-v09",
+    "fixture-v10",
+    "fixture-v11",
+    "fixture-v12",
+    "fixture-v13",
+    "fixture-v14",
+    "fixture-v15",
+    "fixture-v16",
+    "fixture-v17",
+    "fixture-v18",
+    "fixture-v19",
+    "fixture-v20",
+    "fixture-v21",
+    "fixture-v22",
+    "fixture-v23",
+    "fixture-v24",
+    "fixture-v25",
+    "fixture-v26",
+    "fixture-v27",
+    "fixture-v28",
+    "fixture-v29"
+  ],
+  "window_bp": 250000
+}

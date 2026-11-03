@@ -1,0 +1,62 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-pk-nca-profile/pack.json",
+    "examples/workflow-pk-nca-profile/expected.json",
+    "examples/workflow-pk-nca-profile/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 means offline synthetic fixture software acceptance, never biological or clinical validation. No measured-data validation, uncertainty interval or dose recommendation is provided.",
+    "Hash-bound declarations cannot establish historical freeze timing, source authenticity or true independence. Independent review and rigor remain coordinator-owned; review is unavailable here.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Additional refusals: truth, bioavailab*, safe dose, human exposure, exposure-response (space/hyphen), physical validity. Includes negations and is incomplete for other languages or paraphrases.",
+    "Computed records and review approval never support positive claims; unavailable citations require unavailable status. Replicated status is refused for synthetic fixtures.",
+    "Raw inputs are bounded to 64 MiB per artifact, 256 MiB per bundle across unique inodes, and 4,000,000 estimated JSON values before parsing. Hashes are rechecked at the end; this is not a transactional filesystem snapshot.",
+    "The single frozen terminal window is not automatically optimized. Unreliable terminal estimates remain visible and are excluded entirely from group summaries."
+  ],
+  "output_schemas": [
+    "pk-nca-pack-v1",
+    "pk-nca-rules-v1",
+    "pk-nca-profiles-v1",
+    "pk-nca-report-v1",
+    "pk-nca-evidence-v1",
+    "pk-nca-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "below-limit-zero",
+    "excess-extrapolation",
+    "too-few-terminal-points",
+    "poor-terminal-fit",
+    "nonmonotonic-time",
+    "duplicate-time",
+    "mixed-units",
+    "missing-dose",
+    "missing-dose-units",
+    "unreliable-group",
+    "interpolated-cmax",
+    "changed-rules",
+    "bioavailability",
+    "safe-dose",
+    "recommended-dose",
+    "exposure-response",
+    "human-exposure",
+    "efficacy",
+    "clinical-relevance",
+    "computed-positive",
+    "review-result",
+    "review-kind",
+    "external-alias",
+    "empty-evidence",
+    "unavailable-mixed",
+    "unavailable-positive",
+    "replication"
+  ],
+  "skill": "workflow-pk-nca-profile",
+  "test_files": [
+    "tests/test_workflow_nca_pack.py"
+  ]
+}

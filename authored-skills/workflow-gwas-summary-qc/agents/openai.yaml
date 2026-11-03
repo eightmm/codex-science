@@ -1,0 +1,4 @@
+interface:
+  display_name: "GWAS Summary QC"
+  short_description: "Check frozen GWAS rules and summarize positional signals"
+  default_prompt: "Use $workflow-gwas-summary-qc to freeze variant QC rules, preserve exclusions, compute genomic inflation and positional signals, and hand bounded evidence to independent review."

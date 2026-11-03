@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash organism, namespace, selection, directional rules, size bounds, BH alpha and overlap limit before collection admission.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit unique tested genes, selected lists and the frozen versioned local collection.",
+      "id": "02-identity",
+      "status": "pending"
+    },
+    {
+      "description": "Compute exact one-sided hypergeometric tails and BH across every tested set/list pair; retain untested sets.",
+      "id": "03-testing",
+      "status": "pending"
+    },
+    {
+      "description": "Compute pairwise Jaccard and report every above-limit connected component once.",
+      "id": "04-redundancy",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned rigor and independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

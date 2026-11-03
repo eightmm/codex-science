@@ -1,0 +1,13 @@
+# Synthetic microbiome composition fixtures
+
+Every file in this directory is a redistributable synthetic fixture, never observed microbial or clinical evidence. No sequences, patient data, downloads or third-party packages are used.
+
+`pack.json` binds `design.json`, `counts.json`, `expected.json` and the three evidence records by relative path and SHA-256. The design is hashed before the count table is opened. A declaration and file identity cannot establish historical preregistration. The count table has twelve samples and twelve taxa: five subjects per condition, one extraction blank and one low-depth biological sample. Taxon-01 has a planted relative-composition shift, taxon-11 is detected in the blank, and taxon-12 falls below the frozen prevalence filter. Shared covariates define two joint permutation strata with both conditions represented.
+
+Run `python scripts/validate_microbiome_composition_pack.py examples/workflow-microbiome-composition/pack.json`. The command prints JSON, writes nothing and leaves review unavailable. The expected fixture has low excluded for depth, taxon-11 untested-control, taxon-12 untested-prevalence, planted taxon BH q about 0.000176 and seeded stratified PERMANOVA p=0.025 with 199 permutations and seed 1729. Compositional closure can shift other taxa's CLR values too; a planted taxon does not imply a single significant taxon or absolute load change.
+
+`negative-cases.json` contains materialized mutation recipes for thirty-three distinct negative synthetic examples. Each recipe edits JSON fields, then tests refresh identities to isolate the stated scientific refusal. Both public validator and CLI must refuse its named code. Fixtures cover confounding, absolute and absence overclaims, depth, blank findings, post-hoc choices, permutation provenance, BH, technical replicates, causal/dysbiosis/therapeutic/biomarker wording, review/computed support, unavailable/empty support, external aliases and freeze declarations.
+
+`tests/test_workflow_microbiome_pack.py` also checks hand calculations: equal-count Shannon=log(2), Simpson=1/2, two-taxon CLR=±log(2)/2 with pseudocount 1, Aitchison distance=sqrt(2) log(2) after reversing the two counts, Welch t=sqrt(3/2) and df=4 for [1,2,3] versus [2,3,4], BH [0.01,0.04,0.03]→[0.03,0.04,0.04], and PERMANOVA F=18 for scalar coordinates [0,1,3,4] grouped [0,0,1,1]. These independent calculations complement the frozen full expected artifact.
+
+Concurrent validators only read. A killed validator leaves inputs unchanged and may truncate stdout. Fixture authoring spans multiple files: interruption can leave missing files or stale hashes, which validation refuses. Independent review, real-source design verification and biological interpretation are unavailable here.

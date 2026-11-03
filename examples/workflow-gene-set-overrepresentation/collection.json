@@ -1,0 +1,54 @@
+{
+  "fixture": "synthetic fixture",
+  "namespace": "gene_symbol",
+  "organism": "synthetic organism",
+  "schema": "gso-collection-v1",
+  "sets": [
+    {
+      "genes": [
+        "G01",
+        "G02",
+        "G03",
+        "G04",
+        "G05"
+      ],
+      "id": "planted"
+    },
+    {
+      "genes": [
+        "G01",
+        "G02",
+        "G03",
+        "G04",
+        "G05",
+        "G06"
+      ],
+      "id": "redundant"
+    },
+    {
+      "genes": [
+        "G01",
+        "G02",
+        "G03",
+        "G10",
+        "G11"
+      ],
+      "id": "raw_only"
+    },
+    {
+      "genes": [
+        "G20",
+        "G21",
+        "G22"
+      ],
+      "id": "empty"
+    },
+    {
+      "genes": [
+        "G30"
+      ],
+      "id": "outside_bounds"
+    }
+  ],
+  "version": "synthetic-sets-v1"
+}

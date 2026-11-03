@@ -1,0 +1,9 @@
+{
+  "fixture": "synthetic fixture",
+  "kind": "statistical-composition-evidence",
+  "origin": "study",
+  "result": "taxon-association",
+  "schema": "microbiome-evidence-v1",
+  "schema_version": 1,
+  "taxon_id": "taxon-01"
+}

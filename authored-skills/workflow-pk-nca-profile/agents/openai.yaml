@@ -1,0 +1,4 @@
+interface:
+  display_name: "Preclinical Concentration-Time Profiles"
+  short_description: "Check frozen NCA arithmetic and censored tails"
+  default_prompt: "Use $workflow-pk-nca-profile to check supplied preclinical profiles with frozen rules, reliable-only summaries and independent review handoff."

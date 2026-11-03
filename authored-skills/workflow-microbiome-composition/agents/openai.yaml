@@ -1,0 +1,4 @@
+interface:
+  display_name: "Microbiome Composition"
+  short_description: "Compare taxon counts with frozen composition and control rules"
+  default_prompt: "Use $workflow-microbiome-composition to freeze a two-condition design, check supplied taxon counts and blanks, compute CLR, diversity, stratified PERMANOVA and BH-adjusted Welch results, and hand bounded evidence to independent review."

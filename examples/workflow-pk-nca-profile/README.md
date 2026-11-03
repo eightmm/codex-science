@@ -1,0 +1,9 @@
+# Synthetic NCA fixtures
+
+All data here are redistributable synthetic fixtures for offline software checks, never measured animal or in-vitro evidence. `pack.json` names hash-bound `rules.json`, `profiles.json`, `report.json` and `evidence.json`; `expected.json` is the expected JSON result. Validate with `python3 scripts/validate_pk_nca_pack.py examples/workflow-pk-nca-profile/pack.json`. No files are written.
+
+The clean subject has concentrations 16, 8, 4, 2, 1 at times 0, 1, 2, 3, 4. Each log-down area is its concentration difference divided by ln(2), giving AUC(0-tlast) = 15/ln(2). The frozen terminal times 2, 3, 4 give lambda_z = ln(2), adjusted R-squared = 1, half-life = 1 and AUC(0-inf) = 16/ln(2); the tail fraction is 1/16. The second synthetic subject shares these quantified observations and has two additional censored tail values, which remain null and never enter fitting. The third has terminal concentrations 4, 3.9, 1 and fails the frozen fit threshold; half-life and AUC(0-inf) remain unreliable and it is excluded from every group summary. The two reliable synthetic subjects yield n=2 and identical geometric means/ranges; zero Tmax has an unavailable geometric mean.
+
+`negative-cases.json` contains deterministic mutation recipes over these synthetic fixture records. Tests materialize each recipe in a temporary bundle, refresh artifact hashes, and require its named code through both the library and the one-argument CLI. The changed-rules recipe retains an independently named original rules artifact; its unlabelled effective revision is refused. The recipes are not independently admitted bundles. Failed controls and negative results are preserved by the coordinator, not written by this validator.
+
+This pack only reports arithmetic summaries of supplied profiles. There is no dose recommendation, clinical inference, biological validation or independent review in these synthetic fixtures.

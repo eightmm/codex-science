@@ -1,0 +1,112 @@
+{
+  "fixture": "synthetic fixture",
+  "schema": "pk-nca-profiles-v1",
+  "subjects": [
+    {
+      "concentration_unit": "ng/mL",
+      "points": [
+        {
+          "censored": false,
+          "concentration": 16,
+          "time": 0
+        },
+        {
+          "censored": false,
+          "concentration": 8,
+          "time": 1
+        },
+        {
+          "censored": false,
+          "concentration": 4,
+          "time": 2
+        },
+        {
+          "censored": false,
+          "concentration": 2,
+          "time": 3
+        },
+        {
+          "censored": false,
+          "concentration": 1,
+          "time": 4
+        }
+      ],
+      "subject_id": "clean",
+      "time_unit": "h"
+    },
+    {
+      "concentration_unit": "ng/mL",
+      "points": [
+        {
+          "censored": false,
+          "concentration": 16,
+          "time": 0
+        },
+        {
+          "censored": false,
+          "concentration": 8,
+          "time": 1
+        },
+        {
+          "censored": false,
+          "concentration": 4,
+          "time": 2
+        },
+        {
+          "censored": false,
+          "concentration": 2,
+          "time": 3
+        },
+        {
+          "censored": false,
+          "concentration": 1,
+          "time": 4
+        },
+        {
+          "censored": true,
+          "concentration": null,
+          "time": 5
+        },
+        {
+          "censored": true,
+          "concentration": null,
+          "time": 6
+        }
+      ],
+      "subject_id": "below-limit-tail",
+      "time_unit": "h"
+    },
+    {
+      "concentration_unit": "ng/mL",
+      "points": [
+        {
+          "censored": false,
+          "concentration": 16,
+          "time": 0
+        },
+        {
+          "censored": false,
+          "concentration": 8,
+          "time": 1
+        },
+        {
+          "censored": false,
+          "concentration": 4,
+          "time": 2
+        },
+        {
+          "censored": false,
+          "concentration": 3.9,
+          "time": 3
+        },
+        {
+          "censored": false,
+          "concentration": 1,
+          "time": 4
+        }
+      ],
+      "subject_id": "unreliable-slope",
+      "time_unit": "h"
+    }
+  ]
+}

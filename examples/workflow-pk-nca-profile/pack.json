@@ -1,0 +1,31 @@
+{
+  "evidence": {
+    "path": "evidence.json",
+    "sha256": "57fe9122ac6ad8fb2cac441952b66f95df9091b685f769ecae25d3279f77f821"
+  },
+  "fixture": "synthetic fixture",
+  "frozen_rules": {
+    "path": "rules.json",
+    "sha256": "ac10610831981180f4b6379ef04622a4b0d1e40c634bb739f1738ad54f09ea84"
+  },
+  "profiles": {
+    "path": "profiles.json",
+    "sha256": "6afc9289d8cfa164f4370a57cfe721e6d5d9d3577e3e3dda6b45c868da5a53d3"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "86c5e45210f5ecd6f90bcb7897df3ee6a0d011777880522fca7f96e7f8d9c179"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "ac10610831981180f4b6379ef04622a4b0d1e40c634bb739f1738ad54f09ea84"
+  },
+  "schema": "pk-nca-pack-v1",
+  "stages": [
+    "01-rule-freeze",
+    "02-profile-qc",
+    "03-subject-parameters",
+    "04-group-summary",
+    "05-handoff"
+  ]
+}

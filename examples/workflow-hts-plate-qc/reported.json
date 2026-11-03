@@ -1,0 +1,67 @@
+{
+  "fixture": true,
+  "hits": [
+    {
+      "edge": false,
+      "plate_id": "P1",
+      "replicate_id": 1,
+      "robust_z": 16.187778227438287,
+      "sample_id": "HIT",
+      "well_id": "B3"
+    },
+    {
+      "edge": false,
+      "plate_id": "P1",
+      "replicate_id": 2,
+      "robust_z": 16.187778227438287,
+      "sample_id": "HIT",
+      "well_id": "C3"
+    }
+  ],
+  "plates": [
+    {
+      "drift": 4.0,
+      "drift_flagged": true,
+      "mad": 2.0,
+      "median": 12.0,
+      "plate_id": "P1",
+      "reasons": [],
+      "signal_to_background": 8.333333333333334,
+      "ssmd": 33.1483153540389,
+      "status": "passed",
+      "z_prime": 0.8791423491915441
+    },
+    {
+      "drift": 4.0,
+      "drift_flagged": true,
+      "mad": 2.0,
+      "median": 12.0,
+      "plate_id": "P2",
+      "reasons": [
+        "minimum-zprime"
+      ],
+      "signal_to_background": 1.6666666666666667,
+      "ssmd": 3.013483214003536,
+      "status": "failed",
+      "z_prime": -0.32943415889301453
+    }
+  ],
+  "replicates": [
+    {
+      "agreeing_replicates": 2,
+      "contributors": [
+        {
+          "plate_id": "P1",
+          "well_id": "B3"
+        },
+        {
+          "plate_id": "P1",
+          "well_id": "C3"
+        }
+      ],
+      "mean_signal": 60.0,
+      "sample_id": "HIT"
+    }
+  ],
+  "schema": "hts-result-v1"
+}

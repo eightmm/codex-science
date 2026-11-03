@@ -1,0 +1,712 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "universe"
+          ],
+          "target": "genes",
+          "value": [
+            "G01",
+            "G02",
+            "G03",
+            "G04",
+            "G05",
+            "G06",
+            "G07",
+            "G08",
+            "G09",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31"
+          ]
+        }
+      ],
+      "code": "tested-universe",
+      "id": "whole-genome"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "universe"
+          ],
+          "target": "genes",
+          "value": [
+            "G01",
+            "G02",
+            "G03",
+            "G04",
+            "G05",
+            "G06",
+            "G07",
+            "G08",
+            "G09",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29"
+          ]
+        }
+      ],
+      "code": "tested-universe",
+      "id": "universe-subset"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "lists",
+            0,
+            "genes"
+          ],
+          "target": "genes",
+          "value": [
+            "G01",
+            "G02",
+            "G03",
+            "G04",
+            "G05",
+            "G31"
+          ]
+        }
+      ],
+      "code": "outside-universe",
+      "id": "outside-universe"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "namespace"
+          ],
+          "target": "genes",
+          "value": "ensembl_gene_id"
+        }
+      ],
+      "code": "identifier-namespace",
+      "id": "namespace"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "lists",
+            0,
+            "genes",
+            0
+          ],
+          "target": "genes",
+          "value": "ENSG000001"
+        }
+      ],
+      "code": "identifier-namespace",
+      "id": "identifier-form"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "lists",
+            0,
+            "genes"
+          ],
+          "target": "genes",
+          "value": [
+            "G01",
+            "G02",
+            "G03",
+            "G04",
+            "G05",
+            "G06",
+            "G01"
+          ]
+        }
+      ],
+      "code": "duplicate-list",
+      "id": "duplicate-list"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "selected_before_sets"
+          ],
+          "target": "rules",
+          "value": false
+        }
+      ],
+      "code": "post-selection",
+      "id": "post-selection"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            4,
+            "tested"
+          ],
+          "target": "report",
+          "value": true
+        }
+      ],
+      "code": "set-size-bounds",
+      "id": "set-size-tested"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            4,
+            "status"
+          ],
+          "target": "report",
+          "value": "non-significant"
+        }
+      ],
+      "code": "set-size-bounds",
+      "id": "set-size-nonsignificant"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "correction"
+          ],
+          "target": "report",
+          "value": "none"
+        }
+      ],
+      "code": "multiple-testing",
+      "id": "raw-correction"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            2,
+            "status"
+          ],
+          "target": "report",
+          "value": "significant"
+        },
+        {
+          "path": [
+            "rows",
+            2,
+            "q_value"
+          ],
+          "target": "report",
+          "value": 0.04130352406214475
+        }
+      ],
+      "code": "multiple-testing",
+      "id": "raw-significant"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "findings"
+          ],
+          "target": "report",
+          "value": [
+            [
+              "combined:planted"
+            ],
+            [
+              "combined:redundant"
+            ]
+          ]
+        }
+      ],
+      "code": "redundant-findings",
+      "id": "independent-overlap"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "directional"
+          ],
+          "target": "rules",
+          "value": true
+        }
+      ],
+      "code": "direction-lists",
+      "id": "direction-ignored"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            3,
+            "status"
+          ],
+          "target": "report",
+          "value": "significant"
+        }
+      ],
+      "code": "empty-overlap",
+      "id": "empty-enriched"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            6,
+            "selected"
+          ],
+          "target": "upstream",
+          "value": true
+        }
+      ],
+      "code": "selection-rule",
+      "id": "selection-changed"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "version"
+          ],
+          "target": "collection",
+          "value": "synthetic-sets-v2"
+        }
+      ],
+      "code": "collection-version",
+      "id": "collection-version"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_rules_sha256"
+          ],
+          "target": "pack",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "code": "rule-freeze",
+      "id": "rule-freeze"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is activated for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-activated"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is regulated for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-regulated"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is driving for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-driving"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is causal for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-causal"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is pathway mechanism for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-pathway-mechanism"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is therapeutic for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-therapeutic"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is clinical action for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-clinical-action"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is efficacy for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-efficacy"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The significant set is physical validity for the phenotype."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "claim-physical-validity"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "pack",
+          "value": {
+            "evidence": [
+              "observed"
+            ],
+            "id": "C1",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Statistical over-representation in the synthetic fixture."
+          }
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        }
+      ],
+      "code": "non-evidence",
+      "id": "review-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "pack",
+          "value": {
+            "evidence": [
+              "observed"
+            ],
+            "id": "C1",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Statistical over-representation in the synthetic fixture."
+          }
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        }
+      ],
+      "code": "non-evidence",
+      "id": "review-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "pack",
+          "value": {
+            "evidence": [
+              "observed"
+            ],
+            "id": "C1",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Statistical over-representation in the synthetic fixture."
+          }
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "computed"
+        }
+      ],
+      "code": "non-evidence",
+      "id": "computed-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "pack",
+          "value": {
+            "evidence": [
+              "observed"
+            ],
+            "id": "C1",
+            "kind": "descriptive",
+            "status": "supported",
+            "text": "Statistical over-representation in the synthetic fixture."
+          }
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "computed-agreement"
+        }
+      ],
+      "code": "non-evidence",
+      "id": "computed-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "code": "external-alias",
+      "id": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "pack",
+          "value": "supported"
+        }
+      ],
+      "code": "evidence-unavailable",
+      "id": "empty-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "pack",
+          "value": "The synthetic set is significant."
+        }
+      ],
+      "code": "unavailable-positive",
+      "id": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "pack",
+          "value": [
+            "absent"
+          ]
+        }
+      ],
+      "code": "evidence-unavailable",
+      "id": "missing-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "pack",
+          "value": {
+            "evidence": [
+              "observed",
+              "computed"
+            ],
+            "id": "C1",
+            "kind": "descriptive",
+            "status": "unsupported",
+            "text": "Statistical over-representation in the synthetic fixture."
+          }
+        },
+        {
+          "path": [
+            "records",
+            1,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "unavailable"
+        }
+      ],
+      "code": "evidence-unavailable",
+      "id": "unavailable-mixed"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0
+          ],
+          "target": "pack",
+          "value": {
+            "evidence": [
+              "observed"
+            ],
+            "id": "C1",
+            "kind": "descriptive",
+            "status": "replicated",
+            "text": "Statistical over-representation in the synthetic fixture."
+          }
+        }
+      ],
+      "code": "replication",
+      "id": "replicated"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "schema": "gso-negative-fixtures-v1"
+}

@@ -1,0 +1,522 @@
+{
+  "cases": [
+    {
+      "code": "confounded-design",
+      "edits": [
+        {
+          "file": "counts.json",
+          "path": "/samples/0/batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/1/batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/2/batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/3/batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/4/batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/5/batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/6/batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/7/batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/8/batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/9/batch",
+          "value": "shifted"
+        }
+      ],
+      "id": "confounded-batch"
+    },
+    {
+      "code": "confounded-design",
+      "edits": [
+        {
+          "file": "counts.json",
+          "path": "/samples/0/extraction_batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/1/extraction_batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/2/extraction_batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/3/extraction_batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/4/extraction_batch",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/5/extraction_batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/6/extraction_batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/7/extraction_batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/8/extraction_batch",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/9/extraction_batch",
+          "value": "shifted"
+        }
+      ],
+      "id": "confounded-extraction_batch"
+    },
+    {
+      "code": "confounded-design",
+      "edits": [
+        {
+          "file": "counts.json",
+          "path": "/samples/0/sequencing_run",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/1/sequencing_run",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/2/sequencing_run",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/3/sequencing_run",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/4/sequencing_run",
+          "value": "reference"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/5/sequencing_run",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/6/sequencing_run",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/7/sequencing_run",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/8/sequencing_run",
+          "value": "shifted"
+        },
+        {
+          "file": "counts.json",
+          "path": "/samples/9/sequencing_run",
+          "value": "shifted"
+        }
+      ],
+      "id": "confounded-sequencing_run"
+    },
+    {
+      "code": "relative-only",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "Relative abundance establishes absolute abundance and microbial load."
+        }
+      ],
+      "id": "absolute"
+    },
+    {
+      "code": "zero-not-absence",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "A zero count proves absence of this taxon."
+        }
+      ],
+      "id": "zero-absence"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "The composition difference causes disease."
+        }
+      ],
+      "id": "causal"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "Dysbiosis causes disease."
+        }
+      ],
+      "id": "dysbiosis"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "The taxon is a therapeutic target."
+        }
+      ],
+      "id": "therapeutic"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "This is a clinical biomarker."
+        }
+      ],
+      "id": "biomarker"
+    },
+    {
+      "code": "low-depth-retained",
+      "edits": [
+        {
+          "file": "expected.json",
+          "path": "/computation/qc/11/retained",
+          "value": true
+        }
+      ],
+      "id": "low-depth-retained"
+    },
+    {
+      "code": "negative-control-hit",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/taxon_id",
+          "value": "taxon-11"
+        },
+        {
+          "file": "pack.json",
+          "path": "/claims/0/support",
+          "value": [
+            {
+              "path": "evidence-taxon-11.json",
+              "sha256": "f8ee98e8762689fa061a514555455f9aa1213b765b81155314336911652343fe"
+            }
+          ]
+        }
+      ],
+      "id": "control-finding"
+    },
+    {
+      "code": "post-hoc-design",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/applied_specification/pseudocount",
+          "value": 1.0
+        }
+      ],
+      "id": "post-hoc-pseudocount"
+    },
+    {
+      "code": "post-hoc-design",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/applied_specification/prevalence_filter",
+          "value": 0.3
+        }
+      ],
+      "id": "post-hoc-prevalence_filter"
+    },
+    {
+      "code": "post-hoc-design",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/applied_specification/distance",
+          "value": "bray-curtis"
+        }
+      ],
+      "id": "post-hoc-distance"
+    },
+    {
+      "code": "permutation-contract",
+      "edits": [
+        {
+          "file": "expected.json",
+          "path": "/computation/permanova/seed",
+          "value": 42
+        }
+      ],
+      "id": "permutation-seed"
+    },
+    {
+      "code": "permutation-contract",
+      "edits": [
+        {
+          "file": "expected.json",
+          "path": "/computation/permanova/permutations",
+          "value": 198
+        }
+      ],
+      "id": "permutation-count"
+    },
+    {
+      "code": "permutation-contract",
+      "edits": [
+        {
+          "file": "expected.json",
+          "path": "/computation/permanova/strata",
+          "value": [
+            "batch"
+          ]
+        }
+      ],
+      "id": "permutation-strata"
+    },
+    {
+      "code": "invalid-record",
+      "edits": [
+        {
+          "delete": true,
+          "file": "expected.json",
+          "path": "/computation/permanova/seed"
+        }
+      ],
+      "id": "missing-seed"
+    },
+    {
+      "code": "fdr-required",
+      "edits": [
+        {
+          "file": "expected.json",
+          "path": "/computation/correction",
+          "value": "none"
+        }
+      ],
+      "id": "no-bh"
+    },
+    {
+      "code": "fdr-required",
+      "edits": [
+        {
+          "delete": true,
+          "file": "expected.json",
+          "path": "/computation/per_taxon/0/q_value"
+        }
+      ],
+      "id": "missing-q"
+    },
+    {
+      "code": "technical-replicates",
+      "edits": [
+        {
+          "file": "counts.json",
+          "path": "/samples/1/biological_id",
+          "value": "subject-01"
+        }
+      ],
+      "id": "technical-replicates"
+    },
+    {
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/kind",
+          "value": "review-approval"
+        }
+      ],
+      "id": "review-kind"
+    },
+    {
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/result",
+          "value": "review-approval"
+        }
+      ],
+      "id": "review-result"
+    },
+    {
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/kind",
+          "value": "computed-record"
+        }
+      ],
+      "id": "computed-kind"
+    },
+    {
+      "code": "claim-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/result",
+          "value": "computed-agreement"
+        }
+      ],
+      "id": "computed-result"
+    },
+    {
+      "code": "unavailable-evidence",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/support",
+          "value": []
+        }
+      ],
+      "id": "empty-evidence"
+    },
+    {
+      "code": "unavailable-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/kind",
+          "value": "unavailable"
+        }
+      ],
+      "id": "unavailable-kind"
+    },
+    {
+      "code": "unavailable-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/result",
+          "value": "unavailable"
+        }
+      ],
+      "id": "unavailable-result"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/status",
+          "value": "unavailable"
+        },
+        {
+          "file": "pack.json",
+          "path": "/claims/0/text",
+          "value": "The taxon has significant supported evidence."
+        }
+      ],
+      "id": "unavailable-assertion"
+    },
+    {
+      "code": "dependent-evidence",
+      "edits": [
+        {
+          "file": "evidence-taxon-01.json",
+          "path": "/origin",
+          "value": "independent"
+        }
+      ],
+      "id": "external-alias"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "pack.json",
+          "path": "/claims/0/status",
+          "value": "replicated"
+        }
+      ],
+      "id": "replicated"
+    },
+    {
+      "code": "design-freeze",
+      "edits": [
+        {
+          "file": "design.json",
+          "path": "/frozen_before_counts",
+          "value": false
+        }
+      ],
+      "id": "not-frozen"
+    },
+    {
+      "code": "claim-boundary",
+      "edits": [
+        {
+          "file": "expected.json",
+          "path": "/interpretation",
+          "value": "clinical utility"
+        }
+      ],
+      "id": "report-unbounded"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "schema": "microbiome-negative-cases-v1",
+  "schema_version": 1
+}

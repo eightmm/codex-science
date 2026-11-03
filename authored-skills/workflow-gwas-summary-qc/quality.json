@@ -1,0 +1,66 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-gwas-summary-qc/pack.json",
+    "examples/workflow-gwas-summary-qc/expected.json",
+    "examples/workflow-gwas-summary-qc/raw-table.json",
+    "examples/workflow-gwas-summary-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; no real-cohort, causal, physical or clinical validation.",
+    "No genotypes, LD reference, gene mapping or true independence/replication assessment.",
+    "Hash-bound declarations cannot establish historical freeze timing or real source independence.",
+    "Single synthetic fixture: replicated status is refused.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also refuses truth, physical validity and patient benefit; includes negations and is incomplete for unlisted paraphrases.",
+    "Missing or unavailable citations require unavailable claims, never negative evidence; computed agreement and review approval cannot support positive claims.",
+    "Artifacts are read-only and bounded per inode: 64 MiB each, 256 MiB total, 4,000,000 pre-parse JSON values per bundle."
+  ],
+  "output_schemas": [
+    "gwas-summary-qc-pack-v1",
+    "gwas-summary-qc-protocol-v1",
+    "gwas-summary-qc-table-v1",
+    "gwas-summary-qc-report-v1",
+    "gwas-summary-qc-evidence-v1",
+    "gwas-summary-qc-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "inconsistent-p",
+    "duplicate-id",
+    "different-build",
+    "ambiguous-frequency",
+    "ambiguous-validated",
+    "undeclared-flip",
+    "inflation-unflagged",
+    "p-zero",
+    "p-underflow",
+    "low-n-signal",
+    "post-threshold",
+    "post-window",
+    "causal-gene",
+    "causal-variant",
+    "mechanism",
+    "therapeutic-target",
+    "review-kind",
+    "computed-kind",
+    "review-result",
+    "computed-result",
+    "unavailable-citation",
+    "empty-evidence",
+    "unavailable-positive",
+    "replicated",
+    "external-alias",
+    "independent-alias",
+    "preregistered-alias",
+    "not-frozen",
+    "stage-order"
+  ],
+  "skill": "workflow-gwas-summary-qc",
+  "test_files": [
+    "tests/test_workflow_gwas_pack.py"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-gene-set-overrepresentation",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Planted p=25/593775, redundant p=1/593775 and raw-only p=24525/593775.",
+        "Raw-only set loses significance after BH; empty overlap p=1; size-one set is untested.",
+        "Planted and redundant sets have Jaccard 5/6 and one finding at frozen limit .8.",
+        "Output states statistical over-representation only and review unavailable; every admitted hash is preserved."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-exact-family",
+      "input": "examples/workflow-gene-set-overrepresentation/pack.json",
+      "question": "Does the frozen synthetic selected list yield the exact planted tails and complete-family BH decisions?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 36 seeded cases raise their distinct named ValueError and CLI exit 2 JSON.",
+        "Removing the corresponding guard makes every seeded test fail.",
+        "Input type, path, aggregate budget, symlink/FIFO and deterministic ancestor/root swap checks refuse without hanging.",
+        "No runtime writes, dependency, network, GPU or review self-approval."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-gene-set-overrepresentation/negative-cases.json",
+      "question": "Does each frozen synthetic defect refuse with its stated reason through Python and CLI?"
+    }
+  ]
+}

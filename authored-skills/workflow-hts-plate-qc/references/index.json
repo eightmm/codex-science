@@ -1,0 +1,50 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic software acceptance only; no biological validity or independent review.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen identities, plate controls, local schemas, limits and read-only CLI.",
+      "read_when": [
+        "freezing plate rules",
+        "admitting signals",
+        "computing or validating hits",
+        "handing off claims"
+      ],
+      "required_before": [
+        "layout-freeze",
+        "signal-admission",
+        "hit-calling",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-qc",
+        "## 05-handoff"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage declarations never establish execution, historical freezing or truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest plan step shape for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-hts-plate-qc"
+}

@@ -1,0 +1,26 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "observed",
+      "kind": "observed",
+      "origin": "study",
+      "result": "frozen-inputs",
+      "source": {
+        "path": "upstream.json",
+        "sha256": "79db9514ad0d48ca67d4b4fac751df669a826bafcbcba765093623610d69966d"
+      }
+    },
+    {
+      "id": "computed",
+      "kind": "computed",
+      "origin": "study",
+      "result": "computed-agreement",
+      "source": {
+        "path": "report.json",
+        "sha256": "da48effb1fc49a92f460abe6f7b5e9e865022fae60545c32ea50ec20cbe4e06b"
+      }
+    }
+  ],
+  "schema": "gso-evidence-v1"
+}

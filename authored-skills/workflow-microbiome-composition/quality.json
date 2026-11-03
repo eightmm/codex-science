@@ -1,0 +1,73 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-microbiome-composition/pack.json",
+    "examples/workflow-microbiome-composition/counts.json",
+    "examples/workflow-microbiome-composition/design.json",
+    "examples/workflow-microbiome-composition/expected.json",
+    "examples/workflow-microbiome-composition/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance, never real-cohort, biological, causal, physical or clinical validation.",
+    "Unpaired two-condition reference only; no sequence processing, absolute quantification, repeated subjects, covariate adjustment or clinical decisions. Partial confounding and power require separate review.",
+    "All taxa detected in any extraction blank are conservatively excluded from testing; this does not establish contamination prevalence or detect every contaminant. Zero counts never prove absence.",
+    "Hash-bound declarations cannot independently establish historical freezing or true source independence. Independent review and rigor classification remain coordinator-owned.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Additional blocked terms are truth, physical validity, patient benefit, biomarker and dysbiosis. The gate includes negations and is incomplete for unlisted paraphrases or other languages.",
+    "Relative counts never establish absolute abundance or microbial load. Computed agreement and review approval cannot support positive claims; unavailable or empty evidence requires unavailable status. Replicated is refused for this single-study reference.",
+    "Labelled sensitivity supports only pseudocount and prevalence changes; other changes remain unsupported. Degenerate draws consume attempts and any failed frozen draw refuses inference.",
+    "Artifacts are bounded to 64 MiB each and 256 MiB per bundle across distinct inodes, with a conservative preparse allowance of 4000000 JSON values. Hardlink aliases share read and parse budgets."
+  ],
+  "output_schemas": [
+    "microbiome-pack-v1",
+    "microbiome-design-v1",
+    "microbiome-count-table-v1",
+    "microbiome-report-v1",
+    "microbiome-evidence-v1",
+    "microbiome-result-v1",
+    "microbiome-negative-cases-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "confounded-batch",
+    "confounded-extraction_batch",
+    "confounded-sequencing_run",
+    "absolute",
+    "zero-absence",
+    "causal",
+    "dysbiosis",
+    "therapeutic",
+    "biomarker",
+    "low-depth-retained",
+    "control-finding",
+    "post-hoc-pseudocount",
+    "post-hoc-prevalence_filter",
+    "post-hoc-distance",
+    "permutation-seed",
+    "permutation-count",
+    "permutation-strata",
+    "missing-seed",
+    "no-bh",
+    "missing-q",
+    "technical-replicates",
+    "review-kind",
+    "review-result",
+    "computed-kind",
+    "computed-result",
+    "empty-evidence",
+    "unavailable-kind",
+    "unavailable-result",
+    "unavailable-assertion",
+    "external-alias",
+    "replicated",
+    "not-frozen",
+    "report-unbounded"
+  ],
+  "skill": "workflow-microbiome-composition",
+  "test_files": [
+    "tests/test_workflow_microbiome_pack.py"
+  ]
+}
