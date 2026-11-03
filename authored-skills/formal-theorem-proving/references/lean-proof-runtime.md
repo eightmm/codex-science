@@ -39,7 +39,7 @@ Input fields:
 }
 ```
 
-The theorem file must be a safe workspace-relative `.lean` path and is limited to 2 MiB. `auto` chooses `lake env lean` only for an existing Lake workspace; otherwise it uses `lean`.
+The theorem file must be a safe workspace-relative `.lean` path and is limited to 2 MiB. `assumptions` must be a list of non-empty strings; any other value is refused before preview. `auto` chooses `lake env lean` only for an existing Lake workspace; otherwise it uses `lean`. `--output` must not resolve to the input JSON or the theorem file, may not contain a `..` component, and is replaced atomically.
 
 Preview records the exact command, theorem SHA-256, statement SHA-256, timeout, detected admitted or placeholder constructs, declared axioms or opaque constants, unsafe declarations, and tool availability. Preview never supports `proved-formal`.
 
@@ -52,7 +52,7 @@ Preview records the exact command, theorem SHA-256, statement SHA-256, timeout, 
   --require-passed
 ```
 
-The checker does not install a toolchain, fetch dependencies, or modify the workspace. It records tool version, command, timeout, exit code, stdout/stderr hashes and bounded excerpts, source hash before and after execution, axioms, admitted constructs, and a nested `formal-kernel` proof receipt.
+The checker does not install a toolchain, fetch dependencies, or modify the workspace. It records tool version, command, timeout, exit code, stdout/stderr hashes and bounded excerpts, source hash before and after execution, axioms, admitted constructs, and a nested `formal-kernel` proof receipt. Checker output is decoded as UTF-8 with invalid bytes replaced. Lean runs in its own process session; on timeout the whole process group is killed (a plain kill of the direct child where process groups are unavailable or the group kill is refused) and the output captured so far is kept.
 
 ## Passed receipt requirements
 
@@ -61,26 +61,26 @@ All of these must hold:
 1. exit code zero;
 2. no `sorry`, `sorryAx`, `admit`, placeholder proof terms, or unsafe declarations;
 3. theorem source unchanged during checking;
-4. checker tool and version recorded;
+4. checker tool and version recorded (a `--version` probe that times out or cannot start records `unavailable`, and one that prints nothing records `unknown`; either fails the receipt);
 5. exact statement and theorem-file hashes recorded;
 6. `kernel_checked: true`;
 7. at least one raw-source line matching the declaration heuristic below; empty files, files containing only `-- comment` lines, and a lone `def x := 0` cannot pass.
 
-Admission scans are on raw source: comments mentioning placeholders fail the check. Placeholder mentions in strings can also cause refusal. Axiom, opaque-constant, and unsafe-declaration detection also scans raw source. These conservative false positives are a known limitation.
+Admission scans are on raw source: comments mentioning placeholders fail the check. The admitted-construct scan also covers workspace imports: each `import Foo.Bar` (and `import all Foo.Bar`) found anywhere in the raw theorem source is resolved to `Foo/Bar.lean` under the workspace root (components `..` are never followed) and, if that file exists there, is scanned with the same pattern, transitively. A hit fails the receipt and a limitation names the imported file; an imported workspace entry over 2 MiB, unreadable, or resolving outside the workspace through a symbolic link also fails the receipt and is named. Imports with no entry under the workspace root are not scanned and do not fail the receipt: Mathlib, Std, Lake packages under `.lake/packages`, and modules under a Lake `srcDir` other than the workspace root. Axiom, opaque-constant, and unsafe-declaration scans cover only the theorem file. Placeholder mentions in strings can also cause refusal. Axiom, opaque-constant, and unsafe-declaration detection also scans raw source. These conservative false positives are a known limitation.
 
 The declaration rule is a line heuristic on raw source, using this multiline regular expression:
 
 ```text
-^\s*(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|nonrec)\s+)*(?:theorem|lemma|example)\b
+^[ \t]*(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|nonrec)[ \t]+)*(?:theorem|lemma|example)\b
 ```
 
-It accepts indentation, an optional attribute group, and the listed modifiers. It does not parse Lean: a declaration that appears only inside a comment can still satisfy it. A passed receipt therefore does not establish that an intended theorem was declared; the separate correspondence review remains required before assigning `proved-formal`. The theorem-file hash covers raw bytes, including CRLF line endings; LF source hashes are unchanged.
+It accepts space or tab indentation, an optional attribute group, and the listed modifiers. It does not parse Lean: a declaration that appears only inside a comment can still satisfy it. A passed receipt therefore does not establish that an intended theorem was declared; the separate correspondence review remains required before assigning `proved-formal`. The theorem-file hash covers raw bytes, including CRLF line endings; LF source hashes are unchanged.
 
 Declared axioms are surfaced as trust-boundary limitations and must be independently authorized by the claim contract: quantitative review reports a critical `formal-proof-axioms-unreviewed` finding for a passed receipt behind a `proved-*` claim, listing each declared axiom or `opaque` constant that no claim assumption authorizes. An assumption authorizes a name when it starts with `axiom <name>` followed by whitespace, `:`, `,`, `;`, a sentence-final `.` or the end of the text; other mentions of the name do not authorize it. Introducing an axiom only to finish a proof is a failure.
 
 ## Failure and invalidation
 
-Preserve failed receipts. Mark the result `unavailable` when Lean is absent. Timeout, source mutation, admitted constructs in raw source, unsafe declarations, nonzero exit, or absence of a detected theorem declaration prevent a passed receipt. The kernel receipt records the prose statement hash but cannot establish correspondence between that prose and the formal theorem; statement mismatch must be rejected by the separate correspondence review before assigning `proved-formal`.
+Preserve failed receipts. Mark the result `unavailable` when Lean is absent. Timeout, a checker that cannot start, an unknown checker version, source mutation or deletion, admitted constructs in raw source or in scanned workspace imports, unsafe declarations, nonzero exit, or absence of a detected theorem declaration prevent a passed receipt. The kernel receipt records the prose statement hash but cannot establish correspondence between that prose and the formal theorem; statement mismatch must be rejected by the separate correspondence review before assigning `proved-formal`.
 
 Changing any of the following invalidates the prior receipt or correspondence review:
 

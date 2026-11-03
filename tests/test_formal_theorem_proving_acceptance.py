@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -54,7 +55,7 @@ class FormalTheoremProvingAcceptanceTests(unittest.TestCase):
         )
         self.lean.chmod(0o755)
 
-    def _invoke_cli(self) -> subprocess.CompletedProcess[str]:
+    def _invoke_cli(self, output: Path | None = None) -> subprocess.CompletedProcess[str]:
         self.input_path.write_text(json.dumps(self.payload), encoding="utf-8")
         # An isolated PATH prevents accidental use of any installed Lean/Lake.
         environment = {
@@ -69,7 +70,7 @@ class FormalTheoremProvingAcceptanceTests(unittest.TestCase):
                 str(ROOT / "scripts/check_formal_proof.py"),
                 str(self.input_path),
                 "--workspace", str(self.workspace),
-                "--output", str(self.output_path),
+                "--output", str(output or self.output_path),
                 "--require-passed",
             ],
             cwd=self.root,
@@ -335,6 +336,228 @@ class FormalTheoremProvingAcceptanceTests(unittest.TestCase):
         self.assertTrue(receipt["checker"]["timed_out"])
         self.assertEqual(124, receipt["checker"]["exit_code"])
         self.assertFalse(receipt["checker"]["kernel_checked"])
+
+    def test_timeout_after_output_kills_process_group_and_keeps_failed_receipt(self) -> None:
+        sleep = shutil.which("sleep")
+        if sleep is None or not hasattr(os, "killpg"):
+            self.skipTest("requires POSIX sleep and process groups")
+        pid_file = self.root / "grandchild.pid"
+        self.payload["timeout_seconds"] = 1
+        self._write_lean(
+            f"'{sleep}' 600 &\n"
+            f"printf '%s' \"$!\" > '{pid_file}'\n"
+            "printf 'partial output \\377\\n'\n"
+            f"exec '{sleep}' 600\n"
+        )
+
+        def cleanup() -> None:
+            if pid_file.exists():
+                try:
+                    os.kill(int(pid_file.read_text(encoding="utf-8")), 9)
+                except (ProcessLookupError, ValueError):
+                    pass
+
+        self.addCleanup(cleanup)
+        result = self._assert_failed_cli("checker exceeded the declared timeout")
+        checker = result["proof_receipt"]["checker"]
+        self.assertTrue(checker["timed_out"])
+        self.assertEqual(124, checker["exit_code"])
+        self.assertIn("partial output \ufffd", checker["stdout_excerpt"])
+        pid = int(pid_file.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        while True:
+            try:
+                os.kill(pid, 0)
+                state = Path(f"/proc/{pid}/stat")
+                if state.exists() and state.read_text(encoding="utf-8").rsplit(")", 1)[-1].split()[0] == "Z":
+                    break
+            except (ProcessLookupError, FileNotFoundError):
+                break
+            self.assertLess(time.monotonic(), deadline, "grandchild survived the checker timeout")
+            time.sleep(0.05)
+
+    def test_timeout_records_timed_out_when_process_group_kill_is_refused(self) -> None:
+        sleep = shutil.which("sleep")
+        if sleep is None:
+            self.skipTest("requires POSIX sleep")
+        self.payload["timeout_seconds"] = 1
+        self._write_lean(f"exec '{sleep}' {int(float(os.environ.get('OMS_TEST_CALL_TIMEOUT', '120')))}\n")
+        with mock.patch.dict(os.environ, {"PATH": str(self.bin_path)}), \
+                mock.patch("codex_science.formal_proof.os.killpg", side_effect=PermissionError("refused"), create=True):
+            result = run_formal_proof_check(self.payload, workspace=self.workspace)
+        receipt = result["proof_receipt"]
+        validate_proof_receipt(receipt)
+        self.assertEqual("failed", receipt["status"])
+        self.assertTrue(receipt["checker"]["timed_out"])
+        self.assertEqual(124, receipt["checker"]["exit_code"])
+        self.assertNotIn("checker could not be started", " ".join(receipt["limitations"]))
+
+    def test_timeout_with_byte_output_keeps_failed_receipt(self) -> None:
+        def runner(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+            if command[-1] == "--version":
+                return subprocess.CompletedProcess(command, 0, "Lean acceptance stub\n", "")
+            raise subprocess.TimeoutExpired(command, timeout, output=b"warning: declaration uses 'sorry'\n\xff", stderr=b"\xfe")
+
+        with mock.patch("codex_science.formal_proof.shutil.which", return_value="lean"):
+            result = run_formal_proof_check(self.payload, workspace=self.workspace, runner=runner)
+        receipt = result["proof_receipt"]
+        validate_proof_receipt(receipt)
+        self.assertEqual("failed", receipt["status"])
+        self.assertTrue(receipt["checker"]["timed_out"])
+        self.assertEqual(["sorry"], receipt["admitted_constructs"])
+        self.assertEqual("\ufffd", receipt["checker"]["stderr_excerpt"])
+
+    def test_version_probe_failure_is_recorded_once_and_start_failure_keeps_receipt(self) -> None:
+        for version_error, recorded in (
+            (subprocess.TimeoutExpired(["lean", "--version"], 30), "unavailable"),
+            (OSError("probe failed"), "unavailable"),
+            (None, "unknown"),
+        ):
+            calls: list[list[str]] = []
+
+            def runner(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+                calls.append(command)
+                if command[-1] == "--version" and version_error is not None:
+                    raise version_error
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with self.subTest(error=type(version_error).__name__):
+                with mock.patch("codex_science.formal_proof.shutil.which", return_value="lean"):
+                    result = run_formal_proof_check(self.payload, workspace=self.workspace, runner=runner)
+                self.assertEqual(1, sum(command[-1] == "--version" for command in calls))
+                receipt = result["proof_receipt"]
+                validate_proof_receipt(receipt)
+                self.assertEqual(recorded, receipt["checker"]["tool_version"])
+                self.assertEqual("failed", receipt["status"])
+                self.assertFalse(receipt["checker"]["kernel_checked"])
+                self.assertIn("checker version could not be determined", " ".join(receipt["limitations"]))
+
+        def missing(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+            raise FileNotFoundError(command[0])
+
+        with mock.patch("codex_science.formal_proof.shutil.which", return_value="lean"):
+            result = run_formal_proof_check(self.payload, workspace=self.workspace, runner=missing)
+        receipt = result["proof_receipt"]
+        validate_proof_receipt(receipt)
+        self.assertEqual("failed", receipt["status"])
+        self.assertIsNone(receipt["checker"]["exit_code"])
+        self.assertIn("checker could not be started", " ".join(receipt["limitations"]))
+
+    def test_admitted_constructs_in_workspace_imports_are_refused(self) -> None:
+        fixture = self.theorem.read_text(encoding="utf-8")
+        (self.workspace / "Sub").mkdir()
+        (self.workspace / "Helper.lean").write_text("import Sub.Deep\ntheorem helper : True := trivial\n", encoding="utf-8")
+        deep = self.workspace / "Sub" / "Deep.lean"
+        deep.write_text("import Helper\ntheorem deep : False := sorry\n", encoding="utf-8")
+        result = self._check_source("import Mathlib.Tactic\nimport Helper\n" + fixture)
+        self.assertEqual("failed", result["status"])
+        self.assertEqual(["sorry"], result["admitted_constructs"])
+        self.assertEqual(["sorry"], result["proof_receipt"]["admitted_constructs"])
+        self.assertIn("imported workspace module Sub/Deep.lean contains admitted", " ".join(result["proof_receipt"]["limitations"]))
+        self.assertEqual(["sorry"], self._check_source("import Helper\n" + fixture, execute=False)["admitted_constructs"])
+        dotted = self.workspace / "a.b.lean"
+        dotted.write_text("theorem dotted : False := sorry\n", encoding="utf-8")
+        result = self._check_source("import «a.b»\n" + fixture)
+        self.assertEqual("failed", result["status"])
+        self.assertIn("imported workspace module a.b.lean contains admitted", " ".join(result["proof_receipt"]["limitations"]))
+        dotted.unlink()
+
+        deep.write_text("theorem deep : True := trivial\n", encoding="utf-8")
+        result = self._check_source("import Mathlib.Tactic\nimport Helper\n" + fixture)
+        self.assertEqual("passed", result["status"])
+        self.assertEqual([], result["proof_receipt"]["limitations"])
+
+        outside = self.root / "Outside.lean"
+        outside.write_text("theorem outside : False := sorry\n", encoding="utf-8")
+        (self.workspace / "Linked.lean").symlink_to(outside)
+        (self.workspace / "Away").symlink_to(self.root, target_is_directory=True)
+        for source, unscanned in (("import Linked\n", "Linked.lean"), ("import Away.Outside\n", "Away/Outside.lean")):
+            with self.subTest(source=source):
+                result = self._check_source(source + fixture)
+                self.assertEqual("failed", result["status"])
+                self.assertFalse(result["proof_receipt"]["checker"]["kernel_checked"])
+                self.assertIn(f"{unscanned} could not be scanned", " ".join(result["proof_receipt"]["limitations"]))
+        for source in ("import Outside\n", "import «..».Outside\n", "import Away.Missing\n"):
+            with self.subTest(source=source):
+                self.assertEqual("passed", self._check_source(source + fixture)["status"])
+
+        deep.write_bytes(b"-- " + b"x" * (2 * 1024 * 1024 - 2) + b"\n")
+        result = self._check_source("import Helper\n" + fixture)
+        self.assertEqual("failed", result["status"])
+        self.assertIn("Sub/Deep.lean could not be scanned", " ".join(result["proof_receipt"]["limitations"]))
+        deep.write_bytes(b"-- " + b"x" * (2 * 1024 * 1024 - 4) + b"\n")
+        self.assertEqual("passed", self._check_source("import Helper\n" + fixture)["status"])
+
+    def test_declaration_scans_stay_linear_on_blank_lines(self) -> None:
+        script = (
+            "import time\n"
+            "from codex_science import formal_proof as f\n"
+            "start = time.perf_counter()\n"
+            "for source in ('\\n' * 200_000, 'private\\n' * 200_000):\n"
+            "    for name in ('THEOREM_RE', 'AXIOM_RE', 'UNSAFE_RE', 'ADMITTED_RE', 'IMPORT_RE'):\n"
+            "        getattr(f, name).findall(source)\n"
+            "print(time.perf_counter() - start)\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+            capture_output=True,
+            text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            check=True,
+        )
+        self.assertLess(float(completed.stdout), 1.0)
+        result = self._check_source("@[simp,\n  reducible]\nprivate\n  noncomputable axiom split : Nat\nprivate\ntheorem t : True := trivial\n")
+        self.assertEqual("passed", result["status"])
+        self.assertEqual(["split"], result["declared_axioms"])
+        self.assertEqual(1, self._check_source("theorem t : True := trivial\nprivate\nunsafe def u : Nat := 0\n")["unsafe_declaration_count"])
+
+    def test_assumptions_must_be_a_list_of_non_empty_strings(self) -> None:
+        for value in ("trusted", None, 7, [7], [""], ["  "], {"axiom x": True}):
+            for execute in (False, True):
+                with self.subTest(value=value, execute=execute):
+                    with self.assertRaisesRegex(ValueError, "assumptions must be a list of non-empty strings"):
+                        run_formal_proof_check({**self.payload, "assumptions": value}, workspace=self.workspace, execute=execute)
+        result = self._check_source(self.theorem.read_text(encoding="utf-8"))
+        self.assertEqual([], result["proof_receipt"]["assumptions"])
+        self.payload["assumptions"] = ["axiom trusted : Nat"]
+        self.assertEqual(["axiom trusted : Nat"], self._check_source(self.theorem.read_text(encoding="utf-8"))["proof_receipt"]["assumptions"])
+
+    def test_non_utf8_output_and_deleted_source_keep_failed_receipt(self) -> None:
+        self._write_lean("printf 'error: bad \\377\\n' >&2\nexit 1\n")
+        result = self._assert_failed_cli("error: bad \\ufffd")
+        self.assertEqual(1, result["proof_receipt"]["checker"]["exit_code"])
+        remove = shutil.which("rm")
+        if remove is None:
+            self.skipTest("requires POSIX rm")
+        self._write_lean(f"'{remove}' Main.lean\nexit 0\n")
+        result = self._assert_failed_cli("theorem source changed during checking")
+        self.assertFalse(result["proof_receipt"]["checker"]["source_unchanged"])
+
+    def test_output_cannot_replace_theorem_or_input(self) -> None:
+        original = self.theorem.read_bytes()
+        for target, label in ((self.theorem, "theorem"), (self.input_path, "input")):
+            with self.subTest(target=label):
+                completed = self._invoke_cli(target)
+                self.assertEqual(1, completed.returncode)
+                self.assertIn("output path would overwrite input", completed.stderr)
+                self.assertEqual(original, self.theorem.read_bytes())
+                self.assertEqual(self.payload, json.loads(self.input_path.read_text(encoding="utf-8")))
+        self.assertFalse(self.output_path.exists())
+
+    def test_query_placeholders_are_refused_at_line_and_file_end(self) -> None:
+        for source, admitted in (
+            ("theorem t : True := by exact?", "exact?"),
+            ("theorem t : True := by exact?\n", "exact?"),
+            ("theorem t : True := by exact ?\n", "exact ?"),
+            ("theorem t : True := by\n  by_contra' ?", "by_contra' ?"),
+            ("theorem t : True := by (exact?)", "exact?"),
+        ):
+            with self.subTest(source=source):
+                result = self._check_source(source)
+                self.assertEqual("failed", result["status"])
+                self.assertEqual([admitted], result["admitted_constructs"])
+        self.assertEqual("passed", self._check_source("theorem t : True := by exact?_x trivial\n")["status"])
 
     def test_missing_lean_is_unavailable(self) -> None:
         self.lean.unlink()
