@@ -1,6 +1,8 @@
 import copy
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -58,6 +60,152 @@ class EvidenceReviewV2Tests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
+
+    def test_v2_register_disagreement_blocks_passed_review_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run"
+            shutil.copytree(self.root / "examples/literature-review-reviewed-run", run)
+            manifest_path = run / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            graph = json.loads((run / "evidence_graph.json").read_text())
+            graph["schema_version"] = 2
+            support = next(edge for edge in graph["edges"] if edge["relation"] == "supports")
+            graph["edges"] = [support]
+            graph_path = run / "evidence_graph_v2.json"
+            record = {"path": graph_path.name, "kind": "evidence-graph-v2"}
+            manifest["artifacts"].append(record)
+            for relation, expected_status in (("supports", "passed"), ("contradicts", "findings")):
+                with self.subTest(relation=relation):
+                    support["relation"] = relation
+                    graph_path.write_text(json.dumps(graph), encoding="utf-8")
+                    record["sha256"] = hashlib.sha256(graph_path.read_bytes()).hexdigest()
+                    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    output = Path(tmp) / "review-output.json"
+                    result = subprocess.run([
+                        sys.executable, str(self.root / "scripts/validate_artifact.py"), str(manifest_path),
+                        "--require-passed-review", "--review-output", str(output),
+                    ], capture_output=True, text=True,
+                        timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")))
+                    review = json.loads(output.read_text())
+                    if relation == "supports":
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertEqual([], review["findings"])
+                    else:
+                        self.assertNotEqual(0, result.returncode)
+                        self.assertIn("unresolved findings", result.stderr)
+                        mismatch = [item for item in review["findings"]
+                                    if item["code"] == "evidence-register-disagreement-v2"]
+                        self.assertEqual(1, len(mismatch), review)
+                        self.assertEqual("major", mismatch[0]["severity"])
+                        self.assertEqual("claim-method-effect", mismatch[0]["claim_id"])
+                    self.assertEqual(expected_status, review["status"])
+
+    def test_v2_register_checks_only_declared_study_claim_relations(self) -> None:
+        from codex_science.advanced_sidecars import review_advanced_sidecars
+
+        for declared, relation, expected in (
+            ("supports_claim_ids", "contradicts", True),
+            ("contradicts_claim_ids", "supports", True),
+            ("supports_claim_ids", "supports", False),
+            ("contradicts_claim_ids", "contradicts", False),
+            (None, "supports", False), (None, "contradicts", False),
+        ):
+            with self.subTest(declared=declared, relation=relation):
+                nodes, edges, findings = validate_graph_payload({"schema_version": 2, "nodes": [
+                    {"id": "S", "type": "study"}, {"id": "C", "type": "claim"}], "edges": [
+                    {"source": "S", "target": "C", "relation": relation}]})
+                study = {declared: ["C"]} if declared else {}
+                reviewed = review_advanced_sidecars({"graph_v2_nodes": nodes, "graph_v2_edges": edges,
+                    "base_sidecars": {"study_by_id": {"S": study}}})
+                self.assertEqual([], findings)
+                self.assertEqual(["evidence-register-disagreement-v2"] if expected else [],
+                                 [item["code"] for item in reviewed])
+
+    def test_support_edge_labels_merge_with_dependency_components(self) -> None:
+        from codex_science.advanced_sidecars import review_advanced_sidecars
+
+        for labels, linked, expected in (
+            (("G", "G", "H"), False, 2),
+            (("G", "G", "H"), True, 1),
+            ((" G ", "G", "G"), False, 1),
+            ((1, "1", "H"), False, 2),
+            (("", " ", None), False, 3),
+            ((0, False, None), False, 3),
+        ):
+            with self.subTest(labels=labels, linked=linked):
+                graph = {"schema_version": 2, "nodes": [
+                    {"id": name, "type": "study"} for name in ("A", "B", "D")
+                ] + [{"id": "C", "type": "claim"}], "edges": [
+                    {"source": name, "target": "C", "relation": "supports", "independence_group": label}
+                    for name, label in zip(("A", "B", "D"), labels)]}
+                if linked:
+                    graph["edges"].append({"source": "B", "target": "D", "relation": "shares_samples"})
+                nodes, edges, findings = validate_graph_payload(graph)
+                self.assertEqual([], findings)
+                self.assertEqual(expected, len(independent_support_groups("C", nodes, edges)))
+                reviewed = review_advanced_sidecars({"graph_v2_nodes": nodes, "graph_v2_edges": edges,
+                    "base_sidecars": {"claim_by_id": {"C": {"status": "replicated"}}}})
+                self.assertEqual(["dependent-evidence-v2"] if expected < 2 else [],
+                                 [item["code"] for item in reviewed])
+
+    def test_invalid_graph_node_ids_are_labelled_before_coercion(self) -> None:
+        from codex_science.advanced_sidecars import validate_advanced_sidecars
+
+        for value in (None, True, False, [], {"x": 1}):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "graph.json"
+                path.write_text(json.dumps({"schema_version": 2, "nodes": [
+                    {"id": value, "type": "study"}], "edges": []}))
+                with self.assertRaisesRegex(ValueError, r"graph.json .*node 0 id"):
+                    validate_advanced_sidecars({"artifacts": [
+                        {"kind": "evidence-graph-v2", "path": path.name, "sha256": "a" * 64}
+                    ]}, Path(tmp), {path.name: path})
+        # The benchmark loader reads legacy numeric identities; review still blocks non-integers.
+        nodes, edges, findings = validate_graph_payload({"schema_version": 2, "nodes": [
+            {"id": 0.5, "type": "study"}], "edges": []})
+        self.assertEqual(["invalid-evidence-node-id"], [item["code"] for item in findings])
+
+    def test_isolated_graph_nodes_require_supported_types(self) -> None:
+        from codex_science.evidence import NODE_TYPES
+        from codex_science.evidence_graph_v2 import validate_typed_graph
+
+        for value in ("banana", None, True, [], {"x": 1}, 7):
+            with self.subTest(value=value):
+                _nodes, _edges, findings = validate_graph_payload({"schema_version": 2, "nodes": [
+                    {"id": "S", "type": value}], "edges": []})
+                self.assertEqual(["invalid-evidence-node-type"], [item["code"] for item in findings])
+                self.assertEqual("major", findings[0]["severity"])
+                self.assertEqual(["invalid-evidence-node-type"], [item["code"] for item in
+                    validate_typed_graph({"S": {"type": value}}, [])])
+        for node_type in NODE_TYPES:
+            with self.subTest(node_type=node_type):
+                self.assertEqual([], validate_graph_payload({"schema_version": 2, "nodes": [
+                    {"id": "S", "type": node_type}], "edges": []})[2])
+
+    def test_cycle_diagnostics_are_bounded_per_strong_component(self) -> None:
+        for count in (1, 15, 16, 17, 3000):
+            with self.subTest(count=count):
+                names = [f"s{i:04d}" for i in range(count)]
+                graph = {"schema_version": 2, "nodes": [
+                    {"id": name, "type": "study"} for name in names], "edges": [
+                    {"source": names[i], "target": names[i + 1], "relation": "derived_from"}
+                    for i in range(count - 1)] + [
+                    {"source": name, "target": names[0], "relation": "derived_from"} for name in names]}
+                findings = validate_graph_payload(graph)[2]
+                self.assertEqual(1, len(findings))
+                self.assertEqual("evidence-dependency-cycle", findings[0]["code"])
+                if count > 15:
+                    self.assertIn(f"(cyclic component of {count} nodes)", findings[0]["message"])
+                else:
+                    self.assertTrue(findings[0]["message"].startswith("Evidence dependency cycle: s0000 -> "))
+                    self.assertEqual(count, findings[0]["message"].count(" -> "))
+                self.assertLessEqual(len(findings[0]["message"]), 1200)
+        names = ["A" * 64, "B" * 65, "D" * 2000, "C"]
+        graph = {"schema_version": 2, "nodes": [{"id": name, "type": "study"} for name in names],
+                 "edges": [{"source": name, "target": name, "relation": "derived_from"} for name in names]}
+        findings = validate_graph_payload(graph)[2]
+        self.assertEqual(4, len(findings))
+        self.assertTrue(all(len(item["message"]) <= 1200 for item in findings))
 
     def test_graph_types_cycles_dependencies_and_impact_are_explicit(self) -> None:
         graph = {
@@ -343,9 +491,11 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         self.assertEqual([], validate_graph_payload(graph)[2])
         graph["edges"].append({"source": f"s{count - 1:04d}", "target": "s0000", "relation": "derived_from"})
         findings = validate_graph_payload(graph)[2]
-        chain = [f"s{i:04d}" for i in range(count)] + ["s0000"]
-        self.assertEqual([{"code": "evidence-dependency-cycle", "severity": "major",
-                           "message": "Evidence dependency cycle: " + " -> ".join(chain)}], findings)
+        self.assertEqual(1, len(findings))
+        self.assertEqual("evidence-dependency-cycle", findings[0]["code"])
+        self.assertEqual("major", findings[0]["severity"])
+        self.assertIn(f"{count} nodes", findings[0]["message"])
+        self.assertLessEqual(len(findings[0]["message"]), 1200)
 
     def test_replicated_claims_share_one_independence_computation(self) -> None:
         from unittest import mock

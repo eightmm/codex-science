@@ -4,6 +4,8 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from typing import Any, Iterable
 
+from codex_science.evidence import NODE_TYPES
+
 RELATION_TYPES: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "supports": (frozenset({"study", "dataset", "artifact", "execution", "model"}), frozenset({"claim"})),
     "contradicts": (frozenset({"study", "dataset", "artifact", "execution", "model"}), frozenset({"claim"})),
@@ -48,7 +50,10 @@ def graph_records(payload: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], l
     for index, raw in enumerate(raw_nodes):
         if not isinstance(raw, dict):
             raise ValueError(f"node {index} must be an object")
-        node_id = str(raw.get("id", "")).strip()
+        raw_id = raw.get("id", "")
+        if isinstance(raw_id, bool) or not isinstance(raw_id, (str, int, float)):
+            raise ValueError(f"node {index} id must be a string or integer")
+        node_id = str(raw_id).strip()
         node_type = str(raw.get("type", "")).strip()
         if not node_id or not node_type:
             raise ValueError(f"node {index} requires id and type")
@@ -75,6 +80,10 @@ def graph_records(payload: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], l
 
 def validate_typed_graph(nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
+    for node_id, node in nodes.items():
+        if not isinstance(node.get("type"), str) or node["type"] not in NODE_TYPES:
+            findings.append({"code": "invalid-evidence-node-type", "severity": "major",
+                             "message": f"Evidence node {node_id} has unsupported type {node.get('type')}."})
     for edge in edges:
         relation, source, target = str(edge["relation"]), str(edge["source"]), str(edge["target"])
         allowed_sources, allowed_targets = RELATION_TYPES[relation]
@@ -82,45 +91,91 @@ def validate_typed_graph(nodes: dict[str, dict[str, Any]], edges: list[dict[str,
         if source_type not in allowed_sources or target_type not in allowed_targets:
             findings.append({"code": "invalid-evidence-edge-type", "severity": "major", "message": f"Evidence edge {source} {relation} {target} has invalid types {source_type}->{target_type}."})
     directed: dict[str, list[str]] = defaultdict(list)
+    reverse: dict[str, list[str]] = defaultdict(list)
     for edge in edges:
         if edge["relation"] in ACYCLIC_RELATIONS:
             directed[str(edge["source"])].append(str(edge["target"]))
-    state: dict[str, int] = {}
-    # Explicit stack: long derived_from chains must not exhaust the interpreter recursion limit.
+            reverse[str(edge["target"])].append(str(edge["source"]))
+    visited: set[str] = set()
+    finished: list[str] = []
+    # Iterative Kosaraju traversal bounds diagnostics by strongly connected
+    # components, without recursion or one finding per overlapping cycle.
     for root in sorted(nodes):
-        if state.get(root, 0) != 0:
+        if root in visited:
             continue
-        state[root] = 1
+        visited.add(root)
         path = [root]
         pending = [iter(directed.get(root, []))]
         while pending:
             for neighbour in pending[-1]:
-                if state.get(neighbour) == 1:
-                    cycle = path[path.index(neighbour):] + [neighbour]
-                    findings.append({"code": "evidence-dependency-cycle", "severity": "major", "message": "Evidence dependency cycle: " + " -> ".join(cycle)})
-                elif state.get(neighbour, 0) == 0:
-                    state[neighbour] = 1
+                if neighbour not in visited:
+                    visited.add(neighbour)
                     path.append(neighbour)
                     pending.append(iter(directed.get(neighbour, [])))
                     break
             else:
                 pending.pop()
-                state[path.pop()] = 2
-    unique = {(item["code"], item["message"]): item for item in findings}
-    return sorted(unique.values(), key=lambda item: (item["code"], item["message"]))
+                finished.append(path.pop())
+    visited.clear()
+    for root in reversed(finished):
+        if root in visited:
+            continue
+        component = {root}
+        visited.add(root)
+        stack = [root]
+        while stack:
+            for neighbour in reverse.get(stack.pop(), []):
+                if neighbour not in visited:
+                    visited.add(neighbour)
+                    component.add(neighbour)
+                    stack.append(neighbour)
+        if len(component) == 1 and root not in directed.get(root, []):
+            continue
+        # Every node in a cyclic component has an internal successor. Following
+        # one per node yields a real cycle, even when the component has chords.
+        positions: dict[str, int] = {}
+        witness: list[str] = []
+        node = min(component)
+        while node not in positions:
+            positions[node] = len(witness)
+            witness.append(node)
+            node = next(target for target in directed[node] if target in component)
+        cycle = witness[positions[node]:] + [node]
+        labels = [value if len(value) <= 64 else value[:61] + "..." for value in cycle[:16]]
+        if len(cycle) > 16:
+            labels.append("...")
+        # Keep the historical "Evidence dependency cycle: a -> b -> a" text, which CLIs print verbatim;
+        # name the component size only when the shown cycle does not cover it.
+        extent = f" (cyclic component of {len(component)} nodes)" if len(cycle) - 1 < len(component) or len(cycle) > 16 else ""
+        findings.append({"code": "evidence-dependency-cycle", "severity": "major",
+                         "message": "Evidence dependency cycle: " + " -> ".join(labels) + extent})
+    return sorted(findings, key=lambda item: (item["code"], item["message"]))
 
 
 def validate_graph_payload(payload: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], list[dict[str, str]]]:
     nodes, edges = graph_records(payload)
-    return nodes, edges, validate_typed_graph(nodes, edges)
+    findings = validate_typed_graph(nodes, edges)
+    # Legacy benchmark readers accept numeric identities. Keep them readable,
+    # but only integer identities retain their historical validation exemption.
+    for index, raw in enumerate(payload["nodes"]):
+        if isinstance(raw.get("id"), float):
+            findings.append({"code": "invalid-evidence-node-id", "severity": "major",
+                             "message": f"Evidence node {index} id must be a string or integer."})
+    return nodes, edges, sorted(findings, key=lambda item: (item["code"], item["message"]))
 
 
 def independence_components(nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]) -> dict[str, str]:
     evidence = {node_id for node_id, node in nodes.items() if node.get("type") in {"study", "dataset", "artifact", "execution", "model", "portal"}}
     union = UnionFind(evidence)
+    labelled_sources: dict[str, str] = {}
     for edge in edges:
         if edge.get("relation") in INDEPENDENCE_RELATIONS and edge["source"] in evidence and edge["target"] in evidence:
             union.union(str(edge["source"]), str(edge["target"]))
+        if edge.get("relation") == "supports" and edge["source"] in evidence:
+            group = str(edge.get("independence_group") or "").strip()
+            if group:
+                source = str(edge["source"])
+                union.union(source, labelled_sources.setdefault(group, source))
     groups: dict[str, list[str]] = defaultdict(list)
     for node in evidence:
         groups[union.find(node)].append(node)

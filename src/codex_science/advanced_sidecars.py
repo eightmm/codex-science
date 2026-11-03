@@ -282,6 +282,24 @@ def review_advanced_sidecars(sidecars: dict[str, Any], *, registry_path: Path | 
     base = sidecars.get("base_sidecars", {})
     claims = base.get("claim_by_id", {}) if isinstance(base, dict) else {}
     nodes, edges = sidecars.get("graph_v2_nodes", {}), sidecars.get("graph_v2_edges", [])
+    studies = base.get("study_by_id", {}) if isinstance(base, dict) else {}
+    declared_relations: dict[tuple[str, str], set[str]] = {}
+    for study_id, study in studies.items():
+        for field, relation in (("supports_claim_ids", "supports"), ("contradicts_claim_ids", "contradicts")):
+            for claim_id in study.get(field, []):
+                declared_relations.setdefault((study_id, claim_id), set()).add(relation)
+    for edge in edges:
+        source, target, relation = edge["source"], edge["target"], edge["relation"]
+        declared = declared_relations.get((source, target), set())
+        if (relation in {"supports", "contradicts"} and declared and relation not in declared
+                and nodes[source].get("type") == "study" and nodes[target].get("type") == "claim"):
+            findings.append({
+                "code": "evidence-register-disagreement-v2",
+                "severity": "major",
+                "claim_id": target,
+                "message": (f"Evidence graph v2 says {source} {relation} {target}, but the study register "
+                            f"declares {', '.join(sorted(declared))}."),
+            })
     replicated = [claim_id for claim_id, claim in claims.items() if claim.get("status") == "replicated"]
     support_groups = support_groups_by_claim(nodes, edges) if replicated else {}
     for claim_id in replicated:
