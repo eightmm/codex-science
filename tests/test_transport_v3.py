@@ -235,6 +235,154 @@ class FakeTransport:
         )
 
 
+@contextmanager
+def _raw_reply_server(reply: bytes):
+    """Serve ``reply`` verbatim to every connection; yields (url, connection counter)."""
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(8)
+    listener.settimeout(0.05)
+    stop = threading.Event()
+    count = [0]
+
+    def serve() -> None:
+        while not stop.is_set():
+            try:
+                connection, _ = listener.accept()
+            except OSError:
+                continue
+            count[0] += 1
+            with connection:
+                connection.settimeout(2)
+                try:
+                    connection.recv(65536)
+                    connection.sendall(reply)
+                except OSError:
+                    pass
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{listener.getsockname()[1]}/", count
+    finally:
+        stop.set()
+        thread.join(5)
+        listener.close()
+
+
+class _CountingBody(io.BytesIO):
+    def __init__(self, size: int) -> None:
+        super().__init__(b"x" * size)
+        self.bytes_read = 0
+
+    def read(self, size=-1):
+        data = super().read(size)
+        self.bytes_read += len(data)
+        return data
+
+
+class _LocalUrlTransport:
+    def __init__(self, url: str, policy: TransportPolicy) -> None:
+        self._url = url
+        self._inner = UrllibTransport(policy)
+
+    def send(self, request: PageRequest) -> TransportResponse:
+        return self._inner.send(PageRequest(request.method, self._url, request.headers, request.body,
+                                            request.cursor))
+
+
+class TransportV3RobustnessTests(unittest.TestCase):
+    FAST = dict(timeout_seconds=2, max_attempts=2, backoff_seconds=(0, 0))
+
+    def test_malformed_responses_become_retryable_transport_errors(self):
+        replies = {
+            "status line": b"GARBAGE\r\n\r\n",
+            "header count": b"HTTP/1.1 200 OK\r\n" + b"X-A: b\r\n" * 101 + b"\r\n",
+            "long header": b"HTTP/1.1 200 OK\r\nX-A: " + b"a" * 70000 + b"\r\n\r\n",
+        }
+        for name, reply in replies.items():
+            with self.subTest(name), _raw_reply_server(reply) as (url, count):
+                transport = UrllibTransport(TransportPolicy(**self.FAST))
+                with self.assertRaises(TransportError) as caught:
+                    transport.send(PageRequest("GET", url, {}))
+                self.assertTrue(caught.exception.retryable)
+                self.assertEqual(2, count[0])
+
+    def test_invalid_request_url_is_not_retryable(self):
+        transport = UrllibTransport(TransportPolicy(**self.FAST))
+        with self.assertRaises(TransportError) as caught:
+            transport.send(PageRequest("GET", "http://127.0.0.1:1/a\x01b", {}))
+        self.assertFalse(caught.exception.retryable)
+        self.assertIn("invalid request URL", str(caught.exception))
+
+    def test_malformed_response_leaves_no_snapshot_query_directory(self):
+        request = QueryRequest("pubmed", "search", {"query": "x"}, source_contract_version="3")
+        with tempfile.TemporaryDirectory() as tempdir, _raw_reply_server(b"GARBAGE\r\n\r\n") as (url, _):
+            transport = _LocalUrlTransport(url, TransportPolicy(**self.FAST))
+            result = execute_paginated(PubMedSearchV3(), request, transport=transport, snapshot_dir=Path(tempdir))
+            self.assertEqual("source-unavailable", result.receipt.status)
+            self.assertFalse((Path(tempdir) / request.query_id).exists())
+
+    def test_redirect_body_read_is_bounded_then_closed(self):
+        body = _CountingBody(64 * 1024 * 1024)
+        headers = Message()
+        headers["Location"] = "http://127.0.0.1:1/next"
+        for deadline in (None, time.monotonic() + 30):
+            with self.subTest(deadline=deadline):
+                body.bytes_read = 0
+                handler = SafeRedirectHandler(deadline)
+                redirected = handler.redirect_request(
+                    urllib.request.Request("http://127.0.0.1:1/start"), body, 302, "Found", headers,
+                    "http://127.0.0.1:1/next")
+                self.assertIsNotNone(redirected)
+                self.assertTrue(body.closed)
+                self.assertLessEqual(body.bytes_read, 65536)
+                body = _CountingBody(64 * 1024 * 1024)
+
+    def test_redirect_with_large_body_still_follows(self):
+        with _raw_reply_server(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}") as (target, _):
+            reply = (b"HTTP/1.1 302 Found\r\nLocation: " + target.encode() + b"\r\nContent-Length: 4000000\r\n\r\n"
+                     + b"y" * 4000000)
+            with _raw_reply_server(reply) as (url, _):
+                result = UrllibTransport(TransportPolicy(max_response_bytes=1024, **self.FAST)).send(
+                    PageRequest("GET", url, {}))
+        self.assertEqual(b"{}", result.body)
+
+    def test_media_type_is_stripped_and_lowercased(self):
+        reply = b"HTTP/1.1 200 OK\r\nContent-Type: Application/JSON ; charset=utf-8\r\nContent-Length: 2\r\n\r\n{}"
+        with _raw_reply_server(reply) as (url, _):
+            result = UrllibTransport(TransportPolicy(**self.FAST)).send(PageRequest("GET", url, {}))
+        self.assertEqual("application/json", result.media_type)
+
+    def test_replay_refuses_body_path_outside_query_directory_and_bad_metadata(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            outside = root / "outside.json"
+            outside.write_bytes(b"{}")
+            digest = hashlib.sha256(b"{}").hexdigest()
+            query_dir = root / "snap" / "q"
+            query_dir.mkdir(parents=True)
+            (query_dir / "real.body").write_bytes(b"{}")
+            (query_dir / "link.body").symlink_to(outside)
+            meta = query_dir / "page-0001.json"
+
+            def replay(metadata):
+                meta.write_text(json.dumps(metadata), encoding="utf-8")
+                return replay_snapshot_directory(root / "snap", "q")
+
+            for name in ("../../outside.json", "../outside.json", str(outside), "sub/real.body", "..", "", "link.body", 5):
+                with self.subTest(body_path=name):
+                    with self.assertRaisesRegex(ValueError, "page-0001.json: body_path") as caught:
+                        replay({"response": {"body_path": name, "body_sha256": digest, "status_code": 200}})
+                    self.assertNotIn(tempdir, str(caught.exception))
+            for metadata in ([], [1], "text", {"response": []}, {}):
+                with self.subTest(metadata=metadata):
+                    with self.assertRaisesRegex(ValueError, "page-0001.json: metadata must be an object"):
+                        replay(metadata)
+            pages = replay({"response": {"body_path": "real.body", "body_sha256": digest, "status_code": 200}})
+            self.assertEqual({}, pages[0]["payload"])
+
+
 class TransportV3Tests(unittest.TestCase):
     def test_slow_header_drip_stays_within_parser_limits(self):
         call_timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))

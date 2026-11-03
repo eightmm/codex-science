@@ -59,16 +59,26 @@ def _redact_url(url: str) -> str:
     )
 
 
+_REDIRECT_DRAIN_BYTES = 65536
+
+
 class _DeadlineRedirectHandler(urllib.request.HTTPRedirectHandler):
     def __init__(self, deadline: float | None = None) -> None:
         self._deadline = deadline
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         redirect = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirect is not None and self._deadline is not None:
+        if redirect is not None and fp is not None:
             try:
-                # urllib drains this response inside open(), before returning the target.
-                _read_with_deadline(fp, None, self._deadline)
+                # urllib drains this response inside open(); read a bounded amount under
+                # the deadline, then close so urllib's own drain reads nothing.
+                if self._deadline is not None:
+                    remaining = _REDIRECT_DRAIN_BYTES
+                    while remaining > 0:
+                        chunk = _read_with_deadline(fp, min(8192, remaining), self._deadline)
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
             finally:
                 fp.close()
         return redirect
@@ -377,7 +387,7 @@ class UrllibTransport:
                             raise TransportError("invalid Content-Length in response") from error
                         if len(body) < expected_bytes:
                             raise http.client.IncompleteRead(body, expected_bytes - len(body))
-                    media_type = response_headers.get("content-type", "application/octet-stream").split(";", 1)[0]
+                    media_type = response_headers.get("content-type", "application/octet-stream").split(";", 1)[0].strip().lower()
                     return TransportResponse(
                         status_code=int(response.status),
                         url=_redact_url(response.geturl()),
@@ -398,7 +408,10 @@ class UrllibTransport:
                     status_code=error.code,
                     retryable=retryable,
                 ) from error
-            except (urllib.error.URLError, TimeoutError, OSError, http.client.IncompleteRead) as error:
+            except http.client.InvalidURL as error:
+                # A malformed request URL is a client-side defect; retrying cannot help.
+                raise TransportError(f"invalid request URL {_redact_url(request.url)}: {error}", retryable=False) from error
+            except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as error:
                 last_error = error
                 if attempt < self.policy.max_attempts:
                     continue
@@ -700,7 +713,17 @@ def replay_snapshot_directory(snapshot_dir: Path, query_id: str) -> list[dict[st
     pages: list[dict[str, Any]] = []
     for metadata_path in sorted(query_dir.glob("page-*.json")):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        body_path = query_dir / metadata["response"]["body_path"]
+        label = f"snapshot page {metadata_path.name}"
+        response_meta = metadata.get("response") if isinstance(metadata, dict) else None
+        body_name = response_meta.get("body_path") if isinstance(response_meta, dict) else None
+        if not isinstance(response_meta, dict):
+            raise ValueError(f"{label}: metadata must be an object with a response object")
+        if (not isinstance(body_name, str) or not body_name or body_name in {".", ".."}
+                or "/" in body_name or "\\" in body_name or "\x00" in body_name):
+            raise ValueError(f"{label}: body_path must be a single file name inside the query directory")
+        body_path = query_dir / body_name
+        if body_path.is_symlink():
+            raise ValueError(f"{label}: body_path must not be a symlink")
         body = body_path.read_bytes()
         if hashlib.sha256(body).hexdigest() != metadata["response"]["body_sha256"]:
             raise ValueError(f"snapshot body digest mismatch: {body_path.name}")
