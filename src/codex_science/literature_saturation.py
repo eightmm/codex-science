@@ -99,18 +99,20 @@ def estimate_saturation(log, *, hard_cap, remaining_threshold=1.0, min_evaluated
     tau, fitted_total, rmse, tau_at_bound = fit
     total = max(fitted_total, found)
     remaining = total - found
-    result.update(tau=tau, total_relevant_estimate=total, predicted_remaining=remaining,
-                  expected_recall=found / total if total else None, fit_rmse=rmse)
     if fitted_total < found:
+        result["fit_rmse"] = rmse
         result["reasons"].append("fit_underestimates_found")
         if result["recommendation"] != "stop_hard_cap":
             result["recommendation"] = "continue"
         return result
     if tau_at_bound:
+        result["fit_rmse"] = rmse
         result["reasons"].append("tau_at_search_bound")
         if result["recommendation"] != "stop_hard_cap":
             result["recommendation"] = "continue"
         return result
+    result.update(tau=tau, total_relevant_estimate=total, predicted_remaining=remaining,
+                  expected_recall=found / total if total else None, fit_rmse=rmse)
     if result["recommendation"] == "continue" and remaining < remaining_threshold and evaluated >= 3 * tau:
         result["recommendation"] = "stop_saturated"
         result["reasons"].append("remaining_below_threshold_after_three_tau")

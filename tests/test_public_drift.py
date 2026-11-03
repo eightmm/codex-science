@@ -158,7 +158,7 @@ class PublicDriftTests(unittest.TestCase):
             outputs = [root / name for name in ("state.json", "report.json", "report.md")]
             arguments = ["public_drift.py", "--state-out", str(outputs[0]),
                          "--output-json", str(outputs[1]), "--output-md", str(outputs[2])]
-            original_write = Path.write_text
+            original_write = self.module.write_text_atomic
             def fail_report(path, *args, **kwargs):
                 if path == outputs[2]:
                     raise OSError("injected write failure")
@@ -166,7 +166,7 @@ class PublicDriftTests(unittest.TestCase):
             with mock.patch.object(sys, "argv", arguments), \
                  mock.patch.object(self.module, "CHECKS", []), \
                  mock.patch.object(self.module, "probe") as probe, \
-                 mock.patch.object(Path, "write_text", fail_report), \
+                 mock.patch.object(self.module, "write_text_atomic", fail_report), \
                  mock.patch.dict(os.environ, {}, clear=True), \
                  contextlib.redirect_stderr(io.StringIO()) as stderr:
                 self.assertEqual(1, self.module.main())
@@ -219,6 +219,69 @@ class PublicDriftTests(unittest.TestCase):
         self.assertEqual("transient-failure", first["status"])
         self.assertEqual("degraded", second["status"])
         self.assertEqual("unavailable", third["status"])
+
+    def test_non_object_and_deep_bodies_become_semantic_drift_rows(self) -> None:
+        from codex_science.connectors import ChEMBLConnector, UniProtConnector
+        def deep(url):
+            raise RecursionError("maximum recursion depth exceeded")
+        for connector_class in (UniProtConnector, ChEMBLConnector):
+            for fetch in (lambda url: None, lambda url: [], lambda url: "text", deep):
+                with self.subTest(connector=connector_class.__name__):
+                    record = self.module.probe("source", connector_class(fetch_json=fetch), "query", previous_failures=0)
+                    self.assertEqual("semantic-drift", record["status"])
+                    self.assertNotEqual("", record["detail"])
+        record = self.module.probe("source", UniProtConnector(fetch_json=lambda url: None), "query", previous_failures=0)
+        self.assertIn("(AttributeError)", record["detail"])
+
+    def test_http_408_and_429_are_transient_like_5xx(self) -> None:
+        import urllib.error
+        for code, status in ((408, "transient-failure"), (429, "transient-failure"), (503, "transient-failure"), (404, "semantic-drift")):
+            class Failing:
+                def search(self, query, *, limit, code=code):
+                    raise urllib.error.HTTPError("https://example.invalid", code, "x", {}, None)
+            with self.subTest(code=code):
+                self.assertEqual(status, self.module.probe("s", Failing(), "q", previous_failures=0)["status"])
+
+    def test_connect_timeout_wrapped_in_urlerror_is_retried(self) -> None:
+        import urllib.error
+        calls = []
+        class Flaky:
+            def search(self, query, *, limit):
+                calls.append(1)
+                if len(calls) == 1:
+                    raise urllib.error.URLError(TimeoutError("timed out"))
+                return [{"id": "record-1"}]
+        self.assertEqual("healthy", self.module.probe("s", Flaky(), "q", previous_failures=0)["status"])
+        self.assertEqual(2, len(calls))
+        calls.clear()
+        class Always:
+            def search(self, query, *, limit):
+                calls.append(1)
+                raise urllib.error.URLError(TimeoutError("timed out"))
+        record = self.module.probe("s", Always(), "q", previous_failures=0)
+        self.assertEqual(2, len(calls))
+        self.assertEqual("timeout after two attempts", record["detail"])
+
+    def test_markdown_collapses_upstream_newlines(self) -> None:
+        report = {"checked_at": "t", "status": "findings", "sources": [{"source": "s", "status": "semantic-drift", "consecutive_failures": 1, "detail": "a\n# heading\r\n| x | y |"}]}
+        rendered = self.module.render_markdown(report)
+        self.assertIn("| s | semantic-drift | 1 | a # heading \\| x \\| y \\| |", rendered)
+        self.assertNotIn("\n# heading", rendered)
+
+    def test_outputs_are_written_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            names = ("state.json", "report.json", "report.md")
+            arguments = ["public_drift.py", "--state-out", str(root / names[0]),
+                         "--output-json", str(root / names[1]), "--output-md", str(root / names[2])]
+            with mock.patch.object(sys, "argv", arguments), \
+                 mock.patch.object(self.module, "CHECKS", []), \
+                 mock.patch.dict(os.environ, {}, clear=True):
+                (root / names[0]).write_text("preserve", encoding="utf-8")
+                with mock.patch("codex_science.cli_io.os.replace", side_effect=OSError("injected")), \
+                     contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(1, self.module.main())
+                self.assertEqual("preserve", (root / names[0]).read_text(encoding="utf-8"))
 
     def test_markdown_report_is_stable_and_human_readable(self) -> None:
         report = {"checked_at": "2026-07-19T00:00:00Z", "status": "healthy", "sources": [{"source": "pubmed", "status": "healthy", "consecutive_failures": 0, "detail": "record=1"}]}

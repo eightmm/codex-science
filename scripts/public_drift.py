@@ -14,8 +14,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from codex_science.cli_io import preflight_output_paths  # noqa: E402
-from public_smoke import CHECKS  # type: ignore  # noqa: E402
+from codex_science.cli_io import preflight_output_paths, write_text_atomic  # noqa: E402
+from public_smoke import CHECKS, _is_timeout  # type: ignore  # noqa: E402
 
 
 def _now() -> str:
@@ -63,8 +63,15 @@ def probe(name: str, connector: Any, query: str, *, previous_failures: int) -> d
     try:
         try:
             results = connector.search(query, limit=1)
-        except TimeoutError:
-            results = connector.search(query, limit=1)
+        except (TimeoutError, urllib.error.URLError) as error:
+            if not _is_timeout(error):
+                raise
+            try:
+                results = connector.search(query, limit=1)
+            except (TimeoutError, urllib.error.URLError) as second:
+                if _is_timeout(second):
+                    raise TimeoutError("timeout after two attempts") from second
+                raise
         if results:
             record_id = str(results[0].get("id", ""))
             detail = f"record={record_id}"
@@ -78,7 +85,7 @@ def probe(name: str, connector: Any, query: str, *, previous_failures: int) -> d
         if error.code == 403 and name == "reactome":
             base = "environment-blocked"
             detail = "HTTP 403 in hosted runner environment"
-        elif error.code >= 500:
+        elif error.code in {408, 429} or error.code >= 500:
             base = "transient-failure"
             detail = f"HTTP {error.code}"
         else:
@@ -87,6 +94,9 @@ def probe(name: str, connector: Any, query: str, *, previous_failures: int) -> d
     except (KeyError, TypeError, ValueError) as error:
         base = "semantic-drift"
         detail = f"normalization/schema error: {error}"
+    except (AttributeError, IndexError, RecursionError) as error:
+        base = "semantic-drift"
+        detail = f"normalization/schema error ({type(error).__name__}): {error}"
     except OSError as error:
         base = "transient-failure"
         detail = f"network error: {error}"
@@ -114,8 +124,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         "| --- | --- | ---: | --- |",
     ]
     for item in report["sources"]:
-        detail = str(item["detail"]).replace("|", "\\|")
-        lines.append(f"| {item['source']} | {item['status']} | {item['consecutive_failures']} | {detail} |")
+        detail = " ".join(str(item["detail"]).split()).replace("|", "\\|")
+        source = " ".join(str(item["source"]).split()).replace("|", "\\|")
+        lines.append(f"| {source} | {item['status']} | {item['consecutive_failures']} | {detail} |")
     lines.extend(["", f"Overall: **{report['status']}**", ""])
     return "\n".join(lines)
 
@@ -153,9 +164,9 @@ def main() -> int:
     }
     state = {"schema_version": 1, "updated_at": report["checked_at"], "sources": {item["source"]: {"status": item["status"], "consecutive_failures": item["consecutive_failures"], "checked_at": item["checked_at"]} for item in records}}
     try:
-        args.state_out.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        args.output_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        args.output_md.write_text(render_markdown(report), encoding="utf-8")
+        write_text_atomic(args.state_out, json.dumps(state, indent=2, sort_keys=True) + "\n")
+        write_text_atomic(args.output_json, json.dumps(report, indent=2, sort_keys=True) + "\n")
+        write_text_atomic(args.output_md, render_markdown(report))
         if summary is not None:
             with summary.open("a", encoding="utf-8") as handle:
                 handle.write(render_markdown(report))

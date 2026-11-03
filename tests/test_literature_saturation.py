@@ -41,8 +41,10 @@ class SaturationTests(unittest.TestCase):
         plateau = [{"evaluated": n, "relevant": 15} for n in (40, 80, 120, 160)]
         plateau_result = estimate_saturation(plateau, hard_cap=500, remaining_threshold=1)
         self.assertNotIn("no_saturation_signal", plateau_result["reasons"])
-        self.assertTrue(plateau_result["recommendation"] == "stop_saturated" or
-                        plateau_result["predicted_remaining"] < 1)
+        self.assertIn("tau_at_search_bound", plateau_result["reasons"])
+        for key in ("tau", "total_relevant_estimate", "predicted_remaining", "expected_recall"):
+            self.assertIsNone(plateau_result[key])
+        self.assertEqual("continue", plateau_result["recommendation"])
 
         uneven = [{"evaluated": n, "relevant": r} for n, r in ((20, 10), (40, 15), (80, 20), (160, 25))]
         uneven_result = estimate_saturation(uneven, hard_cap=500)
@@ -54,14 +56,16 @@ class SaturationTests(unittest.TestCase):
         result = estimate_saturation(points, hard_cap=1000)
         self.assertEqual(result["recommendation"], "continue")
         self.assertIn("fit_underestimates_found", result["reasons"])
-        self.assertGreaterEqual(result["total_relevant_estimate"], result["found"])
-        self.assertLessEqual(result["expected_recall"], 1)
+        for key in ("tau", "total_relevant_estimate", "predicted_remaining", "expected_recall"):
+            self.assertIsNone(result[key])
 
     def test_tau_search_bound_cannot_claim_saturation(self):
         points = [{"evaluated": n, "relevant": 10} for n in (30, 60, 90)]
         result = estimate_saturation(points, hard_cap=1000)
         self.assertEqual(result["recommendation"], "continue")
         self.assertIn("tau_at_search_bound", result["reasons"])
+        for key in ("tau", "total_relevant_estimate", "predicted_remaining", "expected_recall"):
+            self.assertIsNone(result[key])
 
     def test_validation_and_determinism(self):
         for bad in (
