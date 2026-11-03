@@ -31,6 +31,7 @@ scripting against it.
 | `workflow-experiment-design` | Conduct a fixed six-stage preregistered experiment-design procedure for lab or computational studies, from question and independent-unit power planning through randomisation, frozen analysis, controls and independent review handoff. | `scripts/validate_experiment_design_pack.py` | `examples/workflow-experiment-design/` |
 | `workflow-sample-size-power` | Check frozen sample sizes, detectable effects, multiplicity and attrition for planned two-group continuous or binary laboratory and preclinical outcomes; exclude clinical trial design and observed-power arguments. | `scripts/validate_sample_size_power_pack.py` | `examples/workflow-sample-size-power/` |
 | `workflow-randomization-audit` | Check seeded allocation of synthetic laboratory or preclinical units to experimental arms, including frozen rules, block and stratum identities, and baseline balance; use for offline arithmetic checks, never study validity. | `scripts/validate_randomization_audit_pack.py` | `examples/workflow-randomization-audit/` |
+| `workflow-factorial-doe-effects` | Check completed two-level factorial response tables with frozen coded levels, exact design contrasts, signed alias sets, replicate pure error and centre-point curvature. | `scripts/validate_factorial_doe_pack.py` | `examples/workflow-factorial-doe-effects/` |
 
 ## Assay and instrument QC
 
@@ -47,6 +48,10 @@ scripting against it.
 | `workflow-stability-shelf-life` | Check synthetic attribute measurements over storage time using frozen batch pooling and a one-sided mean bound against a specification. | `scripts/validate_stability_shelf_life_pack.py` | `examples/workflow-stability-shelf-life/` |
 | `workflow-pk-nca-profile` | Check supplied preclinical concentration-time profiles with frozen censoring and terminal-fit rules; calculate observed peaks, trapezoidal exposure and reliable-only geometric summaries. | `scripts/validate_pk_nca_pack.py` | `examples/workflow-pk-nca-profile/` |
 | `workflow-dose-response-curve` | Fit in-vitro concentration-response curves with frozen assay declarations, labelled biological and technical replicates, control separation, constrained four-parameter logistic curves and potency intervals. | `scripts/validate_dose_response_pack.py` | `examples/workflow-dose-response-curve/` |
+| `workflow-western-blot-densitometry` | Check supplied synthetic Western blot band intensities with frozen local backgrounds, antibody dilution ranges, loading controls, blot references and biological replicate uncertainty. | `scripts/validate_western_blot_densitometry_pack.py` | `examples/workflow-western-blot-densitometry/` |
+| `workflow-hplc-system-suitability` | Check recorded replicate standard injections using frozen HPLC peak identities, retention-time and area RSD, tailing, plates, nearest-peak resolution and blank carryover. | `scripts/validate_hplc_system_suitability_pack.py` | `examples/workflow-hplc-system-suitability/` |
+| `workflow-arrhenius-rate-fit` | Fit Arrhenius temperature dependence from supplied synthetic positive rate constants, frozen kelvin identities, replicate rules and units. | `scripts/validate_arrhenius_rate_fit_pack.py` | `examples/workflow-arrhenius-rate-fit/` |
+| `workflow-particle-size-distribution` | Check supplied binned particle diameters with frozen micrometre edges, cumulative D10/D50/D90, span, midpoint means and replicate agreement. | `scripts/validate_particle_size_distribution_pack.py` | `examples/workflow-particle-size-distribution/` |
 
 ## Omics and sequencing
 
