@@ -149,6 +149,35 @@ def _check_file_ref(
     return True
 
 
+def _matches_source_artifact(
+    record: Mapping[str, Any], artifacts: Mapping[str, str], trees: set[str]
+) -> bool:
+    """Source trees have already passed digest and symlink validation."""
+    relative = _relative_path(record.get("path"))
+    digest = record.get("sha256")
+    return (
+        relative is not None
+        and isinstance(digest, str)
+        and (
+            artifacts.get(PurePosixPath(relative).as_posix()) == digest.lower()
+            or any(PurePosixPath(tree) in PurePosixPath(relative).parents for tree in trees)
+        )
+    )
+
+
+def _check_text_content(
+    root: Path, relative: str, findings: list[dict[str, str]], *, code: str, label: str
+) -> None:
+    try:
+        path = root / relative
+        if not path.resolve().is_relative_to(root):
+            raise ValueError("path resolves outside the package")
+        if not path.read_text(encoding="utf-8-sig").strip():
+            raise ValueError("content is empty")
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        findings.append(_finding(code, f"{label} must contain readable, nonempty text: {error}"))
+
+
 def _claim_segment(manuscript: str, locator: str) -> tuple[str | None, str | None]:
     pattern = (
         r"<!--\s*"
@@ -218,8 +247,15 @@ def _resolve_json_pointer(payload: Any, pointer: str) -> Any:
 
 def _scalar_appears_in_text(value: Any, text: str) -> bool:
     if isinstance(value, str):
+        # A leading sign belongs to a numeric value, including values with units.
+        if re.match(r"[-+\N{MINUS SIGN}]?(?:\d|\.\d)", value):
+            value = value.replace("\N{MINUS SIGN}", "-")
+            text = text.replace("\N{MINUS SIGN}", "-")
+            prefix = r"(?<![\w.])" if value.startswith(("-", "+")) else r"(?:(?<![\w.-])|(?<=\d-))"
+        else:
+            prefix = r"(?<![\w.])"
         return bool(value) and re.search(
-            r"(?<![\w.])" + re.escape(value) + r"(?!\w|\.\d)", text
+            prefix + re.escape(value) + r"(?!\w|\.\d)", text
         ) is not None
     if value is None or isinstance(value, bool):
         return json.dumps(value) in text.lower()
@@ -436,7 +472,7 @@ def _validate_source_bundle(
     record: object,
     package_status: str,
     findings: list[dict[str, str]],
-) -> set[str] | None:
+) -> tuple[set[str], dict[str, str], set[str]] | None:
     if not _check_file_ref(
         root,
         record,
@@ -462,8 +498,19 @@ def _validate_source_bundle(
         for claim in manifest.get("claims", [])
         if isinstance(claim, Mapping) and str(claim.get("id", "")).strip()
     }
+    source_artifacts = {
+        (manifest_path.parent / str(item["path"])).relative_to(root).as_posix(): str(item["sha256"]).lower()
+        for item in manifest.get("artifacts", [])
+        if str(item.get("kind")) not in REVIEW_RECEIPT_KINDS | REVIEW_PACKET_KINDS
+    }
+    source_trees = {
+        (manifest_path.parent / str(item["path"])).relative_to(root).as_posix()
+        for item in manifest.get("artifacts", [])
+        if item.get("artifact_type") == "directory-tree"
+        and str(item.get("kind")) not in REVIEW_RECEIPT_KINDS | REVIEW_PACKET_KINDS
+    }
     if package_status not in {"review-ready", "submission-ready"}:
-        return source_claim_ids
+        return source_claim_ids, source_artifacts, source_trees
     declared_review = manifest.get("review", {})
     if declared_review.get("status") != "passed":
         findings.append(
@@ -550,7 +597,7 @@ def _validate_source_bundle(
                 "Review-ready manuscript requires a passed independent source review receipt",
             )
         )
-        return source_claim_ids
+        return source_claim_ids, source_artifacts, source_trees
 
     source_hashes = {
         str(item["path"]): str(item["sha256"]).lower()
@@ -656,7 +703,7 @@ def _validate_source_bundle(
                 "Source review receipt does not cover every source artifact and claim",
             )
         )
-    return source_claim_ids
+    return source_claim_ids, source_artifacts, source_trees
 
 
 def _validate_submission_review(
@@ -867,7 +914,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
     source_manifest_record: object = None
     reporting_guideline = ""
     if contract is not None:
-        if contract.get("schema_version") != 1:
+        if type(contract.get("schema_version")) is not int or contract.get("schema_version") != 1:
             findings.append(_finding("contract-schema-invalid", "Unsupported manuscript contract schema"))
         manuscript_id = str(contract.get("manuscript_id", "")).strip()
         if not manuscript_id:
@@ -904,10 +951,22 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
             for field in sorted(DECLARATION_FIELDS):
                 record = declarations.get(field)
                 status = record.get("status") if isinstance(record, Mapping) else None
-                if status not in DECLARATION_STATUSES:
+                if not isinstance(status, str) or status not in DECLARATION_STATUSES:
                     findings.append(
                         _finding("declaration-status-invalid", f"Declaration {field} has invalid status")
                     )
+                elif status == "user-supplied":
+                    value = record.get("value")
+                    valid_value = (
+                        isinstance(value, list) and bool(value)
+                        and all(isinstance(item, str) and item.strip() for item in value)
+                    ) if field == "authors" else isinstance(value, str) and bool(value.strip())
+                    if not valid_value:
+                        findings.append(_finding(
+                            "declaration-value-invalid",
+                            f"User-supplied declaration {field} requires nonempty "
+                            + ("author names" if field == "authors" else "text"),
+                        ))
 
         if mode in {"revision", "rebuttal"}:
             if "prior_manuscript" not in contract:
@@ -918,36 +977,49 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                 )
                 findings.append(_finding(code, f"{mode} requires the exact prior manuscript identity"))
             else:
-                _check_file_ref(
+                if _check_file_ref(
                     root,
                     contract.get("prior_manuscript"),
                     findings,
                     code="prior-manuscript-mismatch",
                     label="prior manuscript",
-                )
+                ):
+                    _check_text_content(
+                        root, contract["prior_manuscript"]["path"], findings,
+                        code="prior-manuscript-mismatch", label="Prior manuscript",
+                    )
         if mode == "rebuttal":
             if "reviewer_comments" not in contract:
                 findings.append(
                     _finding("rebuttal-comments-required", "Rebuttal requires hashed reviewer comments")
                 )
             else:
-                _check_file_ref(
+                if _check_file_ref(
                     root,
                     contract.get("reviewer_comments"),
                     findings,
                     code="reviewer-comments-mismatch",
                     label="reviewer comments",
-                )
+                ):
+                    _check_text_content(
+                        root, contract["reviewer_comments"]["path"], findings,
+                        code="reviewer-comments-mismatch", label="Reviewer comments",
+                    )
             if not (root / "reviewer-response.md").is_file():
                 findings.append(
                     _finding("rebuttal-response-required", "Rebuttal requires reviewer-response.md")
+                )
+            else:
+                _check_text_content(
+                    root, "reviewer-response.md", findings,
+                    code="rebuttal-response-required", label="Rebuttal response",
                 )
 
     package_status = ""
     listed_paths: set[str] = set()
     submission_review: object = None
     if submission is not None:
-        if submission.get("schema_version") != 1:
+        if type(submission.get("schema_version")) is not int or submission.get("schema_version") != 1:
             findings.append(_finding("submission-schema-invalid", "Unsupported submission schema"))
         if manuscript_id and submission.get("manuscript_id") != manuscript_id:
             findings.append(_finding("manuscript-id-mismatch", "Submission manuscript_id does not match"))
@@ -999,12 +1071,13 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
         and (root / relative).resolve().is_relative_to(root)
     }
 
-    source_claim_ids = _validate_source_bundle(
+    source_bundle = _validate_source_bundle(
         root,
         source_manifest_record,
         package_status,
         findings,
     )
+    source_claim_ids, source_artifacts, source_trees = source_bundle if source_bundle is not None else (None, {}, set())
 
     if contract is not None and package_status in {"review-ready", "submission-ready"}:
         declarations = contract.get("declarations", {})
@@ -1025,7 +1098,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
     material_claim_ids: set[str] = set()
     claim_locators: set[str] = set()
     if trace is not None:
-        if trace.get("schema_version") != 1:
+        if type(trace.get("schema_version")) is not int or trace.get("schema_version") != 1:
             findings.append(_finding("trace-schema-invalid", "Unsupported claim-citation schema"))
         if manuscript_id and trace.get("manuscript_id") != manuscript_id:
             findings.append(_finding("manuscript-id-mismatch", "Trace manuscript_id does not match"))
@@ -1059,13 +1132,32 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                 findings.append(_finding("citation-persistent-id-missing", f"{citation_id} has no persistent ID"))
             if citation.get("verified") is not True:
                 findings.append(_finding("citation-unverified", f"{citation_id} is not verified"))
-            if not str(citation.get("verification_source", "")).strip():
+            verification_source = citation.get("verification_source")
+            if not isinstance(verification_source, str) or not verification_source.strip():
                 findings.append(
                     _finding(
                         "citation-verification-source-missing",
                         f"{citation_id} has no verification source",
                     )
                 )
+            else:
+                recorded_sources = dict(source_artifacts)
+                if source_bundle is not None and isinstance(source_manifest_record, Mapping):
+                    recorded_sources[PurePosixPath(source_manifest_record["path"]).as_posix()] = source_manifest_record["sha256"]
+                source_path = _relative_path(verification_source)
+                source_digest = current_hashes.get(PurePosixPath(source_path).as_posix()) if source_path else None
+                if not _matches_source_artifact(
+                    {"path": source_path, "sha256": source_digest}, recorded_sources, source_trees,
+                ):
+                    findings.append(_finding(
+                        "citation-verification-source-invalid",
+                        f"{citation_id} verification source is absent from recorded source evidence",
+                    ))
+                else:
+                    _check_file_ref(
+                        root, {"path": source_path, "sha256": source_digest}, findings,
+                        code="citation-verification-source-invalid", label=f"verification source for {citation_id}",
+                    )
 
         claims = trace.get("claims")
         if not isinstance(claims, list):
@@ -1082,8 +1174,9 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                 continue
             claim_ids.add(claim_id)
             status = claim.get("status")
-            if status not in CLAIM_STATUSES:
+            if not isinstance(status, str) or status not in CLAIM_STATUSES:
                 findings.append(_finding("claim-status-invalid", f"{claim_id} has invalid status"))
+                status = ""
             if not isinstance(claim.get("material"), bool):
                 findings.append(_finding("claim-material-invalid", f"{claim_id} material must be boolean"))
             material = claim.get("material") is True
@@ -1142,6 +1235,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                         f"{claim_id} exact text is absent from its manuscript locator",
                     )
                 )
+            numeric_evidence = False
             for evidence in evidence_refs:
                 valid_evidence = _check_file_ref(
                     root,
@@ -1151,16 +1245,22 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     label=f"evidence for {claim_id}",
                 )
                 if valid_evidence:
+                    if source_bundle is not None and not _matches_source_artifact(evidence, source_artifacts, source_trees):
+                        findings.append(_finding(
+                            "claim-evidence-unreviewed",
+                            f"Evidence for {claim_id} is absent from the source artifact inventory",
+                        ))
                     artifact_path = root / evidence["path"]
                     if artifact_path.suffix.lower() == ".json":
                         try:
                             evidence_locator = evidence.get("locator")
                             if not isinstance(evidence_locator, str):
                                 raise ValueError("JSON evidence locator must be a string")
-                            _resolve_json_pointer(
+                            resolved_evidence = _resolve_json_pointer(
                                 _read_json(artifact_path),
                                 evidence_locator,
                             )
+                            numeric_evidence |= type(resolved_evidence) in (int, float)
                         except (OSError, UnicodeDecodeError, ValueError) as error:
                             findings.append(_finding(
                                 "claim-evidence-locator-invalid",
@@ -1194,6 +1294,11 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
             if not isinstance(values, list):
                 findings.append(_finding("reported-values-invalid", f"{claim_id} values must be a list"))
                 continue
+            if material and numeric_evidence and not values:
+                findings.append(_finding(
+                    "reported-values-required",
+                    f"Material claim {claim_id} points to a numeric result but has no reported-value coverage",
+                ))
             for value in values:
                 if not isinstance(value, Mapping):
                     findings.append(_finding("reported-value-invalid", f"{claim_id} value record is invalid"))
@@ -1216,6 +1321,14 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
                     code="reported-value-evidence-mismatch",
                     label=f"reported value for {claim_id}",
                 )
+                if valid_evidence and source_bundle is not None and not _matches_source_artifact(
+                    {"path": value.get("artifact_path"), "sha256": value.get("artifact_sha256")},
+                    source_artifacts, source_trees,
+                ):
+                    findings.append(_finding(
+                        "reported-value-evidence-unreviewed",
+                        f"Reported value for {claim_id} is absent from the source artifact inventory",
+                    ))
                 locator_value = value.get("locator")
                 if not isinstance(locator_value, str):
                     findings.append(
@@ -1304,7 +1417,7 @@ def validate_manuscript_package(package: Path) -> dict[str, Any]:
 
     checklist_locators: set[str] = set()
     if checklist is not None:
-        if checklist.get("schema_version") != 1:
+        if type(checklist.get("schema_version")) is not int or checklist.get("schema_version") != 1:
             findings.append(_finding("checklist-schema-invalid", "Unsupported checklist schema"))
         if manuscript_id and checklist.get("manuscript_id") != manuscript_id:
             findings.append(_finding("manuscript-id-mismatch", "Checklist manuscript_id does not match"))

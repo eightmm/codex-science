@@ -136,6 +136,56 @@ class ManuscriptPackageTests(unittest.TestCase):
         result = validate_manuscript_package(self.package)
         self.assertEqual("passed", result["status"], result["findings"])
 
+    def record_source_artifact(self, relative: str) -> None:
+        manifest_name = "source/manifest.json"
+        manifest_path = self.package / manifest_name
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        source_relative = Path(relative).relative_to("source").as_posix()
+        manifest["artifacts"] = [
+            item for item in manifest["artifacts"]
+            if item["kind"] not in {"review-packet-v1", "review-receipt-v2"}
+            and item["path"] != source_relative
+        ]
+        artifact = self.package / relative
+        record = {
+            "path": source_relative, "kind": "fixture-result",
+            "sha256": describe_directory(artifact).root_sha256 if artifact.is_dir() else hashlib.sha256(artifact.read_bytes()).hexdigest(),
+        }
+        if artifact.is_dir():
+            record["artifact_type"] = "directory-tree"
+        manifest["artifacts"].append(record)
+        self.rewrite_json(manifest_name, manifest)
+        packet = build_review_packet(manifest_path, review_modes=["record", "source", "method"])
+        self.rewrite_json("source/review-packet.json", packet)
+        receipt = finalize_review_response(packet, {
+            "review_task_id": packet["review_task_id"], "packet_fingerprint": packet["fingerprint"],
+            "reviewer": "independent-test-reviewer", "independent": True,
+            "review_modes": packet["review_modes"], "reviewed_claim_ids": packet["material_claim_ids"],
+            "reviewed_artifacts": packet["artifacts"], "findings": [],
+            "limitations": ["Synthetic review; no scientific peer review."], "status": "passed",
+        })
+        self.rewrite_json("source/review-receipt.json", receipt)
+        for name, kind in (("review-packet.json", "review-packet-v1"), ("review-receipt.json", "review-receipt-v2")):
+            manifest["artifacts"].append({
+                "path": name, "kind": kind,
+                "sha256": hashlib.sha256((self.package / "source" / name).read_bytes()).hexdigest(),
+            })
+        self.rewrite_json(manifest_name, manifest)
+        contract = json.loads((self.package / "manuscript-contract.json").read_text())
+        contract["source_manifest"]["sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        self.rewrite_json("manuscript-contract.json", contract)
+        self.refresh_package_files()
+
+    def refresh_package_files(self) -> None:
+        submission = json.loads((self.package / "submission-package.json").read_text())
+        submission["files"] = [
+            {"path": path.relative_to(self.package).as_posix(), "kind": "manuscript-package-file",
+             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            for path in sorted(self.package.rglob("*"))
+            if path.is_file() and path.relative_to(self.package).as_posix() != "submission-package.json"
+        ]
+        self.rewrite_json("submission-package.json", submission)
+
     def make_submission_ready(
         self,
         *,
@@ -215,6 +265,286 @@ class ManuscriptPackageTests(unittest.TestCase):
             {"1.2", "2.5 response units", "3.8 response units"},
             {item["text"] for item in trace["claims"][0]["reported_values"]},
         )
+
+    def test_unreviewed_artifacts_cannot_replace_reviewed_results(self) -> None:
+        name = "claim-citation-map.json"
+        original = json.loads((self.package / name).read_text())
+        self.rewrite_json("source/unreviewed.json", {
+            "estimate": 999, "unit": "response units", "interval": [1.2, 3.8],
+        })
+        digest = hashlib.sha256((self.package / "source/unreviewed.json").read_bytes()).hexdigest()
+        self.edit_manuscript("2.5 response units", "999 response units")
+        for redirect_claim, redirect_values in ((True, True), (False, True), (True, False)):
+            with self.subTest(claim=redirect_claim, values=redirect_values):
+                trace = deepcopy(original)
+                claim = trace["claims"][0]
+                claim["text"] = claim["text"].replace("2.5", "999")
+                if redirect_claim:
+                    claim["evidence_refs"][0].update(path="source/unreviewed.json", sha256=digest)
+                if redirect_values:
+                    for value in claim["reported_values"]:
+                        value.update(artifact_path="source/unreviewed.json", artifact_sha256=digest)
+                        value["text"] = value["text"].replace("2.5", "999")
+                self.rewrite_json(name, trace)
+                self.refresh_package_files()
+                codes = self.findings()
+                if redirect_claim:
+                    self.assertIn("claim-evidence-unreviewed", codes)
+                if redirect_values:
+                    self.assertIn("reported-value-evidence-unreviewed", codes)
+                self.assertNotIn("submission-file-mismatch", codes)
+                self.assertNotIn("source-review-packet-stale", codes)
+        self.rewrite_json(name, original)
+        self.edit_manuscript("999 response units", "2.5 response units")
+        self.refresh_package_files()
+        self.assert_package_passes()
+        original["claims"][0]["evidence_refs"][0]["path"] = "./source//result.json"
+        self.rewrite_json(name, original)
+        self.refresh_submission_hash(name)
+        self.assert_package_passes()
+
+        tree = self.package / "source" / "results"
+        tree.mkdir()
+        self.record_source_artifact("source/results")
+        self.assert_package_passes()
+        member = tree / "table.json"
+        member.write_bytes((self.package / "source/result.json").read_bytes())
+        (tree / "reference.txt").write_text("Recorded source evidence.\n", encoding="utf-8")
+        self.record_source_artifact("source/results")
+        digest = hashlib.sha256(member.read_bytes()).hexdigest()
+        for claim in original["claims"]:
+            for evidence in claim["evidence_refs"]:
+                evidence.update(path="source/results/table.json", sha256=digest)
+            for value in claim["reported_values"]:
+                value.update(artifact_path="source/results/table.json", artifact_sha256=digest)
+        original["citations"][0]["verification_source"] = "./source/results//reference.txt"
+        self.rewrite_json(name, original)
+        self.refresh_submission_hash(name)
+        self.assert_package_passes()
+        original["claims"][0]["evidence_refs"][0]["path"] = "./source/results//table.json"
+        self.rewrite_json(name, original)
+        self.refresh_submission_hash(name)
+        self.assert_package_passes()
+        for relative in ("source/results-other.json", "source/unreviewed.json"):
+            with self.subTest(outside_tree=relative):
+                (self.package / relative).write_bytes(member.read_bytes())
+                trace = deepcopy(original)
+                trace["claims"][0]["evidence_refs"][0]["path"] = relative
+                trace["claims"][0]["reported_values"][0]["artifact_path"] = relative
+                trace["citations"][0]["verification_source"] = relative
+                self.rewrite_json(name, trace)
+                self.refresh_package_files()
+                self.assertTrue({"claim-evidence-unreviewed", "reported-value-evidence-unreviewed", "citation-verification-source-invalid"} <= self.findings())
+        self.rewrite_json(name, original)
+        self.refresh_submission_hash(name)
+        (tree / "reference.txt").write_text("Changed after review.\n", encoding="utf-8")
+        self.refresh_submission_hash("source/results/reference.txt")
+        self.assertIn("source-manifest-invalid", self.findings())
+        (tree / "reference.txt").write_text("Recorded source evidence.\n", encoding="utf-8")
+        self.refresh_submission_hash("source/results/reference.txt")
+        self.assert_package_passes()
+        member.unlink()
+        member.symlink_to(self.package / "source/result.json")
+        self.refresh_submission_hash("source/results/table.json")
+        self.assertIn("source-manifest-invalid", self.findings())
+
+    def test_string_reported_values_preserve_numeric_sign(self) -> None:
+        name = "claim-citation-map.json"
+        original_trace = json.loads((self.package / name).read_text())
+        original_text = (self.package / "manuscript.md").read_text()
+        for sign in ("-", "\N{MINUS SIGN}"):
+            with self.subTest(sign=sign):
+                trace = deepcopy(original_trace)
+                trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5 response", sign + "2.5 response")
+                self.rewrite_json(name, trace)
+                (self.package / "manuscript.md").write_text(original_text.replace("2.5 response", sign + "2.5 response"))
+                self.refresh_package_files()
+                self.assertIn("reported-value-not-in-manuscript", self.findings())
+                self.assertFalse(_scalar_appears_in_text("-2.5 response units", "2.5 response units"))
+        for text in ("2.5 response units", "+2.5 response units", "(2.5 response units)", "[1.2, 2.5 response units]", "1.2–2.5 response units", "1.2-2.5 response units"):
+            with self.subTest(text=text):
+                self.assertTrue(_scalar_appears_in_text("2.5 response units", text))
+        self.assertTrue(_scalar_appears_in_text("-2.5 response units", "(−2.5 response units)"))
+        self.assertTrue(_scalar_appears_in_text("-2.5 response units", "-3.8--2.5 response units"))
+        self.rewrite_json(name, original_trace)
+        (self.package / "manuscript.md").write_text(original_text)
+        self.refresh_package_files()
+        self.assert_package_passes()
+
+    def test_material_numeric_evidence_requires_reported_value_coverage(self) -> None:
+        name = "claim-citation-map.json"
+        original = json.loads((self.package / name).read_text())
+        trace = deepcopy(original)
+        trace["claims"][0]["reported_values"] = []
+        trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5", "999")
+        self.edit_manuscript("2.5 response units", "999 response units")
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assertIn("reported-values-required", self.findings())
+        trace["claims"][0].pop("reported_values")
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assertIn("reported-values-required", self.findings())
+        self.edit_manuscript("999 response units", "2.5 response units")
+        for material, locator, required in ((True, "/estimate", True), (False, "/estimate", False), (True, "/validation_method", False), (True, "/limitations/0", False)):
+            with self.subTest(material=material, locator=locator):
+                trace = deepcopy(original)
+                trace["claims"][0].update(material=material, reported_values=[])
+                trace["claims"][0]["evidence_refs"][0]["locator"] = locator
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assertEqual(required, "reported-values-required" in self.findings())
+                if not required:
+                    self.assert_package_passes()
+        result = json.loads((self.package / "source/result.json").read_text())
+        result["estimate"] = 0
+        self.rewrite_json("source/result.json", result)
+        self.record_source_artifact("source/result.json")
+        trace["claims"][0]["evidence_refs"][0].update(
+            locator="/estimate", sha256=hashlib.sha256((self.package / "source/result.json").read_bytes()).hexdigest(),
+        )
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assertIn("reported-values-required", self.findings())
+
+    def test_citation_verification_requires_recorded_source(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text())
+        citation = trace["citations"][0]
+        citation["verification_source"] = "./source//manifest.json"
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assert_package_passes()
+        citation.update(persistent_id="DOES-NOT-EXIST", verification_source="source/does-not-exist.json")
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        result = self.run_validator_cli("--require-clean")
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("citation-verification-source-invalid", result.stdout)
+        citation["verification_source"] = "source/manifest.json"
+        self.rewrite_json(name, trace)
+        self.refresh_submission_hash(name)
+        self.assert_package_passes()
+        for relative, content in (("source/reference.json", b"{}"), ("source/reference.txt", b"Recorded evidence.\n"), ("source/reference.pdf", b"%PDF-fixture"), ("source/empty.txt", b"")):
+            with self.subTest(file=relative):
+                (self.package / relative).write_bytes(content)
+                self.record_source_artifact(relative)
+                citation["verification_source"] = relative
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assert_package_passes()
+        unlisted = self.package / "unreviewed.txt"
+        unlisted.write_text("Package file outside the source inventory.\n", encoding="utf-8")
+        self.refresh_package_files()
+        for relative in ("unreviewed.txt", "../outside.txt", "source/missing.txt", "https://example.invalid/reference", "source"):
+            with self.subTest(file=relative):
+                citation["verification_source"] = relative
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assertIn("citation-verification-source-invalid", self.findings())
+        for relative in ("", 0, None, [], {}):
+            with self.subTest(malformed=relative):
+                citation["verification_source"] = relative
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                self.assertIn("citation-verification-source-missing", self.findings())
+
+    def test_user_supplied_declarations_require_typed_nonempty_values(self) -> None:
+        name = "manuscript-contract.json"
+        original = json.loads((self.package / name).read_text())
+        contract = deepcopy(original)
+        contract["declarations"] = {field: {"status": "user-supplied"} for field in original["declarations"]}
+        self.rewrite_json(name, contract)
+        self.refresh_submission_hash(name)
+        self.assertEqual(6, len(self.messages("declaration-value-invalid")))
+        for field in original["declarations"]:
+            invalid_values = (None, "", " ", 0, True, {}, [], [""])
+            invalid_values += ("Fixture Author",) if field == "authors" else (["Fixture declaration."],)
+            for value in invalid_values:
+                with self.subTest(field=field, value=value):
+                    contract = deepcopy(original)
+                    contract["declarations"][field] = {"status": "user-supplied", "value": value}
+                    self.rewrite_json(name, contract)
+                    self.refresh_submission_hash(name)
+                    self.assertIn("declaration-value-invalid", self.findings())
+            contract["declarations"][field]["value"] = ["Fixture Author"] if field == "authors" else "Fixture declaration."
+            self.rewrite_json(name, contract)
+            self.refresh_submission_hash(name)
+            self.assert_package_passes()
+        for status in ([], {}, None, 0):
+            with self.subTest(status=status):
+                contract = deepcopy(original)
+                contract["declarations"]["authors"]["status"] = status
+                self.rewrite_json(name, contract)
+                self.refresh_submission_hash(name)
+                self.assertIn("declaration-status-invalid", self.findings())
+
+    def test_rebuttal_snapshots_and_response_require_readable_content(self) -> None:
+        name = "manuscript-contract.json"
+        contract = json.loads((self.package / name).read_text())
+        contract["mode"] = "rebuttal"
+        records = (("prior_manuscript", "prior.md", "prior-manuscript-mismatch"), ("reviewer_comments", "comments.md", "reviewer-comments-mismatch"), (None, "reviewer-response.md", "rebuttal-response-required"))
+        for field, relative, _ in records:
+            (self.package / relative).write_bytes(b"")
+            if field is not None:
+                contract[field] = {"path": relative, "sha256": hashlib.sha256(b"").hexdigest()}
+        self.rewrite_json(name, contract)
+        self.refresh_package_files()
+        self.assertTrue({code for _, _, code in records} <= self.findings())
+        for _, relative, code in records:
+            for content in (b"", b" \n", b"\xff"):
+                with self.subTest(file=relative, content=content):
+                    for field, other, _ in records:
+                        data = content if other == relative else b"Fixture text.\n"
+                        (self.package / other).write_bytes(data)
+                        if field is not None:
+                            contract[field]["sha256"] = hashlib.sha256(data).hexdigest()
+                    self.rewrite_json(name, contract)
+                    self.refresh_package_files()
+                    self.assertEqual({code}, self.findings())
+        for field, relative, _ in records:
+            (self.package / relative).write_bytes(b"x")
+            if field is not None:
+                contract[field]["sha256"] = hashlib.sha256(b"x").hexdigest()
+        self.rewrite_json(name, contract)
+        self.refresh_package_files()
+        self.assert_package_passes()
+        contract["mode"] = "revision"
+        (self.package / "prior.md").write_bytes(b"")
+        contract["prior_manuscript"]["sha256"] = hashlib.sha256(b"").hexdigest()
+        self.rewrite_json(name, contract)
+        self.refresh_package_files()
+        self.assertEqual({"prior-manuscript-mismatch"}, self.findings())
+
+    def test_malformed_claim_status_is_a_structured_cli_finding(self) -> None:
+        name = "claim-citation-map.json"
+        trace = json.loads((self.package / name).read_text())
+        for status in ([], {}, None, 0, True, ""):
+            with self.subTest(status=status):
+                trace["claims"][0]["status"] = status
+                self.rewrite_json(name, trace)
+                self.refresh_submission_hash(name)
+                result = self.run_validator_cli("--require-clean")
+                self.assertEqual(1, result.returncode)
+                self.assertTrue(result.stdout, result.stderr)
+                self.assertIn("claim-status-invalid", {item["code"] for item in json.loads(result.stdout)["findings"]})
+                self.assertEqual("", result.stderr)
+
+    def test_root_schema_versions_require_integer_one(self) -> None:
+        for name, code in (("manuscript-contract.json", "contract-schema-invalid"), ("claim-citation-map.json", "trace-schema-invalid"), ("reporting-checklist.json", "checklist-schema-invalid"), ("submission-package.json", "submission-schema-invalid")):
+            original = json.loads((self.package / name).read_text())
+            for version in (True, False, 1.0, "1", 0, None, []):
+                with self.subTest(file=name, version=version):
+                    payload = deepcopy(original)
+                    payload["schema_version"] = version
+                    self.rewrite_json(name, payload)
+                    if name != "submission-package.json":
+                        self.refresh_submission_hash(name)
+                    self.assertIn(code, self.findings())
+            self.rewrite_json(name, original)
+            if name != "submission-package.json":
+                self.refresh_submission_hash(name)
+            self.assert_package_passes()
 
     def test_relative_path_rejects_empty_absolute_and_parent_paths(self) -> None:
         self.assertEqual("source/result.json", _relative_path("source/result.json"))
@@ -414,10 +744,11 @@ class ManuscriptPackageTests(unittest.TestCase):
                     self.assertEqual("passed", result["status"], result["findings"])
 
     def test_reported_source_units_accept_attached_symbols(self) -> None:
-        artifact = self.package / "reported-unit.json"
+        relative_artifact = "source/reported-unit.json"
+        artifact = self.package / relative_artifact
         artifact.write_text("{}", encoding="utf-8")
         submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
-        submission["files"].append({"path": artifact.name, "kind": "manuscript-package-file",
+        submission["files"].append({"path": relative_artifact, "kind": "manuscript-package-file",
                                     "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()})
         self.rewrite_json("submission-package.json", submission)
         name = "claim-citation-map.json"
@@ -437,17 +768,20 @@ class ManuscriptPackageTests(unittest.TestCase):
             (2.5, "Å", "2.5Å", True), (2.5, "", "2.5", False),
         ):
             with self.subTest(unit=unit, text=text):
-                self.rewrite_json(artifact.name, {"estimate": estimate, "unit": unit})
+                self.rewrite_json(relative_artifact, {"estimate": estimate, "unit": unit})
                 trace = json.loads(original_trace)
                 trace["claims"][0]["reported_values"][0].update(
-                    artifact_path=artifact.name, artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                    artifact_path=relative_artifact, artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
                     locator="/estimate", text=text,
                 )
                 trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5 response units", text)
                 manuscript.write_text(original_text.replace("2.5 response units", text), encoding="utf-8")
                 self.rewrite_json(name, trace)
-                for relative in (artifact.name, name, manuscript.name):
+                for relative in (relative_artifact, name, manuscript.name):
                     self.refresh_submission_hash(relative)
+                if estimate == 2.5 and unit == "%" and text == "2.5%":
+                    self.assertIn("reported-value-evidence-unreviewed", self.findings())
+                self.record_source_artifact(relative_artifact)
                 result = validate_manuscript_package(self.package)
                 if mismatch:
                     self.assertIn("reported-value-unit-mismatch", {item["code"] for item in result["findings"]})
@@ -455,11 +789,12 @@ class ManuscriptPackageTests(unittest.TestCase):
                     self.assertEqual("passed", result["status"], result["findings"])
 
     def test_reported_source_unit_applies_only_to_measurement_values(self) -> None:
-        artifact = self.package / "reported-unit-scope.json"
+        relative_artifact = "source/reported-unit-scope.json"
+        artifact = self.package / relative_artifact
         artifact.write_text("{}", encoding="utf-8")
         submission = json.loads((self.package / "submission-package.json").read_text(encoding="utf-8"))
         submission["files"].append({
-            "path": artifact.name, "kind": "manuscript-package-file",
+            "path": relative_artifact, "kind": "manuscript-package-file",
             "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
         })
         self.rewrite_json("submission-package.json", submission)
@@ -487,18 +822,21 @@ class ManuscriptPackageTests(unittest.TestCase):
             cases.append(({"statistic": 2.5, "unit": unit}, "/statistic", "2.5", False))
         for payload, locator, text, mismatch in cases:
             with self.subTest(payload=payload, locator=locator, text=text):
-                self.rewrite_json(artifact.name, payload)
+                self.rewrite_json(relative_artifact, payload)
                 trace = json.loads(original_trace)
                 trace["claims"][0]["reported_values"][0].update(
-                    artifact_path=artifact.name,
+                    artifact_path=relative_artifact,
                     artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
                     locator=locator, text=text,
                 )
                 trace["claims"][0]["text"] = trace["claims"][0]["text"].replace("2.5 response units", text)
                 manuscript.write_text(original_text.replace("2.5 response units", text), encoding="utf-8")
                 self.rewrite_json(name, trace)
-                for relative in (artifact.name, name, manuscript.name):
+                for relative in (relative_artifact, name, manuscript.name):
                     self.refresh_submission_hash(relative)
+                if (payload, locator, text, mismatch) == cases[0]:
+                    self.assertIn("reported-value-evidence-unreviewed", self.findings())
+                self.record_source_artifact(relative_artifact)
                 result = validate_manuscript_package(self.package)
                 if mismatch:
                     self.assertIn("reported-value-unit-mismatch", {item["code"] for item in result["findings"]})
@@ -736,6 +1074,8 @@ class ManuscriptPackageTests(unittest.TestCase):
         )
         self.rewrite_json(submission_path.name, submission)
 
+        self.assertIn("reported-value-evidence-unreviewed", self.findings())
+        self.record_source_artifact("source/root-value.json")
         result = validate_manuscript_package(self.package)
         self.assertEqual("passed", result["status"], result["findings"])
 

@@ -21,10 +21,23 @@ Every citation ID attributed to a claim must also appear as an `@citation-id`
 anchor inside that same claim-marker segment, and each citation record must list
 the claim ID in its string-valued `supports_claim_ids` array.
 
+Evidence paths must name files in the reviewed source inventory: either a listed
+file artifact or a file contained in a listed `directory-tree` artifact. File
+references carry the individual file's SHA-256; a tree's recorded digest covers
+its members. Add new or changed evidence to the source manifest and regenerate
+its review packet and receipt before marking the package ready for review.
+
 ## Citation records
 
 Record one citation ID, persistent identifier, title, source type, verification
 source, verified status, and the exact manuscript claim IDs it supports.
+
+`verification_source` must be a package-relative path to an existing file in
+that source inventory, or to the recorded source manifest itself. Any file type
+is accepted; the validator does not require the persistent identifier to appear
+inside the file. A service name or remote URL alone is not a recorded source.
+File identity and inventory coverage do not establish correct attribution or
+support; review those independently.
 
 Resolve the original source. A relevant title, search result, review article, or
 portal duplicate does not establish support for the attributed statement.
@@ -54,8 +67,12 @@ For JSON artifacts, use an RFC 6901 pointer that resolves to one scalar. The
 validator checks that scalar against the reported text, accepting equivalent
 numeric formatting such as `2.5` and `2.50`. Point percentages, unit conversions,
 rounding, and derived values to a derivation artifact that records the displayed
-value. Non-JSON locators remain hash-checked but require independent semantic
-review.
+value. Reported-value and derivation paths must follow the same reviewed source
+inventory rule as claim evidence, including membership under a listed directory
+tree. Non-JSON locators remain hash-checked but require independent semantic
+review. A material claim whose JSON evidence pointer resolves to an integer or
+float requires a nonempty `reported_values` list; non-numeric claims do not.
+Complete semantic coverage still requires independent review.
 
 ## Failure handling
 

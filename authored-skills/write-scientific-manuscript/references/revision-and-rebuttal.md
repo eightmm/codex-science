@@ -6,6 +6,12 @@ Before editing, copy the exact submitted manuscript and record its package path
 and SHA-256 in `prior_manuscript`. For rebuttal, also preserve the complete
 editor and reviewer comments with a path and SHA-256.
 
+Prior-manuscript and reviewer-comment snapshots must be readable, non-empty
+UTF-8 text; a matching hash of an empty file does not establish their identity.
+Rebuttal also requires non-empty UTF-8 text in `reviewer-response.md`. These
+checks do not establish complete point-by-point coverage, which requires
+independent review.
+
 Do not rely on an editable cloud view, remembered wording, or comments pasted
 without reviewer labels and numbering. Stop if comment order or manuscript
 version is ambiguous.
