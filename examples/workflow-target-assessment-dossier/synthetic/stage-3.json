@@ -1,0 +1,45 @@
+{
+  "schema": "target-assessment-stage-v1",
+  "id": "stage-03",
+  "synthetic": true,
+  "inputs": [
+    {
+      "path": "snapshots.json",
+      "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+    },
+    {
+      "path": "stage-2.json",
+      "sha256": "7f84135dc7312c5764a4cbaa10e5bd796851cdb6c2f6de52ae90f617902abbde"
+    }
+  ],
+  "data": {
+    "source_ids": [
+      "expression",
+      "hpa",
+      "gtex"
+    ],
+    "observations": [
+      {
+        "source_id": "expression",
+        "record_ids": [
+          "expression-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "hpa",
+        "record_ids": [
+          "hpa-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "gtex",
+        "record_ids": [
+          "gtex-1"
+        ],
+        "status": "recorded"
+      }
+    ]
+  }
+}

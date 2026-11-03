@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solid-State Screening Workflow"
+  short_description: "Screen models with controls and uncertainty"
+  default_prompt: "Use $workflow-solid-state-screening to screen a supplied solid-state model with analytic controls, full convergence, uncertainty, sensitivity, and independent review."

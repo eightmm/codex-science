@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-solid-state-screening",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "screening-stages",
+      "path": "references/stages.md",
+      "purpose": "Define the fixed stages, pack-local schemas, analytic control, CPU envelope, refusals and review boundary.",
+      "read_when": ["normalizing or validating a screening bundle", "scoring or interpreting a candidate"],
+      "required_before": ["screening-normalization", "screening-control", "screening-refinement", "screening-ranking", "screening-handoff"],
+      "search_patterns": ["## Ordered stages", "## Pack-local schemas", "## Refusals and retained evidence", "## Concurrency and interruption"],
+      "authority": "Codex Science first-party workflow contract",
+      "version": "1",
+      "evidence_boundary": "Synthetic tight-binding fixtures validate workflow behavior, not materials-property accuracy or experimental agreement."
+    },
+    {
+      "id": "screening-plan",
+      "path": "references/plan.json",
+      "purpose": "Supply the existing manifest plan step shape and ordered stage IDs for one coordinator checkpoint.",
+      "read_when": ["starting a screening run or checkpoint"],
+      "required_before": ["screening-plan-authoring"],
+      "search_patterns": ["plan", "stage-1", "stage-5"],
+      "authority": "Codex Science existing manifest plan contract",
+      "version": "1",
+      "evidence_boundary": "A plan records intended steps and gives no execution approval or evidence of completion."
+    }
+  ]
+}

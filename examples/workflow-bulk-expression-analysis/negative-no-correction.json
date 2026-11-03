@@ -1,0 +1,211 @@
+{
+  "analysis_spec": {
+    "alpha": 0.05,
+    "contrast": [
+      "control",
+      "treated"
+    ],
+    "correction": "none",
+    "correction_genes": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15",
+      "G16",
+      "G17",
+      "G18",
+      "G19",
+      "G20"
+    ],
+    "enrichment_alpha": 0.05,
+    "enrichment_background": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15",
+      "G16",
+      "G17",
+      "G18",
+      "G19",
+      "G20"
+    ],
+    "minimum_replicates": 3,
+    "model": "welch-log2-cpm",
+    "qc": {
+      "max_log_library_deviation": 2,
+      "min_detected_genes": 10,
+      "min_library_size": 1000
+    }
+  },
+  "claims": [
+    {
+      "evidence_basis": "statistical",
+      "id": "fixture-association",
+      "kind": "associational",
+      "status": "suggestive",
+      "text": "Synthetic fixture planted genes are associated with the declared condition."
+    }
+  ],
+  "design": {
+    "annotation_version": "fixture-annotation-v1",
+    "genome_version": "fixture-genome-v1",
+    "identifier_namespace": "fixture-gene",
+    "organism": "synthetic-organism",
+    "samples": [
+      {
+        "batch": "batch-0",
+        "condition": "control",
+        "covariates": {},
+        "id": "S1"
+      },
+      {
+        "batch": "batch-1",
+        "condition": "control",
+        "covariates": {},
+        "id": "S2"
+      },
+      {
+        "batch": "batch-0",
+        "condition": "control",
+        "covariates": {},
+        "id": "S3"
+      },
+      {
+        "batch": "batch-1",
+        "condition": "control",
+        "covariates": {},
+        "id": "S4"
+      },
+      {
+        "batch": "batch-0",
+        "condition": "treated",
+        "covariates": {},
+        "id": "S5"
+      },
+      {
+        "batch": "batch-1",
+        "condition": "treated",
+        "covariates": {},
+        "id": "S6"
+      },
+      {
+        "batch": "batch-0",
+        "condition": "treated",
+        "covariates": {},
+        "id": "S7"
+      },
+      {
+        "batch": "batch-1",
+        "condition": "treated",
+        "covariates": {},
+        "id": "S8"
+      }
+    ]
+  },
+  "exploratory": false,
+  "fixture": true,
+  "freeze_before_testing": true,
+  "frozen_sha256": "39d98db9cb535ae441c7d1b5cf5b9de8dd992c0cd5ce9ade9032ecec96396473",
+  "frozen_spec": {
+    "alpha": 0.05,
+    "contrast": [
+      "control",
+      "treated"
+    ],
+    "correction": "BH",
+    "correction_genes": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15",
+      "G16",
+      "G17",
+      "G18",
+      "G19",
+      "G20"
+    ],
+    "enrichment_alpha": 0.05,
+    "enrichment_background": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15",
+      "G16",
+      "G17",
+      "G18",
+      "G19",
+      "G20"
+    ],
+    "minimum_replicates": 3,
+    "model": "welch-log2-cpm",
+    "qc": {
+      "max_log_library_deviation": 2,
+      "min_detected_genes": 10,
+      "min_library_size": 1000
+    }
+  },
+  "inputs": {
+    "expression": {
+      "path": "counts.json",
+      "sha256": "31afbe08f2938d9170b8887a0d28e9a7ebf0f6f4c12423187b467ecb84cf1ec9"
+    },
+    "gene_sets": {
+      "path": "gene-sets.json",
+      "sha256": "c3e727643bc89eb5e6d7103201794c90860954479a9b8b8149609023c09490c4"
+    }
+  },
+  "removed_samples": [],
+  "schema": "bulk-expression-pack-v1",
+  "stages": [
+    "01-design",
+    "02-qc",
+    "03-freeze",
+    "04-testing",
+    "05-enrichment",
+    "06-handoff"
+  ]
+}

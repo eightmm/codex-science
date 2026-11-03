@@ -1,0 +1,50 @@
+{
+  "deviations": [],
+  "inputs": {
+    "analysis_plan": {
+      "path": "analysis-plan.json",
+      "sha256": "721a5dadbb5a0ef1e91c59d2f25ae24770ef7767a3adf9f44f6edd77b6e2ccfe"
+    },
+    "controls": {
+      "path": "controls.json",
+      "sha256": "5aac28aea108c06c557cfb5d0896f2b73d990acb8ee00219b2c3de637b8a3993"
+    },
+    "handoff": {
+      "path": "handoff.json",
+      "sha256": "9a80c767a6c610e613eaea7aef3e16059c7cd3c866ce91d494237233f2d63798"
+    },
+    "power": {
+      "path": "power.json",
+      "sha256": "ebad2e92072f4d8961dc4e4fd7bd177fec803d9a30234c114d0846541ecff49c"
+    },
+    "question": {
+      "path": "question.json",
+      "sha256": "b5d5157361b40ef019b118a3efff2925b2c22ea4f5f0a5a1b46f50453f7bfce2"
+    },
+    "randomisation": {
+      "path": "randomisation.json",
+      "sha256": "b5ace01a882d3251cf1787cea8c81d53dfd67c35b56f5c47ac8452ce33a6ebcd"
+    }
+  },
+  "limitations": [
+    "Synthetic fixtures do not validate real studies.",
+    "Hashes and declared timestamps do not authenticate preregistration or review.",
+    "Power uses a two-group normal approximation with externally justified effect and variance; sequential operating characteristics need specialist review."
+  ],
+  "mode": "preregister",
+  "power": {
+    "achieved_power": 0.9912824015542887,
+    "planned_cost": 240,
+    "planned_units": 120
+  },
+  "schema": "experiment-design-validation-v1",
+  "stage_ids": [
+    "01-question",
+    "02-power",
+    "03-randomisation",
+    "04-analysis-plan",
+    "05-controls",
+    "06-review-handoff"
+  ],
+  "status": "ready-for-independent-review"
+}

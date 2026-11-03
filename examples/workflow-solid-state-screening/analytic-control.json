@@ -1,0 +1,27 @@
+{
+  "data": {
+    "expected": [
+      -1.0,
+      1.0
+    ],
+    "observed": [
+      -1.0,
+      1.0
+    ],
+    "ran": true,
+    "sites": 2
+  },
+  "inputs": [
+    {
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9"
+    },
+    {
+      "path": "normalized.json",
+      "sha256": "28447a239a6a7ecf5da4ac6ebefc7cfb7ec6288b98353dbfd17fb45e9ffdd859"
+    }
+  ],
+  "schema": "solid-state-screening-stage-v1",
+  "stage_id": "stage-2",
+  "synthetic": true
+}

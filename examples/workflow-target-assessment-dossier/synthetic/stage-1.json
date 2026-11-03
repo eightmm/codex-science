@@ -1,0 +1,36 @@
+{
+  "schema": "target-assessment-stage-v1",
+  "id": "stage-01",
+  "synthetic": true,
+  "inputs": [
+    {
+      "path": "snapshots.json",
+      "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+    }
+  ],
+  "data": {
+    "source_ids": [
+      "normalization"
+    ],
+    "observations": [
+      {
+        "source_id": "normalization",
+        "record_ids": [
+          "normalization-1"
+        ],
+        "status": "recorded"
+      }
+    ],
+    "target": {
+      "uniprot": "SYNTHETIC-UNIPROT-A",
+      "ensembl": "SYNTHETIC-ENSEMBL-A",
+      "hgnc": "SYNTHETIC-HGNC-A",
+      "species": "synthetic-species-A",
+      "isoform": "synthetic-isoform-A",
+      "indication_id": "SYNTHETIC-DISEASE-A"
+    },
+    "rejected_alternatives": [
+      "Synthetic isoform B excluded by the frozen identity."
+    ]
+  }
+}

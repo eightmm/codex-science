@@ -1,0 +1,31 @@
+{
+  "boundaries": [
+    "Evidence only; no diagnosis or clinical recommendation.",
+    "Association is never causality.",
+    "Numerical agreement is never physical or clinical validity.",
+    "Absence of a record is unavailable, never negative evidence.",
+    "Review approval is never truth; preserve failed controls and negative results."
+  ],
+  "bounded_claims": {
+    "path": "bounded-claims.json",
+    "sha256": "7c12630138f0bbadb0256205ef3c97edd25b8cb01293d04e0452672d3ad082f4"
+  },
+  "evidence_table": {
+    "path": "evidence-table.json",
+    "sha256": "77942e7a253fd99fda1402b219f09b7140f809338a2827a1faa1f892f97c357c"
+  },
+  "fixture": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+  "identity_ledger": {
+    "path": "identity-ledger.json",
+    "sha256": "9e41822b8f8a20e92a026021e51036f080bfd018f3ad265b054dafdc502d4e9d"
+  },
+  "review_status": "unreviewed",
+  "schema": "variant-dossier-v1",
+  "stage_ids": [
+    "01-normalize",
+    "02-retrieve",
+    "03-reconcile",
+    "04-bound-claims",
+    "05-review-handoff"
+  ]
+}

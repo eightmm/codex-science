@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "goal": "Synthetic fixture: assess the invented target and indication.",
+  "deliverable": "Synthetic unreviewed target assessment memo",
+  "done_criteria": [
+    "Recorded handoffs validate",
+    "Independent review remains pending"
+  ],
+  "steps": [
+    {
+      "id": "stage-01",
+      "title": "Synthetic stage 1",
+      "status": "completed"
+    },
+    {
+      "id": "stage-02",
+      "title": "Synthetic stage 2",
+      "status": "completed"
+    },
+    {
+      "id": "stage-03",
+      "title": "Synthetic stage 3",
+      "status": "completed"
+    },
+    {
+      "id": "stage-04",
+      "title": "Synthetic stage 4",
+      "status": "completed"
+    },
+    {
+      "id": "stage-05",
+      "title": "Synthetic stage 5",
+      "status": "completed"
+    },
+    {
+      "id": "stage-06",
+      "title": "Synthetic stage 6",
+      "status": "in_progress"
+    }
+  ],
+  "state": "active",
+  "current_step": "stage-06",
+  "next_action": "Coordinator hands off to independent review.",
+  "attempts": [],
+  "pending_decisions": [],
+  "blocker": "",
+  "updated_at": "2026-01-01T00:00:00Z"
+}

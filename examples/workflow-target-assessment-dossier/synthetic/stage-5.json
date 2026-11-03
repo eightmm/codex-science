@@ -1,0 +1,65 @@
+{
+  "schema": "target-assessment-stage-v1",
+  "id": "stage-05",
+  "synthetic": true,
+  "inputs": [
+    {
+      "path": "snapshots.json",
+      "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+    },
+    {
+      "path": "stage-4.json",
+      "sha256": "4ed8f0d0e664c9eb7088c7051748076b5cdc33c82eaa9ca3f54d94accf872c64"
+    }
+  ],
+  "data": {
+    "source_ids": [
+      "fda",
+      "trials",
+      "pharmacology",
+      "indication"
+    ],
+    "observations": [
+      {
+        "source_id": "fda",
+        "record_ids": [
+          "fda-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "trials",
+        "record_ids": [
+          "trials-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "pharmacology",
+        "record_ids": [
+          "pharmacology-1",
+          "pharmacology-negative",
+          "pharmacology-failed"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "indication",
+        "record_ids": [
+          "indication-1"
+        ],
+        "status": "recorded"
+      }
+    ],
+    "liabilities": [
+      {
+        "id": "synthetic-control-liability",
+        "severity": "major",
+        "status": "open",
+        "evidence": [
+          "pharmacology-failed"
+        ]
+      }
+    ]
+  }
+}

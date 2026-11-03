@@ -1,0 +1,14 @@
+{
+  "fixture": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+  "identity": {
+    "alt": "C",
+    "chromosome": "1",
+    "genome_build": "GRCh38",
+    "position": 101,
+    "ref": "A",
+    "strand": "+",
+    "transcript": "SYNTHETIC_TX.1"
+  },
+  "schema": "variant-identity-ledger-v1",
+  "sources": []
+}

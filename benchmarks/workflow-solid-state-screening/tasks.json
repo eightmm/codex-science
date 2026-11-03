@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "pack": "workflow-solid-state-screening",
+  "tasks": [
+    {
+      "id": "synthetic-chain-contract",
+      "question": "Does the synthetic open-chain fixture pass its fixed control, complete refinement, uncertainty-aware ranking and disclosed sensitivity reversal?",
+      "fixture": "examples/workflow-solid-state-screening/contract.json",
+      "acceptance_criteria": ["Dimer spectrum agrees with [-1,1] eV within 1e-12 eV.", "All [4,8,16,32] site levels retained, error monotone within 1e-12 eV and final error at most 0.02 eV.", "Base order fixture-a then fixture-b; declared alternative reverses it and reports flips true.", "Review stays pending; experimental evidence stays unavailable."],
+      "budget": {"cpu_only": true, "network": false, "seconds": 60, "new_dependencies": 0}
+    },
+    {
+      "id": "synthetic-seeded-refusals",
+      "question": "Is each independently seeded contract defect refused for its named reason through Python and CLI entry points?",
+      "fixture": "examples/workflow-solid-state-screening/negative-cases.json",
+      "acceptance_criteria": ["All 17 synthetic negative cases fail with their declared SS finding code.", "The CLI exits 1 without a traceback.", "Threshold changes are accepted only with propagated exploratory disclosure.", "Numerical success never becomes materials-property accuracy, experimental agreement, causality or self-review."],
+      "budget": {"cpu_only": true, "network": false, "seconds": 60, "new_dependencies": 0}
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "plan": [
+    {
+      "description": "Admit dataset fitness, expression context, design and immutable input identities.",
+      "id": "01-design",
+      "status": "pending"
+    },
+    {
+      "description": "Evaluate fixed QC controls, retained replicates and batch confounding.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Hash the model, contrast, thresholds, family and universe before testing.",
+      "id": "03-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Compute reference Welch tests and BH across the complete tested family.",
+      "id": "04-testing",
+      "status": "pending"
+    },
+    {
+      "description": "Compute supplied collection enrichment with explicit background and BH.",
+      "id": "05-enrichment",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "06-handoff",
+      "status": "pending"
+    }
+  ]
+}

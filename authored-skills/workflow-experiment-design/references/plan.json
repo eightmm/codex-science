@@ -1,0 +1,34 @@
+{
+  "plan": [
+    {
+      "description": "State question, estimand, independent unit, assignment and primary outcome before outcomes",
+      "id": "01-question",
+      "status": "pending"
+    },
+    {
+      "description": "Freeze effect and variance assumptions, power, sample counts, allocation, attrition and unit costs",
+      "id": "02-power",
+      "status": "pending"
+    },
+    {
+      "description": "Record randomisation, blinding, allocation concealment and deterministic seeds",
+      "id": "03-randomisation",
+      "status": "pending"
+    },
+    {
+      "description": "Hash and freeze primary family, correction, missingness, stopping and exclusion rules",
+      "id": "04-analysis-plan",
+      "status": "pending"
+    },
+    {
+      "description": "Declare controls, failure handling and negative/null-result retention",
+      "id": "05-controls",
+      "status": "pending"
+    },
+    {
+      "description": "Hand off all immutable stage artifacts to independent review before collection",
+      "id": "06-review-handoff",
+      "status": "pending"
+    }
+  ]
+}

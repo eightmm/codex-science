@@ -1,0 +1,31 @@
+{
+  "annotation_version": "fixture-annotation-v1",
+  "fixture": true,
+  "genome_version": "fixture-genome-v1",
+  "identifier_namespace": "different-fixture-namespace",
+  "organism": "synthetic-organism",
+  "schema": "bulk-expression-gene-sets-v1",
+  "sets": [
+    {
+      "genes": [
+        "G01",
+        "G02"
+      ],
+      "id": "planted-fixture-set"
+    },
+    {
+      "genes": [
+        "G11",
+        "G12",
+        "G13",
+        "G14",
+        "G15"
+      ],
+      "id": "null-fixture-set"
+    },
+    {
+      "genes": [],
+      "id": "empty-fixture-set"
+    }
+  ]
+}

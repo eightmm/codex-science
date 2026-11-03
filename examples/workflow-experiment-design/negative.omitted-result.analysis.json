@@ -1,0 +1,52 @@
+{
+  "claims": [
+    {
+      "assertion": "unavailable",
+      "evidence": "unavailable"
+    }
+  ],
+  "deviations": [],
+  "exclusion_rules": [
+    "pre-assignment-contamination"
+  ],
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "method": "independent two-group unit-level mean contrast with seeded randomisation inference",
+  "missing_data_rule": "report missingness and prespecified unit-level sensitivity; never impute a favorable result",
+  "multiplicity": "bonferroni",
+  "primary_family": [
+    {
+      "id": "growth",
+      "outcome": "growth",
+      "threshold": 0.025
+    },
+    {
+      "id": "viability",
+      "outcome": "viability",
+      "threshold": 0.025
+    }
+  ],
+  "reported_results": [
+    {
+      "control_status": "failed",
+      "id": "viability",
+      "status": "negative"
+    },
+    {
+      "control_status": "passed",
+      "id": "negative-control",
+      "status": "null"
+    },
+    {
+      "control_status": "failed",
+      "id": "positive-control",
+      "status": "failed"
+    }
+  ],
+  "schema": "experiment-analysis-v1",
+  "sequential": false,
+  "stopping_rule": "collect exactly 120 assigned independent units",
+  "used_plan": {
+    "path": "analysis-plan.json",
+    "sha256": "721a5dadbb5a0ef1e91c59d2f25ae24770ef7767a3adf9f44f6edd77b6e2ccfe"
+  }
+}

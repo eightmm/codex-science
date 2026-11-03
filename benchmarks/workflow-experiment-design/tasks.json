@@ -1,0 +1,187 @@
+{
+  "fixture": "All tasks are frozen synthetic fixtures, not real scientific conclusions",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "six ordered stage IDs",
+        "120 independent units with 1:2 allocation and arm attrition covered",
+        "planned cost 240 fixture-credit",
+        "ready-for-independent-review only"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "accept",
+      "fixture": "examples/workflow-experiment-design/preregister.json",
+      "id": "synthetic-preregister",
+      "mode": "preregister",
+      "question": "Does a complete frozen synthetic design reach independent-review handoff without self-approval?"
+    },
+    {
+      "acceptance_criteria": [
+        "changed outcome and threshold",
+        "added and dropped comparison",
+        "post-hoc exclusion",
+        "no reviewed status",
+        "negative/null/failed/unavailable results preserved"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "accept",
+      "fixture": "examples/workflow-experiment-design/exploratory-audit.json",
+      "id": "synthetic-exploratory-audit",
+      "mode": "audit",
+      "question": "Are all five seeded synthetic post-hoc changes explicitly exploratory and all results preserved?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal plan-hash-mismatch",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.plan-hash-mismatch.json",
+      "id": "plan-hash-mismatch",
+      "mode": "audit",
+      "question": "Does an analysis using different frozen-plan bytes fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal pseudoreplication",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.pseudoreplication.json",
+      "id": "pseudoreplication",
+      "mode": "preregister",
+      "question": "Does counting images instead of assigned culture batches fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal own-result-effect",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.own-result-effect.json",
+      "id": "own-result-effect",
+      "mode": "preregister",
+      "question": "Does deriving planning effect from this study result fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal unlabelled-deviation",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.unlabelled-deviation.json",
+      "id": "unlabelled-deviation",
+      "mode": "audit",
+      "question": "Does an unlabelled outcome or threshold change fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal multiplicity-ignored",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.multiplicity-ignored.json",
+      "id": "multiplicity-ignored",
+      "mode": "preregister",
+      "question": "Does ignoring the two-comparison primary family fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal allocation-attrition",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.allocation-attrition.json",
+      "id": "allocation-attrition",
+      "mode": "preregister",
+      "question": "Does an arm count omitting attrition or allocation fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal stopping-rule-absent",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.stopping-rule-absent.json",
+      "id": "stopping-rule-absent",
+      "mode": "preregister",
+      "question": "Does sequential monitoring without a stopping rule fail?"
+    },
+    {
+      "acceptance_criteria": [
+        "exit 1",
+        "named refusal omitted-result",
+        "no traceback",
+        "no input writes"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu": false,
+        "network_calls": 0
+      },
+      "expected": "refuse",
+      "fixture": "examples/workflow-experiment-design/negative.omitted-result.json",
+      "id": "omitted-result",
+      "mode": "audit",
+      "question": "Does an audit omitting a null or negative result fail?"
+    }
+  ]
+}

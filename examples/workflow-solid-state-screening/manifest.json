@@ -1,0 +1,105 @@
+{
+  "artifacts": [
+    {
+      "kind": "provenance-record",
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9"
+    },
+    {
+      "kind": "provenance-record",
+      "path": "normalized.json",
+      "sha256": "28447a239a6a7ecf5da4ac6ebefc7cfb7ec6288b98353dbfd17fb45e9ffdd859"
+    },
+    {
+      "kind": "provenance-record",
+      "path": "analytic-control.json",
+      "sha256": "e761fddd0b802e1f255f937d7b998b71b0defc257a8f08d616021a992bf33313"
+    },
+    {
+      "kind": "provenance-record",
+      "path": "convergence.json",
+      "sha256": "bc99e3b9fd325de6116c2971ac914b80ad39c6f45cdaaedea99fd6d57f2a1848"
+    },
+    {
+      "kind": "provenance-record",
+      "path": "ranking.json",
+      "sha256": "abb59c9f81952020d051c068b84990d82cfe31a6060b8bcd9df6f52c40b49517"
+    },
+    {
+      "kind": "provenance-record",
+      "path": "review-handoff.json",
+      "sha256": "a162f5a0c4c938fc5a01088eca2eb8f0be3ce605aa93bfc4cc78ef2a346e6bdf"
+    },
+    {
+      "kind": "claim-register",
+      "path": "claims.json",
+      "sha256": "f1db6dcf4494991a892ef50aee221385a303d59f192b4997ed1b67c49839a1cf"
+    }
+  ],
+  "claims": [
+    {
+      "evidence": [
+        "analytic-control.json",
+        "convergence.json",
+        "ranking.json"
+      ],
+      "id": "C-numerical",
+      "text": "The synthetic chain passes numerical workflow checks with a disclosed sensitivity reversal."
+    },
+    {
+      "evidence": [
+        "review-handoff.json"
+      ],
+      "id": "C-experiment",
+      "text": "Experimental agreement remains unavailable for this synthetic fixture."
+    }
+  ],
+  "code": [],
+  "environment": {
+    "packages": [],
+    "source_revision": null,
+    "working_tree": "Synthetic checked-in fixture; no live execution or review receipt."
+  },
+  "executions": [],
+  "inputs": [
+    {
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9",
+      "type": "file"
+    }
+  ],
+  "plan": [
+    {
+      "description": "Normalize the supplied model, identities, units and frozen decision thresholds.",
+      "id": "stage-1",
+      "status": "completed"
+    },
+    {
+      "description": "Pass the prespecified analytic limiting-case control before candidate scoring.",
+      "id": "stage-2",
+      "status": "completed"
+    },
+    {
+      "description": "Retain and assess every candidate's complete convergence series.",
+      "id": "stage-3",
+      "status": "completed"
+    },
+    {
+      "description": "Rank with all declared uncertainties and report model-sensitivity reversals.",
+      "id": "stage-4",
+      "status": "completed"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims, then hand off for independent science-review.",
+      "id": "stage-5",
+      "status": "pending"
+    }
+  ],
+  "question": "Does this synthetic chain satisfy the workflow contract without asserting materials-property accuracy?",
+  "review": {
+    "findings": [],
+    "status": "pending"
+  },
+  "run_id": "synthetic-solid-state-chain-fixture",
+  "schema_version": 1
+}

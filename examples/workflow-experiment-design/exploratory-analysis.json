@@ -1,0 +1,94 @@
+{
+  "claims": [
+    {
+      "assertion": "unavailable",
+      "evidence": "unavailable"
+    }
+  ],
+  "deviations": [
+    {
+      "kind": "changed-outcome",
+      "label": "exploratory",
+      "reason": "Artificial deviation for audit acceptance only",
+      "target": "growth"
+    },
+    {
+      "kind": "changed-threshold",
+      "label": "exploratory",
+      "reason": "Artificial deviation for audit acceptance only",
+      "target": "growth"
+    },
+    {
+      "kind": "dropped-comparison",
+      "label": "exploratory",
+      "reason": "Artificial deviation for audit acceptance only",
+      "target": "viability"
+    },
+    {
+      "kind": "added-comparison",
+      "label": "exploratory",
+      "reason": "Artificial deviation for audit acceptance only",
+      "target": "new-comparison"
+    },
+    {
+      "kind": "post-hoc-exclusion",
+      "label": "exploratory",
+      "reason": "Artificial deviation for audit acceptance only",
+      "target": "post-hoc-low-growth"
+    }
+  ],
+  "exclusion_rules": [
+    "pre-assignment-contamination",
+    "post-hoc-low-growth"
+  ],
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "method": "independent two-group unit-level mean contrast with seeded randomisation inference",
+  "missing_data_rule": "report missingness and prespecified unit-level sensitivity; never impute a favorable result",
+  "multiplicity": "bonferroni",
+  "primary_family": [
+    {
+      "id": "growth",
+      "outcome": "post-hoc-growth",
+      "threshold": 0.05
+    },
+    {
+      "id": "new-comparison",
+      "outcome": "exploratory-outcome",
+      "threshold": 0.05
+    }
+  ],
+  "reported_results": [
+    {
+      "control_status": "failed",
+      "id": "growth",
+      "status": "null"
+    },
+    {
+      "control_status": "failed",
+      "id": "viability",
+      "status": "negative"
+    },
+    {
+      "control_status": "passed",
+      "id": "negative-control",
+      "status": "null"
+    },
+    {
+      "control_status": "failed",
+      "id": "positive-control",
+      "status": "failed"
+    },
+    {
+      "control_status": "failed",
+      "id": "new-comparison",
+      "status": "unavailable"
+    }
+  ],
+  "schema": "experiment-analysis-v1",
+  "sequential": false,
+  "stopping_rule": "collect exactly 120 assigned independent units",
+  "used_plan": {
+    "path": "analysis-plan.json",
+    "sha256": "721a5dadbb5a0ef1e91c59d2f25ae24770ef7767a3adf9f44f6edd77b6e2ccfe"
+  }
+}

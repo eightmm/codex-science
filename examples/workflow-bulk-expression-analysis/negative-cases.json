@@ -1,0 +1,70 @@
+{
+  "cases": [
+    {
+      "finding": "batch-confounding",
+      "id": "batch-confounding",
+      "path": "negative-batch-confounding.json"
+    },
+    {
+      "finding": "post-result-change",
+      "id": "post-result-contrast",
+      "path": "negative-post-result-contrast.json"
+    },
+    {
+      "finding": "post-result-change",
+      "id": "post-result-threshold",
+      "path": "negative-post-result-threshold.json"
+    },
+    {
+      "finding": "multiple-testing",
+      "id": "no-correction",
+      "path": "negative-no-correction.json"
+    },
+    {
+      "finding": "multiple-testing",
+      "id": "filtered-correction",
+      "path": "negative-filtered-correction.json"
+    },
+    {
+      "finding": "enrichment-background",
+      "id": "missing-background",
+      "path": "negative-missing-background.json"
+    },
+    {
+      "finding": "enrichment-background",
+      "id": "incomplete-background",
+      "path": "negative-incomplete-background.json"
+    },
+    {
+      "finding": "identifier-mismatch",
+      "id": "namespace-mismatch",
+      "path": "negative-namespace-mismatch.json"
+    },
+    {
+      "finding": "identifier-mismatch",
+      "id": "annotation-mismatch",
+      "path": "negative-annotation-mismatch.json"
+    },
+    {
+      "finding": "insufficient-replicates",
+      "id": "insufficient-replicates",
+      "path": "negative-insufficient-replicates.json"
+    },
+    {
+      "finding": "outlier-removal",
+      "id": "outlier-missing-reason",
+      "path": "negative-outlier-missing-reason.json"
+    },
+    {
+      "finding": "outlier-removal",
+      "id": "outlier-missing-threshold",
+      "path": "negative-outlier-missing-threshold.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal-pathway",
+      "path": "negative-causal-pathway.json"
+    }
+  ],
+  "fixture": true
+}

@@ -1,0 +1,28 @@
+{
+  "analysis_plan": {
+    "path": "analysis-plan.json",
+    "sha256": "721a5dadbb5a0ef1e91c59d2f25ae24770ef7767a3adf9f44f6edd77b6e2ccfe"
+  },
+  "controls": {
+    "path": "controls.json",
+    "sha256": "5aac28aea108c06c557cfb5d0896f2b73d990acb8ee00219b2c3de637b8a3993"
+  },
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "handoff": {
+    "path": "computational-handoff.json",
+    "sha256": "c318385dc4ed8b81e4fe6268d66dbc64beb92b0f7656168969a75c166e04751c"
+  },
+  "power": {
+    "path": "computational-power.json",
+    "sha256": "3cf9e2e01f3a188bff90d7331dcfb0354fa922eff8204101e7af65f7d96b3442"
+  },
+  "question": {
+    "path": "computational-question.json",
+    "sha256": "8b0dbdda19b892fb3e7412bc69f9bf32baad7ca64353011e788ac7e90652e589"
+  },
+  "randomisation": {
+    "path": "randomisation.json",
+    "sha256": "b5ace01a882d3251cf1787cea8c81d53dfd67c35b56f5c47ac8452ce33a6ebcd"
+  },
+  "schema": "experiment-design-pack-v1"
+}

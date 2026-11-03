@@ -1,0 +1,81 @@
+{
+  "data": {
+    "covariance": "independent-components",
+    "order": [
+      "fixture-a",
+      "fixture-b"
+    ],
+    "rows": [
+      {
+        "candidate_id": "fixture-a",
+        "combined_uncertainty": 0.03717544809059548,
+        "energy": -1.9909438451461694,
+        "score": -1.953768397055574,
+        "uncertainty_components": {
+          "input": 0.03,
+          "model": 0.02,
+          "numerical": 0.0090561548538306
+        }
+      },
+      {
+        "candidate_id": "fixture-b",
+        "combined_uncertainty": 0.04211908808978121,
+        "energy": -1.6913966528888607,
+        "score": -1.6492775647990794,
+        "uncertainty_components": {
+          "input": 0.01,
+          "model": 0.04,
+          "numerical": 0.008603347111139303
+        }
+      }
+    ],
+    "rule": "minimize-energy-plus-standard-uncertainty",
+    "sensitivity": [
+      {
+        "flips": true,
+        "id": "fixture-model-alternative",
+        "order": [
+          "fixture-b",
+          "fixture-a"
+        ],
+        "rows": [
+          {
+            "candidate_id": "fixture-b",
+            "combined_uncertainty": 0.04195180855489959,
+            "energy": -1.8522569875999748,
+            "score": -1.8103051790450753,
+            "uncertainty_components": {
+              "input": 0.01,
+              "model": 0.04,
+              "numerical": 0.007743012400025374
+            }
+          },
+          {
+            "candidate_id": "fixture-a",
+            "combined_uncertainty": 0.03696527143139373,
+            "energy": -1.4418494606315526,
+            "score": -1.404884189200159,
+            "uncertainty_components": {
+              "input": 0.03,
+              "model": 0.02,
+              "numerical": 0.00815053936844754
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9"
+    },
+    {
+      "path": "convergence.json",
+      "sha256": "bc99e3b9fd325de6116c2971ac914b80ad39c6f45cdaaedea99fd6d57f2a1848"
+    }
+  ],
+  "schema": "solid-state-screening-stage-v1",
+  "stage_id": "stage-4",
+  "synthetic": true
+}

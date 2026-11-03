@@ -1,0 +1,43 @@
+{
+  "schema": "target-assessment-stage-v1",
+  "id": "stage-06",
+  "synthetic": true,
+  "inputs": [
+    {
+      "path": "snapshots.json",
+      "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+    },
+    {
+      "path": "stage-5.json",
+      "sha256": "eb47a875c2b93d4d8068e4c1e45ff4ea4e3474d0360c4e78f955abd4f0f20e6a"
+    }
+  ],
+  "data": {
+    "source_ids": [],
+    "observations": [],
+    "decision": "go",
+    "modality": "inhibition",
+    "direction_rationale": null,
+    "claims": [
+      {
+        "id": "synthetic-association",
+        "text": "Synthetic fixture only: ot records association in the invented system.",
+        "kind": "associational",
+        "evidence": [
+          "ot-1"
+        ],
+        "status": "suggestive"
+      }
+    ],
+    "patient_treatment_recommendation": false,
+    "boundary": "This memo never recommends treatment for a patient.",
+    "review_handoff": "$science-review",
+    "next_experiment": {
+      "question": "Synthetic fixture: does a selective perturbation change the invented readout?",
+      "control": "Synthetic orthogonal perturbation and matched non-targeting control.",
+      "readout": "Synthetic pathway measurement in matched invented cell states.",
+      "falsifier": "Synthetic orthogonal control disagrees or perturbation fails its control.",
+      "decision_rule": "Proposed only: require both orthogonal controls before any causal interpretation."
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-target-assessment-dossier",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Fix stage order, identity and inference refusals, hash-bound records and independent review handoff.",
+      "read_when": [
+        "freezing the assessment protocol",
+        "writing or validating domain records"
+      ],
+      "required_before": [
+        "target-assessment-protocol",
+        "target-assessment-handoff",
+        "target-assessment-validation"
+      ],
+      "search_patterns": [
+        "## Stage",
+        "## Schema",
+        "## Failure handling"
+      ],
+      "authority": "Codex Science pack-local target assessment contract",
+      "version": "1",
+      "evidence_boundary": "Record consistency only; no scientific truth, druggability, efficacy or clinical validity."
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Reuse existing manifest plan step fields with six fixed pending stage IDs.",
+      "read_when": [
+        "registering the six coordinator plan steps"
+      ],
+      "required_before": [
+        "target-assessment-plan-registration"
+      ],
+      "search_patterns": [
+        "plan",
+        "stage-01",
+        "stage-06"
+      ],
+      "authority": "Existing manifest plan step shape; pack-local stage descriptions",
+      "version": "1",
+      "evidence_boundary": "Plan only; no execution or independent review is implied."
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no biological evidence or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Stage controls, immutable input identities, pack-local schemas, CLI contract and independent review handoff.",
+      "read_when": [
+        "admitting bulk-expression inputs",
+        "freezing QC and contrast",
+        "running reference analysis",
+        "validating or handing off results"
+      ],
+      "required_before": [
+        "dataset-admission",
+        "qc",
+        "specification-freeze",
+        "differential-testing",
+        "enrichment",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Invocation and identities",
+        "## 03-freeze: contrast and model"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage ordering does not prove execution or historical timing.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest plan step template for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator manifest plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-design",
+        "06-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-bulk-expression-analysis"
+}

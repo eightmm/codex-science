@@ -1,0 +1,246 @@
+{
+  "schema": "target-assessment-benchmark-v1",
+  "synthetic": true,
+  "tasks": [
+    {
+      "id": "synthetic-clean",
+      "synthetic": true,
+      "question": "Can the invented target dossier pass record checks while independent review remains pending?",
+      "fixture": "examples/workflow-target-assessment-dossier/synthetic/dossier.json",
+      "expected": "passed",
+      "acceptance_criteria": [
+        "All six ordered handoffs retain input hashes.",
+        "No empirical or clinical claim is established."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-association-causality",
+      "synthetic": true,
+      "question": "Synthetic fixture: association never establishes causality.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/association-causality.json",
+      "expected": "MEMO_OVERCLAIM",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-availability-overclaim",
+      "synthetic": true,
+      "question": "Synthetic fixture: available structures and ligands do not establish druggability.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/availability-overclaim.json",
+      "expected": "AVAILABILITY_NOT_DRUGGABILITY",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-cohort-dependence",
+      "synthetic": true,
+      "question": "Synthetic fixture: two portal views share the same cohort and dependency group.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/cohort-dependence.json",
+      "expected": "GENETIC_DEPENDENCE",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-critical-liability",
+      "synthetic": true,
+      "question": "Synthetic fixture: a go decision cannot retain an open critical liability.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/critical-liability.json",
+      "expected": "CRITICAL_LIABILITY",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-failed-control",
+      "synthetic": true,
+      "question": "Synthetic fixture: failed controls and negative results must remain visible.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/failed-control.json",
+      "expected": "EVIDENCE_PRESERVATION",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-identity-mismatch",
+      "synthetic": true,
+      "question": "Synthetic fixture: one source silently switches isoforms.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/identity-mismatch.json",
+      "expected": "TARGET_IDENTITY",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-memo-overclaim",
+      "synthetic": true,
+      "question": "Synthetic fixture: the memo sentence exceeds its cited association.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/memo-overclaim.json",
+      "expected": "MEMO_OVERCLAIM",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-missing-record",
+      "synthetic": true,
+      "question": "Synthetic fixture: no gnomAD record is unavailable rather than negative association evidence.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/missing-record.json",
+      "expected": "SOURCE_UNAVAILABLE",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-modality-direction",
+      "synthetic": true,
+      "question": "Synthetic fixture: protective loss of function supports inhibition; opposite modality needs a rationale.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/modality-direction.json",
+      "expected": "MODALITY_DIRECTION",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-numerical-validity",
+      "synthetic": true,
+      "question": "Synthetic fixture: numerical agreement is not physical or clinical validity.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/numerical-validity.json",
+      "expected": "MEMO_OVERCLAIM",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-patient-advice",
+      "synthetic": true,
+      "question": "Synthetic fixture: this memo never recommends patient treatment.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/patient-advice.json",
+      "expected": "PATIENT_BOUNDARY",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-potency-mixing",
+      "synthetic": true,
+      "question": "Synthetic fixture: IC50, Ki and percent inhibition in different units are combined without normalisation.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/potency-mixing.json",
+      "expected": "POTENCY_MIXING",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-review-truth",
+      "synthetic": true,
+      "question": "Synthetic fixture: review approval is not scientific truth.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/review-truth.json",
+      "expected": "MEMO_OVERCLAIM",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "synthetic-self-review",
+      "synthetic": true,
+      "question": "Synthetic fixture: the pack cannot certify its own independent review.",
+      "fixture": "examples/workflow-target-assessment-dossier/negative/self-review.json",
+      "expected": "INDEPENDENT_REVIEW",
+      "acceptance_criteria": [
+        "Refuse the seeded defect for its declared finding code.",
+        "Retain all original synthetic evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    }
+  ]
+}

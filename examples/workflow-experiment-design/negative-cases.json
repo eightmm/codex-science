@@ -1,0 +1,61 @@
+{
+  "cases": [
+    {
+      "expected_error": "plan-hash-mismatch",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "plan-hash-mismatch",
+      "input": "negative.plan-hash-mismatch.json",
+      "mode": "audit"
+    },
+    {
+      "expected_error": "pseudoreplication",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "pseudoreplication",
+      "input": "negative.pseudoreplication.json",
+      "mode": "preregister"
+    },
+    {
+      "expected_error": "own-result-effect",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "own-result-effect",
+      "input": "negative.own-result-effect.json",
+      "mode": "preregister"
+    },
+    {
+      "expected_error": "unlabelled-deviation",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "unlabelled-deviation",
+      "input": "negative.unlabelled-deviation.json",
+      "mode": "audit"
+    },
+    {
+      "expected_error": "multiplicity-ignored",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "multiplicity-ignored",
+      "input": "negative.multiplicity-ignored.json",
+      "mode": "preregister"
+    },
+    {
+      "expected_error": "allocation-attrition",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "allocation-attrition",
+      "input": "negative.allocation-attrition.json",
+      "mode": "preregister"
+    },
+    {
+      "expected_error": "stopping-rule-absent",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "stopping-rule-absent",
+      "input": "negative.stopping-rule-absent.json",
+      "mode": "preregister"
+    },
+    {
+      "expected_error": "omitted-result",
+      "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+      "id": "omitted-result",
+      "input": "negative.omitted-result.json",
+      "mode": "audit"
+    }
+  ],
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review"
+}

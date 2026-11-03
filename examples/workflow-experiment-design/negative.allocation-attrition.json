@@ -1,0 +1,28 @@
+{
+  "analysis_plan": {
+    "path": "analysis-plan.json",
+    "sha256": "721a5dadbb5a0ef1e91c59d2f25ae24770ef7767a3adf9f44f6edd77b6e2ccfe"
+  },
+  "controls": {
+    "path": "controls.json",
+    "sha256": "5aac28aea108c06c557cfb5d0896f2b73d990acb8ee00219b2c3de637b8a3993"
+  },
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "handoff": {
+    "path": "negative.allocation-attrition.handoff.json",
+    "sha256": "53d0654ea8845cb6866f78c4e207067bd03b505647e61ed06eeb80625e7a3e2d"
+  },
+  "power": {
+    "path": "negative.allocation-attrition.power.json",
+    "sha256": "653ceb11f2f7425c2157d515a10ae22cb44eba3f161d1f9f2dd02df1346d5252"
+  },
+  "question": {
+    "path": "question.json",
+    "sha256": "b5d5157361b40ef019b118a3efff2925b2c22ea4f5f0a5a1b46f50453f7bfce2"
+  },
+  "randomisation": {
+    "path": "randomisation.json",
+    "sha256": "b5ace01a882d3251cf1787cea8c81d53dfd67c35b56f5c47ac8452ce33a6ebcd"
+  },
+  "schema": "experiment-design-pack-v1"
+}

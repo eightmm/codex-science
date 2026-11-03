@@ -1,0 +1,42 @@
+{
+  "data": {
+    "candidates": [
+      {
+        "hopping": 1.0,
+        "id": "fixture-a",
+        "onsite": 0.0,
+        "uncertainty": {
+          "input": 0.03,
+          "model": 0.02
+        }
+      },
+      {
+        "hopping": 0.95,
+        "id": "fixture-b",
+        "onsite": 0.2,
+        "uncertainty": {
+          "input": 0.01,
+          "model": 0.04
+        }
+      }
+    ],
+    "energy_unit": "eV",
+    "exploratory": false,
+    "lattice_spacing": 0.25,
+    "length_unit": "nm",
+    "thresholds_used": {
+      "analytic_abs": 1e-12,
+      "convergence_abs": 0.02,
+      "monotone_slack": 1e-12
+    }
+  },
+  "inputs": [
+    {
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9"
+    }
+  ],
+  "schema": "solid-state-screening-stage-v1",
+  "stage_id": "stage-1",
+  "synthetic": true
+}

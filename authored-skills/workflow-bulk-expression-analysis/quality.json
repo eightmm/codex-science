@@ -1,0 +1,44 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-bulk-expression-analysis/pack.json",
+    "examples/workflow-bulk-expression-analysis/expected.json",
+    "examples/workflow-bulk-expression-analysis/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixture acceptance is software validation, not biological, causal, physical or clinical validation.",
+    "The reference cannot adjust covariates or batch and is not a count-dispersion model.",
+    "Hash-bound freeze and timing declarations do not independently prove historical timing.",
+    "Claim wording checks are conservative; independent coordinator-owned review still assesses meaning and support."
+  ],
+  "output_schemas": [
+    "bulk-expression-pack-v1",
+    "bulk-expression-counts-v1",
+    "bulk-expression-gene-sets-v1",
+    "bulk-expression-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "batch-confounding",
+    "post-result-contrast",
+    "post-result-threshold",
+    "no-correction",
+    "filtered-correction",
+    "missing-background",
+    "incomplete-background",
+    "namespace-mismatch",
+    "annotation-mismatch",
+    "insufficient-replicates",
+    "outlier-missing-reason",
+    "outlier-missing-threshold",
+    "causal-pathway"
+  ],
+  "skill": "workflow-bulk-expression-analysis",
+  "test_files": [
+    "tests/test_workflow_bulk_expression.py"
+  ]
+}

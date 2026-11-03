@@ -1,0 +1,22 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "POTENCY_MIXING",
+  "reason": "Synthetic fixture: IC50, Ki and percent inhibition in different units are combined without normalisation.",
+  "changes": [
+    {
+      "file": "stage-4.json",
+      "pointer": "/data/potency_groups",
+      "value": [
+        {
+          "record_ids": [
+            "chembl-1",
+            "pubchem-1",
+            "pubchem-2"
+          ],
+          "normalisation": null
+        }
+      ]
+    }
+  ]
+}

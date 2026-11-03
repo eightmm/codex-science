@@ -1,0 +1,247 @@
+{
+  "schema": "variant-dossier-benchmark-v1",
+  "fixture": "Synthetic redistributable software acceptance tasks, never clinical questions.",
+  "tasks": [
+    {
+      "id": "synthetic-positive",
+      "question": "Does the synthetic dossier preserve five source outcomes and three evidence-only claims without self-review?",
+      "input": "examples/workflow-variant-evidence-dossier/synthetic-dossier/dossier.json",
+      "acceptance_criteria": [
+        "Offline replay succeeds",
+        "Report matches expected-validation.json exactly",
+        "Dossier bytes remain unchanged",
+        "Review status remains unreviewed"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "genome-build-mismatch",
+      "question": "Does the synthetic dossier refuse genome-build-mismatch for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#genome-build-mismatch",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: genome-build-mismatch",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "unreconciled-allele-strand",
+      "question": "Does the synthetic dossier refuse unreconciled-allele-strand for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#unreconciled-allele-strand",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: unreconciled-allele-strand",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "dependent-replication",
+      "question": "Does the synthetic dossier refuse dependent-replication for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#dependent-replication",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: dependent-replication",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "missing-record-not-negative",
+      "question": "Does the synthetic dossier refuse missing-record-not-negative for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#missing-record-not-negative",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: missing-record-not-negative",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "association-as-causation",
+      "question": "Does the synthetic dossier refuse association-as-causation for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#association-as-causation",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: claim-strength-exceeds-source",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "frequency-as-clinical-classification",
+      "question": "Does the synthetic dossier refuse frequency-as-clinical-classification for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#frequency-as-clinical-classification",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: claim-strength-exceeds-source",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "identity-snapshot-hash-mismatch",
+      "question": "Does the synthetic dossier refuse identity-snapshot-hash-mismatch for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#identity-snapshot-hash-mismatch",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: artifact-hash-mismatch",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "missing-control",
+      "question": "Does the synthetic dossier refuse missing-control for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#missing-control",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: missing-control",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "missing-denominator",
+      "question": "Does the synthetic dossier refuse missing-denominator for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#missing-denominator",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: missing-denominator",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "numerical-as-physical-validity",
+      "question": "Does the synthetic dossier refuse numerical-as-physical-validity for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#numerical-as-physical-validity",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: claim-strength-exceeds-source",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "review-as-truth",
+      "question": "Does the synthetic dossier refuse review-as-truth for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#review-as-truth",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: claim-strength-exceeds-source",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "self-reviewed-dossier",
+      "question": "Does the synthetic dossier refuse self-reviewed-dossier for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#self-reviewed-dossier",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: self-reviewed-dossier",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "failed-support-control",
+      "question": "Does the synthetic dossier refuse failed-support-control for its named reason?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#failed-support-control",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: failed-support-control",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    },
+    {
+      "id": "normalization-ledger-mismatch",
+      "question": "Does the synthetic dossier refuse a retrieval ledger that replaces the frozen normalization identity?",
+      "input": "examples/workflow-variant-evidence-dossier/negative-cases.json#normalization-ledger-mismatch",
+      "acceptance_criteria": [
+        "Module raises labelled ValueError: normalization-ledger-mismatch",
+        "CLI exits 1 without traceback",
+        "Existing output stays unchanged"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "network_calls": 0,
+        "gpu_jobs": 0,
+        "remote_jobs": 0
+      }
+    }
+  ]
+}

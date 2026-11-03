@@ -1,0 +1,10 @@
+{
+  "control_ids": [
+    "negative-control",
+    "positive-control"
+  ],
+  "failure_rule": "preserve failed controls; withhold material interpretation and request method review",
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "negative_result_handling": "retain all negative, null, failed and unavailable records in the audit",
+  "schema": "experiment-controls-v1"
+}

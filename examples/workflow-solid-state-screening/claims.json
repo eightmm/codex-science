@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "claims": [
+    {
+      "id": "C-numerical",
+      "kind": "descriptive",
+      "text": "The synthetic tight-binding fixture satisfies the declared numerical workflow checks; its ranking reverses under the declared model alternative.",
+      "permitted_inference": "Workflow-contract verification for the synthetic chain only; no real materials-property accuracy or empirical validity.",
+      "required_support": 1,
+      "required_evidence": ["computed"],
+      "falsifier": "A failed dimer control, unreproduced refinement or omitted uncertainty component invalidates this fixture claim.",
+      "dependencies": ["synthetic-chain-hamiltonian", "shared-sine-mode-reference"],
+      "uncertainty": "Independent input, model and conservative finite-size components; the disclosed sensitivity reverses the order.",
+      "status": "supported",
+      "next_action": "Obtain independent science-review of the workflow and matched measurements before any physical claim."
+    },
+    {
+      "id": "C-experiment",
+      "kind": "descriptive",
+      "text": "Experimental agreement for the synthetic chain fixture is unavailable because no matched measurement was supplied.",
+      "permitted_inference": "Unavailability is not evidence for a negative materials result.",
+      "required_support": 1,
+      "required_evidence": ["primary"],
+      "falsifier": "A traceable measurement matched to the observable and state changes this unavailability assessment.",
+      "dependencies": ["synthetic-chain-hamiltonian"],
+      "uncertainty": "No experimental uncertainty or physical validation is available in this synthetic fixture.",
+      "status": "unavailable",
+      "next_action": "Collect matched experimental evidence in a separately approved and reviewed lane."
+    }
+  ]
+}

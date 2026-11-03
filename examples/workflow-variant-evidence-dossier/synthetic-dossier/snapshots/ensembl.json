@@ -1,0 +1,50 @@
+{
+  "pages": [],
+  "receipt": {
+    "canonical_request_sha256": "cc518ed272be9499adbcfde02a69381a2c7121f80e83cc8e6b999588d04e6809",
+    "completeness": "normalized-only",
+    "excluded_records": [],
+    "missingness": "observed",
+    "normalized_records_sha256": "b6db616a652529762d3d6b41d7e7866da0510862054a30a6f3e31475217f5adc",
+    "operation": "search",
+    "pages": [],
+    "query_id": "q-cc518ed272be9499adbcfde0",
+    "returned_record_ids": [
+      "synthetic-ensembl"
+    ],
+    "schema_version": 1,
+    "source": "ensembl",
+    "source_contract_version": "2",
+    "source_release": null,
+    "status": "complete",
+    "warnings": []
+  },
+  "records": [
+    {
+      "id": "synthetic-ensembl",
+      "title": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "variant": {
+        "alt": "C",
+        "chromosome": "1",
+        "genome_build": "GRCh38",
+        "position": 101,
+        "ref": "A",
+        "strand": "+",
+        "transcript": "SYNTHETIC_TX.1"
+      }
+    }
+  ],
+  "request": {
+    "evidence_cutoff": null,
+    "max_pages": 1,
+    "operation": "search",
+    "page_size": 5,
+    "parameters": {
+      "limit": 1,
+      "query": "synthetic-fixture"
+    },
+    "source": "ensembl",
+    "source_contract_version": "2"
+  },
+  "schema_version": 1
+}

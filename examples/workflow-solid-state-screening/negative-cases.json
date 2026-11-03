@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "description": "Synthetic negative fixtures: apply each mutation independently to the positive bundle and rebind downstream hashes. These are deliberately invalid records, not materials observations.",
+  "cases": [
+    {"id": "units-missing", "code": "SS_UNITS", "file": "contract.json", "path": ["energy_unit"], "remove": true},
+    {"id": "units-inconsistent", "code": "SS_UNITS", "file": "contract.json", "path": ["energy_unit"], "value": "s"},
+    {"id": "analytic-not-run", "code": "SS_ANALYTIC_NOT_RUN", "file": "analytic-control.json", "path": ["data", "ran"], "value": false},
+    {"id": "analytic-outside-tolerance", "code": "SS_ANALYTIC_TOLERANCE", "file": "analytic-control.json", "path": ["data", "observed"], "value": [-1.0, 1.1]},
+    {"id": "convergence-absent", "code": "SS_CONVERGENCE_SERIES", "file": "convergence.json", "path": ["data", "candidates", 0, "series"], "value": []},
+    {"id": "convergence-truncated", "code": "SS_CONVERGENCE_SERIES", "file": "convergence.json", "path": ["data", "candidates", 0, "series"], "value": [{"sites": 4, "value": -1.618033988749895}]},
+    {"id": "convergence-nonmonotone", "code": "SS_NONMONOTONE", "file": "convergence.json", "path": ["data", "candidates", 0, "series", 1, "value"], "value": 0.0},
+    {"id": "convergence-failed", "code": "SS_NOT_CONVERGED", "file": "convergence.json", "path": ["data", "candidates", 0, "converged"], "value": false},
+    {"id": "uncertainty-ignored", "code": "SS_UNCERTAINTY", "file": "ranking.json", "path": ["data", "rows", 0, "uncertainty_components", "model"], "value": 0.0},
+    {"id": "sensitivity-flip-hidden", "code": "SS_SENSITIVITY", "file": "ranking.json", "path": ["data", "sensitivity", 0, "flips"], "value": false},
+    {"id": "posthoc-threshold", "code": "SS_POSTHOC_THRESHOLDS", "file": "normalized.json", "path": ["data", "thresholds_used", "convergence_abs"], "value": 0.04},
+    {"id": "numerical-as-physical", "code": "SS_PHYSICAL_VALIDITY", "file": "review-handoff.json", "path": ["data", "claims", 0, "basis"], "value": "physical-validity"},
+    {"id": "numerical-as-experimental", "code": "SS_MISSING_EVIDENCE", "file": "review-handoff.json", "path": ["data", "claims", 1, "status"], "value": "supported"},
+    {"id": "unmatched-experiment", "code": "SS_EXPERIMENT", "file": "review-handoff.json", "path": ["data", "experimental_comparison"], "value": {"status": "matched", "observable": "band-gap"}},
+    {"id": "association-as-causality", "code": "SS_CAUSALITY", "file": "review-handoff.json", "path": ["data", "claims", 0, "kind"], "value": "causal"},
+    {"id": "missing-as-negative", "code": "SS_MISSING_EVIDENCE", "file": "review-handoff.json", "path": ["data", "claims", 1, "status"], "value": "contradicted"},
+    {"id": "self-reviewed", "code": "SS_REVIEW_TRUTH", "file": "review-handoff.json", "path": ["data", "review_status"], "value": "passed"}
+  ]
+}

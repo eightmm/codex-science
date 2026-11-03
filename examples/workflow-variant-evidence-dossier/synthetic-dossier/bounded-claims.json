@@ -1,0 +1,49 @@
+{
+  "claims": [
+    {
+      "applicability": "Synthetic software fixture only.",
+      "basis": "population_frequency",
+      "evidence_sources": [
+        "gnomad"
+      ],
+      "falsifier": "A changed source identity or failed control.",
+      "id": "synthetic-frequency",
+      "kind": "descriptive",
+      "rationale": "Tests mechanical evidence boundaries only.",
+      "status": "supported",
+      "text": "Synthetic fixture frequency evidence only.",
+      "uncertainty": "No real-world inference."
+    },
+    {
+      "applicability": "Synthetic software fixture only.",
+      "basis": "source_observation",
+      "evidence_sources": [
+        "dbsnp",
+        "gwas_catalog"
+      ],
+      "falsifier": "A changed source identity or failed control.",
+      "id": "synthetic-mapping",
+      "kind": "descriptive",
+      "rationale": "Tests mechanical evidence boundaries only.",
+      "status": "supported",
+      "text": "Synthetic fixture mapping evidence only.",
+      "uncertainty": "No real-world inference."
+    },
+    {
+      "applicability": "Synthetic software fixture only.",
+      "basis": "source_observation",
+      "evidence_sources": [
+        "clinvar"
+      ],
+      "falsifier": "A changed source identity or failed control.",
+      "id": "synthetic-missing",
+      "kind": "descriptive",
+      "rationale": "Tests mechanical evidence boundaries only.",
+      "status": "unavailable",
+      "text": "Synthetic fixture missing evidence only.",
+      "uncertainty": "No real-world inference."
+    }
+  ],
+  "fixture": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+  "schema": "variant-bounded-claims-v1"
+}

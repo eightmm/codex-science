@@ -1,0 +1,27 @@
+{
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "results": [
+    {
+      "control_status": "failed",
+      "id": "growth",
+      "status": "null"
+    },
+    {
+      "control_status": "failed",
+      "id": "viability",
+      "status": "negative"
+    },
+    {
+      "control_status": "passed",
+      "id": "negative-control",
+      "status": "null"
+    },
+    {
+      "control_status": "failed",
+      "id": "positive-control",
+      "status": "failed"
+    }
+  ],
+  "schema": "experiment-results-v1",
+  "seed": 1729
+}

@@ -1,0 +1,50 @@
+{
+  "pages": [],
+  "receipt": {
+    "canonical_request_sha256": "261fea89f18c3360ed091e78c80881cd29d4b56611341c7645a823c0d93ccd6c",
+    "completeness": "normalized-only",
+    "excluded_records": [],
+    "missingness": "observed",
+    "normalized_records_sha256": "c4637b1f4123379a189ddf291cfbf022d9787f7c6a29b7f61d40d2bdab5f4ac8",
+    "operation": "search",
+    "pages": [],
+    "query_id": "q-261fea89f18c3360ed091e78",
+    "returned_record_ids": [
+      "synthetic-gwas_catalog"
+    ],
+    "schema_version": 1,
+    "source": "gwas_catalog",
+    "source_contract_version": "2",
+    "source_release": null,
+    "status": "complete",
+    "warnings": []
+  },
+  "records": [
+    {
+      "id": "synthetic-gwas_catalog",
+      "title": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "variant": {
+        "alt": "C",
+        "chromosome": "1",
+        "genome_build": "GRCh38",
+        "position": 101,
+        "ref": "A",
+        "strand": "+",
+        "transcript": "SYNTHETIC_TX.1"
+      }
+    }
+  ],
+  "request": {
+    "evidence_cutoff": null,
+    "max_pages": 1,
+    "operation": "search",
+    "page_size": 5,
+    "parameters": {
+      "limit": 1,
+      "query": "synthetic-fixture"
+    },
+    "source": "gwas_catalog",
+    "source_contract_version": "2"
+  },
+  "schema_version": 1
+}

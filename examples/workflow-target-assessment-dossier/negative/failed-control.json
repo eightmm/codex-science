@@ -1,0 +1,15 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "EVIDENCE_PRESERVATION",
+  "reason": "Synthetic fixture: failed controls and negative results must remain visible.",
+  "changes": [
+    {
+      "file": "stage-5.json",
+      "pointer": "/data/observations/2/record_ids",
+      "value": [
+        "pharmacology-1"
+      ]
+    }
+  ]
+}

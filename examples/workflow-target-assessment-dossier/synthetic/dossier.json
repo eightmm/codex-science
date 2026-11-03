@@ -1,0 +1,69 @@
+{
+  "schema": "target-assessment-pack-v1",
+  "synthetic": true,
+  "target": {
+    "uniprot": "SYNTHETIC-UNIPROT-A",
+    "ensembl": "SYNTHETIC-ENSEMBL-A",
+    "hgnc": "SYNTHETIC-HGNC-A",
+    "species": "synthetic-species-A",
+    "isoform": "synthetic-isoform-A",
+    "indication_id": "SYNTHETIC-DISEASE-A"
+  },
+  "snapshots": {
+    "path": "snapshots.json",
+    "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+  },
+  "stages": [
+    {
+      "id": "stage-01",
+      "output": {
+        "path": "stage-1.json",
+        "sha256": "f6c3764ffde32bd5d4f3c986947fa5a1e91660f4bfb8f096822b9b687bcdadf0"
+      }
+    },
+    {
+      "id": "stage-02",
+      "output": {
+        "path": "stage-2.json",
+        "sha256": "7f84135dc7312c5764a4cbaa10e5bd796851cdb6c2f6de52ae90f617902abbde"
+      }
+    },
+    {
+      "id": "stage-03",
+      "output": {
+        "path": "stage-3.json",
+        "sha256": "0b43a4011a646c84cdad47afd73dabc1e5096181e42357dcf15d7153e3315ca8"
+      }
+    },
+    {
+      "id": "stage-04",
+      "output": {
+        "path": "stage-4.json",
+        "sha256": "4ed8f0d0e664c9eb7088c7051748076b5cdc33c82eaa9ca3f54d94accf872c64"
+      }
+    },
+    {
+      "id": "stage-05",
+      "output": {
+        "path": "stage-5.json",
+        "sha256": "eb47a875c2b93d4d8068e4c1e45ff4ea4e3474d0360c4e78f955abd4f0f20e6a"
+      }
+    },
+    {
+      "id": "stage-06",
+      "output": {
+        "path": "stage-6.json",
+        "sha256": "5c51725ba6b7d29582631aaeee19062051f864f9bc1f1971c130b25fd7b01224"
+      }
+    }
+  ],
+  "checkpoint": {
+    "path": "checkpoint.json",
+    "sha256": "f44b668e3d3efe410908751bba1249b778cd547bbb040732978ad567cffa3f34"
+  },
+  "claim_register": {
+    "path": "claims.json",
+    "sha256": "b45f3b3feadfbbad4e08a4d29885844a4ae0d182f5d43d425fa09ee90fb5a231"
+  },
+  "review_status": "pending"
+}

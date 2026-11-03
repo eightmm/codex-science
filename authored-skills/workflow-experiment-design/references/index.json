@@ -1,0 +1,69 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic acceptance only; no evidence of real experiment efficacy or independent review.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Fixed stages, immutable input identities, existing skill composition and independent handoff.",
+      "read_when": [
+        "preregistration",
+        "frozen-plan-handoff",
+        "post-hoc-audit"
+      ],
+      "required_before": [
+        "preregistration",
+        "frozen-plan-handoff",
+        "post-hoc-audit"
+      ],
+      "search_patterns": [
+        "## Human decision gates",
+        "## Post-hoc audit"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic acceptance only; no evidence of real experiment efficacy or independent review.",
+      "id": "records",
+      "path": "references/records.md",
+      "purpose": "Pack-local schemas, validator commands, failure semantics and offline acceptance.",
+      "read_when": [
+        "record-authoring",
+        "pack-validation",
+        "post-hoc-audit"
+      ],
+      "required_before": [
+        "record-authoring",
+        "pack-validation",
+        "post-hoc-audit"
+      ],
+      "search_patterns": [
+        "## Local schemas",
+        "## Commands and failure behavior"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic acceptance only; no evidence of real experiment efficacy or independent review.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest plan step shape with six ordered stage IDs.",
+      "read_when": [
+        "checkpoint-planning"
+      ],
+      "required_before": [
+        "checkpoint-planning"
+      ],
+      "search_patterns": [
+        "\"plan\"",
+        "\"id\""
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-experiment-design"
+}

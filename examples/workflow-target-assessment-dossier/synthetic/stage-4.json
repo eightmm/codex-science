@@ -1,0 +1,75 @@
+{
+  "schema": "target-assessment-stage-v1",
+  "id": "stage-04",
+  "synthetic": true,
+  "inputs": [
+    {
+      "path": "snapshots.json",
+      "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+    },
+    {
+      "path": "stage-3.json",
+      "sha256": "0b43a4011a646c84cdad47afd73dabc1e5096181e42357dcf15d7153e3315ca8"
+    }
+  ],
+  "data": {
+    "source_ids": [
+      "pdb",
+      "alphafold",
+      "chembl",
+      "pubchem"
+    ],
+    "observations": [
+      {
+        "source_id": "pdb",
+        "record_ids": [
+          "pdb-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "alphafold",
+        "record_ids": [
+          "alphafold-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "chembl",
+        "record_ids": [
+          "chembl-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "pubchem",
+        "record_ids": [
+          "pubchem-1",
+          "pubchem-2"
+        ],
+        "status": "recorded"
+      }
+    ],
+    "interpretation": "availability-only",
+    "potency_groups": [
+      {
+        "record_ids": [
+          "chembl-1"
+        ],
+        "normalisation": null
+      },
+      {
+        "record_ids": [
+          "pubchem-1"
+        ],
+        "normalisation": null
+      },
+      {
+        "record_ids": [
+          "pubchem-2"
+        ],
+        "normalisation": null
+      }
+    ]
+  }
+}

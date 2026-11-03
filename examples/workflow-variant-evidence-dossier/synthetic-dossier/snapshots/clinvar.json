@@ -1,0 +1,34 @@
+{
+  "pages": [],
+  "receipt": {
+    "canonical_request_sha256": "04e96301d346bcc88fe0c58e0d94679422ce2566cc9aa4c01117abbb09a44768",
+    "completeness": "normalized-only",
+    "excluded_records": [],
+    "missingness": "negative",
+    "normalized_records_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "operation": "search",
+    "pages": [],
+    "query_id": "q-04e96301d346bcc88fe0c58e",
+    "returned_record_ids": [],
+    "schema_version": 1,
+    "source": "clinvar",
+    "source_contract_version": "2",
+    "source_release": null,
+    "status": "complete",
+    "warnings": []
+  },
+  "records": [],
+  "request": {
+    "evidence_cutoff": null,
+    "max_pages": 1,
+    "operation": "search",
+    "page_size": 5,
+    "parameters": {
+      "limit": 1,
+      "query": "synthetic-fixture"
+    },
+    "source": "clinvar",
+    "source_contract_version": "2"
+  },
+  "schema_version": 1
+}

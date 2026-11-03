@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "MODALITY_DIRECTION",
+  "reason": "Synthetic fixture: protective loss of function supports inhibition; opposite modality needs a rationale.",
+  "changes": [
+    {
+      "file": "stage-6.json",
+      "pointer": "/data/modality",
+      "value": "activation"
+    }
+  ]
+}

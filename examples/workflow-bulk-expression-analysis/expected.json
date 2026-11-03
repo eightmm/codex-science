@@ -1,0 +1,12 @@
+{
+  "evidence_level": "statistical-only",
+  "fixture": true,
+  "null_set_significant": false,
+  "planted_set_p_value": 0.005263157894736842,
+  "planted_set_significant": true,
+  "review": "unavailable",
+  "selected_genes": [
+    "G01",
+    "G02"
+  ]
+}

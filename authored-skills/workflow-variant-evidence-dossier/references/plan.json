@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "plan": [
+    {
+      "id": "01-normalize",
+      "description": "Freeze build, allele, strand and transcript in the identity ledger",
+      "status": "pending"
+    },
+    {
+      "id": "02-retrieve",
+      "description": "Retain public connector snapshots and unavailable source outcomes",
+      "status": "pending"
+    },
+    {
+      "id": "03-reconcile",
+      "description": "Reconcile per-source evidence, denominators, controls and dependencies",
+      "status": "pending"
+    },
+    {
+      "id": "04-bound-claims",
+      "description": "Validate evidence-only claims against immutable source artifacts",
+      "status": "pending"
+    },
+    {
+      "id": "05-review-handoff",
+      "description": "Deliver the unreviewed artifact packet to the independent coordinator",
+      "status": "pending"
+    }
+  ]
+}

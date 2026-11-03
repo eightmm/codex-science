@@ -1,0 +1,111 @@
+{
+  "fixture": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+  "rows": [
+    {
+      "cohort_groups": [
+        "synthetic-clinvar"
+      ],
+      "controls": {
+        "negative": "passed",
+        "positive": "passed"
+      },
+      "denominator": 0,
+      "denominator_unit": "synthetic observations",
+      "dependency_groups": [
+        "synthetic-clinvar"
+      ],
+      "evidence_type": "clinical_assertion",
+      "limitations": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "rationale": "No fixture record; unavailable, never negative.",
+      "record_id": null,
+      "source": "clinvar",
+      "status": "unavailable",
+      "uncertainty": "Synthetic values have no scientific calibration."
+    },
+    {
+      "cohort_groups": [
+        "synthetic-gnomad"
+      ],
+      "controls": {
+        "negative": "passed",
+        "positive": "passed"
+      },
+      "denominator": 20,
+      "denominator_unit": "synthetic observations",
+      "dependency_groups": [
+        "synthetic-gnomad"
+      ],
+      "evidence_type": "population_frequency",
+      "limitations": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "rationale": "Synthetic selected record.",
+      "record_id": "synthetic-gnomad",
+      "source": "gnomad",
+      "status": "observed",
+      "uncertainty": "Synthetic values have no scientific calibration."
+    },
+    {
+      "cohort_groups": [
+        "synthetic-shared"
+      ],
+      "controls": {
+        "negative": "passed",
+        "positive": "passed"
+      },
+      "denominator": 20,
+      "denominator_unit": "synthetic observations",
+      "dependency_groups": [
+        "synthetic-dbsnp"
+      ],
+      "evidence_type": "identity",
+      "limitations": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "rationale": "Synthetic selected record.",
+      "record_id": "synthetic-dbsnp",
+      "source": "dbsnp",
+      "status": "observed",
+      "uncertainty": "Synthetic values have no scientific calibration."
+    },
+    {
+      "cohort_groups": [
+        "synthetic-shared"
+      ],
+      "controls": {
+        "negative": "passed",
+        "positive": "passed"
+      },
+      "denominator": 20,
+      "denominator_unit": "synthetic observations",
+      "dependency_groups": [
+        "synthetic-gwas_catalog"
+      ],
+      "evidence_type": "annotation",
+      "limitations": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "rationale": "Synthetic selected record.",
+      "record_id": "synthetic-gwas_catalog",
+      "source": "gwas_catalog",
+      "status": "observed",
+      "uncertainty": "Synthetic values have no scientific calibration."
+    },
+    {
+      "cohort_groups": [
+        "synthetic-ensembl"
+      ],
+      "controls": {
+        "negative": "passed",
+        "positive": "passed"
+      },
+      "denominator": 20,
+      "denominator_unit": "synthetic observations",
+      "dependency_groups": [
+        "synthetic-ensembl"
+      ],
+      "evidence_type": "annotation",
+      "limitations": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+      "rationale": "Synthetic selected record.",
+      "record_id": "synthetic-ensembl",
+      "source": "ensembl",
+      "status": "observed",
+      "uncertainty": "Synthetic values have no scientific calibration."
+    }
+  ],
+  "schema": "variant-source-evidence-v1"
+}

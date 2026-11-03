@@ -52,6 +52,8 @@ run_science_contracts() (
 
   uv run python scripts/validate_release.py
   uv run python scripts/validate_connector_contracts.py
+  uv run python scripts/validate_variant_dossier.py \
+    examples/workflow-variant-evidence-dossier/synthetic-dossier --require-clean >/dev/null
   uv run python scripts/audit_skill_references.py \
     --output "$reference_tmp" \
     --require-clean
@@ -61,6 +63,14 @@ run_science_contracts() (
     --require-clean >/dev/null
   echo "native skill maturity: valid"
   uv run python scripts/validate_models.py >/dev/null
+  uv run python scripts/validate_solid_state_screening.py \
+    examples/workflow-solid-state-screening >/dev/null
+  uv run python scripts/validate_experiment_design_pack.py \
+    examples/workflow-experiment-design/computational-preregister.json >/dev/null
+  uv run python scripts/validate_bulk_expression_pack.py \
+    examples/workflow-bulk-expression-analysis/pack.json >/dev/null
+  uv run python scripts/validate_target_assessment_pack.py \
+    examples/workflow-target-assessment-dossier/synthetic >/dev/null
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

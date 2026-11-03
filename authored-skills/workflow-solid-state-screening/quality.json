@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-solid-state-screening",
+  "roles": ["conductor", "analyzer"],
+  "declared_maturity": "L4",
+  "output_schemas": ["solid-state-screening-contract-v1", "solid-state-screening-stage-v1"],
+  "acceptance_fixtures": ["examples/workflow-solid-state-screening/contract.json", "examples/workflow-solid-state-screening/review-handoff.json", "examples/workflow-solid-state-screening/negative-cases.json", "examples/workflow-solid-state-screening/manifest.json", "benchmarks/workflow-solid-state-screening/tasks.json"],
+  "seeded_failures": ["units-missing", "units-inconsistent", "analytic-not-run", "analytic-outside-tolerance", "convergence-absent", "convergence-truncated", "convergence-nonmonotone", "convergence-failed", "uncertainty-ignored", "sensitivity-flip-hidden", "posthoc-threshold", "numerical-as-physical", "numerical-as-experimental", "unmatched-experiment", "association-as-causality", "missing-as-negative", "self-reviewed"],
+  "test_files": ["tests/test_workflow_solid_state_screening.py"],
+  "limitations": [
+    "The synthetic tight-binding reference validates the workflow contract, not materials-property accuracy.",
+    "No DFT, ML potential, real structure solver, physical validation, matched experiment or independent review is executed by these fixtures.",
+    "The fixture assumes independent uncertainty components and conservatively treats the known finite-size error as a numerical standard-uncertainty component; it is not a calibrated physical coverage interval.",
+    "Hashes detect inconsistent handoffs, not authenticity or the historical timing of threshold selection."
+  ]
+}

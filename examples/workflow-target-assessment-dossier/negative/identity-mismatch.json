@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "TARGET_IDENTITY",
+  "reason": "Synthetic fixture: one source silently switches isoforms.",
+  "changes": [
+    {
+      "file": "snapshots.json",
+      "pointer": "/sources/0/target/isoform",
+      "value": "synthetic-isoform-B"
+    }
+  ]
+}

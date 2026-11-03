@@ -1,0 +1,4 @@
+interface:
+  display_name: "Target Assessment Dossier"
+  short_description: "Build a traceable six-stage target assessment"
+  default_prompt: "Use $workflow-target-assessment-dossier to assess a target and indication with identity-bound evidence, a bounded decision memo and independent review handoff."

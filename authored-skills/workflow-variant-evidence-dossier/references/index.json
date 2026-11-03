@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-variant-evidence-dossier",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Define fixed stage handoffs, pack-local records, controls, refusals and review boundaries.",
+      "read_when": [
+        "building or validating a public variant dossier"
+      ],
+      "required_before": [
+        "variant-normalization",
+        "source-retrieval",
+        "dependency-reconciliation",
+        "claim-bounding",
+        "review-handoff"
+      ],
+      "search_patterns": [
+        "## 01-normalize",
+        "## 02-retrieve",
+        "## 03-reconcile",
+        "## 04-bound-claims",
+        "## 05-review-handoff"
+      ],
+      "authority": "Codex Science pack-local workflow contract",
+      "version": "1",
+      "evidence_boundary": "Mechanical declarations and artifact identities only; no clinical validity or review attestation."
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Reuse the existing manifest plan step shape and fixed ordered stage IDs.",
+      "read_when": [
+        "creating the coordinator run plan"
+      ],
+      "required_before": [
+        "plan-freeze"
+      ],
+      "search_patterns": [
+        "01-normalize",
+        "05-review-handoff"
+      ],
+      "authority": "Existing manifest plan contract",
+      "version": "1",
+      "evidence_boundary": "Stage order is a procedure, never scientific evidence."
+    }
+  ]
+}

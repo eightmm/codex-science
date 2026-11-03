@@ -1,0 +1,4 @@
+interface:
+  display_name: "Public Variant Evidence Dossier"
+  short_description: "Build evidence-only public variant dossiers"
+  default_prompt: "Use $workflow-variant-evidence-dossier to normalize this public variant, retain source evidence and hand off bounded claims for independent review."

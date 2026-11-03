@@ -1,0 +1,10 @@
+{
+  "claim_count": 3,
+  "limitations": [
+    "Checks declared links and structured claims; independent source and method review remains required."
+  ],
+  "review_status": "unreviewed",
+  "schema": "variant-dossier-validation-v1",
+  "source_count": 5,
+  "status": "passed"
+}

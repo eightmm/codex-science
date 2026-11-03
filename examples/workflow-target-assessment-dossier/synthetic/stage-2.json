@@ -1,0 +1,54 @@
+{
+  "schema": "target-assessment-stage-v1",
+  "id": "stage-02",
+  "synthetic": true,
+  "inputs": [
+    {
+      "path": "snapshots.json",
+      "sha256": "18f6157719fc3abdabf06bf28a93929fd979880cfea4f0c8c9f0944b1f7ef3b3"
+    },
+    {
+      "path": "stage-1.json",
+      "sha256": "f6c3764ffde32bd5d4f3c986947fa5a1e91660f4bfb8f096822b9b687bcdadf0"
+    }
+  ],
+  "data": {
+    "source_ids": [
+      "ot",
+      "gwas",
+      "gnomad",
+      "clinvar"
+    ],
+    "observations": [
+      {
+        "source_id": "ot",
+        "record_ids": [
+          "ot-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "gwas",
+        "record_ids": [
+          "gwas-1"
+        ],
+        "status": "recorded"
+      },
+      {
+        "source_id": "gnomad",
+        "record_ids": [],
+        "status": "unavailable"
+      },
+      {
+        "source_id": "clinvar",
+        "record_ids": [],
+        "status": "unavailable"
+      }
+    ],
+    "support_record_ids": [
+      "ot-1",
+      "gwas-1"
+    ],
+    "independent_support_count": 1
+  }
+}

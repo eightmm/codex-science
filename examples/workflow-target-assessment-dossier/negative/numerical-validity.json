@@ -1,0 +1,30 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "MEMO_OVERCLAIM",
+  "reason": "Synthetic fixture: numerical agreement is not physical or clinical validity.",
+  "changes": [
+    {
+      "file": "snapshots.json",
+      "pointer": "/sources/4/records/0/kind",
+      "value": "computed"
+    },
+    {
+      "file": "snapshots.json",
+      "pointer": "/sources/4/records/0/result",
+      "value": "numerical-agreement"
+    },
+    {
+      "file": "stage-6.json",
+      "pointer": "/data/claims/0/evidence",
+      "value": [
+        "normalization-1"
+      ]
+    },
+    {
+      "file": "stage-6.json",
+      "pointer": "/data/claims/0/kind",
+      "value": "physical-validity"
+    }
+  ]
+}

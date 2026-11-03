@@ -1,0 +1,40 @@
+{
+  "data": {
+    "claims": [
+      {
+        "basis": "numerical-verification",
+        "id": "C-numerical",
+        "kind": "descriptive",
+        "status": "supported"
+      },
+      {
+        "basis": "experiment",
+        "id": "C-experiment",
+        "kind": "descriptive",
+        "status": "unavailable"
+      }
+    ],
+    "experimental_comparison": {
+      "observable": null,
+      "status": "unavailable"
+    },
+    "exploratory": false,
+    "failed_controls": [],
+    "negative_results": [],
+    "next_action": "Independent science-review of the toy workflow contract; obtain matched measurements for physical claims.",
+    "review_status": "pending"
+  },
+  "inputs": [
+    {
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9"
+    },
+    {
+      "path": "ranking.json",
+      "sha256": "abb59c9f81952020d051c068b84990d82cfe31a6060b8bcd9df6f52c40b49517"
+    }
+  ],
+  "schema": "solid-state-screening-stage-v1",
+  "stage_id": "stage-5",
+  "synthetic": true
+}

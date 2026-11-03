@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workflow Experiment Design"
+  short_description: "Freeze experiment plans and audit post-hoc deviations"
+  default_prompt: "Use $workflow-experiment-design to preregister the six-stage experiment plan or audit a finished analysis against immutable frozen artifacts before independent review."

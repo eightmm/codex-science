@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "INDEPENDENT_REVIEW",
+  "reason": "Synthetic fixture: the pack cannot certify its own independent review.",
+  "changes": [
+    {
+      "file": "dossier.json",
+      "pointer": "/review_status",
+      "value": "passed"
+    }
+  ]
+}

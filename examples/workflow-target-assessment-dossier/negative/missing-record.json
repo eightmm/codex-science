@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "SOURCE_UNAVAILABLE",
+  "reason": "Synthetic fixture: no gnomAD record is unavailable rather than negative association evidence.",
+  "changes": [
+    {
+      "file": "stage-2.json",
+      "pointer": "/data/observations/2/status",
+      "value": "no-association"
+    }
+  ]
+}

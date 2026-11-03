@@ -1,0 +1,99 @@
+{
+  "analysis_id": "fixture-statistical-smoke",
+  "analysis_type": "independent",
+  "bootstrap_replicates": 200,
+  "claim_id": "fixture-no-claim",
+  "data": [
+    {
+      "group": "control",
+      "unit_id": "control-0",
+      "value": 0.0
+    },
+    {
+      "group": "control",
+      "unit_id": "control-0",
+      "value": 0.1
+    },
+    {
+      "group": "control",
+      "unit_id": "control-1",
+      "value": 1.0
+    },
+    {
+      "group": "control",
+      "unit_id": "control-1",
+      "value": 1.1
+    },
+    {
+      "group": "control",
+      "unit_id": "control-2",
+      "value": 2.0
+    },
+    {
+      "group": "control",
+      "unit_id": "control-2",
+      "value": 2.1
+    },
+    {
+      "group": "control",
+      "unit_id": "control-3",
+      "value": 3.0
+    },
+    {
+      "group": "control",
+      "unit_id": "control-3",
+      "value": 3.1
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-0",
+      "value": 0.0
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-0",
+      "value": 0.1
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-1",
+      "value": 1.0
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-1",
+      "value": 1.1
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-2",
+      "value": 2.0
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-2",
+      "value": 2.1
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-3",
+      "value": 3.0
+    },
+    {
+      "group": "treated",
+      "unit_id": "treated-3",
+      "value": 3.1
+    }
+  ],
+  "design_id": "fixture-separate-smoke",
+  "estimand": "mean-difference",
+  "fixture": "SYNTHETIC runtime smoke only, not a planned study result",
+  "group_labels": [
+    "control",
+    "treated"
+  ],
+  "permutation_replicates": 200,
+  "schema_version": 1,
+  "seed": 1729,
+  "within_unit_aggregation": "mean"
+}

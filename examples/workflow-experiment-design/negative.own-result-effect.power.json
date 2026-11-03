@@ -1,0 +1,39 @@
+{
+  "arms": [
+    {
+      "allocation": 1,
+      "attrition": 0.2,
+      "cost_per_unit": 2,
+      "id": "control",
+      "planned": 40,
+      "required_analyzable": 32
+    },
+    {
+      "allocation": 2,
+      "attrition": 0.2,
+      "cost_per_unit": 2,
+      "id": "treated",
+      "planned": 80,
+      "required_analyzable": 64
+    }
+  ],
+  "assumed_effect": 1.0,
+  "cost_unit": "fixture-credit",
+  "count_unit": "culture-batch",
+  "effect_source": {
+    "artifact": {
+      "path": "external-assumptions.json",
+      "sha256": "605535c1fc22b55319d3a22072fc8251a2fa2a9a62ecc50974ae7a9399a17623"
+    },
+    "origin": "this-study-result"
+  },
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "method": "normal-approximation-two-group",
+  "schema": "experiment-power-v1",
+  "target_power": 0.8,
+  "variance": 1.0,
+  "variance_source": {
+    "path": "external-assumptions.json",
+    "sha256": "605535c1fc22b55319d3a22072fc8251a2fa2a9a62ecc50974ae7a9399a17623"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-target-assessment-dossier",
+  "roles": [
+    "conductor"
+  ],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "target-assessment-pack-v1",
+    "target-assessment-snapshots-v1",
+    "target-assessment-stage-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/workflow-target-assessment-dossier/synthetic/dossier.json",
+    "examples/workflow-target-assessment-dossier/expected-validation.json",
+    "examples/workflow-target-assessment-dossier/negative/association-causality.json",
+    "examples/workflow-target-assessment-dossier/negative/availability-overclaim.json",
+    "examples/workflow-target-assessment-dossier/negative/cohort-dependence.json",
+    "examples/workflow-target-assessment-dossier/negative/critical-liability.json",
+    "examples/workflow-target-assessment-dossier/negative/failed-control.json",
+    "examples/workflow-target-assessment-dossier/negative/identity-mismatch.json",
+    "examples/workflow-target-assessment-dossier/negative/memo-overclaim.json",
+    "examples/workflow-target-assessment-dossier/negative/missing-record.json",
+    "examples/workflow-target-assessment-dossier/negative/modality-direction.json",
+    "examples/workflow-target-assessment-dossier/negative/numerical-validity.json",
+    "examples/workflow-target-assessment-dossier/negative/patient-advice.json",
+    "examples/workflow-target-assessment-dossier/negative/potency-mixing.json",
+    "examples/workflow-target-assessment-dossier/negative/review-truth.json",
+    "examples/workflow-target-assessment-dossier/negative/self-review.json"
+  ],
+  "seeded_failures": [
+    "association-causality",
+    "availability-overclaim",
+    "cohort-dependence",
+    "critical-liability",
+    "failed-control",
+    "identity-mismatch",
+    "memo-overclaim",
+    "missing-record",
+    "modality-direction",
+    "numerical-validity",
+    "patient-advice",
+    "potency-mixing",
+    "review-truth",
+    "self-review"
+  ],
+  "test_files": [
+    "tests/test_workflow_target_assessment.py"
+  ],
+  "limitations": [
+    "L4 covers offline synthetic record checks only, not live source fidelity or target efficacy.",
+    "Literal claim attribution cannot establish source truth or detect omitted material prose.",
+    "Normalization and modality rationales require independent source and method review.",
+    "The pack never marks its own output reviewed or runs the proposed experiment."
+  ]
+}

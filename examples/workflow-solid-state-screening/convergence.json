@@ -1,0 +1,67 @@
+{
+  "data": {
+    "candidates": [
+      {
+        "candidate_id": "fixture-a",
+        "converged": true,
+        "final_error": 0.0090561548538306,
+        "reference_limit": -2.0,
+        "series": [
+          {
+            "sites": 4,
+            "value": -1.618033988749895
+          },
+          {
+            "sites": 8,
+            "value": -1.8793852415718169
+          },
+          {
+            "sites": 16,
+            "value": -1.9659461993678036
+          },
+          {
+            "sites": 32,
+            "value": -1.9909438451461694
+          }
+        ]
+      },
+      {
+        "candidate_id": "fixture-b",
+        "converged": true,
+        "final_error": 0.008603347111139303,
+        "reference_limit": -1.7,
+        "series": [
+          {
+            "sites": 4,
+            "value": -1.3371322893124
+          },
+          {
+            "sites": 8,
+            "value": -1.585415979493226
+          },
+          {
+            "sites": 16,
+            "value": -1.6676488893994132
+          },
+          {
+            "sites": 32,
+            "value": -1.6913966528888607
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "path": "contract.json",
+      "sha256": "3f0625cda03e60cf5c69881d8cd873087c0506a93698959a35ac3039822a62d9"
+    },
+    {
+      "path": "analytic-control.json",
+      "sha256": "e761fddd0b802e1f255f937d7b998b71b0defc257a8f08d616021a992bf33313"
+    }
+  ],
+  "schema": "solid-state-screening-stage-v1",
+  "stage_id": "stage-3",
+  "synthetic": true
+}

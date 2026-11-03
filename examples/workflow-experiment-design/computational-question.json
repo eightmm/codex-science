@@ -1,0 +1,18 @@
+{
+  "assignment_mechanism": "randomized",
+  "claims": [
+    {
+      "assertion": "association",
+      "evidence": "association"
+    }
+  ],
+  "estimand": "treated minus control mean growth",
+  "experimental_unit": "simulation-seed",
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "observation_window": "fixture day 1",
+  "observational_unit": "time-step",
+  "population": "synthetic independent simulation seeds",
+  "primary_outcome": "growth",
+  "question": "Does a synthetic seeded algorithm change simulated growth?",
+  "schema": "experiment-question-v1"
+}

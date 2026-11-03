@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "claims": [
+    {
+      "id": "synthetic-association",
+      "text": "Synthetic fixture only: ot records association in the invented system.",
+      "permitted_inference": "associational",
+      "status": "suggestive",
+      "required_support": "Traceable synthetic association; no causal claim.",
+      "falsifier": "Synthetic orthogonal perturbation disagrees.",
+      "uncertainty": "Synthetic fixture only; no empirical efficacy.",
+      "next_action": "Review the proposed smallest discriminating experiment."
+    }
+  ]
+}

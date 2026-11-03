@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "synthetic": true,
+  "stage_count": 6,
+  "review_status": "pending",
+  "decision": "go",
+  "boundary": "Internal record consistency only; no scientific or clinical validity established."
+}

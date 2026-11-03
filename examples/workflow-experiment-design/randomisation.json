@@ -1,0 +1,10 @@
+{
+  "allocation_concealment": "separate synthetic allocator",
+  "assignment_mechanism": "randomized",
+  "assignment_seed": 1729,
+  "blinding": "masked fixture labels until plan lock",
+  "blinding_seed": 1730,
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "method": "seeded blocked allocation at ratio 1:2",
+  "schema": "experiment-randomisation-v1"
+}

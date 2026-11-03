@@ -13,6 +13,11 @@ from codex_science.cli_io import write_text_atomic  # noqa: E402
 from codex_science.reference_contract import audit_reference_roots  # noqa: E402
 
 STRICT_SKILLS = {
+    "workflow-variant-evidence-dossier",
+    "workflow-solid-state-screening",
+    "workflow-experiment-design",
+    "workflow-bulk-expression-analysis",
+    "workflow-target-assessment-dossier",
     "codex-science",
     "science-provenance",
     "science-review",

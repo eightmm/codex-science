@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "AVAILABILITY_NOT_DRUGGABILITY",
+  "reason": "Synthetic fixture: available structures and ligands do not establish druggability.",
+  "changes": [
+    {
+      "file": "stage-4.json",
+      "pointer": "/data/interpretation",
+      "value": "druggable"
+    }
+  ]
+}

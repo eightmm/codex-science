@@ -1,0 +1,46 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-experiment-design/preregister.json",
+    "examples/workflow-experiment-design/audit.json",
+    "examples/workflow-experiment-design/exploratory-audit.json",
+    "examples/workflow-experiment-design/negative-cases.json",
+    "examples/workflow-experiment-design/computational-preregister.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Deterministic synthetic contract acceptance only; no real study, clinical or physical validation.",
+    "Declared timestamps and source origins need independent review; hashes establish byte identity only.",
+    "Power consistency is limited to a two-group normal approximation; complex or sequential operating characteristics need specialist methods."
+  ],
+  "output_schemas": [
+    "experiment-design-pack-v1",
+    "experiment-question-v1",
+    "experiment-power-v1",
+    "experiment-randomisation-v1",
+    "experiment-analysis-plan-v1",
+    "experiment-controls-v1",
+    "experiment-handoff-v1",
+    "experiment-analysis-v1",
+    "experiment-results-v1",
+    "experiment-design-validation-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "plan-hash-mismatch",
+    "pseudoreplication",
+    "own-result-effect",
+    "unlabelled-deviation",
+    "multiplicity-ignored",
+    "allocation-attrition",
+    "stopping-rule-absent",
+    "omitted-result"
+  ],
+  "skill": "workflow-experiment-design",
+  "test_files": [
+    "tests/test_workflow_experiment_design.py"
+  ]
+}

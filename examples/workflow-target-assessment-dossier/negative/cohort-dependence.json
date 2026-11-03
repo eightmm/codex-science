@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "base": "synthetic/dossier.json",
+  "expected_code": "GENETIC_DEPENDENCE",
+  "reason": "Synthetic fixture: two portal views share the same cohort and dependency group.",
+  "changes": [
+    {
+      "file": "stage-2.json",
+      "pointer": "/data/independent_support_count",
+      "value": 2
+    }
+  ]
+}

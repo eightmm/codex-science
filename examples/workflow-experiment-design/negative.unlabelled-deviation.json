@@ -1,0 +1,38 @@
+{
+  "analysis": {
+    "path": "negative.unlabelled-deviation.analysis.json",
+    "sha256": "e7013bd668554322a56f9f478c565736e091a8a9910d0d3b9d530280820089ee"
+  },
+  "analysis_plan": {
+    "path": "analysis-plan.json",
+    "sha256": "721a5dadbb5a0ef1e91c59d2f25ae24770ef7767a3adf9f44f6edd77b6e2ccfe"
+  },
+  "controls": {
+    "path": "controls.json",
+    "sha256": "5aac28aea108c06c557cfb5d0896f2b73d990acb8ee00219b2c3de637b8a3993"
+  },
+  "data_collection_started_at": "2026-01-02T00:00:00Z",
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "handoff": {
+    "path": "handoff.json",
+    "sha256": "9a80c767a6c610e613eaea7aef3e16059c7cd3c866ce91d494237233f2d63798"
+  },
+  "outcomes_available_at": "2026-01-03T00:00:00Z",
+  "power": {
+    "path": "power.json",
+    "sha256": "ebad2e92072f4d8961dc4e4fd7bd177fec803d9a30234c114d0846541ecff49c"
+  },
+  "question": {
+    "path": "question.json",
+    "sha256": "b5d5157361b40ef019b118a3efff2925b2c22ea4f5f0a5a1b46f50453f7bfce2"
+  },
+  "randomisation": {
+    "path": "randomisation.json",
+    "sha256": "b5ace01a882d3251cf1787cea8c81d53dfd67c35b56f5c47ac8452ce33a6ebcd"
+  },
+  "results": {
+    "path": "results.json",
+    "sha256": "8c9f66b12e908162a8436075941d6d1f37469ac35aa84b02585576f8f5a7d172"
+  },
+  "schema": "experiment-design-pack-v1"
+}

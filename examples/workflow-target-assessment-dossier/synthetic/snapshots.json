@@ -1,0 +1,453 @@
+{
+  "schema": "target-assessment-snapshots-v1",
+  "synthetic": true,
+  "sources": [
+    {
+      "id": "ot",
+      "skill": "opentargets-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [
+        "synthetic-cohort-A"
+      ],
+      "dependency_groups": [
+        "synthetic-shared-portal-A"
+      ],
+      "records": [
+        {
+          "id": "ot-1",
+          "kind": "associational",
+          "result": "association",
+          "statement": "Synthetic fixture only: ot records association in the invented system.",
+          "effect": {
+            "perturbation": "loss-of-function",
+            "outcome": "protective"
+          }
+        }
+      ]
+    },
+    {
+      "id": "gwas",
+      "skill": "gwas-catalog-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [
+        "synthetic-cohort-A"
+      ],
+      "dependency_groups": [
+        "synthetic-shared-portal-A"
+      ],
+      "records": [
+        {
+          "id": "gwas-1",
+          "kind": "associational",
+          "result": "association",
+          "statement": "Synthetic fixture only: gwas records association in the invented system.",
+          "effect": {
+            "perturbation": "loss-of-function",
+            "outcome": "protective"
+          }
+        }
+      ]
+    },
+    {
+      "id": "gnomad",
+      "skill": "gnomad-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [
+        "synthetic-cohort-A"
+      ],
+      "dependency_groups": [],
+      "records": []
+    },
+    {
+      "id": "clinvar",
+      "skill": "clinvar-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [
+        "synthetic-cohort-A"
+      ],
+      "dependency_groups": [],
+      "records": []
+    },
+    {
+      "id": "normalization",
+      "skill": "biomedical-entity-normalization",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "normalization-1",
+          "kind": "descriptive",
+          "result": "identity",
+          "statement": "Synthetic fixture only: normalization records identity in the invented system."
+        }
+      ]
+    },
+    {
+      "id": "expression",
+      "skill": "expression-cell-context",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "expression-1",
+          "kind": "descriptive",
+          "result": "expression",
+          "statement": "Synthetic fixture only: expression records expression in the invented system.",
+          "context": {
+            "tissue": "synthetic-tissue-A",
+            "cell_state": "synthetic-state-A",
+            "assay": "synthetic-RNA-assay",
+            "unit": "synthetic-expression-unit",
+            "normalisation": "synthetic-within-assay",
+            "donor_count": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "hpa",
+      "skill": "hpa-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "hpa-1",
+          "kind": "descriptive",
+          "result": "expression",
+          "statement": "Synthetic fixture only: hpa records expression in the invented system.",
+          "context": {
+            "tissue": "synthetic-tissue-A",
+            "cell_state": "synthetic-state-A",
+            "assay": "synthetic-RNA-assay",
+            "unit": "synthetic-expression-unit",
+            "normalisation": "synthetic-within-assay",
+            "donor_count": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "gtex",
+      "skill": "gtex-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "gtex-1",
+          "kind": "descriptive",
+          "result": "expression",
+          "statement": "Synthetic fixture only: gtex records expression in the invented system.",
+          "context": {
+            "tissue": "synthetic-tissue-A",
+            "cell_state": "synthetic-state-A",
+            "assay": "synthetic-RNA-assay",
+            "unit": "synthetic-expression-unit",
+            "normalisation": "synthetic-within-assay",
+            "donor_count": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "pdb",
+      "skill": "pdb-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "pdb-1",
+          "kind": "descriptive",
+          "result": "availability",
+          "statement": "Synthetic fixture only: pdb records availability in the invented system."
+        }
+      ]
+    },
+    {
+      "id": "alphafold",
+      "skill": "alphafold-structure-analysis",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "alphafold-1",
+          "kind": "descriptive",
+          "result": "availability",
+          "statement": "Synthetic fixture only: alphafold records availability in the invented system."
+        }
+      ]
+    },
+    {
+      "id": "chembl",
+      "skill": "chembl-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "chembl-1",
+          "kind": "descriptive",
+          "result": "availability",
+          "statement": "Synthetic fixture only: chembl records availability in the invented system.",
+          "potency": {
+            "assay": "IC50",
+            "unit": "nM",
+            "value": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "pubchem",
+      "skill": "pubchem-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "pubchem-1",
+          "kind": "descriptive",
+          "result": "availability",
+          "statement": "Synthetic fixture only: pubchem records availability in the invented system.",
+          "potency": {
+            "assay": "Ki",
+            "unit": "uM",
+            "value": 0.02
+          }
+        },
+        {
+          "id": "pubchem-2",
+          "kind": "descriptive",
+          "result": "availability",
+          "statement": "Synthetic fixture only: a percent inhibition measurement was recorded.",
+          "potency": {
+            "assay": "percent-inhibition",
+            "unit": "percent",
+            "value": 50
+          }
+        }
+      ]
+    },
+    {
+      "id": "fda",
+      "skill": "openfda-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "fda-1",
+          "kind": "descriptive",
+          "result": "safety-signal",
+          "statement": "Synthetic fixture only: fda records safety-signal in the invented system."
+        }
+      ]
+    },
+    {
+      "id": "trials",
+      "skill": "clinical-trials-search",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "trials-1",
+          "kind": "descriptive",
+          "result": "safety-signal",
+          "statement": "Synthetic fixture only: trials records safety-signal in the invented system."
+        }
+      ]
+    },
+    {
+      "id": "pharmacology",
+      "skill": "translational-pharmacology-evidence",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "pharmacology-1",
+          "kind": "descriptive",
+          "result": "safety-signal",
+          "statement": "Synthetic fixture only: pharmacology records safety-signal in the invented system."
+        },
+        {
+          "id": "pharmacology-negative",
+          "kind": "descriptive",
+          "result": "negative",
+          "statement": "Synthetic fixture only: an invented control has a negative result."
+        },
+        {
+          "id": "pharmacology-failed",
+          "kind": "descriptive",
+          "result": "failed-control",
+          "statement": "Synthetic fixture only: an invented control failed; retained for review."
+        }
+      ]
+    },
+    {
+      "id": "indication",
+      "skill": "indication-dossier",
+      "target": {
+        "uniprot": "SYNTHETIC-UNIPROT-A",
+        "ensembl": "SYNTHETIC-ENSEMBL-A",
+        "hgnc": "SYNTHETIC-HGNC-A",
+        "species": "synthetic-species-A",
+        "isoform": "synthetic-isoform-A",
+        "indication_id": "SYNTHETIC-DISEASE-A"
+      },
+      "release": "synthetic-v1",
+      "query": "synthetic fixture query only; never sent to a connector",
+      "cohorts": [],
+      "dependency_groups": [],
+      "records": [
+        {
+          "id": "indication-1",
+          "kind": "descriptive",
+          "result": "safety-signal",
+          "statement": "Synthetic fixture only: indication records safety-signal in the invented system."
+        }
+      ]
+    }
+  ]
+}

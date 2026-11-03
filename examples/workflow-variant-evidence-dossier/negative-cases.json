@@ -1,0 +1,127 @@
+{
+  "base": "synthetic-dossier",
+  "cases": [
+    {
+      "expected_code": "genome-build-mismatch",
+      "id": "genome-build-mismatch",
+      "pointer": "/records/0/variant/genome_build",
+      "target": "snapshots/gnomad.json",
+      "value": "GRCh37"
+    },
+    {
+      "expected_code": "unreconciled-allele-strand",
+      "id": "unreconciled-allele-strand",
+      "pointer": "/records/0/variant/strand",
+      "target": "snapshots/dbsnp.json",
+      "value": "-"
+    },
+    {
+      "expected_code": "dependent-replication",
+      "id": "dependent-replication",
+      "pointer": "/claims/1/status",
+      "target": "bounded-claims.json",
+      "value": "replicated"
+    },
+    {
+      "expected_code": "missing-record-not-negative",
+      "id": "missing-record-not-negative",
+      "pointer": "/rows/0",
+      "target": "evidence-table.json",
+      "value": {
+        "cohort_groups": [
+          "synthetic-clinvar"
+        ],
+        "controls": {
+          "negative": "passed",
+          "positive": "passed"
+        },
+        "denominator": 20,
+        "denominator_unit": "synthetic observations",
+        "dependency_groups": [
+          "synthetic-clinvar"
+        ],
+        "evidence_type": "clinical_assertion",
+        "limitations": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+        "rationale": "No fixture record; unavailable, never negative.",
+        "record_id": null,
+        "source": "clinvar",
+        "status": "negative",
+        "uncertainty": "Synthetic values have no scientific calibration."
+      }
+    },
+    {
+      "expected_code": "claim-strength-exceeds-source",
+      "id": "association-as-causation",
+      "pointer": "/claims/1/kind",
+      "target": "bounded-claims.json",
+      "value": "causal"
+    },
+    {
+      "expected_code": "claim-strength-exceeds-source",
+      "id": "frequency-as-clinical-classification",
+      "pointer": "/claims/0/kind",
+      "target": "bounded-claims.json",
+      "value": "clinical_classification"
+    },
+    {
+      "expected_code": "artifact-hash-mismatch",
+      "id": "identity-snapshot-hash-mismatch",
+      "pointer": "/sources/1/snapshot/sha256",
+      "target": "identity-ledger.json",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "expected_code": "missing-control",
+      "id": "missing-control",
+      "pointer": "/rows/1/controls",
+      "target": "evidence-table.json",
+      "value": {
+        "positive": "passed"
+      }
+    },
+    {
+      "expected_code": "missing-denominator",
+      "id": "missing-denominator",
+      "pointer": "/rows/1/denominator",
+      "target": "evidence-table.json",
+      "value": null
+    },
+    {
+      "expected_code": "claim-strength-exceeds-source",
+      "id": "numerical-as-physical-validity",
+      "pointer": "/claims/0/kind",
+      "target": "bounded-claims.json",
+      "value": "physical_validity"
+    },
+    {
+      "expected_code": "claim-strength-exceeds-source",
+      "id": "review-as-truth",
+      "pointer": "/claims/0/basis",
+      "target": "bounded-claims.json",
+      "value": "review_approval"
+    },
+    {
+      "expected_code": "self-reviewed-dossier",
+      "id": "self-reviewed-dossier",
+      "pointer": "/review_status",
+      "target": "dossier.json",
+      "value": "passed"
+    },
+    {
+      "expected_code": "failed-support-control",
+      "id": "failed-support-control",
+      "pointer": "/rows/1/controls/positive",
+      "target": "evidence-table.json",
+      "value": "failed"
+    },
+    {
+      "expected_code": "normalization-ledger-mismatch",
+      "id": "normalization-ledger-mismatch",
+      "pointer": "/identity/position",
+      "target": "identity-ledger.normalized.json",
+      "value": 102
+    }
+  ],
+  "fixture": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+  "schema": "variant-dossier-negative-fixtures-v1"
+}

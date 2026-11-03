@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bulk Expression Analysis Workflow"
+  short_description: "Freeze bulk expression controls and hand off statistical evidence"
+  default_prompt: "Use $workflow-bulk-expression-analysis to inspect dataset fitness, freeze QC and a contrast, analyze supplied synthetic fixtures, preserve negative results and hand off bounded claims for independent review."

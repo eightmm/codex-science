@@ -1,0 +1,48 @@
+{
+  "fixture": true,
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "G01 and G02 are the only selected genes at frozen alpha 0.05.",
+        "The planted fixture set is significant and the null and empty sets are not.",
+        "Evidence is statistical-only; review remains unavailable; all 20 genes and three sets remain in output."
+      ],
+      "budget": {
+        "cpu_only": true,
+        "network": false,
+        "third_party_dependencies": 0,
+        "wall_seconds": 60
+      },
+      "id": "planted-association",
+      "input": "examples/workflow-bulk-expression-analysis/pack.json",
+      "question": "Does the fixed synthetic fixture recover the two planted differential genes with complete-family BH and explicit-universe enrichment?"
+    },
+    {
+      "acceptance_criteria": [
+        "batch-confounding: batch-confounding",
+        "post-result-contrast: post-result-change",
+        "post-result-threshold: post-result-change",
+        "no-correction: multiple-testing",
+        "filtered-correction: multiple-testing",
+        "missing-background: enrichment-background",
+        "incomplete-background: enrichment-background",
+        "namespace-mismatch: identifier-mismatch",
+        "annotation-mismatch: identifier-mismatch",
+        "insufficient-replicates: insufficient-replicates",
+        "outlier-missing-reason: outlier-removal",
+        "outlier-missing-threshold: outlier-removal",
+        "causal-pathway: claim-boundary"
+      ],
+      "budget": {
+        "cpu_only": true,
+        "network": false,
+        "third_party_dependencies": 0,
+        "wall_seconds": 60
+      },
+      "id": "seeded-defects",
+      "input": "examples/workflow-bulk-expression-analysis/negative-cases.json",
+      "question": "Is each frozen seeded defect refused for its named reason before a statistical result is returned?"
+    }
+  ]
+}

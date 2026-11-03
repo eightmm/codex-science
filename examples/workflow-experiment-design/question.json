@@ -1,0 +1,18 @@
+{
+  "assignment_mechanism": "randomized",
+  "claims": [
+    {
+      "assertion": "association",
+      "evidence": "association"
+    }
+  ],
+  "estimand": "treated minus control mean growth",
+  "experimental_unit": "culture-batch",
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "observation_window": "fixture day 1",
+  "observational_unit": "image",
+  "population": "synthetic independently assigned culture batches",
+  "primary_outcome": "growth",
+  "question": "Does fixture treatment change unit-level growth?",
+  "schema": "experiment-question-v1"
+}

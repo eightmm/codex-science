@@ -1,0 +1,57 @@
+{
+  "candidates": [
+    {
+      "hopping": 1.0,
+      "id": "fixture-a",
+      "onsite": 0.0,
+      "uncertainty": {
+        "input": 0.03,
+        "model": 0.02
+      }
+    },
+    {
+      "hopping": 0.95,
+      "id": "fixture-b",
+      "onsite": 0.2,
+      "uncertainty": {
+        "input": 0.01,
+        "model": 0.04
+      }
+    }
+  ],
+  "energy_unit": "eV",
+  "model": {
+    "boundary": "open",
+    "dimension": 1,
+    "lattice_spacing": {
+      "unit": "nm",
+      "value": 0.25
+    },
+    "name": "open-tight-binding-chain"
+  },
+  "observable": "lowest-energy",
+  "refinements": [
+    4,
+    8,
+    16,
+    32
+  ],
+  "schema": "solid-state-screening-contract-v1",
+  "seed": 1729,
+  "sensitivity": [
+    {
+      "hopping_scale": 0.9,
+      "id": "fixture-model-alternative",
+      "onsite_shifts": {
+        "fixture-a": 0.35,
+        "fixture-b": -0.35
+      }
+    }
+  ],
+  "synthetic": true,
+  "thresholds": {
+    "analytic_abs": 1e-12,
+    "convergence_abs": 0.02,
+    "monotone_slack": 1e-12
+  }
+}

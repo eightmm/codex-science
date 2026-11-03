@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "plan": [
+    {"id": "stage-1", "description": "Normalize the supplied model, identities, units and frozen decision thresholds.", "status": "pending"},
+    {"id": "stage-2", "description": "Pass the prespecified analytic limiting-case control before candidate scoring.", "status": "pending"},
+    {"id": "stage-3", "description": "Retain and assess every candidate's complete convergence series.", "status": "pending"},
+    {"id": "stage-4", "description": "Rank with all declared uncertainties and report model-sensitivity reversals.", "status": "pending"},
+    {"id": "stage-5", "description": "Register ordinary artifacts and separate claims, then hand off for independent science-review.", "status": "pending"}
+  ]
+}

@@ -2,6 +2,36 @@
   "schema_version": 1,
   "requirements": [
     {
+      "skill": "workflow-variant-evidence-dossier",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-solid-state-screening",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-experiment-design",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-bulk-expression-analysis",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-target-assessment-dossier",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor"],
+      "require_reference_contract": true
+    },
+    {
       "skill": "codex-science",
       "minimum_maturity": "L3",
       "required_roles": ["conductor"],

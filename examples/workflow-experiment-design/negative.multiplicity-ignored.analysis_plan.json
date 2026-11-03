@@ -1,0 +1,27 @@
+{
+  "alpha": 0.05,
+  "exclusion_rules": [
+    "pre-assignment-contamination"
+  ],
+  "fixture": "SYNTHETIC FIXTURE, not a real study or independent review",
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "method": "independent two-group unit-level mean contrast with seeded randomisation inference",
+  "missing_data_rule": "report missingness and prespecified unit-level sensitivity; never impute a favorable result",
+  "multiplicity": "none",
+  "outcomes_seen": false,
+  "primary_family": [
+    {
+      "id": "growth",
+      "outcome": "growth",
+      "threshold": 0.025
+    },
+    {
+      "id": "viability",
+      "outcome": "viability",
+      "threshold": 0.025
+    }
+  ],
+  "schema": "experiment-analysis-plan-v1",
+  "sequential": false,
+  "stopping_rule": "collect exactly 120 assigned independent units"
+}

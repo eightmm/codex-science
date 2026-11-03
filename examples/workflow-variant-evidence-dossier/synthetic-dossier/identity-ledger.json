@@ -1,0 +1,69 @@
+{
+  "fixture": "Synthetic redistributable software fixture; no patient data or real clinical assertions.",
+  "identity": {
+    "alt": "C",
+    "chromosome": "1",
+    "genome_build": "GRCh38",
+    "position": 101,
+    "ref": "A",
+    "strand": "+",
+    "transcript": "SYNTHETIC_TX.1"
+  },
+  "normalization_input": {
+    "path": "identity-ledger.normalized.json",
+    "sha256": "5fc1b6455c9a0f0464ed6680e45df0494173cae52d349b3020bfb7e7fa8a09be"
+  },
+  "schema": "variant-identity-ledger-v1",
+  "sources": [
+    {
+      "identity_pointer": null,
+      "reconciliation": "identity",
+      "record_id": null,
+      "snapshot": {
+        "path": "snapshots/clinvar.json",
+        "sha256": "13d28afb657cfd859102f362a42eb5721ddf2939bbc5118d4b8bcf8614d5d88a"
+      },
+      "source": "clinvar"
+    },
+    {
+      "identity_pointer": "/records/0/variant",
+      "reconciliation": "identity",
+      "record_id": "synthetic-gnomad",
+      "snapshot": {
+        "path": "snapshots/gnomad.json",
+        "sha256": "67086da06b9e43d6391dd9e34d88f934524ae3b21e4189aa5d2db573020857d0"
+      },
+      "source": "gnomad"
+    },
+    {
+      "identity_pointer": "/records/0/variant",
+      "reconciliation": "identity",
+      "record_id": "synthetic-dbsnp",
+      "snapshot": {
+        "path": "snapshots/dbsnp.json",
+        "sha256": "76473166978c34faeee2ba8ef2601bb341fab5115a82f361cde65f1b3b92341a"
+      },
+      "source": "dbsnp"
+    },
+    {
+      "identity_pointer": "/records/0/variant",
+      "reconciliation": "identity",
+      "record_id": "synthetic-gwas_catalog",
+      "snapshot": {
+        "path": "snapshots/gwas_catalog.json",
+        "sha256": "cf5bc976313636af8fff5cf1e4183e5a0ac96e7a6948be260622dcea7dcadd56"
+      },
+      "source": "gwas_catalog"
+    },
+    {
+      "identity_pointer": "/records/0/variant",
+      "reconciliation": "identity",
+      "record_id": "synthetic-ensembl",
+      "snapshot": {
+        "path": "snapshots/ensembl.json",
+        "sha256": "bbb5c6363ed30f1a5afc18f80ffe5cab36cb9420b7783346f30e6c26cc4c3df1"
+      },
+      "source": "ensembl"
+    }
+  ]
+}

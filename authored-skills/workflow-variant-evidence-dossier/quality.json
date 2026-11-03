@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-variant-evidence-dossier",
+  "roles": [
+    "conductor"
+  ],
+  "declared_maturity": "L4",
+  "output_schemas": [
+    "variant-identity-ledger-v1",
+    "variant-source-evidence-v1",
+    "variant-bounded-claims-v1",
+    "variant-dossier-v1",
+    "variant-dossier-validation-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/workflow-variant-evidence-dossier/synthetic-dossier/dossier.json",
+    "examples/workflow-variant-evidence-dossier/negative-cases.json"
+  ],
+  "seeded_failures": [
+    "genome-build-mismatch",
+    "unreconciled-allele-strand",
+    "dependent-replication",
+    "missing-record-not-negative",
+    "association-as-causation",
+    "frequency-as-clinical-classification",
+    "identity-snapshot-hash-mismatch",
+    "missing-control",
+    "missing-denominator",
+    "numerical-as-physical-validity",
+    "review-as-truth",
+    "self-reviewed-dossier",
+    "failed-support-control",
+    "normalization-ledger-mismatch"
+  ],
+  "test_files": [
+    "tests/test_workflow_variant_dossier.py"
+  ],
+  "limitations": [
+    "L4 covers deterministic synthetic offline acceptance only; no live-source, biological or clinical validation.",
+    "Existing gene and trait search adapters may lack variant identity and association details; missing evidence remains unavailable.",
+    "The validator checks declared structured claim limits and dependency groups, not every semantic overclaim or undisclosed cohort overlap.",
+    "Raw transport, normalization against a reference genome, source-native field extraction, and independent review are not implemented by this pack."
+  ]
+}
