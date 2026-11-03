@@ -1686,12 +1686,48 @@
       "status": "active"
     },
     {
+      "description": "Fit in-vitro concentration-response curves with frozen assay declarations, labelled biological and technical replicates, control separation, constrained four-parameter logistic curves and potency intervals. Use for EC50 or IC50 evidence; never prescribing or patient benefit.",
+      "executable_count": 0,
+      "instruction_line_count": 114,
+      "license": "MIT",
+      "name": "cx-workflow-dose-response-curve",
+      "path": "authored-skills/workflow-dose-response-curve",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Conduct a fixed six-stage preregistered experiment-design procedure for lab or computational studies, from question and independent-unit power planning through randomisation, frozen analysis, controls and independent review handoff. Audit a finished analysis against its frozen plan and label every deviation exploratory. Use before collection or for post-hoc audit; this pack does not run experiments or establish causal, physical or clinical validity.",
       "executable_count": 0,
       "instruction_line_count": 106,
       "license": "MIT",
       "name": "cx-workflow-experiment-design",
       "path": "authored-skills/workflow-experiment-design",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Pool already-extracted study effects with frozen eligibility, cohort deduplication, comparable scales, heterogeneity and sensitivity gates. Use for quantitative evidence synthesis; use literature-review for retrieval. Never infer causality or patient care.",
+      "executable_count": 0,
+      "instruction_line_count": 116,
+      "license": "MIT",
+      "name": "cx-workflow-meta-analysis-evidence",
+      "path": "authored-skills/workflow-meta-analysis-evidence",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Compare single-cell RNA counts between conditions using donor or biological-sample pseudobulk units. Use for scRNA-seq condition contrasts with supplied cell labels; exclude cell-as-replicate tests, trajectory ordering, fate, causal mechanisms and clinical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-single-cell-pseudobulk",
+      "path": "authored-skills/workflow-single-cell-pseudobulk",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3879,8 +3915,8 @@
     }
   ],
   "summary": {
-    "active": 185,
+    "active": 188,
     "inactive": 113,
-    "total": 298
+    "total": 301
   }
 }
