@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Survival Time To Event"
+  short_description: "Audited scientific workflow for cx-workflow-survival-time-to-eve"
+  default_prompt: "Use $cx-workflow-survival-time-to-event for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

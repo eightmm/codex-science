@@ -1686,6 +1686,18 @@
       "status": "active"
     },
     {
+      "description": "Evaluate diagnostic accuracy of supplied per-subject continuous scores against a reference standard using frozen thresholds, bias refusals, Wilson intervals and tie-aware ROC AUC. Use for sensitivity, specificity and prevalence-qualified predictive values; does not establish patient benefit.",
+      "executable_count": 0,
+      "instruction_line_count": 106,
+      "license": "MIT",
+      "name": "cx-workflow-diagnostic-accuracy",
+      "path": "authored-skills/workflow-diagnostic-accuracy",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Fit in-vitro concentration-response curves with frozen assay declarations, labelled biological and technical replicates, control separation, constrained four-parameter logistic curves and potency intervals. Use for EC50 or IC50 evidence; never prescribing or patient benefit.",
       "executable_count": 0,
       "instruction_line_count": 114,
@@ -1722,6 +1734,18 @@
       "status": "active"
     },
     {
+      "description": "Compare quantified protein intensities between biological conditions with a frozen contrast, peptide controls, missingness records and BH-adjusted abundance differences. Use for supplied protein-by-sample tables; exclude raw spectra, peptide search engines and causal or clinical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-proteomics-differential-abundance",
+      "path": "authored-skills/workflow-proteomics-differential-abundance",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Compare single-cell RNA counts between conditions using donor or biological-sample pseudobulk units. Use for scRNA-seq condition contrasts with supplied cell labels; exclude cell-as-replicate tests, trajectory ordering, fate, causal mechanisms and clinical conclusions.",
       "executable_count": 0,
       "instruction_line_count": 47,
@@ -1740,6 +1764,18 @@
       "license": "MIT",
       "name": "cx-workflow-solid-state-screening",
       "path": "authored-skills/workflow-solid-state-screening",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Compare two baseline-defined groups using supplied per-subject follow-up, event flags and right censoring. Use for Kaplan-Meier curves and log-rank comparisons; exclude post-baseline group assignment, causal conclusions and medical decisions.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-survival-time-to-event",
+      "path": "authored-skills/workflow-survival-time-to-event",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3915,8 +3951,8 @@
     }
   ],
   "summary": {
-    "active": 188,
+    "active": 191,
     "inactive": 113,
-    "total": 301
+    "total": 304
   }
 }
