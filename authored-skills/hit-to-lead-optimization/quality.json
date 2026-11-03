@@ -1,0 +1,34 @@
+{
+  "acceptance_fixtures": [
+    "examples/hit-to-lead-optimization/input.json",
+    "benchmarks/hit-to-lead-optimization/tasks.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline software/analysis acceptance, not an empirical molecular campaign.",
+    "Supplied-property ranking and declared-scaffold diversity only. No chemical validation, generator, docking, QSAR/ADMET calibration, measured affinity or synthesis assessment is established.",
+    "Identity, control and source declarations require independent review."
+  ],
+  "output_schemas": [
+    "hit-to-lead-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "endpoint-mismatch",
+    "scaffold-evaluation-leakage",
+    "missing-properties",
+    "cyclic-ancestry",
+    "duplicate-chemical",
+    "failed-control",
+    "stale-contract",
+    "nonfinite-value"
+  ],
+  "skill": "hit-to-lead-optimization",
+  "test_files": [
+    "tests/test_hit_to_lead_workflow.py"
+  ]
+}

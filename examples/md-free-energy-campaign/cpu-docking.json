@@ -1,0 +1,32 @@
+{
+  "schema": "cpu-docking-v1",
+  "synthetic": true,
+  "evidence_boundary": "Artificial atom-record fixtures only; never execute these as a scientific docking pilot.",
+  "executable": "vina",
+  "receptor": {
+    "path": "synthetic-receptor.pdbqt",
+    "sha256": "5563857e87ad19e3f37e9b22167f2fb58059127a574e9268f80fe27c00b09325"
+  },
+  "ligand": {
+    "path": "synthetic-ligand.pdbqt",
+    "sha256": "5563857e87ad19e3f37e9b22167f2fb58059127a574e9268f80fe27c00b09325"
+  },
+  "box": {
+    "unit": "angstrom",
+    "center": [
+      0,
+      0,
+      0
+    ],
+    "size": [
+      10,
+      10,
+      10
+    ]
+  },
+  "seed": 123,
+  "exhaustiveness": 1,
+  "num_modes": 3,
+  "timeout_seconds": 30,
+  "output": "synthetic-poses.pdbqt"
+}

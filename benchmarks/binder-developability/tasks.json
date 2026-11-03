@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "pack": "binder-developability",
+  "evidence_boundary": "Synthetic CPU analysis only",
+  "tasks": [
+    {
+      "id": "observations",
+      "expected": "Retain one of two artificial VHHs; locate NAT at H:24."
+    },
+    {
+      "id": "framework",
+      "expected": "Protected position edits, unknown chains and length changes refused."
+    },
+    {
+      "id": "panel",
+      "expected": "Endpoint/construct mismatch and duplicate targets refused."
+    },
+    {
+      "id": "missing",
+      "expected": "Missing off-target is unavailable and excluded."
+    },
+    {
+      "id": "controls",
+      "expected": "Failed/absent controls retain metrics but block claims."
+    },
+    {
+      "id": "motifs",
+      "expected": "Count overlapping tripeptides without crossing chains."
+    },
+    {
+      "id": "direction",
+      "expected": "Lower-is-stronger reverses margin sign; predicted source remains explicit."
+    }
+  ]
+}

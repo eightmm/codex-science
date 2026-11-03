@@ -1,0 +1,261 @@
+{
+  "acceptance": "qualified_shortlist",
+  "candidate_count": 4,
+  "candidates": [
+    {
+      "chemical_identity": "synthetic-chemical-seed",
+      "cost": 1,
+      "eligible": false,
+      "exclusion_reasons": [
+        "training-row"
+      ],
+      "id": "seed",
+      "parent_id": null,
+      "partition": "train",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 20
+        }
+      },
+      "scaffold_group": "series-A",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "chemical_identity": "synthetic-chemical-a",
+      "cost": 1,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "id": "a",
+      "parent_id": "seed",
+      "partition": "candidate",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 15
+        }
+      },
+      "scaffold_group": "series-A",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "chemical_identity": "synthetic-chemical-b",
+      "cost": 1,
+      "eligible": false,
+      "exclusion_reasons": [
+        "above-maximum-logD"
+      ],
+      "id": "b",
+      "parent_id": "seed",
+      "partition": "candidate",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 4.2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 8
+        }
+      },
+      "scaffold_group": "series-B",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "chemical_identity": "synthetic-chemical-c",
+      "cost": 1,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "id": "c",
+      "parent_id": "seed",
+      "partition": "candidate",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 1.2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 40
+        }
+      },
+      "scaffold_group": "series-C",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    }
+  ],
+  "contract_sha256": "7b9f939df69c304a6100d82fc62cb92b71a9105c82e8a645e83765a7e0d21ce3",
+  "controls": [
+    {
+      "id": "synthetic-assay-control",
+      "passed": true
+    }
+  ],
+  "controls_passed": true,
+  "eligible_count": 2,
+  "engine_executed": false,
+  "evidence_boundary": "Supplied properties and declared scaffold groups only. No chemical validation, generation, QSAR calibration, ADMET assay, affinity or synthesis feasibility is established.",
+  "proposal": {
+    "approval_required": true,
+    "claim_ids": [],
+    "constraints": {
+      "batch_size": 2,
+      "budget": 3.0,
+      "diversity_group_cap": 1,
+      "minimum_controls": 0
+    },
+    "created_at": "supplied-contract",
+    "decision": "Select a diverse synthetic follow-up batch",
+    "diversity_bonus": 0.1,
+    "diversity_groups": {
+      "series-A": 1,
+      "series-C": 1
+    },
+    "evidence_boundary": "This deterministic proposal ranks only declared candidate properties and constraints. It does not infer chemical similarity, validate uncertainty calibration, execute an experiment, or prove expected information gain.",
+    "executed": false,
+    "expected_information_gain_proxy": 0.0,
+    "fingerprint": "a212983ff321c26b21b961b23b792d103ceb4e7d3cb4f6789f85c3b0517f1646",
+    "objectives": [
+      {
+        "direction": "minimize",
+        "name": "potency",
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "direction": "minimize",
+        "name": "logD",
+        "required": true,
+        "weight": 1.0
+      }
+    ],
+    "pareto_fronts": [
+      [
+        "a",
+        "c"
+      ]
+    ],
+    "proposal_id": "experiment-a212983ff321c26b21b9",
+    "rejected": [
+      {
+        "candidate": {
+          "control": false,
+          "cost": 1.0,
+          "diversity_group": "series-B",
+          "eligible": false,
+          "exclusion_reason": "above-maximum-logD",
+          "id": "b",
+          "metadata": {},
+          "properties": {
+            "logD": 4.2,
+            "potency": 8.0
+          },
+          "uncertainty": 0.0
+        },
+        "id": "b",
+        "reasons": [
+          "above-maximum-logD"
+        ]
+      },
+      {
+        "candidate": {
+          "control": false,
+          "cost": 1.0,
+          "diversity_group": "series-A",
+          "eligible": false,
+          "exclusion_reason": "training-row",
+          "id": "seed",
+          "metadata": {},
+          "properties": {
+            "logD": 2.0,
+            "potency": 20.0
+          },
+          "uncertainty": 0.0
+        },
+        "id": "seed",
+        "reasons": [
+          "training-row"
+        ]
+      }
+    ],
+    "remaining_budget": 1.0,
+    "required_controls_satisfied": true,
+    "schema_version": 1,
+    "selected": [
+      {
+        "base_utility": 0.5,
+        "control": false,
+        "cost": 1.0,
+        "diversity_group": "series-A",
+        "eligible": true,
+        "exclusion_reason": "",
+        "id": "a",
+        "metadata": {},
+        "normalized_objectives": {
+          "logD": 0.0,
+          "potency": 1.0
+        },
+        "pareto_front": 0,
+        "properties": {
+          "logD": 2.0,
+          "potency": 15.0
+        },
+        "uncertainty": 0.0,
+        "uncertainty_score": 0.0
+      },
+      {
+        "base_utility": 0.5,
+        "control": false,
+        "cost": 1.0,
+        "diversity_group": "series-C",
+        "eligible": true,
+        "exclusion_reason": "",
+        "id": "c",
+        "metadata": {},
+        "normalized_objectives": {
+          "logD": 1.0,
+          "potency": 0.0
+        },
+        "pareto_front": 0,
+        "properties": {
+          "logD": 1.2,
+          "potency": 40.0
+        },
+        "uncertainty": 0.0,
+        "uncertainty_score": 0.0
+      }
+    ],
+    "selected_count": 2,
+    "status": "proposed",
+    "total_cost": 2.0,
+    "uncertainty_weight": 0.0
+  },
+  "schema": "hit-to-lead-result-v1"
+}

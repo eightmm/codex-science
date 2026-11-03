@@ -1,0 +1,87 @@
+{
+  "candidate_count": 2,
+  "candidates": [
+    {
+      "aromatic_fraction": 0.0,
+      "basic_minus_acidic_count": 3,
+      "chain_observations": [
+        {
+          "aromatic_count": 0,
+          "basic_minus_acidic_count": 3,
+          "chain": "H",
+          "cysteine_positions": [
+            22
+          ],
+          "length": 26,
+          "nglyco_sequons": []
+        }
+      ],
+      "construct_id": "synthetic-construct-vhh-a",
+      "exclusion_reasons": [],
+      "id": "vhh-a",
+      "nglyco_sequon_count": 0,
+      "panel": {
+        "margins": {
+          "synthetic-off-target": 6
+        },
+        "passes_declared_margin": true,
+        "qualified_margin_comparison": true,
+        "source_kind": "measured",
+        "status": "computed",
+        "unit": "a.u."
+      },
+      "retained": true
+    },
+    {
+      "aromatic_fraction": 0.0,
+      "basic_minus_acidic_count": 3,
+      "chain_observations": [
+        {
+          "aromatic_count": 0,
+          "basic_minus_acidic_count": 3,
+          "chain": "H",
+          "cysteine_positions": [
+            22
+          ],
+          "length": 26,
+          "nglyco_sequons": [
+            {
+              "position": 24,
+              "sequence": "NAT"
+            }
+          ]
+        }
+      ],
+      "construct_id": "synthetic-construct-vhh-b",
+      "exclusion_reasons": [
+        "max_nglyco_sequons",
+        "panel-margin"
+      ],
+      "id": "vhh-b",
+      "nglyco_sequon_count": 1,
+      "panel": {
+        "margins": {
+          "synthetic-off-target": 1
+        },
+        "passes_declared_margin": false,
+        "qualified_margin_comparison": false,
+        "source_kind": "measured",
+        "status": "computed",
+        "unit": "a.u."
+      },
+      "retained": false
+    }
+  ],
+  "contract_sha256": "83c1b27ca681881f51cc03db75815da07aadf382a0b8c79feacf8871f9ab12e3",
+  "controls": [
+    {
+      "id": "synthetic-panel-control",
+      "passed": true
+    }
+  ],
+  "controls_passed": true,
+  "engine_executed": false,
+  "evidence_boundary": "Sequence counts and potential sequons are observations, not TAP/TNP scores, net charge, solubility, aggregation, expression or immunogenicity predictions. Supplied panels retain their source kind; no assay or binding is established by this helper.",
+  "retained_count": 1,
+  "schema": "binder-developability-result-v1"
+}

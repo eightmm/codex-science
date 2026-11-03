@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "pack": "hit-to-lead-optimization",
+  "evidence_boundary": "Synthetic CPU analysis only",
+  "tasks": [
+    {
+      "id": "shortlist",
+      "expected": "Select a and c; retain four input rows, two eligible."
+    },
+    {
+      "id": "controls",
+      "expected": "Failed/absent control suppresses proposal."
+    },
+    {
+      "id": "endpoint",
+      "expected": "Unit/assay/source mismatch rejected."
+    },
+    {
+      "id": "leakage",
+      "expected": "Prospective scaffold reuse allowed; held-out collision refused."
+    },
+    {
+      "id": "lineage",
+      "expected": "Missing parent, cycles and duplicate chemistry rejected."
+    },
+    {
+      "id": "missing",
+      "expected": "Absent property remains excluded, never imputed."
+    },
+    {
+      "id": "constraints",
+      "expected": "Budget and diversity cap limit selection."
+    }
+  ]
+}

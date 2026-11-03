@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-11-03",
+  "evidence_boundary": "Dated discovery seeds and scoped official documentation; not engine execution or scientific efficacy.",
+  "methods": [
+    {
+      "id": "donor-aware-analysis",
+      "evidence_level": "documented",
+      "sources": [
+        "https://www.sc-best-practices.org/conditions/differential-gene-expression/"
+      ],
+      "route": "expression-cell-context",
+      "applicability": "Sample/donor-aware expression analysis and appropriate upstream count-based pseudobulk or mixed-model routes; helper itself is descriptive.",
+      "limitations": "Only scoped design/estimator guidance inspected, not the full tutorial; normalization and model fitting remain external."
+    },
+    {
+      "id": "scvi-tools",
+      "evidence_level": "discovered",
+      "sources": [
+        "https://github.com/scverse/scvi-tools"
+      ],
+      "route": "scvi-tools-analysis",
+      "applicability": "Investigate batch-aware single-cell modeling for compatible data and upstream biological context.",
+      "limitations": "Not installed/executed; latent integration does not remove all confounding or establish a target."
+    }
+  ]
+}

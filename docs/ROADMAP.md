@@ -26,8 +26,8 @@ Public references:
 
 ### Highest-impact gaps
 
-1. **Uneven native-skill depth.** Some executors have strong preflight, validation, and stop rules, while several evidence-synthesis skills are compact routing notes without explicit decision, evidence, output, and boundary contracts. (Status: all first-party skills now meet L3, the documentation contract; L4 executable acceptance covers 24 skills.)
-2. **No enforced native-skill quality standard.** A skill can be active and discoverable without demonstrating claim semantics, source-dependency handling, artifact outputs, or acceptance criteria. (Status: a machine-checked L0–L4 standard is enforced by `src/codex_science/skill_maturity.py` and `scripts/audit_native_skill_maturity.py`; the passing audit reports 144 skills: L0 0, L1 0, L2 0, L3 120, L4 24. All meet L3; five newly added L4 acceptance fixtures are deterministic software validation, not empirical results.)
+1. **Uneven native-skill depth.** Some executors have strong preflight, validation, and stop rules, while several evidence-synthesis skills are compact routing notes without explicit decision, evidence, output, and boundary contracts. (Status: all first-party skills now meet L3, the documentation contract; L4 executable acceptance covers 29 skills.)
+2. **No enforced native-skill quality standard.** A skill can be active and discoverable without demonstrating claim semantics, source-dependency handling, artifact outputs, or acceptance criteria. (Status: a machine-checked L0–L4 standard is enforced by `src/codex_science/skill_maturity.py` and `scripts/audit_native_skill_maturity.py`; the passing audit reports 149 skills: L0 0, L1 0, L2 0, L3 120, L4 29. All meet L3; five newly added L4 acceptance fixtures are deterministic software validation, not empirical results.)
 3. **Evidence is recorded but not yet a first-class graph.** Claim IDs exist, but support, contradiction, duplication, shared-cohort, source-propagation, and model-training dependencies need a consistent representation. (Status: typed relations are defined in `src/codex_science/evidence_graph_v2.py` (`RELATION_TYPES`: `supports`, `contradicts`, `depends_on`, `duplicates`, `derived_from`, `shares_cohort`, `shares_samples`, `propagated_from`, `training_overlap`), with type checks, independence and acyclicity rules (`INDEPENDENCE_RELATIONS`, `ACYCLIC_RELATIONS`, cycle detection) and `impacted_nodes`; `scripts/build_evidence_graph.py` builds `evidence_graph.json` from `claims.json` and `studies.json` plus `--extra` nodes and edges. Mapping: support → `supports`, contradiction → `contradicts`, duplication → `duplicates`, shared cohort → `shares_cohort`/`shares_samples`, source propagation → `propagated_from`/`derived_from`, model-training dependency → `training_overlap`. Use in real evaluation runs is not established.)
 4. **Literature work is connector-rich but conductor-light.** Discovery exists; systematic query design, deduplication, eligibility, study-level extraction, evidence grading, and updateable review snapshots need a native end-to-end contract. (Status: the `authored-skills/literature-review/SKILL.md` conductor and `src/codex_science/literature_v2.py` provide the review workflow; `src/codex_science/literature_saturation.py`, `src/codex_science/citation_trace.py`, and `src/codex_science/statement_support.py` add bounded stopping and offline trace/support checks. These do not establish recall or semantic support.)
 5. **Model execution needs benchmark contracts.** Successful inference is not validation. Every model family needs task-specific baselines, leakage audits, calibration or abstention, sensitivity analyses, and acceptance examples. (Status: `scripts/validate_model_registry_v2.py` and `models/registry-v2.json` define a versioned model registry; `src/codex_science/model_registry_v2.py` checks receipt fingerprints against registry, model-contract, and acceptance-bundle changes. Per-family benchmark coverage remains incomplete.)
@@ -397,3 +397,25 @@ pack when a real input and decision make its controls and acceptance measurable.
 Method sources and current availability must be checked again when selecting a
 follow-up. Catalog presence and this survey do not establish an executable or
 scientifically validated workflow.
+
+
+## Campaign execution and feedback (2026-11-03)
+
+Five further packs now cover hit-to-lead selection, binder developability,
+protein-engineering feedback, supplied MD/free-energy network diagnostics and
+donor-level omics target prioritization. These are concrete CPU analyses and
+preparation contracts, not qualified model, docking or simulation installations.
+
+Shared local stage execution connects declared inputs and outputs through the
+existing backend, records actual file identities, preserves prior output artifacts,
+and resumes identified jobs without duplicate submission. Assay feedback joins
+candidate and target constructs, retains failed/missing/censored rows, isolates
+held-out outcomes and calls the existing constrained batch planner. The update is
+a declared parent-feedback heuristic, not trained active learning or Bayesian
+optimization. An optional Vina adapter has a separately approval-bound submit
+path and idempotent reconciliation.
+
+See [commands and boundaries](CAMPAIGN_WORKFLOWS.md). Remaining empirical work is
+a controlled real-engine vertical, external model/generator qualification, and
+prospective or protected held-out evaluation. Higher-cost MD/FEP and training
+remain separately authorized execution choices.

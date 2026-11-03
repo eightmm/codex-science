@@ -1,0 +1,4 @@
+interface:
+  display_name: "MD and Free-Energy Campaign"
+  short_description: "Plan simulations and inspect free-energy networks"
+  default_prompt: "Use $md-free-energy-campaign to prepare a bounded simulation plan and analyze supplied free-energy results."

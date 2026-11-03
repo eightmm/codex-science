@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "tasks": [
+    {
+      "id": "known-triangle",
+      "expected_cycle_residual": 0,
+      "expected_status": "qualified-descriptive"
+    },
+    {
+      "id": "disconnected-network",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "mapping-hash",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "unit-mismatch",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "forcefield-mismatch",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "duplicate-replica",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "reversed-edge",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "failed-control",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "cycle-closure",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "insufficient-replicas",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "edge-dependence",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "nonfinite",
+      "expected": "invalid or exploratory, with reason preserved"
+    },
+    {
+      "id": "missing-cycle",
+      "expected": "invalid or exploratory, with reason preserved"
+    }
+  ]
+}

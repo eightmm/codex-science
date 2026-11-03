@@ -1,0 +1,78 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Sequence observations and supplied matched-panel margins only; no TAP/TNP execution, aggregation/solubility/expression/immunogenicity predictor, antibody annotation, independent assay or clinical assessment.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Stage identities, endpoint contracts and failure rules",
+      "read_when": [
+        "planning, selecting methods or interpreting this pipeline"
+      ],
+      "required_before": [
+        "pipeline-analysis"
+      ],
+      "search_patterns": [
+        "## Pack-local record",
+        "## Output and acceptance"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Sequence observations and supplied matched-panel margins only; no TAP/TNP execution, aggregation/solubility/expression/immunogenicity predictor, antibody annotation, independent assay or clinical assessment.",
+      "id": "method-discovery",
+      "path": "references/method-discovery.md",
+      "purpose": "Current source search and additive admission",
+      "read_when": [
+        "planning, selecting methods or interpreting this pipeline"
+      ],
+      "required_before": [
+        "pipeline-analysis"
+      ],
+      "search_patterns": [
+        "## Search before selection",
+        "## Additive selected-method descriptor"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Sequence observations and supplied matched-panel margins only; no TAP/TNP execution, aggregation/solubility/expression/immunogenicity predictor, antibody annotation, independent assay or clinical assessment.",
+      "id": "methods",
+      "path": "references/methods.json",
+      "purpose": "Dated primary-source method seeds",
+      "read_when": [
+        "planning, selecting methods or interpreting this pipeline"
+      ],
+      "required_before": [
+        "pipeline-analysis"
+      ],
+      "search_patterns": [
+        "nglyco-tripeptide"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Sequence observations and supplied matched-panel margins only; no TAP/TNP execution, aggregation/solubility/expression/immunogenicity predictor, antibody annotation, independent assay or clinical assessment.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing checkpoint stage plan",
+      "read_when": [
+        "planning, selecting methods or interpreting this pipeline"
+      ],
+      "required_before": [
+        "pipeline-analysis"
+      ],
+      "search_patterns": [
+        "intake",
+        "review"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "binder-developability"
+}

@@ -1,0 +1,4 @@
+candidate_id,assay_id,target_construct_id,construct_id,unit,replicate_id,status,value
+parent,toy-activity,toy-target-v1,binder-parent-v1,activity-unit,bio-1,measured,-2
+parent,toy-activity,toy-target-v1,binder-parent-v1,activity-unit,bio-2,measured,0
+heldout,toy-activity,toy-target-v1,binder-heldout-v1,activity-unit,bio-1,measured,3

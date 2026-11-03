@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "skill": "md-free-energy-campaign",
+  "declared_maturity": "L4",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "output_schemas": [
+    "md-free-energy-analysis-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/md-free-energy-campaign/network.json",
+    "benchmarks/md-free-energy-campaign/tasks.json"
+  ],
+  "seeded_failures": [
+    "disconnected-network",
+    "mapping-hash",
+    "unit-mismatch",
+    "forcefield-mismatch",
+    "duplicate-replica",
+    "reversed-edge",
+    "failed-control",
+    "cycle-closure",
+    "insufficient-replicas",
+    "edge-dependence",
+    "nonfinite",
+    "missing-cycle"
+  ],
+  "test_files": [
+    "tests/test_md_campaign_workflow.py"
+  ],
+  "limitations": [
+    "L4 covers supplied-result arithmetic and identity/network contracts only.",
+    "No MD/FEP execution, coordinate/atom-map or physical force-field validation.",
+    "Declared repeat and edge independence requires source review; cycle closure cannot prove convergence or affinity."
+  ]
+}

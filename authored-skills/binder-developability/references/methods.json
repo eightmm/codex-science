@@ -1,0 +1,36 @@
+{
+  "as_of": "2026-11-03",
+  "evidence_boundary": "Sequence observations and supplied matched-panel margins only; no TAP/TNP execution, aggregation/solubility/expression/immunogenicity predictor, antibody annotation, independent assay or clinical assessment.",
+  "methods": [
+    {
+      "applicability": "Record potential N-X-S/T tripeptides (X not P), retaining positions and chain identity.",
+      "evidence_level": "documented",
+      "id": "nglyco-tripeptide",
+      "limitations": "Motif presence is not glycosylation. No PROSITE database or executable copied; fourth-residue contextual effects are not modeled.",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/8626433/",
+        "https://prosite.expasy.org/PDOC00001"
+      ]
+    },
+    {
+      "applicability": "External structure-aware antibody profiling; verify framework and comparison population.",
+      "evidence_level": "discovered",
+      "id": "tap",
+      "limitations": "Not implemented here; source/structure availability and applicability require review.",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/30765520/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6410772/"
+      ]
+    },
+    {
+      "applicability": "Nanobody-specific external developability profiling; inspect full current primary source before selection.",
+      "evidence_level": "discovered",
+      "id": "tnp",
+      "limitations": "Search discovery only; full-text retrieval was blocked during this implementation. No VHH performance or installed backend established.",
+      "sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC12963540/"
+      ]
+    }
+  ],
+  "schema_version": 1
+}

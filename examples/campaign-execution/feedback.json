@@ -1,0 +1,15 @@
+{
+  "schema": "campaign-feedback-v1",
+  "synthetic": true,
+  "assay": {"id": "toy-activity", "target_construct_id": "toy-target-v1", "unit": "activity-unit", "direction": "maximize"},
+  "prediction_contract": {"scale": "assay-value", "unit": "activity-unit", "source_id": "toy-model-v1", "calibration_reference": "synthetic-assay-scale-only"},
+  "controls": [{"id": "synthetic-control", "passed": true}],
+  "constraints": {"batch_size": 1, "budget": 1, "diversity_group_cap": 1},
+  "parent_feedback_weight": 0.5,
+  "candidates": [
+    {"id": "parent", "construct_id": "binder-parent-v1", "prediction": 0, "role": "feedback"},
+    {"id": "heldout", "construct_id": "binder-heldout-v1", "prediction": 1, "role": "holdout"},
+    {"id": "next-a", "construct_id": "binder-next-a-v1", "prediction": 1, "role": "candidate", "parent_id": "parent"},
+    {"id": "next-b", "construct_id": "binder-next-b-v1", "prediction": 0, "role": "candidate", "parent_id": "heldout"}
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "schema": "omics-target-input-v1",
+  "synthetic": true,
+  "expression_unit": "log2-normalized-expression",
+  "normalization_provenance": "Artificial comparable values; no count normalization or cellular data",
+  "reference_condition": "reference",
+  "case_condition": "case",
+  "paired": false,
+  "minimum_donors": 2,
+  "desired_direction": "higher",
+  "minimum_signed_difference": 0.5,
+  "gene_ids": [
+    "ENSG-toy-up",
+    "ENSG-toy-flat",
+    "ENSG-toy-missing"
+  ],
+  "controls": [
+    {
+      "id": "sample-QC",
+      "essential": true,
+      "status": "passed",
+      "evidence": "Synthetic control only"
+    }
+  ],
+  "samples": [
+    {
+      "sample_id": "cohort-A-reference-0",
+      "donor_id": "cohort-A-reference-donor-0",
+      "cohort_id": "cohort-A",
+      "condition": "reference",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 1,
+        "ENSG-toy-flat": 1,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-A-reference-1",
+      "donor_id": "cohort-A-reference-donor-1",
+      "cohort_id": "cohort-A",
+      "condition": "reference",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 1.2,
+        "ENSG-toy-flat": 1.2,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-A-case-0",
+      "donor_id": "cohort-A-case-donor-0",
+      "cohort_id": "cohort-A",
+      "condition": "case",
+      "batch": "case-only-artifact",
+      "expression": {
+        "ENSG-toy-up": 103,
+        "ENSG-toy-flat": 1,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-A-case-1",
+      "donor_id": "cohort-A-case-donor-1",
+      "cohort_id": "cohort-A",
+      "condition": "case",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 3.2,
+        "ENSG-toy-flat": 1.2,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-B-reference-0",
+      "donor_id": "cohort-B-reference-donor-0",
+      "cohort_id": "cohort-B",
+      "condition": "reference",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 1,
+        "ENSG-toy-flat": 1,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-B-reference-1",
+      "donor_id": "cohort-B-reference-donor-1",
+      "cohort_id": "cohort-B",
+      "condition": "reference",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 1.2,
+        "ENSG-toy-flat": 1.2,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-B-case-0",
+      "donor_id": "cohort-B-case-donor-0",
+      "cohort_id": "cohort-B",
+      "condition": "case",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 3,
+        "ENSG-toy-flat": 1,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "cohort-B-case-1",
+      "donor_id": "cohort-B-case-donor-1",
+      "cohort_id": "cohort-B",
+      "condition": "case",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 3.2,
+        "ENSG-toy-flat": 1.2,
+        "ENSG-toy-missing": null
+      }
+    },
+    {
+      "sample_id": "technical-replicate",
+      "donor_id": "cohort-A-reference-donor-0",
+      "cohort_id": "cohort-A",
+      "condition": "reference",
+      "batch": "balanced-batch",
+      "expression": {
+        "ENSG-toy-up": 1,
+        "ENSG-toy-flat": 1,
+        "ENSG-toy-missing": null
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "record_id": "evidence-original",
+      "gene_id": "ENSG-toy-up",
+      "origin_id": "same-underlying-study",
+      "cohort_ids": [
+        "external-cohort"
+      ],
+      "source": "portal-A",
+      "source_release": "synthetic-v1",
+      "direction": "supports"
+    },
+    {
+      "record_id": "evidence-copy",
+      "gene_id": "ENSG-toy-up",
+      "origin_id": "same-underlying-study",
+      "cohort_ids": [
+        "external-cohort"
+      ],
+      "source": "portal-B",
+      "source_release": "synthetic-v1",
+      "direction": "supports"
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "schema": "protein-engineering-input-v1",
+  "synthetic": true,
+  "cycle_id": "synthetic-cycle-1",
+  "construct_id": "synthetic-construct",
+  "assay_id": "synthetic-assay",
+  "minimum_replicates": 2,
+  "maximum_parent_distance": 1,
+  "variant_input": {
+    "schema": "protein-variant-input-v1",
+    "proteins": [
+      {
+        "id": "synthetic-protein",
+        "reference": "ACDEFG",
+        "coordinate_offset": 0,
+        "split": "train",
+        "homology_group": "synthetic-family",
+        "model": {
+          "direction": "higher",
+          "units": "toy-score",
+          "definition": "Invented supplied ranking"
+        },
+        "assay": {
+          "direction": "higher",
+          "units": "toy-fitness",
+          "definition": "Synthetic assay utility, not measured biology"
+        },
+        "controls": [
+          {
+            "id": "assay-controls",
+            "essential": true,
+            "status": "passed",
+            "evidence": "Synthetic fixture declaration only"
+          }
+        ],
+        "variants": [
+          {
+            "id": "WT",
+            "substitutions": [],
+            "model": {
+              "status": "ok",
+              "value": 0,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          },
+          {
+            "id": "parent",
+            "substitutions": [
+              "A1V"
+            ],
+            "model": {
+              "status": "ok",
+              "value": 1,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          },
+          {
+            "id": "eval-low",
+            "substitutions": [
+              "C2S"
+            ],
+            "model": {
+              "status": "ok",
+              "value": -1,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          },
+          {
+            "id": "eval-high",
+            "substitutions": [
+              "D3N"
+            ],
+            "model": {
+              "status": "ok",
+              "value": 2,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          },
+          {
+            "id": "next-a",
+            "substitutions": [
+              "A1V",
+              "C2S"
+            ],
+            "model": {
+              "status": "ok",
+              "value": 0.8,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          },
+          {
+            "id": "next-b",
+            "substitutions": [
+              "E4A"
+            ],
+            "model": {
+              "status": "ok",
+              "value": 0.9,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          },
+          {
+            "id": "next-c",
+            "substitutions": [
+              "A1V",
+              "D3N"
+            ],
+            "model": {
+              "status": "ok",
+              "value": 0.5,
+              "units": "toy-score"
+            },
+            "assay": {
+              "status": "missing",
+              "value": null,
+              "units": "toy-fitness",
+              "reason": "Measurements joined from independent rows"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "variant_roles": {
+    "WT": "feedback",
+    "parent": "feedback",
+    "eval-low": "evaluation",
+    "eval-high": "evaluation",
+    "next-a": "candidate",
+    "next-b": "candidate",
+    "next-c": "candidate"
+  },
+  "model_training_variant_ids": [
+    "WT",
+    "parent"
+  ],
+  "measurements": [
+    {
+      "variant_id": "WT",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-0",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 0
+    },
+    {
+      "variant_id": "WT",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-1",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 0.2
+    },
+    {
+      "variant_id": "parent",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-0",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 1
+    },
+    {
+      "variant_id": "parent",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-1",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 1.2
+    },
+    {
+      "variant_id": "eval-low",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-0",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": -0.2
+    },
+    {
+      "variant_id": "eval-low",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-1",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 0
+    },
+    {
+      "variant_id": "eval-high",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-0",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 0.3
+    },
+    {
+      "variant_id": "eval-high",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-1",
+      "units": "toy-fitness",
+      "status": "ok",
+      "value": 0.5
+    },
+    {
+      "variant_id": "parent",
+      "construct_id": "synthetic-construct",
+      "assay_id": "synthetic-assay",
+      "independent_replicate_id": "culture-failed",
+      "units": "toy-fitness",
+      "status": "failed",
+      "value": null,
+      "reason": "Synthetic failed plate retained"
+    }
+  ],
+  "candidate_parents": {
+    "next-a": "parent",
+    "next-b": "WT",
+    "next-c": "parent"
+  },
+  "candidate_costs": {
+    "next-a": 1,
+    "next-b": 1,
+    "next-c": 1
+  },
+  "diversity_groups": {
+    "next-a": "position-2",
+    "next-b": "position-4",
+    "next-c": "position-3"
+  },
+  "objective_weights": {
+    "parent_observed": 2,
+    "supplied_model": 1
+  },
+  "constraints": {
+    "batch_size": 2,
+    "budget": 2,
+    "diversity_group_cap": 1,
+    "minimum_controls": 0
+  }
+}

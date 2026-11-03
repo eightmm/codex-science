@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "pack": "omics-target-prioritization",
+  "execution": "offline-synthetic-cpu",
+  "tasks": [
+    {
+      "id": "cpu-analysis",
+      "input": "examples/omics-target-prioritization/input.json",
+      "expected": "Actual small descriptive arithmetic with all input identities, failed rows, missingness and analysis boundaries retained."
+    },
+    {
+      "id": "seeded-failures",
+      "test": "tests/test_omics_targets_workflow.py",
+      "expected": "Identity/leakage/design/control failures reject or change admissible outputs; no engine or prospective validity claim."
+    },
+    {
+      "id": "partial-batch-artifact",
+      "input": "examples/omics-target-prioritization/batch-imbalance.json",
+      "expected": "Retain the artificial cohort-A difference 52 but prioritize no gene; report independent-donor batch counts and unresolved unadjusted batch imbalance."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "pack": "protein-engineering-cycle",
+  "execution": "offline-synthetic-cpu",
+  "tasks": [
+    {
+      "id": "cpu-analysis",
+      "input": "examples/protein-engineering-cycle/input.json",
+      "expected": "Actual small descriptive arithmetic with all input identities, failed rows, missingness and analysis boundaries retained."
+    },
+    {
+      "id": "seeded-failures",
+      "test": "tests/test_protein_engineering_workflow.py",
+      "expected": "Identity/leakage/design/control failures reject or change admissible outputs; no engine or prospective validity claim."
+    }
+  ]
+}

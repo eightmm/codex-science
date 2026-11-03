@@ -1,0 +1,35 @@
+{
+  "checked_on": "2026-11-03",
+  "evidence_status": "primary documentation checked; no engine pilot executed",
+  "methods": [
+    {
+      "id": "openfe",
+      "role": "relative-or-absolute-free-energy",
+      "source": "https://docs.openfree.energy/en/stable/guide/setup/index.html",
+      "result_source": "https://docs.openfree.energy/en/stable/guide/results/working_with_networks.html",
+      "coverage": "ChemicalSystem, protocol, ligand atom mapping and connected result networks; use pinned protocol-specific setup.",
+      "execution": "External optional environment; no installation or execution by helper."
+    },
+    {
+      "id": "openmm",
+      "role": "md-engine",
+      "source": "https://docs.openmm.org/latest/userguide/",
+      "coverage": "System construction, integration, platforms and reproducible simulation settings.",
+      "execution": "Existing openmm-molecular-dynamics skill and approved environment."
+    },
+    {
+      "id": "gromacs",
+      "role": "md-engine",
+      "source": "https://manual.gromacs.org/current/user-guide/",
+      "coverage": "Parameter preparation, dynamics and analysis with explicit physical checks.",
+      "execution": "Existing gromacs-molecular-dynamics skill and approved environment."
+    },
+    {
+      "id": "cinnabar",
+      "role": "free-energy-network-estimator",
+      "source": "https://github.com/OpenFreeEnergy/cinnabar",
+      "coverage": "Optional maximum-likelihood network analysis. The stdlib helper does not implement MLE.",
+      "execution": "External optional analyzer after protocol/independence review."
+    }
+  ]
+}

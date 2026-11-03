@@ -1,0 +1,116 @@
+{
+  "candidates": [
+    {
+      "chains": {
+        "H": "QVQLVQSGAEVKKPGASVKVSCKAAA"
+      },
+      "construct_id": "synthetic-construct-vhh-a",
+      "id": "vhh-a",
+      "panel_results": [
+        {
+          "assay_id": "synthetic-panel-1",
+          "construct_id": "synthetic-construct-vhh-a",
+          "metric": "response",
+          "source_kind": "measured",
+          "target_id": "synthetic-target",
+          "unit": "a.u.",
+          "value": 8
+        },
+        {
+          "assay_id": "synthetic-panel-1",
+          "construct_id": "synthetic-construct-vhh-a",
+          "metric": "response",
+          "source_kind": "measured",
+          "target_id": "synthetic-off-target",
+          "unit": "a.u.",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "chains": {
+        "H": "QVQLVQSGAEVKKPGASVKVSCKNAT"
+      },
+      "construct_id": "synthetic-construct-vhh-b",
+      "id": "vhh-b",
+      "panel_results": [
+        {
+          "assay_id": "synthetic-panel-1",
+          "construct_id": "synthetic-construct-vhh-b",
+          "metric": "response",
+          "source_kind": "measured",
+          "target_id": "synthetic-target",
+          "unit": "a.u.",
+          "value": 8
+        },
+        {
+          "assay_id": "synthetic-panel-1",
+          "construct_id": "synthetic-construct-vhh-b",
+          "metric": "response",
+          "source_kind": "measured",
+          "target_id": "synthetic-off-target",
+          "unit": "a.u.",
+          "value": 7
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "binder_class": "VHH",
+    "limits": {
+      "max_aromatic_fraction": 0.3,
+      "max_nglyco_sequons": 0
+    },
+    "panel": {
+      "assay_id": "synthetic-panel-1",
+      "direction": "higher",
+      "metric": "response",
+      "minimum_margin": 3,
+      "off_target_ids": [
+        "synthetic-off-target"
+      ],
+      "source_kind": "measured",
+      "unit": "a.u."
+    },
+    "source_chains": {
+      "H": {
+        "protected_positions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "sequence": "QVQLVQSGAEVKKPGASVKVSCKAAA"
+      }
+    },
+    "target_id": "synthetic-target"
+  },
+  "contract_sha256": "83c1b27ca681881f51cc03db75815da07aadf382a0b8c79feacf8871f9ab12e3",
+  "controls": [
+    {
+      "id": "synthetic-panel-control",
+      "passed": true
+    }
+  ],
+  "schema_version": 1,
+  "synthetic": true
+}

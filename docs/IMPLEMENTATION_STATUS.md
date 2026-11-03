@@ -21,8 +21,8 @@
   `output_cap`; the resume driver stops with code `turn_failed` and reason
   `output_cap`, while runner receipts use `last_message_present` for empty or
   capped last-message output.
-- All 144 first-party skills meet L3 (the documentation contract); the audit
-  reports 144 skills: L0 0, L1 0, L2 0, L3 120, L4 24. Five additional skills now
+- All 149 first-party skills meet L3 (the documentation contract); the audit
+  reports 149 skills: L0 0, L1 0, L2 0, L3 120, L4 29. L4 skills now
   have L4 executable acceptance fixtures with named seeded failures exercised
   through their public entry points. These deterministic fixtures validate
   software contracts, not empirical results. Existing endpoints, attribution, and gates
@@ -34,6 +34,16 @@
   actual bounded stdlib analysis of supplied scores/sequences/observable series,
   failure-aware controls and current-method discovery. Their L4 fixtures test
   offline contracts; docking, PLM and MD engine execution remain separate.
+- Five follow-on conductors cover hit-to-lead, binder developability, protein
+  engineering, MD/free-energy network results and donor-level omics target
+  prioritization. Their CPU examples analyze supplied synthetic data only.
+- Shared campaign execution delegates to the existing local backend, records
+  digest-bound handoffs, archives prior results and recovers known submissions
+  without duplicate jobs. Assay CSV feedback preserves candidate/target/assay
+  identities and held-out labels; file identity capture invalidates stale reuse.
+  The feedback update is a declared heuristic, not surrogate fitting or BO.
+  An optional Vina adapter prepares and submits exact-spec approved jobs; actual
+  Vina/MD/FEP/model execution is not established by these acceptance fixtures.
 - Implemented rigor classification and completion reporting, a frozen
   literature-review task set with dry-run-first runner and receipt grader,
   saturation estimation, and citation provenance tracing.

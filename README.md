@@ -16,7 +16,7 @@ Codex Science is an opt-in scientific workbench for Codex tasks. It is an
 independent plugin inspired by Claude Science's public workflow and makes no
 parity claim about private implementations.
 
-- An audited catalog of 288 skills: 149 K-Dense-AI, 136 Codex-native, and 3
+- An audited catalog of 298 skills: 149 K-Dense-AI, 146 Codex-native, and 3
   DeepMind infrastructure pointers.
 - 49 read-only public data source contracts, plus catalog search and research planning; maturity is source-specific, and not all sources are live-tested.
 - Reproducible run artifacts with independent evidence review.
@@ -190,6 +190,15 @@ Additional compute conductors use the same provenance/review lifecycle:
 
 Each conductor searches current official methods and supports a reviewed run-local
 method descriptor. Their offline fixtures do not execute docking, PLMs or MD engines.
+
+Five follow-on conductors add hit-to-lead selection, binder developability,
+protein engineering feedback, MD/free-energy result analysis and omics target
+prioritization. Shared helpers execute short local stages through the current
+backend, preserve interrupted/failed attempts, rerun changed dependencies, import
+identity-bound assay CSVs and capture actual executable/asset hashes. See
+[campaign execution and feedback](docs/CAMPAIGN_WORKFLOWS.md) for commands and
+precise analysis-versus-engine boundaries. A prepared Vina adapter uses the
+existing exact-spec approval path; no scientific engine is bundled.
 
 ## Evaluation status
 

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "skill": "omics-target-prioritization",
+  "declared_maturity": "L4",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "output_schemas": [
+    "omics-target-analysis-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/omics-target-prioritization/input.json",
+    "benchmarks/omics-target-prioritization/tasks.json",
+    "examples/omics-target-prioritization/batch-imbalance.json"
+  ],
+  "test_files": [
+    "tests/test_omics_targets_workflow.py"
+  ],
+  "seeded_failures": [
+    "sample-gene-identity",
+    "raw-count-unit",
+    "batch-condition-confounding",
+    "cohort-condition-confounding",
+    "donor-reuse",
+    "incomplete-pairs",
+    "pseudoreplication",
+    "missing-expression",
+    "failed-essential-control",
+    "discordant-cohorts",
+    "contradictory-evidence",
+    "portal-duplication",
+    "nonfinite-numeric",
+    "partial-single-condition-batch",
+    "unequal-batch-donor-proportions",
+    "gene-missingness-batch-imbalance",
+    "nested-nonfinite-metadata"
+  ],
+  "limitations": [
+    "L4 covers synthetic supplied-expression contrasts and evidence grouping only.",
+    "No source retrieval, normalization, DE model, pathway inference or cell annotation executed.",
+    "No p-value, causal or therapeutic validity is established; declared evidence identities need review.",
+    "Unadjusted batch imbalance prevents priority while preserving descriptive effects; diagnostics do not fit batch correction."
+  ]
+}
