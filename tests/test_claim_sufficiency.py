@@ -247,6 +247,34 @@ class ClaimSufficiencyTests(unittest.TestCase):
         path = self._bundle(self._temp, claims=[claim], studies=studies, nodes=nodes, edges=[])
         self.assertEqual(1, check_sufficiency(path, tier="standard")["claims"][0]["supporting_groups"])
 
+    def test_study_link_to_claim_without_register_status_is_refused(self):
+        path = self._bundle(self._temp)
+        manifest_path = path / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        claim_id = json.loads((path / "claims.json").read_text())["claims"][0]["id"]
+        manifest["artifacts"] = [item for item in manifest["artifacts"] if item["path"] != "claims.json"]
+        manifest["claims"] = [{"id": claim_id, "text": "placeholder claim"}]
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, claim_id):
+            check_sufficiency(path, tier="standard")
+        proc = subprocess.run([sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
+                               "--run-dir", str(path), "--tier", "standard", "--require-sufficient"],
+                              text=True, capture_output=True)
+        self.assertEqual(2, proc.returncode, proc.stdout + proc.stderr)
+
+    def test_study_level_independence_group_shares_edge_level_namespace(self):
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        studies = [{"study_id": sid, "persistent_id": f"doi:10.1234/{sid}", "title": sid,
+                    "evidence_type": "primary", "included": True,
+                    "supports_claim_ids": [claim["id"]], **extra}
+                   for sid, extra in (("A", {"independence_group": "G"}), ("B", {}))]
+        nodes = [{"id": claim["id"], "type": "claim"}] + [
+            {"id": s["study_id"], "type": "study"} for s in studies]
+        edges = [{"source": "A", "target": claim["id"], "relation": "supports", "independence_group": "H"},
+                 {"source": "B", "target": claim["id"], "relation": "supports", "independence_group": "G"}]
+        path = self._bundle(self._temp, claims=[claim], studies=studies, nodes=nodes, edges=edges)
+        self.assertEqual(1, check_sufficiency(path, tier="standard")["claims"][0]["supporting_groups"])
+
     def test_zero_support_recommends_unsupported(self):
         study = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
         study["supports_claim_ids"] = []

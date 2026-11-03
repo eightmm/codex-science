@@ -130,9 +130,17 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
         ):
             for claim_id in study.get(field, []):
                 claim_id = str(claim_id)
+                if not str(claims.get(claim_id, {}).get("status") or "").strip():
+                    raise ValueError(
+                        f"study {study_id!r} {field} names claim {claim_id!r}, "
+                        "which has no claim-register status")
                 if claim_id in claims:
                     edge = edge_groups.get((study_id, claim_id, relation), {"source": study_id})
                     groups[claim_id].append((str(study_id), _group_id(study, edge)))
+                    # A study-level label names the same group as an edge-level one.
+                    label = str(study.get("independence_group") or "").strip()
+                    if label:
+                        groups[claim_id].append((str(study_id), label))
 
     def count_groups(memberships: list[tuple[str, str]]) -> int:
         # Shared labels and graph connectivity merge only within this claim/relation.
