@@ -10,7 +10,7 @@ from codex_science.workbench import write_workbench  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
-    parser.add_argument("--output", type=Path, help="HTML destination (must not overwrite run inputs or registered directory trees)")
+    parser.add_argument("--output", type=Path, help="HTML destination (must not overwrite run inputs or registered directory trees, or leave the run directory through a link inside it)")
     args = parser.parse_args()
     output = args.output or args.manifest.parent / "workbench.html"
     try:

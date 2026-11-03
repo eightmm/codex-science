@@ -1,6 +1,7 @@
 """Connect scientific cycle snapshots to existing run artifacts and project indexes."""
 from __future__ import annotations
 
+import os
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,7 @@ def attach_cycle(run_dir: Path) -> dict[str, Any]:
     Existing checkpoint ownership and lifecycle are intentionally untouched.
     """
     from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, validate_manifest
-    from codex_science.research_cycle import load_cycle
+    from codex_science.research_cycle import _confined_file, load_cycle
 
     run_dir = run_dir.resolve()
     cycle = load_cycle(run_dir)
@@ -68,9 +69,13 @@ def attach_cycle(run_dir: Path) -> dict[str, Any]:
 
     def register(relative: str, kind: str) -> None:
         nonlocal changed
-        target = run_dir / relative
-        if not target.resolve().is_relative_to(run_dir) or not target.is_file():
-            raise ValueError(f"discovery evidence must stay in the run: {relative}")
+        try:
+            target = _confined_file(run_dir, relative)
+        except ValueError as error:
+            raise ValueError(f"discovery evidence must stay in the run: {relative} ({error})") from None
+        # The manifest is rewritten below, so registering it would leave a stale digest.
+        if target.resolve() == path.resolve() or (path.exists() and os.path.samefile(target, path)):
+            raise ValueError(f"discovery evidence cannot be the run manifest: {relative}")
         digest, _ = stream_sha256(target)
         previous = existing.get(relative)
         if previous:
@@ -164,6 +169,8 @@ def _observed_policy(cycle: dict[str, Any], payload: dict[str, Any],
     pointer = _text(observed.get("json_pointer"), "decision outcome json_pointer")
     contract_id = _text(observed.get("decision_experiment_id"), "decision_experiment_id")
     bindings = prior.get("observation_bindings", [])
+    if not isinstance(bindings, list) or not all(isinstance(item, dict) for item in bindings):
+        raise ValueError("preregistered decision observation_bindings must be a list of objects")
     if {"cycle_experiment_id": cycle_id, "decision_experiment_id": contract_id,
         "json_pointer": pointer, "artifact_path": ref["path"]} not in bindings:
         raise ValueError("outcome measurement mapping must be preregistered")

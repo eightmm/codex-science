@@ -6,6 +6,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from codex_science.model_registry_v2 import load_registry_v2, registry_sha256, validate_model_receipt_v2, validate_registry_v2  # noqa: E402
 
+def _load_json(path) -> object:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except RecursionError as error:
+        raise ValueError(f"JSON nested too deeply to parse: {path}") from error
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--registry", type=Path, default=ROOT / "models" / "registry-v2.json")
@@ -22,12 +28,12 @@ def main() -> int:
             return 0
         current_revisions = None
         if args.current_revisions is not None:
-            current_revisions = json.loads(args.current_revisions.read_text(encoding="utf-8"))
+            current_revisions = _load_json(args.current_revisions)
             if not isinstance(current_revisions, dict):
                 raise ValueError("current revisions JSON must be an object")
         findings = []
         for receipt_path in args.receipt:
-            receipt = json.loads(Path(receipt_path).read_text(encoding="utf-8"))
+            receipt = _load_json(receipt_path)
             if not isinstance(receipt, dict):
                 raise ValueError(f"receipt must be a JSON object: {receipt_path}")
             findings.extend(
@@ -37,7 +43,7 @@ def main() -> int:
         for finding in findings:
             print(json.dumps(finding, sort_keys=True))
         return 1 if findings else 0
-    except (OSError, json.JSONDecodeError, ValueError) as error:
+    except (OSError, json.JSONDecodeError, ValueError, RecursionError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 if __name__ == "__main__": raise SystemExit(main())

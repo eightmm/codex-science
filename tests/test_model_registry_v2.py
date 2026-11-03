@@ -420,11 +420,101 @@ class ModelRegistryV2Tests(unittest.TestCase):
             for candidate in (path, Path(directory)):
                 assert_refused(self, "validate_model_registry_v2.py", ["--registry", candidate], 2)
 
+    def test_registry_cli_refuses_huge_integer_vram(self) -> None:
+        from loader_cases import assert_refused
+        with tempfile.TemporaryDirectory() as directory:
+            models = Path(directory) / "models"
+            models.mkdir()
+            path = models / "registry-v2.json"
+            text = json.dumps(self.registry).replace('"minimum_vram_gb": 0', '"minimum_vram_gb": 1' + "0" * 400, 1)
+            self.assertIn("0" * 400, text)
+            path.write_text(text, encoding="utf-8")
+            assert_refused(self, "validate_model_registry_v2.py", ["--registry", path], 2)
+
     def test_registry_schema_rejects_boolean_and_float(self) -> None:
         for value in (True, 2.0, 0):
             payload = dict(self.registry, schema_version=value)
             with self.subTest(value=value), self.assertRaises(ValueError):
                 validate_registry_v2(payload)
+
+    def _refingerprint(self, receipt, **changes):
+        receipt = dict(receipt, **changes)
+        receipt.pop("fingerprint", None)
+        receipt["fingerprint"] = canonical_sha256(receipt)
+        return receipt
+
+    def test_receipt_validates_model_id_digest_and_schema_type(self) -> None:
+        receipt = self._receipt()
+        self.assertEqual([], validate_model_receipt_v2(receipt, self.registry))
+        for changes in ({"acceptance_bundle_sha256": "not-a-digest"}, {"acceptance_bundle_sha256": 7},
+                        {"model_id": ["x"]}, {"model_id": " "}, {"schema_version": 2.0}):
+            with self.subTest(changes=changes):
+                findings = validate_model_receipt_v2(self._refingerprint(receipt, **changes), self.registry)
+                self.assertEqual(["invalid-model-receipt-v2"], [item["code"] for item in findings])
+
+    def test_minimum_vram_and_bundle_digest_are_validated_for_every_status(self) -> None:
+        for value in ("24", True, -1, float("inf"), float("nan"), 10**400, 1_000_001):
+            registry = copy.deepcopy(self.registry)
+            registry["models"][0]["hardware"]["minimum_vram_gb"] = value
+            with self.subTest(minimum_vram_gb=value), self.assertRaises(ValueError):
+                validate_registry_v2(registry)
+        for value in ("not-a-digest", "", 5):
+            registry = copy.deepcopy(self.registry)
+            registry["models"][0]["acceptance"]["bundle_sha256"] = value
+            with self.subTest(bundle_sha256=value), self.assertRaises(ValueError):
+                validate_registry_v2(registry)
+
+    def test_minimum_vram_bound_edges_and_uppercase_receipt_digest(self) -> None:
+        registry = copy.deepcopy(self.registry)
+        for value in (0, 1_000_000, 0.5):
+            registry["models"][0]["hardware"]["minimum_vram_gb"] = value
+            validate_registry_v2(registry)
+        registry = copy.deepcopy(self.registry)
+        registry["models"][1]["acceptance"]["bundle_sha256"] = "c" * 64
+        model = validate_registry_v2(registry)[registry["models"][1]["id"]]
+        receipt = build_model_receipt_v2(
+            model, registry_sha256_value=registry_sha256(registry), code_revision="c", weight_revision="w",
+            database_revisions={}, configuration_sha256="a" * 64, input_sha256="b" * 64,
+            acceptance_bundle_sha256="c" * 64,
+        )
+        upper = self._refingerprint(receipt, acceptance_bundle_sha256="C" * 64)
+        self.assertEqual([], validate_model_receipt_v2(upper, registry))
+
+    def test_padded_status_is_selectable(self) -> None:
+        registry = copy.deepcopy(self.registry)
+        model = registry["models"][1]
+        model["status"] = " contract-tested "
+        found = select_models(registry, task=model["tasks"][0], modality=model["modalities"][0])
+        self.assertIn(model["id"], [item["id"] for item in found])
+
+    def test_receipt_with_registry_bundle_digest_is_fresh(self) -> None:
+        registry = copy.deepcopy(self.registry)
+        registry["models"][1]["acceptance"]["bundle_sha256"] = "c" * 64
+        model = validate_registry_v2(registry)[registry["models"][1]["id"]]
+        kwargs = dict(registry_sha256_value=registry_sha256(registry), code_revision="c", weight_revision="w",
+                      database_revisions={}, configuration_sha256="a" * 64, input_sha256="b" * 64)
+        stale = build_model_receipt_v2(model, **kwargs)
+        self.assertEqual(["stale-model-receipt-v2"], [item["code"] for item in validate_model_receipt_v2(stale, registry)])
+        fresh = build_model_receipt_v2(model, acceptance_bundle_sha256="c" * 64, **kwargs)
+        self.assertEqual([], validate_model_receipt_v2(fresh, registry))
+
+    def test_deeply_nested_json_exits_two_in_loader_and_cli(self) -> None:
+        deep = "[" * 100000
+        with tempfile.TemporaryDirectory() as directory:
+            registry_path = Path(directory) / "registry.json"
+            registry_path.write_text(deep, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "nested too deeply"):
+                load_registry_v2(registry_path)
+            deep_path = Path(directory) / "deep.json"
+            deep_path.write_text(deep, encoding="utf-8")
+            script = self.root / "scripts" / "validate_model_registry_v2.py"
+            for extra in (["--receipt", str(deep_path)], ["--receipt", str(deep_path), "--current-revisions", str(deep_path)]):
+                result = subprocess.run([sys.executable, str(script), *extra], capture_output=True, text=True)
+                self.assertEqual(2, result.returncode, result.stderr[-300:])
+                self.assertNotIn("Traceback", result.stderr)
+            result = subprocess.run([sys.executable, str(script), "--registry", str(registry_path)], capture_output=True, text=True)
+            self.assertEqual(2, result.returncode)
+            self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":

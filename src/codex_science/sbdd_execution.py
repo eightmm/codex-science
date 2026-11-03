@@ -341,6 +341,7 @@ def execute_acceptance(input_path: Path, output_dir: Path, *, registry_path: Pat
         database_revisions={},
         configuration_sha256=config_hash,
         input_sha256=input_digest,
+        acceptance_bundle_sha256=model["acceptance"].get("bundle_sha256"),
     )
     model_path = output_dir / "model_receipt.json"
     artifacts[model_path] = _json_bytes(model_receipt)

@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 from stat import S_IMODE, S_ISREG
 from typing import Any
+from urllib.parse import quote
 
 from codex_science.artifacts import validate_bundle, validate_manifest
 from codex_science.collaboration import fold_annotation_resolutions, load_resolution_events
@@ -16,6 +17,11 @@ from codex_science.collaboration import fold_annotation_resolutions, load_resolu
 
 def _text(value: Any) -> str:
     return html.escape(" ".join(str(value).split()))
+
+
+def _href(path: Any) -> str:
+    # The "./" prefix and encoded ":" keep a registered name from reading as a scheme or absolute URL.
+    return html.escape("./" + quote(str(path), safe="/"), quote=True)
 
 
 def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
@@ -35,7 +41,7 @@ def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
         for claim_id, claim in sorted(claims.items())
     ) or "<tr><td colspan='4'>No claims recorded.</td></tr>"
     artifact_rows = "".join(
-        f"<tr><td><a href='{html.escape(str(item['path']), quote=True)}'>{_text(item['path'])}</a></td><td>{_text(item.get('kind', 'artifact'))}</td><td><code>{_text(item['sha256'])}</code></td></tr>"
+        f"<tr><td><a href='{_href(item['path'])}'>{_text(item['path'])}</a></td><td>{_text(item.get('kind', 'artifact'))}</td><td><code>{_text(item['sha256'])}</code></td></tr>"
         for item in artifacts
     )
     finding_rows: list[str] = []
@@ -81,6 +87,32 @@ def _referenced_paths(value: Any, kind: str | None = None):
             pending.extend((item, kind) for item in value)
 
 
+def _confine_output(output: Path, resolved_run: Path) -> None:
+    """Refuse an output that enters the run and then resolves outside it through a link.
+
+    Every component is compared with the path as written from the point it entered
+    the run, so a plain ``..`` out of the run stays allowed.
+    """
+    try:
+        lexical = output.absolute()
+        current = Path(lexical.anchor)
+        expected: Path | None = None
+        for part in lexical.parts[1:]:
+            current = current / part
+            resolved = current.resolve()
+            if expected is not None:
+                expected = Path(os.path.normpath(expected / part))
+            if resolved.is_relative_to(resolved_run):
+                if expected is None:
+                    expected = resolved
+            elif expected is not None:
+                if resolved != expected:
+                    raise ValueError(f"workbench output cannot leave the run directory: {output}")
+                expected = None
+    except (OSError, RuntimeError) as error:
+        raise ValueError(f"workbench output cannot be resolved: {error}") from None
+
+
 def _protect_workbench_output(manifest: dict[str, Any], manifest_path: Path, output: Path) -> None:
     validate_manifest(manifest)
     try:
@@ -96,6 +128,7 @@ def _protect_workbench_output(manifest: dict[str, Any], manifest_path: Path, out
 
     run_dir = manifest_path.parent
     resolved_run = run_dir.resolve()
+    _confine_output(output, resolved_run)
     protected: list[tuple[str, Path]] = [
         ("manifest", manifest_path),
         ("annotation resolution log", run_dir / "annotations/resolutions.jsonl"),
@@ -139,6 +172,8 @@ def write_workbench(manifest_path: Path, output: Path) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     _protect_workbench_output(manifest, manifest_path, output)
     rendered = render_workbench(manifest, manifest_path.parent).encode("utf-8")
+    # Re-check after rendering so a link swapped in meanwhile is still refused.
+    _confine_output(output, manifest_path.parent.resolve())
     destination = output.resolve()
     try:
         info = destination.lstat()

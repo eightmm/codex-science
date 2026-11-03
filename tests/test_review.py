@@ -2,7 +2,11 @@ import unittest
 import copy
 import json
 import hashlib
+import os
+import subprocess
+import sys
 import tempfile
+import threading
 from pathlib import Path
 
 from codex_science.artifacts import add_artifact, new_manifest, validate_bundle, validate_manifest
@@ -443,6 +447,198 @@ class ReviewerTests(unittest.TestCase):
         findings = [item for item in review["findings"] if item["code"] == "computed-claim-without-execution"]
 
         self.assertEqual(["C1"], [item["claim_id"] for item in findings])
+
+    def test_malformed_records_are_refused_with_labelled_errors_not_tracebacks(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        cases = (
+            ("plan", ["step"], "Plan step 1 must be an object, not str"),
+            ("plan", [{"id": "s1", "status": "completed"}, None], "Plan step 2 must be an object"),
+            ("executions", ["python a.py"], "Execution records must be objects"),
+            ("superseded_executions", {"E0": 1}, "Manifest field must be a list: superseded_executions"),
+            ("superseded_executions", None, "Manifest field must be a list: superseded_executions"),
+            ("superseded_executions", ["x"], "Superseded execution records must be objects"),
+            ("schema_version", True, "Unsupported artifact schema version"),
+            ("review", {"status": ["passed"], "findings": []}, "Manifest review status must be a string, not list"),
+            ("review", {"status": None}, "Manifest review status must be a string, not NoneType"),
+            ("review", {"status": "findings", "findings": 5}, "Review findings must be a list"),
+            ("review", {"status": "passed", "findings": None}, "Review findings must be a list"),
+            ("review", {"status": "findings", "findings": ["x"]}, "Review finding 1 must be an object, not str"),
+            ("review", {"status": "blocked", "findings": [{"message": "m"}]}, "Review finding 1 code is required"),
+            ("review", {"status": "findings", "findings": [{"code": "c"}]}, "Review finding 1 message is required"),
+            ("review", {"status": "findings", "findings": [{"code": 1, "message": "m"}]}, "Review finding 1 code must be a string"),
+            ("review", {"status": "findings", "findings": [{"code": "c", "message": "m", "severity": ["major"]}]},
+             "Review finding 1 severity must be a string, not list"),
+            ("review", {"status": "findings", "findings": [{"code": "c", "message": "m", "claim_id": "C1"},
+                                                           {"code": "c", "message": "m", "claim_id": 3}]},
+             "Review finding 2 claim_id must be a string, not int"),
+            ("review", {"status": "findings", "findings": [{"code": "c", "message": "m", "id": ["F1"]}]},
+             "Review finding 1 id must not be a list"),
+            ("review", {"status": "passed", "findings": [{"severity": "major", "message": "m"}]},
+             "Review finding 1 code is required"),
+            ("review", {"status": "passed", "findings": [{"severity": "minor", "resolution_status": ["open"]}]},
+             "Review finding 1 resolution_status must be a string"),
+        )
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        for field, value, message in cases:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
+                run = Path(temporary) / "run"
+                run.mkdir()
+                (run / "result.json").write_text("{}\n", encoding="utf-8")
+                manifest = new_manifest("run", "Question", [{"id": "s1", "status": "completed"}])
+                add_artifact(manifest, "result.json", kind="table",
+                             sha256=hashlib.sha256(b"{}\n").hexdigest())
+                manifest[field] = value
+                (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+                result = subprocess.run(
+                    [sys.executable, str(root / "scripts" / "validate_artifact.py"), str(run / "manifest.json"),
+                     "--review-output", str(Path(temporary) / "review.json")],
+                    capture_output=True, text=True, timeout=timeout,
+                )
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertIn(f"error: {message}", result.stderr)
+
+    def test_declared_review_checks_only_the_findings_review_reports(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        for review, status in (
+            # Receipt findings need not carry code or message; a passed review
+            # never reports resolved or non-blocking ones.
+            ({"status": "passed", "findings": [{"severity": "minor"}, {"severity": "major", "resolution_status": "resolved"},
+                                               "invalid", None, 0]}, "passed"),
+            ({"status": "pending", "findings": "unread"}, "passed"),
+            ({"findings": [None]}, "passed"),
+            ({}, "passed"),
+            ({"status": "findings", "findings": []}, "findings"),
+            ({"status": "findings", "findings": [{"code": "c", "message": "m", "claim_id": "C1", "id": 1}]}, "findings"),
+        ):
+            with self.subTest(review=review):
+                manifest["review"] = review
+                self.assertEqual(status, review_manifest(manifest)["status"])
+        manifest["review"] = {"status": "findings", "findings": [{"code": "c", "message": "m", "claim_id": 1}]}
+        with self.assertRaisesRegex(ValueError, "Review finding 1 claim_id must be a string"):
+            review_manifest(manifest)
+
+    def test_graph_without_claim_support_reviews_like_no_graph(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        add_artifact(manifest, "result.json", kind="table", sha256="a" * 64)
+        graphs = (
+            {"nodes": [], "edges": []},
+            {"nodes": [{"id": "C1", "type": "claim"}], "edges": []},
+            {"nodes": [{"id": "C1", "type": "claim"}, {"id": "E1", "type": "execution"}],
+             "edges": [{"source": "E1", "target": "C2", "relation": "supports"}]},
+        )
+        changed = 0
+        for register, required in (
+            (["computed"], None), (["primary"], ["computed"]), ([], ["computed"]),
+            (None, ["computed"]), ("computed", None), (["primary"], None),
+        ):
+            for executions in (
+                [], [{"exit_code": 0}], [{"id": "E1", "exit_code": 0}],
+                [{"exit_code": 0, "outputs": ["result.json"]}], [{"exit_code": 0, "outputs": ["./result.json"]}],
+                [{"id": "E1", "exit_code": 0, "outputs": ["other.json"]}],
+                [{"exit_code": 1, "outputs": ["result.json"]}],
+            ):
+                claim = {"id": "C1", "text": "Computed result", "evidence": ["result.json"]}
+                if required is not None:
+                    claim["required_evidence"] = required
+                manifest["claims"], manifest["executions"] = [claim], executions
+                registered = {} if register is None else {"claim_by_id": {"C1": {"id": "C1", "required_evidence": register}}}
+                expected = review_manifest(manifest, sidecars=registered)
+                for graph_key in ("graph_v2", "evidence_graph"):
+                    for graph in graphs:
+                        with self.subTest(register=register, required=required, executions=executions,
+                                          graph_key=graph_key, graph=graph):
+                            review = review_manifest(manifest, sidecars={**registered, graph_key: graph})
+                            self.assertEqual(expected, review)
+                            changed += "computed-claim-without-execution" in {item["code"] for item in review["findings"]}
+        self.assertGreater(changed, 0)
+
+    def test_manifest_computed_requirement_applies_with_graph_support(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        add_artifact(manifest, "result.json", kind="table", sha256="a" * 64)
+        manifest["claims"] = [{"id": "C1", "text": "Computed result", "evidence": ["result.json"],
+                               "required_evidence": ["computed"]}]
+        register = {"claim_by_id": {"C1": {"id": "C1", "required_evidence": ["primary"]}}}
+        graph = {"nodes": [{"id": "C1", "type": "claim"},
+                           {"id": "result.json", "type": "artifact", "path": "result.json"}],
+                 "edges": [{"source": "result.json", "target": "C1", "relation": "supports"}]}
+        for executions, linked in (
+            ([], False),
+            ([{"exit_code": 0, "outputs": ["other.json"]}], False),
+            ([{"exit_code": 1, "outputs": ["result.json"]}], False),
+            ([{"exit_code": 0, "outputs": ["result.json"]}], True),
+        ):
+            for sidecars in (register, {**register, "graph_v2": graph}, {**register, "evidence_graph": graph}):
+                with self.subTest(executions=executions, graph="graph_v2" in sidecars or "evidence_graph" in sidecars):
+                    manifest["executions"] = executions
+                    codes = {item["code"] for item in review_manifest(manifest, sidecars=sidecars)["findings"]}
+                    self.assertEqual(not linked, "computed-claim-without-execution" in codes)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "requires os.mkfifo")
+    def test_non_regular_execution_journal_is_reported_without_opening_it(self) -> None:
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            journal = run / "execution-log.jsonl"
+            manifest = new_manifest("run", "Question", [])
+            for make in (os.mkfifo, os.mkdir):
+                with self.subTest(kind=make.__name__):
+                    make(journal)
+                    result: list = []
+                    worker = threading.Thread(
+                        target=lambda: result.append(review_manifest(manifest, run, sidecars={})), daemon=True)
+                    worker.start()
+                    worker.join(timeout)
+                    if worker.is_alive():
+                        # Release a reader blocked on the FIFO so the thread can finish.
+                        os.close(os.open(journal, os.O_WRONLY | os.O_NONBLOCK))
+                        worker.join(timeout)
+                    try:
+                        self.assertEqual(1, len(result), "review blocked on a non-regular execution journal")
+                        findings = result[0]["findings"]
+                        self.assertEqual(["invalid-execution-journal"], [item["code"] for item in findings])
+                        self.assertIn("not a regular file", findings[0]["message"])
+                    finally:
+                        (os.rmdir if journal.is_dir() else os.unlink)(journal)
+            journal.write_text('{"id": "E1"}\n', encoding="utf-8")
+            manifest["executions"] = [{"id": "E1", "exit_code": 0}]
+            self.assertEqual("passed", review_manifest(manifest, run, sidecars={})["status"])
+
+    def test_claim_evidence_matches_canonical_artifact_paths(self) -> None:
+        for artifact, evidence, missing in (
+            ("results.json", "./results.json", False),
+            ("results.json", "results.json/", False),
+            ("./results.json", "results.json", False),
+            ("data/results.json", "./data//./results.json", False),
+            ("results.json", "results.json", False),
+            ("results.json", "../results.json", True),
+            ("results.json", "data/../results.json", True),
+            ("results.json", "/results.json", True),
+            ("results.json", "", True),
+            ("results.json", "other.json", True),
+        ):
+            with self.subTest(artifact=artifact, evidence=evidence):
+                manifest = new_manifest("run", "Question", [])
+                add_artifact(manifest, artifact, kind="table", sha256="a" * 64)
+                manifest["claims"] = [{"id": "C1", "text": "Result", "evidence": [evidence]}]
+                validate_manifest(manifest)
+                findings = [item for item in review_manifest(manifest)["findings"] if item["code"] == "missing-evidence"]
+                self.assertEqual(missing, bool(findings))
+                if missing:
+                    self.assertIn(f"Claim evidence is not a saved artifact: {evidence} (claim C1", findings[0]["message"])
+
+    def test_execution_without_exit_code_fails_closed_with_its_own_message(self) -> None:
+        manifest = new_manifest("run", "Question", [])
+        for execution, text in (
+            ({"command": "python a.py"}, "Execution has no recorded exit code: python a.py."),
+            ({"command": "python a.py", "exit_code": None}, "Execution failed: python a.py."),
+            ({"command": "python a.py", "exit_code": 2}, "Execution failed: python a.py."),
+        ):
+            with self.subTest(execution=execution):
+                manifest["executions"] = [execution]
+                findings = review_manifest(manifest)["findings"]
+                self.assertEqual(["failed-execution"], [item["code"] for item in findings])
+                self.assertTrue(findings[0]["message"].startswith(text), findings[0]["message"])
 
     def test_example_bundles_keep_their_existing_review_status(self) -> None:
         root = Path(__file__).resolve().parents[1]

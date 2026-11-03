@@ -93,13 +93,22 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     missing = sorted(REQUIRED_FIELDS - manifest.keys())
     if missing:
         raise ValueError(f"Missing manifest fields: {', '.join(missing)}")
-    if manifest.get("schema_version") != 1:
+    # bool is an int subclass, so True would otherwise compare equal to 1.
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
         raise ValueError("Unsupported artifact schema version")
-    if not str(manifest.get("run_id", "")).strip() or not str(manifest.get("question", "")).strip():
+    for field in ("run_id", "question"):
+        if not isinstance(manifest[field], str):
+            raise ValueError(f"Manifest {field} must be a string, not {type(manifest[field]).__name__}")
+    if not manifest["run_id"].strip() or not manifest["question"].strip():
         raise ValueError("run_id and question are required")
     for field in ("plan", "inputs", "code", "executions", "artifacts", "claims"):
         if not isinstance(manifest.get(field), list):
             raise ValueError(f"Manifest field must be a list: {field}")
+    if not isinstance(manifest.get("superseded_executions", []), list):
+        raise ValueError("Manifest field must be a list: superseded_executions")
+    for field, label in (("executions", "Execution"), ("superseded_executions", "Superseded execution")):
+        if not all(isinstance(item, dict) for item in manifest.get(field, [])):
+            raise ValueError(f"{label} records must be objects")
     if not isinstance(manifest.get("environment"), dict):
         raise ValueError("Manifest environment must be an object")
     if not isinstance(manifest.get("review"), dict):

@@ -21,7 +21,7 @@ from codex_science.version import (
 )
 
 RELEASE_VERSION_RE = re.compile(
-    r"^(?P<package>\d+\.\d+\.\d+)\+codex\.(?P<cache>\d{14})$"
+    r"^(?P<package>[0-9]+\.[0-9]+\.[0-9]+)\+codex\.(?P<cache>[0-9]{14})$"
 )
 # Kept as a compatibility alias for callers that used the old single-identity
 # name. Both the stable bootstrap and live runtime use the same syntax.
@@ -31,6 +31,8 @@ PLUGIN_RE = RELEASE_VERSION_RE
 def load_release_manifest(root: Path) -> dict:
     path = root / "release" / "manifest.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("release manifest must be a JSON object")
     if payload.get("schema_version") not in {1, 2}:
         raise ValueError("unsupported release manifest schema")
     return payload
@@ -55,9 +57,14 @@ def validate_release(root: Path) -> list[str]:
     errors: list[str] = []
     plugin = json.loads((root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    if not isinstance(plugin, dict):
+        raise ValueError("plugin.json must be a JSON object")
+    project = pyproject.get("project", {})
+    if not isinstance(project, dict):
+        raise ValueError("pyproject.toml project must be a table")
     manifest = load_release_manifest(root)
     observed_plugin = str(plugin.get("version", ""))
-    observed_package = str(pyproject.get("project", {}).get("version", ""))
+    observed_package = str(project.get("version", ""))
     try:
         observed_runtime = manifest_runtime_version(manifest)
     except ValueError:

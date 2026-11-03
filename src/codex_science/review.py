@@ -91,8 +91,7 @@ def computed_claim_execution_findings(
     if not isinstance(sidecars, dict):
         sidecars = {}
     graph = sidecars.get("graph_v2") or sidecars.get("evidence_graph")
-    has_graph = isinstance(graph, dict)
-    if not has_graph:
+    if not isinstance(graph, dict):
         graph = {}
     nodes = {
         str(node.get("id", "")).strip(): node for node in graph.get("nodes", [])
@@ -111,57 +110,50 @@ def computed_claim_execution_findings(
         str(claim_id).strip(): claim for claim_id, claim in raw_claim_records.items()
     } if isinstance(raw_claim_records, dict) else {}
     executions = [item for item in manifest.get("executions", []) if isinstance(item, dict)]
-    has_linkage_metadata = any(
-        "outputs" in item or (has_graph and "id" in item) for item in executions
-    )
-    execution_manifest = manifest
-    if has_graph:
-        # Graph IDs are canonical; preserve producer linkage on copied records.
-        execution_manifest = {**manifest, "executions": [
-            {**item, "id": str(item["id"]).strip()} if "id" in item else item
-            for item in executions
-        ]}
-    else:
-        # Normalise lexical aliases on copies; graph linkage retains exact paths.
-        normalised_executions = []
-        for execution in executions:
-            outputs = execution.get("outputs")
-            if isinstance(outputs, list):
-                execution = {**execution, "outputs": [
-                    _normalise_artifact_reference(output) for output in outputs
-                ]}
-            normalised_executions.append(execution)
-        execution_manifest = {**manifest, "executions": normalised_executions, "artifacts": [
-            normalised for artifact in manifest.get("artifacts", [])
-            if isinstance(artifact, dict)
-            and (normalised := _normalise_artifact_reference(artifact)) is not None
-        ]}
+    # Graph IDs are canonical; preserve producer linkage on copied records.
+    graph_manifest = {**manifest, "executions": [
+        {**item, "id": str(item["id"]).strip()} if "id" in item else item
+        for item in executions
+    ]}
+    graph_linkage = any("outputs" in item or "id" in item for item in executions)
+    # Normalise lexical aliases on copies; graph linkage retains exact paths.
+    normalised_executions = []
+    for execution in executions:
+        outputs = execution.get("outputs")
+        if isinstance(outputs, list):
+            execution = {**execution, "outputs": [
+                _normalise_artifact_reference(output) for output in outputs
+            ]}
+        normalised_executions.append(execution)
+    path_manifest = {**manifest, "executions": normalised_executions, "artifacts": [
+        normalised for artifact in manifest.get("artifacts", [])
+        if isinstance(artifact, dict)
+        and (normalised := _normalise_artifact_reference(artifact)) is not None
+    ]}
+    path_linkage = any("outputs" in item for item in executions)
     findings = []
     for claim_id, claim in claims.items():
         refs = supported.get(claim_id, set())
         support_nodes = [
             (ref, nodes[ref]) for ref in refs if isinstance(nodes.get(ref), dict)
         ]
-        if has_graph and not support_nodes:
-            continue
-        data_nodes = [
-            (ref, node) for ref, node in support_nodes
-            if node.get("type") in {"execution", "artifact"}
-        ]
+        # The manifest and the register can each mark a claim computed, with
+        # or without a graph, so graph presence never decides that alone.
         registered_claim = claim_records.get(claim_id, {})
-        required_evidence = (
-            registered_claim.get("required_evidence", claim.get("required_evidence", []))
-            if isinstance(registered_claim, dict) else claim.get("required_evidence", [])
+        requirements = (
+            registered_claim.get("required_evidence") if isinstance(registered_claim, dict) else None,
+            claim.get("required_evidence"),
         )
-        is_computed = isinstance(required_evidence, list) and "computed" in required_evidence
-        if not has_graph:
-            manifest_required = claim.get("required_evidence", [])
-            is_computed = is_computed or (
-                isinstance(manifest_required, list) and "computed" in manifest_required
-            )
-        if not is_computed:
+        if not any(isinstance(required, list) and "computed" in required for required in requirements):
             continue
-        if not has_graph:
+        if support_nodes:
+            data_nodes = [
+                (ref, node) for ref, node in support_nodes
+                if node.get("type") in {"execution", "artifact"}
+            ]
+            execution_manifest, has_linkage_metadata = graph_manifest, graph_linkage
+        else:
+            # A claim without graph support is checked as if no graph existed.
             evidence = claim.get("evidence", [])
             if not isinstance(evidence, list):
                 evidence = []
@@ -170,6 +162,7 @@ def computed_claim_execution_findings(
                 for path in evidence if isinstance(path, str)
                 and (normalised := _normalise_artifact_reference(path)) is not None
             ]
+            execution_manifest, has_linkage_metadata = path_manifest, path_linkage
         if data_nodes:
             # A graph artifact ID may also supply its literal path; only the
             # identifier used for lookup is canonical, not that fallback path.
@@ -262,6 +255,9 @@ def _execution_record_findings(manifest: dict[str, Any], run_dir: Path | None) -
     try:
         if journal.is_symlink() and not journal.resolve().is_relative_to(root):
             raise ValueError("execution journal escapes run directory")
+        if journal.exists() and not journal.is_file():
+            # Opening a FIFO or device would block or read unbounded input.
+            raise ValueError("it is not a regular file")
         if journal.exists():
             with journal.open(encoding="utf-8") as stream:
                 for number, line in enumerate(stream, 1):
@@ -277,25 +273,70 @@ def _execution_record_findings(manifest: dict[str, Any], run_dir: Path | None) -
     return findings
 
 
-def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, sidecars: dict[str, Any] | None = None) -> dict[str, Any]:
-    findings: list[dict[str, str]] = []
+_BLOCKING_SEVERITIES = {"major", "critical"}
+
+
+def _declared_review_findings(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the declared findings review reports, refusing shapes it cannot report.
+
+    Only consumed findings are checked: a passed review keeps resolved or
+    non-blocking findings as recorded, since receipts need not carry codes.
+    """
     declared_review = manifest.get("review", {})
-    if declared_review.get("status") in {"findings", "blocked"}:
-        declared_findings = declared_review.get("findings", [])
-        if declared_findings:
-            findings.extend(declared_findings)
-        else:
-            findings.append({"code": "declared-review-not-passed", "severity": "major", "message": f"Manifest review status is {declared_review.get('status', 'unknown')}."})
-    elif declared_review.get("status") == "passed":
-        findings.extend(item for item in declared_review.get("findings", [])
-                        if isinstance(item, dict) and item.get("severity") in {"major", "critical"}
-                        and item.get("resolution_status", "open") not in {"resolved", "not-applicable"})
+    status = declared_review.get("status")
+    if "status" in declared_review and not isinstance(status, str):
+        raise ValueError(f"Manifest review status must be a string, not {type(status).__name__}")
+    if status not in {"findings", "blocked", "passed"}:
+        return []
+    declared = declared_review.get("findings", [])
+    if not isinstance(declared, list):
+        raise ValueError("Review findings must be a list")
+    if status != "passed":
+        if not declared:
+            return [{"code": "declared-review-not-passed", "severity": "major", "message": f"Manifest review status is {status}."}]
+        consumed = list(enumerate(declared, start=1))
+    else:
+        consumed = []
+        for index, item in enumerate(declared, start=1):
+            if not isinstance(item, dict):
+                continue
+            for field in ("severity", "resolution_status"):
+                if field in item and not isinstance(item[field], str):
+                    raise ValueError(f"Review finding {index} {field} must be a string, not {type(item[field]).__name__}")
+            if item.get("severity") in _BLOCKING_SEVERITIES and item.get("resolution_status", "open") not in {"resolved", "not-applicable"}:
+                consumed.append((index, item))
+    for index, item in consumed:
+        if not isinstance(item, dict):
+            raise ValueError(f"Review finding {index} must be an object, not {type(item).__name__}")
+        for field in ("code", "message"):
+            if field not in item:
+                raise ValueError(f"Review finding {index} {field} is required")
+        for field in ("code", "message", "severity", "claim_id"):
+            if field in item and not isinstance(item[field], str):
+                raise ValueError(f"Review finding {index} {field} must be a string, not {type(item[field]).__name__}")
+        for field in ("id", "affected_claim_id"):
+            if isinstance(item.get(field), (dict, list)):
+                raise ValueError(f"Review finding {index} {field} must not be a {type(item[field]).__name__}")
+    return [item for _, item in consumed]
+
+
+def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, sidecars: dict[str, Any] | None = None) -> dict[str, Any]:
+    findings: list[dict[str, Any]] = _declared_review_findings(manifest)
     findings.extend(_execution_record_findings(manifest, run_dir))
-    artifacts = {str(item.get("path")) for item in manifest.get("artifacts", [])}
+    # Compare the canonical spelling the validator uses for duplicate paths.
+    artifacts = {
+        normalised for item in manifest.get("artifacts", [])
+        if (normalised := _normalise_artifact_reference(str(item.get("path")))) is not None
+    }
     for execution in manifest.get("executions", []):
-        if not _execution_succeeded(execution):
+        if "exit_code" not in execution:
+            findings.append({"code": "failed-execution", "severity": "major", "message": f"Execution has no recorded exit code: {execution.get('command', '<unknown>')}. Review counts an execution as successful only when it records exit code 0."})
+        elif not _execution_succeeded(execution):
             findings.append({"code": "failed-execution", "severity": "major", "message": f"Execution failed: {execution.get('command', '<unknown>')}. If the nonzero exit was the expected outcome of a negative check, record it as a command that exits 0 only when the expected rejection is observed. A transient source failure clears when the identical command is rerun and succeeds."})
-    for step in manifest.get("plan", []):
+    for index, step in enumerate(manifest.get("plan", []), start=1):
+        # write_manifest accepts such plans, so refuse them here rather than in validate_manifest.
+        if not isinstance(step, dict):
+            raise ValueError(f"Plan step {index} must be an object, not {type(step).__name__}")
         if step.get("status") != "completed":
             findings.append({"code": "incomplete-plan", "severity": "major", "message": f"Plan step is not complete: {step.get('id', '<unknown>')}"})
     for claim in manifest.get("claims", []):
@@ -304,7 +345,7 @@ def review_manifest(manifest: dict[str, Any], run_dir: Path | None = None, *, si
             findings.append({"code": "unsupported-claim", "severity": "major", "message": f"Claim has no evidence: {claim.get('id', '<unknown>')}"})
             continue
         for path in evidence:
-            if not isinstance(path, str) or path not in artifacts:
+            if not isinstance(path, str) or _normalise_artifact_reference(path) not in artifacts:
                 findings.append({"code": "missing-evidence", "severity": "major", "message": f"Claim evidence is not a saved artifact: {path} (claim {claim.get('id', '<unknown>')}; evidence entries must be manifest artifact paths, not identifiers)"})
     if sidecars is None and run_dir is not None:
         from codex_science.artifacts import validate_bundle

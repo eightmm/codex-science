@@ -1,6 +1,7 @@
 import copy
 import errno
 import hashlib
+import html
 import io
 import json
 import os
@@ -544,6 +545,80 @@ class DiscoveryWorkbenchTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "workbench output"):
                     write_workbench(manifest_path, output)
             self.assertFalse(output.exists())
+
+    def test_workbench_refuses_output_resolving_outside_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            outside = base / "outside"
+            outside.mkdir()
+            victim = outside / "victim.html"
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+            (root / "nested").mkdir()
+            (base / "run-alias").symlink_to(root, target_is_directory=True)
+            (outside / "back").symlink_to(root, target_is_directory=True)
+            (root / "self").symlink_to(root, target_is_directory=True)
+            cases = [(root / "workbench.html", None), (root / "linked/victim.html", None),
+                     (root / "nested/../linked/victim.html", None), (root / "linked/../outside/victim.html", None),
+                     (base / "run-alias/workbench.html", base / "run-alias/manifest.json"),
+                     (outside / "back/linked/victim.html", None), (root / "self/../escape.html", None)]
+            for output, manifest_arg in cases:
+                for target_exists in (False, True):
+                    with self.subTest(output=str(output.relative_to(base)), target_exists=target_exists):
+                        (root / "workbench.html").unlink(missing_ok=True)
+                        (root / "workbench.html").symlink_to(victim)
+                        victim.unlink(missing_ok=True)
+                        if target_exists:
+                            victim.write_bytes(b"outside file")
+                        entries = set(outside.iterdir()) | set(base.iterdir())
+                        command = [sys.executable, str(ROOT / "scripts/render_workbench.py"), str(manifest_arg or manifest_path)]
+                        if manifest_arg is None and output != root / "workbench.html":
+                            command.extend(["--output", str(output)])
+                        result = subprocess.run(command, capture_output=True, text=True,
+                                                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertIn("error: workbench output cannot leave the run directory", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(entries, set(outside.iterdir()) | set(base.iterdir()))
+                        self.assertEqual(b"outside file" if target_exists else None,
+                                         victim.read_bytes() if victim.exists() else None)
+                        with self.assertRaisesRegex(ValueError, "workbench output cannot leave the run directory"):
+                            write_workbench(manifest_path, output)
+            (root / "workbench.html").unlink()
+            victim.write_bytes(b"outside file")
+            expected = render_workbench(json.loads(manifest_path.read_text()), root).encode()
+            for output in (outside / "explicit.html", root / "nested/../view.html", base / "run-alias/view.html",
+                           root / "../plain.html", root / "nested/../../outside/plain.html"):
+                with self.subTest(allowed=str(output.relative_to(base))):
+                    result = self.workbench_cli(manifest_path, output)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual(expected, output.read_bytes())
+            self.assertEqual(b"outside file", victim.read_bytes())
+
+    def test_workbench_artifact_links_are_relative_and_encoded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, _ = annotation_fixture(root)
+            manifest = json.loads(manifest_path.read_text())
+            names = {"javascript:alert(1)": "./javascript%3Aalert%281%29",
+                     "https:/example.invalid/x": "./https%3A/example.invalid/x",
+                     "data:text/html,x": "./data%3Atext/html%2Cx",
+                     "a b?#'&.txt": "./a%20b%3F%23%27%26.txt", "result.json": "./result.json"}
+            for name in names:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("x")
+            manifest["artifacts"] = [{"path": name, "kind": "data",
+                                      "sha256": hashlib.sha256((root / name).read_bytes()).hexdigest()} for name in names]
+            page = render_workbench(manifest, root)
+            for name, href in names.items():
+                with self.subTest(name=name):
+                    self.assertIn(f"<a href='{href}'>", page)
+                    self.assertIn(f">{html.escape(name)}</a>", page)
+            self.assertNotIn("href='javascript", page)
+            self.assertNotIn("href='https", page)
 
     def test_workbench_validates_manifest_before_protecting_output(self):
         with tempfile.TemporaryDirectory() as temporary:

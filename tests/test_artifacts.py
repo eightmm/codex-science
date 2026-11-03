@@ -512,6 +512,46 @@ class ValidateManifestRejectionTests(unittest.TestCase):
                 manifest["claims"].append(claim)
                 self.assertRejects(manifest, message)
 
+    def test_identity_fields_are_typed(self) -> None:
+        cases = (
+            ("schema_version", True, "Unsupported artifact schema version"),
+            ("schema_version", 1.0, "Unsupported artifact schema version"),
+            ("schema_version", "1", "Unsupported artifact schema version"),
+            ("schema_version", None, "Unsupported artifact schema version"),
+            ("schema_version", 0, "Unsupported artifact schema version"),
+            ("run_id", 7, "Manifest run_id must be a string, not int"),
+            ("run_id", None, "Manifest run_id must be a string, not NoneType"),
+            ("run_id", "", "run_id and question are required"),
+            ("question", ["q"], "Manifest question must be a string, not list"),
+            ("question", True, "Manifest question must be a string, not bool"),
+        )
+        for key, value, message in cases:
+            with self.subTest(key=key, value=value):
+                manifest = self.base()
+                manifest[key] = value
+                self.assertRejects(manifest, message)
+
+    def test_execution_records_are_checked(self) -> None:
+        cases = (
+            ("executions", ["python a.py"], "Execution records must be objects"),
+            ("executions", [{"exit_code": 0}, None], "Execution records must be objects"),
+            ("superseded_executions", {}, "Manifest field must be a list: superseded_executions"),
+            ("superseded_executions", None, "Manifest field must be a list: superseded_executions"),
+            ("superseded_executions", "E1", "Manifest field must be a list: superseded_executions"),
+            ("superseded_executions", [{"id": "E0"}, 3], "Superseded execution records must be objects"),
+        )
+        for key, value, message in cases:
+            with self.subTest(key=key, value=value):
+                manifest = self.base()
+                manifest[key] = value
+                self.assertRejects(manifest, message)
+        manifest = self.base()
+        manifest["executions"] = [{}]
+        manifest["superseded_executions"] = []
+        validate_manifest(manifest)
+        manifest["superseded_executions"] = [{"id": "E0", "exit_code": 1, "superseded_by": "E1"}]
+        validate_manifest(manifest)
+
 
 class DescriptorPathRejectionTests(unittest.TestCase):
     def setUp(self) -> None:

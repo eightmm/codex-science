@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -145,6 +146,51 @@ class DiscoveryBoundaryTests(unittest.TestCase):
         model.symlink_to(outside)
         with self.assertRaises(ValueError):
             load_cycle(self.root)
+
+    def test_attach_refuses_manifest_as_discovery_evidence_before_rewriting_it(self):
+        for name in ("manifest.json", "manifest-alias.json"):
+            with self.subTest(name=name):
+                self.root = Path(self.temp.name) / f"run-{name}"
+                save_cycle(new_cycle(prepare(self.root)), self.root)
+                self.cycle = load_cycle(self.root)
+                manifest_path = self.root / "manifest.json"
+                attach_cycle(self.root)
+                if name != "manifest.json":
+                    (self.root / name).hardlink_to(manifest_path)
+                self.event("reserve", experiment_id="e1", request_id="r1")
+                self.event("failure", experiment_id="e1", request_id="r1", failure_kind="execution", outcome="crashed",
+                           evidence_refs=[{"path": name, "sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest()}])
+                before = manifest_path.read_bytes()
+                for _ in range(2):
+                    with self.assertRaisesRegex(ValueError, f"discovery evidence cannot be the run manifest: {name}"):
+                        attach_cycle(self.root)
+                    self.assertEqual(before, manifest_path.read_bytes())
+                validate_bundle(json.loads(before), self.root)
+
+    def test_attach_refuses_symlinked_evidence_in_unvalidated_cycle_fields(self):
+        digest = hashlib.sha256(b"{}").hexdigest()
+        for relative in ("alias.json", "linked/real.json", "../outside.json", "nested/../../outside.json", "absolute"):
+            with self.subTest(relative=relative):
+                root = Path(self.temp.name) / relative.replace("/", "-").replace(".", "_")
+                payload = prepare(root)
+                (root / "real.json").write_text("{}")
+                (root / "alias.json").symlink_to("real.json")
+                (root / "linked").symlink_to(".", target_is_directory=True)
+                (root / "nested").mkdir()
+                (root.parent / "outside.json").write_text("{}")
+                reason = "symlink" if relative in ("alias.json", "linked/real.json") else "escapes run directory"
+                if relative == "absolute":
+                    relative = str(root / "real.json")
+                payload["problem"]["notes"] = {"path": relative, "sha256": digest}
+                save_cycle(new_cycle(payload), root)
+                with self.assertRaisesRegex(ValueError, f"discovery evidence must stay in the run: {re.escape(relative)}.*{reason}"):
+                    attach_cycle(root)
+                self.assertFalse((root / "manifest.json").exists())
+        plain = prepare(Path(self.temp.name) / "plain")
+        (Path(self.temp.name) / "plain/real.json").write_text("{}")
+        plain["problem"]["notes"] = {"path": "real.json", "sha256": digest}
+        save_cycle(new_cycle(plain), Path(self.temp.name) / "plain")
+        self.assertIn("real.json", {item["path"] for item in attach_cycle(Path(self.temp.name) / "plain")["artifacts"]})
 
     def test_unregistered_evidence_not_accepted_as_complete_bundle(self):
         manifest = attach_cycle(self.root)

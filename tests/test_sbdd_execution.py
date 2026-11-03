@@ -93,6 +93,21 @@ class ExecutableSBDDAcceptanceTests(unittest.TestCase):
                 if kind != "hardlink":
                     self.assertTrue(destination.is_symlink())
 
+    def test_receipt_carries_registry_acceptance_bundle_digest(self) -> None:
+        from codex_science.model_registry_v2 import validate_model_receipt_v2
+        registry = json.loads((self.root / "models" / "registry-v2.json").read_text(encoding="utf-8"))
+        baseline = next(item for item in registry["models"] if item["id"] == "deterministic-translation-baseline")
+        baseline["acceptance"]["bundle_sha256"] = "c" * 64
+        with tempfile.TemporaryDirectory() as tempdir:
+            models = Path(tempdir) / "models"
+            models.mkdir()
+            registry_path = models / "registry-v2.json"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            manifest_path = execute_acceptance(self.input_path, Path(tempdir) / "run", registry_path=registry_path)
+            receipt = json.loads((manifest_path.parent / "model_receipt.json").read_text(encoding="utf-8"))
+            self.assertEqual("c" * 64, receipt["acceptance_bundle_sha256"])
+            self.assertEqual([], validate_model_receipt_v2(receipt, registry))
+
     def test_blank_run_id_is_refused_before_output(self) -> None:
         for value in ("", " ", "\t\n"):
             with self.subTest(run_id=value):

@@ -104,6 +104,40 @@ class ReleaseLockTests(unittest.TestCase):
                 self.assertTrue(any("uv.lock" in error for error in errors), errors)
 
 
+    def test_non_object_release_inputs_are_labelled(self) -> None:
+        sources = {relative: (self.root / relative).read_bytes()
+                   for relative in (".codex-plugin/plugin.json", "pyproject.toml", "release/manifest.json")}
+        cases = [(".codex-plugin/plugin.json", content, "plugin.json must be a JSON object")
+                 for content in ("[]", "0", "null", '"text"')]
+        cases += [("pyproject.toml", content, "pyproject.toml project must be a table")
+                  for content in ('project = "x"\n', "project = 0\n", "project = []\n")]
+        cases += [("release/manifest.json", content, "release manifest must be a JSON object")
+                  for content in ("[]", "0", "null", '"text"')]
+        for relative, content, message in cases:
+            with self.subTest(relative=relative, content=content):
+                (self.root / relative).write_text(content, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_release(self.root)
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/validate_release.py"), "--root", str(self.root)],
+                    capture_output=True, text=True, timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertEqual(f"error: {message}\n", result.stderr)
+                (self.root / relative).write_bytes(sources[relative])
+        (self.root / "pyproject.toml").write_text("", encoding="utf-8")
+        self.assertTrue(any("package_version mismatch" in error for error in validate_release(self.root)))
+
+    def test_release_version_requires_ascii_digits(self) -> None:
+        from codex_science.release import RELEASE_VERSION_RE
+        self.assertIsNotNone(RELEASE_VERSION_RE.fullmatch("1.0.0+codex." + "0" * 14))
+        for version in ("1.0.0+codex." + "0" * 13, "1.0.0+codex." + "0" * 15,
+                        "1.0.0+codex." + "\u0660" * 14, "1.0.0+codex." + "0" * 13 + "\u0661",
+                        "\u0661.0.0+codex." + "0" * 14, "1.0.\uff10+codex." + "0" * 14):
+            with self.subTest(version=version):
+                self.assertIsNone(RELEASE_VERSION_RE.fullmatch(version))
+                self.assertFalse(release_version_advances(BASE_RUNTIME, version))
+
+
 class ReleaseGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

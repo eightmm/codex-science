@@ -222,5 +222,46 @@ class DiscoveryIntegrationTests(unittest.TestCase):
                 finite_decision(cycle, payload, root)
 
 
+    def test_observed_decision_labels_malformed_observation_bindings(self):
+        def write_ref(root, name, payload):
+            path = root / name
+            path.write_text(json.dumps(payload))
+            return {"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+        contract = json.loads((ROOT / "examples/statistical-decision-analysis/input.json").read_text())
+        binding = {"cycle_experiment_id": "e1", "decision_experiment_id": "bounded-assay",
+                   "json_pointer": "/signal", "artifact_path": "measurement.json"}
+        for bindings in ({"a": 1}, 5, "text", None, True, [1], [binding, None], [[binding]], [], [binding], "missing"):
+            with self.subTest(bindings=bindings), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp) / "run"
+                cycle_input = prepare(root)
+                payload = {"state_model_rationale": "Explicit exogenous states",
+                           "assumption_refs": [write_ref(root, "assumptions.json", contract)], "decision_contract": contract}
+                prior = dict(payload) if bindings == "missing" else dict(payload, observation_bindings=bindings)
+                prior_ref = write_ref(root, "prior-decision.json", prior)
+                cycle_input["evaluation"]["artifact_refs"].append(prior_ref)
+                save_cycle(new_cycle(cycle_input), root)
+                cycle = load_cycle(root)
+                measured = write_ref(root, "measurement.json", {"accuracy": .5, "signal": "signal-1"})
+                observations = [{"artifact_ref": measured, "json_pointer": "/accuracy", "value": .5}]
+                for kind in ("reserve", "running", "complete"):
+                    event = {"kind": kind, "experiment_id": "e1", "request_id": "r1"}
+                    if kind == "complete":
+                        event.update(outcome="measured", observations=observations,
+                                     execution_refs=[execution_ref(root, cycle, "e1", observations)])
+                    save_cycle(apply_cycle_event(cycle, event, root), root)
+                    cycle = load_cycle(root)
+                payload["observed_outcome"] = {"cycle_experiment_id": "e1", "decision_experiment_id": "bounded-assay",
+                                               "artifact_ref": measured, "json_pointer": "/signal",
+                                               "preregistered_decision_ref": prior_ref}
+                if bindings == [binding]:
+                    self.assertIn("conditional_policy", finite_decision(cycle, payload, root)["observed_policy"])
+                elif bindings in ([], "missing"):
+                    with self.assertRaisesRegex(ValueError, "must be preregistered"):
+                        finite_decision(cycle, payload, root)
+                else:
+                    with self.assertRaisesRegex(ValueError, "observation_bindings must be a list of objects"):
+                        finite_decision(cycle, payload, root)
+
 if __name__ == "__main__":
     unittest.main()

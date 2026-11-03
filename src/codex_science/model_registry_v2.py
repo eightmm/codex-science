@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable, Mapping
 
 from codex_science.models import _revision, _revision_mapping
 
 STATUSES = {"cataloged", "experimental", "smoke-tested", "contract-tested", "acceptance-tested", "degraded", "deprecated", "license-blocked"}
+MAX_MINIMUM_VRAM_GB = 1_000_000
 USABLE_STATUSES = {"experimental", "smoke-tested", "contract-tested", "acceptance-tested"}
 
 
@@ -80,11 +82,24 @@ def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
             raise ValueError(f"model {model_id} license must be an object")
         _text(license_record.get("code"), f"model {model_id} code license")
         _text(license_record.get("weights"), f"model {model_id} weights license")
-        if not isinstance(model.get("hardware"), dict):
+        hardware = model.get("hardware")
+        if not isinstance(hardware, dict):
             raise ValueError(f"model {model_id} hardware must be an object")
+        minimum_vram = hardware.get("minimum_vram_gb")
+        if minimum_vram is not None and (
+            isinstance(minimum_vram, bool) or not isinstance(minimum_vram, (int, float))
+            or (isinstance(minimum_vram, float) and not math.isfinite(minimum_vram))
+            or minimum_vram < 0 or minimum_vram > MAX_MINIMUM_VRAM_GB
+        ):
+            raise ValueError(f"model {model_id} minimum_vram_gb must be a finite number from 0 to {MAX_MINIMUM_VRAM_GB}")
         acceptance = model.get("acceptance")
         if not isinstance(acceptance, dict):
             raise ValueError(f"model {model_id} acceptance must be an object")
+        bundle_digest = acceptance.get("bundle_sha256")
+        if bundle_digest is not None:
+            if not isinstance(bundle_digest, str):
+                raise ValueError(f"model {model_id} acceptance bundle must be a SHA-256 digest")
+            _sha(bundle_digest, f"model {model_id} acceptance bundle")
         if status == "acceptance-tested":
             _sha(implementation.get("commit_sha256"), f"model {model_id} implementation commit")
             _sha(acceptance.get("bundle_sha256"), f"model {model_id} acceptance bundle")
@@ -100,8 +115,11 @@ def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def load_registry_v2(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    models = validate_registry_v2(payload)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        models = validate_registry_v2(payload)
+    except RecursionError as error:
+        raise ValueError(f"model registry is nested too deeply to parse: {path}") from error
     registry_directory = path.resolve().parent
     repository_root = registry_directory.parent
     for model_id, model in models.items():
@@ -158,7 +176,7 @@ def validate_model_receipt_v2(
     current_revisions: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    if receipt.get("schema_version") != 2:
+    if type(receipt.get("schema_version")) is not int or receipt.get("schema_version") != 2:
         return [{"code": "invalid-model-receipt-v2", "severity": "critical", "message": "unsupported model receipt v2 schema"}]
     try:
         _revision(receipt.get("code_revision"), "code_revision")
@@ -170,6 +188,12 @@ def validate_model_receipt_v2(
             raise ValueError("model receipt fingerprint mismatch")
         for field in ("model_contract_sha256", "registry_sha256", "configuration_sha256", "input_sha256"):
             _sha(receipt.get(field), field)
+        if not isinstance(receipt.get("model_id"), str) or not receipt["model_id"].strip():
+            raise ValueError("model_id is required")
+        if receipt.get("acceptance_bundle_sha256") is not None:
+            if not isinstance(receipt["acceptance_bundle_sha256"], str):
+                raise ValueError("acceptance_bundle_sha256 must be a SHA-256 digest")
+            _sha(receipt["acceptance_bundle_sha256"], "acceptance_bundle_sha256")
     except ValueError as error:
         return [{"code": "invalid-model-receipt-v2", "severity": "critical", "message": str(error)}]
     if current_revisions is not None:
@@ -208,7 +232,8 @@ def validate_model_receipt_v2(
             if receipt.get("model_contract_sha256") != model["contract_sha256"]:
                 findings.append({"code": "stale-model-receipt-v2", "severity": "major", "message": f"model contract changed: {model['id']}"})
             expected_bundle = model.get("acceptance", {}).get("bundle_sha256")
-            if expected_bundle and receipt.get("acceptance_bundle_sha256") != expected_bundle:
+            received_bundle = receipt.get("acceptance_bundle_sha256")
+            if expected_bundle and (received_bundle is None or _sha(received_bundle, "acceptance_bundle_sha256") != _sha(expected_bundle, "bundle_sha256")):
                 findings.append({"code": "stale-model-receipt-v2", "severity": "major", "message": f"acceptance bundle changed: {model['id']}"})
     return findings
 
@@ -223,7 +248,7 @@ def select_models(
     status_rank = {"acceptance-tested": 0, "contract-tested": 1, "smoke-tested": 2, "experimental": 3}
     candidates: list[dict[str, Any]] = []
     for model in models.values():
-        status = str(model["status"])
+        status = str(model["status"]).strip()
         if status not in USABLE_STATUSES or (status == "experimental" and not allow_experimental):
             continue
         if task not in model["tasks"] or modality not in model["modalities"]:
@@ -234,4 +259,4 @@ def select_models(
         if available_vram_gb is not None and isinstance(minimum, (int, float)) and minimum > available_vram_gb:
             continue
         candidates.append(model)
-    return sorted(candidates, key=lambda item: (status_rank.get(str(item["status"]), 99), len(item.get("leakage_risks", [])), str(item["id"])))
+    return sorted(candidates, key=lambda item: (status_rank.get(str(item["status"]).strip(), 99), len(item.get("leakage_risks", [])), str(item["id"])))
