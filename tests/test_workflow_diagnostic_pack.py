@@ -315,6 +315,9 @@ class DiagnosticHardeningTests(FixtureCase):
         with patch.object(self.api, "MAX_NODES", 64), patch.object(self.api.json, "loads", side_effect=AssertionError("parsed")):
             with self.assertRaisesRegex(ValueError, "^input-limit:"):
                 self.api._json(b"{" + b",".join(b'"k%d":[]' % index for index in range(70)) + b"}")
+        with patch.object(self.api.json, "loads", side_effect=AssertionError("parsed")):
+            with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                self.api._json(b'{"a":[[0]]}', 3)
         path = FIXTURE / "pack.json"
         with patch.object(self.api, "MAX_NODES", 138):
             self.api.validate_diagnostic_accuracy_pack(path)
