@@ -408,6 +408,51 @@ class ModelRegistryV2Tests(unittest.TestCase):
         self.assertIn("diffdock", {item["id"] for item in experimental})
 
 
+    def test_registry_list_fields_require_nonblank_strings(self) -> None:
+        for field in ("tasks", "modalities", "leakage_risks"):
+            for bad in (None, 1, [], {}, "", " ", float("nan")):
+                payload = copy.deepcopy(self.registry)
+                payload["models"][0][field] = [bad]
+                with self.subTest(field=field, value=bad):
+                    with self.assertRaisesRegex(ValueError, f"{field} must contain only non-empty strings"):
+                        validate_registry_v2(payload)
+
+    def test_loader_refuses_non_finite_literals(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            for literal in ("NaN", "Infinity", "-Infinity"):
+                path.write_text(json.dumps(self.registry)[:-1] + f', "extra": {literal}' + "}", encoding="utf-8")
+                with self.subTest(literal=literal):
+                    with self.assertRaisesRegex(ValueError, "non-finite number literal"):
+                        load_registry_v2(path)
+
+    def test_receipt_digest_comparison_ignores_case(self) -> None:
+        model = self.models["autodock-vina"]
+        receipt = build_model_receipt_v2(
+            model, registry_sha256_value=registry_sha256(self.registry), code_revision="code-1",
+            weight_revision="weights-1", database_revisions={}, configuration_sha256="a" * 64,
+            input_sha256="b" * 64, acceptance_bundle_sha256=model["acceptance"].get("bundle_sha256"),
+        )
+        upper = dict(receipt)
+        for field in ("model_contract_sha256", "registry_sha256"):
+            upper[field] = receipt[field].upper()
+        upper["fingerprint"] = canonical_sha256({key: value for key, value in upper.items() if key != "fingerprint"})
+        self.assertEqual([], validate_model_receipt_v2(upper, self.registry))
+
+    def test_selection_refuses_malformed_filters(self) -> None:
+        kwargs = {"task": "redocking", "modality": "protein-ligand"}
+        for vram in (float("nan"), float("inf"), "8", True, [8]):
+            with self.subTest(vram=vram):
+                with self.assertRaisesRegex(ValueError, "available_vram_gb"):
+                    select_models(self.registry, available_vram_gb=vram, **kwargs)
+        for licenses in ("MIT", {"MIT"}, iter(["MIT"]), [1], [None]):
+            with self.subTest(licenses=licenses):
+                with self.assertRaisesRegex(ValueError, "allowed_licenses"):
+                    select_models(self.registry, allowed_licenses=licenses, **kwargs)
+        self.assertTrue(select_models(self.registry, **kwargs))
+        self.assertEqual([], select_models(self.registry, allowed_licenses=[], **kwargs))
+        self.assertEqual([], select_models(self.registry, allowed_licenses=(), **kwargs))
+
     def test_registry_cli_refuses_malformed_loader_inputs(self) -> None:
         from loader_cases import assert_refused, malformed_json
         with tempfile.TemporaryDirectory() as directory:

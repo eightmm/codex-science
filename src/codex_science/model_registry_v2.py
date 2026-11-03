@@ -5,7 +5,7 @@ import hashlib
 import json
 import math
 from pathlib import Path, PureWindowsPath
-from typing import Any, Iterable, Mapping
+from typing import Any, Mapping
 
 from codex_science.models import _revision, _revision_mapping
 
@@ -73,6 +73,8 @@ def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
         for field in ("modalities", "tasks", "leakage_risks"):
             if not isinstance(model.get(field), list) or not model[field]:
                 raise ValueError(f"model {model_id} {field} must be non-empty")
+            if any(not isinstance(item, str) or not item.strip() for item in model[field]):
+                raise ValueError(f"model {model_id} {field} must contain only non-empty strings")
         implementation = model.get("implementation")
         if not isinstance(implementation, dict):
             raise ValueError(f"model {model_id} implementation must be an object")
@@ -114,9 +116,13 @@ def validate_registry_v2(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return by_id
 
 
+def _refuse_constant(name: str) -> Any:
+    raise ValueError(f"model registry contains non-finite number literal: {name}")
+
+
 def load_registry_v2(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"), parse_constant=_refuse_constant)
         models = validate_registry_v2(payload)
     except RecursionError as error:
         raise ValueError(f"model registry is nested too deeply to parse: {path}") from error
@@ -227,9 +233,9 @@ def validate_model_receipt_v2(
         if model is None:
             findings.append({"code": "unknown-model-v2", "severity": "major", "message": f"unknown model: {receipt.get('model_id')}"})
         else:
-            if receipt.get("registry_sha256") != registry_sha256(registry):
+            if _sha(receipt.get("registry_sha256"), "registry_sha256") != registry_sha256(registry):
                 findings.append({"code": "stale-model-receipt-v2", "severity": "major", "message": "model receipt covers a different registry"})
-            if receipt.get("model_contract_sha256") != model["contract_sha256"]:
+            if _sha(receipt.get("model_contract_sha256"), "model_contract_sha256") != model["contract_sha256"]:
                 findings.append({"code": "stale-model-receipt-v2", "severity": "major", "message": f"model contract changed: {model['id']}"})
             expected_bundle = model.get("acceptance", {}).get("bundle_sha256")
             received_bundle = receipt.get("acceptance_bundle_sha256")
@@ -241,10 +247,20 @@ def validate_model_receipt_v2(
 def select_models(
     registry: dict[str, Any], *, task: str, modality: str,
     available_vram_gb: float | None = None, allow_experimental: bool = False,
-    allowed_licenses: Iterable[str] | None = None,
+    allowed_licenses: list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     models = validate_registry_v2(registry)
-    allowed = set(allowed_licenses or [])
+    if available_vram_gb is not None and (
+        isinstance(available_vram_gb, bool) or not isinstance(available_vram_gb, (int, float))
+        or (isinstance(available_vram_gb, float) and not math.isfinite(available_vram_gb))
+    ):
+        raise ValueError("available_vram_gb must be a finite number")
+    if allowed_licenses is not None and (
+        not isinstance(allowed_licenses, (list, tuple))
+        or any(not isinstance(item, str) for item in allowed_licenses)
+    ):
+        raise ValueError("allowed_licenses must be a list or tuple of strings")
+    allowed = None if allowed_licenses is None else set(allowed_licenses)
     status_rank = {"acceptance-tested": 0, "contract-tested": 1, "smoke-tested": 2, "experimental": 3}
     candidates: list[dict[str, Any]] = []
     for model in models.values():
@@ -253,7 +269,7 @@ def select_models(
             continue
         if task not in model["tasks"] or modality not in model["modalities"]:
             continue
-        if allowed and (model["license"]["code"] not in allowed or model["license"]["weights"] not in allowed):
+        if allowed is not None and (model["license"]["code"] not in allowed or model["license"]["weights"] not in allowed):
             continue
         minimum = model.get("hardware", {}).get("minimum_vram_gb")
         if available_vram_gb is not None and isinstance(minimum, (int, float)) and minimum > available_vram_gb:
