@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Gwas Summary Qc"
+  short_description: "Use the audited cx-workflow-gwas-summary-qc scientific workflow"
+  default_prompt: "Use $cx-workflow-gwas-summary-qc for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

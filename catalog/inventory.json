@@ -1722,12 +1722,72 @@
       "status": "active"
     },
     {
+      "description": "Test a frozen gene list against a versioned local gene-set collection using the tested-gene universe, exact upper tails, BH correction and overlap grouping. Use for gene-set over-representation; exclude pathway activation and phenotype mechanisms.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-gene-set-overrepresentation",
+      "path": "authored-skills/workflow-gene-set-overrepresentation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied GWAS per-variant beta, standard error, p, sample size and alleles against frozen genome-build and quality rules; summarize positional loci without genotypes or an LD reference. Use for genomic inflation and lead-variant QC, never causal genes or medical decisions.",
+      "executable_count": 0,
+      "instruction_line_count": 41,
+      "license": "MIT",
+      "name": "cx-workflow-gwas-summary-qc",
+      "path": "authored-skills/workflow-gwas-summary-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied plate-well screening signals against frozen control layouts, Z-prime, SSMD, positional drift and replicate-agreed robust-z hit rules. Use for already-read primary-screen plates; excludes raw instrument processing and compound activity or potency conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-hts-plate-qc",
+      "path": "authored-skills/workflow-hts-plate-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Pool already-extracted study effects with frozen eligibility, cohort deduplication, comparable scales, heterogeneity and sensitivity gates. Use for quantitative evidence synthesis; use literature-review for retrieval. Never infer causality or patient care.",
       "executable_count": 0,
       "instruction_line_count": 116,
       "license": "MIT",
       "name": "cx-workflow-meta-analysis-evidence",
       "path": "authored-skills/workflow-meta-analysis-evidence",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Compare microbial community composition between two conditions from supplied sample-by-taxon integer counts. Use for 16S or shotgun taxon tables, CLR, diversity and stratified PERMANOVA; exclude sequence processing, absolute microbial load and medical decisions.",
+      "executable_count": 0,
+      "instruction_line_count": 47,
+      "license": "MIT",
+      "name": "cx-workflow-microbiome-composition",
+      "path": "authored-skills/workflow-microbiome-composition",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied preclinical concentration-time profiles with frozen censoring and terminal-fit rules; calculate observed peaks, trapezoidal exposure and reliable-only geometric summaries. Use for offline animal or in-vitro arithmetic checks, never dose selection or human extrapolation.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-pk-nca-profile",
+      "path": "authored-skills/workflow-pk-nca-profile",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3951,8 +4011,8 @@
     }
   ],
   "summary": {
-    "active": 191,
+    "active": 196,
     "inactive": 113,
-    "total": 304
+    "total": 309
   }
 }

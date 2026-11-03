@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Gene Set Overrepresentation"
+  short_description: "Audited scientific workflow for cx-workflow-gene-set-overreprese"
+  default_prompt: "Use $cx-workflow-gene-set-overrepresentation for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

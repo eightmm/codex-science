@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Hts Plate Qc"
+  short_description: "Use the audited cx-workflow-hts-plate-qc scientific workflow"
+  default_prompt: "Use $cx-workflow-hts-plate-qc for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Microbiome Composition"
+  short_description: "Audited scientific workflow for cx-workflow-microbiome-compositi"
+  default_prompt: "Use $cx-workflow-microbiome-composition for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
