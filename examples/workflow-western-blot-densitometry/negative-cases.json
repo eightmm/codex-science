@@ -1,0 +1,208 @@
+{
+  "cases": [
+    {
+      "finding": "loading-control-range",
+      "id": "loading-control-outside-range",
+      "path": [
+        "rows",
+        2,
+        "loading_control_intensity"
+      ],
+      "remove": false,
+      "target": "table",
+      "value": 15
+    },
+    {
+      "finding": "saturated-band",
+      "id": "saturated-band-used",
+      "path": [
+        "rows",
+        2,
+        "target_intensity"
+      ],
+      "remove": false,
+      "target": "table",
+      "value": 2000
+    },
+    {
+      "finding": "negative-after-background",
+      "id": "negative-background-used",
+      "path": [
+        "rows",
+        2,
+        "target_intensity"
+      ],
+      "remove": false,
+      "target": "table",
+      "value": 5
+    },
+    {
+      "finding": "technical-replicates",
+      "id": "technical-counted-biological",
+      "path": [
+        "computation",
+        "groups",
+        0,
+        "n"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 4
+    },
+    {
+      "finding": "reference-lane",
+      "id": "missing-blot-reference",
+      "path": [
+        "applied_rules",
+        "reference_lanes",
+        "blot-2"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "absent"
+    },
+    {
+      "finding": "loading-control-cv",
+      "id": "loading-control-cv-ignored",
+      "path": [
+        "rows",
+        2,
+        "loading_control_intensity"
+      ],
+      "remove": false,
+      "target": "table",
+      "value": 210
+    },
+    {
+      "finding": "post-outcome-rules",
+      "id": "post-outcome-rules",
+      "path": [
+        "applied_rules",
+        "maximum_loading_control_cv"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0.3
+    },
+    {
+      "finding": "target-range",
+      "id": "unreliable-lane-included",
+      "path": [
+        "computation",
+        "lanes",
+        7,
+        "classification"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "reliable"
+    },
+    {
+      "finding": "reported-number",
+      "id": "unreliable-in-group-summary",
+      "path": [
+        "computation",
+        "groups",
+        1,
+        "mean"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 3
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_intensities_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "duplicate-lane",
+      "id": "duplicate-lane",
+      "path": [
+        "rows",
+        2,
+        "lane_id"
+      ],
+      "remove": false,
+      "target": "table",
+      "value": "a1"
+    },
+    {
+      "finding": "missing-lane",
+      "id": "missing-lane",
+      "path": [
+        "rows",
+        7
+      ],
+      "remove": true,
+      "target": "table",
+      "value": null
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-protein-abundance",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Protein abundance changes."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-expression",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Expression is increased."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-mechanism",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "A mechanism explains the ratio."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-clinical",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Clinical relevance is established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "This causes a change."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Physical validity is established."
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

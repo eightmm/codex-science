@@ -1,0 +1,277 @@
+{
+  "applied_rules": {
+    "antibodies": [
+      {
+        "antibody_id": "target",
+        "dilution_series": [
+          {
+            "amount": 10,
+            "intensity": 10
+          },
+          {
+            "amount": 100,
+            "intensity": 100
+          },
+          {
+            "amount": 1500,
+            "intensity": 1500
+          }
+        ],
+        "maximum": 1500,
+        "minimum": 10,
+        "saturation_ceiling": 2000
+      },
+      {
+        "antibody_id": "loading",
+        "dilution_series": [
+          {
+            "amount": 10,
+            "intensity": 10
+          },
+          {
+            "amount": 100,
+            "intensity": 100
+          },
+          {
+            "amount": 1500,
+            "intensity": 1500
+          }
+        ],
+        "maximum": 1500,
+        "minimum": 10,
+        "saturation_ceiling": 2000
+      }
+    ],
+    "background_rule": "local-per-lane",
+    "fixture": "synthetic fixture",
+    "groups": [
+      "control",
+      "contrast"
+    ],
+    "interval_level": 0.95,
+    "interval_method": "welch-log-delta",
+    "lanes": [
+      {
+        "biological_unit": "A1",
+        "blot_id": "blot-1",
+        "group": "control",
+        "lane_id": "a1",
+        "loading_control_band": "loading",
+        "sample_id": "A1",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "A1",
+        "blot_id": "blot-1",
+        "group": "control",
+        "lane_id": "a1-repeat",
+        "loading_control_band": "loading",
+        "sample_id": "A1",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "A2",
+        "blot_id": "blot-1",
+        "group": "control",
+        "lane_id": "a2",
+        "loading_control_band": "loading",
+        "sample_id": "A2",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "A3",
+        "blot_id": "blot-2",
+        "group": "control",
+        "lane_id": "a3",
+        "loading_control_band": "loading",
+        "sample_id": "A3",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "B1",
+        "blot_id": "blot-1",
+        "group": "contrast",
+        "lane_id": "b1",
+        "loading_control_band": "loading",
+        "sample_id": "B1",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "B2",
+        "blot_id": "blot-2",
+        "group": "contrast",
+        "lane_id": "b2",
+        "loading_control_band": "loading",
+        "sample_id": "B2",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "B3",
+        "blot_id": "blot-2",
+        "group": "contrast",
+        "lane_id": "b3",
+        "loading_control_band": "loading",
+        "sample_id": "B3",
+        "target_band": "target"
+      },
+      {
+        "biological_unit": "B3",
+        "blot_id": "blot-2",
+        "group": "contrast",
+        "lane_id": "b3-unreliable",
+        "loading_control_band": "loading",
+        "sample_id": "B3",
+        "target_band": "target"
+      }
+    ],
+    "maximum_loading_control_cv": 0.2,
+    "minimum_biological_units": 3,
+    "normalisation": "target-over-loading-control",
+    "reference_group": "control",
+    "reference_lanes": {
+      "blot-1": "a1",
+      "blot-2": "a3"
+    },
+    "replicate_rule": "collapse-technical-before-biological",
+    "schema": "wb-rules-v1"
+  },
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence remains unavailable for this synthetic fixture."
+    }
+  ],
+  "computation": {
+    "biological_units": [
+      {
+        "biological_unit": "A1",
+        "group": "control",
+        "mean": 1.0,
+        "n_lanes": 2
+      },
+      {
+        "biological_unit": "A2",
+        "group": "control",
+        "mean": 2.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "A3",
+        "group": "control",
+        "mean": 1.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "B1",
+        "group": "contrast",
+        "mean": 2.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "B2",
+        "group": "contrast",
+        "mean": 4.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "B3",
+        "group": "contrast",
+        "mean": 6.0,
+        "n_lanes": 1
+      }
+    ],
+    "groups": [
+      {
+        "fold_change": 1.0,
+        "group": "control",
+        "interval": "unavailable",
+        "mean": 1.3333333333333333,
+        "n": 3,
+        "standard_error": 0.3333333333333333
+      },
+      {
+        "fold_change": 3.0,
+        "group": "contrast",
+        "interval": {
+          "degrees_of_freedom": 3.919999999999999,
+          "level": 0.95,
+          "lower": 1.0301983496841778,
+          "method": "welch-log-delta",
+          "upper": 8.736181729236007
+        },
+        "mean": 4.0,
+        "n": 3,
+        "standard_error": 1.1547005383792515
+      }
+    ],
+    "lanes": [
+      {
+        "classification": "reliable",
+        "lane_id": "a1",
+        "ratio": 1.0,
+        "reasons": [],
+        "scaled_ratio": 1.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "a1-repeat",
+        "ratio": 1.0,
+        "reasons": [],
+        "scaled_ratio": 1.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "a2",
+        "ratio": 2.0,
+        "reasons": [],
+        "scaled_ratio": 2.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "a3",
+        "ratio": 2.0,
+        "reasons": [],
+        "scaled_ratio": 1.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "b1",
+        "ratio": 2.0,
+        "reasons": [],
+        "scaled_ratio": 2.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "b2",
+        "ratio": 8.0,
+        "reasons": [],
+        "scaled_ratio": 4.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "b3",
+        "ratio": 12.0,
+        "reasons": [],
+        "scaled_ratio": 6.0
+      },
+      {
+        "classification": "unreliable",
+        "lane_id": "b3-unreliable",
+        "ratio": "unavailable",
+        "reasons": [
+          "target-range"
+        ],
+        "scaled_ratio": "unavailable"
+      }
+    ],
+    "loading_control_cv": 0.0
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture ratios with biological-unit uncertainty.",
+  "rules_sha256": "41913e727382aa285e6b626c2266aa7cb6ceee35f3a874b94a36555d815ffa42",
+  "schema": "wb-report-v1"
+}

@@ -1,0 +1,49 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-hplc-system-suitability/pack.json",
+    "examples/workflow-hplc-system-suitability/expected.json",
+    "examples/workflow-hplc-system-suitability/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; no method, detector, product or physical validity is established.",
+    "The six-injection fixture contains five standards plus one blank; zero variance refuses and fewer than the frozen minimum standards gives unavailable RSDs.",
+    "Hashes cannot establish historical freeze timing or true source independence. Independent review remains unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, method valid* (including method is valid*), product quality, system qualif* and release. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computed agreement and review approval never support positive claims; one synthetic fixture cannot establish replication.",
+    "Read-only inputs are bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "hplc-pack-v1",
+    "hplc-rules-v1",
+    "hplc-table-v1",
+    "hplc-report-v1",
+    "hplc-evidence-v1",
+    "hplc-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "population-rsd",
+    "below-minimum-pass",
+    "wrong-tailing-height",
+    "wrong-plates-constant",
+    "blank-in-replicates",
+    "post-hoc-limits",
+    "failed-criterion-omitted",
+    "unfrozen-rules",
+    "overreach-method-validity",
+    "overreach-system-release",
+    "overreach-product-quality",
+    "overreach-regulatory-status",
+    "overreach-causality",
+    "overreach-physical-validity"
+  ],
+  "skill": "workflow-hplc-system-suitability",
+  "test_files": [
+    "tests/test_workflow_hplc_pack.py"
+  ]
+}

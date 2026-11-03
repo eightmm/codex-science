@@ -1,0 +1,91 @@
+{
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Synthetic fixture retained for independent inspection."
+    }
+  ],
+  "computation": {
+    "Ea": 8314.462618153239,
+    "Ea_interval": [
+      6051.900684961578,
+      10577.024551344899
+    ],
+    "Ea_se": 525.8527878738214,
+    "df": 2,
+    "energy_unit": "J/mol",
+    "lack_of_fit": {
+      "F": 0.4999999999999991,
+      "df_denominator": 4,
+      "df_numerator": 2,
+      "flag": false,
+      "p": 0.6400000000000006
+    },
+    "ln_A": 3.9999999999999996,
+    "ln_A_interval": [
+      3.2547586864749016,
+      4.7452413135250975
+    ],
+    "ln_A_se": 0.17320508075688765,
+    "n_runs": 8,
+    "n_temperatures": 4,
+    "prediction": {
+      "ln_rate": 1.5,
+      "ln_rate_interval": [
+        1.195756507770335,
+        1.804243492229665
+      ],
+      "ln_rate_se": 0.07071067811865472,
+      "rate": 4.4816890703380645,
+      "rate_interval": [
+        3.306057883182906,
+        6.0753736422334885
+      ],
+      "status": "inside-range",
+      "temperature_kelvin": 400
+    },
+    "rate_unit": "s^-1",
+    "residual_standard_error": 0.14142135623730945,
+    "slope": -999.9999999999999,
+    "slope_se": 63.24555320336756,
+    "status": "fitted",
+    "t_critical": 4.302652729749459,
+    "temperature_span_kelvin": 750,
+    "temperatures": [
+      {
+        "mean_log_rate": 0.09999999999999999,
+        "n_replicates": 2,
+        "temperature_kelvin": 250,
+        "variance_log_rate": 0.08000000000000006
+      },
+      {
+        "mean_log_rate": 0.9000000000000001,
+        "n_replicates": 2,
+        "temperature_kelvin": 333.3333333333333,
+        "variance_log_rate": 0.08000000000000002
+      },
+      {
+        "mean_log_rate": 1.9,
+        "n_replicates": 2,
+        "temperature_kelvin": 500,
+        "variance_log_rate": 0.08000000000000004
+      },
+      {
+        "mean_log_rate": 3.1,
+        "n_replicates": 2,
+        "temperature_kelvin": 1000,
+        "variance_log_rate": 0.08000000000000014
+      }
+    ],
+    "weighting": "ordinary-least-squares"
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture log-rate arithmetic only.",
+  "rules_sha256": "4217cac26026003915bc2aadd1b9b4f242160ef9621d2630cb9b8c0f94d6f65e",
+  "schema": "arr-report-v1",
+  "weighting": "ordinary-least-squares"
+}

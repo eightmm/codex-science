@@ -1,0 +1,4 @@
+interface:
+  display_name: "Particle Size Distribution"
+  short_description: "Check frozen binned diameters, cumulative percentiles and replicates"
+  default_prompt: "Use $workflow-particle-size-distribution to freeze micrometre bins and basis, check supplied synthetic particle tables, compute cumulative percentiles and midpoint means, and hand bounded artifacts to independent review."

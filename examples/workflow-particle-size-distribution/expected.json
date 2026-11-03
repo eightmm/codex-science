@@ -1,0 +1,116 @@
+{
+  "computation": {
+    "measurements": [
+      {
+        "classification": "reliable",
+        "measurement_id": "a1",
+        "reasons": [],
+        "sample_id": "A",
+        "statistics": {
+          "D10_um": 2,
+          "D50_um": 4,
+          "D90_um": 6,
+          "mean_by_number_um": 4,
+          "span": 1,
+          "volume_weighted_mean_um": 5
+        }
+      },
+      {
+        "classification": "reliable",
+        "measurement_id": "a2",
+        "reasons": [],
+        "sample_id": "A",
+        "statistics": {
+          "D10_um": 2,
+          "D50_um": 4,
+          "D90_um": 6,
+          "mean_by_number_um": 4,
+          "span": 1,
+          "volume_weighted_mean_um": 5
+        }
+      },
+      {
+        "classification": "reliable",
+        "measurement_id": "b1",
+        "reasons": [],
+        "sample_id": "B",
+        "statistics": {
+          "D10_um": 1.5,
+          "D50_um": 3.5,
+          "D90_um": 6,
+          "mean_by_number_um": 3.6,
+          "span": 1.2857142857142858,
+          "volume_weighted_mean_um": 5.111111111111111
+        }
+      },
+      {
+        "classification": "reliable",
+        "measurement_id": "b2",
+        "reasons": [],
+        "sample_id": "B",
+        "statistics": {
+          "D10_um": 1.5,
+          "D50_um": 3.5,
+          "D90_um": 6,
+          "mean_by_number_um": 3.6,
+          "span": 1.2857142857142858,
+          "volume_weighted_mean_um": 5.111111111111111
+        }
+      }
+    ],
+    "samples": [
+      {
+        "classification": "summarized",
+        "excluded_measurement_ids": [],
+        "included_measurement_ids": [
+          "a1",
+          "a2"
+        ],
+        "relative_ranges": {
+          "d50": 0,
+          "span": 0
+        },
+        "sample_id": "A",
+        "statistics": {
+          "D10_um": 2,
+          "D50_um": 4,
+          "D90_um": 6,
+          "mean_by_number_um": 4,
+          "span": 1,
+          "volume_weighted_mean_um": 5
+        }
+      },
+      {
+        "classification": "summarized",
+        "excluded_measurement_ids": [],
+        "included_measurement_ids": [
+          "b1",
+          "b2"
+        ],
+        "relative_ranges": {
+          "d50": 0,
+          "span": 0
+        },
+        "sample_id": "B",
+        "statistics": {
+          "D10_um": 1.5,
+          "D50_um": 3.5,
+          "D90_um": 6,
+          "mean_by_number_um": 3.6,
+          "span": 1.2857142857142858,
+          "volume_weighted_mean_um": 5.111111111111111
+        }
+      }
+    ],
+    "summary": {
+      "n": 2,
+      "reliable_measurements": 4,
+      "summarized": 2,
+      "unavailable": 0,
+      "unavailable_measurements": 0,
+      "unreliable_measurements": 0
+    }
+  },
+  "derivation": "A: cumulative .2,.8,1 gives 2,4,6; midpoint moments 41600/8320=5. B: cumulative .4,.8,1 gives 1.5,3.5,6; midpoint moments 36800/7200=46/9.",
+  "fixture": "synthetic fixture"
+}

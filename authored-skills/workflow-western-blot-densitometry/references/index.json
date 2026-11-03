@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-western-blot-densitometry",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen band rules, local schemas, reference arithmetic, limits and refusals.",
+      "read_when": [
+        "freezing band rules",
+        "admitting intensities",
+        "computing ratios",
+        "review handoff"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "table-admission",
+        "normalisation",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-normalisation",
+        "## 05-handoff and claim gate"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no biological validity."
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Five ordered stages using the existing manifest step shape.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rule-freeze",
+        "05-handoff"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "A plan proves neither execution nor scientific truth."
+    }
+  ]
+}

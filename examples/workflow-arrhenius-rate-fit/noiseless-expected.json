@@ -1,0 +1,71 @@
+{
+  "computation": {
+    "Ea": 8314.46261815324,
+    "Ea_interval": [
+      8314.462618153237,
+      8314.462618153244
+    ],
+    "Ea_se": 6.527237527385277e-13,
+    "df": 2,
+    "energy_unit": "J/mol",
+    "lack_of_fit": "unavailable",
+    "ln_A": 4.0,
+    "ln_A_interval": [
+      3.999999999999999,
+      4.000000000000001
+    ],
+    "ln_A_se": 2.1499376424746292e-16,
+    "n_runs": 8,
+    "n_temperatures": 4,
+    "prediction": {
+      "ln_rate": 1.5,
+      "ln_rate_interval": [
+        1.4999999999999996,
+        1.5000000000000004
+      ],
+      "ln_rate_se": 8.777083671441753e-17,
+      "rate": 4.4816890703380645,
+      "rate_interval": [
+        4.481689070338063,
+        4.481689070338067
+      ],
+      "status": "inside-range",
+      "temperature_kelvin": 400
+    },
+    "rate_unit": "s^-1",
+    "residual_standard_error": 1.7554167342883506e-16,
+    "slope": -1000.0000000000001,
+    "slope_se": 7.850462293418874e-14,
+    "status": "fitted",
+    "t_critical": 4.302652729749459,
+    "temperature_span_kelvin": 750,
+    "temperatures": [
+      {
+        "mean_log_rate": 0.0,
+        "n_replicates": 2,
+        "temperature_kelvin": 250,
+        "variance_log_rate": 0.0
+      },
+      {
+        "mean_log_rate": 1.0,
+        "n_replicates": 2,
+        "temperature_kelvin": 333.3333333333333,
+        "variance_log_rate": 0.0
+      },
+      {
+        "mean_log_rate": 2.0,
+        "n_replicates": 2,
+        "temperature_kelvin": 500,
+        "variance_log_rate": 0.0
+      },
+      {
+        "mean_log_rate": 3.0,
+        "n_replicates": 2,
+        "temperature_kelvin": 1000,
+        "variance_log_rate": 0.0
+      }
+    ],
+    "weighting": "ordinary-least-squares"
+  },
+  "fixture": "synthetic fixture"
+}

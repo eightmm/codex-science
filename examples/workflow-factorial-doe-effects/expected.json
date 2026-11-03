@@ -1,0 +1,166 @@
+{
+  "computation": {
+    "alias_sets": [
+      {
+        "estimate": 10.0,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": 9.200206665037834,
+          "method": "student-t-pure-error",
+          "upper": 10.799793334962166
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "I"
+          }
+        ]
+      },
+      {
+        "estimate": 2.0,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": 1.2002066650378347,
+          "method": "student-t-pure-error",
+          "upper": 2.7997933349621653
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "A"
+          }
+        ]
+      },
+      {
+        "estimate": -3.0,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": -3.7997933349621653,
+          "method": "student-t-pure-error",
+          "upper": -2.2002066650378347
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "B"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": -0.7997933349621653,
+          "method": "student-t-pure-error",
+          "upper": 0.7997933349621653
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "C"
+          }
+        ]
+      },
+      {
+        "estimate": 1.5,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": 0.7002066650378347,
+          "method": "student-t-pure-error",
+          "upper": 2.2997933349621653
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "AB"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": -0.7997933349621653,
+          "method": "student-t-pure-error",
+          "upper": 0.7997933349621653
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "AC"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": -0.7997933349621653,
+          "method": "student-t-pure-error",
+          "upper": 0.7997933349621653
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "BC"
+          }
+        ]
+      },
+      {
+        "estimate": 0.5,
+        "interval": {
+          "df": 9,
+          "level": 0.95,
+          "lower": -0.2997933349621653,
+          "method": "student-t-pure-error",
+          "upper": 1.2997933349621653
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "ABC"
+          }
+        ]
+      }
+    ],
+    "curvature": {
+      "departure": "detected",
+      "estimate": 4.0,
+      "interval": {
+        "df": 9,
+        "level": 0.95,
+        "lower": 1.6006199951135045,
+        "method": "student-t-pure-error",
+        "upper": 6.3993800048864955
+      },
+      "standard_error": 1.0606601717798212
+    },
+    "pure_error": {
+      "df": 9,
+      "sum_squares": 18.0,
+      "variance": 2.0
+    },
+    "summary": {
+      "centre_runs": 1,
+      "factorial_runs": 8,
+      "grand_mean": 10.0,
+      "observations": 18
+    }
+  },
+  "fixture": "synthetic fixture"
+}

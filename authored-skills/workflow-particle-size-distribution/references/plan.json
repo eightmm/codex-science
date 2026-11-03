@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze micrometre edges, basis, cumulative interpolation, means, count, replicate and tail rules before table bytes.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic measurements and preserve unreliable or unavailable records.",
+      "id": "02-table-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute cumulative percentiles and midpoint means; gate replicate agreement before sample averaging.",
+      "id": "03-distribution",
+      "status": "pending"
+    },
+    {
+      "description": "Retain sample and measurement denominators, exclusions, failed controls and unavailable summaries.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary domain artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

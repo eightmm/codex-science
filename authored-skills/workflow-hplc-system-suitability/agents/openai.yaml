@@ -1,0 +1,4 @@
+interface:
+  display_name: "HPLC System Suitability"
+  short_description: "Check frozen HPLC peak arithmetic and blank carryover"
+  default_prompt: "Use $workflow-hplc-system-suitability to freeze injection rules, check supplied synthetic peak tables, retain failed criteria and hand bounded artifacts to independent review."

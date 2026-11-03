@@ -1,0 +1,4 @@
+interface:
+  display_name: "Two-level Factorial Effects"
+  short_description: "Check frozen contrasts, alias sets and replicate pure error"
+  default_prompt: "Use $workflow-factorial-doe-effects to freeze two-level design rules, check supplied synthetic response tables, compute bounded alias-set contrasts and curvature, and hand artifacts to independent review."

@@ -1,0 +1,125 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "levels": [
+        -1,
+        -1,
+        -1
+      ],
+      "responses": [
+        11.0,
+        13.0
+      ],
+      "run_id": "r01"
+    },
+    {
+      "levels": [
+        -1,
+        -1,
+        1
+      ],
+      "responses": [
+        12.0,
+        14.0
+      ],
+      "run_id": "r02"
+    },
+    {
+      "levels": [
+        -1,
+        1,
+        -1
+      ],
+      "responses": [
+        3.0,
+        5.0
+      ],
+      "run_id": "r03"
+    },
+    {
+      "levels": [
+        -1,
+        1,
+        1
+      ],
+      "responses": [
+        2.0,
+        4.0
+      ],
+      "run_id": "r04"
+    },
+    {
+      "levels": [
+        1,
+        -1,
+        -1
+      ],
+      "responses": [
+        13.0,
+        15.0
+      ],
+      "run_id": "r05"
+    },
+    {
+      "levels": [
+        1,
+        -1,
+        1
+      ],
+      "responses": [
+        12.0,
+        14.0
+      ],
+      "run_id": "r06"
+    },
+    {
+      "levels": [
+        1,
+        1,
+        -1
+      ],
+      "responses": [
+        9.0,
+        11.0
+      ],
+      "run_id": "r07"
+    },
+    {
+      "levels": [
+        1,
+        1,
+        1
+      ],
+      "responses": [
+        10.0,
+        12.0
+      ],
+      "run_id": "r08"
+    },
+    {
+      "levels": [
+        0,
+        0,
+        0
+      ],
+      "responses": [
+        13,
+        15
+      ],
+      "run_id": "r09"
+    }
+  ],
+  "run_order": [
+    "r03",
+    "r08",
+    "r06",
+    "r09",
+    "r02",
+    "r04",
+    "r05",
+    "r07",
+    "r01"
+  ],
+  "schema": "doe-table-v1"
+}

@@ -1,0 +1,35 @@
+{
+  "analyte_peak_id": "A",
+  "area_unit": "arbitrary",
+  "blank_ids": [
+    "b1"
+  ],
+  "blank_rule": "preceding-standard",
+  "fixture": "synthetic fixture",
+  "injection_count": 5,
+  "limits": {
+    "carryover_max": 0.5,
+    "peak_area_rsd_max": 2,
+    "plates_min": 12000,
+    "resolution_min": 2,
+    "retention_time_rsd_max": 4,
+    "signal_to_noise_min": 50,
+    "tailing_max": 1.8
+  },
+  "minimum_injections": 5,
+  "plates_constant": 5.54,
+  "plates_width": "half-height",
+  "reference_peak_id": "R",
+  "resolution_width": "baseline",
+  "rsd_method": "sample-stdev",
+  "schema": "hplc-rules-v1",
+  "standard_ids": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+  ],
+  "tailing_height": 0.05,
+  "time_unit": "minute"
+}

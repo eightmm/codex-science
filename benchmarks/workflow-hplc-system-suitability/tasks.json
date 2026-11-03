@@ -1,0 +1,40 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Five standards exclude the blank; sample RSDs are about 3.1623% and 1.5811%.",
+        "First plates 12764.16, tailing 2 fails, nearest resolution 2.5 and carryover 0.5%.",
+        "Every criterion is retained and independent review is unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "six-injection-arithmetic",
+      "inputs": [
+        "examples/workflow-hplc-system-suitability/pack.json"
+      ],
+      "question": "Which frozen criteria pass or fail in the six-injection synthetic fixture?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every mutation is exercised independently through the public validator.",
+        "Boundary and evidence refusals precede later arithmetic errors.",
+        "No files are written; all CLI errors are JSON refusals with finding and exit 2."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-hplc-system-suitability/negative-cases.json"
+      ],
+      "question": "Does each synthetic defect refuse for its stated reason?"
+    }
+  ]
+}

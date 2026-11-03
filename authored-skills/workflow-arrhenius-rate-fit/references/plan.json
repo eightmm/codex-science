@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze positive kelvin identities, units, replicate rule, weighting, minimum distinct temperatures and span, gas constant, interval and prediction rules before rates.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic rates; check unique run IDs, replicate identities, positive rates, kelvin temperatures and consistent units.",
+      "id": "02-table-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Collapse within temperature, fit ln k versus inverse kelvin, propagate t intervals and retain lack-of-fit flags; never extrapolate.",
+      "id": "03-fit",
+      "status": "pending"
+    },
+    {
+      "description": "Retain distinct-temperature denominators, unavailable estimates, controls, negative results and uncertainty.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

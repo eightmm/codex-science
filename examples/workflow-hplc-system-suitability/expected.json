@@ -1,0 +1,142 @@
+{
+  "computation": {
+    "carryover": [
+      {
+        "injection_id": "b1",
+        "preceding_standard_id": "s5",
+        "status": "pass",
+        "value": 0.5
+      }
+    ],
+    "injections": [
+      {
+        "injection_id": "s1",
+        "nearest_peak_id": "R",
+        "plates": {
+          "status": "pass",
+          "value": 12764.159999999998
+        },
+        "resolution": {
+          "status": "pass",
+          "value": 2.5
+        },
+        "signal_to_noise": {
+          "status": "pass",
+          "value": 100
+        },
+        "tailing": {
+          "status": "fail",
+          "value": 2.0
+        }
+      },
+      {
+        "injection_id": "s2",
+        "nearest_peak_id": "R",
+        "plates": {
+          "status": "pass",
+          "value": 13301.54
+        },
+        "resolution": {
+          "status": "pass",
+          "value": 2.5
+        },
+        "signal_to_noise": {
+          "status": "pass",
+          "value": 100
+        },
+        "tailing": {
+          "status": "pass",
+          "value": 1.6
+        }
+      },
+      {
+        "injection_id": "s3",
+        "nearest_peak_id": "R",
+        "plates": {
+          "status": "pass",
+          "value": 13850.0
+        },
+        "resolution": {
+          "status": "pass",
+          "value": 2.5
+        },
+        "signal_to_noise": {
+          "status": "pass",
+          "value": 100
+        },
+        "tailing": {
+          "status": "pass",
+          "value": 1.6
+        }
+      },
+      {
+        "injection_id": "s4",
+        "nearest_peak_id": "R",
+        "plates": {
+          "status": "pass",
+          "value": 14409.539999999995
+        },
+        "resolution": {
+          "status": "pass",
+          "value": 2.5
+        },
+        "signal_to_noise": {
+          "status": "pass",
+          "value": 100
+        },
+        "tailing": {
+          "status": "pass",
+          "value": 1.6
+        }
+      },
+      {
+        "injection_id": "s5",
+        "nearest_peak_id": "R",
+        "plates": {
+          "status": "pass",
+          "value": 14980.16
+        },
+        "resolution": {
+          "status": "pass",
+          "value": 2.5
+        },
+        "signal_to_noise": {
+          "status": "pass",
+          "value": 100
+        },
+        "tailing": {
+          "status": "pass",
+          "value": 1.6
+        }
+      }
+    ],
+    "replicate_count": 5,
+    "replicate_criteria": {
+      "peak_area_rsd": {
+        "status": "pass",
+        "value": 1.5811388300841898
+      },
+      "retention_time_rsd": {
+        "status": "pass",
+        "value": 3.162277660168379
+      }
+    },
+    "replicate_ids": [
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5"
+    ],
+    "summary": {
+      "carryover": "pass",
+      "peak_area_rsd": "pass",
+      "plates": "pass",
+      "resolution": "pass",
+      "retention_time_rsd": "pass",
+      "signal_to_noise": "pass",
+      "tailing": "fail"
+    }
+  },
+  "fixture": "synthetic fixture"
+}

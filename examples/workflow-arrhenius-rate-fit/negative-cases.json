@@ -1,0 +1,185 @@
+{
+  "cases": [
+    {
+      "finding": "temperature-unit",
+      "id": "celsius-unit",
+      "path": [
+        "rows",
+        "0",
+        "temperature_unit"
+      ],
+      "target": "rates",
+      "value": "C"
+    },
+    {
+      "finding": "temperature-identity",
+      "id": "celsius-as-kelvin",
+      "path": [
+        "rows",
+        "0",
+        "temperature_kelvin"
+      ],
+      "target": "rates",
+      "value": 25
+    },
+    {
+      "finding": "nonpositive-rate",
+      "id": "zero-rate",
+      "path": [
+        "rows",
+        "0",
+        "rate"
+      ],
+      "target": "rates",
+      "value": 0
+    },
+    {
+      "finding": "nonpositive-rate",
+      "id": "negative-rate",
+      "path": [
+        "rows",
+        "0",
+        "rate"
+      ],
+      "target": "rates",
+      "value": -1
+    },
+    {
+      "finding": "insufficient-temperatures",
+      "id": "too-few-distinct",
+      "path": [
+        "minimum_temperatures"
+      ],
+      "target": "rules",
+      "value": 5
+    },
+    {
+      "finding": "temperature-span",
+      "id": "short-span",
+      "path": [
+        "minimum_span_kelvin"
+      ],
+      "target": "rules",
+      "value": 751
+    },
+    {
+      "finding": "extrapolated-prediction",
+      "id": "extrapolated",
+      "path": [
+        "prediction_temperature_kelvin"
+      ],
+      "target": "rules",
+      "value": 200
+    },
+    {
+      "finding": "gas-constant-units",
+      "id": "gas-unit-mismatch",
+      "path": [
+        "gas_constant_unit"
+      ],
+      "target": "rules",
+      "value": "kJ/(mol K)"
+    },
+    {
+      "finding": "pseudoreplication",
+      "id": "replicates-as-temperatures",
+      "path": [
+        "computation",
+        "n_temperatures"
+      ],
+      "target": "report",
+      "value": 8
+    },
+    {
+      "finding": "post-hoc-weighting",
+      "id": "post-hoc-weights",
+      "path": [
+        "weighting"
+      ],
+      "target": "report",
+      "value": "replicate-variance"
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen",
+      "path": [
+        "frozen_before_rates_read"
+      ],
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-mechanism",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Mechanism established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-shelf-life",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Shelf life established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-process-safety",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Process safety established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-reaction-order",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Reaction order established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Causal result."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Physical validity established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-clinical",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Clinical validity established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-truth",
+      "path": [
+        "headline"
+      ],
+      "target": "report",
+      "value": "Review approval establishes truth."
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

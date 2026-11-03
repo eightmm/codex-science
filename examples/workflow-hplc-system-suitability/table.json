@@ -1,0 +1,208 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "injection_id": "s1",
+      "kind": "standard",
+      "order": 1,
+      "peaks": [
+        {
+          "area": 98,
+          "front_five_percent": 0.1,
+          "peak_id": "A",
+          "retention_time": 4.8,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 50,
+          "front_five_percent": 0.125,
+          "peak_id": "R",
+          "retention_time": 5.3,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 25,
+          "front_five_percent": 0.125,
+          "peak_id": "X",
+          "retention_time": 5.8,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        }
+      ]
+    },
+    {
+      "injection_id": "s2",
+      "kind": "standard",
+      "order": 2,
+      "peaks": [
+        {
+          "area": 99,
+          "front_five_percent": 0.125,
+          "peak_id": "A",
+          "retention_time": 4.9,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 50,
+          "front_five_percent": 0.125,
+          "peak_id": "R",
+          "retention_time": 5.4,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 25,
+          "front_five_percent": 0.125,
+          "peak_id": "X",
+          "retention_time": 5.9,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        }
+      ]
+    },
+    {
+      "injection_id": "s3",
+      "kind": "standard",
+      "order": 3,
+      "peaks": [
+        {
+          "area": 100,
+          "front_five_percent": 0.125,
+          "peak_id": "A",
+          "retention_time": 5,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 50,
+          "front_five_percent": 0.125,
+          "peak_id": "R",
+          "retention_time": 5.5,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 25,
+          "front_five_percent": 0.125,
+          "peak_id": "X",
+          "retention_time": 6,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        }
+      ]
+    },
+    {
+      "injection_id": "s4",
+      "kind": "standard",
+      "order": 4,
+      "peaks": [
+        {
+          "area": 101,
+          "front_five_percent": 0.125,
+          "peak_id": "A",
+          "retention_time": 5.1,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 50,
+          "front_five_percent": 0.125,
+          "peak_id": "R",
+          "retention_time": 5.6,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 25,
+          "front_five_percent": 0.125,
+          "peak_id": "X",
+          "retention_time": 6.1,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        }
+      ]
+    },
+    {
+      "injection_id": "s5",
+      "kind": "standard",
+      "order": 5,
+      "peaks": [
+        {
+          "area": 102,
+          "front_five_percent": 0.125,
+          "peak_id": "A",
+          "retention_time": 5.2,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 50,
+          "front_five_percent": 0.125,
+          "peak_id": "R",
+          "retention_time": 5.7,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        },
+        {
+          "area": 25,
+          "front_five_percent": 0.125,
+          "peak_id": "X",
+          "retention_time": 6.2,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        }
+      ]
+    },
+    {
+      "injection_id": "b1",
+      "kind": "blank",
+      "order": 6,
+      "peaks": [
+        {
+          "area": 0.51,
+          "front_five_percent": 0.125,
+          "peak_id": "A",
+          "retention_time": 5,
+          "signal_to_noise": 100,
+          "width_baseline": 0.2,
+          "width_five_percent": 0.4,
+          "width_half_height": 0.1
+        }
+      ]
+    }
+  ],
+  "schema": "hplc-table-v1"
+}

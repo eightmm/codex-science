@@ -1,0 +1,13 @@
+# Synthetic factorial fixtures
+
+All responses, rules, expected artifacts and negative mutations here are redistributable synthetic fixtures. No laboratory measurement or independent review is represented. The primary accepting bundle is pack.json; fraction/pack.json is the 2^(4-1) regular fraction with D=ABC and resolution IV.
+
+The full fixture uses factorial response mean 10 + 2A - 3B + 1.5AB + 0.5ABC, with two responses at mean minus/plus one. Its centre responses are 13 and 15. Thus SSE is 18 over df 9, MSE is 2, factorial N is 16, coefficient SE is sqrt(2/16), and centre departure is 4 with SE sqrt(2*(1/2+1/16)). Effect estimates are half the difference of coded level means. They are not the conventional doubled high-minus-low contrast.
+
+The fractional fixture uses mean 20 + 4A - 2B + 3AB, with the same replicate deviations. SSE is 16 over df 8. I=ABCD, A=BCD, B=ACD, C=ABD, D=ABC, AB=CD, AC=BD and AD=BC are single identifiable alias sets, with signs retained. AB=CD has coefficient 3; neither member is separately identified. Both fixtures use seed 1729 to shuffle condition groups; replicates are grouped within each condition. This declared order does not prove experimental randomisation.
+
+Run python3 scripts/validate_factorial_doe_pack.py examples/workflow-factorial-doe-effects/pack.json. Exactly one bundle argument is accepted; success prints JSON on stdout with exit 0, and every refusal prints status refused and finding on stderr with exit 2. Missing, extra and unknown arguments are JSON invalid-arguments refusals; help remains plain usage with exit 0. The CLI has no output option and writes nothing.
+
+Negative-cases.json records synthetic mutations and distinct finding codes. The tests materialize each with fresh hashes and derive an unreplicated table for the inference-without-replicates case. Expected.json and fraction/expected.json contain reference arithmetic checked independently against hand numbers in tests/test_workflow_doe_pack.py. Tests also exercise no-error unavailable intervals, closed-form Student t quantiles, negative generators, exploratory coding, near-zero comparisons, resource limits, claim boundaries and hostile files. References in authored-skills/workflow-factorial-doe-effects/references/stages.md specify the exact public entry points, local schema fields and limits.
+
+A second concurrent validation reads independently. Interruption preserves every input and may leave partial stdout, so callers must capture output atomically. No file, ref or record is created by validation. Immutable fixtures preserve failed controls and negative results; the result always leaves independent review unavailable.

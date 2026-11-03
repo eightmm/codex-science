@@ -1,0 +1,187 @@
+{
+  "computation": {
+    "alias_sets": [
+      {
+        "estimate": 20.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": 19.184704419276457,
+          "method": "student-t-pure-error",
+          "upper": 20.815295580723543
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "I"
+          },
+          {
+            "sign": 1,
+            "term": "ABCD"
+          }
+        ]
+      },
+      {
+        "estimate": 4.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": 3.184704419276457,
+          "method": "student-t-pure-error",
+          "upper": 4.815295580723543
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "A"
+          },
+          {
+            "sign": 1,
+            "term": "BCD"
+          }
+        ]
+      },
+      {
+        "estimate": -2.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": -2.815295580723543,
+          "method": "student-t-pure-error",
+          "upper": -1.184704419276457
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "B"
+          },
+          {
+            "sign": 1,
+            "term": "ACD"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": -0.8152955807235429,
+          "method": "student-t-pure-error",
+          "upper": 0.8152955807235429
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "C"
+          },
+          {
+            "sign": 1,
+            "term": "ABD"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": -0.8152955807235429,
+          "method": "student-t-pure-error",
+          "upper": 0.8152955807235429
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "D"
+          },
+          {
+            "sign": 1,
+            "term": "ABC"
+          }
+        ]
+      },
+      {
+        "estimate": 3.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": 2.184704419276457,
+          "method": "student-t-pure-error",
+          "upper": 3.815295580723543
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "AB"
+          },
+          {
+            "sign": 1,
+            "term": "CD"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": -0.8152955807235429,
+          "method": "student-t-pure-error",
+          "upper": 0.8152955807235429
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "AC"
+          },
+          {
+            "sign": 1,
+            "term": "BD"
+          }
+        ]
+      },
+      {
+        "estimate": 0.0,
+        "interval": {
+          "df": 8,
+          "level": 0.95,
+          "lower": -0.8152955807235429,
+          "method": "student-t-pure-error",
+          "upper": 0.8152955807235429
+        },
+        "standard_error": 0.3535533905932738,
+        "terms": [
+          {
+            "sign": 1,
+            "term": "AD"
+          },
+          {
+            "sign": 1,
+            "term": "BC"
+          }
+        ]
+      }
+    ],
+    "curvature": "unavailable",
+    "pure_error": {
+      "df": 8,
+      "sum_squares": 16.0,
+      "variance": 2.0
+    },
+    "summary": {
+      "centre_runs": 0,
+      "factorial_runs": 8,
+      "grand_mean": 20.0,
+      "observations": 16
+    }
+  },
+  "fixture": "synthetic fixture"
+}

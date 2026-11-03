@@ -1,0 +1,223 @@
+{
+  "cases": [
+    {
+      "bundle": "full",
+      "finding": "non-orthogonal",
+      "id": "unbalanced-columns",
+      "path": [
+        "rows",
+        0,
+        "levels",
+        0
+      ],
+      "remove": false,
+      "target": "table",
+      "value": 1
+    },
+    {
+      "bundle": "full",
+      "finding": "unbalanced-replicates",
+      "id": "unbalanced-replicates",
+      "path": [
+        "runs",
+        0,
+        "replicates"
+      ],
+      "remove": false,
+      "target": "rules",
+      "value": 1
+    },
+    {
+      "bundle": "fraction",
+      "finding": "fraction-generators",
+      "id": "inconsistent-generator",
+      "path": [
+        "design",
+        "generators",
+        0,
+        "sign"
+      ],
+      "remove": false,
+      "target": "rules",
+      "value": -1
+    },
+    {
+      "bundle": "fraction",
+      "finding": "alias-separation",
+      "id": "separate-aliases",
+      "path": [
+        "alias_sets",
+        1,
+        "terms"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": [
+        {
+          "sign": 1,
+          "term": "A"
+        }
+      ]
+    },
+    {
+      "bundle": "unreplicated",
+      "finding": "inference-without-replicates",
+      "id": "interval-without-replicates",
+      "path": [
+        "alias_sets",
+        1,
+        "interval"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": {
+        "lower": 0,
+        "upper": 5
+      }
+    },
+    {
+      "bundle": "full",
+      "finding": "run-order",
+      "id": "wrong-run-order",
+      "path": [
+        "run_order"
+      ],
+      "remove": false,
+      "target": "table",
+      "value": [
+        "r01",
+        "r02",
+        "r03",
+        "r04",
+        "r05",
+        "r06",
+        "r07",
+        "r08",
+        "r09"
+      ]
+    },
+    {
+      "bundle": "full",
+      "finding": "curvature-omitted",
+      "id": "curvature-ignored",
+      "path": [
+        "curvature"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "unavailable"
+    },
+    {
+      "bundle": "full",
+      "finding": "post-hoc-coding",
+      "id": "post-hoc-levels",
+      "path": [
+        "coding",
+        "A"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": -1
+    },
+    {
+      "bundle": "full",
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_responses_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-optimal-conditions",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves optimal conditions."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-mechanism",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves mechanism."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-causal-effect",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves causal effect."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-scale-up",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves scale-up."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-process-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves process validity."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves physical validity."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-clinical-action",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves clinical action."
+    },
+    {
+      "bundle": "full",
+      "finding": "claim-overreach",
+      "id": "overreach-efficacy",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture proves efficacy."
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

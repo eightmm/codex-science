@@ -1,0 +1,4 @@
+interface:
+  display_name: "Arrhenius Rate Fit"
+  short_description: "Check frozen kelvin rate tables and bounded Arrhenius quantities"
+  default_prompt: "Use $workflow-arrhenius-rate-fit to freeze kelvin identities and replicate rules, check synthetic rate constants, fit log rates with bounded uncertainty, and hand artifacts to independent review."

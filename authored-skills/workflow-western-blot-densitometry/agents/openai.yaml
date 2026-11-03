@@ -1,0 +1,4 @@
+interface:
+  display_name: "Western Blot Densitometry"
+  short_description: "Check frozen band ratios and biological replicate uncertainty"
+  default_prompt: "Use $workflow-western-blot-densitometry to freeze band rules, check supplied synthetic intensities, compute loading-control and blot-reference ratios, and hand bounded artifacts to independent review."

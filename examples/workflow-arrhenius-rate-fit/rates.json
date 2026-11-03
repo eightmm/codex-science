@@ -1,0 +1,70 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "rate": 0.9048374180359595,
+      "rate_unit": "s^-1",
+      "replicate_id": "r1",
+      "run_id": "t1-r1",
+      "temperature_kelvin": 250,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 1.3498588075760032,
+      "rate_unit": "s^-1",
+      "replicate_id": "r2",
+      "run_id": "t1-r2",
+      "temperature_kelvin": 250,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 2.0137527074704766,
+      "rate_unit": "s^-1",
+      "replicate_id": "r1",
+      "run_id": "t2-r1",
+      "temperature_kelvin": 333.3333333333333,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 3.0041660239464334,
+      "rate_unit": "s^-1",
+      "replicate_id": "r2",
+      "run_id": "t2-r2",
+      "temperature_kelvin": 333.3333333333333,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 5.4739473917272,
+      "rate_unit": "s^-1",
+      "replicate_id": "r1",
+      "run_id": "t3-r1",
+      "temperature_kelvin": 500,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 8.166169912567652,
+      "rate_unit": "s^-1",
+      "replicate_id": "r2",
+      "run_id": "t3-r2",
+      "temperature_kelvin": 500,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 18.17414536944306,
+      "rate_unit": "s^-1",
+      "replicate_id": "r1",
+      "run_id": "t4-r1",
+      "temperature_kelvin": 1000,
+      "temperature_unit": "K"
+    },
+    {
+      "rate": 27.112638920657893,
+      "rate_unit": "s^-1",
+      "replicate_id": "r2",
+      "run_id": "t4-r2",
+      "temperature_kelvin": 1000,
+      "temperature_unit": "K"
+    }
+  ],
+  "schema": "arr-rates-v1"
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-western-blot-densitometry",
+  "declared_maturity": "L4",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "acceptance_fixtures": [
+    "examples/workflow-western-blot-densitometry/pack.json",
+    "examples/workflow-western-blot-densitometry/expected.json",
+    "examples/workflow-western-blot-densitometry/negative-cases.json"
+  ],
+  "output_schemas": [
+    "wb-pack-v1",
+    "wb-rules-v1",
+    "wb-table-v1",
+    "wb-report-v1",
+    "wb-evidence-v1",
+    "wb-result-v1"
+  ],
+  "seeded_failures": [
+    "loading-control-outside-range",
+    "saturated-band-used",
+    "negative-background-used",
+    "technical-counted-biological",
+    "missing-blot-reference",
+    "loading-control-cv-ignored",
+    "post-outcome-rules",
+    "unreliable-lane-included",
+    "unreliable-in-group-summary",
+    "unfrozen-rules",
+    "duplicate-lane",
+    "missing-lane",
+    "overreach-protein-abundance",
+    "overreach-expression",
+    "overreach-mechanism",
+    "overreach-clinical",
+    "overreach-causality",
+    "overreach-physical"
+  ],
+  "test_files": [
+    "tests/test_workflow_wb_pack.py"
+  ],
+  "limitations": [
+    "L4 is offline synthetic software acceptance only; no assay, protein abundance, biological or clinical validity.",
+    "Welch log-delta intervals approximate arithmetic-mean ratios; independence is assumed and reference-lane uncertainty is not propagated.",
+    "Hashes cannot prove historical freeze timing or true source independence. Independent review remains unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, protein abundan* and express*. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computed agreement and review approval cannot support positive claims. Replicated is refused.",
+    "Inputs are read-only: 64 MiB per file, 256 MiB aggregate and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ]
+}

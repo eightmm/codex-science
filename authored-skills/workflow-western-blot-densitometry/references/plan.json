@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "id": "01-rule-freeze",
+      "description": "Freeze lane, sample, blot, antibody, dilution, background, reference, replicate and uncertainty rules before intensities.",
+      "status": "pending"
+    },
+    {
+      "id": "02-table-qc",
+      "description": "Admit immutable synthetic intensity rows; preserve saturation, range and background failures.",
+      "status": "pending"
+    },
+    {
+      "id": "03-normalisation",
+      "description": "Check loading controls and blot references; collapse technical lanes before biological-unit uncertainty.",
+      "status": "pending"
+    },
+    {
+      "id": "04-summary",
+      "description": "Preserve every exclusion and denominator; report bounded ratios, means, standard errors and intervals.",
+      "status": "pending"
+    },
+    {
+      "id": "05-handoff",
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "status": "pending"
+    }
+  ]
+}

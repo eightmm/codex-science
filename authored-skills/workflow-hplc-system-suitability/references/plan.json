@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze analyte/reference and injection identities, limits, sample RSD, heights, widths, formulas and blank rule before tables.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit hash-bound synthetic peak tables and check identity, order, width heights and blank separation.",
+      "id": "02-table-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute sample RSD, half-height plates, five-percent tailing, nearest-peak resolution, signal-to-noise and carryover.",
+      "id": "03-suitability",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve actual standard count and every pass, fail or unavailable criterion.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

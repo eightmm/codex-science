@@ -1,0 +1,51 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-particle-size-distribution/pack.json",
+    "examples/workflow-particle-size-distribution/expected.json",
+    "examples/workflow-particle-size-distribution/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 denotes offline synthetic software acceptance only; no instrument, product or scientific validity is established.",
+    "Cumulative interpolation assumes uniform mass within bins and uses recorded tails; midpoint means are in-range approximations using spherical-volume scaling.",
+    "Technical replicates do not increase independent sample n. Disagreeing replicates and fewer than two reliable measurements yield unavailable sample summaries.",
+    "Hashes cannot establish historical freeze timing or source independence; independent review always remains unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, quality, stabil*, stabl*, perform*, approv*, certif*, compliance and compliant. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims; computed agreement and review approval cannot support positive claims; this single synthetic fixture cannot establish replication.",
+    "Read-only inputs are bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values; hardlinks share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "psd-pack-v1",
+    "psd-rules-v1",
+    "psd-table-v1",
+    "psd-report-v1",
+    "psd-evidence-v1",
+    "psd-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "non-cumulative-percentiles",
+    "fraction-sum",
+    "non-monotone-edges",
+    "tail-rule-ignored",
+    "tail-mass-ignored",
+    "mixed-bases",
+    "discordant-replicates-pooled",
+    "post-hoc-bin-merge",
+    "unfrozen-rules",
+    "overreach-product-quality",
+    "overreach-stability",
+    "overreach-performance",
+    "overreach-regulatory-status",
+    "overreach-causality",
+    "overreach-physical-validity"
+  ],
+  "skill": "workflow-particle-size-distribution",
+  "test_files": [
+    "tests/test_workflow_psd_pack.py"
+  ]
+}

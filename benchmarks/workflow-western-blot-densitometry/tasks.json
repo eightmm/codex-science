@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "fixture": "synthetic fixture",
+  "tasks": [
+    {
+      "id": "two-blot-biological-summary",
+      "question": "What ratios and uncertainty follow from the frozen synthetic band table?",
+      "inputs": [
+        "examples/workflow-western-blot-densitometry/pack.json"
+      ],
+      "acceptance_criteria": [
+        "Control biological values are 1, 2, 1; contrast values are 2, 4, 6.",
+        "Means are 4/3 and 4; standard errors are 1/3 and sqrt(4/3); fold change is 3.",
+        "Welch log-delta df is 3.92, bounds approximately 1.03019835 to 8.73618173.",
+        "Technical repeat does not increase biological n; unreliable lane is excluded and review remains unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      }
+    },
+    {
+      "id": "seeded-refusals",
+      "question": "Does every synthetic defect refuse for its stated finding?",
+      "inputs": [
+        "examples/workflow-western-blot-densitometry/negative-cases.json"
+      ],
+      "acceptance_criteria": [
+        "Every seeded defect is independently exercised through the public validator.",
+        "Boundary refusals precede arithmetic; saturated, negative and out-of-range lanes cannot enter summaries.",
+        "No input is written; CLI errors are JSON refusals on stderr with exit 2."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      }
+    }
+  ]
+}

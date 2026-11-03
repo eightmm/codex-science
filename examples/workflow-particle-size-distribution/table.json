@@ -1,0 +1,68 @@
+{
+  "bin_edges_um": [
+    1,
+    3,
+    5,
+    7
+  ],
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "above_range_fraction": 0,
+      "availability": "observed",
+      "basis": "count",
+      "below_range_fraction": 0,
+      "measurement_id": "a1",
+      "sample_id": "A",
+      "total_count": 100,
+      "values": [
+        20,
+        60,
+        20
+      ]
+    },
+    {
+      "above_range_fraction": 0,
+      "availability": "observed",
+      "basis": "count",
+      "below_range_fraction": 0,
+      "measurement_id": "a2",
+      "sample_id": "A",
+      "total_count": 100,
+      "values": [
+        20,
+        60,
+        20
+      ]
+    },
+    {
+      "above_range_fraction": 0,
+      "availability": "observed",
+      "basis": "count",
+      "below_range_fraction": 0,
+      "measurement_id": "b1",
+      "sample_id": "B",
+      "total_count": 100,
+      "values": [
+        40,
+        40,
+        20
+      ]
+    },
+    {
+      "above_range_fraction": 0,
+      "availability": "observed",
+      "basis": "count",
+      "below_range_fraction": 0,
+      "measurement_id": "b2",
+      "sample_id": "B",
+      "total_count": 100,
+      "values": [
+        40,
+        40,
+        20
+      ]
+    }
+  ],
+  "schema": "psd-table-v1"
+}

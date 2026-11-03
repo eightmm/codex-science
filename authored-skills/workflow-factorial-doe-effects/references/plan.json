@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze coded levels, signed generators, resolution, replicate counts, pure error and seeded run order before responses.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic tables and check exact balance, orthogonality, generators, counts and order.",
+      "id": "02-table-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute signed alias-set half-differences, pure-error Student t intervals and required centre curvature.",
+      "id": "03-effects",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve denominators, assumptions, unavailable error, failed controls and bounded descriptive quantities.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

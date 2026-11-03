@@ -1,0 +1,327 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "interpolation_rule"
+          ],
+          "target": "report",
+          "value": "linear-density"
+        }
+      ],
+      "finding": "percentile-rule",
+      "id": "non-cumulative-percentiles"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "basis"
+          ],
+          "target": "rules",
+          "value": "volume"
+        },
+        {
+          "path": [
+            "basis"
+          ],
+          "target": "report",
+          "value": "volume"
+        },
+        {
+          "path": [
+            "rows",
+            0,
+            "basis"
+          ],
+          "target": "table",
+          "value": "volume"
+        },
+        {
+          "path": [
+            "rows",
+            0,
+            "values"
+          ],
+          "target": "table",
+          "value": [
+            0.2,
+            0.6,
+            0.2
+          ]
+        },
+        {
+          "path": [
+            "rows",
+            1,
+            "basis"
+          ],
+          "target": "table",
+          "value": "volume"
+        },
+        {
+          "path": [
+            "rows",
+            1,
+            "values"
+          ],
+          "target": "table",
+          "value": [
+            0.2,
+            0.6,
+            0.2
+          ]
+        },
+        {
+          "path": [
+            "rows",
+            2,
+            "basis"
+          ],
+          "target": "table",
+          "value": "volume"
+        },
+        {
+          "path": [
+            "rows",
+            2,
+            "values"
+          ],
+          "target": "table",
+          "value": [
+            0.4,
+            0.4,
+            0.2
+          ]
+        },
+        {
+          "path": [
+            "rows",
+            3,
+            "basis"
+          ],
+          "target": "table",
+          "value": "volume"
+        },
+        {
+          "path": [
+            "rows",
+            3,
+            "values"
+          ],
+          "target": "table",
+          "value": [
+            0.4,
+            0.4,
+            0.2
+          ]
+        },
+        {
+          "path": [
+            "rows",
+            0,
+            "values"
+          ],
+          "target": "table",
+          "value": [
+            0.2,
+            0.6,
+            0.1
+          ]
+        }
+      ],
+      "finding": "fraction-sum",
+      "id": "fraction-sum"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "bin_edges_um"
+          ],
+          "target": "rules",
+          "value": [
+            1,
+            5,
+            3,
+            7
+          ]
+        }
+      ],
+      "finding": "bin-edges",
+      "id": "non-monotone-edges"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "tail_rule"
+          ],
+          "target": "report",
+          "value": "ignore-tails"
+        }
+      ],
+      "finding": "tail-rule",
+      "id": "tail-rule-ignored"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "above_range_fraction"
+          ],
+          "target": "table",
+          "value": 0.2
+        }
+      ],
+      "finding": "unreliable-included",
+      "id": "tail-mass-ignored"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "basis"
+          ],
+          "target": "table",
+          "value": "volume"
+        }
+      ],
+      "finding": "mixed-basis",
+      "id": "mixed-bases"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            1,
+            "values"
+          ],
+          "target": "table",
+          "value": [
+            80,
+            10,
+            10
+          ]
+        }
+      ],
+      "finding": "replicate-pooling",
+      "id": "discordant-replicates-pooled"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "bin_edges_um"
+          ],
+          "target": "report",
+          "value": [
+            1,
+            5,
+            7
+          ]
+        }
+      ],
+      "finding": "post-hoc-bins",
+      "id": "post-hoc-bin-merge"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_before_table_read"
+          ],
+          "target": "pack",
+          "value": false
+        }
+      ],
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes product quality."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "overreach-product-quality"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes stability."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "overreach-stability"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes performance."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "overreach-performance"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes regulatory status."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "overreach-regulatory-status"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes causality."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "overreach-causality"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Synthetic fixture establishes physical validity."
+        }
+      ],
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

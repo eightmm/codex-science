@@ -1,0 +1,128 @@
+{
+  "computation": {
+    "biological_units": [
+      {
+        "biological_unit": "A1",
+        "group": "control",
+        "mean": 1.0,
+        "n_lanes": 2
+      },
+      {
+        "biological_unit": "A2",
+        "group": "control",
+        "mean": 2.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "A3",
+        "group": "control",
+        "mean": 1.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "B1",
+        "group": "contrast",
+        "mean": 2.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "B2",
+        "group": "contrast",
+        "mean": 4.0,
+        "n_lanes": 1
+      },
+      {
+        "biological_unit": "B3",
+        "group": "contrast",
+        "mean": 6.0,
+        "n_lanes": 1
+      }
+    ],
+    "groups": [
+      {
+        "fold_change": 1.0,
+        "group": "control",
+        "interval": "unavailable",
+        "mean": 1.3333333333333333,
+        "n": 3,
+        "standard_error": 0.3333333333333333
+      },
+      {
+        "fold_change": 3.0,
+        "group": "contrast",
+        "interval": {
+          "degrees_of_freedom": 3.919999999999999,
+          "level": 0.95,
+          "lower": 1.0301983496841778,
+          "method": "welch-log-delta",
+          "upper": 8.736181729236007
+        },
+        "mean": 4.0,
+        "n": 3,
+        "standard_error": 1.1547005383792515
+      }
+    ],
+    "lanes": [
+      {
+        "classification": "reliable",
+        "lane_id": "a1",
+        "ratio": 1.0,
+        "reasons": [],
+        "scaled_ratio": 1.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "a1-repeat",
+        "ratio": 1.0,
+        "reasons": [],
+        "scaled_ratio": 1.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "a2",
+        "ratio": 2.0,
+        "reasons": [],
+        "scaled_ratio": 2.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "a3",
+        "ratio": 2.0,
+        "reasons": [],
+        "scaled_ratio": 1.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "b1",
+        "ratio": 2.0,
+        "reasons": [],
+        "scaled_ratio": 2.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "b2",
+        "ratio": 8.0,
+        "reasons": [],
+        "scaled_ratio": 4.0
+      },
+      {
+        "classification": "reliable",
+        "lane_id": "b3",
+        "ratio": 12.0,
+        "reasons": [],
+        "scaled_ratio": 6.0
+      },
+      {
+        "classification": "unreliable",
+        "lane_id": "b3-unreliable",
+        "ratio": "unavailable",
+        "reasons": [
+          "target-range"
+        ],
+        "scaled_ratio": "unavailable"
+      }
+    ],
+    "loading_control_cv": 0.0
+  },
+  "fixture": "synthetic fixture"
+}

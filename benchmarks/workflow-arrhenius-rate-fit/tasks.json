@@ -1,0 +1,43 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Ea equals 1000 times R and ln A equals 4 in both synthetic series.",
+        "Noisy SSE .04, df 2, slope SE sqrt(4000), ln A SE sqrt(.03), t critical 4.30265272974946.",
+        "At 400 K mean ln rate 1.5, SE sqrt(.005); lack-of-fit F .5 and p .64.",
+        "Distinct-temperature n is 4, run n is 8; review remains unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "known-noiseless-and-noisy",
+      "inputs": [
+        "examples/workflow-arrhenius-rate-fit/pack.json",
+        "examples/workflow-arrhenius-rate-fit/noiseless-pack.json"
+      ],
+      "question": "Do synthetic ln rates recover known Ea and ln A with hand-derived uncertainty and no extrapolation?"
+    },
+    {
+      "acceptance_criteria": [
+        "Each mutation is independently exercised through the public validator.",
+        "Removing each seeded finding check makes its test fail.",
+        "Claims and evidence gates precede arithmetic; malformed CLI arguments are JSON refusals on stderr with exit 2.",
+        "Validator writes no files."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-arrhenius-rate-fit/negative-cases.json"
+      ],
+      "question": "Does every seeded synthetic defect refuse for its stated finding?"
+    }
+  ]
+}

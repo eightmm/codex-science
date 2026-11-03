@@ -1,0 +1,155 @@
+{
+  "cases": [
+    {
+      "finding": "rsd-method",
+      "id": "population-rsd",
+      "path": [
+        "rsd_method"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "population-stdev"
+    },
+    {
+      "finding": "replicate-minimum",
+      "id": "below-minimum-pass",
+      "path": [
+        "rows",
+        4
+      ],
+      "remove": true,
+      "target": "table",
+      "value": null
+    },
+    {
+      "finding": "tailing-height",
+      "id": "wrong-tailing-height",
+      "path": [
+        "tailing_height"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0.5
+    },
+    {
+      "finding": "plates-method",
+      "id": "wrong-plates-constant",
+      "path": [
+        "plates_constant"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 16
+    },
+    {
+      "finding": "blank-replicate",
+      "id": "blank-in-replicates",
+      "path": [
+        "replicate_ids"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": [
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "b1"
+      ]
+    },
+    {
+      "finding": "post-hoc-limits",
+      "id": "post-hoc-limits",
+      "path": [
+        "applied_limits",
+        "tailing_max"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 2.5
+    },
+    {
+      "finding": "summary-omission",
+      "id": "failed-criterion-omitted",
+      "path": [
+        "summary",
+        "tailing"
+      ],
+      "remove": true,
+      "target": "report",
+      "value": null
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_table_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-method-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture: Method validity established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-system-release",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture: System qualification for release established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-product-quality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture: Product quality established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-regulatory-status",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture: Regulatory status established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture: Causality established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture: Physical validity established."
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

@@ -1,0 +1,55 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-factorial-doe-effects/pack.json",
+    "examples/workflow-factorial-doe-effects/expected.json",
+    "examples/workflow-factorial-doe-effects/fraction/pack.json",
+    "examples/workflow-factorial-doe-effects/fraction/expected.json",
+    "examples/workflow-factorial-doe-effects/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; physical, biological and process validity remain unverified.",
+    "Intervals assume independent homoscedastic normal replicate errors. A declared run order cannot establish actual randomisation.",
+    "Coefficients are half-differences. Fractional aliases cannot be separated; centre curvature cannot identify an individual quadratic term.",
+    "Hashes cannot prove historical freeze timing or true source independence; review remains unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Additional refusals: truth, physical validity, patient benefit, optim*, scale-up and process validity. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computed agreement and review approval never support positive claims; this synthetic fixture never establishes replication.",
+    "Read-only input budgets: 64 MiB each, 256 MiB aggregate, 4000000 JSON values, four factors, 17 conditions, 128 replicates per condition and 4096 total observations."
+  ],
+  "output_schemas": [
+    "doe-pack-v1",
+    "doe-rules-v1",
+    "doe-table-v1",
+    "doe-report-v1",
+    "doe-evidence-v1",
+    "doe-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "unbalanced-columns",
+    "unbalanced-replicates",
+    "inconsistent-generator",
+    "separate-aliases",
+    "interval-without-replicates",
+    "wrong-run-order",
+    "curvature-ignored",
+    "post-hoc-levels",
+    "unfrozen-rules",
+    "overreach-optimal-conditions",
+    "overreach-mechanism",
+    "overreach-causal-effect",
+    "overreach-scale-up",
+    "overreach-process-validity",
+    "overreach-physical-validity",
+    "overreach-clinical-action",
+    "overreach-efficacy"
+  ],
+  "skill": "workflow-factorial-doe-effects",
+  "test_files": [
+    "tests/test_workflow_doe_pack.py"
+  ]
+}

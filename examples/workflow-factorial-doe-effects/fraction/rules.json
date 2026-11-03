@@ -1,0 +1,130 @@
+{
+  "design": {
+    "generators": [
+      {
+        "factor": "D",
+        "sign": 1,
+        "terms": [
+          "A",
+          "B",
+          "C"
+        ]
+      }
+    ],
+    "name": "2^(4-1)",
+    "resolution": 4,
+    "type": "regular-fraction"
+  },
+  "effect_rule": "half-difference-of-level-means",
+  "error_rule": "pure-error-from-replicates",
+  "factors": [
+    {
+      "high": "synthetic high A",
+      "id": "A",
+      "low": "synthetic low A"
+    },
+    {
+      "high": "synthetic high B",
+      "id": "B",
+      "low": "synthetic low B"
+    },
+    {
+      "high": "synthetic high C",
+      "id": "C",
+      "low": "synthetic low C"
+    },
+    {
+      "high": "synthetic high D",
+      "id": "D",
+      "low": "synthetic low D"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "interval_level": 0.95,
+  "randomisation_seed": 1729,
+  "response": "synthetic response",
+  "runs": [
+    {
+      "levels": [
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "replicates": 2,
+      "run_id": "r01"
+    },
+    {
+      "levels": [
+        -1,
+        -1,
+        1,
+        1
+      ],
+      "replicates": 2,
+      "run_id": "r02"
+    },
+    {
+      "levels": [
+        -1,
+        1,
+        -1,
+        1
+      ],
+      "replicates": 2,
+      "run_id": "r03"
+    },
+    {
+      "levels": [
+        -1,
+        1,
+        1,
+        -1
+      ],
+      "replicates": 2,
+      "run_id": "r04"
+    },
+    {
+      "levels": [
+        1,
+        -1,
+        -1,
+        1
+      ],
+      "replicates": 2,
+      "run_id": "r05"
+    },
+    {
+      "levels": [
+        1,
+        -1,
+        1,
+        -1
+      ],
+      "replicates": 2,
+      "run_id": "r06"
+    },
+    {
+      "levels": [
+        1,
+        1,
+        -1,
+        -1
+      ],
+      "replicates": 2,
+      "run_id": "r07"
+    },
+    {
+      "levels": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "replicates": 2,
+      "run_id": "r08"
+    }
+  ],
+  "schema": "doe-rules-v1",
+  "units": "fixture units"
+}

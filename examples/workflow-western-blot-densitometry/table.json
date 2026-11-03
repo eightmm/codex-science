@@ -1,0 +1,62 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "lane_id": "a1",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 110
+    },
+    {
+      "lane_id": "a1-repeat",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 110
+    },
+    {
+      "lane_id": "a2",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 210
+    },
+    {
+      "lane_id": "a3",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 210
+    },
+    {
+      "lane_id": "b1",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 210
+    },
+    {
+      "lane_id": "b2",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 810
+    },
+    {
+      "lane_id": "b3",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 1210
+    },
+    {
+      "lane_id": "b3-unreliable",
+      "loading_control_background": 10,
+      "loading_control_intensity": 110,
+      "target_background": 10,
+      "target_intensity": 15
+    }
+  ],
+  "schema": "wb-table-v1"
+}

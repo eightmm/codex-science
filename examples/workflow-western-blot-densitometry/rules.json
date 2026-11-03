@@ -1,0 +1,136 @@
+{
+  "antibodies": [
+    {
+      "antibody_id": "target",
+      "dilution_series": [
+        {
+          "amount": 10,
+          "intensity": 10
+        },
+        {
+          "amount": 100,
+          "intensity": 100
+        },
+        {
+          "amount": 1500,
+          "intensity": 1500
+        }
+      ],
+      "maximum": 1500,
+      "minimum": 10,
+      "saturation_ceiling": 2000
+    },
+    {
+      "antibody_id": "loading",
+      "dilution_series": [
+        {
+          "amount": 10,
+          "intensity": 10
+        },
+        {
+          "amount": 100,
+          "intensity": 100
+        },
+        {
+          "amount": 1500,
+          "intensity": 1500
+        }
+      ],
+      "maximum": 1500,
+      "minimum": 10,
+      "saturation_ceiling": 2000
+    }
+  ],
+  "background_rule": "local-per-lane",
+  "fixture": "synthetic fixture",
+  "groups": [
+    "control",
+    "contrast"
+  ],
+  "interval_level": 0.95,
+  "interval_method": "welch-log-delta",
+  "lanes": [
+    {
+      "biological_unit": "A1",
+      "blot_id": "blot-1",
+      "group": "control",
+      "lane_id": "a1",
+      "loading_control_band": "loading",
+      "sample_id": "A1",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "A1",
+      "blot_id": "blot-1",
+      "group": "control",
+      "lane_id": "a1-repeat",
+      "loading_control_band": "loading",
+      "sample_id": "A1",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "A2",
+      "blot_id": "blot-1",
+      "group": "control",
+      "lane_id": "a2",
+      "loading_control_band": "loading",
+      "sample_id": "A2",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "A3",
+      "blot_id": "blot-2",
+      "group": "control",
+      "lane_id": "a3",
+      "loading_control_band": "loading",
+      "sample_id": "A3",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "B1",
+      "blot_id": "blot-1",
+      "group": "contrast",
+      "lane_id": "b1",
+      "loading_control_band": "loading",
+      "sample_id": "B1",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "B2",
+      "blot_id": "blot-2",
+      "group": "contrast",
+      "lane_id": "b2",
+      "loading_control_band": "loading",
+      "sample_id": "B2",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "B3",
+      "blot_id": "blot-2",
+      "group": "contrast",
+      "lane_id": "b3",
+      "loading_control_band": "loading",
+      "sample_id": "B3",
+      "target_band": "target"
+    },
+    {
+      "biological_unit": "B3",
+      "blot_id": "blot-2",
+      "group": "contrast",
+      "lane_id": "b3-unreliable",
+      "loading_control_band": "loading",
+      "sample_id": "B3",
+      "target_band": "target"
+    }
+  ],
+  "maximum_loading_control_cv": 0.2,
+  "minimum_biological_units": 3,
+  "normalisation": "target-over-loading-control",
+  "reference_group": "control",
+  "reference_lanes": {
+    "blot-1": "a1",
+    "blot-2": "a3"
+  },
+  "replicate_rule": "collapse-technical-before-biological",
+  "schema": "wb-rules-v1"
+}

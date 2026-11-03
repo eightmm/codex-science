@@ -1,0 +1,120 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "levels": [
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "responses": [
+        20,
+        22
+      ],
+      "run_id": "r01"
+    },
+    {
+      "levels": [
+        -1,
+        -1,
+        1,
+        1
+      ],
+      "responses": [
+        20,
+        22
+      ],
+      "run_id": "r02"
+    },
+    {
+      "levels": [
+        -1,
+        1,
+        -1,
+        1
+      ],
+      "responses": [
+        10,
+        12
+      ],
+      "run_id": "r03"
+    },
+    {
+      "levels": [
+        -1,
+        1,
+        1,
+        -1
+      ],
+      "responses": [
+        10,
+        12
+      ],
+      "run_id": "r04"
+    },
+    {
+      "levels": [
+        1,
+        -1,
+        -1,
+        1
+      ],
+      "responses": [
+        22,
+        24
+      ],
+      "run_id": "r05"
+    },
+    {
+      "levels": [
+        1,
+        -1,
+        1,
+        -1
+      ],
+      "responses": [
+        22,
+        24
+      ],
+      "run_id": "r06"
+    },
+    {
+      "levels": [
+        1,
+        1,
+        -1,
+        -1
+      ],
+      "responses": [
+        24,
+        26
+      ],
+      "run_id": "r07"
+    },
+    {
+      "levels": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "responses": [
+        24,
+        26
+      ],
+      "run_id": "r08"
+    }
+  ],
+  "run_order": [
+    "r06",
+    "r08",
+    "r03",
+    "r02",
+    "r07",
+    "r05",
+    "r04",
+    "r01"
+  ],
+  "schema": "doe-table-v1"
+}

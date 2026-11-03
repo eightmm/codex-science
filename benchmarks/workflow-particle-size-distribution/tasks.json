@@ -1,0 +1,41 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "A: D10/D50/D90 2/4/6 micrometres, span 1, number mean 4, volume-weighted mean 5.",
+        "B: D10/D50/D90 1.5/3.5/6 micrometres, span 9/7, number mean 3.6, volume-weighted mean 46/9.",
+        "Sample n is 2, measurement n is 4 and independent review remains unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "binned-percentiles",
+      "inputs": [
+        "examples/workflow-particle-size-distribution/pack.json"
+      ],
+      "question": "What are the synthetic samples cumulative D10/D50/D90, span and midpoint means under frozen count rules?"
+    },
+    {
+      "acceptance_criteria": [
+        "Each mutation runs independently through the public validator with refreshed hashes.",
+        "Non-cumulative interpolation, fraction sums, edge order, ignored tails, mixed bases, discordant pooling and unlabelled bin merges refuse.",
+        "Product quality, stability, performance, regulatory, causal and physical-validity wording refuse before arithmetic.",
+        "CLI argument and data refusals are JSON on stderr, exit 2; inputs remain unchanged."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-particle-size-distribution/negative-cases.json"
+      ],
+      "question": "Does every synthetic seeded defect refuse with its frozen finding?"
+    }
+  ]
+}

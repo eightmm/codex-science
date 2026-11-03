@@ -1,0 +1,167 @@
+{
+  "applied_limits": {
+    "carryover_max": 0.5,
+    "peak_area_rsd_max": 2,
+    "plates_min": 12000,
+    "resolution_min": 2,
+    "retention_time_rsd_max": 4,
+    "signal_to_noise_min": 50,
+    "tailing_max": 1.8
+  },
+  "carryover": [
+    {
+      "injection_id": "b1",
+      "preceding_standard_id": "s5",
+      "status": "pass",
+      "value": 0.5
+    }
+  ],
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence is unavailable for this synthetic fixture."
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture retains one failed tailing criterion.",
+  "injections": [
+    {
+      "injection_id": "s1",
+      "nearest_peak_id": "R",
+      "plates": {
+        "status": "pass",
+        "value": 12764.159999999998
+      },
+      "resolution": {
+        "status": "pass",
+        "value": 2.5
+      },
+      "signal_to_noise": {
+        "status": "pass",
+        "value": 100
+      },
+      "tailing": {
+        "status": "fail",
+        "value": 2.0
+      }
+    },
+    {
+      "injection_id": "s2",
+      "nearest_peak_id": "R",
+      "plates": {
+        "status": "pass",
+        "value": 13301.54
+      },
+      "resolution": {
+        "status": "pass",
+        "value": 2.5
+      },
+      "signal_to_noise": {
+        "status": "pass",
+        "value": 100
+      },
+      "tailing": {
+        "status": "pass",
+        "value": 1.6
+      }
+    },
+    {
+      "injection_id": "s3",
+      "nearest_peak_id": "R",
+      "plates": {
+        "status": "pass",
+        "value": 13850.0
+      },
+      "resolution": {
+        "status": "pass",
+        "value": 2.5
+      },
+      "signal_to_noise": {
+        "status": "pass",
+        "value": 100
+      },
+      "tailing": {
+        "status": "pass",
+        "value": 1.6
+      }
+    },
+    {
+      "injection_id": "s4",
+      "nearest_peak_id": "R",
+      "plates": {
+        "status": "pass",
+        "value": 14409.539999999995
+      },
+      "resolution": {
+        "status": "pass",
+        "value": 2.5
+      },
+      "signal_to_noise": {
+        "status": "pass",
+        "value": 100
+      },
+      "tailing": {
+        "status": "pass",
+        "value": 1.6
+      }
+    },
+    {
+      "injection_id": "s5",
+      "nearest_peak_id": "R",
+      "plates": {
+        "status": "pass",
+        "value": 14980.16
+      },
+      "resolution": {
+        "status": "pass",
+        "value": 2.5
+      },
+      "signal_to_noise": {
+        "status": "pass",
+        "value": 100
+      },
+      "tailing": {
+        "status": "pass",
+        "value": 1.6
+      }
+    }
+  ],
+  "plates_constant": 5.54,
+  "plates_width": "half-height",
+  "replicate_count": 5,
+  "replicate_criteria": {
+    "peak_area_rsd": {
+      "status": "pass",
+      "value": 1.5811388300841898
+    },
+    "retention_time_rsd": {
+      "status": "pass",
+      "value": 3.162277660168379
+    }
+  },
+  "replicate_ids": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+  ],
+  "resolution_width": "baseline",
+  "rsd_method": "sample-stdev",
+  "rules_sha256": "e739f8b27a16f6b25cb5319d2a24487a4ab0a4f6cd88c20402e30c831f9c4cdc",
+  "schema": "hplc-report-v1",
+  "summary": {
+    "carryover": "pass",
+    "peak_area_rsd": "pass",
+    "plates": "pass",
+    "resolution": "pass",
+    "retention_time_rsd": "pass",
+    "signal_to_noise": "pass",
+    "tailing": "fail"
+  },
+  "tailing_height": 0.05
+}

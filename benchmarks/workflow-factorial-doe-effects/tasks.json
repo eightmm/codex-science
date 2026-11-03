@@ -1,0 +1,66 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "A=2; B=-3; AB=1.5; ABC=0.5",
+        "Pure-error SSE=18, df=9, MSE=2; Student t intervals use df=9",
+        "Centre departure=4 with SE=sqrt(1.125)",
+        "Review unavailable; no positive scientific claim"
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "full-design",
+      "input": "examples/workflow-factorial-doe-effects/pack.json",
+      "question": "Do the synthetic 2^3 half-difference contrasts and centre departure match hand arithmetic?"
+    },
+    {
+      "acceptance_criteria": [
+        "Resolution IV; I=ABCD; A=BCD; AB=CD",
+        "Alias-set coefficient AB=CD is 3, not two independent effects",
+        "Pure-error SSE=16, df=8, MSE=2"
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "regular-fraction",
+      "input": "examples/workflow-factorial-doe-effects/fraction/pack.json",
+      "question": "Does the synthetic D=ABC fraction retain signed alias sets and refuse separate estimates?"
+    },
+    {
+      "acceptance_criteria": [
+        "unbalanced-columns: non-orthogonal",
+        "unbalanced-replicates: unbalanced-replicates",
+        "inconsistent-generator: fraction-generators",
+        "separate-aliases: alias-separation",
+        "interval-without-replicates: inference-without-replicates",
+        "wrong-run-order: run-order",
+        "curvature-ignored: curvature-omitted",
+        "post-hoc-levels: post-hoc-coding",
+        "unfrozen-rules: rule-freeze",
+        "overreach-optimal-conditions: claim-overreach",
+        "overreach-mechanism: claim-overreach",
+        "overreach-causal-effect: claim-overreach",
+        "overreach-scale-up: claim-overreach",
+        "overreach-process-validity: claim-overreach",
+        "overreach-physical-validity: claim-overreach",
+        "overreach-clinical-action: claim-overreach",
+        "overreach-efficacy: claim-overreach"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "input": "examples/workflow-factorial-doe-effects/negative-cases.json",
+      "question": "Does every synthetic defect retain its stated refusal?"
+    }
+  ]
+}

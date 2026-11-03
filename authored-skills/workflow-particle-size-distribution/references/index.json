@@ -1,0 +1,50 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only, never observational validity or review approval.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen particle-size rules, cumulative interpolation, local shapes, limits and refusal gates.",
+      "read_when": [
+        "freezing particle bins",
+        "admitting particle tables",
+        "computing binned quantities",
+        "review handoff"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "table-admission",
+        "distribution-computation",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-distribution",
+        "## 05-handoff and claim gate"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Ordered steps do not establish execution, historical freeze timing or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Five fixed stages using the existing manifest plan step shape.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rule-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-particle-size-distribution"
+}

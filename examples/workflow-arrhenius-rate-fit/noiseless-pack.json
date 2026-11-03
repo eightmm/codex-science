@@ -1,0 +1,19 @@
+{
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_rates_read": true,
+  "frozen_rules_sha256": "4217cac26026003915bc2aadd1b9b4f242160ef9621d2630cb9b8c0f94d6f65e",
+  "rates": {
+    "path": "noiseless-rates.json",
+    "sha256": "c939706abba15d4ae3fd51ae2c2d43835748356e3ac97ea40d3f0b299c88f504"
+  },
+  "report": {
+    "path": "noiseless-report.json",
+    "sha256": "9a591642f28cb984c898a1fbbb70a1f3bb0ca9efdfcc0c6d3cb1ccfaf44b9327"
+  },
+  "rules": {
+    "path": "noiseless-rules.json",
+    "sha256": "4217cac26026003915bc2aadd1b9b4f242160ef9621d2630cb9b8c0f94d6f65e"
+  },
+  "schema": "arr-pack-v1"
+}

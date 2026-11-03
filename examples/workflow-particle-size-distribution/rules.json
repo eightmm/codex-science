@@ -1,0 +1,49 @@
+{
+  "basis": "count",
+  "bin_edges_um": [
+    1,
+    3,
+    5,
+    7
+  ],
+  "d50_relative_range_max": 0.05,
+  "fixture": "synthetic fixture",
+  "interpolation_rule": "linear-cumulative-within-bin",
+  "mean_rule": "bin-midpoints-spherical-volume",
+  "measurements": [
+    {
+      "measurement_id": "a1",
+      "sample_id": "A"
+    },
+    {
+      "measurement_id": "a2",
+      "sample_id": "A"
+    },
+    {
+      "measurement_id": "b1",
+      "sample_id": "B"
+    },
+    {
+      "measurement_id": "b2",
+      "sample_id": "B"
+    }
+  ],
+  "minimum_replicates": 2,
+  "minimum_total_count": 10,
+  "reported_statistics": [
+    "D10_um",
+    "D50_um",
+    "D90_um",
+    "span",
+    "mean_by_number_um",
+    "volume_weighted_mean_um"
+  ],
+  "sample_ids": [
+    "A",
+    "B"
+  ],
+  "schema": "psd-rules-v1",
+  "span_relative_range_max": 0.1,
+  "tail_fraction_max": 0.05,
+  "tail_rule": "exclude-at-or-above-limit"
+}

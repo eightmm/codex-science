@@ -1,0 +1,57 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-arrhenius-rate-fit/pack.json",
+    "examples/workflow-arrhenius-rate-fit/expected.json",
+    "examples/workflow-arrhenius-rate-fit/noiseless-pack.json",
+    "examples/workflow-arrhenius-rate-fit/noiseless-expected.json",
+    "examples/workflow-arrhenius-rate-fit/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic arithmetic acceptance only; no physical, chemical, clinical or safety validity is established.",
+    "Mean-log-response t intervals assume a linear log-rate relation and appropriate error precision; they are not future-rate or lifetime intervals.",
+    "Classical pure-error lack-of-fit is unavailable for unbalanced replicates, variance weighting or zero pure-error variance.",
+    "Hashes cannot prove historical freeze timing or independence, and falsely labelled kelvin cannot be identified without trustworthy source identities. Independent review stays unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, shelf life, process safety, reaction order and safe*. The gate includes negations and is incomplete.",
+    "Computed agreement and review approval never support positive claims; unavailable evidence requires unavailable claims; a single synthetic fixture cannot establish replication.",
+    "Inputs are read-only and bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values. Hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "arr-pack-v1",
+    "arr-rules-v1",
+    "arr-rates-v1",
+    "arr-report-v1",
+    "arr-evidence-v1",
+    "arr-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "celsius-unit",
+    "celsius-as-kelvin",
+    "zero-rate",
+    "negative-rate",
+    "too-few-distinct",
+    "short-span",
+    "extrapolated",
+    "gas-unit-mismatch",
+    "replicates-as-temperatures",
+    "post-hoc-weights",
+    "unfrozen",
+    "overreach-mechanism",
+    "overreach-shelf-life",
+    "overreach-process-safety",
+    "overreach-reaction-order",
+    "overreach-causality",
+    "overreach-physical-validity",
+    "overreach-clinical",
+    "overreach-truth"
+  ],
+  "skill": "workflow-arrhenius-rate-fit",
+  "test_files": [
+    "tests/test_workflow_arr_pack.py"
+  ]
+}
