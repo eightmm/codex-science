@@ -100,12 +100,18 @@ def _integer(value):
     return _number(int(value), "JSON integer")
 
 
+def _float(text):
+    value = float(text)
+    _require(math.isfinite(value), "invalid-json", "JSON number overflows")
+    return _number(value, "JSON number")
+
+
 def _json(raw, allowance):
     count = 1 + raw.count(b",") + sum(1 for _ in re.finditer(rb"[\[{](?=\s*[^\s\]}])", raw))
     _require(count <= allowance, "input-limit", "aggregate JSON value allowance exceeded")
     try:
         root = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs, parse_int=_integer,
-                          parse_float=lambda v: _number(float(v), "JSON number"), parse_constant=_constant)
+                          parse_float=_float, parse_constant=_constant)
         _require(type(root) is dict, "invalid-json", "JSON root must be an object")
         pending = [(root, 0)]
         while pending:
@@ -627,7 +633,12 @@ def _validate(bundle):
         for actual, expected in zip(_items(declared[field], field, MAX_WELLS), result[field]):
             _require(type(actual) is dict, "invalid-record", "QC row must be object")
             _require(actual.get("cv_flag") == expected["cv_flag"], "replicate-cv-ignored", "replicate CV flag differs")
-    _require(declared["parallelism"] == result["parallelism"], "parallelism-ignored", "dilution parallelism failure or unavailable result ignored")
+    reported = _items(declared["parallelism"], "parallelism", MAX_ITEMS, empty=True)
+    _require(len(reported) == len(result["parallelism"]) and all(
+        type(a) is dict and a.get("id") == b["id"] and a.get("status") == b["status"]
+        and type(a.get("ratios")) is list and len(a["ratios"]) == len(b["ratios"])
+        for a, b in zip(reported, result["parallelism"])),
+        "parallelism-ignored", "dilution parallelism failure or unavailable result ignored")
     _same(declared, result, "computation")
     records = {}
     unavailable_sources, computed_sources = set(), set()

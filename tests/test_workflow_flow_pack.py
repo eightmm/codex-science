@@ -146,6 +146,9 @@ class FlowMathTests(FixtureCase):
         flow._compare(1e-100 * (1 + 1e-10), 1e-100, "percentage")
         with self.assertRaisesRegex(ValueError, "compensation-singular:"):
             flow._solve([[1, 1], [1, 1]], [1, 1])
+        with self.assertRaisesRegex(ValueError, "compensation-singular:"):
+            flow._solve([[1, 0.9096585139012329], [1.0993136267271566, 1]], [1, 1])
+        self.assertEqual([1.0, 2.0], flow._solve([[1, 0], [0, 1]], [1, 2]))
 
 
 class FlowSeededTests(FixtureCase):

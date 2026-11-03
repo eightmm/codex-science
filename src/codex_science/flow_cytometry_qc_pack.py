@@ -320,9 +320,10 @@ def _solve(matrix, vector):
     """Partial-pivot Gaussian elimination; the matrix maps true to measured values."""
     size = len(matrix)
     rows = [list(row) + [value] for row, value in zip(matrix, vector)]
+    scale = max([abs(value) for row in matrix for value in row] + [1.0])
     for col in range(size):
         pivot = max(range(col, size), key=lambda index: abs(rows[index][col]))
-        _require(rows[pivot][col] != 0, "compensation-singular", "compensation matrix is singular")
+        _require(abs(rows[pivot][col]) > scale * 1e-12, "compensation-singular", "compensation matrix is singular")
         rows[col], rows[pivot] = rows[pivot], rows[col]
         divisor = rows[col][col]
         rows[col] = [value / divisor for value in rows[col]]

@@ -233,6 +233,23 @@ class ArithmeticTests(_FixtureTest):
 
 
 class SeededDefectTests(_FixtureTest):
+    def test_parallelism_ratio_follows_the_documented_relative_tolerance(self):
+        report = _read(self.directory / "report.json")
+        ratios = report["computation"]["parallelism"][0]["ratios"]
+        ratios[0] = math.nextafter(ratios[0], 2.0)
+        _write(self.directory / "report.json", report)
+        self._refresh()
+        self._validate()
+        report["computation"]["parallelism"][0]["status"] = "failed"
+        _write(self.directory / "report.json", report)
+        self._refresh()
+        with self.assertRaisesRegex(ValueError, "parallelism-ignored:"):
+            self._validate()
+
+    def test_overflowing_float_is_invalid_json(self):
+        with self.assertRaisesRegex(ValueError, "invalid-json:"):
+            imm._json(b'{"a": 1e400}', 100)
+
     def test_cli_each_seeded_refusal_and_argument_errors(self):
         for case in CASES:
             with self.subTest(case=case["case"]):
