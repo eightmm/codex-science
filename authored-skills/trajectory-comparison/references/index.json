@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "skill": "trajectory-comparison",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Stage inputs, estimator and claim boundaries",
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts only; no simulation validation.",
+      "read_when": [
+        "starting comparison"
+      ],
+      "required_before": [
+        "comparison-claim"
+      ],
+      "search_patterns": [
+        "stages"
+      ],
+      "version": "1"
+    },
+    {
+      "id": "method-discovery",
+      "path": "references/method-discovery.md",
+      "purpose": "Current method search and additive admission",
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts only; no simulation validation.",
+      "read_when": [
+        "selecting methods"
+      ],
+      "required_before": [
+        "comparison-claim"
+      ],
+      "search_patterns": [
+        "method-discovery"
+      ],
+      "version": "1"
+    },
+    {
+      "id": "method-seeds",
+      "path": "references/methods.json",
+      "purpose": "Dated official documentation seeds",
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts only; no simulation validation.",
+      "read_when": [
+        "selecting methods"
+      ],
+      "required_before": [
+        "comparison-claim"
+      ],
+      "search_patterns": [
+        "method-seeds"
+      ],
+      "version": "1"
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing checkpoint plan steps",
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts only; no simulation validation.",
+      "read_when": [
+        "initializing plan"
+      ],
+      "required_before": [
+        "comparison-claim"
+      ],
+      "search_patterns": [
+        "plan"
+      ],
+      "version": "1"
+    }
+  ]
+}

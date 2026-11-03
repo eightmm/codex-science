@@ -1,0 +1,41 @@
+{
+  "acceptance_fixtures": [
+    "examples/binder-design-campaign/campaign.json",
+    "benchmarks/binder-design-campaign/tasks.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 applies to offline record-contract acceptance only; no real model campaign was executed.",
+    "The checker validates declared sequences, lineage, mappings, metrics and file hashes, not biological numbering or coordinates.",
+    "External methods are protocol references, not new runtime model backends; all listed routes require approved compatible tools and assets.",
+    "Different models can share training data; declaration checks do not prove independence, binding, affinity, expression or function."
+  ],
+  "output_schemas": [
+    "binder-campaign-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "stale-hash",
+    "broken-parent-lineage",
+    "missing-denominator",
+    "missing-metric",
+    "failed-essential-control",
+    "false-model-independence",
+    "antibody-route-substitution",
+    "wrong-heavy-light-composition",
+    "framework-change",
+    "framework-order-change",
+    "cdr-segment-displacement",
+    "cdr-length-violation",
+    "insertion-code-mapping-loss",
+    "unsupported-experimental-claim"
+  ],
+  "skill": "binder-design-campaign",
+  "test_files": [
+    "tests/test_binder_design_campaign.py"
+  ]
+}

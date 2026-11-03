@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "scope": "offline contract acceptance only; no model or efficacy benchmark",
+  "tasks": [
+    {
+      "expected": "synthetic_only",
+      "id": "vhh",
+      "request": "Check a VHH campaign, retaining its failed trajectory and missing metric."
+    },
+    {
+      "expected": "paired_fv_contract_checks",
+      "id": "paired-fv",
+      "request": "Check paired H/L framework and CDR preservation without converting to VHH."
+    },
+    {
+      "expected": "compatible_minibinder_routes",
+      "id": "minibinder",
+      "request": "Select BindCraft or RFdiffusion/ProteinMPNN without adding antibody loops."
+    },
+    {
+      "expected": "controls_blocked",
+      "id": "failed-control",
+      "request": "Retain a failed positive control and qualify every computational conclusion."
+    },
+    {
+      "expected": "no_survivors",
+      "id": "no-survivors",
+      "request": "Report all candidates excluded or unevaluable without inventing a winner."
+    },
+    {
+      "expected": "documented_additive_method",
+      "id": "new-method",
+      "request": "Search official sources and admit a compatible method descriptor without editing route code; refuse an undocumented method."
+    }
+  ]
+}

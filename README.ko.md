@@ -16,7 +16,7 @@ Codex Science는 Codex 작업에서 선택적으로 사용하는 과학 워크�
 Claude Science의 공개 workflow에서 영감을 받은 독립 plugin이며, 비공개 구현과의
 동등성을 주장하지 않습니다.
 
-- 감사된 스킬 카탈로그 284개: K-Dense-AI 149개, Codex-native 132개,
+- 감사된 스킬 카탈로그 288개: K-Dense-AI 149개, Codex-native 136개,
   DeepMind 인프라 포인터 3개.
 - 읽기 전용 공개 데이터 source contract 49개와 카탈로그 검색·연구 계획. 성숙도는 source별로 다르며, 모두 live-tested된 것은 아닙니다.
 - 독립 evidence review가 포함된 재현 가능한 실행 artifact.
@@ -157,7 +157,7 @@ openai/codex#20783이 재현되는 동안에는 켜지 마세요. 다른 Stop lo
 
 ## 카탈로그와 데이터 출처
 
-카탈로그는 K-Dense-AI 149개, Codex-native 132개, DeepMind 인프라 포인터
+카탈로그는 K-Dense-AI 149개, Codex-native 136개, DeepMind 인프라 포인터
 3개의 세 tier로 구성됩니다. Codex-native 스킬은 Google DeepMind 과학 스킬
 세트, 교재 기반 수학·물리, 통계적 의사결정 분석, 생명과학 근거 종합,
 분광학·분석화학, 과학 컴퓨팅, 그리고 ESMFold2, AlphaFold3, RFdiffusion,
@@ -168,6 +168,26 @@ MCP는 `science_search_*`와 `science_plan_*`를 제공하며,
 `scripts/science_tool.py`로도 같은 기능을 사용할 수 있습니다. [생명과학 source
 지원표](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md)를 참고하세요. 카탈로그에 있다는
 사실만으로 실행 권한이 생기지는 않습니다.
+
+Minibinder·항체 Fv·VHH 설계를 한 workflow로 진행하려면 Codex Science를
+활성화하고 `$cx-binder-design-campaign`을 요청하세요.
+[Campaign skill](authored-skills/binder-design-campaign/SKILL.md)은 타깃 준비,
+최신 방법 검색, pilot, 설계, 후보 선별, 독립 리뷰를 연결합니다. 날짜가 기록된
+방법 목록에는 BindCraft, RFantibody, BoltzGen, RFdiffusion3,
+Proteina-Complexa 등이 있으며, 문서화된 descriptor로 새 방법을 추가합니다.
+Offline 테스트는 기록 계약을 검증하며, 실제 모델 실행에는 환경·모델 자산·자원
+범위에 대한 별도 승인이 필요합니다.
+
+같은 provenance·review 흐름으로 다음 compute 묶음도 제공합니다.
+
+| Skill | 작은 CPU 분석 | 외부 도구 실행 조건 |
+| --- | --- | --- |
+| `$cx-virtual-screening-campaign` | Compound 집계, 동률을 반영한 AP·enrichment, 전체 분모 | 준비된 구조와 승인된 docking/rescoring 엔진 |
+| `$cx-protein-variant-evaluation` | WT·치환 매핑, 단백질별 순위와 assay·baseline 비교 | 승인된 서열·구조 모델과 고정된 점수 정의 |
+| `$cx-trajectory-comparison` | 기존 observable series의 replica·block 오차와 drift | 승인된 trajectory reader; 새 simulation은 별도 범위 |
+
+각 묶음은 최신 공식 방법을 검색하고 검토한 run-local descriptor로 확장합니다.
+Offline 예제는 docking·PLM·MD 엔진을 실행한 결과가 아닙니다.
 
 ## 평가 현황
 

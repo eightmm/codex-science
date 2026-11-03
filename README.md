@@ -16,7 +16,7 @@ Codex Science is an opt-in scientific workbench for Codex tasks. It is an
 independent plugin inspired by Claude Science's public workflow and makes no
 parity claim about private implementations.
 
-- An audited catalog of 284 skills: 149 K-Dense-AI, 132 Codex-native, and 3
+- An audited catalog of 288 skills: 149 K-Dense-AI, 136 Codex-native, and 3
   DeepMind infrastructure pointers.
 - 49 read-only public data source contracts, plus catalog search and research planning; maturity is source-specific, and not all sources are live-tested.
 - Reproducible run artifacts with independent evidence review.
@@ -159,7 +159,7 @@ task is closed.
 
 ## Catalog and data sources
 
-The inventory has three tiers: K-Dense-AI (149), Codex-native (132), and
+The inventory has three tiers: K-Dense-AI (149), Codex-native (136), and
 DeepMind infrastructure pointers (3). Codex-native skills cover the Google
 DeepMind science set, textbook-grounded mathematics and physics, statistical
 decision analysis, life-science evidence synthesis, spectroscopy and analytical
@@ -171,6 +171,25 @@ The read-only MCP exposes `science_search_*` and `science_plan_*`; the same
 tools are available through `scripts/science_tool.py`. See [life-science
 source coverage](docs/LIFE_SCIENCE_RESEARCH_SOURCES.md). Catalog presence is not
 execution permission.
+
+For a complete minibinder, paired antibody Fv or VHH workflow, activate Codex
+Science and request `$cx-binder-design-campaign`. The [campaign skill](authored-skills/binder-design-campaign/SKILL.md)
+connects target preparation, current method discovery, pilot, design, filtering
+and independent review. Its dated method seeds include BindCraft, RFantibody,
+BoltzGen, RFdiffusion3 and Proteina-Complexa; additional methods use a documented
+descriptor. Offline tests validate record contracts; model execution needs its
+own approved environment, assets and resource budget.
+
+Additional compute conductors use the same provenance/review lifecycle:
+
+| Skill | Bounded CPU analysis | External execution boundary |
+| --- | --- | --- |
+| `$cx-virtual-screening-campaign` | Compound aggregation, tie-aware AP/enrichment and full denominators | Prepared structures and an approved docking/rescoring engine |
+| `$cx-protein-variant-evaluation` | WT/substitution mapping, per-protein ranks and assay/baseline comparison | Approved sequence/structure model and pinned score definition |
+| `$cx-trajectory-comparison` | Existing observable series, replica/block uncertainty and drift | Approved trajectory reader; new simulation requires separate scope |
+
+Each conductor searches current official methods and supports a reviewed run-local
+method descriptor. Their offline fixtures do not execute docking, PLMs or MD engines.
 
 ## Evaluation status
 

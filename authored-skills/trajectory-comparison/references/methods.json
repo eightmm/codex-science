@@ -1,0 +1,27 @@
+{
+  "checked_on": "2026-11-03",
+  "evidence_status": "documented; no engine or analyzer pilot executed",
+  "methods": [
+    {
+      "id": "mdanalysis",
+      "role": "analyzer",
+      "source": "https://docs.mdanalysis.org/stable/documentation_pages/units.html",
+      "coverage": "reader unit conversion, angstrom/ps defaults; inspect pinned reader and PBC transformations",
+      "execution": "existing skill; not installed by this pack"
+    },
+    {
+      "id": "openmm",
+      "role": "simulation-engine",
+      "source": "https://docs.openmm.org/latest/userguide/theory/01_introduction.html",
+      "coverage": "nm/ps units and platform-dependent numerical validation",
+      "execution": "separately approved existing skill only"
+    },
+    {
+      "id": "gromacs",
+      "role": "simulation-engine-and-analysis-tools",
+      "source": "https://manual.gromacs.org/documentation/current/onlinehelp/gmx-analyze.html",
+      "coverage": "autocorrelation and block averaging options",
+      "execution": "separately approved existing skill only"
+    }
+  ]
+}

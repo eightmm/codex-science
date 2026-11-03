@@ -96,6 +96,30 @@
       "minimum_maturity": "L3",
       "required_roles": ["analyzer"],
       "require_reference_contract": true
+    },
+    {
+      "skill": "binder-design-campaign",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "virtual-screening-campaign",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "protein-variant-evaluation",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "trajectory-comparison",
+      "minimum_maturity": "L4",
+      "required_roles": ["conductor", "analyzer"],
+      "require_reference_contract": true
     }
   ]
 }

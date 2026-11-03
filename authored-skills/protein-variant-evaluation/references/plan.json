@@ -1,0 +1,27 @@
+[
+  {
+    "id": "identity",
+    "description": "Freeze reference, coordinate mapping, assay and leakage policy",
+    "status": "pending"
+  },
+  {
+    "id": "discover",
+    "description": "Search current official methods and freeze descriptor, controls and budgets",
+    "status": "pending"
+  },
+  {
+    "id": "assess",
+    "description": "Validate supplied scores or execute an approved bounded pilot and scoring",
+    "status": "pending"
+  },
+  {
+    "id": "compare",
+    "description": "Compute per-protein sequences, baseline and tie-aware rank comparisons",
+    "status": "pending"
+  },
+  {
+    "id": "review",
+    "description": "Register artifacts, reconcile independent review and hand off qualified candidates",
+    "status": "pending"
+  }
+]

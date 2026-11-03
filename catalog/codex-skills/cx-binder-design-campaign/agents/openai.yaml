@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Binder Design Campaign"
+  short_description: "Use the audited cx-binder-design-campaign scientific workflow"
+  default_prompt: "Use $cx-binder-design-campaign for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

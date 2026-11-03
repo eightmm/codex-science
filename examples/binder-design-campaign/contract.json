@@ -1,0 +1,54 @@
+{
+  "binder_format": "vhh",
+  "budget": {
+    "max_attempts": 3,
+    "max_sequences_per_backbone": 2
+  },
+  "cdr_lengths": {
+    "H1": [
+      2,
+      2
+    ],
+    "H2": [
+      1,
+      1
+    ],
+    "H3": [
+      2,
+      3
+    ]
+  },
+  "filters": {
+    "interface_proxy": {
+      "direction": "min",
+      "threshold": 0.7,
+      "unit": "synthetic_dimensionless"
+    }
+  },
+  "mapping_artifact": "mapping",
+  "method_artifact": "selected-method",
+  "models": {
+    "design": {
+      "conditioned": true,
+      "family": "rfantibody-design-fixture",
+      "revision": "synthetic-v1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "validation": {
+      "conditioned": true,
+      "family": "rfantibody-rf2-fixture",
+      "revision": "synthetic-v1",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "numbering_scheme": "synthetic-source-indices",
+  "route": "rfantibody",
+  "scaffold_artifact": "scaffold",
+  "seeds": [
+    11,
+    12,
+    13
+  ],
+  "target_artifact": "target",
+  "validation_support": "shared-model"
+}

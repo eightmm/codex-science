@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "skill": "protein-variant-evaluation",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Input/output contract, stages, controls and claim boundaries",
+      "read_when": [
+        "intake and analysis"
+      ],
+      "required_before": [
+        "intake and analysis"
+      ],
+      "search_patterns": [
+        "## Identity and scope",
+        "## Analysis and failure semantics"
+      ],
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline contract and documentation only; no model execution or functional validation.",
+      "version": "1"
+    },
+    {
+      "id": "discovery",
+      "path": "references/method-discovery.md",
+      "purpose": "Current method search and extensible run-local descriptor",
+      "read_when": [
+        "method selection"
+      ],
+      "required_before": [
+        "method selection"
+      ],
+      "search_patterns": [
+        "## Search before selection",
+        "## Additive run-local descriptor"
+      ],
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline contract and documentation only; no model execution or functional validation.",
+      "version": "1"
+    },
+    {
+      "id": "methods",
+      "path": "references/methods.json",
+      "purpose": "Dated official method seeds",
+      "read_when": [
+        "method selection"
+      ],
+      "required_before": [
+        "method selection"
+      ],
+      "search_patterns": [
+        "esm-family",
+        "proteinmpnn"
+      ],
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline contract and documentation only; no model execution or functional validation.",
+      "version": "1"
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing ordered manifest step shapes",
+      "read_when": [
+        "checkpoint initialization"
+      ],
+      "required_before": [
+        "checkpoint initialization"
+      ],
+      "search_patterns": [
+        "identity",
+        "review"
+      ],
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline contract and documentation only; no model execution or functional validation.",
+      "version": "1"
+    }
+  ]
+}

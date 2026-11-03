@@ -1,0 +1,4 @@
+interface:
+  display_name: "Protein Variant Evaluation"
+  short_description: "Compare mapped protein variants and supplied scores"
+  default_prompt: "Use $protein-variant-evaluation to map substitutions, compare supplied scores against per-protein controls and prepare reviewed computational candidates."

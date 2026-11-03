@@ -1,0 +1,183 @@
+{
+  "compounds": [
+    {
+      "active": true,
+      "chemical_identity": "synthetic-identity-1",
+      "id": "compound-1",
+      "partition": "test",
+      "scaffold_group": "scaffold-1",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "active": true,
+      "chemical_identity": "synthetic-identity-2",
+      "id": "compound-2",
+      "partition": "test",
+      "scaffold_group": "scaffold-2",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "active": false,
+      "chemical_identity": "synthetic-identity-3",
+      "id": "compound-3",
+      "partition": "test",
+      "scaffold_group": "scaffold-3",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "active": false,
+      "chemical_identity": "synthetic-identity-4",
+      "id": "compound-4",
+      "partition": "test",
+      "scaffold_group": "scaffold-4",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    }
+  ],
+  "contract": {
+    "aggregation": "best_observed_pose_across_states",
+    "evaluation_partition": "test",
+    "minimum_ap_gain": 0.1,
+    "minimum_enrichment": 1.5,
+    "pocket_source": "explicit_residues",
+    "score_direction": "lower",
+    "score_name": "supplied_synthetic_energy",
+    "score_threshold": null,
+    "target_id": "synthetic-target",
+    "tie_policy": "fractional",
+    "top_k": 2
+  },
+  "contract_sha256": "40f8e9741c87dcbdaf98516200420c90cbe11b5d97570edf1a0934ac2f9c3552",
+  "controls": [
+    {
+      "essential": true,
+      "evidence_ref": "synthetic-control-only",
+      "id": "redock",
+      "kind": "positive_redock",
+      "status": "passed"
+    }
+  ],
+  "planned_attempts": [
+    {
+      "id": "compound-1-state-1-pose",
+      "state_id": "compound-1-state-1"
+    },
+    {
+      "id": "compound-1-state-2-pose",
+      "state_id": "compound-1-state-2"
+    },
+    {
+      "id": "compound-2-state-1-pose",
+      "state_id": "compound-2-state-1"
+    },
+    {
+      "id": "compound-2-state-2-pose",
+      "state_id": "compound-2-state-2"
+    },
+    {
+      "id": "compound-3-state-1-pose",
+      "state_id": "compound-3-state-1"
+    },
+    {
+      "id": "compound-3-state-2-pose",
+      "state_id": "compound-3-state-2"
+    },
+    {
+      "id": "compound-4-state-1-pose",
+      "state_id": "compound-4-state-1"
+    },
+    {
+      "id": "compound-4-state-2-pose",
+      "state_id": "compound-4-state-2"
+    }
+  ],
+  "results": [
+    {
+      "id": "compound-1-state-1-pose",
+      "score": -8.9,
+      "status": "ok"
+    },
+    {
+      "id": "compound-1-state-2-pose",
+      "score": -8.8,
+      "status": "ok"
+    },
+    {
+      "id": "compound-2-state-1-pose",
+      "score": -7.9,
+      "status": "ok"
+    },
+    {
+      "id": "compound-2-state-2-pose",
+      "score": -7.8,
+      "status": "ok"
+    },
+    {
+      "id": "compound-3-state-1-pose",
+      "score": -3.9,
+      "status": "ok"
+    },
+    {
+      "id": "compound-3-state-2-pose",
+      "score": -3.8,
+      "status": "ok"
+    },
+    {
+      "id": "compound-4-state-1-pose",
+      "score": -2.9,
+      "status": "ok"
+    },
+    {
+      "id": "compound-4-state-2-pose",
+      "score": -2.8,
+      "status": "ok"
+    }
+  ],
+  "run_id": "synthetic-offline-screen",
+  "schema_version": 1,
+  "states": [
+    {
+      "compound_id": "compound-1",
+      "id": "compound-1-state-1",
+      "state_identity": "synthetic-state-1"
+    },
+    {
+      "compound_id": "compound-1",
+      "id": "compound-1-state-2",
+      "state_identity": "synthetic-state-2"
+    },
+    {
+      "compound_id": "compound-2",
+      "id": "compound-2-state-1",
+      "state_identity": "synthetic-state-1"
+    },
+    {
+      "compound_id": "compound-2",
+      "id": "compound-2-state-2",
+      "state_identity": "synthetic-state-2"
+    },
+    {
+      "compound_id": "compound-3",
+      "id": "compound-3-state-1",
+      "state_identity": "synthetic-state-1"
+    },
+    {
+      "compound_id": "compound-3",
+      "id": "compound-3-state-2",
+      "state_identity": "synthetic-state-2"
+    },
+    {
+      "compound_id": "compound-4",
+      "id": "compound-4-state-1",
+      "state_identity": "synthetic-state-1"
+    },
+    {
+      "compound_id": "compound-4",
+      "id": "compound-4-state-2",
+      "state_identity": "synthetic-state-2"
+    }
+  ]
+}

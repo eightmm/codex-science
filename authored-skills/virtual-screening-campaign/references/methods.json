@@ -1,0 +1,40 @@
+{
+  "checked_on": "2026-11-03",
+  "evidence_boundary": "Official documentation discovery seeds, not installed or executed backends. Refresh before selection.",
+  "methods": [
+    {
+      "documentation": "https://autodock-vina.readthedocs.io/en/latest/docking_basic.html",
+      "execution_verified": false,
+      "id": "vina-meeko",
+      "name": "AutoDock Vina with Meeko",
+      "repository": "https://github.com/ccsb-scripps/AutoDock-Vina",
+      "scope": "CPU pose generation and small screens; prepared PDBQT and explicit box; lower Vina score is favorable; do not compare scoring functions directly.",
+      "source_revision": null,
+      "support_status": "documented",
+      "terms_status": "check code, binary, model and dependency terms at selected revision"
+    },
+    {
+      "documentation": "https://github.com/gnina/gnina#usage",
+      "execution_verified": false,
+      "id": "gnina",
+      "name": "GNINA",
+      "repository": "https://github.com/gnina/gnina",
+      "scope": "Docking and CNN rescoring; empirical energy, CNN pose score and CNN affinity are separate endpoints with separate directions.",
+      "source_revision": null,
+      "support_status": "documented",
+      "terms_status": "check code, binary, model and dependency terms at selected revision"
+    },
+    {
+      "documentation": "https://github.com/gcorso/DiffDock#inference",
+      "execution_verified": false,
+      "id": "diffdock",
+      "name": "DiffDock",
+      "repository": "https://github.com/gcorso/DiffDock",
+      "scope": "Learned ligand pose generation/confidence; confidence is not measured affinity or a calibrated cross-target screening score.",
+      "source_revision": null,
+      "support_status": "documented",
+      "terms_status": "check code, binary, model and dependency terms at selected revision"
+    }
+  ],
+  "schema_version": 1
+}

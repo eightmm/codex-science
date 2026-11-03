@@ -1,0 +1,47 @@
+{
+  "evidence_boundary": "Synthetic offline analysis only",
+  "pack": "virtual-screening-campaign",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "expected": "AP=1, EF@2=2",
+      "id": "perfect-ranking"
+    },
+    {
+      "expected": "reversed direction fails acceptance",
+      "id": "direction"
+    },
+    {
+      "expected": "constant scores give AP=prevalence and EF=1",
+      "id": "ties"
+    },
+    {
+      "expected": "duplicate chemical identities rejected",
+      "id": "duplicates"
+    },
+    {
+      "expected": "scaffold crossing partitions rejected",
+      "id": "leakage"
+    },
+    {
+      "expected": "failed essential redock blocks acceptance",
+      "id": "control"
+    },
+    {
+      "expected": "missing attempts retained; acceptance inconclusive",
+      "id": "missingness"
+    },
+    {
+      "expected": "absent labels make ranking unavailable",
+      "id": "labels"
+    },
+    {
+      "expected": "zero survivors remain inconclusive",
+      "id": "empty-selection"
+    },
+    {
+      "expected": "changed contract hash rejected",
+      "id": "stale-contract"
+    }
+  ]
+}

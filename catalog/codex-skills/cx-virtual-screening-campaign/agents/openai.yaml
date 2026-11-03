@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Virtual Screening Campaign"
+  short_description: "Audited scientific workflow for cx-virtual-screening-campaign"
+  default_prompt: "Use $cx-virtual-screening-campaign for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

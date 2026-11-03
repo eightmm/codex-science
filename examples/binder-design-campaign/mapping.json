@@ -1,0 +1,52 @@
+{
+  "preparation_notes": "Synthetic identity map with an insertion-code example; no PDB conversion performed.",
+  "removed_residues": [],
+  "scaffold_residue_map": [
+    {
+      "prepared_id": "H:1",
+      "source_id": "original-H:1"
+    },
+    {
+      "prepared_id": "H:2",
+      "source_id": "original-H:2"
+    },
+    {
+      "prepared_id": "H:3",
+      "source_id": "original-H:2A"
+    },
+    {
+      "prepared_id": "H:4",
+      "source_id": "original-H:4"
+    },
+    {
+      "prepared_id": "H:5",
+      "source_id": "original-H:5"
+    },
+    {
+      "prepared_id": "H:6",
+      "source_id": "original-H:6"
+    },
+    {
+      "prepared_id": "H:7",
+      "source_id": "original-H:7"
+    },
+    {
+      "prepared_id": "H:8",
+      "source_id": "original-H:8"
+    },
+    {
+      "prepared_id": "H:9",
+      "source_id": "original-H:9"
+    }
+  ],
+  "target_residue_map": [
+    {
+      "prepared_id": "T:1",
+      "source_id": "original-T:1"
+    },
+    {
+      "prepared_id": "T:2",
+      "source_id": "original-T:2"
+    }
+  ]
+}

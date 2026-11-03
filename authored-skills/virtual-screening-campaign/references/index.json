@@ -1,0 +1,79 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts and official documentation only; no engine execution, affinity or biological validation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Workflow stage and evidence contracts",
+      "read_when": [
+        "planning or interpreting a virtual screening campaign"
+      ],
+      "required_before": [
+        "campaign-analysis"
+      ],
+      "search_patterns": [
+        "## Pack-local record",
+        "## Failure and decision rules"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts and official documentation only; no engine execution, affinity or biological validation.",
+      "id": "methods",
+      "path": "references/method-discovery.md",
+      "purpose": "Progressive method or plan guidance",
+      "read_when": [
+        "selecting a method or initializing its plan"
+      ],
+      "required_before": [
+        "campaign-plan"
+      ],
+      "search_patterns": [
+        "## Search before selection",
+        "## Additive selected-method descriptor"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts and official documentation only; no engine execution, affinity or biological validation.",
+      "id": "seeds",
+      "path": "references/methods.json",
+      "purpose": "Progressive method or plan guidance",
+      "read_when": [
+        "selecting a method or initializing its plan"
+      ],
+      "required_before": [
+        "campaign-plan"
+      ],
+      "search_patterns": [
+        "vina-meeko",
+        "diffdock"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline analysis contracts and official documentation only; no engine execution, affinity or biological validation.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Progressive method or plan guidance",
+      "read_when": [
+        "selecting a method or initializing its plan"
+      ],
+      "required_before": [
+        "campaign-plan"
+      ],
+      "search_patterns": [
+        "intake",
+        "review"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "virtual-screening-campaign"
+}

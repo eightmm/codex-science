@@ -1,0 +1,35 @@
+{
+  "acceptance_fixtures": [
+    "examples/virtual-screening-campaign/screening.json",
+    "benchmarks/virtual-screening-campaign/tasks.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 covers deterministic supplied-score analysis and offline contracts only; no real docking engine or campaign was executed.",
+    "Chemical identities, split lineage, control evidence and model-training overlap are declared inputs, not independently authenticated.",
+    "No affinity, prospective enrichment, uncertainty calibration or experimental validation is established."
+  ],
+  "output_schemas": [
+    "virtual-screening-analysis-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "score-direction",
+    "ties",
+    "chemical-duplicate",
+    "scaffold-leakage",
+    "failed-positive-control",
+    "missing-attempt",
+    "missing-label",
+    "zero-survivors",
+    "stale-contract"
+  ],
+  "skill": "virtual-screening-campaign",
+  "test_files": [
+    "tests/test_virtual_screening_workflow.py"
+  ]
+}

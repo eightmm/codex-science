@@ -1,0 +1,37 @@
+[
+  {
+    "description": "Freeze target, binder format, epitope and residue maps",
+    "id": "intake",
+    "status": "pending"
+  },
+  {
+    "description": "Freeze compatible route, models, budgets, controls and filters",
+    "id": "plan",
+    "status": "pending"
+  },
+  {
+    "description": "Approve required resources and verify the smallest pilot",
+    "id": "pilot",
+    "status": "pending"
+  },
+  {
+    "description": "Retain all attempts, candidate lineages and failures",
+    "id": "generate",
+    "status": "pending"
+  },
+  {
+    "description": "Evaluate structures, model dependencies, controls and sensitivity",
+    "id": "validate",
+    "status": "pending"
+  },
+  {
+    "description": "Reconcile the full funnel and computational shortlist",
+    "id": "select",
+    "status": "pending"
+  },
+  {
+    "description": "Package provenance, independent review and next validation",
+    "id": "review",
+    "status": "pending"
+  }
+]

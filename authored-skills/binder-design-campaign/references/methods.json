@@ -1,0 +1,123 @@
+{
+  "checked_at": "2026-11-03",
+  "methods": [
+    {
+      "checked_at": "2026-11-03",
+      "execution": "not_run",
+      "formats": [
+        "minibinder"
+      ],
+      "framework_cdr_aware": false,
+      "id": "bindcraft",
+      "input_contract": "Target structure/chain/hotspot and length settings; audit assembly and residue mapping.",
+      "output_contract": "Trajectories, ProteinMPNN sequences, structure/metric/filter files; retain every attempted trajectory.",
+      "resource_notes": "CUDA GPU, pinned dependencies/assets and a bounded target pilot; no automatic install or download.",
+      "review_state": "documented",
+      "sequence_stage": "integrated",
+      "sources": [
+        "https://github.com/martinpacesa/BindCraft"
+      ],
+      "terms": "MIT code; review AF2 weights, PyRosetta and all dependency terms separately."
+    },
+    {
+      "checked_at": "2026-11-03",
+      "execution": "not_run",
+      "formats": [
+        "minibinder"
+      ],
+      "framework_cdr_aware": false,
+      "id": "rfdiffusion-proteinmpnn",
+      "input_contract": "Target PDB, contigs/hotspots and fixed-chain/sequence masks with explicit residue maps.",
+      "output_contract": "Backbone/TRB -> sequences with exact parent IDs -> prediction/geometry evidence and full funnel.",
+      "resource_notes": "GPU generation plus budgeted sequence/prediction work; official smoke then target pilot.",
+      "review_state": "documented",
+      "sequence_stage": "separate",
+      "sources": [
+        "https://github.com/RosettaCommons/RFdiffusion",
+        "https://github.com/dauparas/ProteinMPNN"
+      ],
+      "terms": "Review code, checkpoint and optional relaxation terms independently."
+    },
+    {
+      "checked_at": "2026-11-03",
+      "execution": "not_run",
+      "formats": [
+        "paired_fv",
+        "vhh"
+      ],
+      "framework_cdr_aware": true,
+      "id": "rfantibody",
+      "input_contract": "Antigen/framework structure; H/L or H-only CDR definitions; audit source-to-HLT maps/crops.",
+      "output_contract": "Antibody-finetuned diffusion -> CDR-aware ProteinMPNN -> conditioned RF2; retain Quiver/PDB tags and failures.",
+      "resource_notes": "External CUDA environment and individual model assets; not an installed runtime adapter.",
+      "review_state": "documented",
+      "sequence_stage": "cdr-aware",
+      "sources": [
+        "https://github.com/RosettaCommons/RFantibody",
+        "https://github.com/RosettaCommons/RFantibody/blob/main/scripts/util/chothia2HLT.py"
+      ],
+      "terms": "MIT repository; separately inspect individual assets and dependencies."
+    },
+    {
+      "checked_at": "2026-11-03",
+      "execution": "not_run",
+      "formats": [
+        "minibinder",
+        "paired_fv",
+        "vhh"
+      ],
+      "framework_cdr_aware": true,
+      "id": "boltzgen",
+      "input_contract": "YAML specification with protein/antibody/nanobody protocol; sequence-based selection needs original residue maps.",
+      "output_contract": "Design, inverse-folding, prediction and filtering artifacts/metrics; preserve per-stage identities and denominators.",
+      "resource_notes": "GPU; first invocation may auto-download large model assets. Pin release-specific storage/driver needs before execution.",
+      "review_state": "documented",
+      "sequence_stage": "integrated",
+      "sources": [
+        "https://github.com/HannesStark/boltzgen",
+        "https://github.com/HannesStark/boltzgen/blob/main/README.md"
+      ],
+      "terms": "MIT source; verify selected model assets and all downstream predictor/dependency terms."
+    },
+    {
+      "checked_at": "2026-11-03",
+      "execution": "not_run",
+      "formats": [
+        "minibinder"
+      ],
+      "framework_cdr_aware": false,
+      "id": "rfdiffusion3",
+      "input_contract": "JSON/YAML atom-level constraints, target PDB/CIF, contigs and atom hotspots; do not assume RFdiffusion v1 syntax.",
+      "output_contract": "CIF/JSON all-atom/sequence outputs; declare optional MPNN redesign and RF3 refolding; retain batch and parent identity.",
+      "resource_notes": "External GPU/Foundry assets; inspect the PPI pilot before adding adapters; antibody-specific support not established here.",
+      "review_state": "documented",
+      "sequence_stage": "integrated",
+      "sources": [
+        "https://github.com/RosettaCommons/foundry/blob/production/models/rfd3/README.md",
+        "https://github.com/RosettaCommons/foundry/blob/production/models/rfd3/docs/tutorials/ppi_design_tutorial.md"
+      ],
+      "terms": "Foundry BSD-3-Clause source/weight declaration; inspect selected assets and optional HBPLUS separately."
+    },
+    {
+      "checked_at": "2026-11-03",
+      "execution": "not_run",
+      "formats": [
+        "minibinder"
+      ],
+      "framework_cdr_aware": false,
+      "id": "proteina-complexa",
+      "input_contract": "Target complex/configuration for joint backbone/sidechain/sequence design; retain conditioning and reward settings.",
+      "output_contract": "Joint sequence/structure with declared optional MPNN redesign; search rewards and later evaluation may share AF2/RF3.",
+      "resource_notes": "GPU and pinned external environment/assets; reward search can be expensive; no antibody-specific claim from inspected docs.",
+      "review_state": "documented",
+      "sequence_stage": "integrated",
+      "sources": [
+        "https://github.com/NVIDIA-BioNeMo/Proteina-Complexa",
+        "https://catalog.ngc.nvidia.com/orgs/nvidia/clara/models/proteina_complexa/1.0"
+      ],
+      "terms": "Multiple source licenses and separate NVIDIA model terms; do not infer one license covers all components."
+    }
+  ],
+  "schema_version": 1,
+  "scope": "Dated official-source discovery seeds, not an exhaustive survey or installed backend registry."
+}

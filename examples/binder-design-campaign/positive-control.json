@@ -1,0 +1,6 @@
+{
+  "description": "Invented positive control outcome for software acceptance only.",
+  "kind": "positive",
+  "status": "passed",
+  "synthetic": true
+}
