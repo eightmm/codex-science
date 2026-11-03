@@ -138,6 +138,8 @@ approval-bound job specification. It reports a missing executable without
 installing or running it. Use its separately approved submit path after an engine
 and valid scientific inputs are available. Parsing output scores is a diagnostic;
 redocking and matched controls still determine what claims are admissible.
+Within one backend state directory, an unresolved different-spec job reserves its
+output paths even before those files exist; a second spec cannot overwrite them.
 
 ## Method extension
 

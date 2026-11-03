@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import shutil
 
-from codex_science.compute_backends import JobSpec, LocalBackend, _job_state_lock, validate_approval_receipt
+from codex_science.compute_backends import JobSpec, LocalBackend, TERMINAL_STATES, _job_state_lock, validate_approval_receipt
 
 
 def _number(value, label):
@@ -170,6 +170,11 @@ def submit_cpu_docking(preparation, state_dir, approval):
                     raise ValueError('ambiguous backend job record; reconcile before submission') from error
                 if existing_spec.fingerprint == spec.fingerprint:
                     matches.append(receipt)
+                elif receipt['state'] not in TERMINAL_STATES or receipt['state'] == 'lost':
+                    reserved = {(Path(existing_spec.working_directory) / item).resolve() for item in existing_spec.outputs}
+                    requested = {(Path(spec.working_directory) / item).resolve() for item in spec.outputs}
+                    if reserved & requested:
+                        raise ValueError('output path is reserved by an unresolved different-spec job')
         if len(matches) > 1:
             raise ValueError('multiple same-spec jobs already exist; reconcile before submission')
         if matches:

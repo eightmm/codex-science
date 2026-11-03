@@ -142,6 +142,34 @@ class DockingAdapterTests(unittest.TestCase):
         self.assertEqual((self.root / 'poses.pdbqt').read_bytes(), before)
         self.assertEqual(len(list((state_dir / 'jobs').iterdir())), 1)
 
+    def test_different_active_specs_cannot_reserve_the_same_future_output(self):
+        executable = self.root / 'delayed-fake-vina'
+        executable.write_text(f'#!{sys.executable}\n'
+                              'from pathlib import Path\nimport time\n'
+                              "Path('started').touch()\n"
+                              "while not Path('release').exists(): time.sleep(0.01)\n"
+                              f"Path('poses.pdbqt').write_text({POSE!r})\n")
+        executable.chmod(0o755)
+        self.record['executable'] = str(executable)
+        first = prepare_cpu_docking(self.record, self.root)
+        self.record['seed'] += 1
+        second = prepare_cpu_docking(self.record, self.root)
+        def approval(prepared):
+            return build_approval_receipt(JobSpec.from_payload(prepared['job_spec']),
+                                          approved_by='test-fixture', target='future-output race fixture')
+        state_dir = self.root / 'job-state'
+        submitted = submit_cpu_docking(first, state_dir, approval(first))
+        try:
+            with self.assertRaisesRegex(ValueError, 'output.*reserved'):
+                submit_cpu_docking(second, state_dir, approval(second))
+        finally:
+            (self.root / 'release').touch()
+            backend = LocalBackend(state_dir)
+            for job in backend.jobs_dir.iterdir():
+                backend.wait(job.name, timeout_seconds=10, poll_seconds=.02)
+        self.assertEqual(len(list((state_dir / 'jobs').iterdir())), 1)
+        self.assertEqual(LocalBackend(state_dir).status(submitted['job_id'])['state'], 'completed')
+
     def test_existing_receipt_identity_mismatch_requires_reconciliation(self):
         _, preparation, approval = self._fake_preparation()
         state_dir = self.root / 'job-state'
