@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from codex_science.evidence_graph_v2 import independent_support_groups, impacted_nodes, validate_graph_payload
 from codex_science.review_receipts import build_review_receipt, canonical_sha256, review_receipt_findings, validate_review_receipt
@@ -453,7 +454,7 @@ class EvidenceReviewV2Tests(unittest.TestCase):
                 "edges": [{"source": "S", "target": "C", "relation": "supports"}]},
                 "replicated_claim_id": "C"}
             structured_case = json.loads((self.root / "benchmarks" / "reviewer" / "67-clean-control.json").read_text())
-            finding_case = {"case_id": "shape-check", "expected_findings": [{"code": "fixture", "severity": "minor"}],
+            finding_case = {"case_id": "shape-check", "expected_findings": [{"code": "expected-fixture", "severity": "minor"}],
                             "additional_findings": [{"code": "fixture", "severity": "minor", "message": "fixture"}]}
             mutations = [
                 (finding_case, [
@@ -608,6 +609,13 @@ class EvidenceReviewV2Tests(unittest.TestCase):
                     self.assertEqual(1, report["case_count"])
                     if original.get("expected_findings") == [{"code": "invalid-review-receipt", "severity": "critical"}]:
                         self.assertTrue(report["details"][0]["passed"])
+            injected = copy.deepcopy(finding_case)
+            injected["expected_findings"] = injected["additional_findings"]
+            case.write_text(json.dumps(injected), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "additional_findings.*expected_findings"):
+                load_cases(directory)
+            with self.assertRaisesRegex(ValueError, "additional_findings.*expected_findings"):
+                score_cases([injected])
 
     def _benchmark_cli(self, cases: Path, output: Path) -> subprocess.CompletedProcess:
         return subprocess.run(
@@ -616,6 +624,165 @@ class EvidenceReviewV2Tests(unittest.TestCase):
             capture_output=True, text=True,
             timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "30")),
         )
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "requires named pipes")
+    def test_reviewer_benchmark_refuses_nonregular_case_files_before_opening(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            cases = directory / "cases"
+            cases.mkdir()
+            case = cases / "x.json"
+            output = directory / "report.json"
+            output.write_bytes(b"previous report")
+            pipe = directory / "pipe"
+            os.mkfifo(pipe)
+            for kind in ("fifo", "directory", "fifo-link", "dangling-link"):
+                with self.subTest(kind=kind):
+                    if kind == "fifo":
+                        os.mkfifo(case)
+                    elif kind == "directory":
+                        case.mkdir()
+                    else:
+                        case.symlink_to(pipe if kind == "fifo-link" else directory / "missing")
+                    try:
+                        with mock.patch.object(Path, "read_text", side_effect=AssertionError("case was opened")):
+                            with self.assertRaisesRegex(ValueError, "benchmark case.*not a regular file"):
+                                load_cases(cases)
+                        result = self._benchmark_cli(cases, output)
+                        self.assertEqual(2, result.returncode, result.stderr)
+                        self.assertIn(case.name, result.stderr)
+                        self.assertIn("not a regular file", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertEqual("", result.stdout)
+                        self.assertEqual(b"previous report", output.read_bytes())
+                    finally:
+                        if case.is_dir():
+                            case.rmdir()
+                        else:
+                            case.unlink()
+
+    def test_reviewer_benchmark_labels_excessive_json_nesting(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            cases = directory / "cases"
+            cases.mkdir()
+            case = cases / "deep.json"
+            output = directory / "report.json"
+            output.write_bytes(b"previous report")
+            contents = '{"expected_findings":' + "[" * 100_000 + "0" + "]" * 100_000 + "}"
+            case.write_text(contents, encoding="utf-8")
+            result = self._benchmark_cli(cases, output)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("error:", result.stderr)
+            self.assertIn("excessive nesting", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual("", result.stdout)
+            self.assertEqual(contents, case.read_text(encoding="utf-8"))
+            self.assertEqual(b"previous report", output.read_bytes())
+            for payload in ({}, {"expected_findings": []}, {"case_id": "shallow"}):
+                case.write_text(json.dumps(payload), encoding="utf-8")
+                result = self._benchmark_cli(cases, output)
+                self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_reviewer_benchmark_requires_replicated_id_to_name_a_claim(self) -> None:
+        graph = {"schema_version": 2, "nodes": [
+            {"id": "C", "type": "claim"}, {"id": "S", "type": "study"}], "edges": []}
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            cases = directory / "cases"
+            cases.mkdir()
+            case = cases / "reference.json"
+            output = directory / "report.json"
+            output.write_bytes(b"previous report")
+            invalid = [
+                {"replicated_claim_id": "missing", "evidence_graph_v2": graph},
+                {"replicated_claim_id": "S", "evidence_graph_v2": graph},
+                {"replicated_claim_id": "C"},
+                {"replicated_claim_id": "C", "evidence_graph_v2": {**graph, "nodes": []}},
+                *({"replicated_claim_id": value, "evidence_graph_v2": graph}
+                  for value in ("", " ", 0, None, [])),
+            ]
+            for payload in invalid:
+                with self.subTest(payload=payload):
+                    case.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "replicated_claim_id"):
+                        load_cases(cases)
+                    with self.assertRaisesRegex(ValueError, "replicated_claim_id"):
+                        score_cases([payload])
+                    result = self._benchmark_cli(cases, output)
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertIn(case.name, result.stderr)
+                    self.assertIn("replicated_claim_id", result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(b"previous report", output.read_bytes())
+            expected = [{"code": "dependent-evidence-v2", "severity": "major"}]
+            for payload in ({}, {"evidence_graph_v2": graph},
+                            {"evidence_graph_v2": graph, "replicated_claim_id": "C",
+                             "expected_findings": expected}):
+                case.write_text(json.dumps(payload), encoding="utf-8")
+                self.assertEqual([payload], load_cases(cases))
+                result = self._benchmark_cli(cases, output)
+                self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_reviewer_benchmark_refuses_injected_expected_findings(self) -> None:
+        self.assertTrue(all("additional_findings" not in case
+                            for case in load_cases(self.root / "benchmarks" / "reviewer")))
+        finding = {"code": "fixture", "severity": "major"}
+        clean = json.loads((self.root / "benchmarks" / "reviewer" / "67-clean-control.json").read_text())
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            cases = directory / "cases"
+            cases.mkdir()
+            case = cases / "injected.json"
+            output = directory / "report.json"
+            output.write_bytes(b"previous report")
+            for additional in (finding, {"code": "fixture"}, {**finding, "message": "different message"}):
+                for base in ({}, clean):
+                    payload = {**base, "expected_findings": [finding], "additional_findings": [additional]}
+                    case.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "additional_findings.*expected_findings"):
+                        load_cases(cases)
+                    with self.assertRaisesRegex(ValueError, "additional_findings.*expected_findings"):
+                        score_cases([payload])
+                    result = self._benchmark_cli(cases, output)
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertIn(case.name, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(b"previous report", output.read_bytes())
+            for expected, additional in (([], []), ([finding], []), ([], [finding]),
+                                         ([finding], [{**finding, "severity": "minor"}]),
+                                         ([finding], [{**finding, "code": "other"}])):
+                payload = {"expected_findings": expected, "additional_findings": additional}
+                case.write_text(json.dumps(payload), encoding="utf-8")
+                self.assertEqual([payload], load_cases(cases))
+                self.assertEqual(1, score_cases([payload])["case_count"])
+
+    def test_reviewer_benchmark_refuses_duplicate_case_ids_across_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            cases = directory / "cases"
+            cases.mkdir()
+            first, second = cases / "first.json", cases / "second.json"
+            output = directory / "report.json"
+            output.write_bytes(b"previous report")
+            first.write_text('{"case_id": "same-id"}', encoding="utf-8")
+            second.write_text('{"case_id": "same-id"}', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate case_id.*same-id"):
+                load_cases(cases)
+            result = self._benchmark_cli(cases, output)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("duplicate case_id", result.stderr)
+            self.assertIn("same-id", result.stderr)
+            self.assertIn(second.name, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual(b"previous report", output.read_bytes())
+            for payloads in (({"case_id": "same-id"}, {"case_id": "other-id"}), ({}, {})):
+                for path, payload in zip((first, second), payloads):
+                    path.write_text(json.dumps(payload), encoding="utf-8")
+                for _ in range(2):
+                    self.assertEqual(list(payloads), load_cases(cases))
+                result = self._benchmark_cli(cases, output)
+                self.assertEqual(0, result.returncode, result.stderr)
 
     def test_reviewer_benchmark_output_preserves_cases_and_publishes_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -720,12 +887,17 @@ class EvidenceReviewV2Tests(unittest.TestCase):
                 self.assertEqual(original, case.read_bytes())
                 self.assertEqual(b"previous report", output.read_bytes())
             for expected in ([], [finding], [finding, {**finding, "severity": "minor"}]):
-                payload = {"expected_findings": expected, "additional_findings": [
-                    {**item, "message": item["severity"]} for item in expected]}
+                payload = {"expected_findings": expected}
                 case.write_text(json.dumps(payload), encoding="utf-8")
                 result = self._benchmark_cli(cases, output)
-                self.assertEqual(0, result.returncode, result.stderr)
-                self.assertTrue(json.loads(output.read_text())["details"][0]["passed"])
+                self.assertEqual(1 if expected else 0, result.returncode, result.stderr)
+                self.assertEqual(not expected, json.loads(output.read_text())["details"][0]["passed"])
+                if expected:
+                    payload["additional_findings"] = [
+                        {**item, "message": item["severity"]} for item in expected]
+                    case.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "additional_findings.*expected_findings"):
+                        load_cases(cases)
 
     def test_train_test_case_id_matches_sample_overlap(self) -> None:
         case_ids = {item["case_id"] for item in load_cases(self.root / "benchmarks" / "reviewer")}
@@ -741,6 +913,9 @@ class EvidenceReviewV2Tests(unittest.TestCase):
         case["structured_review_input"]["model_evaluations"][0]["test_ids"] = ["held-out-only"]
         case["additional_findings"] = [{"code": "train-test-leakage", "severity": "major"}]
 
+        with self.assertRaisesRegex(ValueError, "additional_findings.*expected_findings"):
+            score_cases([case])
+        case.pop("additional_findings")
         report = score_cases([case])
         detail = report["details"][0]
         self.assertFalse(detail["passed"], json.dumps(detail, indent=2))

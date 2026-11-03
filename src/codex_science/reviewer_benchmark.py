@@ -127,6 +127,11 @@ def _validate_case(payload: Any) -> None:
                 seen.add(pair)
             if field == "additional_findings" and "message" in item:
                 _case_text(item["message"], f"{label}.message", empty=True)
+    expected = {(item["code"], item.get("severity", "major")) for item in case.get("expected_findings", [])}
+    additional = {(item["code"], item.get("severity", "major")) for item in case.get("additional_findings", [])}
+    overlap = expected & additional
+    if overlap:
+        raise ValueError(f"additional_findings overlap expected_findings: {sorted(overlap)!r}")
     for field in ("artifact_hashes", "evidence_graph_v2", "review_receipt"):
         if field in case:
             _case_object(case[field], field)
@@ -136,21 +141,33 @@ def _validate_case(payload: Any) -> None:
         except ValueError as error:
             raise ValueError(f"structured_review_input: {error}") from error
     graph = case.get("evidence_graph_v2")
+    nodes = {}
     if isinstance(graph, dict):
         try:
-            validate_graph_payload(graph)
+            nodes, _edges, _findings = validate_graph_payload(graph)
         except ValueError as error:
             raise ValueError(f"evidence_graph_v2: {error}") from error
+    claim_id = case.get("replicated_claim_id")
+    if claim_id is not None and nodes.get(claim_id, {}).get("type") != "claim":
+        raise ValueError(f"replicated_claim_id must name a claim node in evidence_graph_v2: {claim_id!r}")
 
 
 def load_cases(path: Path) -> list[dict[str, Any]]:
     if not path.is_dir():
         raise ValueError(f"reviewer benchmark cases path must be an existing directory: {path}")
     cases = []
+    case_ids: set[str] = set()
     for file in sorted(path.glob("*.json")):
         try:
+            if not file.is_file():
+                raise ValueError("not a regular file")
             payload = json.loads(file.read_text(encoding="utf-8"))
             _validate_case(payload)
+            if "case_id" in payload:
+                case_id = payload["case_id"]
+                if case_id in case_ids:
+                    raise ValueError(f"duplicate case_id: {case_id!r}")
+                case_ids.add(case_id)
         except ValueError as error:
             raise ValueError(f"reviewer benchmark case {file}: {error}") from error
         cases.append(payload)

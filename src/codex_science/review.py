@@ -274,20 +274,25 @@ def _execution_record_findings(manifest: dict[str, Any], run_dir: Path | None) -
 
 
 _BLOCKING_SEVERITIES = {"major", "critical"}
+_KNOWN_SEVERITIES = _BLOCKING_SEVERITIES | {"minor", "suggestion"}
 
 
 def _declared_review_findings(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the declared findings review reports, refusing shapes it cannot report.
 
-    Only consumed findings are checked: a passed review keeps resolved or
-    non-blocking findings as recorded, since receipts need not carry codes.
+    Only consumed findings are checked: a passed review keeps resolved findings
+    with known severities and known non-blocking findings as recorded, since
+    receipts need not carry codes.
     """
     declared_review = manifest.get("review", {})
     status = declared_review.get("status")
     if "status" in declared_review and not isinstance(status, str):
         raise ValueError(f"Manifest review status must be a string, not {type(status).__name__}")
-    if status not in {"findings", "blocked", "passed"}:
+    # new_manifest has always written pending before a review is recorded.
+    if "status" not in declared_review or status == "pending":
         return []
+    if status not in {"findings", "blocked", "passed"}:
+        return [{"code": "declared-review-not-passed", "severity": "major", "message": f"Manifest review status is {status}."}]
     declared = declared_review.get("findings", [])
     if not isinstance(declared, list):
         raise ValueError("Review findings must be a list")
@@ -303,7 +308,12 @@ def _declared_review_findings(manifest: dict[str, Any]) -> list[dict[str, Any]]:
             for field in ("severity", "resolution_status"):
                 if field in item and not isinstance(item[field], str):
                     raise ValueError(f"Review finding {index} {field} must be a string, not {type(item[field]).__name__}")
-            if item.get("severity") in _BLOCKING_SEVERITIES and item.get("resolution_status", "open") not in {"resolved", "not-applicable"}:
+            # Match record_review: an unknown severity cannot certify a pass,
+            # even if the finding was marked resolved.
+            if item.get("severity") not in _KNOWN_SEVERITIES or (
+                item.get("severity") in _BLOCKING_SEVERITIES
+                and item.get("resolution_status", "open") not in {"resolved", "not-applicable"}
+            ):
                 consumed.append((index, item))
     for index, item in consumed:
         if not isinstance(item, dict):

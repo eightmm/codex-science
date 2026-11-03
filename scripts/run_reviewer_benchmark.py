@@ -22,6 +22,8 @@ def main() -> int:
         text = json.dumps(report, indent=2, sort_keys=True) + "\n"
         if args.output: write_text_atomic(args.output, text)
         else: print(text, end="")
+    except RecursionError:
+        parser.exit(2, "error: reviewer benchmark input has excessive nesting\n")
     except (OSError, ValueError) as error:
         parser.exit(2, f"error: {error}\n")
     if args.require_safe and (report["case_count"] == 0 or report["unsafe_pass_rate"] != 0 or report["critical_recall"] != 1 or report["major_recall"] != 1):

@@ -81,8 +81,9 @@ def main() -> None:
         sidecars = validate_bundle(manifest, manifest_path.parent)
         if args.review_output:
             _check_review_output(args.review_output, manifest_path, manifest)
-    except (ValueError, OSError, json.JSONDecodeError) as error:
-        print(f"error: {error}", file=sys.stderr)
+    except (ValueError, OSError, json.JSONDecodeError, RecursionError) as error:
+        detail = "excessive nesting" if isinstance(error, RecursionError) else str(error)
+        print(f"error: {detail}", file=sys.stderr)
         if "Artifact digest mismatch" in str(error):
             print(
                 f"hint: rehash with package_run.py refresh --run-dir {manifest_path.parent}",
@@ -98,8 +99,9 @@ def main() -> None:
                 json.dumps(review, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
-        except (ValueError, OSError, json.JSONDecodeError) as error:
-            print(f"error: {error}", file=sys.stderr)
+        except (ValueError, OSError, json.JSONDecodeError, RecursionError) as error:
+            detail = "excessive nesting" if isinstance(error, RecursionError) else str(error)
+            print(f"error: {detail}", file=sys.stderr)
             if "Artifact digest mismatch" in str(error):
                 print(
                     f"hint: rehash with package_run.py refresh --run-dir {manifest_path.parent}",

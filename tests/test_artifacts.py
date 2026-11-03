@@ -282,6 +282,41 @@ class ArtifactManifestTests(unittest.TestCase):
         self.assertEqual("passed", manifest["review"]["status"])
         self.assertEqual("passed", review_manifest(manifest)["status"])
 
+    def test_unknown_declared_review_status_is_a_finding(self) -> None:
+        manifest = new_manifest("review-status", "Question", [])
+        finding = {"code": "fixture", "severity": "critical", "message": "Fixture finding"}
+        for status in ("failed", "unknown", "", "Passed"):
+            for findings in ([], [finding]):
+                with self.subTest(status=status, findings=findings):
+                    manifest["review"] = {"status": status, "findings": findings}
+                    result = review_manifest(manifest)
+                    self.assertEqual("findings", result["status"])
+                    self.assertIn("declared-review-not-passed", {item["code"] for item in result["findings"]})
+        for review in ({}, {"status": "pending", "findings": []}, {"status": "passed", "findings": []}):
+            manifest["review"] = review
+            self.assertEqual("passed", review_manifest(manifest)["status"])
+        for status in (None, 0, False, [], {}):
+            manifest["review"] = {"status": status}
+            with self.assertRaisesRegex(ValueError, "review status must be a string"):
+                review_manifest(manifest)
+
+    def test_passed_review_uses_checkpoint_blocking_severity_rule(self) -> None:
+        manifest = new_manifest("review-severity", "Question", [])
+        for severity in ("Major", "CRITICAL", "unknown", "", None,
+                         "major", "critical", "minor", "suggestion"):
+            for resolution in ("open", "resolved", "not-applicable"):
+                with self.subTest(severity=severity, resolution=resolution):
+                    finding = {"code": "fixture", "message": "Fixture finding",
+                               "resolution_status": resolution}
+                    if severity is not None:
+                        finding["severity"] = severity
+                    manifest["review"] = {"status": "passed", "findings": [finding]}
+                    blocking = severity not in {"critical", "major", "minor", "suggestion"} or (
+                        severity in {"major", "critical"} and resolution == "open")
+                    result = review_manifest(manifest)
+                    self.assertEqual("findings" if blocking else "passed", result["status"])
+                    self.assertEqual([finding] if blocking else [], result["findings"])
+
     def test_local_code_digest_mismatch_blocks_passed_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)
@@ -1851,6 +1886,51 @@ class ArtifactIndexTests(unittest.TestCase):
             self.assertTrue(result.stderr.startswith("error:"), result.stderr)
             self.assertIn("package_run.py refresh --run-dir", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
+
+    def test_validate_artifact_labels_excessive_nesting_in_manifest_and_review(self) -> None:
+        import io
+        import runpy
+
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            manifest = new_manifest("deep-manifest", "Question", [])
+            manifest["review"] = {"status": "passed", "findings": []}
+            manifest_path = directory / "manifest.json"
+            output = directory / "review.json"
+            output.write_bytes(b"previous review")
+            validator = self.repository_root / "scripts" / "validate_artifact.py"
+            command = [str(validator), str(manifest_path), "--review-output", str(output)]
+            nested = "[" * 100_000 + "0" + "]" * 100_000
+            contents = json.dumps(manifest).replace('"findings": []', '"findings": ' + nested)
+            manifest_path.write_text(contents, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-I", "-S", *command], capture_output=True, text=True,
+                timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+            )
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("error:", result.stderr)
+            self.assertIn("excessive nesting", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual("", result.stdout)
+            self.assertEqual(contents, manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(b"previous review", output.read_bytes())
+            for findings in ([], [{"code": "fixture", "message": "Fixture finding", "severity": "minor"}]):
+                manifest["review"]["findings"] = findings
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                result = subprocess.run(
+                    [sys.executable, "-I", "-S", *command], capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+            output.write_bytes(b"previous review")
+            with mock.patch("codex_science.review.review_manifest", side_effect=RecursionError), \
+                    mock.patch.object(sys, "argv", command), \
+                    mock.patch("sys.stdout", io.StringIO()), mock.patch("sys.stderr", io.StringIO()) as errors:
+                with self.assertRaises(SystemExit) as raised:
+                    runpy.run_path(str(validator), run_name="__main__")
+            self.assertEqual(1, raised.exception.code)
+            self.assertIn("error: excessive nesting", errors.getvalue())
+            self.assertEqual(b"previous review", output.read_bytes())
 
     def test_validate_artifact_help_lists_sidecar_values_and_example(self) -> None:
         from codex_science import evidence
