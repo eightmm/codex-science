@@ -231,7 +231,7 @@ class PublicDriftTests(unittest.TestCase):
                     self.assertEqual("semantic-drift", record["status"])
                     self.assertNotEqual("", record["detail"])
         record = self.module.probe("source", UniProtConnector(fetch_json=lambda url: None), "query", previous_failures=0)
-        self.assertIn("(AttributeError)", record["detail"])
+        self.assertIn("UniProt upstream error: response must be an object", record["detail"])
 
     def test_http_408_and_429_are_transient_like_5xx(self) -> None:
         import urllib.error

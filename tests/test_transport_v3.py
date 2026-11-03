@@ -314,6 +314,7 @@ class TransportV3RobustnessTests(unittest.TestCase):
             transport.send(PageRequest("GET", "http://127.0.0.1:1/a\x01b", {}))
         self.assertFalse(caught.exception.retryable)
         self.assertIn("invalid request URL", str(caught.exception))
+        self.assertNotIn("control characters", str(caught.exception))
 
     def test_malformed_response_leaves_no_snapshot_query_directory(self):
         request = QueryRequest("pubmed", "search", {"query": "x"}, source_contract_version="3")

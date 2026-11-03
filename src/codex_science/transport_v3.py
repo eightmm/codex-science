@@ -409,8 +409,9 @@ class UrllibTransport:
                     retryable=retryable,
                 ) from error
             except http.client.InvalidURL as error:
-                # A malformed request URL is a client-side defect; retrying cannot help.
-                raise TransportError(f"invalid request URL {_redact_url(request.url)}: {error}", retryable=False) from error
+                # A malformed request URL is a client-side defect; retrying cannot help. The
+                # http.client message repeats the unredacted path and query, so it is not shown.
+                raise TransportError(f"invalid request URL {_redact_url(request.url)}", retryable=False) from error
             except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as error:
                 last_error = error
                 if attempt < self.policy.max_attempts:
