@@ -34,13 +34,13 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="write the family report JSON to this path instead of stdout")
     args = parser.parse_args()
     try:
-        payload = json.loads(args.records.read_text())
+        payload = json.loads(args.records.read_text(encoding="utf-8"))
         records = payload.get("studies") if isinstance(payload, dict) else payload
         report = {"schema_version": 1, "families": resolve_study_families(records)}
         text = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
         if args.output: args.output.write_text(text, encoding="utf-8")
         else: print(text, end="")
-    except (ValueError, OSError, UnicodeError) as error:
+    except (ValueError, OSError, UnicodeError, RecursionError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0

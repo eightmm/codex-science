@@ -1040,6 +1040,63 @@ class CollaborationAndLiteratureV2Tests(unittest.TestCase):
                     resolve_study_families([first, second, duplicate])
         self.assertEqual(original, records)
 
+    def test_study_families_ignore_placeholder_identifiers_when_linking(self) -> None:
+        for field, first, second in (("doi", "n/a", "n/a"), ("persistent_ids", ["TBD"], ["tbd"]), ("pmid", "pending", "pending")):
+            with self.subTest(field=field):
+                records = [{"study_id": "s1", field: first}, {"study_id": "s2", field: second}]
+                families = resolve_study_families(records)
+                self.assertEqual([["s1"], ["s2"]], sorted(f["study_ids"] for f in families))
+                self.assertEqual(2, len({f["family_id"] for f in families}))
+        shared = resolve_study_families([
+            {"study_id": "s1", "doi": "n/a", "pmid": "12345678"},
+            {"study_id": "s2", "doi": "n/a", "persistent_ids": ["PMID:12345678"]},
+        ])
+        self.assertEqual([["s1", "s2"]], [f["study_ids"] for f in shared])
+        self.assertIn("doi:n/a", shared[0]["persistent_ids"])
+        for first, second, linked in (
+            ({"pmid": "1234"}, {"persistent_ids": ["PMID:1234"]}, True),
+            ({"persistent_ids": ["isrctn:ISRCTN12345678"]}, {"persistent_ids": ["isrctn:ISRCTN12345678"]}, True),
+            ({"persistent_ids": ["isrctn:none"]}, {"persistent_ids": ["isrctn:none"]}, False),
+            ({"pmid": "0000"}, {"pmid": "0000"}, False),
+        ):
+            with self.subTest(first=first):
+                families = resolve_study_families([{"study_id": "s1", **first}, {"study_id": "s2", **second}])
+                self.assertEqual(1 if linked else 2, len(families), families)
+
+    def test_study_families_refuse_non_list_persistent_ids_and_rank_null_state(self) -> None:
+        for bad in ("doi:10.1000/one", {"doi": "10.1000/one"}, 5):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, r"study s1 persistent_ids must be a list"):
+                    resolve_study_families([{"study_id": "s1", "persistent_ids": bad}])
+        self.assertEqual(1, len(resolve_study_families([{"study_id": "s1", "persistent_ids": None}])))
+        records = [
+            {"study_id": "a", "doi": "10.1000/x", "publication_state": None},
+            {"study_id": "b", "doi": "10.1000/x", "publication_state": "preprint"},
+        ]
+        family = resolve_study_families(records)[0]
+        self.assertEqual("b", family["canonical_study_id"])
+        self.assertEqual(["preprint", "unknown"], family["publication_states"])
+        family = resolve_study_families([
+            {"study_id": "a", "doi": "10.1000/x", "publication_state": None},
+            {"study_id": "b", "doi": "10.1000/x", "publication_state": "unrecognised-state"},
+        ])[0]
+        self.assertEqual("a", family["canonical_study_id"])
+
+    def test_study_families_cli_reads_utf8_and_reports_deep_nesting(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_study_families.py"
+        timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "records.json"
+            env = {**os.environ, "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+            source.write_bytes(json.dumps([{"study_id": "연구-1", "doi": "10.1000/one"}], ensure_ascii=False).encode("utf-8"))
+            result = subprocess.run([sys.executable, str(script), str(source)], capture_output=True, timeout=timeout, env=env)
+            self.assertEqual(0, result.returncode, result.stderr)
+            source.write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+            deep = subprocess.run([sys.executable, str(script), str(source)], capture_output=True, text=True, timeout=timeout)
+            self.assertEqual(1, deep.returncode, deep.stderr)
+            self.assertTrue(deep.stderr.startswith("error: "))
+            self.assertNotIn("Traceback", deep.stderr)
+
     def test_study_families_cli_refuses_duplicates_before_writing(self) -> None:
         script = Path(__file__).resolve().parents[1] / "scripts/resolve_study_families.py"
         timeout = float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120"))

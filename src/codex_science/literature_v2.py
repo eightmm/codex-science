@@ -98,6 +98,8 @@ def validate_relationships(records: list[dict[str, Any]]) -> None:
         ids.add(study_id)
     for record in records:
         source = record["study_id"]
+        if record.get("persistent_ids") is not None and not isinstance(record["persistent_ids"], list):
+            raise ValueError(f"study {source} persistent_ids must be a list")
         relations = record.get("relationships", [])
         if not isinstance(relations, list):
             raise ValueError(f"study {source} relationships must be a list")
@@ -111,6 +113,23 @@ def validate_relationships(records: list[dict[str, Any]]) -> None:
                 raise ValueError(f"invalid study relationship: {source} {kind} {target}")
 
 
+def _linking_identifiers(record: dict[str, Any]) -> set[str]:
+    """Identifiers well-formed in a recognised namespace; placeholders such as n/a or TBD never link studies."""
+    patterns = dict(IDENTIFIER_PATTERNS)
+    linking = set()
+    for identifier in _identifiers(record):
+        namespace, _, value = identifier.partition(":")
+        pattern = patterns.get(namespace)
+        if pattern is not None and pattern.fullmatch(value):
+            linking.add(identifier)
+        elif namespace == "unknown" or (pattern is not None and namespace != "pmid"):
+            continue
+        # Short PMIDs and other registries (ISRCTN, EudraCT, ...) are real identifiers; placeholders carry no digit.
+        elif (value.isdigit() if namespace == "pmid" else any(c.isdigit() for c in value)) and value.strip("0"):
+            linking.add(identifier)
+    return linking
+
+
 def resolve_study_families(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     validate_relationships(records)
     by_id: dict[str, dict[str, Any]] = {}
@@ -122,7 +141,7 @@ def resolve_study_families(records: list[dict[str, Any]]) -> list[dict[str, Any]
     union = UnionFind(by_id)
     owner: dict[str, str] = {}
     for study_id, record in by_id.items():
-        for identifier in _identifiers(record):
+        for identifier in _linking_identifiers(record):
             if identifier in owner:
                 union.union(study_id, owner[identifier])
             else:
@@ -135,15 +154,16 @@ def resolve_study_families(records: list[dict[str, Any]]) -> list[dict[str, Any]
         groups[union.find(study_id)].append(record)
     families: list[dict[str, Any]] = []
     for records_in_family in groups.values():
-        ranked = sorted(records_in_family, key=lambda item: (PUBLICATION_PRIORITY.get(str(item.get("publication_state", "registry")), 99), str(item["study_id"])))
+        ranked = sorted(records_in_family, key=lambda item: (PUBLICATION_PRIORITY.get(str(item.get("publication_state") or "registry"), 99), str(item["study_id"])))
         identifiers = sorted(set().union(*(_identifiers(record) for record in records_in_family)))
-        family_id = "family-" + hashlib.sha256("|".join(identifiers or sorted(str(item["study_id"]) for item in records_in_family)).encode("utf-8")).hexdigest()[:20]
+        linking = sorted(set().union(*(_linking_identifiers(record) for record in records_in_family)))
+        family_id = "family-" + hashlib.sha256("|".join(linking or sorted(str(item["study_id"]) for item in records_in_family)).encode("utf-8")).hexdigest()[:20]
         families.append({
             "family_id": family_id,
             "canonical_study_id": str(ranked[0]["study_id"]),
             "study_ids": sorted(str(item["study_id"]) for item in records_in_family),
             "persistent_ids": identifiers,
-            "publication_states": sorted({str(item.get("publication_state", "unknown")) for item in records_in_family}),
+            "publication_states": sorted({str(item.get("publication_state") or "unknown") for item in records_in_family}),
         })
     return sorted(families, key=lambda item: item["family_id"])
 
