@@ -1,0 +1,19 @@
+{
+  "alpha": 0.05,
+  "censoring_rule": "administrative right censoring at last observed fixture time",
+  "event_definition": "first observed fixture endpoint",
+  "fixture": "synthetic fixture",
+  "group_assignment": "group label measured at baseline, without later information",
+  "groups": [
+    "A",
+    "B"
+  ],
+  "maximum_censoring_imbalance": 0.5,
+  "minimum_events": 8,
+  "minimum_subjects_per_group": 2,
+  "schema": "survival-protocol-v1",
+  "test": "log-rank",
+  "tie_handling": "events-before-censoring",
+  "time_origin": "baseline enrollment at time zero",
+  "time_unit": "days"
+}

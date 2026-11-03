@@ -1,0 +1,336 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "minimum_events"
+          ],
+          "target": "protocol",
+          "value": 17
+        }
+      ],
+      "code": "insufficient-events",
+      "name": "insufficient-events"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "medians",
+            "B"
+          ],
+          "target": "report",
+          "value": 30
+        }
+      ],
+      "code": "median-unavailable",
+      "name": "median-unavailable"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "time_unit"
+          ],
+          "target": "cohort",
+          "value": "hours"
+        }
+      ],
+      "code": "mixed-time-units",
+      "name": "mixed-time-units"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            1,
+            "subject_id"
+          ],
+          "target": "cohort",
+          "value": "A00"
+        }
+      ],
+      "code": "duplicate-subject",
+      "name": "duplicate-subject"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "group_assignment_time"
+          ],
+          "target": "cohort",
+          "value": 1
+        }
+      ],
+      "code": "immortal-time",
+      "name": "immortal-time"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "maximum_censoring_imbalance"
+          ],
+          "target": "protocol",
+          "value": 0.49
+        }
+      ],
+      "code": "censoring-imbalance",
+      "name": "censoring-imbalance"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "hazard_ratio",
+            "label"
+          ],
+          "target": "report",
+          "value": "log-rank O/E hazard ratio"
+        }
+      ],
+      "code": "hazard-label",
+      "name": "hazard-label"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "censored"
+          ],
+          "target": "cohort",
+          "value": true
+        }
+      ],
+      "code": "event-censoring",
+      "name": "event-censoring"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "groups"
+          ],
+          "target": "report",
+          "value": [
+            "B",
+            "A"
+          ]
+        }
+      ],
+      "code": "post-hoc-change",
+      "name": "post-hoc-groups"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "test"
+          ],
+          "target": "report",
+          "value": "weighted-log-rank"
+        }
+      ],
+      "code": "post-hoc-change",
+      "name": "post-hoc-test"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The survival difference is causal."
+        }
+      ],
+      "code": "claim-overreach",
+      "name": "causal"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Treatment effect is established."
+        }
+      ],
+      "code": "claim-overreach",
+      "name": "treatment"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "A clinical recommendation follows."
+        }
+      ],
+      "code": "claim-overreach",
+      "name": "clinical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        }
+      ],
+      "code": "non-evidence-support",
+      "name": "review-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "computed-agreement"
+        }
+      ],
+      "code": "non-evidence-support",
+      "name": "computed-result"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "computed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "name": "computed-kind"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "report",
+          "value": []
+        }
+      ],
+      "code": "missing-evidence",
+      "name": "empty-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            1,
+            "text"
+          ],
+          "target": "report",
+          "value": "Significant evidence is supported."
+        }
+      ],
+      "code": "unavailable-positive",
+      "name": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        }
+      ],
+      "code": "external-alias",
+      "name": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_before_table_read"
+          ],
+          "target": "pack",
+          "value": false
+        }
+      ],
+      "code": "protocol-freeze",
+      "name": "protocol-freeze"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "headline"
+          ],
+          "target": "report",
+          "value": "Hazard ratio favors group B."
+        }
+      ],
+      "code": "hazard-label",
+      "name": "hazard-headline"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "rows",
+            0,
+            "time"
+          ],
+          "target": "cohort",
+          "value": 0
+        }
+      ],
+      "code": "invalid-time",
+      "name": "nonpositive-time"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "censoring_fractions",
+            "B"
+          ],
+          "target": "report",
+          "value": 0.25
+        }
+      ],
+      "code": "reported-number",
+      "name": "hidden-censoring"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

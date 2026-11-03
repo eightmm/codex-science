@@ -1,0 +1,4 @@
+interface:
+  display_name: "Proteomics Differential Abundance"
+  short_description: "Compare quantified protein intensities with frozen controls"
+  default_prompt: "Use $workflow-proteomics-differential-abundance for a frozen biological-sample contrast, visible missingness and peptide controls, full-family BH and independent review handoff."

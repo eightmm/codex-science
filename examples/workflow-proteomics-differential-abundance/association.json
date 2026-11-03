@@ -1,0 +1,8 @@
+{
+  "fixture": true,
+  "kind": "statistical-evidence",
+  "origin": "study",
+  "protein_id": "CHANGED",
+  "result": "protein-level-association",
+  "schema": "proteomics-evidence-v1"
+}

@@ -1,0 +1,410 @@
+{
+  "database_name": "synthetic-protein-database",
+  "database_version": "fixture-v1",
+  "fixture": true,
+  "organism": "synthetic-organism",
+  "proteins": [
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "CHANGED",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        2048,
+        1024,
+        2048,
+        16384,
+        32768,
+        16384,
+        32768
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "BATCH",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        256,
+        256,
+        4096,
+        4096,
+        256,
+        256,
+        4096,
+        4096
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "NULL_A",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        512,
+        1024,
+        2048,
+        1024,
+        512,
+        1024,
+        2048,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "NULL_B",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        2048,
+        1024,
+        512,
+        1024,
+        2048,
+        1024,
+        512,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO1",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO2",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO3",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO4",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO5",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO6",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "ZERO7",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "LOW_PEPTIDE",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 1,
+      "values": [
+        1024,
+        2048,
+        1024,
+        2048,
+        16384,
+        32768,
+        16384,
+        32768
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "id": "MISSING",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        null,
+        null,
+        null,
+        512,
+        null,
+        1024,
+        512,
+        1024
+      ]
+    },
+    {
+      "contaminant": false,
+      "decoy": true,
+      "id": "DECOY",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        2048,
+        1024,
+        2048,
+        16384,
+        32768,
+        16384,
+        32768
+      ]
+    },
+    {
+      "contaminant": true,
+      "decoy": false,
+      "id": "CONTAMINANT",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "peptides": 3,
+      "values": [
+        1024,
+        2048,
+        1024,
+        2048,
+        16384,
+        32768,
+        16384,
+        32768
+      ]
+    }
+  ],
+  "sample_ids": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7",
+    "S8"
+  ],
+  "schema": "proteomics-intensities-v1",
+  "seed": 1729
+}

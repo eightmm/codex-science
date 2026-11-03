@@ -1,0 +1,89 @@
+{
+  "database_name": "synthetic-protein-database",
+  "database_version": "fixture-v1",
+  "fixture": true,
+  "organism": "synthetic-organism",
+  "samples": [
+    {
+      "batch": "batch-1",
+      "biological_unit": "BIO1",
+      "condition": "A",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S1",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-1",
+      "biological_unit": "BIO2",
+      "condition": "A",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S2",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-2",
+      "biological_unit": "BIO3",
+      "condition": "A",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S3",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-2",
+      "biological_unit": "BIO4",
+      "condition": "A",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S4",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-1",
+      "biological_unit": "BIO5",
+      "condition": "B",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S5",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-1",
+      "biological_unit": "BIO6",
+      "condition": "B",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S6",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-2",
+      "biological_unit": "BIO7",
+      "condition": "B",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S7",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    },
+    {
+      "batch": "batch-2",
+      "biological_unit": "BIO8",
+      "condition": "B",
+      "database_name": "synthetic-protein-database",
+      "database_version": "fixture-v1",
+      "id": "S8",
+      "organism": "synthetic-organism",
+      "replicate_type": "biological"
+    }
+  ],
+  "schema": "proteomics-design-v1"
+}

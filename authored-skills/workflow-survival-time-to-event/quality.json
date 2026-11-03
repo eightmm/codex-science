@@ -1,0 +1,60 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-survival-time-to-event/pack.json",
+    "examples/workflow-survival-time-to-event/expected.json",
+    "examples/workflow-survival-time-to-event/tiny/pack.json",
+    "examples/workflow-survival-time-to-event/tiny/expected.json",
+    "examples/workflow-survival-time-to-event/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance, never real-cohort, causal, physical or clinical validation.",
+    "The unadjusted two-group right-censored reference excludes covariates, delayed entry, competing events and interval censoring; the event minimum is not a power justification.",
+    "Censoring fraction balance cannot prove noninformative censoring. The O/E ratio is exploratory, never a Cox estimate or a proportional-hazards claim.",
+    "Hash-bound declarations cannot independently establish historical freeze timing or true source independence; independent review remains coordinator-owned and unavailable here.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. The gate also refuses truth, physical validity and patient benefit, includes negations and is incomplete for unlisted paraphrases.",
+    "Missing records are unavailable, never negative evidence; computed agreement and review approval cannot support positive claims."
+  ],
+  "output_schemas": [
+    "survival-pack-v1",
+    "survival-protocol-v1",
+    "survival-cohort-v1",
+    "survival-report-v1",
+    "survival-evidence-v1",
+    "survival-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "insufficient-events",
+    "median-unavailable",
+    "mixed-time-units",
+    "duplicate-subject",
+    "immortal-time",
+    "censoring-imbalance",
+    "hazard-label",
+    "event-censoring",
+    "post-hoc-groups",
+    "post-hoc-test",
+    "causal",
+    "treatment",
+    "clinical",
+    "review-kind",
+    "computed-result",
+    "computed-kind",
+    "empty-evidence",
+    "unavailable-positive",
+    "external-alias",
+    "protocol-freeze",
+    "hazard-headline",
+    "nonpositive-time",
+    "hidden-censoring"
+  ],
+  "skill": "workflow-survival-time-to-event",
+  "test_files": [
+    "tests/test_workflow_survival_pack.py"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "E1",
+      "kind": "observational-table",
+      "origin": "internal",
+      "result": "recorded",
+      "source": {
+        "path": "cohort.json",
+        "sha256": "938cb8447f9d3be86a2f43012ad67cb6f4ca94e4717353b5e168dca67ccb0391"
+      }
+    }
+  ],
+  "schema": "survival-evidence-v1"
+}

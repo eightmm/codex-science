@@ -1,0 +1,24 @@
+{
+  "cohort": {
+    "path": "cohort.json",
+    "sha256": "938cb8447f9d3be86a2f43012ad67cb6f4ca94e4717353b5e168dca67ccb0391"
+  },
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "cc7ff99280824661d4887e36b0bfdee1e8317df416dd2b9df1eafce2ec415a16"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_table_read": true,
+  "frozen_protocol_sha256": "0135c09188450d61ff00c6983f95bc7acc9f77aa60cbe3025c5b18df91feeddf",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "0135c09188450d61ff00c6983f95bc7acc9f77aa60cbe3025c5b18df91feeddf"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "de2b84714ab25651fc86bbff8df8772e39ac165609d20e35eb7fc8a35838739b"
+  },
+  "schema": "survival-pack-v1"
+}

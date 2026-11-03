@@ -1,0 +1,130 @@
+{
+  "cases": [
+    {
+      "finding": "evaluation-threshold",
+      "id": "evaluation-threshold",
+      "path": "negative.evaluation-threshold.pack.json"
+    },
+    {
+      "finding": "verification-bias",
+      "id": "verification-bias",
+      "path": "negative.verification-bias.pack.json"
+    },
+    {
+      "finding": "verification-bias",
+      "id": "score-selected-verification",
+      "path": "negative.score-selected-verification.pack.json"
+    },
+    {
+      "finding": "incorporation-bias",
+      "id": "incorporation-bias",
+      "path": "negative.incorporation-bias.pack.json"
+    },
+    {
+      "finding": "subject-leakage",
+      "id": "subject-leakage",
+      "path": "negative.subject-leakage.pack.json"
+    },
+    {
+      "finding": "insufficient-class",
+      "id": "insufficient-cases",
+      "path": "negative.insufficient-cases.pack.json"
+    },
+    {
+      "finding": "insufficient-class",
+      "id": "insufficient-controls",
+      "path": "negative.insufficient-controls.pack.json"
+    },
+    {
+      "finding": "predictive-prevalence",
+      "id": "missing-prevalence",
+      "path": "negative.missing-prevalence.pack.json"
+    },
+    {
+      "finding": "predictive-prevalence",
+      "id": "prevalence-transfer",
+      "path": "negative.prevalence-transfer.pack.json"
+    },
+    {
+      "finding": "predictive-value",
+      "id": "wrong-predictive-value",
+      "path": "negative.wrong-predictive-value.pack.json"
+    },
+    {
+      "finding": "constant-scores",
+      "id": "constant-scores",
+      "path": "negative.constant-scores.pack.json"
+    },
+    {
+      "finding": "undefined-class",
+      "id": "undefined-class",
+      "path": "negative.undefined-class.pack.json"
+    },
+    {
+      "finding": "missing-reference",
+      "id": "missing-reference",
+      "path": "negative.missing-reference.pack.json"
+    },
+    {
+      "finding": "unblinded-reference",
+      "id": "unblinded-reference",
+      "path": "negative.unblinded-reference.pack.json"
+    },
+    {
+      "finding": "protocol-freeze",
+      "id": "post-outcome-freeze",
+      "path": "negative.post-outcome-freeze.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "clinical-utility",
+      "path": "negative.clinical-utility.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "screening-recommendation",
+      "path": "negative.screening-recommendation.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal",
+      "path": "negative.causal.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "physical-validity",
+      "path": "negative.physical-validity.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "review-approval",
+      "path": "negative.review-approval.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "computed-kind",
+      "path": "negative.computed-kind.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "computed-result",
+      "path": "negative.computed-result.pack.json"
+    },
+    {
+      "finding": "claim-support",
+      "id": "empty-evidence",
+      "path": "negative.empty-evidence.pack.json"
+    },
+    {
+      "finding": "unavailable-positive",
+      "id": "unavailable-positive",
+      "path": "negative.unavailable-positive.pack.json"
+    },
+    {
+      "finding": "evidence-independence",
+      "id": "outside-alias",
+      "path": "negative.outside-alias.pack.json"
+    }
+  ],
+  "fixture": true
+}

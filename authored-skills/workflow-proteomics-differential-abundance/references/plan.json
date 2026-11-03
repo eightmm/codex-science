@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash the design and complete controls before reading intensities.",
+      "id": "01-design",
+      "status": "pending"
+    },
+    {
+      "description": "Check organism/database identities and preserve sample QC, flags and failures.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Normalize observed log2 intensities with explicit missing/imputed masks.",
+      "id": "03-normalization",
+      "status": "pending"
+    },
+    {
+      "description": "Compute biological-unit Welch tests and BH across every tested protein.",
+      "id": "04-testing",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

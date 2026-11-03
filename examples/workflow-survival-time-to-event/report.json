@@ -1,0 +1,44 @@
+{
+  "censoring_fractions": {
+    "A": 0.25,
+    "B": 0.75
+  },
+  "claims": [
+    {
+      "evidence": [
+        "E1"
+      ],
+      "id": "C1",
+      "kind": "associational",
+      "status": "suggestive",
+      "text": "The supplied synthetic fixture records a group difference in observed follow-up."
+    },
+    {
+      "evidence": [],
+      "id": "C2",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent review is unavailable."
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "groups": [
+    "A",
+    "B"
+  ],
+  "hazard_ratio": {
+    "label": "exploratory log-rank O/E hazard ratio",
+    "proportional_hazards_claim": false,
+    "value": 7.371849411717601
+  },
+  "headline": "Synthetic fixture group comparison; statistical evidence only",
+  "medians": {
+    "A": 8,
+    "B": "unavailable"
+  },
+  "protocol_sha256": "b5c1bda75dd71a4aa618cc531406f4efb85c73d08327f1e7ae2b4b31c5f2b399",
+  "schema": "survival-report-v1",
+  "significant": true,
+  "test": "log-rank"
+}

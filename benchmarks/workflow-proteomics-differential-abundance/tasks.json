@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "pack": "workflow-proteomics-differential-abundance",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Only CHANGED passes full-family BH at frozen alpha 0.05.",
+        "BATCH, NULL_A and NULL_B have p=q=1; excluded and untestable rows have null significance.",
+        "CHANGED has log2 fold change 4, t=sqrt(96), df=6 and the hand-integrated Student-t tail.",
+        "Observed counts for MISSING are [1,3]; imputation never increases them.",
+        "All sample QC, flags, peptide counts and missingness remain visible; review is unavailable and evidence is statistical-only."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-condition-with-batch-control",
+      "input": "examples/workflow-proteomics-differential-abundance/pack.json",
+      "question": "Does only the planted protein abundance difference survive a balanced synthetic batch effect?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 30 negative bundles raise their named ValueError and the CLI prints a JSON refusal with exit 2.",
+        "Removing each relevant guard makes its individual seeded-defect test fail.",
+        "No writes, network, installation, external executable, GPU or remote computation occurs."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-proteomics-differential-abundance/negative-cases.json",
+      "question": "Does each seeded defect refuse its claimed conclusion for the stated reason?"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no physical or clinical validity or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Input identities, five stages, local shapes, hard bounds, reference math and refusal controls.",
+      "read_when": [
+        "freezing two baseline groups",
+        "admitting per-subject follow-up",
+        "computing or validating survival quantities",
+        "handing off statistical evidence"
+      ],
+      "required_before": [
+        "protocol-freeze",
+        "cohort-admission",
+        "integrity-gate",
+        "survival-computation",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Invocation and immutable identities",
+        "## 04-computation: statistical evidence"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage ordering cannot prove execution, historical preregistration or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape and one coordinator checkpoint in five fixed stages.",
+      "read_when": [
+        "creating a coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-protocol",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-survival-time-to-event"
+}

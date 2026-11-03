@@ -1,0 +1,185 @@
+{
+  "cases": [
+    {
+      "finding": "batch-confounding",
+      "id": "batch-confounding",
+      "path": "batch-confounding.json",
+      "reason": "Every batch belongs to only one condition."
+    },
+    {
+      "finding": "technical-replicates",
+      "id": "technical-replicates",
+      "path": "technical-replicates.json",
+      "reason": "Two runs from one biological unit inflate independent n."
+    },
+    {
+      "finding": "technical-replicates",
+      "id": "technical-label",
+      "path": "technical-label.json",
+      "reason": "A technical run is labelled as a test replicate."
+    },
+    {
+      "finding": "undeclared-imputation",
+      "id": "undeclared-imputation",
+      "path": "undeclared-imputation.json",
+      "reason": "An imputed input is supplied under keep-missing."
+    },
+    {
+      "finding": "untestable-hit",
+      "id": "imputed-as-observed",
+      "path": "imputed-as-observed.json",
+      "reason": "Only one genuinely observed value remains in A despite imputed values."
+    },
+    {
+      "finding": "excluded-hit",
+      "id": "decoy-hit",
+      "path": "decoy-hit.json",
+      "reason": "Excluded or untestable protein is asserted as a significant hit."
+    },
+    {
+      "finding": "excluded-hit",
+      "id": "contaminant-hit",
+      "path": "contaminant-hit.json",
+      "reason": "Excluded or untestable protein is asserted as a significant hit."
+    },
+    {
+      "finding": "peptide-hit",
+      "id": "peptide-hit",
+      "path": "peptide-hit.json",
+      "reason": "Excluded or untestable protein is asserted as a significant hit."
+    },
+    {
+      "finding": "untestable-hit",
+      "id": "too-few-hit",
+      "path": "too-few-hit.json",
+      "reason": "Excluded or untestable protein is asserted as a significant hit."
+    },
+    {
+      "finding": "untestable-hit",
+      "id": "zero-variance-hit",
+      "path": "zero-variance-hit.json",
+      "reason": "Excluded or untestable protein is asserted as a significant hit."
+    },
+    {
+      "finding": "zero-abundance",
+      "id": "missing-as-zero",
+      "path": "missing-as-zero.json",
+      "reason": "Missing intensity has been replaced with zero abundance."
+    },
+    {
+      "finding": "database-identity",
+      "id": "database-version",
+      "path": "database-version.json",
+      "reason": "One sample uses a different protein database version."
+    },
+    {
+      "finding": "bh-required",
+      "id": "no-bh",
+      "path": "no-bh.json",
+      "reason": "Unadjusted p values are used without BH."
+    },
+    {
+      "finding": "bh-required",
+      "id": "filtered-bh",
+      "path": "filtered-bh.json",
+      "reason": "Correction is applied to a selected subset after testing."
+    },
+    {
+      "finding": "post-hoc-change",
+      "id": "post-normalization",
+      "path": "post-normalization.json",
+      "reason": "Normalization changes after freeze without exploratory label."
+    },
+    {
+      "finding": "post-hoc-change",
+      "id": "post-contrast",
+      "path": "post-contrast.json",
+      "reason": "Contrast changes after freeze without exploratory label."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal",
+      "path": "causal.json",
+      "reason": "Statistical association is promoted beyond the admitted evidence."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "mechanistic",
+      "path": "mechanistic.json",
+      "reason": "Statistical association is promoted beyond the admitted evidence."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "clinical",
+      "path": "clinical.json",
+      "reason": "Statistical association is promoted beyond the admitted evidence."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "physical",
+      "path": "physical.json",
+      "reason": "Statistical association is promoted beyond the admitted evidence."
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "review-kind",
+      "path": "review-kind.json",
+      "reason": "Positive support cites approval or numerical computation as evidence."
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "review-result",
+      "path": "review-result.json",
+      "reason": "Positive support cites approval or numerical computation as evidence."
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "computed-kind",
+      "path": "computed-kind.json",
+      "reason": "Positive support cites approval or numerical computation as evidence."
+    },
+    {
+      "finding": "claim-evidence",
+      "id": "computed-result",
+      "path": "computed-result.json",
+      "reason": "Positive support cites approval or numerical computation as evidence."
+    },
+    {
+      "finding": "dependent-evidence",
+      "id": "external-alias",
+      "path": "external-alias.json",
+      "reason": "Declared external evidence is the same study output by path and hash."
+    },
+    {
+      "finding": "unavailable-evidence",
+      "id": "unavailable-negative",
+      "path": "unavailable-negative.json",
+      "reason": "Absent records are presented as negative evidence."
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "unavailable-positive",
+      "path": "unavailable-positive.json",
+      "reason": "An unavailable claim asserts positive evidence."
+    },
+    {
+      "finding": "design-freeze",
+      "id": "unfrozen",
+      "path": "unfrozen.json",
+      "reason": "Design declaration was not frozen before intensity admission."
+    },
+    {
+      "finding": "stage-order",
+      "id": "stage-order",
+      "path": "stage-order.json",
+      "reason": "The fixed stage order has changed."
+    },
+    {
+      "finding": "untestable-hit",
+      "id": "qc-hit",
+      "path": "qc-hit.json",
+      "reason": "Failed sample QC is hidden by a positive hit assertion."
+    }
+  ],
+  "fixture": true
+}

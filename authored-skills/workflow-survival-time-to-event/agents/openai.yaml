@@ -1,0 +1,4 @@
+interface:
+  display_name: "Survival Time to Event"
+  short_description: "Compare baseline groups with frozen event and censoring rules"
+  default_prompt: "Use $workflow-survival-time-to-event to freeze a two-group endpoint protocol, check supplied synthetic follow-up records, compute Kaplan-Meier and log-rank quantities and hand bounded evidence to independent review."

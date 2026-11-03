@@ -1,0 +1,27 @@
+{
+  "direction": "higher",
+  "fixture": true,
+  "incorporates_index_test": false,
+  "index_test": "Synthetic continuous score",
+  "intervals": {
+    "auc": "stratified-bootstrap-percentile-95",
+    "binomial": "wilson-95",
+    "draws": 200,
+    "minimum_success_fraction": 0.8,
+    "seed": 1729
+  },
+  "minimum_cases": 5,
+  "minimum_controls": 4,
+  "population": "Redistributable synthetic subjects only",
+  "reference_standard": "Synthetic reference label",
+  "schema": "diagnostic-accuracy-protocol-v1",
+  "schema_version": 1,
+  "target_condition": "Planted binary class",
+  "threshold": {
+    "chosen_on": "before-outcomes",
+    "method": "fixed",
+    "value": 0.5
+  },
+  "unblinded_reference_disclosed": false,
+  "verification_rule": "all-subjects"
+}

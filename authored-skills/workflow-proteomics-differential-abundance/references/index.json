@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic software acceptance and procedural controls only, never biological evidence or independent review.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Immutable identities, five stages, local record shapes, numerical controls and read-only CLI.",
+      "read_when": [
+        "admitting quantified proteins",
+        "freezing biological-sample controls",
+        "computing abundance contrasts",
+        "validating claims and handing off results"
+      ],
+      "required_before": [
+        "design-freeze",
+        "dataset-admission",
+        "normalization",
+        "protein-testing",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 04-testing: Welch and BH",
+        "## 05-handoff: bounded claims and independent review"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage declarations do not establish execution, historical freezing or truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-design",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-proteomics-differential-abundance"
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diagnostic Accuracy"
+  short_description: "Check score discrimination with frozen thresholds and bias gates"
+  default_prompt: "Use $workflow-diagnostic-accuracy to freeze a supplied score/reference protocol, refuse bias and leakage, compute bounded diagnostic accuracy and hand off statistical evidence for independent review."

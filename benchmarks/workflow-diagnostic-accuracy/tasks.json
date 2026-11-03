@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "pack": "workflow-diagnostic-accuracy",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "tp=tn=3, fp=fn=1; AUC=15/16; sensitivity=specificity=3/4.",
+        "Wilson intervals match hand constants; exact ties receive half credit.",
+        "PPV=NPV=3/4 at assumed and applied prevalence 1/2.",
+        "Repeated seed 1729 produces an identical bootstrap interval.",
+        "Evidence is statistical-only; review stays unavailable; inputs remain unchanged."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-hand-controls",
+      "input": "examples/workflow-diagnostic-accuracy/pack.json",
+      "question": "Does the planted synthetic separation reproduce 15/16 pairwise AUC and 3/4 sensitivity/specificity?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 25 seeded cases raise their named labelled ValueError.",
+        "The individual seeded test fails with its refusal guard disabled.",
+        "No source artifact, failed control or negative result is overwritten."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-diagnostic-accuracy/negative-cases.json",
+      "question": "Does each frozen synthetic defect fail for its named reason and does disabling its guard make its case fail?"
+    }
+  ]
+}

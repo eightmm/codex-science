@@ -1,0 +1,484 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "E1"
+      ],
+      "id": "C1",
+      "kind": "associational",
+      "status": "suggestive",
+      "text": "The supplied synthetic fixture records a group difference in observed follow-up."
+    },
+    {
+      "evidence": [],
+      "id": "C2",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent review is unavailable."
+    }
+  ],
+  "computation": {
+    "censoring_fractions": {
+      "A": 0.25,
+      "B": 0.75
+    },
+    "groups": {
+      "A": {
+        "curve": [
+          {
+            "at_risk": 16,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.003662109375,
+            "log_log_interval": [
+              0.6323454417389038,
+              0.9909531417446664
+            ],
+            "survival": 0.9375,
+            "time": 1
+          },
+          {
+            "at_risk": 15,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.0068359375,
+            "log_log_interval": [
+              0.5859814368090156,
+              0.9671888460291236
+            ],
+            "survival": 0.875,
+            "time": 2
+          },
+          {
+            "at_risk": 14,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.009521484375,
+            "log_log_interval": [
+              0.5246043108266495,
+              0.9353522579658294
+            ],
+            "survival": 0.8125,
+            "time": 3
+          },
+          {
+            "at_risk": 13,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 4
+          },
+          {
+            "at_risk": 12,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.013427734375000002,
+            "log_log_interval": [
+              0.4046032786961071,
+              0.856279177922122
+            ],
+            "survival": 0.6875,
+            "time": 5
+          },
+          {
+            "at_risk": 11,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.014648437500000002,
+            "log_log_interval": [
+              0.34856656721107365,
+              0.8109081520534335
+            ],
+            "survival": 0.625,
+            "time": 6
+          },
+          {
+            "at_risk": 10,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.015380859375000002,
+            "log_log_interval": [
+              0.2954267307104387,
+              0.7622386570392703
+            ],
+            "survival": 0.5625,
+            "time": 7
+          },
+          {
+            "at_risk": 9,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.015625,
+            "log_log_interval": [
+              0.24524386991998667,
+              0.7104638156151458
+            ],
+            "survival": 0.5,
+            "time": 8
+          },
+          {
+            "at_risk": 8,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.015380859374999998,
+            "log_log_interval": [
+              0.1981171752369818,
+              0.6556436847055999
+            ],
+            "survival": 0.4375,
+            "time": 9
+          },
+          {
+            "at_risk": 7,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.014648437499999998,
+            "log_log_interval": [
+              0.1542261912528241,
+              0.5977184611497434
+            ],
+            "survival": 0.375,
+            "time": 10
+          },
+          {
+            "at_risk": 6,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.013427734374999998,
+            "log_log_interval": [
+              0.11387120803182901,
+              0.5364970400684994
+            ],
+            "survival": 0.3125,
+            "time": 11
+          },
+          {
+            "at_risk": 5,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.01171875,
+            "log_log_interval": [
+              0.07753710474052829,
+              0.47161656385096246
+            ],
+            "survival": 0.25,
+            "time": 12
+          },
+          {
+            "at_risk": 4,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.01171875,
+            "log_log_interval": [
+              0.07753710474052829,
+              0.47161656385096246
+            ],
+            "survival": 0.25,
+            "time": 13
+          },
+          {
+            "at_risk": 3,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.01171875,
+            "log_log_interval": [
+              0.07753710474052829,
+              0.47161656385096246
+            ],
+            "survival": 0.25,
+            "time": 14
+          },
+          {
+            "at_risk": 2,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.01171875,
+            "log_log_interval": [
+              0.07753710474052829,
+              0.47161656385096246
+            ],
+            "survival": 0.25,
+            "time": 15
+          },
+          {
+            "at_risk": 1,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.01171875,
+            "log_log_interval": [
+              0.07753710474052829,
+              0.47161656385096246
+            ],
+            "survival": 0.25,
+            "time": 16
+          }
+        ],
+        "median": 8,
+        "subjects": 16
+      },
+      "B": {
+        "curve": [
+          {
+            "at_risk": 16,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.003662109375,
+            "log_log_interval": [
+              0.6323454417389038,
+              0.9909531417446664
+            ],
+            "survival": 0.9375,
+            "time": 24
+          },
+          {
+            "at_risk": 15,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.0068359375,
+            "log_log_interval": [
+              0.5859814368090156,
+              0.9671888460291236
+            ],
+            "survival": 0.875,
+            "time": 25
+          },
+          {
+            "at_risk": 14,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.009521484375,
+            "log_log_interval": [
+              0.5246043108266495,
+              0.9353522579658294
+            ],
+            "survival": 0.8125,
+            "time": 26
+          },
+          {
+            "at_risk": 13,
+            "censored": 0,
+            "events": 1,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 27
+          },
+          {
+            "at_risk": 12,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 28
+          },
+          {
+            "at_risk": 11,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 29
+          },
+          {
+            "at_risk": 10,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 30
+          },
+          {
+            "at_risk": 9,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 31
+          },
+          {
+            "at_risk": 8,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 32
+          },
+          {
+            "at_risk": 7,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 33
+          },
+          {
+            "at_risk": 6,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 34
+          },
+          {
+            "at_risk": 5,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 35
+          },
+          {
+            "at_risk": 4,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 36
+          },
+          {
+            "at_risk": 3,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 37
+          },
+          {
+            "at_risk": 2,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 38
+          },
+          {
+            "at_risk": 1,
+            "censored": 1,
+            "events": 0,
+            "greenwood_variance": 0.011718750000000002,
+            "log_log_interval": [
+              0.46343004265813426,
+              0.8979799097157889
+            ],
+            "survival": 0.75,
+            "time": 39
+          }
+        ],
+        "median": "unavailable",
+        "subjects": 16
+      }
+    },
+    "hazard_ratio": {
+      "label": "exploratory log-rank O/E hazard ratio",
+      "proportional_hazards_claim": false,
+      "value": 7.371849411717601
+    },
+    "log_rank": {
+      "chi_square": 19.66938648743983,
+      "expected": {
+        "A": 4.6279113873145885,
+        "B": 11.372088612685411
+      },
+      "observed": {
+        "A": 12,
+        "B": 4
+      },
+      "p_value": 9.20645081678707e-06,
+      "variance": 2.7630597704707474
+    },
+    "significant": true
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "cohort.json",
+      "sha256": "bde3938038638bb0f31f7933b120cfd3d3020a0870af0111e1feb9cba95314bf"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "bdf538650ca609657f384451be1c2bc0c4d9198730f67827a71319d6a53147db"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "596df41d4663153e62702ac5ad9930e92ae919c471095b6e7f2ca42ff39954f3"
+    },
+    {
+      "path": "protocol.json",
+      "sha256": "b5c1bda75dd71a4aa618cc531406f4efb85c73d08327f1e7ae2b4b31c5f2b399"
+    },
+    {
+      "path": "report.json",
+      "sha256": "069d275c860b960fe4536b20aed0c0f190249fc76bb2e5a8c9b8503db4beb8b4"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures establish software behavior only.",
+    "Hashes cannot establish historical freeze timing or real independence.",
+    "Independent source, record and method review remains unavailable.",
+    "Censoring fraction balance cannot establish noninformative censoring.",
+    "O/E hazard ratio is exploratory; proportional hazards are untested."
+  ],
+  "review": "unavailable",
+  "schema": "survival-result-v1",
+  "stages": [
+    "01-protocol",
+    "02-cohort",
+    "03-integrity",
+    "04-computation",
+    "05-handoff"
+  ],
+  "status": "statistical-evidence-only"
+}

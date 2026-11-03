@@ -1,0 +1,64 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-proteomics-differential-abundance/pack.json",
+    "examples/workflow-proteomics-differential-abundance/expected.json",
+    "examples/workflow-proteomics-differential-abundance/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic software fixture acceptance never establishes biological, physical, causal or clinical validity.",
+    "Unpaired observed-only log2 Welch is not a covariate-adjusted, paired, peptide-level or raw-spectrum model; median normalization and missingness need study-specific sensitivity review.",
+    "Content hashes and declared origins do not prove historical freezing or actual independence.",
+    "The incomplete conservative English whole-word prefix gate uses \\w* families caus, mechanis, therap, clinic, efficac, effective, treat, cure, prevent, recommend, prescri, bind, affinit, inhibit, activat, regulat, driv (including drive/drives), induc; it also refuses truth and physical validity. Independent review must assess unlisted paraphrases.",
+    "Declared imputation affects display only and never observed counts or Welch inputs; failed sample QC blocks every hit while preserving its measurements.",
+    "Coordinator-owned independent science-review and rigor classification remain unavailable until separately completed."
+  ],
+  "output_schemas": [
+    "proteomics-pack-v1",
+    "proteomics-design-v1",
+    "proteomics-intensities-v1",
+    "proteomics-evidence-v1",
+    "proteomics-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "batch-confounding",
+    "technical-replicates",
+    "technical-label",
+    "undeclared-imputation",
+    "imputed-as-observed",
+    "decoy-hit",
+    "contaminant-hit",
+    "peptide-hit",
+    "too-few-hit",
+    "zero-variance-hit",
+    "missing-as-zero",
+    "database-version",
+    "no-bh",
+    "filtered-bh",
+    "post-normalization",
+    "post-contrast",
+    "causal",
+    "mechanistic",
+    "clinical",
+    "physical",
+    "review-kind",
+    "review-result",
+    "computed-kind",
+    "computed-result",
+    "external-alias",
+    "unavailable-negative",
+    "unavailable-positive",
+    "unfrozen",
+    "stage-order",
+    "qc-hit"
+  ],
+  "skill": "workflow-proteomics-differential-abundance",
+  "test_files": [
+    "tests/test_workflow_proteomics_pack.py"
+  ]
+}

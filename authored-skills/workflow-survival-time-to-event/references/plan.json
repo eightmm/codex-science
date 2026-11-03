@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash the endpoint, baseline groups, censoring, ties and thresholds before table admission.",
+      "id": "01-protocol",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic subject identities, time units, flags and baseline assignment times.",
+      "id": "02-cohort",
+      "status": "pending"
+    },
+    {
+      "description": "Refuse leakage, duplicates, inconsistent flags, insufficient events and excess censoring imbalance.",
+      "id": "03-integrity",
+      "status": "pending"
+    },
+    {
+      "description": "Compute Kaplan-Meier uncertainty, log-rank and an explicitly exploratory O/E ratio.",
+      "id": "04-computation",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

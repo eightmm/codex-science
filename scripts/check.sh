@@ -77,6 +77,12 @@ run_science_contracts() (
     examples/workflow-dose-response-curve/synthetic.pack.json >/dev/null
   uv run python scripts/validate_single_cell_pseudobulk_pack.py \
     examples/workflow-single-cell-pseudobulk/pack.json >/dev/null
+  uv run python scripts/validate_proteomics_pack.py \
+    examples/workflow-proteomics-differential-abundance/pack.json >/dev/null
+  uv run python scripts/validate_survival_pack.py \
+    examples/workflow-survival-time-to-event/pack.json >/dev/null
+  uv run python scripts/validate_diagnostic_accuracy_pack.py \
+    examples/workflow-diagnostic-accuracy/pack.json >/dev/null
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

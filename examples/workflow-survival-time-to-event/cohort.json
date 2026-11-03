@@ -1,0 +1,294 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A00",
+      "time": 1,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A01",
+      "time": 2,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A02",
+      "time": 3,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A03",
+      "time": 4,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A04",
+      "time": 5,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A05",
+      "time": 6,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A06",
+      "time": 7,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A07",
+      "time": 8,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A08",
+      "time": 9,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A09",
+      "time": 10,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A10",
+      "time": 11,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A11",
+      "time": 12,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A12",
+      "time": 13,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A13",
+      "time": 14,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A14",
+      "time": 15,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "A15",
+      "time": 16,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B00",
+      "time": 24,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B01",
+      "time": 25,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B02",
+      "time": 26,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B03",
+      "time": 27,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B04",
+      "time": 28,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B05",
+      "time": 29,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B06",
+      "time": 30,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B07",
+      "time": 31,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B08",
+      "time": 32,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B09",
+      "time": 33,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B10",
+      "time": 34,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B11",
+      "time": 35,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B12",
+      "time": 36,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B13",
+      "time": 37,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B14",
+      "time": 38,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "B15",
+      "time": 39,
+      "time_unit": "days"
+    }
+  ],
+  "schema": "survival-cohort-v1"
+}

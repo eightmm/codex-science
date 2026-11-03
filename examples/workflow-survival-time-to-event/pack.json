@@ -1,0 +1,24 @@
+{
+  "cohort": {
+    "path": "cohort.json",
+    "sha256": "bde3938038638bb0f31f7933b120cfd3d3020a0870af0111e1feb9cba95314bf"
+  },
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "bdf538650ca609657f384451be1c2bc0c4d9198730f67827a71319d6a53147db"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_table_read": true,
+  "frozen_protocol_sha256": "b5c1bda75dd71a4aa618cc531406f4efb85c73d08327f1e7ae2b4b31c5f2b399",
+  "protocol": {
+    "path": "protocol.json",
+    "sha256": "b5c1bda75dd71a4aa618cc531406f4efb85c73d08327f1e7ae2b4b31c5f2b399"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "069d275c860b960fe4536b20aed0c0f190249fc76bb2e5a8c9b8503db4beb8b4"
+  },
+  "schema": "survival-pack-v1"
+}

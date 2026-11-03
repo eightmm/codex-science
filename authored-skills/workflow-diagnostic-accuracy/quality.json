@@ -1,0 +1,59 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-diagnostic-accuracy/pack.json",
+    "examples/workflow-diagnostic-accuracy/expected.json",
+    "examples/workflow-diagnostic-accuracy/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixtures validate software only; no clinical or physical validity, source authenticity, causality or decision utility is established.",
+    "Hash-bound freeze declarations and timestamps cannot prove historical timing or actual source independence; upstream selection requires independent source review.",
+    "Wilson and percentile bootstrap intervals are nominal 95%; tiny or separated tables can have poor coverage. Predictive values assume transportable sensitivity and specificity.",
+    "Conservative case-insensitive whole-word English filter uses caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, driv* (drive/drives), induc*, with \\w*; plus truth, screening utility, screening use, physical validity and patient benefit* with spaces/hyphens. It is incomplete and refuses negations too.",
+    "Unavailable claim text additionally refuses supported, replicated, suggestive and significan*. Positive support checks both kind and result for review/approv/comput/numer/physical/clinic/truth.",
+    "Pack review remains unavailable; the coordinator owns rigor and independent source, record and method review."
+  ],
+  "output_schemas": [
+    "diagnostic-accuracy-pack-v1",
+    "diagnostic-accuracy-protocol-v1",
+    "diagnostic-accuracy-cases-v1",
+    "diagnostic-accuracy-evidence-v1",
+    "diagnostic-accuracy-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "evaluation-threshold",
+    "verification-bias",
+    "score-selected-verification",
+    "incorporation-bias",
+    "subject-leakage",
+    "insufficient-cases",
+    "insufficient-controls",
+    "missing-prevalence",
+    "prevalence-transfer",
+    "wrong-predictive-value",
+    "constant-scores",
+    "undefined-class",
+    "missing-reference",
+    "unblinded-reference",
+    "post-outcome-freeze",
+    "clinical-utility",
+    "screening-recommendation",
+    "causal",
+    "physical-validity",
+    "review-approval",
+    "computed-kind",
+    "computed-result",
+    "empty-evidence",
+    "unavailable-positive",
+    "outside-alias"
+  ],
+  "skill": "workflow-diagnostic-accuracy",
+  "test_files": [
+    "tests/test_workflow_diagnostic_pack.py"
+  ]
+}

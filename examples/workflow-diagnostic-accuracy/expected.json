@@ -1,0 +1,108 @@
+{
+  "claims": [
+    {
+      "id": "fixture-discrimination",
+      "kind": "descriptive",
+      "status": "suggestive",
+      "support": [
+        {
+          "origin": "study",
+          "path": "evidence.json",
+          "sha256": "a06567d2a4eb9d118d7d66127b1e22bdf6cc0ee03bb571afa08e9b1e5cc80e48"
+        }
+      ],
+      "text": "Synthetic evaluation scores discriminate the planted reference labels."
+    }
+  ],
+  "evidence_level": "statistical-only",
+  "fixture": true,
+  "input_identities": [
+    {
+      "path": "cases.json",
+      "sha256": "8848e083958f3eae1dee40f4a30cd72a7bbfe040851e254dc5ee6b158f266d52"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "a06567d2a4eb9d118d7d66127b1e22bdf6cc0ee03bb571afa08e9b1e5cc80e48"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "5c95ee97f89662cf5756e6e2f8e8cfdc407bb69807edcd2f9a9186e9cb607819"
+    },
+    {
+      "path": "protocol.json",
+      "sha256": "d6d0ebbef4ec0ae3a7b7da1f0a513efa34da906a4a0c1f264cc92e0bc88785d9"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures validate software only.",
+    "Hash and timestamp declarations do not prove historical freeze timing or actual independence.",
+    "No prevalence transportability, calibration, subgroup validity or decision utility is established.",
+    "Unblinded readings are retained and disclosed; residual bias requires independent review.",
+    "The conservative English lexical claim filter is incomplete; independent review is mandatory."
+  ],
+  "metrics": {
+    "auc": {
+      "draws": 200,
+      "estimate": 0.9375,
+      "interval": [
+        0.75,
+        1.0
+      ],
+      "seed": 1729,
+      "successful_draws": 200
+    },
+    "cases": 4,
+    "confusion": {
+      "fn": 1,
+      "fp": 1,
+      "tn": 3,
+      "tp": 3
+    },
+    "controls": 4,
+    "direction": "higher",
+    "evaluation_prevalence": 0.5,
+    "sensitivity": {
+      "estimate": 0.75,
+      "interval": [
+        0.300641842582402,
+        0.9544127391902995
+      ]
+    },
+    "specificity": {
+      "estimate": 0.75,
+      "interval": [
+        0.300641842582402,
+        0.9544127391902995
+      ]
+    },
+    "threshold": 0.5,
+    "training_subjects": 0,
+    "unblinded_subjects": []
+  },
+  "predictive_values": [
+    {
+      "applied_prevalence": 0.5,
+      "assumed_prevalence": 0.5,
+      "metric": "ppv",
+      "value": 0.75
+    },
+    {
+      "applied_prevalence": 0.5,
+      "assumed_prevalence": 0.5,
+      "metric": "npv",
+      "value": 0.75
+    }
+  ],
+  "protocol_sha256": "d6d0ebbef4ec0ae3a7b7da1f0a513efa34da906a4a0c1f264cc92e0bc88785d9",
+  "review": "unavailable",
+  "schema": "diagnostic-accuracy-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-protocol",
+    "02-cases",
+    "03-bias",
+    "04-computation",
+    "05-handoff"
+  ]
+}

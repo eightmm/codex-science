@@ -1,0 +1,81 @@
+{
+  "analysis_spec": {
+    "alpha": 0.05,
+    "contrast": [
+      "A",
+      "B"
+    ],
+    "correction": "BH",
+    "correction_scope": "all-tested-proteins",
+    "minimum_observed_per_group": 3,
+    "minimum_peptides": 2,
+    "missing_rule": {
+      "method": "keep-missing"
+    },
+    "normalization": "median-log2",
+    "qc": {
+      "max_log2_total_deviation": 10,
+      "max_missing_rate": 0.2
+    },
+    "replicate_unit": "biological_sample"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "associational",
+      "protein_id": "CHANGED",
+      "status": "supported",
+      "support": [
+        {
+          "path": "association.json",
+          "sha256": "747442d0a91debca4204e3ecfc48edc3127b33ecef8901b08cc64078889467b4"
+        }
+      ],
+      "text": "CHANGED has a BH-adjusted abundance difference between synthetic conditions."
+    }
+  ],
+  "exploratory": false,
+  "fixture": true,
+  "freeze_before_intensities": true,
+  "frozen_design_sha256": "8a31401f6495dde41b46c82b5462b85eedaa6b4f00d704a7a5490a7d613aca69",
+  "frozen_sha256": "4f59c14b491238f5c439cf367bf4178331a5c5325989feaf5105573a869afe6d",
+  "frozen_spec": {
+    "alpha": 0.05,
+    "contrast": [
+      "A",
+      "B"
+    ],
+    "correction": "BH",
+    "correction_scope": "all-tested-proteins",
+    "minimum_observed_per_group": 3,
+    "minimum_peptides": 2,
+    "missing_rule": {
+      "method": "keep-missing"
+    },
+    "normalization": "median-log2",
+    "qc": {
+      "max_log2_total_deviation": 10,
+      "max_missing_rate": 0.2
+    },
+    "replicate_unit": "biological_sample"
+  },
+  "inputs": {
+    "design": {
+      "path": "design.json",
+      "sha256": "8a31401f6495dde41b46c82b5462b85eedaa6b4f00d704a7a5490a7d613aca69"
+    },
+    "intensities": {
+      "path": "undeclared-imputation-intensities.json",
+      "sha256": "a5a36483c55bff9696c9fba645133c8a4b4a54a278ea86e122be8d4dc0c10968"
+    }
+  },
+  "schema": "proteomics-pack-v1",
+  "stages": [
+    "01-design",
+    "02-qc",
+    "03-normalization",
+    "04-testing",
+    "05-handoff"
+  ],
+  "study_outputs": []
+}

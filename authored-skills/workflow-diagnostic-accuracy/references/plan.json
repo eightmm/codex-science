@@ -1,0 +1,9 @@
+{
+  "plan": [
+    {"id": "01-protocol", "description": "Freeze and hash the index test, reference, threshold rule and interval methods before labels.", "status": "pending"},
+    {"id": "02-cases", "description": "Admit immutable subject identities, scores, reference labels, blinding and independent splits.", "status": "pending"},
+    {"id": "03-bias", "description": "Refuse threshold tuning, verification and incorporation bias, leakage and degenerate denominators.", "status": "pending"},
+    {"id": "04-computation", "description": "Compute Wilson proportions, exact-tie Mann-Whitney AUC and seeded bootstrap uncertainty.", "status": "pending"},
+    {"id": "05-handoff", "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned independent review.", "status": "pending"}
+  ]
+}

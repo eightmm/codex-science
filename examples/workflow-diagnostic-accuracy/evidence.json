@@ -1,0 +1,7 @@
+{
+  "fixture": true,
+  "kind": "statistical-evidence",
+  "result": "held-out-discrimination",
+  "schema": "diagnostic-accuracy-evidence-v1",
+  "schema_version": 1
+}

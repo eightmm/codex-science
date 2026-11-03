@@ -58,6 +58,33 @@
       "require_reference_contract": true
     },
     {
+      "skill": "workflow-proteomics-differential-abundance",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-survival-time-to-event",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-diagnostic-accuracy",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
       "skill": "codex-science",
       "minimum_maturity": "L3",
       "required_roles": [

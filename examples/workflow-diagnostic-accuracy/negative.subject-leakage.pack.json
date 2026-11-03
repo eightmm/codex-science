@@ -1,0 +1,61 @@
+{
+  "claims": [
+    {
+      "id": "fixture-discrimination",
+      "kind": "descriptive",
+      "status": "suggestive",
+      "support": [
+        {
+          "origin": "study",
+          "path": "evidence.json",
+          "sha256": "a06567d2a4eb9d118d7d66127b1e22bdf6cc0ee03bb571afa08e9b1e5cc80e48"
+        }
+      ],
+      "text": "Synthetic evaluation scores discriminate the planted reference labels."
+    }
+  ],
+  "fixture": true,
+  "freeze_before_labels": true,
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "frozen_protocol_sha256": "d6d0ebbef4ec0ae3a7b7da1f0a513efa34da906a4a0c1f264cc92e0bc88785d9",
+  "inputs": {
+    "cases": {
+      "path": "negative.subject-leakage.cases.json",
+      "sha256": "5b6a4f162715c6e07289bef378410917e80aeea1b898a54d7df20b9887cc0381"
+    },
+    "protocol": {
+      "path": "protocol.json",
+      "sha256": "d6d0ebbef4ec0ae3a7b7da1f0a513efa34da906a4a0c1f264cc92e0bc88785d9"
+    }
+  },
+  "labels_read_at": "2026-01-02T00:00:00Z",
+  "predictive_values": [
+    {
+      "applied_prevalence": 0.5,
+      "assumed_prevalence": 0.5,
+      "metric": "ppv",
+      "value": 0.75
+    },
+    {
+      "applied_prevalence": 0.5,
+      "assumed_prevalence": 0.5,
+      "metric": "npv",
+      "value": 0.75
+    }
+  ],
+  "schema": "diagnostic-accuracy-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-protocol",
+    "02-cases",
+    "03-bias",
+    "04-computation",
+    "05-handoff"
+  ],
+  "study_outputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "a06567d2a4eb9d118d7d66127b1e22bdf6cc0ee03bb571afa08e9b1e5cc80e48"
+    }
+  ]
+}

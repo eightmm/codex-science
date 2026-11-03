@@ -1,0 +1,57 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-survival-time-to-event",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Log-rank p-value below 0.001 at frozen alpha 0.05.",
+        "Group B median remains unavailable; group A reaches 0.5.",
+        "Observed censoring imbalance 0.5 passes at the frozen equality threshold; no causal or clinical claim.",
+        "All admitted input hashes preserved; output statistical-evidence-only and review unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-planted-comparison",
+      "input": "examples/workflow-survival-time-to-event/pack.json",
+      "question": "Does the supplied synthetic fixture preserve its planted group difference with frozen censoring controls?"
+    },
+    {
+      "acceptance_criteria": [
+        "Median A=1 and B=2, first nontrivial KM=1/2 and Greenwood variance=1/8.",
+        "E_A=5/6, log-rank V=17/36, chi-square=1/17 and p=erfc(1/sqrt(34)).",
+        "Exploratory O/E ratio=13/10; no proportional-hazards claim."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-hand-derived-ties",
+      "input": "examples/workflow-survival-time-to-event/tiny/pack.json",
+      "question": "Do tied-event KM, Greenwood and log-rank quantities agree with a hand derivation in synthetic fixtures?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 23 negative cases raise their named ValueError and CLI exits 2 with labelled JSON.",
+        "Removing each relevant guard makes its individual seeded test fail.",
+        "FIFO, symlink, oversized, replaced-root and malformed JSON inputs refuse without hanging or traceback.",
+        "Input artifacts remain unchanged across repeated, concurrent and interrupted reads."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-seeded-refusals",
+      "input": "examples/workflow-survival-time-to-event/negative-cases.json",
+      "question": "Does every synthetic seeded defect refuse with its stated finding through public entry points?"
+    }
+  ]
+}

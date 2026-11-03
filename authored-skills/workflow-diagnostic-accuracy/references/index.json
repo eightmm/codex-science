@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "skill": "workflow-diagnostic-accuracy",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Input identities, five stages, local record schemas, numerical controls, refusal boundaries and the read-only command.",
+      "read_when": ["freezing a diagnostic protocol", "admitting a subject table", "computing score discrimination", "handing off statistical evidence"],
+      "required_before": ["protocol-freeze", "case-admission", "bias-gate", "reference-computation", "independent-review-handoff"],
+      "search_patterns": ["## Pack-local schemas", "## Limits", "## 04-computation", "## Claim boundaries"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Procedural contract and synthetic software acceptance only; no clinical validity or independent review attestation."
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Five existing manifest plan steps for a single coordinator checkpoint.",
+      "read_when": ["creating the coordinator plan"],
+      "required_before": ["plan-authoring"],
+      "search_patterns": ["01-protocol", "05-handoff"],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Ordering cannot prove historical execution, protocol timing or scientific truth."
+    }
+  ]
+}

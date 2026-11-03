@@ -1,0 +1,7 @@
+{
+  "fixture": true,
+  "kind": "computed-record",
+  "result": "held-out-discrimination",
+  "schema": "diagnostic-accuracy-evidence-v1",
+  "schema_version": 1
+}

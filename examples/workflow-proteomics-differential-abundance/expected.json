@@ -1,0 +1,917 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "associational",
+      "protein_id": "CHANGED",
+      "status": "supported",
+      "support": [
+        {
+          "path": "association.json",
+          "sha256": "747442d0a91debca4204e3ecfc48edc3127b33ecef8901b08cc64078889467b4"
+        }
+      ],
+      "text": "CHANGED has a BH-adjusted abundance difference between synthetic conditions."
+    }
+  ],
+  "differential": [
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": 6.0,
+      "log2_fold_change": 4.0,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": 6.506148515315569e-05,
+      "peptides": 3,
+      "protein_id": "CHANGED",
+      "q_value": 0.00026024594061262277,
+      "reasons": [],
+      "significant": true,
+      "status": "tested",
+      "t": 9.797958971132717
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": 6.0,
+      "log2_fold_change": 0.0,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": 1.0,
+      "peptides": 3,
+      "protein_id": "BATCH",
+      "q_value": 1.0,
+      "reasons": [],
+      "significant": false,
+      "status": "tested",
+      "t": 0.0
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": 6.0,
+      "log2_fold_change": 0.0,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": 1.0,
+      "peptides": 3,
+      "protein_id": "NULL_A",
+      "q_value": 1.0,
+      "reasons": [],
+      "significant": false,
+      "status": "tested",
+      "t": 0.0
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": 6.0,
+      "log2_fold_change": 0.0,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": 1.0,
+      "peptides": 3,
+      "protein_id": "NULL_B",
+      "q_value": 1.0,
+      "reasons": [],
+      "significant": false,
+      "status": "tested",
+      "t": 0.0
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO1",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO2",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO3",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO4",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO5",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO6",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "ZERO7",
+      "q_value": null,
+      "reasons": [
+        "zero-variance"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 1,
+      "protein_id": "LOW_PEPTIDE",
+      "q_value": null,
+      "reasons": [
+        "minimum-peptides"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        1,
+        3
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "MISSING",
+      "q_value": null,
+      "reasons": [
+        "minimum-observed"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": false,
+      "decoy": true,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "DECOY",
+      "q_value": null,
+      "reasons": [
+        "decoy-or-contaminant"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    },
+    {
+      "contaminant": true,
+      "decoy": false,
+      "df": null,
+      "log2_fold_change": null,
+      "observed": [
+        4,
+        4
+      ],
+      "p_value": null,
+      "peptides": 3,
+      "protein_id": "CONTAMINANT",
+      "q_value": null,
+      "reasons": [
+        "decoy-or-contaminant"
+      ],
+      "significant": null,
+      "status": "untestable",
+      "t": null
+    }
+  ],
+  "evidence_level": "statistical-only",
+  "exploratory": false,
+  "fixture": true,
+  "frozen_sha256": "4f59c14b491238f5c439cf367bf4178331a5c5325989feaf5105573a869afe6d",
+  "input_identities": [
+    {
+      "path": "pack.json",
+      "sha256": "1dc69b8fe3f1b6a87502c0032bd7cb56d27f140f28c106cbf8e1686a65cea087"
+    },
+    {
+      "path": "design.json",
+      "sha256": "8a31401f6495dde41b46c82b5462b85eedaa6b4f00d704a7a5490a7d613aca69"
+    },
+    {
+      "path": "intensities.json",
+      "sha256": "595105fec2330ca83b70402b34afef1b4b9eee881575e48f15d8f279d5287a5b"
+    },
+    {
+      "path": "association.json",
+      "sha256": "747442d0a91debca4204e3ecfc48edc3127b33ecef8901b08cc64078889467b4"
+    }
+  ],
+  "limitations": [
+    "Synthetic software fixture; no biological, physical or clinical validity.",
+    "Independent unpaired Welch on observed log2 intensities; no batch or covariate adjustment.",
+    "Median normalization assumes most eligible proteins do not shift; inspect missingness and batch sensitivity.",
+    "Declared imputation is displayed and flagged, never counted as observed or used for Welch testing.",
+    "Hashes bind content, not historical timing or actual source independence.",
+    "Failed QC, exclusions and null results are preserved; unavailable records are never negative evidence.",
+    "Rigor classification and independent science-review remain coordinator responsibilities."
+  ],
+  "normalization_offsets": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "normalized": [
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        11.0,
+        10.0,
+        11.0,
+        14.0,
+        15.0,
+        14.0,
+        15.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "CHANGED"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        8.0,
+        8.0,
+        12.0,
+        12.0,
+        8.0,
+        8.0,
+        12.0,
+        12.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "BATCH"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        9.0,
+        10.0,
+        11.0,
+        10.0,
+        9.0,
+        10.0,
+        11.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "NULL_A"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        11.0,
+        10.0,
+        9.0,
+        10.0,
+        11.0,
+        10.0,
+        9.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "NULL_B"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO1"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO2"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO3"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO4"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO5"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO6"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "ZERO7"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        11.0,
+        10.0,
+        11.0,
+        14.0,
+        15.0,
+        14.0,
+        15.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "LOW_PEPTIDE"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        null,
+        null,
+        null,
+        9.0,
+        null,
+        10.0,
+        9.0,
+        10.0
+      ],
+      "observed": [
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "MISSING"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        11.0,
+        10.0,
+        11.0,
+        14.0,
+        15.0,
+        14.0,
+        15.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "DECOY"
+    },
+    {
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "log2_intensities": [
+        10.0,
+        11.0,
+        10.0,
+        11.0,
+        14.0,
+        15.0,
+        14.0,
+        15.0
+      ],
+      "observed": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "protein_id": "CONTAMINANT"
+    }
+  ],
+  "qc": [
+    {
+      "failures": [],
+      "log2_total_deviation": 1.201904803031871,
+      "missing_rate": 0.07692307692307687,
+      "sample_id": "S1",
+      "total_intensity": 12032.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 1.02857320014631,
+      "missing_rate": 0.07692307692307687,
+      "sample_id": "S2",
+      "total_intensity": 13568.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 0.8022973443226338,
+      "missing_rate": 0.07692307692307687,
+      "sample_id": "S3",
+      "total_intensity": 15872.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 0.6272106377645414,
+      "missing_rate": 0.0,
+      "sample_id": "S4",
+      "total_intensity": 17920.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 0.6272106377645432,
+      "missing_rate": 0.07692307692307687,
+      "sample_id": "S5",
+      "total_intensity": 42752.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 1.4578254660912577,
+      "missing_rate": 0.0,
+      "sample_id": "S6",
+      "total_intensity": 76032.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 0.7670683013475035,
+      "missing_rate": 0.0,
+      "sample_id": "S7",
+      "total_intensity": 47104.0
+    },
+    {
+      "failures": [],
+      "log2_total_deviation": 1.52890856415274,
+      "missing_rate": 0.0,
+      "sample_id": "S8",
+      "total_intensity": 79872.0
+    }
+  ],
+  "review": "unavailable",
+  "schema": "proteomics-result-v1",
+  "specification_sha256": "4f59c14b491238f5c439cf367bf4178331a5c5325989feaf5105573a869afe6d",
+  "stages": [
+    "01-design",
+    "02-qc",
+    "03-normalization",
+    "04-testing",
+    "05-handoff"
+  ]
+}

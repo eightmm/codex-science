@@ -1,0 +1,83 @@
+{
+  "analysis_spec": {
+    "alpha": 0.05,
+    "contrast": [
+      "A",
+      "B"
+    ],
+    "correction": "BH",
+    "correction_scope": "all-tested-proteins",
+    "minimum_observed_per_group": 3,
+    "minimum_peptides": 2,
+    "missing_rule": {
+      "method": "constant-log2",
+      "value": 8
+    },
+    "normalization": "median-log2",
+    "qc": {
+      "max_log2_total_deviation": 10,
+      "max_missing_rate": 0.2
+    },
+    "replicate_unit": "biological_sample"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "associational",
+      "protein_id": "MISSING",
+      "status": "supported",
+      "support": [
+        {
+          "path": "imputed-as-observed-evidence.json",
+          "sha256": "08dd1548b37402ae2f162e2f563dfdc81928e751384a86c0d95aeac18706508c"
+        }
+      ],
+      "text": "MISSING has an abundance difference between synthetic conditions."
+    }
+  ],
+  "exploratory": false,
+  "fixture": true,
+  "freeze_before_intensities": true,
+  "frozen_design_sha256": "8a31401f6495dde41b46c82b5462b85eedaa6b4f00d704a7a5490a7d613aca69",
+  "frozen_sha256": "ddc23653b0775428efa1873e874300a81219412d0481ee2301dd8d6e94f25919",
+  "frozen_spec": {
+    "alpha": 0.05,
+    "contrast": [
+      "A",
+      "B"
+    ],
+    "correction": "BH",
+    "correction_scope": "all-tested-proteins",
+    "minimum_observed_per_group": 3,
+    "minimum_peptides": 2,
+    "missing_rule": {
+      "method": "constant-log2",
+      "value": 8
+    },
+    "normalization": "median-log2",
+    "qc": {
+      "max_log2_total_deviation": 10,
+      "max_missing_rate": 0.2
+    },
+    "replicate_unit": "biological_sample"
+  },
+  "inputs": {
+    "design": {
+      "path": "design.json",
+      "sha256": "8a31401f6495dde41b46c82b5462b85eedaa6b4f00d704a7a5490a7d613aca69"
+    },
+    "intensities": {
+      "path": "imputed-as-observed-intensities.json",
+      "sha256": "88ebf8c5b121bf7a4b17b421b8a5b7e2c9d7661da2070603112d6c1cd3bb1cf8"
+    }
+  },
+  "schema": "proteomics-pack-v1",
+  "stages": [
+    "01-design",
+    "02-qc",
+    "03-normalization",
+    "04-testing",
+    "05-handoff"
+  ],
+  "study_outputs": []
+}

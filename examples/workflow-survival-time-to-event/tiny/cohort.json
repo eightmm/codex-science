@@ -1,0 +1,42 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "censored": false,
+      "event": 1,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "a1",
+      "time": 1,
+      "time_unit": "days"
+    },
+    {
+      "censored": true,
+      "event": 0,
+      "group": "A",
+      "group_assignment_time": 0,
+      "subject_id": "a2",
+      "time": 2,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "b1",
+      "time": 2,
+      "time_unit": "days"
+    },
+    {
+      "censored": false,
+      "event": 1,
+      "group": "B",
+      "group_assignment_time": 0,
+      "subject_id": "b2",
+      "time": 3,
+      "time_unit": "days"
+    }
+  ],
+  "schema": "survival-cohort-v1"
+}
