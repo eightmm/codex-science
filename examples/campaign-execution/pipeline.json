@@ -1,0 +1,20 @@
+{
+  "schema": "campaign-execution-v1",
+  "stages": [
+    {
+      "id": "prepare",
+      "command": ["python3", "examples/campaign-execution/transform.py", "prepare"],
+      "inputs": ["examples/campaign-execution/numbers.json"],
+      "code": ["examples/campaign-execution/transform.py"],
+      "outputs": ["artifacts/campaign-execution-demo/prepared.json"]
+    },
+    {
+      "id": "summarize",
+      "depends_on": ["prepare"],
+      "command": ["python3", "examples/campaign-execution/transform.py", "summarize"],
+      "inputs": ["artifacts/campaign-execution-demo/prepared.json"],
+      "code": ["examples/campaign-execution/transform.py"],
+      "outputs": ["artifacts/campaign-execution-demo/summary.json"]
+    }
+  ]
+}

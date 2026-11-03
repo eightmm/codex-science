@@ -124,6 +124,18 @@
       "status": "active"
     },
     {
+      "description": "Triage minibinder, antibody Fv and VHH candidates for sequence liabilities and matched on/off-target panels before selecting follow-up measurements. Compute chain-local sequence observations and supplied selectivity margins; route structure-dependent developability predictors explicitly.",
+      "executable_count": 0,
+      "instruction_line_count": 60,
+      "license": "MIT",
+      "name": "cx-binder-developability",
+      "path": "authored-skills/binder-developability",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Normalize genes, proteins, variants, diseases, phenotypes, compounds, reactions, tissues, cell types, organisms, studies, and accessions before multi-source biomedical research. Use whenever aliases, assemblies, releases, or identifier namespaces could change retrieval.",
       "executable_count": 0,
       "instruction_line_count": 31,
@@ -688,6 +700,18 @@
       "status": "active"
     },
     {
+      "description": "Optimize an existing hit series using generation or supplied candidates, assay-bound property constraints, existing docking/QSAR routes, Pareto and diversity-aware follow-up selection. Use for hit-to-lead prioritization; supplied-property analysis does not execute molecular engines.",
+      "executable_count": 0,
+      "instruction_line_count": 60,
+      "license": "MIT",
+      "name": "cx-hit-to-lead-optimization",
+      "path": "authored-skills/hit-to-lead-optimization",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Retrieve protein expression levels and spatial/subcellular localisation from the Human Protein Atlas (HPA). Use for tissue/cell expression and localisation of a human protein; not for causal or clinical claims. Public API, no credential needed.",
       "executable_count": 0,
       "instruction_line_count": 47,
@@ -814,6 +838,18 @@
       "license": "MIT",
       "name": "cx-mathematical-problem-execution",
       "path": "authored-skills/mathematical-problem-execution",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Prepare molecular-dynamics and free-energy campaigns with explicit system, force-field and atom-mapping identities; analyze supplied independent-repeat free-energy networks, uncertainty and cycle closure. Use for simulation planning or result diagnosis, not a plain existing-trajectory comparison.",
+      "executable_count": 0,
+      "instruction_line_count": 71,
+      "license": "MIT",
+      "name": "cx-md-free-energy-campaign",
+      "path": "authored-skills/md-free-energy-campaign",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -982,6 +1018,18 @@
       "license": "Apache-2.0",
       "name": "cx-ols-search",
       "path": "authored-skills/ols-search",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Prioritize exploratory targets from donor-aware expression contrasts and source-linked external evidence. Use for an omics-to-target handoff with cohort/batch checks, missingness and dependency-aware evidence; not raw-count differential expression or causal target validation.",
+      "executable_count": 0,
+      "instruction_line_count": 71,
+      "license": "Apache-2.0",
+      "name": "cx-omics-target-prioritization",
+      "path": "authored-skills/omics-target-prioritization",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1162,6 +1210,18 @@
       "license": "MIT",
       "name": "cx-proof-and-counterexample",
       "path": "authored-skills/proof-and-counterexample",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Connect substitution-model scores and construct-matched assay or DMS replicates to an unmeasured next-library proposal. Use for iterative protein engineering with explicit feedback/evaluation separation, parent sequence lineage, negative results and budgeted selection.",
+      "executable_count": 0,
+      "instruction_line_count": 68,
+      "license": "Apache-2.0",
+      "name": "cx-protein-engineering-cycle",
+      "path": "authored-skills/protein-engineering-cycle",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -3819,8 +3879,8 @@
     }
   ],
   "summary": {
-    "active": 180,
+    "active": 185,
     "inactive": 113,
-    "total": 293
+    "total": 298
   }
 }

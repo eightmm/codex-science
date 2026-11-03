@@ -1,0 +1,171 @@
+{
+  "schema": "md-free-energy-campaign-v1",
+  "synthetic": true,
+  "contract": {
+    "target_id": "synthetic-target",
+    "construct_id": "synthetic-construct",
+    "forcefield_id": "synthetic-no-forcefield",
+    "protocol_id": "synthetic-no-engine",
+    "mapping_policy_id": "synthetic-declared-map",
+    "temperature_kelvin": 300,
+    "unit": "kcal/mol",
+    "minimum_replicas": 2,
+    "max_cycle_z": 3,
+    "edge_errors_independent": true,
+    "require_cycle": true
+  },
+  "ligands": [
+    {
+      "id": "A",
+      "identity_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "id": "B",
+      "identity_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "id": "C",
+      "identity_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "controls": [
+    {
+      "id": "synthetic-known-network",
+      "passed": true
+    }
+  ],
+  "edges": [
+    {
+      "id": "A-B",
+      "ligand_a": "A",
+      "ligand_b": "B",
+      "mapping_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "replicas": [
+        {
+          "target_id": "synthetic-target",
+          "construct_id": "synthetic-construct",
+          "forcefield_id": "synthetic-no-forcefield",
+          "protocol_id": "synthetic-no-engine",
+          "mapping_policy_id": "synthetic-declared-map",
+          "temperature_kelvin": 300,
+          "unit": "kcal/mol",
+          "minimum_replicas": 2,
+          "max_cycle_z": 3,
+          "edge_errors_independent": true,
+          "require_cycle": true,
+          "replica_id": "replica-A-B-0",
+          "independent_run_id": "run-A-B-0",
+          "source_id": "source-A-B-0",
+          "delta_delta_g": 0.9,
+          "standard_error": 0.2
+        },
+        {
+          "target_id": "synthetic-target",
+          "construct_id": "synthetic-construct",
+          "forcefield_id": "synthetic-no-forcefield",
+          "protocol_id": "synthetic-no-engine",
+          "mapping_policy_id": "synthetic-declared-map",
+          "temperature_kelvin": 300,
+          "unit": "kcal/mol",
+          "minimum_replicas": 2,
+          "max_cycle_z": 3,
+          "edge_errors_independent": true,
+          "require_cycle": true,
+          "replica_id": "replica-A-B-1",
+          "independent_run_id": "run-A-B-1",
+          "source_id": "source-A-B-1",
+          "delta_delta_g": 1.1,
+          "standard_error": 0.2
+        }
+      ]
+    },
+    {
+      "id": "B-C",
+      "ligand_a": "B",
+      "ligand_b": "C",
+      "mapping_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "replicas": [
+        {
+          "target_id": "synthetic-target",
+          "construct_id": "synthetic-construct",
+          "forcefield_id": "synthetic-no-forcefield",
+          "protocol_id": "synthetic-no-engine",
+          "mapping_policy_id": "synthetic-declared-map",
+          "temperature_kelvin": 300,
+          "unit": "kcal/mol",
+          "minimum_replicas": 2,
+          "max_cycle_z": 3,
+          "edge_errors_independent": true,
+          "require_cycle": true,
+          "replica_id": "replica-B-C-0",
+          "independent_run_id": "run-B-C-0",
+          "source_id": "source-B-C-0",
+          "delta_delta_g": 1.9,
+          "standard_error": 0.2
+        },
+        {
+          "target_id": "synthetic-target",
+          "construct_id": "synthetic-construct",
+          "forcefield_id": "synthetic-no-forcefield",
+          "protocol_id": "synthetic-no-engine",
+          "mapping_policy_id": "synthetic-declared-map",
+          "temperature_kelvin": 300,
+          "unit": "kcal/mol",
+          "minimum_replicas": 2,
+          "max_cycle_z": 3,
+          "edge_errors_independent": true,
+          "require_cycle": true,
+          "replica_id": "replica-B-C-1",
+          "independent_run_id": "run-B-C-1",
+          "source_id": "source-B-C-1",
+          "delta_delta_g": 2.1,
+          "standard_error": 0.2
+        }
+      ]
+    },
+    {
+      "id": "A-C",
+      "ligand_a": "A",
+      "ligand_b": "C",
+      "mapping_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "replicas": [
+        {
+          "target_id": "synthetic-target",
+          "construct_id": "synthetic-construct",
+          "forcefield_id": "synthetic-no-forcefield",
+          "protocol_id": "synthetic-no-engine",
+          "mapping_policy_id": "synthetic-declared-map",
+          "temperature_kelvin": 300,
+          "unit": "kcal/mol",
+          "minimum_replicas": 2,
+          "max_cycle_z": 3,
+          "edge_errors_independent": true,
+          "require_cycle": true,
+          "replica_id": "replica-A-C-0",
+          "independent_run_id": "run-A-C-0",
+          "source_id": "source-A-C-0",
+          "delta_delta_g": 2.9,
+          "standard_error": 0.2
+        },
+        {
+          "target_id": "synthetic-target",
+          "construct_id": "synthetic-construct",
+          "forcefield_id": "synthetic-no-forcefield",
+          "protocol_id": "synthetic-no-engine",
+          "mapping_policy_id": "synthetic-declared-map",
+          "temperature_kelvin": 300,
+          "unit": "kcal/mol",
+          "minimum_replicas": 2,
+          "max_cycle_z": 3,
+          "edge_errors_independent": true,
+          "require_cycle": true,
+          "replica_id": "replica-A-C-1",
+          "independent_run_id": "run-A-C-1",
+          "source_id": "source-A-C-1",
+          "delta_delta_g": 3.1,
+          "standard_error": 0.2
+        }
+      ]
+    }
+  ]
+}

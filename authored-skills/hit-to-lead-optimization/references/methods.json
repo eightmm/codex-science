@@ -1,0 +1,25 @@
+{
+  "as_of": "2026-11-03",
+  "evidence_boundary": "Supplied-property ranking and declared-scaffold diversity only. No chemical validation, generator, docking, QSAR/ADMET calibration, measured affinity or synthesis assessment is established.",
+  "methods": [
+    {
+      "applicability": "Sample/filter, transfer learning and staged property-driven learning are alternative external routes; inspect scoring function and diversity controls.",
+      "evidence_level": "documented",
+      "id": "reinvent4",
+      "limitations": "No bundled generator, weights or external package installation; optimization of a score is not biological validation.",
+      "sources": [
+        "https://github.com/MolecularAI/REINVENT4/blob/main/contrib/reinvent-doc/tutorials/workflows.md"
+      ]
+    },
+    {
+      "applicability": "External structure normalization, scaffold grouping and descriptor computation.",
+      "evidence_level": "discovered",
+      "id": "rdkit-properties",
+      "limitations": "Read version-specific official documentation and validate chemistry before use; this helper trusts declared identities.",
+      "sources": [
+        "https://www.rdkit.org/docs/GettingStartedInPython.html"
+      ]
+    }
+  ],
+  "schema_version": 1
+}

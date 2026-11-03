@@ -1,0 +1,139 @@
+{
+  "candidates": [
+    {
+      "chemical_identity": "synthetic-chemical-seed",
+      "cost": 1,
+      "id": "seed",
+      "parent_id": null,
+      "partition": "train",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 20
+        }
+      },
+      "scaffold_group": "series-A",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "chemical_identity": "synthetic-chemical-a",
+      "cost": 1,
+      "id": "a",
+      "parent_id": "seed",
+      "partition": "candidate",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 15
+        }
+      },
+      "scaffold_group": "series-A",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "chemical_identity": "synthetic-chemical-b",
+      "cost": 1,
+      "id": "b",
+      "parent_id": "seed",
+      "partition": "candidate",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 4.2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 8
+        }
+      },
+      "scaffold_group": "series-B",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    },
+    {
+      "chemical_identity": "synthetic-chemical-c",
+      "cost": 1,
+      "id": "c",
+      "parent_id": "seed",
+      "partition": "candidate",
+      "properties": {
+        "logD": {
+          "assay_id": "synthetic-property-1",
+          "source_kind": "computed",
+          "unit": "dimensionless",
+          "value": 1.2
+        },
+        "potency": {
+          "assay_id": "synthetic-assay-1",
+          "source_kind": "measured",
+          "unit": "nM",
+          "value": 40
+        }
+      },
+      "scaffold_group": "series-C",
+      "target_id": "synthetic-target",
+      "training_overlap": "none"
+    }
+  ],
+  "contract": {
+    "decision": "Select a diverse synthetic follow-up batch",
+    "diversity_bonus": 0.1,
+    "objectives": [
+      {
+        "assay_id": "synthetic-assay-1",
+        "direction": "minimize",
+        "id": "potency",
+        "maximum": 50,
+        "source_kind": "measured",
+        "unit": "nM"
+      },
+      {
+        "assay_id": "synthetic-property-1",
+        "direction": "minimize",
+        "id": "logD",
+        "maximum": 3.5,
+        "source_kind": "computed",
+        "unit": "dimensionless"
+      }
+    ],
+    "selection": {
+      "batch_size": 2,
+      "budget": 3,
+      "diversity_group_cap": 1,
+      "minimum_controls": 0
+    },
+    "selection_context": "prospective",
+    "target_id": "synthetic-target"
+  },
+  "contract_sha256": "7b9f939df69c304a6100d82fc62cb92b71a9105c82e8a645e83765a7e0d21ce3",
+  "controls": [
+    {
+      "id": "synthetic-assay-control",
+      "passed": true
+    }
+  ],
+  "schema_version": 1,
+  "synthetic": true
+}

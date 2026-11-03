@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "skill": "omics-target-prioritization",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Input units, estimator, stage handoffs and failure semantics",
+      "read_when": [
+        "before analysis"
+      ],
+      "required_before": [
+        "analysis"
+      ],
+      "search_patterns": [
+        "# Identity and scope",
+        "# Review and handoff"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Offline contract/CPU analysis only; external methods require their own execution evidence."
+    },
+    {
+      "id": "discovery",
+      "path": "references/method-discovery.md",
+      "purpose": "Current method search and run-local descriptor admission",
+      "read_when": [
+        "before method selection"
+      ],
+      "required_before": [
+        "method selection"
+      ],
+      "search_patterns": [
+        "# Search before selection",
+        "# Descriptor admission"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Offline contract/CPU analysis only; external methods require their own execution evidence."
+    },
+    {
+      "id": "methods",
+      "path": "references/methods.json",
+      "purpose": "Dated primary-source method seeds",
+      "read_when": [
+        "before method selection"
+      ],
+      "required_before": [
+        "method selection"
+      ],
+      "search_patterns": [
+        "donor-aware-analysis"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Offline contract/CPU analysis only; external methods require their own execution evidence."
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing checkpoint step shapes",
+      "read_when": [
+        "before checkpoint initialization"
+      ],
+      "required_before": [
+        "checkpoint initialization"
+      ],
+      "search_patterns": [
+        "freeze",
+        "review"
+      ],
+      "authority": "repository-contract",
+      "version": "1",
+      "evidence_boundary": "Offline contract/CPU analysis only; external methods require their own execution evidence."
+    }
+  ]
+}

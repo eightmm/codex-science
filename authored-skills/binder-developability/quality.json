@@ -1,0 +1,37 @@
+{
+  "acceptance_fixtures": [
+    "examples/binder-developability/input.json",
+    "benchmarks/binder-developability/tasks.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline software/analysis acceptance, not an empirical molecular campaign.",
+    "Sequence observations and supplied matched-panel margins only; no TAP/TNP execution, aggregation/solubility/expression/immunogenicity predictor, antibody annotation, independent assay or clinical assessment.",
+    "Identity, control and source declarations require independent review."
+  ],
+  "output_schemas": [
+    "binder-developability-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "framework-change",
+    "length-change",
+    "invalid-sequence",
+    "chain-mismatch",
+    "duplicate-construct",
+    "duplicate-panel-target",
+    "endpoint-mismatch",
+    "missing-off-target",
+    "failed-control",
+    "stale-contract",
+    "nonfinite-value"
+  ],
+  "skill": "binder-developability",
+  "test_files": [
+    "tests/test_binder_developability_workflow.py"
+  ]
+}

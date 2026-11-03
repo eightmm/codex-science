@@ -1,0 +1,10 @@
+{
+  "schema": "screening-lead-handoff-v1",
+  "synthetic": true,
+  "source_input_sha256": "2f2a8665dc7f7e5ca65d4949e18e156ecb2f7c2ad9cbdd789008c951d4fe6fa9",
+  "source_contract_sha256": "40f8e9741c87dcbdaf98516200420c90cbe11b5d97570edf1a0934ac2f9c3552",
+  "target_id": "synthetic-target",
+  "score_unit": "synthetic-score-unit",
+  "selection_context": "held_out_evaluation",
+  "selection": {"batch_size": 2, "budget": 2, "diversity_group_cap": 1, "minimum_controls": 0}
+}

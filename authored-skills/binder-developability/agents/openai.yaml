@@ -1,0 +1,4 @@
+interface:
+  display_name: "Binder Developability"
+  short_description: "Triage binder sequences and matched off-target panels"
+  default_prompt: "Use $binder-developability to inspect sequence liabilities and matched selectivity evidence before choosing follow-up measurements."

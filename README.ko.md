@@ -16,7 +16,7 @@ Codex Science는 Codex 작업에서 선택적으로 사용하는 과학 워크�
 Claude Science의 공개 workflow에서 영감을 받은 독립 plugin이며, 비공개 구현과의
 동등성을 주장하지 않습니다.
 
-- 감사된 스킬 카탈로그 288개: K-Dense-AI 149개, Codex-native 136개,
+- 감사된 스킬 카탈로그 298개: K-Dense-AI 149개, Codex-native 146개,
   DeepMind 인프라 포인터 3개.
 - 읽기 전용 공개 데이터 source contract 49개와 카탈로그 검색·연구 계획. 성숙도는 source별로 다르며, 모두 live-tested된 것은 아닙니다.
 - 독립 evidence review가 포함된 재현 가능한 실행 artifact.
@@ -188,6 +188,14 @@ Offline 테스트는 기록 계약을 검증하며, 실제 모델 실행에는 �
 
 각 묶음은 최신 공식 방법을 검색하고 검토한 run-local descriptor로 확장합니다.
 Offline 예제는 docking·PLM·MD 엔진을 실행한 결과가 아닙니다.
+
+후속 묶음으로 hit-to-lead 후보 선정, binder developability, 단백질 engineering
+피드백, MD·자유에너지 결과 분석, omics 표적 우선순위를 제공합니다. 공통 helper는
+기존 backend로 작은 로컬 단계를 실행하고, 중단·실패 기록 보존과 변경된 의존 단계
+재실행, assay CSV 연결, 실행파일·모델 자산의 실제 hash 수집을 지원합니다.
+[실행·피드백 안내](docs/CAMPAIGN_WORKFLOWS.md)에 명령과 검증 범위를 설명했습니다.
+Vina 어댑터는 기존의 정확한 작업 명세에 묶인 승인 경로를 사용하며, 과학 계산
+엔진 자체를 번들로 설치하지 않습니다.
 
 ## 평가 현황
 

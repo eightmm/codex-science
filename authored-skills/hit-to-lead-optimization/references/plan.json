@@ -1,0 +1,37 @@
+[
+  {
+    "description": "Freeze target, seed/parent chemical identities, objective assay/unit/source-kind and prospective versus held-out purpose.",
+    "id": "intake",
+    "status": "pending"
+  },
+  {
+    "description": "Search current generator, property and docking methods; freeze constraints, scaffold/identity splits, controls and selection budget.",
+    "id": "plan",
+    "status": "pending"
+  },
+  {
+    "description": "Check preparation and scoring on the smallest approved control batch before generation or optimization.",
+    "id": "pilot",
+    "status": "pending"
+  },
+  {
+    "description": "Generate or import candidates; preserve ancestry, source methods, all failed attempts and chemical identity normalization.",
+    "id": "generate",
+    "status": "pending"
+  },
+  {
+    "description": "Compute or import endpoint-bound properties and matched control results; retain unavailable values.",
+    "id": "evaluate",
+    "status": "pending"
+  },
+  {
+    "description": "Apply frozen constraints then cost/diversity-bounded Pareto selection through the existing next-experiment planner.",
+    "id": "select",
+    "status": "pending"
+  },
+  {
+    "description": "Register inputs, method identities, full funnel and selection; independently review and define the next falsifying assay.",
+    "id": "review",
+    "status": "pending"
+  }
+]

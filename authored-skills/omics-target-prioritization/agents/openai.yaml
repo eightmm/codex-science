@@ -1,0 +1,4 @@
+interface:
+  display_name: "Omics target prioritization"
+  short_description: "Compare donor-level expression and target evidence"
+  default_prompt: "Use $omics-target-prioritization to analyze donor-aware expression contrasts and prepare an exploratory target handoff."

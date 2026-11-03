@@ -34,121 +34,221 @@
     {
       "skill": "codex-science",
       "minimum_maturity": "L3",
-      "required_roles": ["conductor"],
+      "required_roles": [
+        "conductor"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "science-provenance",
       "minimum_maturity": "L3",
-      "required_roles": ["infrastructure"],
+      "required_roles": [
+        "infrastructure"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "science-review",
       "minimum_maturity": "L3",
-      "required_roles": ["reviewer"],
+      "required_roles": [
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "literature-review",
       "minimum_maturity": "L4",
-      "required_roles": ["conductor", "analyzer"],
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "write-scientific-manuscript",
       "minimum_maturity": "L3",
-      "required_roles": ["conductor", "analyzer"],
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "docking-validation",
       "minimum_maturity": "L4",
-      "required_roles": ["analyzer", "reviewer"],
+      "required_roles": [
+        "analyzer",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "remote-scientific-compute",
       "minimum_maturity": "L3",
-      "required_roles": ["executor", "infrastructure"],
+      "required_roles": [
+        "executor",
+        "infrastructure"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "quantitative-research",
       "minimum_maturity": "L4",
-      "required_roles": ["conductor", "analyzer", "reviewer"],
+      "required_roles": [
+        "conductor",
+        "analyzer",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "mathematical-problem-execution",
       "minimum_maturity": "L3",
-      "required_roles": ["conductor"],
+      "required_roles": [
+        "conductor"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "proof-and-counterexample",
       "minimum_maturity": "L3",
-      "required_roles": ["analyzer", "reviewer"],
+      "required_roles": [
+        "analyzer",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "formal-theorem-proving",
       "minimum_maturity": "L3",
-      "required_roles": ["executor", "reviewer"],
+      "required_roles": [
+        "executor",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "statistical-inference-experimental-design",
       "minimum_maturity": "L3",
-      "required_roles": ["analyzer", "reviewer"],
+      "required_roles": [
+        "analyzer",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "statistical-decision-analysis",
       "minimum_maturity": "L4",
-      "required_roles": ["analyzer", "reviewer"],
+      "required_roles": [
+        "analyzer",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "numerical-analysis-error-control",
       "minimum_maturity": "L3",
-      "required_roles": ["analyzer", "reviewer"],
+      "required_roles": [
+        "analyzer",
+        "reviewer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "dimensional-analysis-units",
       "minimum_maturity": "L3",
-      "required_roles": ["analyzer"],
+      "required_roles": [
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "experimental-uncertainty-propagation",
       "minimum_maturity": "L3",
-      "required_roles": ["analyzer"],
+      "required_roles": [
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "binder-design-campaign",
       "minimum_maturity": "L4",
-      "required_roles": ["conductor", "analyzer"],
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "virtual-screening-campaign",
       "minimum_maturity": "L4",
-      "required_roles": ["conductor", "analyzer"],
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "protein-variant-evaluation",
       "minimum_maturity": "L4",
-      "required_roles": ["conductor", "analyzer"],
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
       "require_reference_contract": true
     },
     {
       "skill": "trajectory-comparison",
       "minimum_maturity": "L4",
-      "required_roles": ["conductor", "analyzer"],
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "hit-to-lead-optimization",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "binder-developability",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "protein-engineering-cycle",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "md-free-energy-campaign",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "omics-target-prioritization",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
       "require_reference_contract": true
     }
   ]

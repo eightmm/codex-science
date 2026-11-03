@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "skill": "protein-engineering-cycle",
+  "declared_maturity": "L4",
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "output_schemas": [
+    "protein-engineering-analysis-v1"
+  ],
+  "acceptance_fixtures": [
+    "examples/protein-engineering-cycle/input.json",
+    "benchmarks/protein-engineering-cycle/tasks.json"
+  ],
+  "test_files": [
+    "tests/test_protein_engineering_workflow.py"
+  ],
+  "seeded_failures": [
+    "wrong-wt",
+    "parent-distance",
+    "construct-assay-unit-mismatch",
+    "duplicate-replicate",
+    "evaluation-label-leakage",
+    "failed-essential-control",
+    "insufficient-parent-replicates",
+    "unavailable-model",
+    "nonfinite-numeric",
+    "nested-nonfinite-metadata"
+  ],
+  "limitations": [
+    "L4 covers synthetic CPU feedback arithmetic and selection contracts only.",
+    "No model, surrogate fitting, sequence generation or assay executed.",
+    "Declared replicate independence, training exposure and controls require scientific review."
+  ]
+}

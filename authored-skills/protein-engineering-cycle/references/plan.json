@@ -1,0 +1,32 @@
+[
+  {
+    "id": "freeze",
+    "description": "Freeze construct, assay, role split and library constraints",
+    "status": "pending"
+  },
+  {
+    "id": "discover",
+    "description": "Select a current primary-source scoring route and approved environment",
+    "status": "pending"
+  },
+  {
+    "id": "feedback",
+    "description": "Import independent measured replicates and retain failed/negative outcomes",
+    "status": "pending"
+  },
+  {
+    "id": "analyze",
+    "description": "Validate substitutions and compute replicate/rank diagnostics",
+    "status": "pending"
+  },
+  {
+    "id": "propose",
+    "description": "Propose bounded unmeasured candidates from feedback parents",
+    "status": "pending"
+  },
+  {
+    "id": "review",
+    "description": "Review evidence and hand off the next falsifiable assay",
+    "status": "pending"
+  }
+]

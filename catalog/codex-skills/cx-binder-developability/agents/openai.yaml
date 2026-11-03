@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Binder Developability"
+  short_description: "Use the audited cx-binder-developability scientific workflow"
+  default_prompt: "Use $cx-binder-developability for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

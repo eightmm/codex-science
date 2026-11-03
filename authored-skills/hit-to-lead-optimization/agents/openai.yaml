@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hit-to-Lead Optimization"
+  short_description: "Select assay-bound, diverse hit follow-up candidates"
+  default_prompt: "Use $hit-to-lead-optimization to freeze hit-series objectives, evaluate candidates and select a reviewed follow-up batch."

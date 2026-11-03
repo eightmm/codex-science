@@ -1,0 +1,4 @@
+interface:
+  display_name: "Protein engineering cycle"
+  short_description: "Join assay feedback to a bounded next library"
+  default_prompt: "Use $protein-engineering-cycle to evaluate construct-matched assay feedback and propose the next unmeasured library."

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "freeze",
+    "description": "Freeze stable genes, sampling units, context, contrast and controls",
+    "status": "pending"
+  },
+  {
+    "id": "discover",
+    "description": "Select public cohorts and appropriate upstream processing methods",
+    "status": "pending"
+  },
+  {
+    "id": "prepare",
+    "description": "Export comparable expression and source-linked evidence",
+    "status": "pending"
+  },
+  {
+    "id": "contrast",
+    "description": "Compute donor-level descriptive contrasts and design diagnostics",
+    "status": "pending"
+  },
+  {
+    "id": "reconcile",
+    "description": "Retain missingness, disagreement and evidence dependence",
+    "status": "pending"
+  },
+  {
+    "id": "review",
+    "description": "Review an exploratory target handoff and falsifiable next action",
+    "status": "pending"
+  }
+]

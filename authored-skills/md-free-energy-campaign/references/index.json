@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "skill": "md-free-energy-campaign",
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Stage contracts, record shape and uncertainty mathematics",
+      "authority": "repository-contract",
+      "evidence_boundary": "Supplied-result checks do not establish physical or biological validation.",
+      "read_when": [
+        "starting campaign"
+      ],
+      "required_before": [
+        "campaign-analysis"
+      ],
+      "search_patterns": [
+        "stages"
+      ],
+      "version": "1"
+    },
+    {
+      "id": "method-discovery",
+      "path": "references/method-discovery.md",
+      "purpose": "Search and admit current documented protocols",
+      "authority": "repository-contract",
+      "evidence_boundary": "Supplied-result checks do not establish physical or biological validation.",
+      "read_when": [
+        "selecting method"
+      ],
+      "required_before": [
+        "campaign-analysis"
+      ],
+      "search_patterns": [
+        "method-discovery"
+      ],
+      "version": "1"
+    },
+    {
+      "id": "method-seeds",
+      "path": "references/methods.json",
+      "purpose": "Dated primary-source discovery seeds",
+      "authority": "repository-contract",
+      "evidence_boundary": "Supplied-result checks do not establish physical or biological validation.",
+      "read_when": [
+        "selecting method"
+      ],
+      "required_before": [
+        "campaign-analysis"
+      ],
+      "search_patterns": [
+        "method-seeds"
+      ],
+      "version": "1"
+    },
+    {
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing checkpoint plan step shapes",
+      "authority": "repository-contract",
+      "evidence_boundary": "Supplied-result checks do not establish physical or biological validation.",
+      "read_when": [
+        "initializing checkpoint"
+      ],
+      "required_before": [
+        "campaign-analysis"
+      ],
+      "search_patterns": [
+        "plan"
+      ],
+      "version": "1"
+    }
+  ]
+}

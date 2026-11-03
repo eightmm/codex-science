@@ -1,0 +1,37 @@
+[
+  {
+    "id": "intake",
+    "description": "Freeze system, ligand, physical state and decision identities",
+    "status": "pending"
+  },
+  {
+    "id": "plan",
+    "description": "Choose protocol, mapping, resources and validation controls",
+    "status": "pending"
+  },
+  {
+    "id": "prepare",
+    "description": "Validate chemical systems, parameters and alchemical network",
+    "status": "pending"
+  },
+  {
+    "id": "execute",
+    "description": "Run only approved bounded simulations through current backend",
+    "status": "pending"
+  },
+  {
+    "id": "diagnose",
+    "description": "Collect independent repeats, convergence and network diagnostics",
+    "status": "pending"
+  },
+  {
+    "id": "compare",
+    "description": "Analyze supplied edges and qualify conclusions",
+    "status": "pending"
+  },
+  {
+    "id": "review",
+    "description": "Save provenance and obtain independent scientific review",
+    "status": "pending"
+  }
+]

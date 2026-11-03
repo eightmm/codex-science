@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-11-03",
+  "evidence_boundary": "Dated discovery seeds and scoped official documentation; not engine execution or scientific efficacy.",
+  "methods": [
+    {
+      "id": "proteingym",
+      "evidence_level": "documented",
+      "sources": [
+        "https://github.com/OATML-Markslab/ProteinGym"
+      ],
+      "route": "protein-variant-evaluation",
+      "applicability": "Assay-specific substitution mapping and fitness-oriented ranking evaluation; DMS/clinical benchmarks have distinct labels.",
+      "limitations": "Inspect assay provenance, direction, preprocessing, training overlap and model terms; benchmark inclusion is not prospective utility."
+    },
+    {
+      "id": "esm-family",
+      "evidence_level": "discovered",
+      "sources": [
+        "https://github.com/Biohub/esm"
+      ],
+      "route": "esmc-protein-modeling",
+      "applicability": "Investigate current sequence-model support and exact score definition for the selected engineering objective.",
+      "limitations": "Not executed or benchmarked here; embeddings or confidence do not establish fitness or active-learning calibration."
+    }
+  ]
+}

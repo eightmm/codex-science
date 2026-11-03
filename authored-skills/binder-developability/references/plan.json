@@ -1,0 +1,37 @@
+[
+  {
+    "description": "Freeze binder class, construct/chain sequences, target and protected framework/disulfide positions.",
+    "id": "intake",
+    "status": "pending"
+  },
+  {
+    "description": "Choose sequence/structure/assay analyses and freeze user-declared limits, matched panel endpoints and controls.",
+    "id": "plan",
+    "status": "pending"
+  },
+  {
+    "description": "Validate chain and residue maps; check controls and optional external predictor compatibility.",
+    "id": "pilot",
+    "status": "pending"
+  },
+  {
+    "description": "Compute chain-local sequence observations without assigning uncalibrated developability probabilities.",
+    "id": "sequence",
+    "status": "pending"
+  },
+  {
+    "description": "Evaluate complete construct-matched on/off-target response panels, retaining predicted versus measured source kind.",
+    "id": "panel",
+    "status": "pending"
+  },
+  {
+    "description": "Apply explicit limits and control outcomes; retain all rejected and unavailable cases with reasons.",
+    "id": "select",
+    "status": "pending"
+  },
+  {
+    "description": "Review computational evidence and propose expression, aggregation or specificity measurements as appropriate.",
+    "id": "review",
+    "status": "pending"
+  }
+]
