@@ -21,9 +21,12 @@ class _UnionFind:
         self.parent = list(range(count))
 
     def find(self, item: int) -> int:
-        if self.parent[item] != item:
-            self.parent[item] = self.find(self.parent[item])
-        return self.parent[item]
+        root = item
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[item] != root:
+            self.parent[item], item = root, self.parent[item]
+        return root
 
     def union(self, left: int, right: int) -> None:
         a, b = self.find(left), self.find(right)
@@ -59,6 +62,15 @@ def _safe_file(root: Path, relative: PurePosixPath, *, required: bool = True) ->
     return current
 
 
+_WELL_FORMED = {
+    "doi": re.compile(r"10\.\S*[^\s/.]"),
+    "pmid": re.compile(r"[0-9]+"),
+    "pmcid": re.compile(r"PMC[0-9]+", re.I),
+}
+# Europe PMC result sources: the only records whose retrieval writes sources/<id>.abstract.txt.
+_ABSTRACT_SOURCES = {"med", "pmc", "ppr", "agr", "cba", "ctx", "eth", "hir", "nbk", "pat", "europepmc"}
+
+
 def _identifiers(record: dict[str, Any]) -> set[str]:
     values: set[str] = set()
     for namespace in ("doi", "pmid", "pmcid"):
@@ -71,15 +83,35 @@ def _identifiers(record: dict[str, Any]) -> set[str]:
                 value = value[len(namespace) + 1:].strip()
             if namespace == "doi":
                 value = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", value, flags=re.I)
-            values.add(normalize_identifier(f"{namespace}:{value}"))
+            if _well_formed(namespace, value):
+                values.add(normalize_identifier(f"{namespace}:{value}"))
     source = str(record.get("source", "")).strip().lower()
     record_id = str(record.get("id", "")).strip()
     if record_id:
         if source in {"med", "pubmed"}:
-            values.add(normalize_identifier(f"pmid:{record_id}"))
+            if _well_formed("pmid", record_id):
+                values.add(normalize_identifier(f"pmid:{record_id}"))
         elif source == "pmc" or record_id.upper().startswith("PMC"):
-            values.add(normalize_identifier(f"pmcid:{record_id}"))
+            if _well_formed("pmcid", record_id):
+                values.add(normalize_identifier(f"pmcid:{record_id}"))
     return values
+
+
+def _well_formed(namespace: str, value: str) -> bool:
+    text = value.strip().rstrip("/.")
+    if not _WELL_FORMED[namespace].fullmatch(text):
+        return False
+    return namespace != "pmid" or text.strip("0") != ""
+
+
+def _text(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _year_text(value: Any) -> str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return _text(value)
 
 
 def _merge_warnings(record_id: str, identifiers: list[str], titles: list[str], dates: list[str], years: list[str]) -> list[str]:
@@ -149,6 +181,7 @@ def build_candidate_pool(run_dir: str | Path, warnings: list[str] | None = None)
         query_id = row.get("query_id")
         if not isinstance(query_id, str) or not query_id.strip():
             raise ValueError(f"queries.jsonl line {line_number} has invalid query_id")
+        query_id = query_id.strip()
         relative = _relative_path(row["result_path"], f"queries.jsonl line {line_number} result_path")
         # Path-safety refusals stay fatal; unusable result content is skipped and reported.
         result_path = _safe_file(root, relative, required=False)
@@ -189,8 +222,10 @@ def build_candidate_pool(run_dir: str | Path, warnings: list[str] | None = None)
                 raise ValueError(f"result record {index} needs source and id: {relative.as_posix()}")
             if isinstance(record_id, bool):
                 raise ValueError(f"result record {index} has invalid id: {relative.as_posix()}")
+            record_id = str(record_id).strip()
             identity_record = dict(record)
             identity_record["source"] = source
+            identity_record["id"] = record_id
             rows.append({"query_id": query_id, "record": identity_record, "source_key": f"{source.strip().lower()}:{record_id}"})
 
     union = _UnionFind(len(rows))
@@ -212,9 +247,9 @@ def build_candidate_pool(run_dir: str | Path, warnings: list[str] | None = None)
         members.sort(key=lambda item: item["source_key"])
         all_ids = sorted(set().union(*(_identifiers(item["record"]) for item in members)))
         record_id = members[0]["source_key"]
-        titles = sorted({str(item["record"].get("title", "")).strip() for item in members if str(item["record"].get("title", "")).strip()})
-        dates = sorted({str(item["record"].get("publication_date", "")).strip() for item in members if str(item["record"].get("publication_date", "")).strip()})
-        years = sorted({str(item["record"].get("year", "")).strip() for item in members if str(item["record"].get("year", "")).strip()})
+        titles = sorted({_text(item["record"].get("title")) for item in members} - {""})
+        dates = sorted({_text(item["record"].get("publication_date")) for item in members} - {""})
+        years = sorted({_year_text(item["record"].get("year")) for item in members} - {""})
         candidate: dict[str, Any] = {
             "record_id": record_id,
             "identifiers": all_ids,
@@ -232,6 +267,8 @@ def build_candidate_pool(run_dir: str | Path, warnings: list[str] | None = None)
         abstracts: list[tuple[str, str]] = []
         for item in members:
             raw_id = str(item["record"]["id"])
+            if str(item["record"]["source"]).strip().lower() not in _ABSTRACT_SOURCES:
+                continue
             if not re.fullmatch(r"[A-Za-z0-9._-]+", raw_id):
                 continue
             relative = PurePosixPath("sources") / f"{raw_id}.abstract.txt"

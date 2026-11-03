@@ -66,6 +66,24 @@ class StatementRetrievalTests(unittest.TestCase):
             return None
         return json.loads(result.stdout)
 
+    def test_candidates_are_tokenized_once_per_report(self):
+        from unittest import mock
+        from codex_science import statement_retrieval
+        report = "".join(f"Statement number {n} about nebula quasar spectroscopy measurements.\n\n" for n in range(6))
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.make_run(Path(temp), report)
+            baseline = retrieve_statement_sources(run)
+            real = statement_retrieval._tokens
+            with mock.patch.object(statement_retrieval, "_tokens", side_effect=real) as spy:
+                counted = retrieve_statement_sources(run)
+            statements = len(baseline["statements"])
+            self.assertGreaterEqual(statements, 6)
+            self.assertEqual(counted, baseline)
+            candidates = spy.call_count - statements
+            self.assertGreater(candidates, 0)
+            # one token set per statement plus one per candidate, not one per statement-candidate pair
+            self.assertLessEqual(candidates, statements)
+
     def test_failed_and_unavailable_queries_are_not_candidates(self):
         phrase = "Unrelated nebula quasar spectroscopy measurements."
         for status in ("failed", "unavailable", " failed ", " unavailable ", "complete", "partial",

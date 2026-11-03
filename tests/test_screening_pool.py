@@ -300,9 +300,7 @@ class BuildCandidatePoolTests(RunDirCase):
         cases = [("doi", "doi: 10.1234/ABC ", "doi:10.1234/abc"),
                  ("pmcid", " PMCID: pmc22 ", "pmcid:PMC22"),
                  ("pmid", "PMID: 12345", "pmid:12345"),
-                 ("doi", "doi:10.1234/ABC/.", "doi:10.1234/abc"),
-                 ("doi", "doi: malformed", "doi:malformed"),
-                 ("doi", "doi: ", "unknown:d6f0645a4a753ffff8d5863a")]
+                 ("doi", "doi:10.1234/ABC/.", "doi:10.1234/abc")]
         for scheme in ("http", "https"):
             for host in ("doi.org", "dx.doi.org"):
                 url = f"{scheme}://{host}/10.1234/ABC"
@@ -311,13 +309,17 @@ class BuildCandidatePoolTests(RunDirCase):
         for field, value, expected in cases:
             with self.subTest(field=field, value=value):
                 self.assertEqual(screening_pool._identifiers({field: value}), {expected})
+        for field, value in [("doi", "doi: malformed"), ("doi", "doi: "), ("doi", "10."), ("doi", "10./"),
+                             ("pmid", "pmid:abc"), ("pmid", "000"), ("pmcid", "PMC"), ("pmcid", "PMCabc")]:
+            with self.subTest(malformed=value):
+                self.assertEqual(screening_pool._identifiers({field: value}), set())
         for field in ("doi", "pmid", "pmcid"):
             for value in (None, "", "  "):
                 with self.subTest(field=field, empty=value):
                     self.assertEqual(screening_pool._identifiers({field: value}), set())
 
     def test_integer_pmid_aliases_merge_but_bool_and_other_types_are_ignored(self):
-        for value in (12345, 0):
+        for value in (12345,):
             with self.subTest(value=value):
                 self.write("r.json", {"records": [
                     {"source": "Custom", "id": "a", "pmid": str(value)},
@@ -348,6 +350,70 @@ class BuildCandidatePoolTests(RunDirCase):
         self.assertEqual(by_id["med:111"]["abstract_sha256"], sha(data))
         self.assertIsNone(by_id["med:bad id"]["abstract_artifact"])
         self.assertIsNone(by_id["med:../evil"]["abstract_artifact"])
+
+    def test_placeholder_identifiers_do_not_merge_records(self):
+        for index, placeholder in enumerate(("n/a", "unknown", "none", "-", "NA", "doi: ", "0")):
+            for field in ("doi", "pmid", "pmcid"):
+                with self.subTest(placeholder=placeholder, field=field):
+                    self.write("r.json", {"records": [
+                        {"source": "Custom", "id": "a", field: placeholder},
+                        {"source": "Custom", "id": "b", field: placeholder},
+                    ]})
+                    self.ledger({"query_id": "q1", "result_path": "r.json"})
+                    pool = build_candidate_pool(self.root)
+                    self.assertEqual(pool["unique_records"], 2)
+                    self.assertEqual([r["identifiers"] for r in pool["records"]], [[], []])
+
+    def test_abstract_file_is_only_read_for_europepmc_sources(self):
+        self.write("sources/777777.abstract.txt", b"pubmed abstract", mode="wb")
+        self.write("r.json", {"records": [
+            {"source": "Crossref", "id": "777777"},
+            {"source": "MED", "id": "888888"},
+        ]})
+        self.ledger({"query_id": "q1", "result_path": "r.json"})
+        by_id = {r["record_id"]: r for r in build_candidate_pool(self.root)["records"]}
+        self.assertIsNone(by_id["crossref:777777"]["abstract_artifact"])
+        self.write("r.json", {"records": [{"source": "MED", "id": "777777"}]})
+        pool = build_candidate_pool(self.root)
+        self.assertEqual(pool["records"][0]["abstract_artifact"], "sources/777777.abstract.txt")
+
+    def test_record_and_query_ids_are_stripped(self):
+        self.write("sources/111.abstract.txt", b"abs", mode="wb")
+        self.write("r.json", {"records": [
+            {"source": "MED", "id": " 111 "}, {"source": "MED", "id": "111"},
+        ]})
+        self.ledger({"query_id": " q1 ", "result_path": "r.json"}, {"query_id": "q1", "result_path": "r.json"})
+        pool = build_candidate_pool(self.root)
+        self.assertEqual(pool["unique_records"], 1)
+        record = pool["records"][0]
+        self.assertEqual((record["record_id"], record["query_ids"]), ("med:111", ["q1"]))
+        self.assertEqual(record["abstract_artifact"], "sources/111.abstract.txt")
+
+    def test_non_string_title_date_and_year_are_not_published(self):
+        self.write("r.json", {"records": [
+            {"source": "Custom", "id": "a", "title": {"en": "x"}, "publication_date": ["2020"], "year": [1999]},
+            {"source": "Custom", "id": "b", "title": 5, "publication_date": 7, "year": True},
+            {"source": "Custom", "id": "c", "year": 2001},
+        ]})
+        self.ledger({"query_id": "q1", "result_path": "r.json"})
+        by_id = {r["record_id"]: r for r in build_candidate_pool(self.root)["records"]}
+        for key in ("custom:a", "custom:b"):
+            self.assertEqual(by_id[key]["title"], "")
+            self.assertNotIn("publication_date", by_id[key])
+            self.assertNotIn("year", by_id[key])
+        self.assertEqual(by_id["custom:c"]["year"], "2001")
+
+    def test_long_identifier_chain_does_not_exhaust_recursion(self):
+        count = sys.getrecursionlimit() * 3
+        # Bridges processed from the highest anchor down chain the anchors' union-find roots; the probe then
+        # looks up the deepest one.
+        anchors = [{"source": "Custom", "id": f"a{i}", "doi": f"10.1/{i}", "pmid": str(i + 1)} for i in range(count)]
+        bridges = [{"source": "Custom", "id": f"b{i}", "doi": f"10.1/{i}", "pmid": str(i + 2)}
+                   for i in range(count - 2, -1, -1)]
+        probe = [{"source": "Custom", "id": "probe", "doi": f"10.1/{count - 1}"}]
+        self.write("r.json", {"records": anchors + bridges + probe})
+        self.ledger({"query_id": "q1", "result_path": "r.json"})
+        self.assertEqual(build_candidate_pool(self.root)["unique_records"], 1)
 
     def test_europepmc_shape_is_normalized(self):
         self.write("r.json", {"resultList": {"result": [

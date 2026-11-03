@@ -119,12 +119,12 @@ def retrieve_statement_sources(run_dir: str | Path, report_paths: list[str | Pat
         report = _safe_file(root, relative)
         report_bytes = report.read_bytes()
         candidates = _load_candidates(sidecars, root, report, hashlib.sha256(report_bytes).hexdigest())
+        candidate_words = [_tokens(candidate["text"]) for candidate in candidates]
         for line, statement in _units(report_bytes.decode("utf-8")):
             identifiers = [item["identifier"] for item in extract_identifiers(statement)]
             query = _tokens(statement)
             ranked = []
-            for candidate in candidates:
-                words = _tokens(candidate["text"])
+            for candidate, words in zip(candidates, candidate_words):
                 matched = sorted(query & words)
                 union = query | words
                 score = len(matched) / len(union) if union else 0.0
