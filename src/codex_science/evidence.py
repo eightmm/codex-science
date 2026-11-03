@@ -865,6 +865,15 @@ def validate_sidecars(
     return loaded
 
 
+def _optional_group_id(record: dict[str, Any], field: str, label: str) -> str:
+    if field not in record:
+        return ""
+    value = record[field]
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} {field} must be a non-empty string")
+    return value.strip()
+
+
 def _persistent_id(value: Any) -> str:
     text = str(value).strip().lower()
     for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
@@ -890,6 +899,18 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
     studies: dict[str, dict[str, Any]] = sidecars.get("study_by_id", {})
     queries: dict[str, dict[str, Any]] = sidecars.get("query_by_id", {})
 
+    def group_id(record: dict[str, Any], field: str, label: str) -> str | None:
+        try:
+            return _optional_group_id(record, field, label)
+        except ValueError as error:
+            add("invalid-independence-group", "major", str(error))
+            return None
+
+    cohorts = {
+        study_id: group_id(study, "cohort_id", f"study {study_id!r}")
+        for study_id, study in studies.items()
+    }
+    edge_groups: dict[tuple[str, str, str], str | None] = {}
     duplicate_groups: dict[str, list[str]] = defaultdict(list)
     for study_id, study in studies.items():
         duplicate_groups[_persistent_id(study.get("persistent_id"))].append(study_id)
@@ -907,6 +928,8 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
         target = str(edge["target"]).strip()
         source = str(edge["source"]).strip()
         relation = str(edge["relation"]).strip()
+        edge_groups[(source, target, relation)] = group_id(
+            edge, "independence_group", f"edge {source!r} -> {target!r}")
         eligible = source not in claims and studies.get(source, {}).get("included") is not False
         if eligible and relation == "supports":
             support_edges[target].append(edge)
@@ -988,10 +1011,11 @@ def review_sidecars(sidecars: dict[str, Any]) -> list[dict[str, str]]:
             independence_groups: set[str] = set()
             for edge in supports:
                 source = str(edge["source"]).strip()
-                group = str(edge.get("independence_group") or "").strip()
-                if not group and source in studies:
-                    group = str(studies[source].get("cohort_id") or "").strip()
-                independence_groups.add(group or source)
+                group = edge_groups[(source, claim_id, "supports")]
+                cohort = cohorts.get(source, "")
+                if group is None or cohort is None:
+                    continue
+                independence_groups.add(group or cohort or source)
             if len(independence_groups) < 2:
                 add(
                     "dependent-evidence",

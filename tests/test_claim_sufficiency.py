@@ -113,7 +113,7 @@ class ClaimSufficiencyTests(unittest.TestCase):
         studies = []
         edges = []
         nodes = [{"id": "claim-method-effect", "label": "claim", "type": "claim"}]
-        for i, cohort in enumerate((7, 7, "third"), 1):
+        for i, cohort in enumerate((" 7 ", "7", "third"), 1):
             sid = f"study-{i}"
             studies.append({"study_id": sid, "persistent_id": f"doi:10.0000/{i}",
                             "title": f"study {i}", "evidence_type": "primary", "included": True,
@@ -126,6 +126,11 @@ class ClaimSufficiencyTests(unittest.TestCase):
         result = check_sufficiency(graph_path, tier="full")["claims"][0]
         self.assertEqual(result["supporting_groups"], 2)
         self.assertEqual((result["required"], result["verdict"]), (3, "insufficient"))
+        studies[0]["cohort_id"] = 7
+        invalid = self._bundle(self._temp / "invalid", claims=[claim], studies=studies,
+                               edges=edges, nodes=nodes)
+        with self.assertRaisesRegex(ValueError, "study.*cohort_id.*non-empty string"):
+            check_sufficiency(invalid, tier="full")
 
     def test_manifest_kind_fallback_when_register_omits_kind(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
@@ -135,7 +140,7 @@ class ClaimSufficiencyTests(unittest.TestCase):
         result = check_sufficiency(path, tier="full")["claims"][0]
         self.assertEqual((result["kind"], result["required"]), ("causal", 3))
 
-    def test_numeric_independence_group_ids_are_normalized(self):
+    def test_invalid_edge_group_ids_are_rejected(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
         study = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
         other = {**study, "study_id": "study-example-2", "persistent_id": "doi:10.0000/example.2",
@@ -143,12 +148,25 @@ class ClaimSufficiencyTests(unittest.TestCase):
         studies = [study, other]
         graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
         nodes = graph["nodes"] + [{"id": other["study_id"], "label": "second study", "type": "study"}]
-        edges = [
-            {"source": item["study_id"], "target": claim["id"], "relation": "supports",
-             "independence_group": group}
-            for item, group in zip(studies, (7, " 7 "))
-        ]
-        path = self._bundle(self._temp, studies=studies, edges=edges, nodes=nodes)
+        for index, value in enumerate((0, None, "", " \t", 7, False, True, [], {})):
+            with self.subTest(value=value):
+                edges = [{"source": item["study_id"], "target": claim["id"], "relation": "supports",
+                          "independence_group": value} for item in studies]
+                path = self._bundle(self._temp / str(index), studies=studies, edges=edges, nodes=nodes)
+                with self.assertRaisesRegex(ValueError, "edge.*independence_group.*non-empty string"):
+                    check_sufficiency(path, tier="standard")
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
+                     "--run-dir", str(path), "--tier", "standard"], text=True, capture_output=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(2, proc.returncode, proc.stdout + proc.stderr)
+                result = json.loads(proc.stdout)
+                self.assertEqual(("claim-sufficiency-error-v1", "invalid_run"),
+                                 (result["schema"], result["error"]["code"]))
+                self.assertIn("independence_group", result["error"]["message"])
+        for edge, group in zip(edges, ("7", " \t7\n ")):
+            edge["independence_group"] = group
+        path = self._bundle(self._temp / "valid", studies=studies, edges=edges, nodes=nodes)
         row = check_sufficiency(path, tier="standard")["claims"][0]
         self.assertEqual(row["supporting_groups"], 1)
 
@@ -171,23 +189,59 @@ class ClaimSufficiencyTests(unittest.TestCase):
         row = check_sufficiency(path, tier="standard")["claims"][0]
         self.assertEqual(row["supporting_groups"], 1)
 
-    def test_distinct_persistent_ids_with_null_cohorts_count_separately(self):
+    def test_invalid_cohorts_are_rejected_and_absence_preserves_independence(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
         base = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
         studies = [
             {**base, "study_id": "study-doi-1", "persistent_id": "doi:10.1/one",
-             "cohort_id": None, "supports_claim_ids": [claim["id"]]},
+             "supports_claim_ids": [claim["id"]]},
             {**base, "study_id": "study-doi-2", "persistent_id": "doi:10.1/two",
-             "cohort_id": None, "supports_claim_ids": [claim["id"]]},
+             "supports_claim_ids": [claim["id"]]},
         ]
         graph = json.loads((EXAMPLE / "evidence_graph.json").read_text())
         nodes = [node for node in graph["nodes"] if node["type"] != "study"] + [
             {"id": item["study_id"], "label": item["study_id"], "type": "study"}
             for item in studies
         ]
-        path = self._bundle(self._temp, claims=[claim], studies=studies, edges=[], nodes=nodes)
+        for index, value in enumerate((0, None, "", " \t", 7, False, True, [], {})):
+            with self.subTest(value=value):
+                for study in studies:
+                    study["cohort_id"] = value
+                edges = [{"source": study["study_id"], "target": claim["id"], "relation": "supports",
+                          "independence_group": study["study_id"]} for study in studies]
+                path = self._bundle(self._temp / str(index), claims=[claim], studies=studies,
+                                    edges=edges, nodes=nodes)
+                with self.assertRaisesRegex(ValueError, "study.*cohort_id.*non-empty string"):
+                    check_sufficiency(path, tier="standard")
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts/check_claim_sufficiency.py"),
+                     "--run-dir", str(path), "--tier", "standard"], text=True, capture_output=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")))
+                self.assertEqual(2, proc.returncode, proc.stdout + proc.stderr)
+                result = json.loads(proc.stdout)
+                self.assertEqual(("claim-sufficiency-error-v1", "invalid_run"),
+                                 (result["schema"], result["error"]["code"]))
+                self.assertIn("cohort_id", result["error"]["message"])
+        for study in studies:
+            study.pop("cohort_id")
+        path = self._bundle(self._temp / "absent", claims=[claim], studies=studies, edges=[], nodes=nodes)
         row = check_sufficiency(path, tier="standard")["claims"][0]
         self.assertEqual(row["supporting_groups"], 2)
+
+    def test_invalid_identities_on_unused_records_are_rejected(self):
+        base = json.loads((EXAMPLE / "studies.json").read_text())["studies"][0]
+        claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
+        for field in ("cohort_id", "independence_group"):
+            with self.subTest(field=field):
+                study = {**base, "included": False}
+                edge = {"source": study["study_id"], "target": "dataset-1", "relation": "depends_on"}
+                (study if field == "cohort_id" else edge)[field] = None
+                nodes = [{"id": study["study_id"], "type": "study"},
+                         {"id": "dataset-1", "type": "dataset"},
+                         {"id": claim["id"], "type": "claim"}]
+                path = self._bundle(self._temp / field, studies=[study], edges=[edge], nodes=nodes)
+                with self.assertRaisesRegex(ValueError, field + ".*non-empty string"):
+                    check_sufficiency(path, tier="standard")
 
     def test_replicated_claim_requires_two_groups_at_each_tier(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
@@ -396,10 +450,10 @@ class ClaimSufficiencyTests(unittest.TestCase):
     def test_transitive_merge_via_shared_cohort_node(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]
         studies = [
-            {"study_id": "study-a", "persistent_id": "doi:10.1/a", "cohort_id": None,
+            {"study_id": "study-a", "persistent_id": "doi:10.1/a",
              "title": "a", "evidence_type": "primary", "included": True,
              "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
-            {"study_id": "study-b", "persistent_id": "doi:10.1/b", "cohort_id": None,
+            {"study_id": "study-b", "persistent_id": "doi:10.1/b",
              "title": "b", "evidence_type": "primary", "included": True,
              "supports_claim_ids": [claim["id"]], "contradicts_claim_ids": []},
         ]
@@ -417,6 +471,10 @@ class ClaimSufficiencyTests(unittest.TestCase):
         path = self._bundle(self._temp, claims=[claim], studies=studies, edges=edges, nodes=nodes)
         row = check_sufficiency(path, tier="standard")["claims"][0]
         self.assertEqual(row["supporting_groups"], 1)
+        studies[0]["cohort_id"] = None
+        invalid = self._bundle(self._temp / "invalid", claims=[claim], studies=studies, edges=edges, nodes=nodes)
+        with self.assertRaisesRegex(ValueError, "cohort_id.*non-empty string"):
+            check_sufficiency(invalid, tier="standard")
 
     def test_depends_on_does_not_merge(self):
         claim = json.loads((EXAMPLE / "claims.json").read_text())["claims"][0]

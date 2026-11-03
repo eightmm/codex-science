@@ -504,22 +504,64 @@ class EvidenceSidecarTests(unittest.TestCase):
             }
             self.assertIn("duplicate-study", codes)
 
-    def test_replicated_claim_with_null_cohorts_has_independent_studies(self) -> None:
-        sidecars = {
-            "claim_by_id": {"claim-1": {"status": "replicated"}},
-            "study_by_id": {
-                "study-1": {"persistent_id": "doi:10.1/one", "cohort_id": None},
-                "study-2": {"persistent_id": "doi:10.1/two", "cohort_id": None},
-            },
-            "edges": [
-                {"source": study_id, "target": "claim-1", "relation": "supports"}
-                for study_id in ("study-1", "study-2")
-            ],
-        }
+    def test_replicated_claim_rejects_invalid_group_identities(self) -> None:
+        for field in ("cohort_id", "independence_group"):
+            for value in (0, None, "", " \t", 7, False, True, [], {}):
+                for override in (False, True):
+                    with self.subTest(field=field, value=value, override=override):
+                        studies = {
+                            sid: {"persistent_id": f"doi:10.1234/{sid}", "supports_claim_ids": ["claim-1"]}
+                            for sid in ("study-1", "study-2")
+                        }
+                        edges = [{"source": sid, "target": "claim-1", "relation": "supports"}
+                                 for sid in studies]
+                        for edge in edges:
+                            study = studies[edge["source"]]
+                            if field == "cohort_id":
+                                study[field] = value
+                                if override:
+                                    edge["independence_group"] = edge["source"]
+                            else:
+                                edge[field] = value
+                                if override:
+                                    study["cohort_id"] = edge["source"]
+                        sidecars = {"claim_by_id": {"claim-1": {"status": "replicated"}},
+                                    "study_by_id": studies, "edges": edges}
+                        findings = review_sidecars(sidecars)
+                        invalid = [item for item in findings if item["code"] == "invalid-independence-group"]
+                        self.assertEqual(2, len(invalid))
+                        self.assertTrue(all(item["severity"] == "major" and field in item["message"]
+                                            for item in invalid))
+                        self.assertIn("dependent-evidence", {item["code"] for item in findings})
+                        record = studies["study-2"] if field == "cohort_id" else edges[1]
+                        record[field] = "valid-group"
+                        findings = review_sidecars(sidecars)
+                        self.assertEqual(1, sum(item["code"] == "invalid-independence-group"
+                                                for item in findings))
+                        self.assertIn("dependent-evidence", {item["code"] for item in findings})
 
-        findings = review_sidecars(sidecars)
+            for present in (False, True):
+                with self.subTest(field=field, present=present):
+                    for study in studies.values():
+                        study.pop("cohort_id", None)
+                    for edge in edges:
+                        edge.pop("independence_group", None)
+                        if present:
+                            record = studies[edge["source"]] if field == "cohort_id" else edge
+                            record[field] = " \tshared-group\n " if edge is edges[0] else "shared-group"
+                    findings = review_sidecars(sidecars)
+                    self.assertEqual(["dependent-evidence"] if present else [],
+                                     [item["code"] for item in findings])
 
-        self.assertNotIn("dependent-evidence", {item["code"] for item in findings})
+    def test_invalid_group_identities_are_reviewed_without_replication(self) -> None:
+        findings = review_sidecars({
+            "study_by_id": {"study-1": {"persistent_id": "doi:10.1234/one", "included": False,
+                                          "cohort_id": None}},
+            "edges": [{"source": "dataset-1", "target": "study-1", "relation": "depends_on",
+                       "independence_group": 0}],
+        })
+        self.assertEqual(["invalid-independence-group"] * 2, [item["code"] for item in findings])
+        self.assertTrue(all(item["severity"] == "major" for item in findings))
 
     def test_seeded_citation_mismatch_and_unsupported_claim_are_detected(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

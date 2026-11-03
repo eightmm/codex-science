@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from codex_science.artifacts import manifest_provenance_paths, validate_bundle
-from codex_science.evidence import _persistent_id
+from codex_science.evidence import _optional_group_id, _persistent_id
 from codex_science.evidence_graph_v2 import INDEPENDENCE_RELATIONS, UnionFind
 from codex_science.literature_v2 import RELATIONSHIPS, _identifiers
 
@@ -26,10 +26,11 @@ SUFFICIENCY_POLICY = {
 
 
 def _group_id(study: dict[str, Any], edge: dict[str, Any]) -> str:
-    explicit = str(edge.get("independence_group") or "").strip()
+    cohort = _optional_group_id(study, "cohort_id", f"study {edge['source']!r}")
+    explicit = _optional_group_id(
+        edge, "independence_group", f"edge {edge['source']!r} -> {edge.get('target')!r}")
     if explicit:
         return explicit
-    cohort = str(study.get("cohort_id") or "").strip()
     if cohort:
         return cohort
     persistent = _persistent_id(study.get("persistent_id") or "")
@@ -76,6 +77,9 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
         {**edge, **{key: str(edge[key]).strip() for key in ("source", "target", "relation")}}
         for edge in sidecars.get("edges", [])
     ]
+    for edge in edges:
+        _optional_group_id(
+            edge, "independence_group", f"edge {edge['source']!r} -> {edge['target']!r}")
     edge_groups = {
         (str(edge.get("source", "")), str(edge.get("target", "")), str(edge.get("relation", ""))): edge
         for edge in edges
@@ -103,7 +107,8 @@ def check_sufficiency(run_dir: str | Path, *, tier: str) -> dict[str, Any]:
         labels = {("identifier", value) for value in _identifiers(study)}
         for field in ("cohort_id", "sample_id", "site_id", "database_id", "portal_id",
                       "author_group_id", "analysis_pipeline_id", "independence_group"):
-            value = str(study.get(field) or "").strip()
+            value = (_optional_group_id(study, field, f"study {study_id!r}")
+                     if field == "cohort_id" else str(study.get(field) or "").strip())
             if value:
                 labels.add((field, value))
         for label in labels:
