@@ -277,7 +277,7 @@ class PowerTests(unittest.TestCase):
     def test_claim_wording_types_unavailable_and_evidence_order(self):
         pack = read(self.directory / "pack.json")
         for status in sorted(power.STATUSES):
-            for word in (*power.WORDING_FAMILIES, "drive", "drives", "adequate", "well-powered",
+            for word in (*power.WORDING_FAMILIES, "drive", "drives", "adequate", "adequacy", "benefit", "well-powered",
                          "no effect", "truth", "physical validity", "observed power", "post-hoc power"):
                 changed = copy.deepcopy(pack)
                 changed["claims"][0].update(status=status, text="Not " + word.upper())
@@ -414,6 +414,16 @@ class PowerTests(unittest.TestCase):
             self.edit("pack.json", ["inputs", "assumptions", "sha256"], digest)
             with self.assertRaisesRegex(ValueError, "^(input-hash|invalid-record):"):
                 self.validate()
+        shutil.copyfile(FIXTURE / "pack.json", self.directory / "pack.json")
+        for descriptor in ([], {}, {"path": "calculation.json"}, None, "calculation.json"):
+            self.edit("pack.json", ["inputs", "calculation"], descriptor)
+            with self.subTest(descriptor=descriptor), self.assertRaisesRegex(
+                    ValueError, "^(input-path|input-hash|invalid-record):"):
+                self.validate()
+            result = self.cli(self.directory / "pack.json")
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual("refused", json.loads(result.stderr)["status"])
         shutil.copyfile(FIXTURE / "pack.json", self.directory / "pack.json")
         for kind in ("fifo", "directory", "symlink", "oversize"):
             hostile = self.directory / kind

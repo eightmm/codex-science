@@ -36,7 +36,7 @@ WORDING_FAMILIES = (
 )
 OVERREACH = re.compile(
     r"\b(?:" + "|".join(word + r"\w*" for word in WORDING_FAMILIES)
-    + r"|adequate|well[\s-]+powered|no[\s-]+effect|truth|physical[\s-]+validity"
+    + r"|adequa\w*|benefit\w*|well[\s-]+powered|no[\s-]+effect|truth|physical[\s-]+validity"
     + r"|observed[\s-]+power|post[\s-]*hoc[\s-]+power)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
@@ -494,6 +494,7 @@ def validate_sample_size_power_pack(path):
             if pack["outcomes_available_at"] is not None:
                 _require(frozen_at < _time(pack["outcomes_available_at"]) or exploratory,
                          "post-outcome-change", "post-outcome assumptions require an exploratory label")
+            calculation = bundle.load(inputs["calculation"])
             outputs = _items(pack["study_outputs"], "study outputs", MAX_SUPPORT, empty=True)
             for identity in outputs:
                 _source(bundle.load(identity))
@@ -509,7 +510,6 @@ def validate_sample_size_power_pack(path):
                          "unavailable source cannot supply an assumption value")
                 _require(not re.search(r"own[\s-]*outcome|observed[\s-]*effect", source["kind"] + " " + source["result"], re.I),
                          code, "own outcome estimates cannot be frozen prior assumptions")
-            calculation = bundle.load(inputs["calculation"])
             _record(calculation, "sample-size-power-calculation-v1", ("power_basis", "effect_basis", "result"))
             _require(calculation["power_basis"] == "prospective", "observed-power", "observed power cannot evidence a null result")
             _require(calculation["effect_basis"] == "frozen-prior", "effect-leakage", "effect must come from a frozen prior record")
