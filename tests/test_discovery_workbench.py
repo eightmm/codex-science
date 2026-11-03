@@ -922,6 +922,31 @@ class DiscoveryWorkbenchTests(unittest.TestCase):
             self.assertEqual(manifest_before, manifest_path.read_bytes())
             self.assertEqual(sidecar_before, sidecar.read_bytes())
 
+    def test_workbench_skips_events_for_removed_annotation_and_fails_closed_on_malformed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            manifest_path, _, cli = annotation_fixture(root)
+            self.assertEqual(0, add_fixture_annotation(cli).returncode)
+            resolved = subprocess.run(cli + ["resolve", "--id", "A1", "--status", "resolved", "--resolver", "owner"],
+                                      capture_output=True, text=True)
+            self.assertEqual(0, resolved.returncode, resolved.stderr)
+            manifest = json.loads(manifest_path.read_text())
+            manifest["artifacts"] = [item for item in manifest["artifacts"] if item["path"] != "annotations/A1.json"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            (root / "annotations/A1.json").unlink()
+            render = [sys.executable, str(ROOT / "scripts/render_workbench.py"), str(manifest_path)]
+            listed = subprocess.run(cli + ["list"], capture_output=True, text=True)
+            self.assertEqual(0, listed.returncode, listed.stderr)
+            rendered = subprocess.run(render, capture_output=True, text=True)
+            self.assertEqual(0, rendered.returncode, rendered.stderr)
+            self.assertEqual(1, rendered.stderr.count("warning:"))
+            self.assertIn("A1", rendered.stderr)
+            self.assertIn("No annotations recorded.", (root / "workbench.html").read_text())
+            (root / "annotations/resolutions.jsonl").write_text("{not json}\n")
+            malformed = subprocess.run(render, capture_output=True, text=True)
+            self.assertNotEqual(0, malformed.returncode)
+            self.assertIn("invalid resolution event", malformed.stderr)
+
     def test_add_preserves_modes_and_concurrent_adds_keep_manifest_entries(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "run"

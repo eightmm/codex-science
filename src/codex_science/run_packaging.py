@@ -196,6 +196,24 @@ def _execution_is_later(
     return candidate_index > failure_index
 
 
+def _journal_file(run_dir: Path) -> Path | None:
+    """Return the execution journal if present; refuse one that is not a regular file before it is opened."""
+    log_file = run_dir / "execution-log.jsonl"
+    try:
+        info = os.stat(log_file)
+        # Same rule as review: a link may not leave the run directory, and the target must be a regular file.
+        if log_file.is_symlink() and not log_file.resolve().is_relative_to(run_dir.resolve()):
+            raise ValueError("execution-log.jsonl escapes the run directory")
+    except FileNotFoundError:
+        return None
+    except (OSError, RuntimeError) as error:
+        # strerror keeps the absolute path out of a message that may be pasted into reports.
+        raise ValueError(f"execution-log.jsonl cannot be inspected: {getattr(error, 'strerror', None) or error}") from error
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("execution-log.jsonl is not a regular file")
+    return log_file
+
+
 def _read_journal(log_file: Path) -> list[dict[str, Any]]:
     records = []
     content = log_file.read_bytes()
@@ -226,6 +244,7 @@ def run_exec(run_dir: Path, command: list[str], identifier: str | None = None) -
     run_dir.mkdir(parents=True, exist_ok=True)
     run_dir = run_dir.resolve()
     log_file = run_dir / "execution-log.jsonl"
+    _journal_file(run_dir)
     _write_target(run_dir, "execution-log.jsonl")
     logs_dir = _safe_directory(run_dir, "logs")
     records = _read_journal(log_file) if log_file.exists() else []
@@ -720,6 +739,7 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
         if not any(char in pattern for char in "*?[")
     }
     reclassified: list[dict[str, str]] = []
+    _journal_file(run_dir)
     manifest_path = _write_target(run_dir, "manifest.json")
     if not manifest_path.is_file():
         raise ValueError(_missing_manifest_message(manifest_path))
@@ -1011,8 +1031,8 @@ def refresh(run_dir: Path, overrides: list[tuple[str, str]], invalidate_review: 
     ):
         raise ValueError("Manifest execution id appears in both executions lists")
     executions_added = 0
-    execution_log = run_dir / "execution-log.jsonl"
-    if execution_log.exists():
+    execution_log = _journal_file(run_dir)
+    if execution_log is not None:
         comparable_fields = ("command", "started_at", "ended_at", "exit_code", "log_path", "log_sha256")
         known: dict[Any, list[dict[str, Any]]] = {}
         for item in [*manifest["executions"], *superseded]:
@@ -1089,6 +1109,7 @@ def prepare_review(
     """Refresh, record existing checks, refresh their outputs, and build a packet."""
     from codex_science.reviewer_runtime import build_review_packet
     run_dir = run_dir.resolve()
+    _journal_file(run_dir)
     registry_path = Path(__file__).resolve().parents[2] / "models" / "registry-v2.json"
     if registry_path.is_file():
         from codex_science.model_registry_v2 import load_registry_v2
@@ -1128,8 +1149,8 @@ def prepare_review(
             str(item.get("id")) for item in manifest_now.get("executions", [])
             if isinstance(item, dict) and item.get("id") is not None
         }
-        log_file = run_dir / "execution-log.jsonl"
-        if log_file.exists():
+        log_file = _journal_file(run_dir)
+        if log_file is not None:
             used.update(
                 str(item.get("id")) for item in
                 (json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip())

@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import quote
 
 from codex_science.artifacts import validate_bundle, validate_manifest
-from codex_science.collaboration import fold_annotation_resolutions, load_resolution_events
+from codex_science.collaboration import fold_annotation_resolutions, load_resolution_events, validate_resolution_event
 
 
 def _text(value: Any) -> str:
@@ -24,10 +24,28 @@ def _href(path: Any) -> str:
     return html.escape("./" + quote(str(path), safe="/"), quote=True)
 
 
-def render_workbench(manifest: dict[str, Any], run_dir: Path) -> str:
+def _registered_resolution_events(sidecars: dict[str, Any], run_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    """Validate every ledger event, then drop well-formed ones for unregistered annotation IDs."""
+    known = {str(item["annotation_id"]) for item in sidecars.get("annotations", [])}
+    kept: list[dict[str, Any]] = []
+    skipped: set[str] = set()
+    for event in load_resolution_events(run_dir):
+        validate_resolution_event(event)
+        if str(event["annotation_id"]) in known:
+            kept.append(event)
+        else:
+            skipped.add(str(event["annotation_id"]))
+    return kept, sorted(skipped)
+
+
+def render_workbench(manifest: dict[str, Any], run_dir: Path, skipped: list[str] | None = None) -> str:
+    """Render the page; when `skipped` is a list it receives the annotation IDs whose ledger events were ignored."""
     sidecars = validate_bundle(manifest, run_dir)
+    events, skipped_ids = _registered_resolution_events(sidecars, run_dir)
+    if skipped is not None:
+        skipped[:] = skipped_ids
     annotations = fold_annotation_resolutions(
-        sidecars.get("annotations", []), load_resolution_events(run_dir), sidecars.get("artifact_hashes", {})
+        sidecars.get("annotations", []), events, sidecars.get("artifact_hashes", {}),
     )
     artifacts = manifest.get("artifacts", [])
     claims = sidecars.get("claim_by_id", {})
@@ -168,10 +186,10 @@ def _protect_workbench_output(manifest: dict[str, Any], manifest_path: Path, out
             raise ValueError(f"workbench output cannot overwrite {kind}: {path}")
 
 
-def write_workbench(manifest_path: Path, output: Path) -> None:
+def write_workbench(manifest_path: Path, output: Path, skipped: list[str] | None = None) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     _protect_workbench_output(manifest, manifest_path, output)
-    rendered = render_workbench(manifest, manifest_path.parent).encode("utf-8")
+    rendered = render_workbench(manifest, manifest_path.parent, skipped).encode("utf-8")
     # Re-check after rendering so a link swapped in meanwhile is still refused.
     _confine_output(output, manifest_path.parent.resolve())
     destination = output.resolve()

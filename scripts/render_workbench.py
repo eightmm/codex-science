@@ -14,7 +14,10 @@ def main() -> int:
     args = parser.parse_args()
     output = args.output or args.manifest.parent / "workbench.html"
     try:
-        write_workbench(args.manifest.resolve(), output)
+        skipped: list[str] = []
+        write_workbench(args.manifest.resolve(), output, skipped)
+        if skipped:
+            print("warning: ignoring resolution events for unregistered annotation IDs: " + ", ".join(skipped), file=sys.stderr)
     except (OSError, UnicodeError, ValueError) as error:
         print(f"error: {error}{digest_mismatch_hint(error, args.manifest.resolve().parent)}", file=sys.stderr)
         return 1

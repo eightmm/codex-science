@@ -707,6 +707,44 @@ class PackageRunTests(unittest.TestCase):
                         self.assertEqual(journal.read_bytes(), content)
                         self.assertEqual(list(run_dir.iterdir()), [journal])
 
+    def test_non_regular_journal_refused_without_opening_or_writing(self) -> None:
+        import os
+        for kind in ("fifo", "directory", "loop", "escape"):
+            if kind == "fifo" and not hasattr(os, "mkfifo"):
+                continue
+            for args in (("exec", "--run-dir", "{}", "--", sys.executable, "-c", "pass"), ("refresh", "--run-dir", "{}"),
+                         ("prepare-review", "--run-dir", "{}", "--tier", "quick")):
+                with self.subTest(kind=kind, command=args[0]), tempfile.TemporaryDirectory() as directory:
+                    run_dir = Path(directory) / "run"
+                    shutil.copytree(EXAMPLE, run_dir)
+                    journal = run_dir / "execution-log.jsonl"
+                    journal.unlink(missing_ok=True)
+                    if kind == "fifo":
+                        os.mkfifo(journal)
+                    elif kind == "loop":
+                        journal.symlink_to(journal.name)
+                    elif kind == "escape":
+                        outside = Path(directory) / "outside.jsonl"
+                        outside.write_text("", encoding="utf-8")
+                        journal.symlink_to(outside)
+                    else:
+                        journal.mkdir()
+                    before = sorted(p.name for p in run_dir.iterdir())
+                    manifest = (run_dir / "manifest.json").read_bytes()
+                    result = subprocess.run(
+                        [sys.executable, str(CLI), *(str(run_dir) if a == "{}" else a for a in args)],
+                        text=True, capture_output=True, check=False, timeout=60,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("execution-log.jsonl", result.stderr)
+                    expected = {"loop": "cannot be inspected", "escape": "escapes the run directory"}.get(kind, "is not a regular file")
+                    self.assertIn(expected, result.stderr)
+                    self.assertNotIn(str(Path(directory).resolve()), result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertLessEqual(result.stderr.count("no files were changed"), 1)
+                    self.assertEqual(sorted(p.name for p in run_dir.iterdir()), before)
+                    self.assertEqual((run_dir / "manifest.json").read_bytes(), manifest)
+
     def test_exec_refuses_undecodable_journal_before_running(self) -> None:
         nested = b"[" * 10000 + b"]" * 10000
         try:
