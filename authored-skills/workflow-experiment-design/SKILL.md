@@ -1,6 +1,6 @@
 ---
 name: workflow-experiment-design
-description: "Conduct a fixed six-stage preregistered experiment-design workflow for lab or computational studies, from question and independent-unit power planning through randomisation, frozen analysis, controls and independent review handoff. Audit a finished analysis against its frozen plan and label every deviation exploratory. Use before collection or for post-hoc audit; this pack does not run experiments or establish causal, physical or clinical validity."
+description: "Conduct a fixed six-stage preregistered experiment-design procedure for lab or computational studies, from question and independent-unit power planning through randomisation, frozen analysis, controls and independent review handoff. Audit a finished analysis against its frozen plan and label every deviation exploratory. Use before collection or for post-hoc audit; this pack does not run experiments or establish causal, physical or clinical validity."
 license: MIT
 ---
 
