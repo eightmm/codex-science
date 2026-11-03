@@ -160,7 +160,7 @@ def validate_design(cycle: Mapping[str, Any], run_dir: Path | str | None = None)
             identifier = item.get("id")
             if not isinstance(identifier, str) or not identifier.strip():
                 raise ValueError("hypotheses ids are invalid")
-            hypotheses.add(identifier)
+            hypotheses.add(identifier.strip())
         for method in methods:
             if not isinstance(method, Mapping):
                 raise ValueError("method must be an object")
@@ -213,11 +213,11 @@ def audit_design(cycle: Mapping[str, Any], run_dir: Path | str | None = None) ->
     if isinstance(hypotheses, list):
         for item in hypotheses:
             if isinstance(item, Mapping) and isinstance(item.get("id"), str):
-                hypothesis_ids.add(item["id"])
+                hypothesis_ids.add(item["id"].strip())
     assumption_ids: set[str] = set()
     if isinstance(assumptions, list):
         assumption_ids = {
-            item.get("id") for item in assumptions if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+            item["id"].strip() for item in assumptions if isinstance(item, Mapping) and isinstance(item.get("id"), str)
         }
     for index, method in enumerate(methods):
         if not isinstance(method, Mapping) or "design" not in method:
@@ -242,8 +242,9 @@ def audit_design(cycle: Mapping[str, Any], run_dir: Path | str | None = None) ->
                 structurally_valid = True
             except (TypeError, ValueError) as error:
                 findings.append({"code": "invalid-method-design", "message": f"methods[{index}]: {error}"})
-        implementation_ready = not missing and structurally_valid and isinstance(implementation, Mapping) and bool(implementation.get("code_refs")) and bool(code_refs)
-        if not implementation_ready:
+        refs_present = isinstance(implementation, Mapping) and bool(implementation.get("code_refs")) and bool(code_refs)
+        implementation_ready = not missing and structurally_valid and refs_present
+        if not refs_present:
             missing.append(f"methods[{index}].design.implementation.code_refs")
         design_ready = structurally_valid and (not missing or missing == [f"methods[{index}].design.implementation.code_refs"])
         if cycle.get("design_policy") == "required-for-reservation" and isinstance(design, Mapping) and not design.get("correctness_refs"):

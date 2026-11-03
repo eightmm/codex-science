@@ -1,6 +1,8 @@
 import copy
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -224,6 +226,29 @@ class DiscoveryEvidenceTests(unittest.TestCase):
             "scope": "one declared source", "search_cutoff": "2026-09-18", "difference": "unreviewed claimed difference",
             "limitations": "fixture only", "source_refs": [ref]}})
         self.assertEqual("comparison_recorded", result["novelty"]["status"])
+
+    def test_non_string_evidence_path_is_a_labelled_error(self):
+        cycle = self.start()
+        cycle["problem"]["notes"] = {"path": ["model.py"], "sha256": "0" * 64}
+        with self.assertRaisesRegex(ValueError, r"evidence path must be a string at problem\.notes"):
+            assess_cycle(cycle, self.root)
+
+    def test_cli_reports_non_string_evidence_path_without_traceback(self):
+        genesis = dict(self.payload)
+        genesis["problem"] = dict(genesis["problem"], notes={"path": ["model.py"], "sha256": "0" * 64})
+        save_cycle(new_cycle(genesis), self.root)
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/science_project.py"), "discovery", "assess",
+                                 "--run-dir", str(self.root)], capture_output=True, text=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("must be a string", result.stderr)
+
+    def test_unknown_assessment_payload_key_is_refused(self):
+        cycle = self.start()
+        ref = self.review_ref(cycle, ["record"])
+        with self.assertRaisesRegex(ValueError, "unknown key: review_ref"):
+            assess_cycle(cycle, self.root, {"review_ref": [ref]})
+        self.assertEqual("pending", assess_cycle(cycle, self.root, {})["review_axes"]["record"]["status"])
 
     def test_novelty_assessment_echoes_only_validated_keys(self):
         cycle = self.start()

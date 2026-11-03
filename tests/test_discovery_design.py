@@ -109,6 +109,32 @@ class DiscoveryDesignTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "unknown id"):
                     validate_design(broken, temporary)
 
+    def test_padded_hypothesis_id_can_be_linked_by_its_stripped_spelling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cycle = self.designed(Path(temporary))
+            cycle["hypotheses"][0]["id"] = "h1 "
+            validate_design(cycle, temporary)
+
+    def test_padded_assumption_id_validates_and_audits_the_same(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cycle = self.designed(Path(temporary))
+            cycle["problem"]["assumptions"][0]["id"] = "a1 "
+            validate_design(cycle, temporary)
+            audit = audit_design(cycle, temporary)
+        self.assertNotIn("invalid-method-design", {item["code"] for item in audit["findings"]})
+        self.assertTrue(audit["readiness"]["implementation"]["ready"])
+
+    def test_present_valid_code_refs_are_not_listed_missing(self) -> None:
+        field = "methods[0].design.implementation.code_refs"
+        with tempfile.TemporaryDirectory() as temporary:
+            cycle = self.designed(Path(temporary))
+            del cycle["methods"][0]["design"]["inputs"]
+            method = audit_design(cycle, temporary)["methods"][0]
+            self.assertEqual(["methods[0].design.inputs"], method["missing"])
+            del cycle["methods"][0]["design"]["implementation"]
+            method = audit_design(cycle, temporary)["methods"][0]
+        self.assertIn(field, method["missing"])
+
     def test_rejects_invalid_assumption_type_and_evidence_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             cycle = self.designed(Path(temporary))

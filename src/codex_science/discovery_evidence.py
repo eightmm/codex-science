@@ -12,20 +12,22 @@ from codex_science.review_receipts import review_receipt_findings, validate_revi
 def _cycle_refs(cycle: Mapping[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
 
-    def collect(value: Any) -> None:
+    def collect(value: Any, location: str) -> None:
         if isinstance(value, Mapping):
             if "path" in value and "sha256" in value:
                 path, digest = value["path"], value["sha256"]
+                if not isinstance(path, str):
+                    raise ValueError(f"cycle evidence path must be a string at {location or 'cycle'}")
                 if path in result and result[path] != digest:
                     raise ValueError("cycle contains conflicting evidence identities")
                 result[path] = digest
-            for child in value.values():
-                collect(child)
+            for key, child in value.items():
+                collect(child, f"{location}.{key}" if location else str(key))
         elif isinstance(value, list):
-            for child in value:
-                collect(child)
+            for index, child in enumerate(value):
+                collect(child, f"{location}[{index}]")
 
-    collect(cycle)
+    collect(cycle, "")
     return result
 
 
@@ -86,6 +88,10 @@ def assess_cycle(cycle: Mapping[str, Any], run_dir: Path,
     run_dir = Path(run_dir)
     validate_cycle(cycle, run_dir)
     payload = payload or {}
+    unknown = sorted(str(key) for key in payload if key not in {"review_refs", "novelty_comparison"})
+    if unknown:
+        raise ValueError(f"assessment payload has unknown key{'s' if len(unknown) > 1 else ''}: {', '.join(unknown)} "
+                         "(expected review_refs or novelty_comparison)")
     refs = _cycle_refs(cycle)
     _refs([{"path": path, "sha256": digest} for path, digest in refs.items()], "cycle evidence", run_dir)
     revision = cycle.get("revision", 0)
