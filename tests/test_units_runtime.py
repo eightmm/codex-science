@@ -15,6 +15,22 @@ class UnitsScaleValidityTests(unittest.TestCase):
             "conversions": [{"value": value, "from": source, "to": target}],
         })
 
+    def test_receipt_variable_scale_must_be_finite_and_nonzero(self):
+        receipt = run_dimension_check({
+            "schema_version": 1, "check_id": "d", "claim_id": "c", "variables": {"x": "m"}, "equations": [],
+            "conversions": [{"value": 1, "from": "m", "to": "m"}],
+        })
+        self.assertEqual([], review_dimension_check(receipt))
+        for scale in (float("inf"), float("-inf"), float("nan"), 0.0, "1", None):
+            forged = copy.deepcopy(receipt)
+            forged["variables"]["x"]["scale"] = scale
+            forged.pop("fingerprint")
+            forged["fingerprint"] = canonical_sha256(forged)
+            with self.subTest(scale=scale):
+                with self.assertRaises(ValueError):
+                    validate_dimension_check(forged)
+                self.assertEqual(["invalid-dimension-check"], [item["code"] for item in review_dimension_check(forged)])
+
     def test_dimension_review_checks_recorded_equations_only(self):
         receipt = run_dimension_check({
             "schema_version": 1, "check_id": "d", "claim_id": "c",

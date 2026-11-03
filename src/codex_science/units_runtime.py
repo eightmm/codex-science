@@ -551,6 +551,12 @@ def validate_dimension_check(payload: Mapping[str, Any]) -> None:
             _finite_real(item["converted"], f"conversions[{index}].converted")
         else:
             _required_text(item.get("error"), f"conversions[{index}].error")
+    variables = payload.get("variables", {})
+    if not isinstance(variables, Mapping):
+        raise ValueError("variables must be an object")
+    for name, entry in variables.items():
+        if isinstance(entry, Mapping) and "scale" in entry and _finite_real(entry["scale"], f"variables.{name}.scale") == 0:
+            raise ValueError(f"variables.{name}.scale must not be zero")
     material = dict(payload)
     fingerprint = str(material.pop("fingerprint", "")).lower()
     if len(fingerprint) != 64 or canonical_sha256(material) != fingerprint:

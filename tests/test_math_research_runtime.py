@@ -24,6 +24,12 @@ from codex_science.safe_expression import MAX_EXPRESSION_CHARS, ExpressionError,
 
 
 class MathResearchRuntimeTests(unittest.TestCase):
+    @staticmethod
+    def _formal_check_record(receipt):
+        # The shape run_formal_proof_check writes around an embedded receipt.
+        preview = {"schema_version": 1, "check_id": "chk-1", "receipt_id": receipt.get("receipt_id")}
+        return {**preview, "preview_fingerprint": canonical_sha256(preview), "status": "passed", "proof_receipt": receipt}
+
     def _deductive_pair(self):
         claim = build_mathematical_claim(
             claim_id="C", statement="x > 0", domain="integers", assumptions=[],
@@ -562,7 +568,7 @@ class MathResearchRuntimeTests(unittest.TestCase):
             evidence.write_bytes(b"written proof\n")
             digest = hashlib.sha256(evidence.read_bytes()).hexdigest()
             receipt["evidence"][0]["sha256"] = digest
-            for kind, payload in (("proof-receipt", receipt), ("formal-proof-check", {"proof_receipt": receipt})):
+            for kind, payload in (("proof-receipt", receipt), ("formal-proof-check", self._formal_check_record(receipt))):
                 sidecars = empty_quantitative_sidecars()
                 validate_quantitative_sidecar(kind, payload, sidecars, bundle_root=root)
                 self.assertEqual([receipt], sidecars["proof_receipts"])

@@ -21,6 +21,13 @@ def _finite(value: Any, label: str) -> float:
     return _finite_real(value, label)
 
 
+def _solver_tolerance(value: Any, label: str) -> float | None:
+    """A missing or non-numeric tolerance states no noise floor; a numeric one must be finite."""
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return _finite(value, label)
+
+
 def _finding(code: str, severity: str, message: str) -> dict[str, str]:
     return {"code": code, "severity": severity, "message": message}
 
@@ -158,12 +165,10 @@ def run_numerical_verification(payload: Mapping[str, Any]) -> dict[str, Any]:
     solver = payload.get("solver", {})
     if not isinstance(solver, Mapping):
         raise ValueError("solver must be an object")
-    try:
-        noise_floor = _finite(solver.get("absolute_tolerance"), "absolute_tolerance")
-    except ValueError:
-        noise_floor = None
+    noise_floor = _solver_tolerance(solver.get("absolute_tolerance"), "solver.absolute_tolerance")
     if noise_floor is not None and noise_floor < 0:
         raise ValueError("solver.absolute_tolerance must not be negative")
+    _solver_tolerance(solver.get("relative_tolerance"), "solver.relative_tolerance")
 
     refinements: list[dict[str, Any]] = []
     resolutions: list[float] = []

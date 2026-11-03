@@ -102,6 +102,7 @@ def _validate_quantitative_sidecar(
         if not isinstance(receipt, Mapping):
             raise ValueError("formal-proof-check requires proof_receipt")
         validate_proof_receipt(receipt, bundle_root=bundle_root)
+        _validate_formal_check_record(payload, receipt)
         result["formal_proof_checks"].append(dict(payload))
         result["proof_receipts"].append(dict(receipt))
     elif kind == "statistical-analysis":
@@ -123,6 +124,23 @@ def _validate_quantitative_sidecar(
         raise ValueError(f"unsupported quantitative sidecar kind: {kind}")
 
 
+def _validate_formal_check_record(payload: Mapping[str, Any], receipt: Mapping[str, Any]) -> None:
+    # run_formal_proof_check always emits these fields; a record with a receipt has status passed, failed or unavailable.
+    if type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1:
+        raise ValueError("formal-proof-check schema_version must be 1")
+    check_id = payload.get("check_id")
+    if not isinstance(check_id, str) or not check_id.strip():
+        raise ValueError("formal-proof-check requires a non-empty check_id")
+    fingerprint = payload.get("preview_fingerprint")
+    if not isinstance(fingerprint, str) or len(fingerprint) != 64 or any(c not in "0123456789abcdef" for c in fingerprint):
+        raise ValueError("formal-proof-check preview_fingerprint must be a 64-character lowercase hex digest")
+    status = payload.get("status")
+    if not isinstance(status, str) or status not in {"passed", "failed", "unavailable"}:
+        raise ValueError("formal-proof-check status must be passed, failed or unavailable")
+    if receipt.get("status") == "passed" and status != "passed":
+        raise ValueError(f"formal-proof-check status {status} cannot carry a passed proof_receipt")
+
+
 def _invalid(message: str) -> dict[str, str]:
     return {"code": "quantitative-sidecar-invalid", "severity": "critical", "message": message}
 
@@ -137,7 +155,7 @@ def _id_list(owner: Mapping[str, Any], key: str, findings: list[dict[str, str]])
 
 def _duplicate_id_findings(label: str, key: str, items: list[Mapping[str, Any]]) -> list[dict[str, str]]:
     # Byte-identical re-registration of one sidecar is idempotent; only conflicting payloads share an id wrongly.
-    distinct = {(str(item[key]), json.dumps(item, sort_keys=True, default=str)) for item in items if item.get(key) is not None}
+    distinct = {(_id(item[key]), json.dumps(item, sort_keys=True, default=str)) for item in items if item.get(key) is not None}
     counts = Counter(value for value, _ in distinct)
     return [
         {
