@@ -169,10 +169,14 @@ sizes, claim-register `schema_version`, checkpoint `schema_version`,
 wait `poll_interval_seconds` and run-budget `policy_version`,
 `max_failed_attempts_per_class`, `max_review_rounds`. Existing checkpoint ranges
 and versions remain supported; these pack-local checks add no counter limit.
-The bundle directory is opened with `O_DIRECTORY|O_NOFOLLOW` before symlink
-inspection or resolution. Its descriptor device/inode must match the resolved
-root and final path checks; root and ancestor symlinks remain refused even when
-they point back to the original directory. Empty/malformed files, special files, growth,
+The absolute bundle path is walked from the filesystem root using directory
+descriptors and `O_DIRECTORY|O_NOFOLLOW` for each component. Each opened component
+must match its descriptor-relative pre-open device/inode. The final descriptor
+stays pinned for every artifact read and final hash check; root rechecks repeat
+the same component walk and compare with the pinned identity. Root and ancestor
+symlinks remain refused even when they point back to the original directory or
+are hidden during pathname inspection. Descriptors close on success, refusal or
+interruption. Empty/malformed files, special files, growth,
 replacement and final hash changes are labelled refusals, never hangs.
 
 `meta-analysis-validation-v1` is stdout only: `status`, `synthetic`,

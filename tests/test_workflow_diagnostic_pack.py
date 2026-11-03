@@ -258,6 +258,45 @@ class DiagnosticSeededRefusalTests(FixtureCase):
 
 
 class DiagnosticHardeningTests(FixtureCase):
+    def test_unavailable_support_requires_unavailable_status(self):
+        folder = self.folder()
+        evidence = json.loads((folder / "evidence.json").read_bytes())
+        available = copy.deepcopy(self.pack["claims"][0]["support"][0])
+        for fields in (("kind",), ("result",), ("kind", "result")):
+            record = dict(evidence, **{field: "unavailable" for field in fields})
+            identity = self.write(folder, "unavailable.json", record)
+            missing = dict(identity, origin="study")
+            for support in ([missing], [available, missing], [missing, available]):
+                for status in ("supported", "replicated", "suggestive", "unsupported",
+                               "planned", "conflicting", "withdrawn", "unavailable"):
+                    self.pack["claims"][0].update(
+                        status=status, support=support, text="Evidence availability is recorded.")
+                    with self.subTest(fields=fields, count=len(support), first=support[0]["path"], status=status):
+                        if status == "unavailable":
+                            result = self.run_pack(folder)
+                            self.assertEqual(status, result["claims"][0]["status"])
+                        else:
+                            with self.assertRaisesRegex(ValueError, "^unavailable-evidence:"):
+                                self.run_pack(folder)
+        self.pack["claims"][0].update(status="replicated", support=[available])
+        with self.assertRaisesRegex(ValueError, "^claim-replication:"):
+            self.run_pack(folder)
+
+    def test_cli_refuses_unavailable_support_without_writes(self):
+        folder = self.folder()
+        evidence = json.loads((folder / "evidence.json").read_bytes())
+        identity = self.write(folder, "unavailable.json", dict(evidence, result="unavailable"))
+        self.pack["claims"][0].update(status="unsupported", support=[dict(identity, origin="study")])
+        self.write(folder, "pack.json", self.pack)
+        before = {path.name: path.read_bytes() for path in folder.iterdir()}
+        result = subprocess.run([sys.executable, str(CLI), str(folder / "pack.json")],
+                                capture_output=True, text=True, timeout=CALL_TIMEOUT)
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertEqual("", result.stdout)
+        self.assertEqual("refused", json.loads(result.stderr)["status"])
+        self.assertTrue(json.loads(result.stderr)["finding"].startswith("unavailable-evidence:"))
+        self.assertEqual(before, {path.name: path.read_bytes() for path in folder.iterdir()})
+
     def test_total_input_budgets_before_reading(self):
         path = FIXTURE / "pack.json"
         with patch.object(self.api, "MAX_ARTIFACTS", 4):

@@ -186,6 +186,11 @@ even in negations. Review must inspect unlisted paraphrases. An unavailable
 claim also cannot say supported, replicated, suggestive or significant
 (`significan*`). Empty support cannot be negative evidence.
 
+If any cited record has `kind` or `result` equal to `unavailable`, the claim must
+be unavailable; every other status is refused as `unavailable-evidence`.
+Available co-citations cannot override an unavailable record. This check also
+precedes the single-table `claim-replication` refusal for replicated claims.
+
 Every positive status checks cited evidence `kind` AND `result`; strings
 containing review, approv, comput, numer, physical, clinic or truth are refused
 as `non-evidence`. A statistical label cannot disguise a computed result.

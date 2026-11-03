@@ -2,11 +2,13 @@
 import copy
 import hashlib
 import importlib
+import io
 import json
 import math
 import os
 from pathlib import Path
 import shutil
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -217,6 +219,111 @@ for _case in CASES:
 
 
 class ProteomicsHardeningTests(_Fixture):
+    def test_aggregate_bytes_before_read_and_boundary_inputs(self):
+        folder = self.folder()
+        raw = b'{"x":0}'
+        for name in ("first.json", "second.json"):
+            (folder / name).write_bytes(raw)
+        # Individually admissible, but larger than the remaining aggregate budget.
+        (folder / "oversize.json").write_bytes(raw + b" " * 1024)
+        for limit in (0, len(raw) - 1, len(raw), 2 * len(raw)):
+            with self.subTest(limit=limit), patch.object(self.api, "MAX_TOTAL_BYTES", limit, create=True):
+                with self.api._Bundle(folder / "pack.json") as bundle:
+                    if limit < len(raw):
+                        with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                            bundle.snapshot(Path("first.json"))
+                        continue
+                    bundle.snapshot(Path("first.json"))
+                    if limit == 2 * len(raw):
+                        bundle.snapshot(Path("second.json"))
+                    original = os.fdopen
+                    def unread(*args, **kwargs):
+                        handle = original(*args, **kwargs)
+                        self.addCleanup(handle.close)
+                        handle.read = lambda *a: self.fail("over-budget artifact was read")
+                        return handle
+                    with patch.object(self.api.os, "fdopen", side_effect=unread):
+                        with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                            bundle.snapshot(Path("oversize.json"))
+        for content in (b"", b"{", b'{"x":"unterminated', b'{"x":"escape\\'):
+            (folder / "malformed.json").write_bytes(content)
+            with patch.object(self.api, "MAX_TOTAL_BYTES", len(content), create=True):
+                with self.api._Bundle(folder / "pack.json") as bundle:
+                    with self.assertRaisesRegex(ValueError, "^invalid-json:"):
+                        bundle.snapshot(Path("malformed.json"))
+
+    def test_aggregate_nodes_before_parse_and_inclusive_limits(self):
+        folder = self.folder()
+        # Five values: object, array, two scalars and an empty object; keys are not nodes.
+        raw = b'{"key":["brackets[]{} and escaped quote \\\"",null,{}]}'
+        (folder / "first.json").write_bytes(raw)
+        (folder / "second.json").write_bytes(raw)
+        for limit in (0, 4, 5, 10):
+            with self.subTest(limit=limit), patch.object(self.api, "MAX_TOTAL_NODES", limit, create=True):
+                with self.api._Bundle(folder / "pack.json") as bundle:
+                    if limit >= 5:
+                        bundle.snapshot(Path("first.json"))
+                    if limit == 10:
+                        bundle.snapshot(Path("second.json"))
+                    with patch.object(self.api, "_json", side_effect=AssertionError("over-budget JSON parsed")):
+                        name = "first.json" if limit < 5 else "second.json" if limit == 5 else "third.json"
+                        (folder / name).write_bytes(raw)
+                        with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                            bundle.snapshot(Path(name))
+        (folder / "empty.json").write_bytes(b"{}")
+        with patch.object(self.api, "MAX_TOTAL_NODES", 1, create=True):
+            with self.api._Bundle(folder / "pack.json") as bundle:
+                self.assertEqual({}, bundle.snapshot(Path("empty.json"))[0])
+        for content in (b"", b"{", b'{"x":"unterminated', b'{"x":"escape\\'):
+            (folder / "malformed.json").write_bytes(content)
+            with self.api._Bundle(folder / "pack.json") as bundle:
+                with self.assertRaisesRegex(ValueError, "^invalid-json:"):
+                    bundle.snapshot(Path("malformed.json"))
+
+    def test_hardlink_aliases_share_admission_and_recheck_reads(self):
+        folder = self.folder()
+        raw = b'{"x":0}'
+        (folder / "first.json").write_bytes(raw)
+        os.link(folder / "first.json", folder / "alias.json")
+        original = os.fdopen
+        reads = []
+        def counted(*args, **kwargs):
+            handle = original(*args, **kwargs)
+            read = handle.read
+            def record(bound):
+                reads.append(bound)
+                return read(bound)
+            handle.read = record
+            return handle
+        with patch.object(self.api, "MAX_TOTAL_BYTES", len(raw), create=True), \
+                patch.object(self.api, "MAX_TOTAL_NODES", 2, create=True), \
+                patch.object(self.api.os, "fdopen", side_effect=counted), \
+                patch.object(self.api, "_json", wraps=self.api._json) as parsed:
+            with self.api._Bundle(folder / "pack.json") as bundle:
+                first = bundle.snapshot(Path("first.json"))
+                alias = bundle.snapshot(Path("alias.json"))
+                self.assertIs(first[0], alias[0])
+                self.assertEqual(1, len(reads))
+                self.assertEqual(1, parsed.call_count)
+                bundle.recheck()
+                self.assertEqual(2, len(reads))
+                self.assertEqual(["first.json", "alias.json"], list(bundle.cache))
+                (folder / "alias.json").unlink()
+                (folder / "alias.json").write_bytes(raw)
+                with self.assertRaisesRegex(ValueError, "^input-changed:"):
+                    bundle.recheck()
+
+    def test_aggregate_budget_cli_refusal(self):
+        main = runpy.run_path(str(CLI))["main"]
+        for constant in ("MAX_TOTAL_BYTES", "MAX_TOTAL_NODES"):
+            with self.subTest(constant=constant), patch.object(self.api, constant, 0, create=True), \
+                    patch.object(sys, "argv", [str(CLI), str(FIXTURE / "pack.json")]), \
+                    patch.object(sys, "stdout", new_callable=io.StringIO) as stdout, \
+                    patch.object(sys, "stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(2, main())
+                self.assertEqual("", stdout.getvalue())
+                self.assertTrue(json.loads(stderr.getvalue())["finding"].startswith("input-limit:"))
+
     def test_posthoc_imputation_cannot_override_frozen_missing_rule(self):
         folder = self.folder()
         self.pack["exploratory"] = True

@@ -80,7 +80,9 @@ prevalence, unblinded IDs, bounded claims and limitations. Evidence is always
 The coordinator's separate claim register retains supported, contradicted,
 inconclusive and unavailable claim IDs, assumptions, dependencies, conflicts,
 applicability, rejected alternatives, failed controls and negative results.
-Missing evidence is unavailable, never negative evidence. The smallest next
+Missing evidence is unavailable, never negative evidence. Any cited record with
+`kind` or `result` equal to `unavailable` requires an unavailable claim status,
+even when other cited records are available. The smallest next
 falsifiable action is an independently admitted held-out table or source audit
 that could change the discrimination or bias assessment.
 

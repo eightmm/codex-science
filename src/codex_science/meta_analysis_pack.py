@@ -105,15 +105,10 @@ def _json(raw):
 class _Bundle:
     def __init__(self, directory):
         self.path = Path(directory).absolute()
-        try:
-            fd = os.open(self.path, os.O_RDONLY | os.O_NONBLOCK | os.O_DIRECTORY | os.O_NOFOLLOW)
-        except OSError as error:
-            if error.errno in (errno.ELOOP, errno.ENOTDIR):
-                raise ValueError("MA_PATH: symlinked or non-directory bundle") from error
-            raise
+        self.descriptor = self._open_root()
         try:
             # Capture identity before inspecting paths that can change underneath us.
-            info = os.fstat(fd)
+            info = os.fstat(self.descriptor)
             self.root_identity = (info.st_dev, info.st_ino)
             self._check_root()
             self.root = self.path.resolve(strict=True)
@@ -121,18 +116,52 @@ class _Bundle:
             _require((resolved.st_dev, resolved.st_ino) == self.root_identity,
                      "MA_CHANGED", "bundle directory replaced while resolving")
             self._check_root()
-        finally:
-            os.close(fd)
+        except BaseException:
+            os.close(self.descriptor)
+            raise
         self.cache = {}
         self.identities = {}
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        os.close(self.descriptor)
+
+    def _open_root(self):
+        """Pin every ancestor so a pathname swap cannot redirect bundle reads."""
+        flags = os.O_RDONLY | os.O_NONBLOCK | os.O_DIRECTORY | os.O_NOFOLLOW
+        descriptor = os.open(self.path.anchor, flags)
+        try:
+            os.fstat(descriptor)
+            for part in self.path.parts[1:]:
+                before = os.lstat(part, dir_fd=descriptor)
+                _require(stat.S_ISDIR(before.st_mode), "MA_PATH", "symlinked or non-directory bundle component")
+                child = os.open(part, flags, dir_fd=descriptor)
+                try:
+                    opened = os.fstat(child)
+                    _require((before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                             "MA_CHANGED", "bundle component replaced while opening")
+                except BaseException:
+                    os.close(child)
+                    raise
+                os.close(descriptor)
+                descriptor = child
+            return descriptor
+        except BaseException as error:
+            os.close(descriptor)
+            if isinstance(error, OSError) and error.errno in (errno.ELOOP, errno.ENOTDIR):
+                raise ValueError("MA_PATH: symlinked or non-directory bundle component") from error
+            raise
+
     def _check_root(self):
-        for path in (self.path, *self.path.parents):
-            info = os.lstat(path)
-            _require(not stat.S_ISLNK(info.st_mode), "MA_PATH", "symlinked bundle component")
-            if path == self.path:
-                _require((info.st_dev, info.st_ino) == self.root_identity,
-                         "MA_CHANGED", "bundle directory replaced during validation")
+        fd = self._open_root()
+        try:
+            info = os.fstat(fd)
+            _require((info.st_dev, info.st_ino) == self.root_identity,
+                     "MA_CHANGED", "bundle directory replaced during validation")
+        finally:
+            os.close(fd)
 
     def _read_bytes(self, relative):
         path = PurePosixPath(relative)
@@ -144,7 +173,7 @@ class _Bundle:
         directory_flags = flags | os.O_DIRECTORY
         descriptors = []
         try:
-            parent = os.open(self.root, directory_flags)
+            parent = os.dup(self.descriptor)
             descriptors.append(parent)
             info = os.fstat(parent)
             _require((info.st_dev, info.st_ino) == self.root_identity,
@@ -465,8 +494,7 @@ def _claims(bundle, handoff, too_few, outputs):
     _require(set(links) == identifiers, "MA_CLAIM", "claim evidence mapping must match claim register")
 
 
-def _validate(directory):
-    bundle = _Bundle(directory)
+def _validate(bundle):
     pack = bundle.read({"path": "pack.json", "sha256": None}, root=True)
     _schema(pack, "meta-analysis-pack-v1")
     _require(type(pack.get("synthetic")) is bool, "MA_FORMAT", "synthetic fixture label required")
@@ -547,7 +575,8 @@ def _validate(directory):
 def validate_meta_analysis_pack(directory):
     """Validate an offline bundle without writing files; refusals are ValueError."""
     try:
-        return _validate(directory)
+        with _Bundle(directory) as bundle:
+            return _validate(bundle)
     except ValueError as error:
         if str(error).startswith("MA_"):
             raise

@@ -436,7 +436,7 @@ class MetaAnalysisPackTests(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
         target.unlink()
         target.write_bytes(raw)
-        helper = pack._Bundle(self.bundle)
+        helper = self.enterContext(pack._Bundle(self.bundle))
         (self.bundle / "tiny.json").write_bytes(b'{}')
         with patch.object(pack, "MAX_ARTIFACT_BYTES", 2):
             self.assertEqual(b'{}', helper._read_bytes("tiny.json"))
@@ -472,8 +472,10 @@ class MetaAnalysisPackTests(unittest.TestCase):
         original_open, original_lstat, original_resolve = os.open, os.lstat, Path.resolve
         original_unchanged = pack._Bundle.unchanged
         for ancestor in (False, True):
-            for destination in ("external", "original"):
-                for point in ("open", "lstat", "resolve", "final"):
+            for destination in ("external", "original", "replacement"):
+                for point in ("open", "lstat", "resolve", "final", "hidden-lstat"):
+                    if point == "hidden-lstat" and (not ancestor or destination == "replacement"):
+                        continue
                     with self.subTest(ancestor=ancestor, destination=destination, point=point), tempfile.TemporaryDirectory() as temporary:
                         base = Path(temporary)
                         component = base / "bundle"
@@ -483,23 +485,44 @@ class MetaAnalysisPackTests(unittest.TestCase):
                         shutil.copytree(EXAMPLE / "synthetic", root)
                         shutil.copytree(EXAMPLE / "synthetic", external / "synthetic" if ancestor else external)
                         swapped = False
+                        outside_claim = (external / "synthetic/claims.json" if ancestor else external / "claims.json").stat()
+                        outside_reads = []
 
                         def swap():
                             nonlocal swapped
                             if not swapped:
                                 swapped = True
                                 component.rename(saved)
-                                component.symlink_to(external if destination == "external" else saved,
-                                                     target_is_directory=True)
+                                if destination == "replacement":
+                                    external.rename(component)
+                                else:
+                                    component.symlink_to(external if destination == "external" else saved,
+                                                         target_is_directory=True)
 
                         def racing_open(path, *args, **kwargs):
-                            if point == "open" and path == root:
+                            if point in ("open", "hidden-lstat") and (
+                                    path == root or (path == component.name and kwargs.get("dir_fd") is not None)):
                                 swap()
-                            return original_open(path, *args, **kwargs)
+                            fd = original_open(path, *args, **kwargs)
+                            info = os.fstat(fd)
+                            if (info.st_dev, info.st_ino) == (outside_claim.st_dev, outside_claim.st_ino):
+                                outside_reads.append(path)
+                            return fd
 
                         def racing_lstat(path, *args, **kwargs):
+                            # Hide the ancestor link only while the old pathname check observes it.
+                            if point == "hidden-lstat" and path == component and swapped:
+                                component.unlink()
+                                saved.rename(component)
+                                try:
+                                    return original_lstat(path, *args, **kwargs)
+                                finally:
+                                    component.rename(saved)
+                                    component.symlink_to(external if destination == "external" else saved,
+                                                         target_is_directory=True)
                             info = original_lstat(path, *args, **kwargs)
-                            if point == "lstat" and path == Path(root.anchor):
+                            if point == "lstat" and (path == Path(root.anchor)
+                                                     or (path == component.name and kwargs.get("dir_fd") is not None)):
                                 swap()
                             return info
 
@@ -520,6 +543,7 @@ class MetaAnalysisPackTests(unittest.TestCase):
                             with self.assertRaisesRegex(ValueError, "^MA_(PATH|CHANGED):"):
                                 pack.validate_meta_analysis_pack(root)
                         self.assertTrue(swapped)
+                        self.assertEqual([], outside_reads)
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             empty, plain = base / "empty", base / "plain"
@@ -531,7 +555,7 @@ class MetaAnalysisPackTests(unittest.TestCase):
                     pack.validate_meta_analysis_pack(target)
 
     def test_growing_file_is_bounded(self):
-        helper = pack._Bundle(self.bundle)
+        helper = self.enterContext(pack._Bundle(self.bundle))
         target = self.bundle / "tiny.json"
         target.write_bytes(b'{}')
         original_fstat = pack.os.fstat
@@ -558,7 +582,7 @@ class MetaAnalysisPackTests(unittest.TestCase):
             pack.validate_meta_analysis_pack(self.bundle)
         self.assertTrue(all(count == 2 for count in reads.values()), reads)
         # One initial snapshot and one final hash check, never a parse/hash race.
-        helper = pack._Bundle(self.bundle)
+        helper = self.enterContext(pack._Bundle(self.bundle))
         raw = (self.bundle / "protocol.json").read_bytes()
         helper.read({"path":"protocol.json", "sha256":hashlib.sha256(raw).hexdigest()})
         (self.bundle / "protocol.json").write_bytes(raw + b'\n')
@@ -568,7 +592,7 @@ class MetaAnalysisPackTests(unittest.TestCase):
             pack.validate_meta_analysis_pack(self.bundle)
 
     def test_identical_bytes_replacement_is_refused(self):
-        helper = pack._Bundle(self.bundle)
+        helper = self.enterContext(pack._Bundle(self.bundle))
         target = self.bundle / "protocol.json"
         raw = target.read_bytes()
         helper.read({"path":"protocol.json", "sha256":hashlib.sha256(raw).hexdigest()})

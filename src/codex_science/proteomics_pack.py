@@ -15,6 +15,8 @@ from codex_science.bulk_expression_pack import welch_test as _welch
 
 STAGES = ("01-design", "02-qc", "03-normalization", "04-testing", "05-handoff")
 MAX_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_NODES = 4000000
 MAX_DEPTH = 64
 MAX_TEXT = 8192
 MAX_ITEMS = 20000
@@ -105,6 +107,34 @@ def _float(value):
     return _number(float(value), "JSON number", -MAX_NUMBER)
 
 
+def _json_nodes(raw, limit):
+    """Count value tokens without allocating a parsed tree; _json validates syntax."""
+    start = re.compile(rb'[^ \t\r\n,:}\]]')
+    string_end = re.compile(rb'["\\]')
+    space = re.compile(rb'[ \t\r\n]*')
+    primitive = re.compile(rb'[^ \t\r\n,:{}\[\]"]+')
+    position = nodes = 0
+    while match := start.search(raw, position):
+        position = match.end()
+        char = raw[match.start()]
+        if char == ord('"'):
+            while True:
+                end = string_end.search(raw, position)
+                _require(end is not None, "invalid-json", "unterminated JSON string")
+                position = end.end()
+                if raw[end.start()] == ord('"'):
+                    break
+                position += 1
+            position = space.match(raw, position).end()
+            if raw[position:position + 1] == b':':
+                continue
+        elif char not in b'{[':
+            position = primitive.match(raw, match.start()).end()
+        nodes += 1
+        _require(nodes <= limit, "input-limit", "total JSON node budget exceeded")
+    return nodes
+
+
 def _json(raw):
     try:
         root = _obj(json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,
@@ -183,6 +213,9 @@ class _Bundle:
         self.root = absolute.parent
         self.entry = absolute.name
         self.cache = {}
+        self.artifacts = {}
+        self.bytes_read = 0
+        self.nodes_read = 0
         self.descriptor = _open_root(self.root)
         opened = os.fstat(self.descriptor)
         self.root_identity = (opened.st_dev, opened.st_ino)
@@ -193,7 +226,7 @@ class _Bundle:
     def __exit__(self, *args):
         os.close(self.descriptor)
 
-    def read(self, path):
+    def read(self, path, *, checked=None):
         flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW
         directory = os.dup(self.descriptor)
         try:
@@ -215,10 +248,21 @@ class _Bundle:
                 opened = os.fstat(handle.fileno())
                 _require(stat.S_ISREG(opened.st_mode) and opened.st_size <= MAX_BYTES
                          and _signature(before) == _signature(opened), "input-file", "input changed during open")
-                raw = handle.read(MAX_BYTES + 1)
+                signature = _signature(opened)
+                identity = signature[:2]
+                cached = self.artifacts.get(identity)
+                if cached is not None:
+                    _require(signature == cached[2], "input-changed", "cached input modified during validation")
+                    if checked is None or identity in checked:
+                        return None, signature
+                limit = MAX_BYTES if checked is not None else min(MAX_BYTES, MAX_TOTAL_BYTES - self.bytes_read)
+                _require(opened.st_size <= limit, "input-limit", "total input byte budget exceeded")
+                raw = handle.read(limit + 1)
                 after = os.fstat(handle.fileno())
-            _require(len(raw) <= MAX_BYTES and len(raw) == opened.st_size and _signature(opened) == _signature(after),
+            _require(len(raw) <= limit and len(raw) == opened.st_size and _signature(opened) == _signature(after),
                      "input-file", "input grew or changed during read")
+            if checked is None:
+                self.bytes_read += len(raw)
             return raw, _signature(after)
         finally:
             os.close(directory)
@@ -240,7 +284,12 @@ class _Bundle:
         if name not in self.cache:
             _require(len(self.cache) < MAX_RECORDS, "input-limit", "too many input artifacts")
             raw, signature = self.read(path)
-            self.cache[name] = (_json(raw), hashlib.sha256(raw).hexdigest(), signature)
+            identity = signature[:2]
+            if raw is not None:
+                nodes = _json_nodes(raw, MAX_TOTAL_NODES - self.nodes_read)
+                self.artifacts[identity] = (_json(raw), hashlib.sha256(raw).hexdigest(), signature)
+                self.nodes_read += nodes
+            self.cache[name] = self.artifacts[identity]
         value, digest, _ = self.cache[name]
         return value, digest
 
@@ -252,10 +301,12 @@ class _Bundle:
                      "input-changed", "bundle root replaced during validation")
         finally:
             os.close(descriptor)
+        checked = set()
         for name, (_, digest, signature) in self.cache.items():
-            raw, current = self.read(_relative(name))
-            _require(current == signature and hashlib.sha256(raw).hexdigest() == digest,
+            raw, current = self.read(_relative(name), checked=checked)
+            _require(current == signature and (raw is None or hashlib.sha256(raw).hexdigest() == digest),
                      "input-changed", "input replaced or modified during validation")
+            checked.add(current[:2])
         descriptor = _open_root(self.root)
         try:
             current = os.fstat(descriptor)

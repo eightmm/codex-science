@@ -13,7 +13,9 @@
     "Censoring fraction balance cannot prove noninformative censoring. The O/E ratio is exploratory, never a Cox estimate or a proportional-hazards claim.",
     "Hash-bound declarations cannot independently establish historical freeze timing or true source independence; independent review remains coordinator-owned and unavailable here.",
     "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. The gate also refuses truth, physical validity and patient benefit, includes negations and is incomplete for unlisted paraphrases.",
-    "Missing records are unavailable, never negative evidence; computed agreement and review approval cannot support positive claims."
+    "Missing or unavailable cited records require unavailable claims, never negative evidence; computed agreement and review approval cannot support positive claims.",
+    "Replication requires distinct cited source paths and hashes with declared non-internal evidence passing anti-alias checks; this is not proof of real-world independence.",
+    "Raw artifacts are bounded to 64 MiB each and 256 MiB per bundle across distinct inodes; hardlink aliases share the aggregate budget."
   ],
   "output_schemas": [
     "survival-pack-v1",

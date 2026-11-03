@@ -14,6 +14,7 @@ from statistics import NormalDist
 
 STAGES = ("01-protocol", "02-cohort", "03-integrity", "04-computation", "05-handoff")
 MAX_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MAX_ROWS = 10000
 MAX_RECORDS = 128
 MAX_STRING = 4096
@@ -157,13 +158,31 @@ def _signature(info):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
-def _directories(root):
-    result = []
-    for path in (*reversed(root.parents), root):
-        info = os.lstat(path)
-        _require(stat.S_ISDIR(info.st_mode), "input-root", "root ancestors must be real directories")
-        result.append((info.st_dev, info.st_ino))
-    return result
+def _open_root(root):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = os.open(root.anchor, flags)
+    try:
+        opened = os.fstat(descriptor)
+        identities = [(opened.st_dev, opened.st_ino)]
+        for part in root.parts[1:]:
+            before = os.lstat(part, dir_fd=descriptor)
+            _require(stat.S_ISDIR(before.st_mode), "input-root", "root ancestors must be real directories")
+            child = os.open(part, flags, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                _require(stat.S_ISDIR(opened.st_mode)
+                         and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                         "input-root", "root ancestor changed during pinning")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+            identities.append((opened.st_dev, opened.st_ino))
+        return descriptor, identities
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 class _Bundle:
@@ -171,13 +190,11 @@ class _Bundle:
         self.root = root
         self.fd = None
         self.snapshots = {}
+        self.cache = {}
+        self.total_bytes = 0
+        self.rechecked = None
         try:
-            before = _directories(root)
-            self.fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            opened = os.fstat(self.fd)
-            _require(stat.S_ISDIR(opened.st_mode) and before[-1] == (opened.st_dev, opened.st_ino)
-                     and before == _directories(root), "input-root", "bundle root changed during pinning")
-            self.identities = before
+            self.fd, self.identities = _open_root(root)
         except (OSError, ValueError) as error:
             self.close()
             if isinstance(error, ValueError):
@@ -212,7 +229,20 @@ class _Bundle:
                 _require(stat.S_ISREG(actual.st_mode) and actual.st_size <= MAX_BYTES
                          and _signature(before) == _signature(actual),
                          "input-file", "input changed before descriptor validation")
-                raw = handle.read(MAX_BYTES + 1)
+                identity = actual.st_dev, actual.st_ino
+                signature = _signature(actual)
+                if self.rechecked is not None:
+                    _require(signature == self.snapshots[name][1],
+                             "input-changed", "input replaced during validation")
+                cached = self.cache.get(identity)
+                if cached is not None:
+                    _require(signature == cached[1], "input-changed", "cached input changed")
+                    if self.rechecked is None or identity in self.rechecked:
+                        return cached[0], signature
+                if self.rechecked is None:
+                    _require(self.total_bytes + actual.st_size <= MAX_TOTAL_BYTES,
+                             "input-limit", "aggregate artifact bytes exceed 256 MiB")
+                raw = handle.read(actual.st_size + 1)
                 after = os.fstat(handle.fileno())
             _require(len(raw) <= MAX_BYTES and len(raw) == actual.st_size
                      and _signature(actual) == _signature(after),
@@ -228,7 +258,11 @@ class _Bundle:
         _relative(name)
         if name not in self.snapshots:
             raw, signature = self._read(name)
-            self.snapshots[name] = (raw, signature, hashlib.sha256(raw).hexdigest())
+            identity = signature[:2]
+            if identity not in self.cache:
+                self.cache[identity] = (raw, signature, hashlib.sha256(raw).hexdigest())
+                self.total_bytes += len(raw)
+            self.snapshots[name] = self.cache[identity]
         raw, _, actual = self.snapshots[name]
         if digest is not None:
             _text(digest, "sha256")
@@ -238,18 +272,32 @@ class _Bundle:
 
     def artifact(self, descriptor, parse=True):
         _fields(descriptor, "path sha256", "artifact identity")
+        _require(type(descriptor["sha256"]) is str
+                 and re.fullmatch(r"[0-9a-f]{64}", descriptor["sha256"]) is not None,
+                 "input-hash", "artifact requires a lowercase 64-hex SHA-256")
         return self.load(descriptor["path"], descriptor["sha256"], parse)
+
+    def _check_root(self):
+        descriptor, identities = _open_root(self.root)
+        try:
+            _require(identities == self.identities, "input-root", "bundle root replaced")
+        finally:
+            os.close(descriptor)
 
     def finish(self):
         try:
-            _require(self.identities == _directories(self.root), "input-root", "bundle root replaced")
+            self._check_root()
+            self.rechecked = set()
             for name, (_, signature, digest) in self.snapshots.items():
                 raw, current = self._read(name)
                 _require(current == signature and hashlib.sha256(raw).hexdigest() == digest,
                          "input-changed", "input replaced during validation")
-            _require(self.identities == _directories(self.root), "input-root", "bundle root replaced")
+                self.rechecked.add(current[:2])
+            self._check_root()
         except OSError as error:
             raise ValueError("input-root: root unavailable at final recheck") from error
+        finally:
+            self.rechecked = None
 
 
 def _groups(value):
@@ -422,9 +470,17 @@ def _claims(claims, evidence):
         for identity in ids:
             _require(identity in evidence, "missing-evidence", "unknown evidence identity")
             record = evidence[identity]
+            _require("unavailable" not in (record["kind"], record["result"]) or status == "unavailable",
+                     "unavailable-evidence", "unavailable records require an unavailable claim")
             _require(status not in POSITIVE or not any(NON_EVIDENCE.search(record[key])
                      for key in ("kind", "result")),
                      "non-evidence-support", "review approval and computed agreement are not positive evidence")
+        if status == "replicated":
+            sources = [evidence[identity] for identity in ids]
+            _require(len({record["source"]["path"] for record in sources}) >= 2
+                     and len({record["source"]["sha256"] for record in sources}) >= 2
+                     and any(record["origin"] != "internal" for record in sources),
+                     "claim-replication", "replication requires a distinct declared independent second source")
 
 
 def validate_survival_pack(bundle):

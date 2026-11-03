@@ -46,6 +46,11 @@ clinical/screening/causal/physical overclaims, review/computed support, empty or
 unavailable-positive evidence, and outside-evidence aliases. Every refusal has
 a labelled ValueError; the CLI prints JSON on stderr and exits 2.
 
+Runtime regression fixtures additionally check unavailable evidence in either
+`kind` or `result`, alone or mixed with available support, across every claim
+status. Only `unavailable` is accepted; the other statuses return
+`unavailable-evidence`, including `unsupported` and `replicated`.
+
 The validator writes nothing. Concurrent calls have independent RNG/state and
 read unchanged inputs; kills leave no changed file/ref/record, though captured
 stdout can be partial. A source change during validation is refused at the

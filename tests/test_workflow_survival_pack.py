@@ -36,6 +36,23 @@ def _identity(path):
     return {"path": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def _track_reads(reads):
+    original_fdopen = os.fdopen
+
+    def opened(descriptor, *args, **kwargs):
+        handle = original_fdopen(descriptor, *args, **kwargs)
+        original_read = handle.read
+
+        def read(*args, **kwargs):
+            reads.append(os.fstat(handle.fileno()).st_size)
+            return original_read(*args, **kwargs)
+
+        handle.read = read
+        return handle
+
+    return patch.object(survival.os, "fdopen", opened)
+
+
 class _FixtureTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -226,6 +243,58 @@ class SurvivalDefectTests(_FixtureTest):
         self._refresh()
         self.assertEqual("statistical-evidence-only", self._validate()["status"])
 
+    def test_unavailable_evidence_requires_unavailable_claim(self):
+        original = _read(self.directory / "evidence.json")
+        for field in ("kind", "result"):
+            evidence = copy.deepcopy(original)
+            missing = copy.deepcopy(evidence["records"][0])
+            missing.update(id="E2", **{field: "unavailable"})
+            evidence["records"].append(missing)
+            _write(self.directory / "evidence.json", evidence)
+            for status in sorted(survival.STATUSES):
+                with self.subTest(field=field, status=status):
+                    self._edit("report", ["claims", 0, "status"], status)
+                    self._edit("report", ["claims", 0, "evidence"], ["E1", "E2"])
+                    self._refresh()
+                    if status == "unavailable":
+                        self.assertEqual(status, self._validate()["claims"][0]["status"])
+                    else:
+                        with self.assertRaisesRegex(ValueError, "^unavailable-evidence:"):
+                            self._validate()
+
+    def test_replication_requires_two_distinct_declared_sources(self):
+        self._edit("report", ["claims", 0, "status"], "replicated")
+        self._refresh()
+        with self.assertRaisesRegex(ValueError, "^claim-replication:"):
+            self._validate()
+        first = _read(self.directory / "evidence.json")["records"][0]
+        separate = self.directory / "separate.txt"
+        separate.write_text("Separate synthetic fixture observations.\n")
+        second = dict(first, id="E2", source=_identity(separate))
+        evidence = _read(self.directory / "evidence.json")
+        evidence["records"].append(second)
+        _write(self.directory / "evidence.json", evidence)
+        self._edit("report", ["claims", 0, "evidence"], ["E1", "E2"])
+        self._refresh()
+        with self.assertRaisesRegex(ValueError, "^claim-replication:"):
+            self._validate()
+        for origin in ("external", "independent", "preregistered"):
+            with self.subTest(origin=origin):
+                self._edit("evidence", ["records", 1, "origin"], origin)
+                self._refresh()
+                self.assertEqual("replicated", self._validate()["claims"][0]["status"])
+        self._edit("report", ["claims", 0, "evidence"], ["E2"])
+        self._refresh()
+        with self.assertRaisesRegex(ValueError, "^claim-replication:"):
+            self._validate()
+        self._edit("report", ["claims", 0, "evidence"], ["E1", "E2"])
+        for alias in ("cohort.json", "renamed.json"):
+            shutil.copyfile(self.directory / "cohort.json", self.directory / "renamed.json")
+            self._edit("evidence", ["records", 1, "source", "path"], alias)
+            self._refresh()
+            with self.assertRaisesRegex(ValueError, "^external-alias:"):
+                self._validate()
+
 
 def _seeded_test(case):
     def test(self):
@@ -342,7 +411,7 @@ class SurvivalIOTests(_FixtureTest):
         original = os.open
         parked = self.directory.parent / "parked"
         def swapped(path, flags, *args, **kwargs):
-            if Path(path) == self.directory:
+            if path == self.directory.name and kwargs.get("dir_fd") is not None:
                 self.directory.rename(parked)
                 self.directory.symlink_to(parked, target_is_directory=True)
             return original(path, flags, *args, **kwargs)
@@ -358,13 +427,135 @@ class SurvivalIOTests(_FixtureTest):
         parked = self.directory.parent / "parked-holder"
         original = os.open
         def swapped(path, flags, *args, **kwargs):
-            if Path(path) == nested:
+            if path == holder.name and kwargs.get("dir_fd") is not None:
                 holder.rename(parked)
                 holder.symlink_to(parked, target_is_directory=True)
             return original(path, flags, *args, **kwargs)
         with patch.object(survival.os, "open", swapped):
             with self.assertRaisesRegex(ValueError, "^input-root:"):
                 survival.validate_survival_pack(nested / "pack.json")
+
+    def test_ancestor_restored_only_during_lstat_cannot_escape(self):
+        holder = self.directory.parent / "holder"
+        nested = holder / "nested"
+        shutil.copytree(FIXTURE, nested)
+        outside = self.directory.parent / "outside"
+        shutil.copytree(FIXTURE, outside / "nested")
+        report_path = outside / "nested" / "report.json"
+        report = _read(report_path)
+        report["claims"][0]["text"] = "Observations from outside the selected bundle."
+        _write(report_path, report)
+        pack_path = outside / "nested" / "pack.json"
+        pack = _read(pack_path)
+        pack["report"] = _identity(report_path)
+        _write(pack_path, pack)
+        parked = self.directory.parent / "parked-holder"
+        original_open, original_lstat = os.open, os.lstat
+        attacked = []
+
+        def inspected(path, *args, **kwargs):
+            if Path(path) == holder or (path == holder.name and kwargs.get("dir_fd") is not None):
+                if holder.is_symlink():
+                    holder.unlink()
+                    parked.rename(holder)
+                info = original_lstat(path, *args, **kwargs)
+                holder.rename(parked)
+                holder.symlink_to(outside, target_is_directory=True)
+                return info
+            return original_lstat(path, *args, **kwargs)
+
+        def opened(path, flags, *args, **kwargs):
+            if Path(path) == nested or (path == holder.name and kwargs.get("dir_fd") is not None):
+                attacked.append(path)
+            return original_open(path, flags, *args, **kwargs)
+
+        with patch.object(survival.os, "lstat", inspected), patch.object(survival.os, "open", opened):
+            with self.assertRaisesRegex(ValueError, "^input-root:"):
+                survival.validate_survival_pack(nested / "pack.json")
+        self.assertTrue(attacked)
+
+    def test_referenced_source_digest_cannot_be_null_or_malformed(self):
+        (self.directory / "separate.txt").write_text("Separate synthetic fixture observations.\n")
+        for name in ("cohort.json", "separate.txt"):
+            for digest in (None, 0, [], {}, "", "0" * 63, "0" * 64, "0" * 65, "A" * 64, "g" * 64):
+                with self.subTest(name=name, digest=digest):
+                    evidence = _read(self.directory / "evidence.json")
+                    evidence["records"][0]["source"] = {"path": name, "sha256": digest}
+                    _write(self.directory / "evidence.json", evidence)
+                    pack = _read(self.directory / "pack.json")
+                    pack["evidence"] = [_identity(self.directory / "evidence.json")]
+                    _write(self.directory / "pack.json", pack)
+                    code = "input-hash" if digest is None else "(?:input-hash|invalid-record)"
+                    with self.assertRaisesRegex(ValueError, "^" + code + ":"):
+                        self._validate()
+
+    def test_aggregate_budget_checked_before_read_and_at_equality(self):
+        total = sum((self.directory / (name + ".json")).stat().st_size
+                    for name in ("pack", "protocol", "report", "cohort", "evidence"))
+        reads = []
+        with patch.object(survival, "MAX_TOTAL_BYTES", total, create=True):
+            self.assertEqual(_read(self.directory / "expected.json"), self._validate())
+        for limit in (0, total - 1):
+            with self.subTest(limit=limit), patch.object(survival, "MAX_TOTAL_BYTES", limit, create=True):
+                reads.clear()
+                with _track_reads(reads):
+                    with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                        self._validate()
+                self.assertLessEqual(sum(reads), limit)
+
+    def test_hardlink_aliases_share_reads_and_aggregate_budget(self):
+        file = self.directory / "source.bin"
+        file.write_bytes(b"Synthetic fixture source.")
+        alias = self.directory / "alias.bin"
+        os.link(file, alias)
+        later_alias = self.directory / "later.bin"
+        os.link(file, later_alias)
+        distinct = self.directory / "distinct.bin"
+        distinct.write_bytes(file.read_bytes())
+        size = file.stat().st_size
+        reads = []
+        with patch.object(survival, "MAX_TOTAL_BYTES", size, create=True), _track_reads(reads):
+            store = survival._Bundle(self.directory)
+            try:
+                expected = hashlib.sha256(b"Synthetic fixture source.").hexdigest()
+                self.assertEqual(expected, store.artifact(_identity(file), parse=False))
+                self.assertEqual(expected, store.artifact(_identity(alias), parse=False))
+                self.assertEqual(1, len(reads))
+                store.finish()
+                self.assertEqual(2, len(reads))
+                with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                    store.artifact(_identity(distinct), parse=False)
+                self.assertEqual(2, len(reads))
+                distinct.replace(alias)
+                with self.assertRaisesRegex(ValueError, "^input-changed:"):
+                    store.finish()
+                file.write_bytes(b"Changed synthetic fixture source.")
+                with self.assertRaisesRegex(ValueError, "^input-changed:"):
+                    store.artifact(_identity(later_alias), parse=False)
+            finally:
+                store.close()
+
+    def test_zero_budget_allows_empty_source_but_not_nonempty_source(self):
+        empty = self.directory / "empty.bin"
+        empty.write_bytes(b"")
+        malformed = self.directory / "malformed.json"
+        malformed.write_bytes(b"{")
+        with patch.object(survival, "MAX_TOTAL_BYTES", 0, create=True):
+            store = survival._Bundle(self.directory)
+            try:
+                self.assertEqual(hashlib.sha256(b"").hexdigest(),
+                                 store.artifact(_identity(empty), parse=False))
+                with self.assertRaisesRegex(ValueError, "^input-limit:"):
+                    store.artifact(_identity(malformed))
+            finally:
+                store.close()
+        with patch.object(survival, "MAX_TOTAL_BYTES", 1, create=True):
+            store = survival._Bundle(self.directory)
+            try:
+                with self.assertRaisesRegex(ValueError, "^invalid-json:"):
+                    store.artifact(_identity(malformed))
+            finally:
+                store.close()
 
     def test_root_replaced_at_final_recheck(self):
         finish = survival._Bundle.finish

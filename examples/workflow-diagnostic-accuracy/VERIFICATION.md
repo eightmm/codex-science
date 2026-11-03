@@ -3,7 +3,45 @@
 All inputs and expected artifacts are synthetic software fixtures. None is
 clinical validation, source verification or independent review.
 
-## Executed checks
+## Unavailable-evidence review follow-up
+
+- Added `DiagnosticHardeningTests.test_unavailable_support_requires_unavailable_status`:
+  either evidence field, both fields, single and mixed support in both orders,
+  all eight statuses, and the retained refusal of available-only replication.
+- Added `DiagnosticHardeningTests.test_cli_refuses_unavailable_support_without_writes`:
+  unsupported claims citing unavailable results return exit 2 and labelled JSON
+  on stderr, with empty stdout and unchanged bundle files.
+- Both tests failed on the original source. A temporary non-test git diff was
+  also reverse-applied; each new test failed individually with exit 1, then the
+  diff was reapplied in a finally block and the temporary patch was removed.
+- All three test classes passed together: 50 tests under Python 3 with
+  `PYTHONPATH=src:tests` and `timeout 120`. All 25 existing negative fixtures
+  retain their stated finding codes. The owner-reserved bare module command
+  remains for harness admission; the three classes cover the complete module.
+- The clean validator returned exit 0 with empty stderr and an exact
+  `expected.json` match. CLI `--help` and syntax compilation also passed.
+- Both required audits passed with `--require-clean`: 155 skills, zero
+  reference findings; this pack still declares and computes L4.
+- Existing empty-support, unavailable-positive wording and real-integer field
+  checks passed; no additional gap was reproduced in those documented checks.
+
+No numerical limit, payload field or runtime writer changed. History search
+`git log --all -S diagnostic-accuracy-evidence-v1 -- src scripts` identifies the
+initial pack addition; the validator is read-only and its CLI only emits JSON.
+Existing `diagnostic-accuracy-pack-v1` artifacts citing unavailable evidence now
+fail `unavailable-evidence` for planned, conflicting, unsupported and withdrawn
+claims. Supported and suggestive claims remain refused with this more specific
+code; replicated claims also report it before the replication refusal. An
+unavailable claim remains admissible. Other existing negative fixture codes and
+the clean result are unchanged.
+
+Production calls still write no file, ref or record. New test fixtures use
+independent temporary directories and normal unittest cleanup; a hard kill may
+leave only test files in temporary storage. No shared runtime write or partial
+stored result is introduced. Full-repository and scientific efficacy checks
+remain outside this bounded offline review.
+
+## Original pack acceptance checks
 
 - Python 3 focused groups: `DiagnosticComputationTests`,
   `DiagnosticSeededRefusalTests`, `DiagnosticHardeningTests` in exact module
@@ -139,9 +177,9 @@ in the source-reverted fail-before check and the restored focused-group checks.
 
 ## Scope, records and interrupted calls
 
-All additions are under the six authorized path families. There is no earlier
-writer/history for `diagnostic-accuracy-pack-v1`; no old stored record class is
-newly rejected. Local schemas are `diagnostic-accuracy-pack-v1`,
+The original additions were under the six authorized path families and had no
+earlier runtime writer. The review follow-up above records the newly refused
+`diagnostic-accuracy-pack-v1` artifacts. Local schemas are `diagnostic-accuracy-pack-v1`,
 `diagnostic-accuracy-protocol-v1`, `diagnostic-accuracy-cases-v1`,
 `diagnostic-accuracy-evidence-v1`, `diagnostic-accuracy-result-v1`.
 
@@ -152,7 +190,8 @@ those files intact and may leave partial stdout in the caller's capture; no
 half-written bundle or result is created here. The coordinator must capture any
 result atomically outside the input bundle and register its hash separately.
 Fixtures, expected artifacts, plan, metadata and benchmark records are immutable
-checked-in inputs, not runtime writer targets. The patch adds them only.
+checked-in inputs, not runtime writer targets. The review leaves the checked-in
+JSON fixtures, expected result, plan and benchmark records unchanged.
 
 Hash/timestamp/blinding declarations do not independently verify historical
 freezing, actual blinding, source accuracy, missing upstream subjects or genuine

@@ -491,7 +491,6 @@ def _claims(bundle, records, own):
         if status == "unavailable":
             _require(re.search(UNAVAILABLE_POSITIVE, text, re.I) is None,
                      "unavailable-positive", "unavailable claim cannot assert positive evidence")
-        _require(status != "replicated", "claim-replication", "this single table cannot establish independent replication")
         for identity in support:
             _fields(identity, ("path", "sha256", "origin"), "claim support identity")
             origin = _text(identity["origin"], "evidence origin")
@@ -502,11 +501,14 @@ def _claims(bundle, records, own):
             if origin != "study":
                 _require(not any(identity["path"] == item["path"] or identity["sha256"] == item["sha256"] for item in own),
                          "evidence-independence", "declared outside evidence aliases a study input or output")
+            _require("unavailable" not in (evidence_kind, evidence_result) or status == "unavailable",
+                     "unavailable-evidence", "unavailable records cannot support positive or negative evidence")
             if status in POSITIVE:
                 _require(NON_EVIDENCE.search(evidence_kind) is None and NON_EVIDENCE.search(evidence_result) is None,
                          "non-evidence", "review approval or computed agreement cannot support a positive claim")
                 _require(evidence_kind == "statistical-evidence" and evidence_result == "held-out-discrimination",
                          "non-evidence", "positive support requires a statistical evidence record")
+        _require(status != "replicated", "claim-replication", "this single table cannot establish independent replication")
     return records
 
 

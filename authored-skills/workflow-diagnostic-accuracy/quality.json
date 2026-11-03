@@ -10,7 +10,7 @@
     "Hash-bound freeze declarations and timestamps cannot prove historical timing or actual source independence; upstream selection requires independent source review.",
     "Wilson and percentile bootstrap intervals are nominal 95%; tiny or separated tables can have poor coverage. Predictive values assume transportable sensitivity and specificity.",
     "Conservative case-insensitive whole-word English filter uses caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, driv* (drive/drives), induc*, with \\w*; plus truth, screening utility, screening use, physical validity and patient benefit* with spaces/hyphens. It is incomplete and refuses negations too.",
-    "Unavailable claim text additionally refuses supported, replicated, suggestive and significan*. Positive support checks both kind and result for review/approv/comput/numer/physical/clinic/truth.",
+    "Unavailable claim text additionally refuses supported, replicated, suggestive and significan*. Any cited kind or result equal to unavailable requires unavailable claim status, including mixed available/unavailable support. Positive support checks both kind and result for review/approv/comput/numer/physical/clinic/truth.",
     "Pack review remains unavailable; the coordinator owns rigor and independent source, record and method review."
   ],
   "output_schemas": [
