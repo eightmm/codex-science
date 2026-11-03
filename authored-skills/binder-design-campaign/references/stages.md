@@ -91,8 +91,10 @@ The frozen contract contains:
   unique and nonempty. Inserted candidate CDR residues may have null source IDs.
   `protected` marks disulfide or other fixed sites, including fixed CDR positions.
   Nonprotected CDR positions are designable. All framework/protected
-  residues retain their identity, chain, region and amino acid; insertions or
-  deletions are restricted to allowed CDRs and length ranges.
+  residues retain their identity, chain, region, amino acid and relative source
+  order. The chain retains alternating framework/CDR1/framework/CDR2/framework/
+  CDR3/framework segments; insertions or deletions stay inside allowed CDRs and
+  length ranges.
 
 The mapping artifact must contain nonempty `target_residue_map` and, for antibody
 formats, `scaffold_residue_map` lists plus `removed_residues` and

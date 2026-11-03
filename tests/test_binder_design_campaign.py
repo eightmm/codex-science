@@ -142,6 +142,35 @@ class BinderDesignCampaignTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "escapes"):
             self.check()
 
+    def test_framework_reordering_and_displaced_cdr_are_refused(self):
+        original = json.loads((self.directory / "candidate-1.json").read_text())
+        changed = json.loads(json.dumps(original))
+        rows = changed["residues"]
+        rows[3], rows[5] = rows[5], rows[3]
+        for position, row in enumerate(rows, 1):
+            row["position"] = position
+        self.save("candidate-1.json", changed)
+        with self.assertRaisesRegex(ValueError, "source residue order"):
+            self.check()
+        changed = json.loads(json.dumps(original))
+        row = changed["residues"].pop(1)
+        row["source_id"] = None
+        changed["residues"].append(row)
+        for position, row in enumerate(changed["residues"], 1):
+            row["position"] = position
+        self.save("candidate-1.json", changed)
+        with self.assertRaisesRegex(ValueError, "segment order"):
+            self.check()
+
+    def test_authorized_cdr_insertion_preserves_source_order(self):
+        payload = json.loads((self.directory / "candidate-1.json").read_text())
+        payload["residues"].insert(8, {"chain": "H", "position": 9, "source_id": None,
+                                     "aa": "A", "region": "H3", "protected": False})
+        for position, row in enumerate(payload["residues"], 1):
+            row["position"] = position
+        self.save("candidate-1.json", payload)
+        self.assertEqual("synthetic_only", self.check()["outcome"])
+
     def test_broken_lineage_lost_denominator_and_missing_metric(self):
         candidate = self.record["candidates"][0]
         candidate["parent_artifact"] = "backbone-2"

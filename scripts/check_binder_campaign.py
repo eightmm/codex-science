@@ -67,6 +67,12 @@ def residue_table(payload, binder_format, scaffold=False):
         positions = [row.get("position") for row in rows if row["chain"] == chain]
         require(all(positive_int(p) for p in positions)
                 and positions == list(range(1, len(positions) + 1)), "invalid residue numbering")
+        segments = []
+        for row in rows:
+            if row["chain"] == chain and (not segments or segments[-1] != row.get("region")):
+                segments.append(row.get("region"))
+        require(segments == ["framework", chain + "1", "framework", chain + "2",
+                             "framework", chain + "3", "framework"], "invalid framework/CDR segment order")
     for row in rows:
         chain, region, source = row["chain"], row.get("region"), row.get("source_id")
         require(region in {"framework", chain + "1", chain + "2", chain + "3"}, "invalid CDR region")
@@ -231,6 +237,10 @@ def validate_campaign(path):
         if fmt != "minibinder":
             residues, cdr_counts = residue_table(payload, fmt)
             require(all(bounds[0] <= cdr_counts[label] <= bounds[1] for label, bounds in lengths.items()), "CDR length violation")
+            for chain in {row["chain"] for row in residues.values()}:
+                original_positions = [scaffold[source]["position"] for source, row in residues.items()
+                                      if source in scaffold and row["chain"] == chain]
+                require(original_positions == sorted(original_positions), "candidate source residue order changed")
             for source, row in residues.items():
                 require(source in scaffold and row["chain"] == scaffold[source]["chain"]
                         and row["region"] == scaffold[source]["region"], "candidate residue mapping changed")

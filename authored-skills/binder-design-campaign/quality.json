@@ -28,6 +28,8 @@
     "antibody-route-substitution",
     "wrong-heavy-light-composition",
     "framework-change",
+    "framework-order-change",
+    "cdr-segment-displacement",
     "cdr-length-violation",
     "insertion-code-mapping-loss",
     "unsupported-experimental-claim"
