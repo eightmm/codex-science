@@ -1784,7 +1784,7 @@
     {
       "description": "Build an evidence-based target and indication assessment through six fixed stages, identity and dependency gates, an unreviewed go/no-go memo and independent review handoff. Use existing source skills with recorded evidence; do not use for patient treatment, structure prediction, molecule generation or compute execution.",
       "executable_count": 0,
-      "instruction_line_count": 128,
+      "instruction_line_count": 130,
       "license": "MIT",
       "name": "cx-workflow-target-assessment-dossier",
       "path": "authored-skills/workflow-target-assessment-dossier",
@@ -1796,7 +1796,7 @@
     {
       "description": "Build an evidence-only public variant dossier through fixed normalization, public-source retrieval, dependency reconciliation, bounded claims and independent review handoff. Use for research dossiers with a declared genome build and allele; never use for patient diagnosis, clinical recommendations or unapproved private-data transfer.",
       "executable_count": 0,
-      "instruction_line_count": 43,
+      "instruction_line_count": 47,
       "license": "MIT",
       "name": "cx-workflow-variant-evidence-dossier",
       "path": "authored-skills/workflow-variant-evidence-dossier",
