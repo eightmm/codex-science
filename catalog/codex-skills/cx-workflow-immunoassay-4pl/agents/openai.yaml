@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Immunoassay 4Pl"
+  short_description: "Use the audited cx-workflow-immunoassay-4pl scientific workflow"
+  default_prompt: "Use $cx-workflow-immunoassay-4pl for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

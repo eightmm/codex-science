@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Randomization Audit"
+  short_description: "Audited scientific workflow for cx-workflow-randomization-audit"
+  default_prompt: "Use $cx-workflow-randomization-audit for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

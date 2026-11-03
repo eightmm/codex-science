@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Cfu Plate Counts"
+  short_description: "Use the audited cx-workflow-cfu-plate-counts scientific workflow"
+  default_prompt: "Use $cx-workflow-cfu-plate-counts for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

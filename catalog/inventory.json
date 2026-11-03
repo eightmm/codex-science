@@ -1722,6 +1722,18 @@
       "status": "active"
     },
     {
+      "description": "Check already-counted serial-dilution colony plates with frozen countable ranges, exposure-weighted CFU per mL and exact Poisson bounds. Use for supplied synthetic counts; exclude sterility, safety, potency and medical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 43,
+      "license": "MIT",
+      "name": "cx-workflow-cfu-plate-counts",
+      "path": "authored-skills/workflow-cfu-plate-counts",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Check guide counts from an already-sequenced pooled CRISPR knockout screen against a frozen guide library, matched replicates and non-targeting controls. Use for synthetic count-table QC, guide log2 changes and gene summaries; exclude essentiality, drug targets and biological conclusions.",
       "executable_count": 0,
       "instruction_line_count": 41,
@@ -1782,12 +1794,36 @@
       "status": "active"
     },
     {
+      "description": "Check already-acquired synthetic flow cytometry event tables against frozen compensation, singlet, live/dead and channel gates; return control-qualified counts and parent-relative percentages. Use for offline cytometry QC arithmetic, never cell identity, function or disease interpretation.",
+      "executable_count": 0,
+      "instruction_line_count": 100,
+      "license": "MIT",
+      "name": "cx-workflow-flow-cytometry-qc",
+      "path": "authored-skills/workflow-flow-cytometry-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Test a frozen gene list against a versioned local gene-set collection using the tested-gene universe, exact upper tails, BH correction and overlap grouping. Use for gene-set over-representation; exclude pathway activation and phenotype mechanisms.",
       "executable_count": 0,
       "instruction_line_count": 47,
       "license": "MIT",
       "name": "cx-workflow-gene-set-overrepresentation",
       "path": "authored-skills/workflow-gene-set-overrepresentation",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Estimate per-well microbial or cell-culture OD growth rates, tangent lag, observed carrying-capacity proxy, integrated OD and doubling times from supplied synthetic time series. Use for frozen blank-corrected offline arithmetic checks; exclude fitness, resistance and medical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 41,
+      "license": "MIT",
+      "name": "cx-workflow-growth-curve",
+      "path": "authored-skills/workflow-growth-curve",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1812,6 +1848,18 @@
       "license": "MIT",
       "name": "cx-workflow-hts-plate-qc",
       "path": "authored-skills/workflow-hts-plate-qc",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied plate immunoassay optical densities with a frozen four-parameter logistic standard curve, replicate controls, bracketed sample interpolation and dilution parallelism. Use for already-measured synthetic OD fixtures; exclude clinical interpretation and wet-lab execution.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-immunoassay-4pl",
+      "path": "authored-skills/workflow-immunoassay-4pl",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1896,6 +1944,18 @@
       "license": "MIT",
       "name": "cx-workflow-qpcr-relative-quantification",
       "path": "authored-skills/workflow-qpcr-relative-quantification",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check seeded allocation of synthetic laboratory or preclinical units to experimental arms, including frozen rules, block and stratum identities, and baseline balance; use for offline arithmetic checks, never study validity.",
+      "executable_count": 0,
+      "instruction_line_count": 44,
+      "license": "MIT",
+      "name": "cx-workflow-randomization-audit",
+      "path": "authored-skills/workflow-randomization-audit",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -4131,8 +4191,8 @@
     }
   ],
   "summary": {
-    "active": 206,
+    "active": 211,
     "inactive": 113,
-    "total": 319
+    "total": 324
   }
 }
