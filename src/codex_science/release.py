@@ -33,7 +33,9 @@ def load_release_manifest(root: Path) -> dict:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("release manifest must be a JSON object")
-    if payload.get("schema_version") not in {1, 2}:
+    schema = payload.get("schema_version")
+    # bool and float compare equal to 1 and 2, so the type is checked first.
+    if type(schema) is not int or schema not in {1, 2}:
         raise ValueError("unsupported release manifest schema")
     return payload
 

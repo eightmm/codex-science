@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_science.release import manifest_runtime_version, release_version_advances, validate_release
+from codex_science.release import load_release_manifest, manifest_runtime_version, release_version_advances, validate_release
 from codex_science.version import PACKAGE_VERSION
 
 
@@ -126,6 +126,18 @@ class ReleaseLockTests(unittest.TestCase):
                 (self.root / relative).write_bytes(sources[relative])
         (self.root / "pyproject.toml").write_text("", encoding="utf-8")
         self.assertTrue(any("package_version mismatch" in error for error in validate_release(self.root)))
+
+    def test_schema_version_must_be_an_integer(self) -> None:
+        manifest = self.root / "release" / "manifest.json"
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        current = payload["schema_version"]
+        self.assertEqual([], [error for error in validate_release(self.root) if "schema" in error])
+        for schema in (True, float(current), str(current)):
+            with self.subTest(schema=schema):
+                manifest.write_text(json.dumps({**payload, "schema_version": schema}), encoding="utf-8")
+                for check in (validate_release, load_release_manifest):
+                    with self.assertRaisesRegex(ValueError, "unsupported release manifest schema"):
+                        check(self.root)
 
     def test_release_version_requires_ascii_digits(self) -> None:
         from codex_science.release import RELEASE_VERSION_RE
