@@ -419,6 +419,24 @@ class CatalogAuditTests(unittest.TestCase):
                 self.assertIn("Duplicate source key: shared", result.stderr)
                 self.assertEqual("", result.stdout)
 
+    def test_search_cli_name_matches_integer_names_and_refuses_duplicates(self) -> None:
+        records = [{"name": 123, "source": "s", "path": "a/one", "status": "active"},
+                   {"name": "dup", "source": "s", "path": "a/two", "status": "active"},
+                   {"name": "dup", "source": "s", "path": "a/three", "status": "active"}]
+        path = self.root / "inventory.json"
+        path.write_text(json.dumps({"schema_version": 2, "sources": [{"key": "s", "catalog_path": "a"}], "skills": records}), encoding="utf-8")
+        script = Path(__file__).resolve().parents[1] / "scripts" / "search_skills.py"
+        found = subprocess.run([sys.executable, str(script), "--inventory", str(path), "--name", "123"],
+                               capture_output=True, text=True, check=False)
+        self.assertEqual(0, found.returncode, found.stderr)
+        self.assertEqual("a/one", json.loads(found.stdout)["record"]["path"])
+        duplicate = subprocess.run([sys.executable, str(script), "--inventory", str(path), "--name", "dup"],
+                                   capture_output=True, text=True, check=False)
+        self.assertEqual(1, duplicate.returncode)
+        self.assertEqual("", duplicate.stdout)
+        self.assertIn("a/two", duplicate.stderr)
+        self.assertIn("a/three", duplicate.stderr)
+
     def test_repository_vendored_source_digest_matches_lock(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         sources = json.loads((repository_root / "catalog" / "sources.json").read_text())[

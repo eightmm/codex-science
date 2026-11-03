@@ -150,6 +150,16 @@ def _read_text(path: Path, relative: str) -> str:
         raise ValueError(f"spec file is not a text artifact: {relative}") from error
 
 
+def _refuse_bundle_symlinks(bundle: Path) -> None:
+    """A symlink copied into the blinded copy can expose the answer key or out-of-run files."""
+    for root, directories, files in os.walk(bundle, followlinks=False):
+        for name in sorted([*directories, *files]):
+            path = Path(root) / name
+            if path.is_symlink():
+                raise ValueError(f"bundle contains a symlink: {path.relative_to(bundle).as_posix()}; "
+                                 "remove it before seeding so the copy cannot expose answers or outside files")
+
+
 def seed(bundle: Path, spec_path: Path, out: Path, key_path: Path, drop: Iterable[str] = (),
          strip_review_history: bool = False) -> dict[str, Any]:
     bundle, out, key_path = bundle.resolve(), out.absolute(), key_path.absolute()
@@ -198,6 +208,7 @@ def seed(bundle: Path, spec_path: Path, out: Path, key_path: Path, drop: Iterabl
             canonical, _ = _drop_target(bundle, relative, registered, None if control else PurePosixPath(spec["file"]).as_posix())
             if canonical not in dropped:
                 dropped.append(canonical)
+    _refuse_bundle_symlinks(bundle)
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         out.mkdir()
@@ -207,6 +218,8 @@ def seed(bundle: Path, spec_path: Path, out: Path, key_path: Path, drop: Iterabl
     key_created = False
     try:
         shutil.copytree(bundle, out, symlinks=True, dirs_exist_ok=True)
+        # A link added to the bundle after the first check would otherwise survive into the copy.
+        _refuse_bundle_symlinks(out)
         for relative in dropped:
             _refuse_symlink_components(out, relative, "--drop")
             target = out / relative

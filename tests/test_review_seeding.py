@@ -500,6 +500,30 @@ class ReviewSeedingTests(unittest.TestCase):
         self.assertEqual([False, True], [r["false_positive"] for r in results])
         self.assertEqual(["c"], results[1]["serious_finding_ids"])
 
+    def test_seed_refuses_bundle_symlinks_before_writing(self) -> None:
+        outside = self.root / "outside-dir"
+        outside.mkdir()
+        for name, target in (("escape", ".."), ("data", str(outside)), ("file-link", str(self.root / "spec.json"))):
+            with self.subTest(link=name):
+                link = self.bundle / name
+                link.symlink_to(target, target_is_directory=name != "file-link")
+                self.addCleanup(lambda link=link: link.unlink() if link.is_symlink() else None)
+                with self.assertRaisesRegex(ValueError, f"symlink: {name}"):
+                    self.run_seed()
+                self.assertFalse(self.out.exists())
+                self.assertFalse(self.key.exists())
+                link.unlink()
+
+    def test_cli_reports_deeply_nested_json_as_labelled_error(self) -> None:
+        script = ROOT / "scripts" / "seed_review_defects.py"
+        deep = self.root / "deep.json"
+        deep.write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+        result = subprocess.run([sys.executable, str(script), "seed", "--bundle", str(self.bundle), "--spec", str(deep),
+                                 "--out", str(self.out), "--key", str(self.key)], capture_output=True, text=True, check=False)
+        self.assertEqual(2, result.returncode, result.stderr[-300:])
+        self.assertIn("seed_review_defects failed:", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
     def test_score_rejects_malformed_input(self) -> None:
         self.run_seed()
         bad = self.root / "bad.json"

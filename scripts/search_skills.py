@@ -40,7 +40,11 @@ def main() -> None:
         if query:
             parser.error("--name cannot be combined with a query")
         inventory = load_inventory(args.inventory)
-        record = next((item for item in inventory["skills"] if item.get("name") == args.name), None)
+        records = [item for item in inventory["skills"] if str(item.get("name")) == args.name]
+        if len(records) > 1:
+            print(json.dumps({"error": f"{len(records)} inventory records are named {args.name!r} ({', '.join(str(item.get('path')) for item in records)}); names must be unique"}, ensure_ascii=False), file=sys.stderr)
+            sys.exit(1)
+        record = records[0] if records else None
         if record is None:
             print(json.dumps({"error": f"no inventory record named {args.name!r}"}, ensure_ascii=False), file=sys.stderr)
             sys.exit(1)

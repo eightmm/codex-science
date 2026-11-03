@@ -51,7 +51,7 @@ def main() -> int:
             result = seed(args.bundle, args.spec, args.out, args.key, args.drop, args.strip_review_history)
         else:
             result = score(args.key, args.response)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, RecursionError) as error:
         print(f"seed_review_defects failed: {error}", file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
