@@ -1,6 +1,6 @@
 ---
 name: workflow-solid-state-screening
-description: "Conduct CPU materials-model screening through fixed normalization, analytic control, convergence, uncertainty-aware ranking, and independent review stages. Use for supplied solid-state models and synthetic offline controls; the bundled tight-binding reference checks workflow contracts, not materials-property accuracy."
+description: "Conduct CPU materials-model screening through fixed normalization, analytic control, convergence, uncertainty-aware ranking, and independent review stages. Use for supplied solid-state models and synthetic offline controls; the bundled tight-binding reference checks stage contracts, not materials-property accuracy."
 license: MIT
 ---
 
