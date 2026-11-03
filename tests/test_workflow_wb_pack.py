@@ -116,6 +116,11 @@ class WBPackTests(unittest.TestCase):
         self.assertEqual(pack.compute_densitometry(self.documents['table'], rules)['loading_control_cv'], 0)
         self.assertEqual(pack._moments([0.1] * 6)[1], 0.0)
 
+    def test_decimal_calibrated_minimum_is_inclusive(self):
+        rows, rules = self.documents['table']['rows'], self.documents['report']['applied_rules']
+        rows[2].update(target_intensity=16.4, target_background=6.4)
+        self.assertEqual(pack.compute_densitometry(self.documents['table'], rules)['lanes'][2]['classification'], 'reliable')
+
     def test_unreliable_excluded_and_small_groups_unavailable(self):
         for row in self.documents['table']['rows']:
             if row['lane_id'] == 'b3':

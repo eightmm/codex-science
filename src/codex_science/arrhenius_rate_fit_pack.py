@@ -451,7 +451,7 @@ def _fit(rates, rules, weighting):
         count = len(values)
         mean = math.fsum(values) / count
         pure_error = math.fsum((value - mean) ** 2 for value in values)
-        if pure_error <= 1e-24 * math.fsum(value * value for value in values):
+        if pure_error <= 1e-28 * math.fsum(value * value for value in values):
             pure_error = 0.0
         collapsed.append({'temperature_kelvin': temperature, 'n_replicates': count, 'mean_log_rate': mean,
                           'variance_log_rate': pure_error / (count - 1) if count > 1 else 'unavailable'})
@@ -471,7 +471,7 @@ def _fit(rates, rules, weighting):
                or inverse_requested > 1 / collapsed[0]['temperature_kelvin'])
     if outside:
         result['prediction']['status'] = 'outside-range'
-    if n < rules['minimum_temperatures'] or span < rules['minimum_span_kelvin']:
+    if n < rules['minimum_temperatures'] or span < rules['minimum_span_kelvin'] and not math.isclose(span, rules['minimum_span_kelvin'], rel_tol=1e-12):
         return result
     xs = [1 / row['temperature_kelvin'] for row in collapsed]
     ys = [row['mean_log_rate'] for row in collapsed]
@@ -654,7 +654,8 @@ def validate_arrhenius_rate_fit_pack(bundle):
             _require(actual['status'] == 'unavailable' and actual['Ea'] == 'unavailable'
                      and actual['ln_A'] == 'unavailable',
                      'insufficient-temperatures', 'below frozen distinct-temperature minimum needs unavailable parameters')
-        if computation['temperature_span_kelvin'] < rules['minimum_span_kelvin']:
+        if (computation['temperature_span_kelvin'] < rules['minimum_span_kelvin']
+                and not math.isclose(computation['temperature_span_kelvin'], rules['minimum_span_kelvin'], rel_tol=1e-12)):
             _require(actual['status'] == 'unavailable' and actual['Ea'] == 'unavailable'
                      and actual['ln_A'] == 'unavailable',
                      'temperature-span', 'below frozen span needs unavailable parameters')

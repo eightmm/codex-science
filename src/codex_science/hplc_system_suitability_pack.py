@@ -413,7 +413,7 @@ def sample_rsd(values, minimum):
 def _criterion(value, limit, maximum=False):
     if value == "unavailable":
         return {"value": value, "status": "unavailable"}
-    passed = value <= limit if maximum else value >= limit
+    passed = (value <= limit if maximum else value >= limit) or math.isclose(value, limit, rel_tol=1e-12)
     return {"value": value, "status": "pass" if passed else "fail"}
 
 

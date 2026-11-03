@@ -582,6 +582,15 @@ class HPLCPackTests(unittest.TestCase):
         self.assertAlmostEqual(record['resolution']['value'], 0.2 / 0.55, places=9)
         self.assertEqual(record['resolution']['status'], 'fail')
 
+    def test_decimal_resolution_limit_is_inclusive(self):
+        peaks = self.documents['table']['rows'][0]['peaks']
+        for peak, time in zip(peaks, (0.2, 0.3, 0.9)):
+            peak.update(retention_time=time, width_baseline=0.05)
+        self.documents['rules']['reference_peak_id'] = None
+        limits = {**self.documents['rules']['limits'], 'resolution_min': 2}
+        record = pack.compute_suitability(self.documents['table'], self.documents['rules'], limits)['injections'][0]
+        self.assertEqual(record['resolution']['status'], 'pass')
+
     def test_roundoff_replicate_spread_is_degenerate_rsd(self):
         with self.assertRaisesRegex(ValueError, '^degenerate-rsd:'):
             pack.sample_rsd([0.1, 0.3 - 0.2, 0.1, 0.3 - 0.2, 0.1], 5)

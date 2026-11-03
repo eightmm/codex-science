@@ -506,7 +506,10 @@ def _compute(table, rules, reported_lanes=None):
                     reasons.append("negative-after-background")
                 if raw >= limits["saturation_ceiling"]:
                     reasons.append("saturated-band")
-                if not limits["minimum"] <= corrected[band] <= limits["maximum"]:
+                in_range = (limits["minimum"] <= corrected[band] <= limits["maximum"]
+                            or math.isclose(corrected[band], limits["minimum"], rel_tol=1e-12)
+                            or math.isclose(corrected[band], limits["maximum"], rel_tol=1e-12))
+                if not in_range:
                     reasons.append("target-range" if band == "target" else "loading-control-range")
             if corrected["loading_control"] >= 0:
                 controls.append(corrected["loading_control"])
@@ -529,7 +532,7 @@ def _compute(table, rules, reported_lanes=None):
         mean, variance = _moments(controls)
         _require(mean > 0, "loading-control-cv", "zero loading-control mean")
         cv = math.sqrt(variance) / mean
-        _require(cv <= rules["maximum_loading_control_cv"],
+        _require(cv <= rules["maximum_loading_control_cv"] or math.isclose(cv, rules["maximum_loading_control_cv"], rel_tol=1e-12),
                  "loading-control-cv", "loading-control CV exceeds frozen bound")
     by_unit = {}
     for lane, row in measured.items():

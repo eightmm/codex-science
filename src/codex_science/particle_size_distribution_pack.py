@@ -447,7 +447,7 @@ def compute_particle_size_distribution(table, rules, bin_edges_um=None):
             reasons = []
             if total_count <= rules["minimum_total_count"]:
                 reasons.append("count-rule")
-            if tails >= rules["tail_fraction_max"]:
+            if tails >= rules["tail_fraction_max"] or math.isclose(tails, rules["tail_fraction_max"], rel_tol=1e-12):
                 reasons.append("tail-rule")
             result["reasons"] = reasons
             result["classification"] = "unreliable" if reasons else "reliable"
@@ -469,8 +469,8 @@ def compute_particle_size_distribution(table, rules, bin_edges_um=None):
                 mean = math.fsum(values) / len(values)
                 _require(mean > 0, "degenerate-distribution", "positive agreement denominator required")
                 agreement[key] = (max(values) - min(values)) / mean
-            agreeing = (agreement["d50"] <= rules["d50_relative_range_max"]
-                        and agreement["span"] <= rules["span_relative_range_max"])
+            agreeing = all(agreement[key] <= rules[name] or math.isclose(agreement[key], rules[name], rel_tol=1e-12)
+                           for key, name in (("d50", "d50_relative_range_max"), ("span", "span_relative_range_max")))
         included = [row["measurement_id"] for row in reliable] if agreeing else []
         included_set = set(included)
         statistics = ({key: math.fsum(row["statistics"][key] for row in reliable) / len(reliable)

@@ -233,6 +233,26 @@ class ArrheniusPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^replicate-variance:'):
             pack.compute_arrhenius(rates, rules, 'replicate-variance')
 
+    def test_genuine_small_replicate_spread_survives_clamp(self):
+        rates = self.documents['rates']
+        temperatures = sorted({row['temperature_kelvin'] for row in rates['rows']})
+        for row in rates['rows']:
+            base = math.exp(-699 + temperatures.index(row['temperature_kelvin']))
+            row['rate'] = base * (1 + 1e-9) if row['replicate_id'] == 'r2' else base
+        fit = pack.compute_arrhenius(rates, self.documents['rules'])
+        self.assertTrue(all(row['variance_log_rate'] > 1e-19 for row in fit['temperatures']))
+        self.assertNotEqual(fit['lack_of_fit'], 'unavailable')
+        pack.compute_arrhenius(rates, self.documents['rules'], 'replicate-variance')
+
+    def test_decimal_span_limit_is_inclusive(self):
+        rules = self.documents['rules']
+        rules['minimum_span_kelvin'] = .3
+        for run, temperature in zip(rules['runs'], (300.1, 300.1, 300.2, 300.2, 300.3, 300.3, 300.4, 300.4)):
+            run['temperature_kelvin'] = temperature
+        for row, run in zip(self.documents['rates']['rows'], rules['runs']):
+            row['temperature_kelvin'] = run['temperature_kelvin']
+        self.assertNotEqual(pack.compute_arrhenius(self.documents['rates'], rules)['status'], 'unavailable')
+
     def test_identity_controls_and_empty_rules(self):
         for target, code in (('run_id', 'duplicate-run'), ('replicate_id', 'run-identity')):
             rows = copy.deepcopy(self.documents['rates'])

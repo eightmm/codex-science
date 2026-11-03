@@ -124,6 +124,12 @@ class PSDPackTests(unittest.TestCase):
         row.update(values=[0, 0, 0], total_count=0)
         self.assertEqual(self.compute()['measurements'][0]['statistics'], 'unavailable')
 
+    def test_decimal_boundaries_follow_inclusive_rules(self):
+        row = self.documents['table']['rows'][0]
+        row.update(values=[20, 60, 20], total_count=100, below_range_fraction=.09, above_range_fraction=.01)
+        self.documents['rules']['tail_fraction_max'] = .1
+        self.assertEqual(self.compute()['measurements'][0]['reasons'], ['tail-rule'])
+
     def test_small_tail_mass_affects_cumulative_percentiles(self):
         for row in self.documents['table']['rows']:
             row.update(below_range_fraction=.02, above_range_fraction=.02)

@@ -554,9 +554,12 @@ def compute_factorial_effects(table, rules, coding=None):
     totals = {name: math.fsum(row["responses"]) for name, row in by_id.items()}
     means = {name: totals[name]/len(row["responses"]) for name, row in by_id.items()}
     df = sum(len(row["responses"])-1 for row in rows)
-    sse = math.fsum((response-means[name])**2 for name, row in by_id.items() for response in row["responses"])
-    _require(df == 0 or sse > 1e-24 * math.fsum(r * r for row in by_id.values() if len(row["responses"]) > 1 for r in row["responses"]),
-             "degenerate-error", "zero pure-error variance cannot support inference")
+    run_sse = []
+    for name, row in by_id.items():
+        spread = math.fsum((response-means[name])**2 for response in row["responses"])
+        run_sse.append(0.0 if spread <= 1e-28 * math.fsum(r*r for r in row["responses"]) else spread)
+    sse = math.fsum(run_sse)
+    _require(df == 0 or sse > 0, "degenerate-error", "zero pure-error variance cannot support inference")
     mse = sse/df if df else "unavailable"
     critical = student_t_critical(df, rules["interval_level"]) if df else "unavailable"
     factorial = [by_id[row["run_id"]] for row in rules["runs"] if any(row["levels"])]
