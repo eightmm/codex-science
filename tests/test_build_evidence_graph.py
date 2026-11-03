@@ -230,6 +230,9 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         self.assertEqual(before, output.read_bytes())
 
         studies["studies"][0]["cohort_id"] = None
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        self._assert_refused_without_writing("study study-example-1 cohort_id must be a non-empty string")
+        del studies["studies"][0]["cohort_id"]
         studies["studies"][0]["supports_claim_ids"] = []
         studies["studies"][0]["contradicts_claim_ids"] = []
         studies_path.write_text(json.dumps(studies), encoding="utf-8")
@@ -396,6 +399,63 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "claims file must be inside the run directory"):
             build_evidence_graph(link / "run", claims=Path(self.temp.name) / "claims.json")
 
+    def test_symlinked_manifests_are_refused_before_reading(self):
+        manifest_path = self.root / "manifest.json"
+        original = manifest_path.read_bytes()
+        inside = self.root / "manifest-copy.json"
+        outside = Path(self.temp.name) / "outside-manifest.json"
+        inside.write_bytes(original)
+        outside.write_bytes(original)
+        for target in (inside, outside, self.root / "missing.json", manifest_path):
+            with self.subTest(target=target.name):
+                manifest_path.unlink(missing_ok=True)
+                manifest_path.symlink_to(target)
+                for kwargs in ({}, {"output": "new/graph.json"}):
+                    self._assert_refused_without_writing("manifest.json:.*symlink", **kwargs)
+                self.assertFalse((self.root / "new").exists())
+                proc = subprocess.run(
+                    [sys.executable, str(CLI), "--run-dir", str(self.root)],
+                    capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                )
+                self.assertEqual(1, proc.returncode, proc.stdout + proc.stderr)
+                self.assertEqual("", proc.stdout)
+                self.assertRegex(proc.stderr, "error: manifest.json:.*symlink")
+                self.assertNotIn("Traceback", proc.stderr)
+                self.assertTrue(manifest_path.is_symlink())
+        self.assertEqual(original, inside.read_bytes())
+        self.assertEqual(original, outside.read_bytes())
+
+    def test_directory_manifest_is_refused_as_non_regular(self):
+        manifest_path = self.root / "manifest.json"
+        manifest_path.unlink()
+        manifest_path.mkdir()
+        self._assert_refused_without_writing("manifest.json:.*not a regular file")
+        self._assert_refused_without_writing("manifest.json:.*not a regular file", output="new/graph.json")
+        self.assertFalse((self.root / "new").exists())
+        self.assertTrue(manifest_path.is_dir())
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "requires POSIX FIFOs")
+    def test_fifo_manifest_cli_refuses_without_blocking_or_writing(self):
+        manifest_path = self.root / "manifest.json"
+        manifest_path.unlink()
+        os.mkfifo(manifest_path)
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        for destination in (output.name, "new/graph.json"):
+            with self.subTest(destination=destination):
+                proc = subprocess.run(
+                    [sys.executable, str(CLI), "--run-dir", str(self.root), "--output", destination],
+                    capture_output=True, text=True,
+                    timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+                )
+                self.assertEqual(1, proc.returncode, proc.stdout + proc.stderr)
+                self.assertEqual("", proc.stdout)
+                self.assertRegex(proc.stderr, "error: manifest.json:.*not a regular file")
+                self.assertNotIn("Traceback", proc.stderr)
+                self.assertEqual(before, output.read_bytes())
+                self.assertFalse((self.root / "new").exists())
+
     def test_cli_output_resolves_like_inputs_from_parent_directory(self):
         for output, written in ((f"{self.root.name}/cwd-graph.json", "cwd-graph.json"), ("plain-graph.json", "plain-graph.json")):
             with self.subTest(output=output):
@@ -431,7 +491,7 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         graph = json.loads(output.read_text(encoding="utf-8"), parse_constant=strict)
         self.assertIn({"id": "d", "type": "dataset", "weight": 1e308}, graph["nodes"])
 
-    def test_numeric_cohort_ids_become_text_and_collisions_are_specific(self):
+    def test_numeric_cohort_ids_are_refused_and_text_collisions_are_specific(self):
         claims_path, studies_path = self.root / "claims.json", self.root / "studies.json"
         claims = json.loads(claims_path.read_text(encoding="utf-8"))
         claims["claims"][0]["id"] = "7"
@@ -440,13 +500,18 @@ class BuildEvidenceGraphTests(unittest.TestCase):
         studies["studies"][0]["supports_claim_ids"] = ["7"]
         output = self.root / "evidence_graph.json"
         before = output.read_bytes()
-        for cohort in (7, " 7 "):
+        for cohort in ("7", " 7 "):
             studies["studies"][0]["cohort_id"] = cohort
             studies_path.write_text(json.dumps(studies), encoding="utf-8")
             with self.subTest(cohort=cohort), self.assertRaisesRegex(ValueError, "cohort_id 7 collides with a claim or study id"):
                 build_evidence_graph(self.root)
             self.assertEqual(before, output.read_bytes())
-        for cohort, expected in ((8, "8"), (" c8 ", "c8"), (0, None), (" ", None)):
+        for cohort in (0, 7, 8, None, "", " ", "\t\n"):
+            studies["studies"][0]["cohort_id"] = cohort
+            studies_path.write_text(json.dumps(studies), encoding="utf-8")
+            with self.subTest(cohort=cohort):
+                self._assert_refused_without_writing("study study-example-1 cohort_id must be a non-empty string")
+        for cohort, expected in (("0", "0"), ("8", "8"), (" c8 ", "c8")):
             studies["studies"][0]["cohort_id"] = cohort
             studies_path.write_text(json.dumps(studies), encoding="utf-8")
             with self.subTest(cohort=cohort):
@@ -457,6 +522,46 @@ class BuildEvidenceGraphTests(unittest.TestCase):
                 self.assertEqual(int(bool(expected)), graph_result["counts"]["cohorts"])
                 support = next(edge for edge in graph["edges"] if edge["relation"] == "supports")
                 self.assertEqual(expected, support.get("independence_group"))
+
+    def test_shared_numeric_zero_cohorts_cannot_build_replicated_claim(self):
+        claims_path = self.root / "claims.json"
+        claims = json.loads(claims_path.read_text(encoding="utf-8"))
+        claims["claims"][0]["status"] = "replicated"
+        claims_path.write_text(json.dumps(claims), encoding="utf-8")
+        studies_path = self.root / "studies.json"
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        studies["studies"][0]["cohort_id"] = 0
+        studies["studies"].append({**studies["studies"][0], "study_id": "study-example-2",
+                                  "persistent_id": "doi:10.0000/example.primary.2"})
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        before = (self.root / "evidence_graph.json").read_bytes()
+        with self.assertRaises(ValueError) as caught:
+            build_evidence_graph(self.root)
+        for study in studies["studies"]:
+            self.assertIn(f"study {study['study_id']} cohort_id must be a non-empty string", str(caught.exception))
+        self.assertEqual(before, (self.root / "evidence_graph.json").read_bytes())
+        proc = subprocess.run(
+            [sys.executable, str(CLI), "--run-dir", str(self.root), "--output", "new/graph.json"],
+            capture_output=True, text=True,
+            timeout=float(os.environ.get("OMS_TEST_CALL_TIMEOUT", "120")),
+        )
+        self.assertEqual(1, proc.returncode, proc.stdout + proc.stderr)
+        self.assertEqual("", proc.stdout)
+        for study in studies["studies"]:
+            self.assertIn(f"study {study['study_id']} cohort_id must be a non-empty string", proc.stderr)
+        self.assertFalse((self.root / "new").exists())
+        self.assertEqual(before, (self.root / "evidence_graph.json").read_bytes())
+        for study in studies["studies"]:
+            study["cohort_id"] = "0"
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        build_evidence_graph(self.root)
+        graph = json.loads((self.root / "evidence_graph.json").read_text(encoding="utf-8"))
+        supports = [edge for edge in graph["edges"] if edge["relation"] == "supports"]
+        self.assertEqual(["0", "0"], [edge["independence_group"] for edge in supports])
+        findings = review_sidecars({"claim_by_id": {claims["claims"][0]["id"]: claims["claims"][0]},
+                                   "study_by_id": {study["study_id"]: study for study in studies["studies"]},
+                                   "edges": graph["edges"]})
+        self.assertIn("dependent-evidence", {finding["code"] for finding in findings})
 
 
     def _assert_refused_without_writing(self, expected, **kwargs):
@@ -496,7 +601,9 @@ class BuildEvidenceGraphTests(unittest.TestCase):
                 studies["studies"][0][field] = value
                 studies_path.write_text(json.dumps(studies), encoding="utf-8")
                 with self.subTest(field=field, value=value):
-                    self._assert_refused_without_writing(f"{field} must be text or a non-boolean integer")
+                    expected = ("study_id must be text or a non-boolean integer" if field == "study_id"
+                                else "study study-example-1 cohort_id must be a non-empty string")
+                    self._assert_refused_without_writing(expected)
         studies = json.loads(original)
         studies["studies"][0]["study_id"] = 5
         studies_path.write_text(json.dumps(studies), encoding="utf-8")

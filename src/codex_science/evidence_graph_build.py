@@ -161,9 +161,10 @@ def build_evidence_graph(
     protected = [*inputs, *excerpt_source_paths, root / "manifest.json"]
     protected_trees: list[Path] = []
     manifest_path = root / "manifest.json"
-    if manifest_path.exists():
+    if manifest_path.exists() or manifest_path.is_symlink():
         # The builder rebuilds the registered evidence graph; every other artifact stays intact.
         try:
+            manifest_path = _input_file(root, manifest_path, "manifest file")
             manifest, _ = _read_json(manifest_path)
             for field in ("artifacts", "inputs", "code", "executions", "superseded_executions"):
                 if not isinstance(manifest.get(field, []), list):
@@ -197,10 +198,10 @@ def build_evidence_graph(
         if not isinstance(raw_id, (str, int)) or isinstance(raw_id, bool):
             problems.append(f"study {index} study_id must be text or a non-boolean integer: {_echo(raw_id)}")
         raw_cohort = study.get("cohort_id")
-        if raw_cohort is not None and (not isinstance(raw_cohort, (str, int)) or isinstance(raw_cohort, bool)):
-            problems.append(f"study {_echo(study_id)} cohort_id must be text or a non-boolean integer: {_echo(raw_cohort)}")
+        if "cohort_id" in study and (not isinstance(raw_cohort, str) or not raw_cohort.strip()):
+            problems.append(f"study {_echo(study_id)} cohort_id must be a non-empty string: {_echo(raw_cohort)}")
             raw_cohort = None
-        cohort = str(raw_cohort or "").strip()
+        cohort = raw_cohort.strip() if isinstance(raw_cohort, str) else ""
         if cohort:
             if cohort in known_ids:
                 problems.append(f"cohort_id {_echo(cohort)} collides with a claim or study id")
