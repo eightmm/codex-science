@@ -1,0 +1,53 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic arithmetic acceptance only; never scientific evidence or independent review.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Five stages, local schemas, immutable identities, arithmetic and refusal boundaries.",
+      "read_when": [
+        "freezing LC-MS controls",
+        "admitting synthetic feature tables",
+        "computing feature and sample QC",
+        "validating bounded claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "table-admission",
+        "feature-qc",
+        "sample-qc",
+        "claim-authoring",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Input safety and budgets",
+        "## 03-features: fixed reference arithmetic",
+        "## 05-handoff: bounded claims and independent review"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage declarations do not prove execution or historical rule freezing.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-metabolomics-feature-qc"
+}

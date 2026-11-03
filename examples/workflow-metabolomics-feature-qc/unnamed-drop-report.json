@@ -1,0 +1,128 @@
+{
+  "batch_confounded": false,
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence remains unavailable for this synthetic fixture."
+    }
+  ],
+  "drift_anchors": "pooled-qc",
+  "exploratory": false,
+  "features": [
+    {
+      "id": "GOOD",
+      "reasons": [],
+      "retained": true,
+      "status": "pass"
+    },
+    {
+      "id": "BLANK",
+      "reasons": [],
+      "retained": false,
+      "status": "fail"
+    },
+    {
+      "id": "MISSING",
+      "reasons": [
+        "drift-unavailable",
+        "qc-degenerate",
+        "qc-missingness",
+        "study-missingness"
+      ],
+      "retained": false,
+      "status": "fail"
+    },
+    {
+      "id": "NONLINEAR",
+      "reasons": [
+        "dilution-linearity"
+      ],
+      "retained": false,
+      "status": "fail"
+    },
+    {
+      "id": "UNMEASURED",
+      "reasons": [
+        "blank-unavailable",
+        "dilution-degenerate",
+        "drift-unavailable",
+        "qc-degenerate",
+        "qc-missingness",
+        "study-missingness",
+        "unavailable-batch"
+      ],
+      "retained": false,
+      "status": "unavailable"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture arithmetic retains one feature under the frozen controls.",
+  "rsd_population": "pooled-qc",
+  "rules_sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8",
+  "samples": [
+    {
+      "flags": [],
+      "id": "S01"
+    },
+    {
+      "flags": [
+        "qc-distance-outlier"
+      ],
+      "id": "S02"
+    },
+    {
+      "flags": [
+        "qc-distance-outlier"
+      ],
+      "id": "S03"
+    },
+    {
+      "flags": [
+        "qc-distance-outlier"
+      ],
+      "id": "S04"
+    },
+    {
+      "flags": [],
+      "id": "S05"
+    },
+    {
+      "flags": [],
+      "id": "S06"
+    },
+    {
+      "flags": [],
+      "id": "S07"
+    },
+    {
+      "flags": [],
+      "id": "S08"
+    },
+    {
+      "flags": [],
+      "id": "S09"
+    },
+    {
+      "flags": [
+        "qc-distance-outlier"
+      ],
+      "id": "S10"
+    },
+    {
+      "flags": [
+        "qc-distance-outlier"
+      ],
+      "id": "S11"
+    },
+    {
+      "flags": [
+        "qc-distance-outlier"
+      ],
+      "id": "S12"
+    }
+  ],
+  "schema": "metab-report-v1"
+}

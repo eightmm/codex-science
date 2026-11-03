@@ -1,0 +1,50 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no source authenticity, adequacy, benefit or independent review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen input identities, local records, exact formulas, limits and refusal boundaries.",
+      "read_when": [
+        "freezing assumptions",
+        "computing or validating arithmetic",
+        "preparing independent review"
+      ],
+      "required_before": [
+        "assumption-freeze",
+        "assumption-qc",
+        "reference-computation",
+        "consistency-check",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## 03-computation",
+        "## Bounded input envelope"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only; no source authenticity, adequacy, benefit or independent review attestation.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape with five ordered stage IDs and one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-sample-size-power"
+}

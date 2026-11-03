@@ -1,0 +1,70 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-peak-replicate-qc/pack.json",
+    "examples/workflow-peak-replicate-qc/expected.json",
+    "examples/workflow-peak-replicate-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 means offline synthetic fixture arithmetic acceptance only; no actual assay, biological, physical or clinical validation.",
+    "Read counts and called intervals are supplied; FRiP uses original called peaks and cannot subtract blacklist reads without read-level data.",
+    "All available pairs are gated before exclusions; a poor partner may conservatively exclude otherwise similar libraries.",
+    "Historical freeze order and true experimental independence cannot be proven by hashes or labels; review stays coordinator-owned.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. The gate additionally refuses enhanc*, promot*, truth, physical validity and patient benefit, includes negations and is incomplete for unlisted paraphrases.",
+    "Any unavailable cited source requires unavailable claims. Computed agreement and review approval cannot support positive claims; replicated status is refused.",
+    "Inputs are descriptor-pinned with complete ancestor identity checks, 64 MiB per file, 256 MiB aggregate distinct bytes and 4000000 JSON values."
+  ],
+  "output_schemas": [
+    "peak-qc-pack-v1",
+    "peak-qc-rules-v1",
+    "peak-qc-blacklist-v1",
+    "peak-qc-peaks-v1",
+    "peak-qc-report-v1",
+    "peak-qc-evidence-v1",
+    "peak-qc-source-v1",
+    "peak-qc-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "past-chromosome",
+    "empty-interval",
+    "reversed-interval",
+    "overlapping-replicate-peaks",
+    "blacklist-consensus",
+    "low-frip-kept",
+    "low-reads-kept",
+    "mixed-builds",
+    "missing-input-control",
+    "unlabelled-threshold-change",
+    "unavailable-as-empty",
+    "unfrozen-rules",
+    "binding",
+    "enhancer",
+    "promoter",
+    "regulation",
+    "causal",
+    "clinical",
+    "physical",
+    "kind-review-approval",
+    "result-review-approval",
+    "kind-computed",
+    "result-numerical-agreement",
+    "empty-evidence",
+    "unavailable-positive",
+    "unavailable-citation",
+    "source-unavailable",
+    "source-computed",
+    "external-alias",
+    "replicated-fixture",
+    "unsorted-peaks",
+    "unknown-chromosome"
+  ],
+  "skill": "workflow-peak-replicate-qc",
+  "test_files": [
+    "tests/test_workflow_peaks_pack.py"
+  ]
+}

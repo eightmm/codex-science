@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frozen Sample Sizes and Detectable Effects"
+  short_description: "Check prospective arm sizes and frozen assumptions"
+  default_prompt: "Use $workflow-sample-size-power to check supplied laboratory or preclinical sample-size arithmetic, frozen uncertainty and attrition, then prepare independent review."

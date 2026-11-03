@@ -1,0 +1,4 @@
+interface:
+  display_name: "Replicate Peak QC"
+  short_description: "Check supplied peak intervals and library controls under frozen rules"
+  default_prompt: "Use $workflow-peak-replicate-qc to freeze genome and replicate controls, check synthetic peak intervals and FRiP, compute exact overlap and supported consensus segments, and hand bounded arithmetic to independent review."

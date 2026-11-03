@@ -1,0 +1,72 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-sample-size-power",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Continuous: n=[77,77], enrolled=[86,86], power=.8053853429909763, MDE=.9937486026230442; SD endpoints n=[43,43] and [119,119].",
+        "Binary: n=[352,352], enrolled=[392,392], power=.8003846192662507; MDE solves the stated quadratic.",
+        "Justified one-sided allocation ratio 2: n=[48,96], enrolled=[54,107], power=.8074295788138212.",
+        "Input bytes unchanged under concurrent calls; evidence arithmetic-only and review unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "memory_mib": 256,
+        "network_calls": 0
+      },
+      "id": "hand-arithmetic",
+      "question": "Do frozen synthetic continuous, binary and justified unequal-allocation inputs reproduce hand-derived prospective arithmetic?"
+    },
+    {
+      "acceptance_criteria": [
+        "observed-power: observed-power",
+        "own-effect: effect-leakage",
+        "missing-source: missing-source",
+        "multiplicity: multiplicity-correction",
+        "one-sided: one-sided-justification",
+        "rounding: rounding-attrition",
+        "attrition: rounding-attrition",
+        "invalid-power: probability-range",
+        "invalid-alpha: probability-range",
+        "wrong-power: power-consistency",
+        "post-outcome: post-outcome-change",
+        "adequate: claim-boundary",
+        "well-powered: claim-boundary",
+        "clinical-meaning: claim-boundary",
+        "null-no-effect: claim-boundary",
+        "causal: claim-boundary",
+        "review-approval: non-evidence",
+        "computed-kind: non-evidence",
+        "computed-result: non-evidence",
+        "unavailable-evidence: unavailable-evidence",
+        "empty-evidence: claim-support",
+        "unavailable-positive: unavailable-positive",
+        "outside-alias: evidence-independence",
+        "replicated: claim-replication"
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "memory_mib": 256,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "question": "Does every synthetic seeded defect receive its frozen labelled refusal before later gates?"
+    },
+    {
+      "acceptance_criteria": [
+        "Duplicate keys, non-finite values, huge numbers, deep nesting and non-object JSON roots are labelled refusals.",
+        "Special files, aliases, growth and root or ancestor swaps are refused; hardlinks parse once.",
+        "Aggregate byte and preparse value budgets enforce limits before costly work; re.findall is never called.",
+        "Missing, extra and unknown CLI arguments produce refusal JSON on stderr with exit 2; help exits 0 on stdout."
+      ],
+      "budget": {
+        "cpu_seconds": 120,
+        "memory_mib": 256,
+        "network_calls": 0
+      },
+      "id": "hostile-inputs",
+      "question": "Are JSON, descriptor, budget, ancestor-swap and CLI argument attacks refused without hangs, tracebacks or writes?"
+    }
+  ]
+}

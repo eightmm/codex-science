@@ -1,0 +1,192 @@
+{
+  "features": [
+    {
+      "id": "GOOD",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "mz": 100,
+      "retention_time": 2,
+      "unavailable_batches": [],
+      "values": [
+        10,
+        0.5,
+        5,
+        10,
+        20,
+        20,
+        20,
+        30,
+        30,
+        1.5,
+        45,
+        33
+      ]
+    },
+    {
+      "id": "BLANK",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "mz": 150,
+      "retention_time": 3,
+      "unavailable_batches": [],
+      "values": [
+        10,
+        20,
+        5,
+        10,
+        20,
+        20,
+        20,
+        30,
+        30,
+        30,
+        45,
+        33
+      ]
+    },
+    {
+      "id": "MISSING",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "mz": 200,
+      "retention_time": 4,
+      "unavailable_batches": [],
+      "values": [
+        null,
+        0.5,
+        5,
+        null,
+        20,
+        20,
+        null,
+        30,
+        30,
+        1.5,
+        45,
+        33
+      ]
+    },
+    {
+      "id": "NONLINEAR",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "mz": 250,
+      "retention_time": 5,
+      "unavailable_batches": [],
+      "values": [
+        10,
+        0.5,
+        5,
+        10,
+        20,
+        40,
+        20,
+        30,
+        30,
+        1.5,
+        15,
+        33
+      ]
+    },
+    {
+      "id": "UNMEASURED",
+      "imputed": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "mz": 300,
+      "retention_time": 6,
+      "unavailable_batches": [
+        "B1"
+      ],
+      "values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "sample_ids": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08",
+    "S09",
+    "S10",
+    "S11",
+    "S12"
+  ],
+  "schema": "metab-table-v1"
+}

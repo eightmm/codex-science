@@ -1,0 +1,8 @@
+{
+  "fixture": "synthetic fixture",
+  "kind": "computed",
+  "note": "Synthetic fixture arithmetic check.",
+  "result": "numerical-agreement",
+  "schema": "peak-qc-source-v1",
+  "schema_version": 1
+}

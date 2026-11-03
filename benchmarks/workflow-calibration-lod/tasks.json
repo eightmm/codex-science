@@ -1,0 +1,42 @@
+{
+  "fixture": true,
+  "pack": "workflow-calibration-lod",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Initial slope 32/15, intercept 1, R-squared 128/155 and residual standard error 1.2.",
+        "Only S3-3 is excluded by the frozen rule; refit slope 2, intercept 1, retained n 3/3/2/3.",
+        "Blank sample SD 0.4; LOD 0.66; LOQ 2; U-in arithmetic concentration 2.5.",
+        "U-out has out-of-range status and null concentration; review remains unavailable.",
+        "Weighted normal equations agree with independent exact rational arithmetic."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-hand-controls",
+      "input": "examples/workflow-calibration-lod/pack.json",
+      "question": "Does the frozen synthetic standard fixture reproduce hand-derived initial fit, one exclusion, refit and LOD/LOQ?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 31 frozen negative cases raise their named labelled ValueError.",
+        "Disabling each seeded refusal guard makes its specific regression test fail.",
+        "No artifact is modified; failures, exclusions and negative results remain inspectable.",
+        "JSON arguments, links, races, integer types and aggregate input budgets refuse without traceback."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-calibration-lod/negative-cases.json",
+      "question": "Does every planted defect refuse for its stated reason, with evidence and boundary gates before final synthetic-only refusal?"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "kind": "observed",
+  "result": "recorded",
+  "schema": "sample-size-power-source-v1",
+  "schema_version": 1,
+  "study_id": "synthetic-prior-002",
+  "text": "Synthetic fixture source with a recorded descriptive measurement."
+}

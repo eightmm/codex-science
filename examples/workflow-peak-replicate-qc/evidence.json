@@ -1,0 +1,17 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "E-computed",
+      "kind": "computed",
+      "origin": "internal",
+      "result": "numerical-agreement",
+      "source": {
+        "path": "source.json",
+        "sha256": "e335139f89f39115e0df9ecce28c96fdfcb3a9271f63cee0b55969f15dd36c90"
+      }
+    }
+  ],
+  "schema": "peak-qc-evidence-v1",
+  "schema_version": 1
+}

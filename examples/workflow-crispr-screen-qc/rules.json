@@ -1,0 +1,23 @@
+{
+  "aggregation": "median-guide-log2",
+  "alpha": 0.05,
+  "concordance_threshold": 0.9,
+  "contrast": [
+    "baseline",
+    "selected"
+  ],
+  "fixture": true,
+  "fold_change_threshold": 1,
+  "minimum_controls": 4,
+  "minimum_detection_fraction": 0.8,
+  "minimum_guides": 3,
+  "minimum_replicates": 2,
+  "minimum_total_reads": 1000,
+  "multiple_testing": "benjamini-hochberg",
+  "normalization": "total-count",
+  "permutation_count": 99,
+  "permutation_seed": 1729,
+  "pseudocount": 1,
+  "schema": "crispr-rules-v1",
+  "schema_version": 1
+}

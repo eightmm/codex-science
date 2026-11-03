@@ -1,0 +1,173 @@
+{
+  "claims": [
+    {
+      "evidence": [
+        "E-computed"
+      ],
+      "id": "C-arithmetic",
+      "kind": "descriptive",
+      "status": "unsupported",
+      "text": "Synthetic fixture interval and read arithmetic agrees with the hand table."
+    }
+  ],
+  "computation": {
+    "consensus": [
+      {
+        "chrom": "chrA",
+        "end": 20,
+        "n_support": 2,
+        "replicates": [
+          "A",
+          "B"
+        ],
+        "start": 15
+      },
+      {
+        "chrom": "chrA",
+        "end": 50,
+        "n_support": 2,
+        "replicates": [
+          "A",
+          "B"
+        ],
+        "start": 40
+      }
+    ],
+    "n_available": 3,
+    "n_consensus": 2,
+    "n_eligible": 2,
+    "n_pairs": 3,
+    "n_replicates": 3,
+    "pairs": [
+      {
+        "directional_fractions": [
+          1.0,
+          1.0
+        ],
+        "first": "A",
+        "intersection_bp": 15,
+        "jaccard": 0.6,
+        "n_first": 2,
+        "n_second": 2,
+        "reciprocal_overlap_fraction": 1.0,
+        "second": "B",
+        "union_bp": 25
+      },
+      {
+        "directional_fractions": [
+          1.0,
+          1.0
+        ],
+        "first": "A",
+        "intersection_bp": 20,
+        "jaccard": 1.0,
+        "n_first": 2,
+        "n_second": 2,
+        "reciprocal_overlap_fraction": 1.0,
+        "second": "C",
+        "union_bp": 20
+      },
+      {
+        "directional_fractions": [
+          1.0,
+          1.0
+        ],
+        "first": "B",
+        "intersection_bp": 15,
+        "jaccard": 0.6,
+        "n_first": 2,
+        "n_second": 2,
+        "reciprocal_overlap_fraction": 1.0,
+        "second": "C",
+        "union_bp": 25
+      }
+    ],
+    "replicates": [
+      {
+        "blacklist_peak_count": 1,
+        "eligible": true,
+        "flags": [],
+        "frip": 0.5,
+        "id": "A",
+        "n_peaks": 3,
+        "reads_in_peaks": 50,
+        "status": "available",
+        "total_reads": 100
+      },
+      {
+        "blacklist_peak_count": 1,
+        "eligible": true,
+        "flags": [],
+        "frip": 0.4,
+        "id": "B",
+        "n_peaks": 3,
+        "reads_in_peaks": 40,
+        "status": "available",
+        "total_reads": 100
+      },
+      {
+        "blacklist_peak_count": 0,
+        "eligible": false,
+        "flags": [
+          "low-reads",
+          "low-frip"
+        ],
+        "frip": 0.1,
+        "id": "C",
+        "n_peaks": 2,
+        "reads_in_peaks": 5,
+        "status": "available",
+        "total_reads": 50
+      }
+    ]
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "blacklist.json",
+      "sha256": "67508993095c058d477903e531168236e96a371bf1e124cf75dc6eca0db2ab1b"
+    },
+    {
+      "path": "evidence.json",
+      "sha256": "ef36e79a3140e3040cb7fea7a3f7a45db0f7b5da3e5498158c7809327288df95"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "202f7aa80a8155e1f7daeb68b019ad1ad8307cd65d7160e854f0d6402261b79b"
+    },
+    {
+      "path": "peaks.json",
+      "sha256": "d3718cbd897c253a5ee41aeb925ba6e346f1a0b336824530fa962d831284ea56"
+    },
+    {
+      "path": "report.json",
+      "sha256": "06ea8506b352b8f642568ae879fee2778fb5a245e09a0e505dcb35dd648c9e49"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "6ff2c4c243e08fd27521e391022d5efeb7960b77ee21026d252f66491420ebd6"
+    },
+    {
+      "path": "source.json",
+      "sha256": "e335139f89f39115e0df9ecce28c96fdfcb3a9271f63cee0b55969f15dd36c90"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures check arithmetic only; read counts and interval calls are supplied.",
+    "Hashes do not prove historical freeze timing or experimental independence.",
+    "English lexical claim checks are conservative and incomplete.",
+    "Independent source, method and record review remains unavailable."
+  ],
+  "review": "unavailable",
+  "schema": "peak-qc-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-rules",
+    "02-intervals",
+    "03-qc-consensus",
+    "04-summary",
+    "05-handoff"
+  ],
+  "status": "arithmetic-only"
+}

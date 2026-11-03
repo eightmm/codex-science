@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "kind": "computed",
+  "result": "numerical-agreement",
+  "schema": "sample-size-power-source-v1",
+  "schema_version": 1,
+  "study_id": "synthetic-planned-001",
+  "text": "Synthetic fixture arithmetic record; never scientific evidence."
+}

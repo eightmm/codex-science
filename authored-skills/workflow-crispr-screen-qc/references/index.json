@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Synthetic arithmetic acceptance only; never biological validity or independent review.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen identities, local record shapes, arithmetic, limits, controls and claim refusals.",
+      "read_when": [
+        "freezing guide rules",
+        "admitting counts",
+        "computing or validating synthetic summaries",
+        "handing off evidence"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "count-admission",
+        "reference-computation",
+        "bundle-validation",
+        "review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Bounds before scaled work",
+        "## 04-gene-summary"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Ordering does not prove execution or historical preregistration.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape with five ordered stages and one coordinator checkpoint.",
+      "read_when": [
+        "creating a coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-crispr-screen-qc"
+}

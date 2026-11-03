@@ -1,0 +1,51 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Offline synthetic arithmetic only; no biological validity or review attestation.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Fixed stages, exact local shapes, interval sweeps and refusal boundaries.",
+      "read_when": [
+        "freezing peak QC rules",
+        "admitting supplied intervals",
+        "computing or validating peak QC",
+        "preparing independent review"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "interval-admission",
+        "qc-computation",
+        "bundle-validation",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Bounds and malformed input",
+        "## 03-qc-consensus: exact sweep"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Stage declarations do not prove execution, historical freezing or scientific truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Existing manifest step shape with five fixed stages and one coordinator checkpoint.",
+      "read_when": [
+        "creating a coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-rules",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-peak-replicate-qc"
+}

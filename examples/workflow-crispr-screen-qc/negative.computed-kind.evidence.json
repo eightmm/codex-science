@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "gene_id": "A",
+  "kind": "computed",
+  "origin": "study",
+  "result": "gene-level-association",
+  "schema": "crispr-evidence-v1",
+  "schema_version": 1
+}

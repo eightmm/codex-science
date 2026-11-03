@@ -1,0 +1,28 @@
+{
+  "acceptance": {
+    "lowest_percent_deviation": 20,
+    "percent_deviation": 15
+  },
+  "analyte": "Synthetic analyte A",
+  "concentration_unit": "fixture-unit/mL",
+  "exclusion_rule": "failed-back-calculation-once",
+  "fixture": true,
+  "intercept": "free",
+  "limit_rule": {
+    "lod_k": 3.3,
+    "loq_k": 10,
+    "method": "calibration-slope",
+    "min_blanks": 3
+  },
+  "min_levels": 3,
+  "min_replicates": 2,
+  "model": "weighted-linear",
+  "response_unit": "fixture-response",
+  "schema": "calibration-lod-protocol-v1",
+  "schema_version": 1,
+  "validity": {
+    "max": 4,
+    "min": 1
+  },
+  "weighting": "1/x"
+}

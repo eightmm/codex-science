@@ -1,0 +1,62 @@
+{
+  "fixture": true,
+  "guides": [
+    {
+      "gene": "A",
+      "id": "a1",
+      "non_targeting": false
+    },
+    {
+      "gene": "A",
+      "id": "a2",
+      "non_targeting": false
+    },
+    {
+      "gene": "A",
+      "id": "a3",
+      "non_targeting": false
+    },
+    {
+      "gene": "B",
+      "id": "b1",
+      "non_targeting": false
+    },
+    {
+      "gene": "B",
+      "id": "b2",
+      "non_targeting": false
+    },
+    {
+      "gene": "B",
+      "id": "b3",
+      "non_targeting": false
+    },
+    {
+      "gene": "U",
+      "id": "u1",
+      "non_targeting": false
+    },
+    {
+      "gene": "CONTROL",
+      "id": "nt1",
+      "non_targeting": false
+    },
+    {
+      "gene": null,
+      "id": "nt2",
+      "non_targeting": true
+    },
+    {
+      "gene": null,
+      "id": "nt3",
+      "non_targeting": true
+    },
+    {
+      "gene": null,
+      "id": "nt4",
+      "non_targeting": true
+    }
+  ],
+  "schema": "crispr-library-v1",
+  "schema_version": 1
+}

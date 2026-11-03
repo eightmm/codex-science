@@ -1,0 +1,149 @@
+{
+  "cases": [
+    {
+      "code": "observed-power",
+      "fixture": true,
+      "id": "observed-power",
+      "path": "negative.observed-power.pack.json"
+    },
+    {
+      "code": "effect-leakage",
+      "fixture": true,
+      "id": "own-effect",
+      "path": "negative.own-effect.pack.json"
+    },
+    {
+      "code": "missing-source",
+      "fixture": true,
+      "id": "missing-source",
+      "path": "negative.missing-source.pack.json"
+    },
+    {
+      "code": "multiplicity-correction",
+      "fixture": true,
+      "id": "multiplicity",
+      "path": "negative.multiplicity.pack.json"
+    },
+    {
+      "code": "one-sided-justification",
+      "fixture": true,
+      "id": "one-sided",
+      "path": "negative.one-sided.pack.json"
+    },
+    {
+      "code": "rounding-attrition",
+      "fixture": true,
+      "id": "rounding",
+      "path": "negative.rounding.pack.json"
+    },
+    {
+      "code": "rounding-attrition",
+      "fixture": true,
+      "id": "attrition",
+      "path": "negative.attrition.pack.json"
+    },
+    {
+      "code": "probability-range",
+      "fixture": true,
+      "id": "invalid-power",
+      "path": "negative.invalid-power.pack.json"
+    },
+    {
+      "code": "probability-range",
+      "fixture": true,
+      "id": "invalid-alpha",
+      "path": "negative.invalid-alpha.pack.json"
+    },
+    {
+      "code": "power-consistency",
+      "fixture": true,
+      "id": "wrong-power",
+      "path": "negative.wrong-power.pack.json"
+    },
+    {
+      "code": "post-outcome-change",
+      "fixture": true,
+      "id": "post-outcome",
+      "path": "negative.post-outcome.pack.json"
+    },
+    {
+      "code": "claim-boundary",
+      "fixture": true,
+      "id": "adequate",
+      "path": "negative.adequate.pack.json"
+    },
+    {
+      "code": "claim-boundary",
+      "fixture": true,
+      "id": "well-powered",
+      "path": "negative.well-powered.pack.json"
+    },
+    {
+      "code": "claim-boundary",
+      "fixture": true,
+      "id": "clinical-meaning",
+      "path": "negative.clinical-meaning.pack.json"
+    },
+    {
+      "code": "claim-boundary",
+      "fixture": true,
+      "id": "null-no-effect",
+      "path": "negative.null-no-effect.pack.json"
+    },
+    {
+      "code": "claim-boundary",
+      "fixture": true,
+      "id": "causal",
+      "path": "negative.causal.pack.json"
+    },
+    {
+      "code": "non-evidence",
+      "fixture": true,
+      "id": "review-approval",
+      "path": "negative.review-approval.pack.json"
+    },
+    {
+      "code": "non-evidence",
+      "fixture": true,
+      "id": "computed-kind",
+      "path": "negative.computed-kind.pack.json"
+    },
+    {
+      "code": "non-evidence",
+      "fixture": true,
+      "id": "computed-result",
+      "path": "negative.computed-result.pack.json"
+    },
+    {
+      "code": "unavailable-evidence",
+      "fixture": true,
+      "id": "unavailable-evidence",
+      "path": "negative.unavailable-evidence.pack.json"
+    },
+    {
+      "code": "claim-support",
+      "fixture": true,
+      "id": "empty-evidence",
+      "path": "negative.empty-evidence.pack.json"
+    },
+    {
+      "code": "unavailable-positive",
+      "fixture": true,
+      "id": "unavailable-positive",
+      "path": "negative.unavailable-positive.pack.json"
+    },
+    {
+      "code": "evidence-independence",
+      "fixture": true,
+      "id": "outside-alias",
+      "path": "negative.outside-alias.pack.json"
+    },
+    {
+      "code": "claim-replication",
+      "fixture": true,
+      "id": "replicated",
+      "path": "negative.replicated.pack.json"
+    }
+  ],
+  "fixture": true
+}

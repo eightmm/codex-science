@@ -1,0 +1,168 @@
+{
+  "cases": [
+    {
+      "finding": "missing-imputation",
+      "fixture": "synthetic fixture",
+      "id": "zero-imputation",
+      "path": "negative-zero-imputation.json"
+    },
+    {
+      "finding": "blank-contamination",
+      "fixture": "synthetic fixture",
+      "id": "blank-retained",
+      "path": "negative-blank-retained.json"
+    },
+    {
+      "finding": "study-rsd",
+      "fixture": "synthetic fixture",
+      "id": "study-rsd",
+      "path": "negative-study-rsd.json"
+    },
+    {
+      "finding": "study-drift-anchors",
+      "fixture": "synthetic fixture",
+      "id": "study-drift",
+      "path": "negative-study-drift.json"
+    },
+    {
+      "finding": "post-hoc-rules",
+      "fixture": "synthetic fixture",
+      "id": "post-rules",
+      "path": "negative-post-rules.json"
+    },
+    {
+      "finding": "feature-accounting",
+      "fixture": "synthetic fixture",
+      "id": "unnamed-drop",
+      "path": "negative-unnamed-drop.json"
+    },
+    {
+      "finding": "unavailable-absence",
+      "fixture": "synthetic fixture",
+      "id": "unavailable-absent",
+      "path": "negative-unavailable-absent.json"
+    },
+    {
+      "finding": "batch-confounding",
+      "fixture": "synthetic fixture",
+      "id": "batch-confounding",
+      "path": "negative-batch-confounding.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "identity",
+      "path": "negative-identity.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "biomarker",
+      "path": "negative-biomarker.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "pathway",
+      "path": "negative-pathway.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "mechanism",
+      "path": "negative-mechanism.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "clinical",
+      "path": "negative-clinical.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "causal",
+      "path": "negative-causal.json"
+    },
+    {
+      "finding": "claim-overreach",
+      "fixture": "synthetic fixture",
+      "id": "physical",
+      "path": "negative-physical.json"
+    },
+    {
+      "finding": "rule-freeze",
+      "fixture": "synthetic fixture",
+      "id": "unfrozen",
+      "path": "negative-unfrozen.json"
+    },
+    {
+      "finding": "stage-order",
+      "fixture": "synthetic fixture",
+      "id": "stage-order",
+      "path": "negative-stage-order.json"
+    },
+    {
+      "finding": "sample-preservation",
+      "fixture": "synthetic fixture",
+      "id": "dropped-sample",
+      "path": "negative-dropped-sample.json"
+    },
+    {
+      "finding": "non-evidence-support",
+      "fixture": "synthetic fixture",
+      "id": "computed-kind",
+      "path": "negative-computed-kind.json"
+    },
+    {
+      "finding": "non-evidence-support",
+      "fixture": "synthetic fixture",
+      "id": "computed-result",
+      "path": "negative-computed-result.json"
+    },
+    {
+      "finding": "non-evidence-support",
+      "fixture": "synthetic fixture",
+      "id": "review-kind",
+      "path": "negative-review-kind.json"
+    },
+    {
+      "finding": "non-evidence-support",
+      "fixture": "synthetic fixture",
+      "id": "review-result",
+      "path": "negative-review-result.json"
+    },
+    {
+      "finding": "external-alias",
+      "fixture": "synthetic fixture",
+      "id": "external-alias",
+      "path": "negative-external-alias.json"
+    },
+    {
+      "finding": "missing-evidence",
+      "fixture": "synthetic fixture",
+      "id": "empty-evidence",
+      "path": "negative-empty-evidence.json"
+    },
+    {
+      "finding": "unavailable-positive",
+      "fixture": "synthetic fixture",
+      "id": "unavailable-positive",
+      "path": "negative-unavailable-positive.json"
+    },
+    {
+      "finding": "unavailable-evidence",
+      "fixture": "synthetic fixture",
+      "id": "unavailable-negative",
+      "path": "negative-unavailable-negative.json"
+    },
+    {
+      "finding": "claim-replication",
+      "fixture": "synthetic fixture",
+      "id": "replication",
+      "path": "negative-replication.json"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "schema": "metab-negative-fixtures-v1"
+}

@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash genome, design, read/FRiP/overlap controls, blacklist and consensus rules before peaks.",
+      "id": "01-rules",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic peak coordinates, builds, scores and availability.",
+      "id": "02-intervals",
+      "status": "pending"
+    },
+    {
+      "description": "Compute exact overlaps, exclude failed libraries and blacklist hits, and sweep support segments.",
+      "id": "03-qc-consensus",
+      "status": "pending"
+    },
+    {
+      "description": "Verify every denominator, metric, exclusion and bounded claim against reference arithmetic.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary domain artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

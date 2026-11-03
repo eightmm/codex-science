@@ -1,0 +1,23 @@
+{
+  "evidence": {
+    "path": "evidence.json",
+    "sha256": "ef36e79a3140e3040cb7fea7a3f7a45db0f7b5da3e5498158c7809327288df95"
+  },
+  "fixture": "synthetic fixture",
+  "frozen_before_peaks_read": true,
+  "frozen_rules_sha256": "6ff2c4c243e08fd27521e391022d5efeb7960b77ee21026d252f66491420ebd6",
+  "peaks": {
+    "path": "peaks.json",
+    "sha256": "d3718cbd897c253a5ee41aeb925ba6e346f1a0b336824530fa962d831284ea56"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "06ea8506b352b8f642568ae879fee2778fb5a245e09a0e505dcb35dd648c9e49"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "6ff2c4c243e08fd27521e391022d5efeb7960b77ee21026d252f66491420ebd6"
+  },
+  "schema": "peak-qc-pack-v1",
+  "schema_version": 1
+}

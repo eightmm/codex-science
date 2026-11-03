@@ -1,0 +1,264 @@
+{
+  "acceptance_evidence": [
+    "r-squared"
+  ],
+  "calculation": {
+    "acceptance": "passed",
+    "excluded_ids": [
+      "S3-3"
+    ],
+    "fit": {
+      "back_calculated": [
+        {
+          "concentration": 1.0,
+          "failed": false,
+          "id": "S1-1",
+          "limit_percent": 20,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 1.0,
+          "failed": false,
+          "id": "S1-2",
+          "limit_percent": 20,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 1.0,
+          "failed": false,
+          "id": "S1-3",
+          "limit_percent": 20,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 2.0,
+          "failed": false,
+          "id": "S2-1",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 2.0,
+          "failed": false,
+          "id": "S2-2",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 2.0,
+          "failed": false,
+          "id": "S2-3",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 3.0,
+          "failed": false,
+          "id": "S3-1",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 3.0,
+          "failed": false,
+          "id": "S3-2",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 4.0,
+          "failed": false,
+          "id": "S4-1",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 4.0,
+          "failed": false,
+          "id": "S4-2",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        },
+        {
+          "concentration": 4.0,
+          "failed": false,
+          "id": "S4-3",
+          "limit_percent": 15,
+          "percent_deviation": 0.0,
+          "residual": 0.0
+        }
+      ],
+      "df": 9,
+      "intercept": 1.0,
+      "n": 11,
+      "r_squared": 1.0,
+      "residual_standard_error": 0.0,
+      "slope": 2.0
+    },
+    "initial_fit": {
+      "back_calculated": [
+        {
+          "concentration": 0.9375,
+          "failed": false,
+          "id": "S1-1",
+          "limit_percent": 20,
+          "percent_deviation": -6.25,
+          "residual": -0.1333333333333333
+        },
+        {
+          "concentration": 0.9375,
+          "failed": false,
+          "id": "S1-2",
+          "limit_percent": 20,
+          "percent_deviation": -6.25,
+          "residual": -0.1333333333333333
+        },
+        {
+          "concentration": 0.9375,
+          "failed": false,
+          "id": "S1-3",
+          "limit_percent": 20,
+          "percent_deviation": -6.25,
+          "residual": -0.1333333333333333
+        },
+        {
+          "concentration": 1.875,
+          "failed": false,
+          "id": "S2-1",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.2666666666666666
+        },
+        {
+          "concentration": 1.875,
+          "failed": false,
+          "id": "S2-2",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.2666666666666666
+        },
+        {
+          "concentration": 1.875,
+          "failed": false,
+          "id": "S2-3",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.2666666666666666
+        },
+        {
+          "concentration": 2.8125,
+          "failed": false,
+          "id": "S3-1",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.40000000000000036
+        },
+        {
+          "concentration": 2.8125,
+          "failed": false,
+          "id": "S3-2",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.40000000000000036
+        },
+        {
+          "concentration": 4.6875,
+          "failed": true,
+          "id": "S3-3",
+          "limit_percent": 15,
+          "percent_deviation": 56.25,
+          "residual": 3.5999999999999996
+        },
+        {
+          "concentration": 3.75,
+          "failed": false,
+          "id": "S4-1",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.5333333333333332
+        },
+        {
+          "concentration": 3.75,
+          "failed": false,
+          "id": "S4-2",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.5333333333333332
+        },
+        {
+          "concentration": 3.75,
+          "failed": false,
+          "id": "S4-3",
+          "limit_percent": 15,
+          "percent_deviation": -6.25,
+          "residual": -0.5333333333333332
+        }
+      ],
+      "df": 10,
+      "intercept": 1.0,
+      "n": 12,
+      "r_squared": 0.8258064516129033,
+      "residual_standard_error": 1.2,
+      "slope": 2.1333333333333333
+    },
+    "levels": [
+      {
+        "concentration": 1,
+        "n_initial": 3,
+        "n_retained": 3
+      },
+      {
+        "concentration": 2,
+        "n_initial": 3,
+        "n_retained": 3
+      },
+      {
+        "concentration": 3,
+        "n_initial": 3,
+        "n_retained": 2
+      },
+      {
+        "concentration": 4,
+        "n_initial": 3,
+        "n_retained": 3
+      }
+    ],
+    "limits": {
+      "blank_mean": 1.0,
+      "blank_n": 3,
+      "blank_sd": 0.39999999999999997,
+      "lod": 0.6599999999999999,
+      "loq": 1.9999999999999998,
+      "method": "calibration-slope"
+    },
+    "unknowns": [
+      {
+        "concentration": 2.5,
+        "id": "U-in",
+        "status": "in-range"
+      },
+      {
+        "concentration": null,
+        "id": "U-out",
+        "status": "out-of-range"
+      }
+    ]
+  },
+  "exploratory": false,
+  "fixture": true,
+  "intercept": "free",
+  "model": "linear",
+  "schema": "calibration-lod-report-v1",
+  "schema_version": 1,
+  "weighting": "none"
+}

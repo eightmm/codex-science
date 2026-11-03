@@ -1,0 +1,52 @@
+{
+  "default_policy": "load-minimum-required",
+  "references": [
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Procedure and synthetic software acceptance only, never physical or clinical validity.",
+      "id": "stages",
+      "path": "references/stages.md",
+      "purpose": "Frozen controls, input identities, local records, arithmetic, refusal boundaries and read-only command.",
+      "read_when": [
+        "freezing assay rules",
+        "admitting synthetic standard and blank responses",
+        "checking calibration arithmetic",
+        "handing off bounded claims"
+      ],
+      "required_before": [
+        "rule-freeze",
+        "data-admission",
+        "reference-computation",
+        "claim-authoring",
+        "independent-review-handoff"
+      ],
+      "search_patterns": [
+        "## Pack-local schemas",
+        "## Limits",
+        "## 03-fit-limits",
+        "## Claim boundaries"
+      ],
+      "version": "1"
+    },
+    {
+      "authority": "repository-contract",
+      "evidence_boundary": "Ordered steps cannot prove historical freezing, source authenticity or truth.",
+      "id": "plan",
+      "path": "references/plan.json",
+      "purpose": "Five existing manifest plan step shapes for one coordinator checkpoint.",
+      "read_when": [
+        "creating the coordinator plan"
+      ],
+      "required_before": [
+        "plan-authoring"
+      ],
+      "search_patterns": [
+        "01-freeze",
+        "05-handoff"
+      ],
+      "version": "1"
+    }
+  ],
+  "schema_version": 1,
+  "skill": "workflow-calibration-lod"
+}

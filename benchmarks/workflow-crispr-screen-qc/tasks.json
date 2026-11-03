@@ -1,0 +1,41 @@
+{
+  "fixture": "synthetic fixtures",
+  "pack": "workflow-crispr-screen-qc",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Read totals 1100,2550,2200,5100; baseline Gini zero; perfect paired guide concordance.",
+        "Gene A median 1.4923014582516065, empirical p=0.01 and BH q=0.02.",
+        "Gene B nonsignificant; one-guide U unavailable with null significance.",
+        "All paths/hashes retained; review unavailable and evidence offline-arithmetic-only."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-guide-arithmetic",
+      "input": "examples/workflow-crispr-screen-qc/pack.json",
+      "question": "Do synthetic guide counts reproduce hand-derived normalization, skew, gene medians and corrected significance?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 33 seeded cases refuse through API and CLI for their stated codes.",
+        "Removing each seeded guard makes its case test fail.",
+        "FIFO, symlinks, oversized/growing files, full ancestor swaps and malformed JSON cannot hang or yield a traceback.",
+        "Patched equality/oversize budgets verify limits before parsing or scaled work; inputs remain unchanged."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "fixture-seeded-refusals",
+      "input": "examples/workflow-crispr-screen-qc/negative-cases.json",
+      "question": "Does every synthetic seeded defect refuse for its own reason, including argument errors and hostile files?"
+    }
+  ]
+}

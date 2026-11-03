@@ -1,0 +1,170 @@
+{
+  "cases": [
+    {
+      "bundle": "negative.unknown-guide.pack.json",
+      "finding": "unknown-guide",
+      "id": "unknown-guide"
+    },
+    {
+      "bundle": "negative.duplicate-guide.pack.json",
+      "finding": "duplicate-guide",
+      "id": "duplicate-guide"
+    },
+    {
+      "bundle": "negative.duplicate-library.pack.json",
+      "finding": "duplicate-guide",
+      "id": "duplicate-library"
+    },
+    {
+      "bundle": "negative.negative-count.pack.json",
+      "finding": "invalid-count",
+      "id": "negative-count"
+    },
+    {
+      "bundle": "negative.fractional-count.pack.json",
+      "finding": "invalid-count",
+      "id": "fractional-count"
+    },
+    {
+      "bundle": "negative.boolean-count.pack.json",
+      "finding": "invalid-count",
+      "id": "boolean-count"
+    },
+    {
+      "bundle": "negative.no-controls.pack.json",
+      "finding": "non-targeting-controls",
+      "id": "no-controls"
+    },
+    {
+      "bundle": "negative.few-controls.pack.json",
+      "finding": "non-targeting-controls",
+      "id": "few-controls"
+    },
+    {
+      "bundle": "negative.missing-control.pack.json",
+      "finding": "non-targeting-controls",
+      "id": "missing-control"
+    },
+    {
+      "bundle": "negative.post-normalization.pack.json",
+      "finding": "post-outcome-rule",
+      "id": "post-normalization"
+    },
+    {
+      "bundle": "negative.post-aggregation.pack.json",
+      "finding": "post-outcome-rule",
+      "id": "post-aggregation"
+    },
+    {
+      "bundle": "negative.discordant-pooling.pack.json",
+      "finding": "discordant-pooling",
+      "id": "discordant-pooling"
+    },
+    {
+      "bundle": "negative.few-guides-negative.pack.json",
+      "finding": "insufficient-guides",
+      "id": "few-guides-negative"
+    },
+    {
+      "bundle": "negative.no-bh.pack.json",
+      "finding": "multiple-testing",
+      "id": "no-bh"
+    },
+    {
+      "bundle": "negative.missing-q.pack.json",
+      "finding": "multiple-testing",
+      "id": "missing-q"
+    },
+    {
+      "bundle": "negative.low-reads-summary.pack.json",
+      "finding": "failed-sample-summary",
+      "id": "low-reads-summary"
+    },
+    {
+      "bundle": "negative.essentiality.pack.json",
+      "finding": "claim-boundary",
+      "id": "essentiality"
+    },
+    {
+      "bundle": "negative.drug-target.pack.json",
+      "finding": "claim-boundary",
+      "id": "drug-target"
+    },
+    {
+      "bundle": "negative.therapeutic.pack.json",
+      "finding": "claim-boundary",
+      "id": "therapeutic"
+    },
+    {
+      "bundle": "negative.mechanism.pack.json",
+      "finding": "claim-boundary",
+      "id": "mechanism"
+    },
+    {
+      "bundle": "negative.efficacy.pack.json",
+      "finding": "claim-boundary",
+      "id": "efficacy"
+    },
+    {
+      "bundle": "negative.physical.pack.json",
+      "finding": "claim-boundary",
+      "id": "physical"
+    },
+    {
+      "bundle": "negative.empty-evidence.pack.json",
+      "finding": "unavailable-evidence",
+      "id": "empty-evidence"
+    },
+    {
+      "bundle": "negative.unavailable-positive-text.pack.json",
+      "finding": "claim-boundary",
+      "id": "unavailable-positive-text"
+    },
+    {
+      "bundle": "negative.review-kind.pack.json",
+      "finding": "claim-evidence",
+      "id": "review-kind"
+    },
+    {
+      "bundle": "negative.review-result.pack.json",
+      "finding": "claim-evidence",
+      "id": "review-result"
+    },
+    {
+      "bundle": "negative.computed-kind.pack.json",
+      "finding": "claim-evidence",
+      "id": "computed-kind"
+    },
+    {
+      "bundle": "negative.computed-result.pack.json",
+      "finding": "claim-evidence",
+      "id": "computed-result"
+    },
+    {
+      "bundle": "negative.unavailable-citation.pack.json",
+      "finding": "unavailable-evidence",
+      "id": "unavailable-citation"
+    },
+    {
+      "bundle": "negative.single-replication.pack.json",
+      "finding": "claim-replication",
+      "id": "single-replication"
+    },
+    {
+      "bundle": "negative.external-alias.pack.json",
+      "finding": "dependent-evidence",
+      "id": "external-alias"
+    },
+    {
+      "bundle": "negative.unfrozen.pack.json",
+      "finding": "rule-freeze",
+      "id": "unfrozen"
+    },
+    {
+      "bundle": "negative.stage-order.pack.json",
+      "finding": "stage-order",
+      "id": "stage-order"
+    }
+  ],
+  "fixture": "synthetic fixtures"
+}

@@ -1,0 +1,160 @@
+{
+  "cases": [
+    {
+      "finding": "unfrozen-exclusion",
+      "id": "unfrozen-exclusion",
+      "path": "negative.unfrozen-exclusion.pack.json"
+    },
+    {
+      "finding": "intercept-choice",
+      "id": "forced-zero",
+      "path": "negative.forced-zero.pack.json"
+    },
+    {
+      "finding": "r-squared-only",
+      "id": "r-squared-only",
+      "path": "negative.r-squared-only.pack.json"
+    },
+    {
+      "finding": "unknown-extrapolation",
+      "id": "upper-extrapolation",
+      "path": "negative.upper-extrapolation.pack.json"
+    },
+    {
+      "finding": "unknown-extrapolation",
+      "id": "lower-extrapolation",
+      "path": "negative.lower-extrapolation.pack.json"
+    },
+    {
+      "finding": "loq-range",
+      "id": "loq-below-standard",
+      "path": "negative.loq-below-standard.pack.json"
+    },
+    {
+      "finding": "insufficient-blanks",
+      "id": "too-few-blanks",
+      "path": "negative.too-few-blanks.pack.json"
+    },
+    {
+      "finding": "post-outcome-weights",
+      "id": "changed-weights",
+      "path": "negative.changed-weights.pack.json"
+    },
+    {
+      "finding": "unit-mismatch",
+      "id": "unit-mismatch",
+      "path": "negative.unit-mismatch.pack.json"
+    },
+    {
+      "finding": "nonpositive-concentration",
+      "id": "nonpositive-weighted",
+      "path": "negative.nonpositive-weighted.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "clinical-cutoff",
+      "path": "negative.clinical-cutoff.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "diagnostic-accuracy",
+      "path": "negative.diagnostic-accuracy.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "regulatory-validity",
+      "path": "negative.regulatory-validity.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "patient-meaning",
+      "path": "negative.patient-meaning.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "causal",
+      "path": "negative.causal.pack.json"
+    },
+    {
+      "finding": "claim-boundary",
+      "id": "physical-validity",
+      "path": "negative.physical-validity.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "computed-kind",
+      "path": "negative.computed-kind.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "computed-result",
+      "path": "negative.computed-result.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "review-kind",
+      "path": "negative.review-kind.pack.json"
+    },
+    {
+      "finding": "non-evidence",
+      "id": "review-result",
+      "path": "negative.review-result.pack.json"
+    },
+    {
+      "finding": "protocol-freeze",
+      "id": "post-response-freeze",
+      "path": "negative.post-response-freeze.pack.json"
+    },
+    {
+      "finding": "claim-support",
+      "id": "empty-support",
+      "path": "negative.empty-support.pack.json"
+    },
+    {
+      "finding": "unavailable-positive",
+      "id": "unavailable-positive",
+      "path": "negative.unavailable-positive.pack.json"
+    },
+    {
+      "finding": "unavailable-evidence",
+      "id": "unavailable-evidence",
+      "path": "negative.unavailable-evidence.pack.json"
+    },
+    {
+      "finding": "evidence-independence",
+      "id": "outside-alias",
+      "path": "negative.outside-alias.pack.json"
+    },
+    {
+      "finding": "claim-replication",
+      "id": "replication",
+      "path": "negative.replication.pack.json"
+    },
+    {
+      "finding": "stage-order",
+      "id": "stage-order",
+      "path": "negative.stage-order.pack.json"
+    },
+    {
+      "finding": "data-identity",
+      "id": "duplicate-id",
+      "path": "negative.duplicate-id.pack.json"
+    },
+    {
+      "finding": "level-order",
+      "id": "level-order",
+      "path": "negative.level-order.pack.json"
+    },
+    {
+      "finding": "degenerate-fit",
+      "id": "constant-response",
+      "path": "negative.constant-response.pack.json"
+    },
+    {
+      "finding": "degenerate-blanks",
+      "id": "constant-blanks",
+      "path": "negative.constant-blanks.pack.json"
+    }
+  ],
+  "fixture": true
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Metabolomics Feature QC"
+  short_description: "Check synthetic LC-MS features with pooled QC and blanks"
+  default_prompt: "Use $workflow-metabolomics-feature-qc to check supplied synthetic LC-MS intensities against frozen pooled-QC, blank, missingness and dilution controls before any differential comparison."

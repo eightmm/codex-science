@@ -1,0 +1,106 @@
+{
+  "fixture": "synthetic fixture",
+  "groups": [
+    "A",
+    "B"
+  ],
+  "samples": [
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": null,
+      "id": "S01",
+      "injection_order": 1,
+      "sample_type": "pooled-qc"
+    },
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": null,
+      "id": "S02",
+      "injection_order": 2,
+      "sample_type": "blank"
+    },
+    {
+      "batch": "B1",
+      "dilution": 1,
+      "group": null,
+      "id": "S03",
+      "injection_order": 3,
+      "sample_type": "dilution-series"
+    },
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": "A",
+      "id": "S04",
+      "injection_order": 4,
+      "sample_type": "study"
+    },
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": null,
+      "id": "S05",
+      "injection_order": 5,
+      "sample_type": "pooled-qc"
+    },
+    {
+      "batch": "B1",
+      "dilution": 2,
+      "group": null,
+      "id": "S06",
+      "injection_order": 6,
+      "sample_type": "dilution-series"
+    },
+    {
+      "batch": "B2",
+      "dilution": null,
+      "group": "B",
+      "id": "S07",
+      "injection_order": 7,
+      "sample_type": "study"
+    },
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": "A",
+      "id": "S08",
+      "injection_order": 8,
+      "sample_type": "study"
+    },
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": null,
+      "id": "S09",
+      "injection_order": 9,
+      "sample_type": "pooled-qc"
+    },
+    {
+      "batch": "B1",
+      "dilution": null,
+      "group": null,
+      "id": "S10",
+      "injection_order": 10,
+      "sample_type": "blank"
+    },
+    {
+      "batch": "B1",
+      "dilution": 3,
+      "group": null,
+      "id": "S11",
+      "injection_order": 11,
+      "sample_type": "dilution-series"
+    },
+    {
+      "batch": "B2",
+      "dilution": null,
+      "group": "B",
+      "id": "S12",
+      "injection_order": 12,
+      "sample_type": "study"
+    }
+  ],
+  "schema": "metab-sheet-v1"
+}

@@ -1,0 +1,26 @@
+{
+  "blacklist": {
+    "path": "blacklist.json",
+    "sha256": "67508993095c058d477903e531168236e96a371bf1e124cf75dc6eca0db2ab1b"
+  },
+  "chromosomes": {
+    "chrA": 100,
+    "chrB": 60
+  },
+  "fixture": "synthetic fixture",
+  "genome_build": "synthetic-v1",
+  "input_control_required": true,
+  "minimum_frip": 0.3,
+  "minimum_reads": 100,
+  "minimum_replicate_overlap": 0.5,
+  "minimum_support": 2,
+  "peak_merge_rule": "supported-segments",
+  "reciprocal_interval_fraction": 0.5,
+  "replicates": [
+    "A",
+    "B",
+    "C"
+  ],
+  "schema": "peak-qc-rules-v1",
+  "schema_version": 1
+}

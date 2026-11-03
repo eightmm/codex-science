@@ -1,0 +1,53 @@
+{
+  "claims": [
+    {
+      "gene_id": "A",
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "Gene A is essential."
+    }
+  ],
+  "exploratory": false,
+  "fixture": true,
+  "frozen_design_sha256": "b1f4cc5216ba1cf3feb7f39d165a8637cb7d6a43e7cc2abe66950172a6954f70",
+  "frozen_library_sha256": "c85edf795efba27ad683a732f434a1d2835589622564166cdcf9d9f412a41576",
+  "frozen_sha256": "ac3829649bc559297e1bd5df3a979f3f0eafacf9cbf1bdeaa2ee1131e26275d8",
+  "inputs": {
+    "counts": {
+      "path": "counts.json",
+      "sha256": "2a575080adefca78753088be38fde3c4739072a6af9b07bb916960e2e3a56cd0"
+    },
+    "design": {
+      "path": "design.json",
+      "sha256": "b1f4cc5216ba1cf3feb7f39d165a8637cb7d6a43e7cc2abe66950172a6954f70"
+    },
+    "frozen_rules": {
+      "path": "frozen_rules.json",
+      "sha256": "ac3829649bc559297e1bd5df3a979f3f0eafacf9cbf1bdeaa2ee1131e26275d8"
+    },
+    "library": {
+      "path": "library.json",
+      "sha256": "c85edf795efba27ad683a732f434a1d2835589622564166cdcf9d9f412a41576"
+    },
+    "report": {
+      "path": "report.json",
+      "sha256": "3f52560c7a980fdc4491224962de29ae69a92941066c0d7155da33f3124acd2f"
+    },
+    "rules": {
+      "path": "rules.json",
+      "sha256": "ac3829649bc559297e1bd5df3a979f3f0eafacf9cbf1bdeaa2ee1131e26275d8"
+    }
+  },
+  "schema": "crispr-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-count-qc",
+    "03-guide-changes",
+    "04-gene-summary",
+    "05-handoff"
+  ],
+  "study_outputs": []
+}

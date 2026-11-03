@@ -1,0 +1,47 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "planned",
+      "support": [
+        {
+          "origin": "study",
+          "path": "computed.json",
+          "sha256": "61bd1a04306e0800ce0a83b2bed1889c8dbe63fd4e7c0f922cec1310135e6edd"
+        }
+      ],
+      "text": "Frozen assumptions define a prospective arithmetic scenario."
+    }
+  ],
+  "exploratory": false,
+  "fixture": true,
+  "frozen_assumptions_sha256": "a04f1efd2a6b692da7de5af45952714f36b7efef6b20bc2414fe1ef9c60db2f6",
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "inputs": {
+    "assumptions": {
+      "path": "negative.own-effect.assumptions.json",
+      "sha256": "a04f1efd2a6b692da7de5af45952714f36b7efef6b20bc2414fe1ef9c60db2f6"
+    },
+    "calculation": {
+      "path": "calculation.json",
+      "sha256": "5298d9035160aa1cdab8fc1db3afd5e9a2776cfb250900382f3f4922967a06ed"
+    }
+  },
+  "outcomes_available_at": null,
+  "schema": "sample-size-power-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-qc",
+    "03-computation",
+    "04-consistency",
+    "05-handoff"
+  ],
+  "study_outputs": [
+    {
+      "path": "computed.json",
+      "sha256": "61bd1a04306e0800ce0a83b2bed1889c8dbe63fd4e7c0f922cec1310135e6edd"
+    }
+  ]
+}

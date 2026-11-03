@@ -1,0 +1,61 @@
+{
+  "effect_basis": "frozen-prior",
+  "fixture": true,
+  "power_basis": "prospective",
+  "result": {
+    "analyzable_n": [
+      77,
+      77
+    ],
+    "enrolled_n": [
+      86,
+      86
+    ],
+    "minimum_detectable_effect": 0.9937486026230442,
+    "nuisance": 2,
+    "power": 0.5,
+    "sensitivity": [
+      {
+        "analyzable_n": [
+          43,
+          43
+        ],
+        "enrolled_n": [
+          48,
+          48
+        ],
+        "minimum_detectable_effect": 0.9973530707593747,
+        "nuisance": 1.5,
+        "power": 0.8022828593311353
+      },
+      {
+        "analyzable_n": [
+          77,
+          77
+        ],
+        "enrolled_n": [
+          86,
+          86
+        ],
+        "minimum_detectable_effect": 0.9937486026230442,
+        "nuisance": 2.0,
+        "power": 0.8053853429909763
+      },
+      {
+        "analyzable_n": [
+          119,
+          119
+        ],
+        "enrolled_n": [
+          133,
+          133
+        ],
+        "minimum_detectable_effect": 0.9992138057180155,
+        "nuisance": 2.5,
+        "power": 0.8006784777816113
+      }
+    ]
+  },
+  "schema": "sample-size-power-calculation-v1",
+  "schema_version": 1
+}

@@ -1,0 +1,25 @@
+{
+  "blank_ratio_max": 0.1,
+  "dilution_r2_min": 0.95,
+  "dilution_slope_min": 1,
+  "drift": {
+    "anchors": "pooled-qc",
+    "method": "running-median-qc",
+    "window": 1
+  },
+  "fixture": "synthetic fixture",
+  "minimum_dilution": 3,
+  "minimum_distance_features": 1,
+  "minimum_qc": 3,
+  "missing_policy": "preserve",
+  "mz_max": 1500,
+  "mz_min": 50,
+  "normalization": "none",
+  "qc_missing_max": 0.25,
+  "qc_rsd_max": 0.3,
+  "rt_max": 60,
+  "rt_min": 0,
+  "sample_outlier_distance": 0.05,
+  "schema": "metab-rules-v1",
+  "study_missing_max": 0.25
+}

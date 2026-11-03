@@ -93,6 +93,16 @@ run_science_contracts() (
     examples/workflow-pk-nca-profile/pack.json >/dev/null
   uv run python scripts/validate_microbiome_composition_pack.py \
     examples/workflow-microbiome-composition/pack.json >/dev/null
+  uv run python scripts/validate_crispr_screen_pack.py \
+    examples/workflow-crispr-screen-qc/pack.json >/dev/null
+  uv run python scripts/validate_metabolomics_feature_qc_pack.py \
+    examples/workflow-metabolomics-feature-qc/pack.json >/dev/null
+  uv run python scripts/validate_peak_replicate_qc_pack.py \
+    examples/workflow-peak-replicate-qc/pack.json >/dev/null
+  uv run python scripts/validate_calibration_lod_pack.py \
+    examples/workflow-calibration-lod/pack.json >/dev/null
+  uv run python scripts/validate_sample_size_power_pack.py \
+    examples/workflow-sample-size-power/pack.json >/dev/null
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

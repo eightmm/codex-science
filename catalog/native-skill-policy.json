@@ -130,6 +130,51 @@
       "require_reference_contract": true
     },
     {
+      "skill": "workflow-crispr-screen-qc",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-metabolomics-feature-qc",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-peak-replicate-qc",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-calibration-lod",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-sample-size-power",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
       "skill": "codex-science",
       "minimum_maturity": "L3",
       "required_roles": [

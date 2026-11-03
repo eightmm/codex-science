@@ -1,0 +1,7 @@
+{
+  "fixture": true,
+  "kind": "observed",
+  "result": "measured",
+  "schema": "calibration-lod-evidence-v1",
+  "schema_version": 1
+}

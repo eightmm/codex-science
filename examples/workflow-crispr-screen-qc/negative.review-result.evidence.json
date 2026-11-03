@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "gene_id": "A",
+  "kind": "guide-count-observation",
+  "origin": "study",
+  "result": "review-approved",
+  "schema": "crispr-evidence-v1",
+  "schema_version": 1
+}

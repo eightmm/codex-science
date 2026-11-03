@@ -1,0 +1,4 @@
+interface:
+  display_name: "Calibration and Detection Limits"
+  short_description: "Check frozen synthetic standards, explicit refits and LOD/LOQ"
+  default_prompt: "Use $workflow-calibration-lod to check supplied synthetic standards and blanks under frozen fitting and exclusion rules, preserve all failures, refuse extrapolation and hand off arithmetic records for independent review."

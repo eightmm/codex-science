@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "kind": "prior-assumption",
+  "result": "supplied",
+  "schema": "sample-size-power-source-v1",
+  "schema_version": 1,
+  "study_id": "synthetic-prior-001",
+  "text": "Redistributable synthetic fixture: prior spread, plausible range and effect justification; not real observations."
+}

@@ -1,0 +1,423 @@
+{
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence remains unavailable for this synthetic fixture."
+    }
+  ],
+  "computation": {
+    "batch_confounded": false,
+    "features": [
+      {
+        "blank_ratio": 0.05,
+        "corrected": [
+          20.0,
+          1.0,
+          10.0,
+          10.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          1.0,
+          30.0,
+          22.0
+        ],
+        "dilution": {
+          "r_squared": 1.0,
+          "slope": 10.0
+        },
+        "id": "GOOD",
+        "mz": 100,
+        "normalized": [
+          20.0,
+          1.0,
+          10.0,
+          10.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          1.0,
+          30.0,
+          22.0
+        ],
+        "qc_missingness": 0.0,
+        "qc_rsd_after": 0.0,
+        "qc_rsd_before": 0.5000000000000001,
+        "reasons": [],
+        "retained": true,
+        "retention_time": 2,
+        "status": "pass",
+        "study_missingness": 0.0
+      },
+      {
+        "blank_ratio": 1.25,
+        "corrected": [
+          20.0,
+          40.0,
+          10.0,
+          10.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          30.0,
+          22.0
+        ],
+        "dilution": {
+          "r_squared": 1.0,
+          "slope": 10.0
+        },
+        "id": "BLANK",
+        "mz": 150,
+        "normalized": [
+          20.0,
+          40.0,
+          10.0,
+          10.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          30.0,
+          22.0
+        ],
+        "qc_missingness": 0.0,
+        "qc_rsd_after": 0.0,
+        "qc_rsd_before": 0.5000000000000001,
+        "reasons": [
+          "blank-ratio"
+        ],
+        "retained": false,
+        "retention_time": 3,
+        "status": "fail",
+        "study_missingness": 0.0
+      },
+      {
+        "blank_ratio": 0.04,
+        "corrected": [
+          null,
+          0.5,
+          5,
+          null,
+          20,
+          20,
+          null,
+          30,
+          30,
+          1.5,
+          45,
+          33
+        ],
+        "dilution": {
+          "r_squared": 0.9795918367346936,
+          "slope": 20.0
+        },
+        "id": "MISSING",
+        "mz": 200,
+        "normalized": [
+          null,
+          0.5,
+          5.0,
+          null,
+          20.0,
+          20.0,
+          null,
+          30.0,
+          30.0,
+          1.5,
+          45.0,
+          33.0
+        ],
+        "qc_missingness": 0.3333333333333333,
+        "qc_rsd_after": null,
+        "qc_rsd_before": null,
+        "reasons": [
+          "drift-unavailable",
+          "qc-degenerate",
+          "qc-missingness",
+          "study-missingness"
+        ],
+        "retained": false,
+        "retention_time": 4,
+        "status": "fail",
+        "study_missingness": 0.5
+      },
+      {
+        "blank_ratio": 0.05,
+        "corrected": [
+          20.0,
+          1.0,
+          10.0,
+          10.0,
+          20.0,
+          40.0,
+          20.0,
+          20.0,
+          20.0,
+          1.0,
+          10.0,
+          22.0
+        ],
+        "dilution": {
+          "r_squared": 2.3111159332646827e-33,
+          "slope": -8.326672684688674e-16
+        },
+        "id": "NONLINEAR",
+        "mz": 250,
+        "normalized": [
+          20.0,
+          1.0,
+          10.0,
+          10.0,
+          20.0,
+          40.0,
+          20.0,
+          20.0,
+          20.0,
+          1.0,
+          10.0,
+          22.0
+        ],
+        "qc_missingness": 0.0,
+        "qc_rsd_after": 0.0,
+        "qc_rsd_before": 0.5000000000000001,
+        "reasons": [
+          "dilution-linearity"
+        ],
+        "retained": false,
+        "retention_time": 5,
+        "status": "fail",
+        "study_missingness": 0.0
+      },
+      {
+        "blank_ratio": null,
+        "corrected": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "dilution": null,
+        "id": "UNMEASURED",
+        "mz": 300,
+        "normalized": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "qc_missingness": 1.0,
+        "qc_rsd_after": null,
+        "qc_rsd_before": null,
+        "reasons": [
+          "blank-unavailable",
+          "dilution-degenerate",
+          "drift-unavailable",
+          "qc-degenerate",
+          "qc-missingness",
+          "study-missingness",
+          "unavailable-batch"
+        ],
+        "retained": false,
+        "retention_time": 6,
+        "status": "unavailable",
+        "study_missingness": 1.0
+      }
+    ],
+    "normalization_factors": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "reason_counts": {
+      "blank-ratio": 1,
+      "blank-unavailable": 1,
+      "dilution-degenerate": 1,
+      "dilution-linearity": 1,
+      "drift-unavailable": 2,
+      "qc-degenerate": 2,
+      "qc-missingness": 2,
+      "study-missingness": 2,
+      "unavailable-batch": 1
+    },
+    "retained_feature_count": 1,
+    "samples": [
+      {
+        "distance_features": 1,
+        "flags": [],
+        "id": "S01",
+        "median_intensity": 20.0,
+        "qc_log_distance": 0.0
+      },
+      {
+        "distance_features": 1,
+        "flags": [
+          "qc-distance-outlier"
+        ],
+        "id": "S02",
+        "median_intensity": 1.0,
+        "qc_log_distance": 2.3513752571634776
+      },
+      {
+        "distance_features": 1,
+        "flags": [
+          "qc-distance-outlier"
+        ],
+        "id": "S03",
+        "median_intensity": 10.0,
+        "qc_log_distance": 0.6466271649250523
+      },
+      {
+        "distance_features": 1,
+        "flags": [
+          "qc-distance-outlier"
+        ],
+        "id": "S04",
+        "median_intensity": 10.0,
+        "qc_log_distance": 0.6466271649250523
+      },
+      {
+        "distance_features": 1,
+        "flags": [],
+        "id": "S05",
+        "median_intensity": 20.0,
+        "qc_log_distance": 0.0
+      },
+      {
+        "distance_features": 1,
+        "flags": [],
+        "id": "S06",
+        "median_intensity": 20.0,
+        "qc_log_distance": 0.0
+      },
+      {
+        "distance_features": 1,
+        "flags": [],
+        "id": "S07",
+        "median_intensity": 20.0,
+        "qc_log_distance": 0.0
+      },
+      {
+        "distance_features": 1,
+        "flags": [],
+        "id": "S08",
+        "median_intensity": 20.0,
+        "qc_log_distance": 0.0
+      },
+      {
+        "distance_features": 1,
+        "flags": [],
+        "id": "S09",
+        "median_intensity": 20.0,
+        "qc_log_distance": 0.0
+      },
+      {
+        "distance_features": 1,
+        "flags": [
+          "qc-distance-outlier"
+        ],
+        "id": "S10",
+        "median_intensity": 1.25,
+        "qc_log_distance": 2.3513752571634776
+      },
+      {
+        "distance_features": 1,
+        "flags": [
+          "qc-distance-outlier"
+        ],
+        "id": "S11",
+        "median_intensity": 30.0,
+        "qc_log_distance": 0.38946476676172326
+      },
+      {
+        "distance_features": 1,
+        "flags": [
+          "qc-distance-outlier"
+        ],
+        "id": "S12",
+        "median_intensity": 22.0,
+        "qc_log_distance": 0.09097177820572666
+      }
+    ]
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "inputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "dd96082cc489271b36d3968ab860c9a0df5cdea1f4ccd64ce5a140b3256c4604"
+    },
+    {
+      "path": "pack.json",
+      "sha256": "760ae783dd1a1e171ab1a88b74958d6ffae68b261339a4e5ac2c83a25e14b08f"
+    },
+    {
+      "path": "report.json",
+      "sha256": "352f613e5dfb4f24397d5a271400412e51a360fd2f327d84d49199783cdcd5a0"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8"
+    },
+    {
+      "path": "sheet.json",
+      "sha256": "576a8b5816e9a3931cfe393b37b8a9a60c999ba4673cbdc21397956fa87d8c3c"
+    },
+    {
+      "path": "table.json",
+      "sha256": "5300f4071c04318d53de32a1a906525287506e266c63baad7d21a65f0262d202"
+    }
+  ],
+  "limitations": [
+    "Synthetic arithmetic agreement establishes software behavior only.",
+    "Hashes cannot prove historical freezing or actual independence.",
+    "The conservative English lexical claim gate is incomplete.",
+    "Independent review and rigor classification remain coordinator-owned and unavailable."
+  ],
+  "review": "unavailable",
+  "schema": "metab-result-v1",
+  "stages": [
+    "01-freeze",
+    "02-table",
+    "03-features",
+    "04-samples",
+    "05-handoff"
+  ],
+  "status": "offline-arithmetic-only"
+}

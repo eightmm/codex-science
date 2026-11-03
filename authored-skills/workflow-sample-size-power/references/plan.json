@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze prior assumptions, justification, uncertainty and multiplicity before outcomes; hash every input.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Check sources, leakage, sidedness, numeric types and plausible ranges without repairing failures.",
+      "id": "02-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute prospective normal arm sizes, detectable effect, sensitivity and per-arm attrition ceilings.",
+      "id": "03-computation",
+      "status": "pending"
+    },
+    {
+      "description": "Reproduce stated counts exactly and numeric power within the frozen absolute tolerance.",
+      "id": "04-consistency",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned rigor and independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

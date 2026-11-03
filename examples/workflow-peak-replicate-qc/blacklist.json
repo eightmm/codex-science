@@ -1,0 +1,13 @@
+{
+  "fixture": "synthetic fixture",
+  "genome_build": "synthetic-v1",
+  "intervals": [
+    {
+      "chrom": "chrA",
+      "end": 90,
+      "start": 80
+    }
+  ],
+  "schema": "peak-qc-blacklist-v1",
+  "schema_version": 1
+}

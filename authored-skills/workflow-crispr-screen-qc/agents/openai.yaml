@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pooled CRISPR Screen QC"
+  short_description: "Check synthetic guide counts and bounded gene summaries"
+  default_prompt: "Use $workflow-crispr-screen-qc for frozen guide-count QC, matched replicate changes, control-null permutations and BH summaries with independent review handoff."

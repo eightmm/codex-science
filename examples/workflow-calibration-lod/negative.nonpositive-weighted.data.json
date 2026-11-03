@@ -1,0 +1,125 @@
+{
+  "blanks": [
+    {
+      "concentration_unit": "fixture-unit/mL",
+      "id": "B1",
+      "response": 0.6,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration_unit": "fixture-unit/mL",
+      "id": "B2",
+      "response": 1,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration_unit": "fixture-unit/mL",
+      "id": "B3",
+      "response": 1.4,
+      "response_unit": "fixture-response"
+    }
+  ],
+  "fixture": true,
+  "schema": "calibration-lod-data-v1",
+  "schema_version": 1,
+  "standards": [
+    {
+      "concentration": 0,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S1-1",
+      "response": 3,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 1,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S1-2",
+      "response": 3,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 1,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S1-3",
+      "response": 3,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 2,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S2-1",
+      "response": 5,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 2,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S2-2",
+      "response": 5,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 2,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S2-3",
+      "response": 5,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 3,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S3-1",
+      "response": 7,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 3,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S3-2",
+      "response": 7,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 3,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S3-3",
+      "response": 11,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 4,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S4-1",
+      "response": 9,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 4,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S4-2",
+      "response": 9,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration": 4,
+      "concentration_unit": "fixture-unit/mL",
+      "id": "S4-3",
+      "response": 9,
+      "response_unit": "fixture-response"
+    }
+  ],
+  "unknowns": [
+    {
+      "concentration_unit": "fixture-unit/mL",
+      "id": "U-in",
+      "response": 6,
+      "response_unit": "fixture-response"
+    },
+    {
+      "concentration_unit": "fixture-unit/mL",
+      "id": "U-out",
+      "response": 11,
+      "response_unit": "fixture-response"
+    }
+  ]
+}

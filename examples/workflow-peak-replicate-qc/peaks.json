@@ -1,0 +1,98 @@
+{
+  "fixture": "synthetic fixture",
+  "genome_build": "synthetic-v1",
+  "replicates": [
+    {
+      "genome_build": "synthetic-v1",
+      "id": "A",
+      "input_control": {
+        "genome_build": "synthetic-v1",
+        "id": "synthetic-control-A",
+        "total_reads": 200
+      },
+      "peaks": [
+        {
+          "chrom": "chrA",
+          "end": 20,
+          "score": 1,
+          "start": 10
+        },
+        {
+          "chrom": "chrA",
+          "end": 50,
+          "score": 1,
+          "start": 40
+        },
+        {
+          "chrom": "chrA",
+          "end": 90,
+          "score": 1,
+          "start": 80
+        }
+      ],
+      "reads_in_peaks": 50,
+      "status": "available",
+      "total_reads": 100
+    },
+    {
+      "genome_build": "synthetic-v1",
+      "id": "B",
+      "input_control": {
+        "genome_build": "synthetic-v1",
+        "id": "synthetic-control-B",
+        "total_reads": 200
+      },
+      "peaks": [
+        {
+          "chrom": "chrA",
+          "end": 25,
+          "score": 1,
+          "start": 15
+        },
+        {
+          "chrom": "chrA",
+          "end": 50,
+          "score": 1,
+          "start": 40
+        },
+        {
+          "chrom": "chrA",
+          "end": 90,
+          "score": 1,
+          "start": 80
+        }
+      ],
+      "reads_in_peaks": 40,
+      "status": "available",
+      "total_reads": 100
+    },
+    {
+      "genome_build": "synthetic-v1",
+      "id": "C",
+      "input_control": {
+        "genome_build": "synthetic-v1",
+        "id": "synthetic-control-C",
+        "total_reads": 200
+      },
+      "peaks": [
+        {
+          "chrom": "chrA",
+          "end": 20,
+          "score": 1,
+          "start": 10
+        },
+        {
+          "chrom": "chrA",
+          "end": 50,
+          "score": 1,
+          "start": 40
+        }
+      ],
+      "reads_in_peaks": 5,
+      "status": "available",
+      "total_reads": 50
+    }
+  ],
+  "schema": "peak-qc-peaks-v1",
+  "schema_version": 1
+}

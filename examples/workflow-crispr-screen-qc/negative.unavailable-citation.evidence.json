@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "gene_id": "A",
+  "kind": "unavailable",
+  "origin": "study",
+  "result": "unavailable",
+  "schema": "crispr-evidence-v1",
+  "schema_version": 1
+}

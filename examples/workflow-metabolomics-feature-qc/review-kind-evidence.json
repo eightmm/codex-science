@@ -1,0 +1,16 @@
+{
+  "fixture": "synthetic fixture",
+  "records": [
+    {
+      "id": "E1",
+      "kind": "review-approval",
+      "origin": "internal",
+      "result": "observed",
+      "source": {
+        "path": "table.json",
+        "sha256": "5300f4071c04318d53de32a1a906525287506e266c63baad7d21a65f0262d202"
+      }
+    }
+  ],
+  "schema": "metab-evidence-v1"
+}

@@ -1,0 +1,89 @@
+{
+  "adjusted_alpha": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 0.025
+  },
+  "allocation_ratio": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 1
+  },
+  "alpha": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 0.05
+  },
+  "attrition": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 0.1
+  },
+  "effect": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": {
+      "path": "prior.json",
+      "sha256": "609c81591b2550274a6d93238cdffb003e8dbdad98542873563c31d9ba9a9df5"
+    },
+    "value": 1
+  },
+  "fixture": true,
+  "minimum_n": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 2
+  },
+  "multiplicity": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 2
+  },
+  "nuisance": {
+    "assumption": false,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "uncertainty": [
+      1.5,
+      2.5
+    ],
+    "value": 2
+  },
+  "one_sided_justification": "",
+  "outcome_range": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": {
+      "path": "prior.json",
+      "sha256": "609c81591b2550274a6d93238cdffb003e8dbdad98542873563c31d9ba9a9df5"
+    },
+    "value": [
+      0,
+      10
+    ]
+  },
+  "outcome_type": "continuous",
+  "schema": "sample-size-power-assumptions-v1",
+  "schema_version": 1,
+  "sensitivity_points": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 3
+  },
+  "setting": "laboratory",
+  "sidedness": "two-sided",
+  "study_id": "synthetic-planned-001",
+  "target_power": {
+    "assumption": true,
+    "rationale": "Synthetic fixture assumption for offline arithmetic; uncertainty and effect require independent source review.",
+    "source": null,
+    "value": 0.8
+  }
+}

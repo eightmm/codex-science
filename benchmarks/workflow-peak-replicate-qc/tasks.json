@@ -1,0 +1,83 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "skill": "workflow-peak-replicate-qc",
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "FRiP 0.5/0.4/0.1; C excluded with low-reads and low-frip.",
+        "A/B clean intersection 15, union 25, Jaccard 3/5, reciprocal fraction 1.",
+        "Consensus [15,20) and [40,50), A/B support only; n_replicates=3 and n_eligible=2.",
+        "Result arithmetic-only, review unavailable, no writes."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "id": "hand-arithmetic",
+      "input": "examples/workflow-peak-replicate-qc/pack.json",
+      "question": "Do FRiP, blacklist counts, exact overlap and consensus match the invented hand table?"
+    },
+    {
+      "acceptance_criteria": [
+        "past-chromosome: interval-bounds",
+        "empty-interval: interval-bounds",
+        "reversed-interval: interval-bounds",
+        "overlapping-replicate-peaks: within-replicate-overlap",
+        "blacklist-consensus: blacklist-consensus",
+        "low-frip-kept: excluded-consensus",
+        "low-reads-kept: excluded-consensus",
+        "mixed-builds: genome-build",
+        "missing-input-control: missing-input-control",
+        "unlabelled-threshold-change: post-hoc-overlap",
+        "unavailable-as-empty: unavailable-replicate",
+        "unfrozen-rules: rule-freeze",
+        "binding: claim-overreach",
+        "enhancer: claim-overreach",
+        "promoter: claim-overreach",
+        "regulation: claim-overreach",
+        "causal: claim-overreach",
+        "clinical: claim-overreach",
+        "physical: claim-overreach",
+        "kind-review-approval: non-evidence-support",
+        "result-review-approval: non-evidence-support",
+        "kind-computed: non-evidence-support",
+        "result-numerical-agreement: non-evidence-support",
+        "empty-evidence: missing-evidence",
+        "unavailable-positive: unavailable-positive",
+        "unavailable-citation: unavailable-evidence",
+        "source-unavailable: unavailable-evidence",
+        "source-computed: non-evidence-support",
+        "external-alias: external-alias",
+        "replicated-fixture: claim-replication",
+        "unsorted-peaks: interval-order",
+        "unknown-chromosome: unknown-chromosome"
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "input": "examples/workflow-peak-replicate-qc/negative-cases.json",
+      "question": "Does every planted defect retain its required labelled refusal before generic report or wording gates?"
+    },
+    {
+      "acceptance_criteria": [
+        "Duplicate/nonfinite/deep/huge JSON refused.",
+        "FIFO, symlinks, ancestor/root swaps and changed files refused; hardlinks read/parsed once per admission.",
+        "Byte/value/artifact/dimension limits exercised at equality and below.",
+        "Argument errors are JSON stderr exit 2; help remains stdout exit 0."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_seconds": 0,
+        "network_calls": 0
+      },
+      "id": "hostile-inputs",
+      "input": "tests/test_workflow_peaks_pack.py",
+      "question": "Do untrusted bytes, paths, races, limits and CLI arguments refuse promptly and deterministically?"
+    }
+  ]
+}

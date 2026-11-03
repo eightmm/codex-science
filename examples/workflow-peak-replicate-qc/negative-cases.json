@@ -1,0 +1,771 @@
+{
+  "cases": [
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "peaks",
+            2,
+            "end"
+          ],
+          "target": "peaks",
+          "value": 101
+        }
+      ],
+      "code": "interval-bounds",
+      "id": "past-chromosome"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "peaks",
+            0,
+            "end"
+          ],
+          "target": "peaks",
+          "value": 10
+        }
+      ],
+      "code": "interval-bounds",
+      "id": "empty-interval"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "peaks",
+            0,
+            "start"
+          ],
+          "target": "peaks",
+          "value": 21
+        }
+      ],
+      "code": "interval-bounds",
+      "id": "reversed-interval"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "peaks",
+            1,
+            "start"
+          ],
+          "target": "peaks",
+          "value": 19
+        }
+      ],
+      "code": "within-replicate-overlap",
+      "id": "overlapping-replicate-peaks"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "computation",
+            "consensus",
+            0
+          ],
+          "target": "report",
+          "value": {
+            "chrom": "chrA",
+            "end": 90,
+            "n_support": 2,
+            "replicates": [
+              "A",
+              "B"
+            ],
+            "start": 80
+          }
+        }
+      ],
+      "code": "blacklist-consensus",
+      "id": "blacklist-consensus"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            2,
+            "total_reads"
+          ],
+          "target": "peaks",
+          "value": 100
+        },
+        {
+          "path": [
+            "computation",
+            "consensus",
+            0
+          ],
+          "target": "report",
+          "value": {
+            "chrom": "chrA",
+            "end": 20,
+            "n_support": 3,
+            "replicates": [
+              "A",
+              "B",
+              "C"
+            ],
+            "start": 15
+          }
+        }
+      ],
+      "code": "excluded-consensus",
+      "id": "low-frip-kept"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            2,
+            "reads_in_peaks"
+          ],
+          "target": "peaks",
+          "value": 25
+        },
+        {
+          "path": [
+            "computation",
+            "consensus",
+            0
+          ],
+          "target": "report",
+          "value": {
+            "chrom": "chrA",
+            "end": 20,
+            "n_support": 3,
+            "replicates": [
+              "A",
+              "B",
+              "C"
+            ],
+            "start": 15
+          }
+        }
+      ],
+      "code": "excluded-consensus",
+      "id": "low-reads-kept"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            1,
+            "genome_build"
+          ],
+          "target": "peaks",
+          "value": "synthetic-v2"
+        }
+      ],
+      "code": "genome-build",
+      "id": "mixed-builds"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "input_control"
+          ],
+          "target": "peaks",
+          "value": "unavailable"
+        }
+      ],
+      "code": "missing-input-control",
+      "id": "missing-input-control"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "minimum_replicate_overlap"
+          ],
+          "target": "report",
+          "value": 0.1
+        }
+      ],
+      "code": "post-hoc-overlap",
+      "id": "unlabelled-threshold-change"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            2,
+            "status"
+          ],
+          "target": "peaks",
+          "value": "unavailable"
+        }
+      ],
+      "code": "unavailable-replicate",
+      "id": "unavailable-as-empty"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "frozen_before_peaks_read"
+          ],
+          "target": "pack",
+          "value": false
+        }
+      ],
+      "code": "rule-freeze",
+      "id": "unfrozen-rules"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Peaks demonstrate binding."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "binding"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Peaks show enhancer activity."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "enhancer"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Peaks show promoter activity."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "promoter"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Peaks establish regulation."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "regulation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Peaks establish a causal mechanism."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "causal"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Peaks have clinical relevance."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "clinical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "Agreement proves physical validity."
+        }
+      ],
+      "code": "claim-overreach",
+      "id": "physical"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "kind"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "result"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "kind-review-approval"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "kind"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "result"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "review-approval"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "result-review-approval"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "kind"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "result"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "computed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "kind-computed"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "supported"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "kind"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "result"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "numerical-agreement"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "result-numerical-agreement"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "evidence"
+          ],
+          "target": "report",
+          "value": []
+        }
+      ],
+      "code": "missing-evidence",
+      "id": "empty-evidence"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "unavailable"
+        },
+        {
+          "path": [
+            "claims",
+            0,
+            "text"
+          ],
+          "target": "report",
+          "value": "The evidence is significant."
+        }
+      ],
+      "code": "unavailable-positive",
+      "id": "unavailable-positive"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "unavailable"
+        }
+      ],
+      "code": "unavailable-evidence",
+      "id": "unavailable-citation"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "kind"
+          ],
+          "target": "source",
+          "value": "unavailable"
+        }
+      ],
+      "code": "unavailable-evidence",
+      "id": "source-unavailable"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "suggestive"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        }
+      ],
+      "code": "non-evidence-support",
+      "id": "source-computed"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "records",
+            0,
+            "origin"
+          ],
+          "target": "evidence",
+          "value": "independent"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "source",
+            "path"
+          ],
+          "target": "evidence",
+          "value": "report.json"
+        }
+      ],
+      "code": "external-alias",
+      "id": "external-alias"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "claims",
+            0,
+            "status"
+          ],
+          "target": "report",
+          "value": "replicated"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "kind"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "records",
+            0,
+            "result"
+          ],
+          "target": "evidence",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "kind"
+          ],
+          "target": "source",
+          "value": "observed"
+        },
+        {
+          "path": [
+            "result"
+          ],
+          "target": "source",
+          "value": "observed"
+        }
+      ],
+      "code": "claim-replication",
+      "id": "replicated-fixture"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "peaks",
+            1,
+            "chrom"
+          ],
+          "target": "peaks",
+          "value": "chrB"
+        }
+      ],
+      "code": "interval-order",
+      "id": "unsorted-peaks"
+    },
+    {
+      "changes": [
+        {
+          "path": [
+            "replicates",
+            0,
+            "peaks",
+            0,
+            "chrom"
+          ],
+          "target": "peaks",
+          "value": "chrMissing"
+        }
+      ],
+      "code": "unknown-chromosome",
+      "id": "unknown-chromosome"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

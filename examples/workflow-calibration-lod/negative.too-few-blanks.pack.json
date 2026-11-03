@@ -1,0 +1,51 @@
+{
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [
+        {
+          "origin": "study",
+          "path": "evidence.json",
+          "sha256": "8985e520b5037bed9353f89fe5b8321a78fb9ad47db0e93302ab515232a6633c"
+        }
+      ],
+      "text": "Synthetic arithmetic only; independent measured evidence is unavailable."
+    }
+  ],
+  "fixture": true,
+  "freeze_before_responses": true,
+  "frozen_at": "2026-01-01T00:00:00Z",
+  "frozen_protocol_sha256": "ef8f4cd009b94ae7b3f1f99b0ab8783658057fa865d623b6a3ea93853288b43b",
+  "inputs": {
+    "data": {
+      "path": "negative.too-few-blanks.data.json",
+      "sha256": "9c776527dc2d32a614dac26405b8a276a890445dc4f13e89b1020d13db9e44dd"
+    },
+    "protocol": {
+      "path": "negative.too-few-blanks.protocol.json",
+      "sha256": "ef8f4cd009b94ae7b3f1f99b0ab8783658057fa865d623b6a3ea93853288b43b"
+    },
+    "report": {
+      "path": "report.json",
+      "sha256": "82b5091f23b2f18fa2080c3060ccfcdb4cc28e406cc1bc328b49b156f654cec6"
+    }
+  },
+  "responses_read_at": "2026-01-01T00:01:00Z",
+  "schema": "calibration-lod-pack-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-identity-qc",
+    "03-fit-limits",
+    "04-summary",
+    "05-handoff"
+  ],
+  "study_outputs": [
+    {
+      "path": "evidence.json",
+      "sha256": "8985e520b5037bed9353f89fe5b8321a78fb9ad47db0e93302ab515232a6633c"
+    }
+  ]
+}

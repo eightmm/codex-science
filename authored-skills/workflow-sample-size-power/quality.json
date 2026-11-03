@@ -1,0 +1,60 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-sample-size-power/pack.json",
+    "examples/workflow-sample-size-power/binary.pack.json",
+    "examples/workflow-sample-size-power/unequal.pack.json",
+    "examples/workflow-sample-size-power/expected.json",
+    "examples/workflow-sample-size-power/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 means offline synthetic software acceptance only, never laboratory, biological or clinical validation, adequacy or benefit. These fixtures are not outcome observations.",
+    "Normal closed forms ignore small-sample error, dependence and variance estimation. Binary nuisance is fixed under the supplied effect; MDE uses the sizing approximation rather than exact two-tail inversion.",
+    "Paths, hashes and timestamps cannot establish historical freezing, source authenticity or actual independence. Coordinator-owned rigor and independent review remain unavailable.",
+    "Conservative English case-insensitive whole-word prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Additional refusals: adequate, well powered, no effect, truth, physical validity, observed power and post hoc power (space/hyphen variants). Negations are included; other languages and paraphrases are incompletely covered.",
+    "Computed records and review approval cannot support positive claims; any unavailable citation forces unavailable status. Replicated status is always refused.",
+    "Inputs are bounded to 64 MiB per artifact, 256 MiB across unique inodes and 4,000,000 JSON values before parsing. End-of-run hash and ancestor checks detect changes but do not create a transactional snapshot."
+  ],
+  "output_schemas": [
+    "sample-size-power-pack-v1",
+    "sample-size-power-assumptions-v1",
+    "sample-size-power-source-v1",
+    "sample-size-power-calculation-v1",
+    "sample-size-power-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "observed-power",
+    "own-effect",
+    "missing-source",
+    "multiplicity",
+    "one-sided",
+    "rounding",
+    "attrition",
+    "invalid-power",
+    "invalid-alpha",
+    "wrong-power",
+    "post-outcome",
+    "adequate",
+    "well-powered",
+    "clinical-meaning",
+    "null-no-effect",
+    "causal",
+    "review-approval",
+    "computed-kind",
+    "computed-result",
+    "unavailable-evidence",
+    "empty-evidence",
+    "unavailable-positive",
+    "outside-alias",
+    "replicated"
+  ],
+  "skill": "workflow-sample-size-power",
+  "test_files": [
+    "tests/test_workflow_power_pack.py"
+  ]
+}

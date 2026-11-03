@@ -1,0 +1,65 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-metabolomics-feature-qc/pack.json",
+    "examples/workflow-metabolomics-feature-qc/expected.json",
+    "examples/workflow-metabolomics-feature-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixture acceptance establishes arithmetic/software behavior, never biological or physical validity.",
+    "Content hashes cannot prove historical freeze timing, actual acquisition availability or real source independence.",
+    "The conservative English whole-word prefix gate with \\w* uses caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*; also biomarker*, pathway*, identif*, compound identity, truth and physical validity. It is incomplete and requires independent source review.",
+    "Within-batch pooled QC participate in their own running-median correction; reduced RSD is not held-out efficacy.",
+    "Median normalization uses all positive corrected features before filtering; variable distance-coordinate counts are not directly comparable.",
+    "Two-group batch overlap is a limited confounding flag, not proof that the design is otherwise unconfounded.",
+    "Independent review and rigor classification remain unavailable and coordinator-owned."
+  ],
+  "output_schemas": [
+    "metab-pack-v1",
+    "metab-rules-v1",
+    "metab-sheet-v1",
+    "metab-table-v1",
+    "metab-report-v1",
+    "metab-evidence-v1",
+    "metab-result-v1",
+    "metab-negative-fixtures-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "zero-imputation",
+    "blank-retained",
+    "study-rsd",
+    "study-drift",
+    "post-rules",
+    "unnamed-drop",
+    "unavailable-absent",
+    "batch-confounding",
+    "identity",
+    "biomarker",
+    "pathway",
+    "mechanism",
+    "clinical",
+    "causal",
+    "physical",
+    "unfrozen",
+    "stage-order",
+    "dropped-sample",
+    "computed-kind",
+    "computed-result",
+    "review-kind",
+    "review-result",
+    "external-alias",
+    "empty-evidence",
+    "unavailable-positive",
+    "unavailable-negative",
+    "replication"
+  ],
+  "skill": "workflow-metabolomics-feature-qc",
+  "test_files": [
+    "tests/test_workflow_metab_pack.py"
+  ]
+}

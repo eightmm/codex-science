@@ -1,0 +1,112 @@
+{
+  "fixture": true,
+  "rows": [
+    {
+      "counts": [
+        1.5,
+        800,
+        200,
+        1600
+      ],
+      "guide_id": "a1"
+    },
+    {
+      "counts": [
+        100,
+        400,
+        200,
+        800
+      ],
+      "guide_id": "a2"
+    },
+    {
+      "counts": [
+        100,
+        200,
+        200,
+        400
+      ],
+      "guide_id": "a3"
+    },
+    {
+      "counts": [
+        100,
+        100,
+        200,
+        200
+      ],
+      "guide_id": "b1"
+    },
+    {
+      "counts": [
+        100,
+        100,
+        200,
+        200
+      ],
+      "guide_id": "b2"
+    },
+    {
+      "counts": [
+        100,
+        100,
+        200,
+        200
+      ],
+      "guide_id": "b3"
+    },
+    {
+      "counts": [
+        100,
+        100,
+        200,
+        200
+      ],
+      "guide_id": "u1"
+    },
+    {
+      "counts": [
+        100,
+        50,
+        200,
+        100
+      ],
+      "guide_id": "nt1"
+    },
+    {
+      "counts": [
+        100,
+        100,
+        200,
+        200
+      ],
+      "guide_id": "nt2"
+    },
+    {
+      "counts": [
+        100,
+        200,
+        200,
+        400
+      ],
+      "guide_id": "nt3"
+    },
+    {
+      "counts": [
+        100,
+        400,
+        200,
+        800
+      ],
+      "guide_id": "nt4"
+    }
+  ],
+  "sample_ids": [
+    "baseline-r1",
+    "selected-r1",
+    "baseline-r2",
+    "selected-r2"
+  ],
+  "schema": "crispr-counts-v1",
+  "schema_version": 1
+}

@@ -1,0 +1,248 @@
+{
+  "claims": [
+    {
+      "gene_id": "A",
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "support": [],
+      "text": "Synthetic fixture values await independent review."
+    }
+  ],
+  "evidence_level": "offline-arithmetic-only",
+  "exploratory": false,
+  "fixture": true,
+  "input_identities": [
+    {
+      "path": "pack.json",
+      "sha256": "ce34a631a3679b7faa04c80a5f7d70623e9aa414ebf40eaf95d4f1a17a2868b7"
+    },
+    {
+      "path": "frozen_rules.json",
+      "sha256": "ac3829649bc559297e1bd5df3a979f3f0eafacf9cbf1bdeaa2ee1131e26275d8"
+    },
+    {
+      "path": "rules.json",
+      "sha256": "ac3829649bc559297e1bd5df3a979f3f0eafacf9cbf1bdeaa2ee1131e26275d8"
+    },
+    {
+      "path": "library.json",
+      "sha256": "c85edf795efba27ad683a732f434a1d2835589622564166cdcf9d9f412a41576"
+    },
+    {
+      "path": "design.json",
+      "sha256": "b1f4cc5216ba1cf3feb7f39d165a8637cb7d6a43e7cc2abe66950172a6954f70"
+    },
+    {
+      "path": "counts.json",
+      "sha256": "2a575080adefca78753088be38fde3c4739072a6af9b07bb916960e2e3a56cd0"
+    },
+    {
+      "path": "report.json",
+      "sha256": "3f52560c7a980fdc4491224962de29ae69a92941066c0d7155da33f3124acd2f"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures only; numerical agreement never establishes physical or clinical validity.",
+    "Control-null permutations are an arithmetic reference, never gene essentiality or target evidence.",
+    "Hash identities cannot prove historical freezing or source independence.",
+    "Failed controls, negative results and unavailable evidence remain explicit.",
+    "Conservative English lexical checks are incomplete; independent science-review remains coordinator-owned."
+  ],
+  "report": {
+    "concordance": [
+      {
+        "contrast": [
+          "baseline",
+          "selected"
+        ],
+        "passed": true,
+        "pearson": 1.0,
+        "replicates": [
+          "r1",
+          "r2"
+        ]
+      }
+    ],
+    "fixture": true,
+    "genes": [
+      {
+        "gene_id": "A",
+        "guide_count": 3,
+        "log2_fold_change": 1.4923014582516065,
+        "p_value": 0.01,
+        "q_value": 0.02,
+        "reasons": [],
+        "significant": true,
+        "status": "observed"
+      },
+      {
+        "gene_id": "B",
+        "guide_count": 3,
+        "log2_fold_change": -0.4961584283933421,
+        "p_value": 1.0,
+        "q_value": 1.0,
+        "reasons": [],
+        "significant": false,
+        "status": "observed"
+      },
+      {
+        "gene_id": "U",
+        "guide_count": 1,
+        "log2_fold_change": null,
+        "p_value": null,
+        "q_value": null,
+        "reasons": [
+          "minimum-guides"
+        ],
+        "significant": null,
+        "status": "unavailable"
+      }
+    ],
+    "guide_fold_changes": [
+      {
+        "guide_id": "a1",
+        "log2_fold_change": 2.490369099497906,
+        "replicate_log2_changes": [
+          2.490369099497906,
+          2.490369099497906
+        ]
+      },
+      {
+        "guide_id": "a2",
+        "log2_fold_change": 1.4923014582516065,
+        "replicate_log2_changes": [
+          1.4923014582516065,
+          1.4923014582516065
+        ]
+      },
+      {
+        "guide_id": "a3",
+        "log2_fold_change": 0.496158428393342,
+        "replicate_log2_changes": [
+          0.496158428393342,
+          0.496158428393342
+        ]
+      },
+      {
+        "guide_id": "b1",
+        "log2_fold_change": -0.4961584283933421,
+        "replicate_log2_changes": [
+          -0.4961584283933421,
+          -0.4961584283933421
+        ]
+      },
+      {
+        "guide_id": "b2",
+        "log2_fold_change": -0.4961584283933421,
+        "replicate_log2_changes": [
+          -0.4961584283933421,
+          -0.4961584283933421
+        ]
+      },
+      {
+        "guide_id": "b3",
+        "log2_fold_change": -0.4961584283933421,
+        "replicate_log2_changes": [
+          -0.4961584283933421,
+          -0.4961584283933421
+        ]
+      },
+      {
+        "guide_id": "u1",
+        "log2_fold_change": -0.4961584283933421,
+        "replicate_log2_changes": [
+          -0.4961584283933421,
+          -0.4961584283933421
+        ]
+      },
+      {
+        "guide_id": "nt1",
+        "log2_fold_change": -1.480913813931426,
+        "replicate_log2_changes": [
+          -1.480913813931426,
+          -1.480913813931426
+        ]
+      },
+      {
+        "guide_id": "nt2",
+        "log2_fold_change": -0.4961584283933421,
+        "replicate_log2_changes": [
+          -0.4961584283933421,
+          -0.4961584283933421
+        ]
+      },
+      {
+        "guide_id": "nt3",
+        "log2_fold_change": 0.496158428393342,
+        "replicate_log2_changes": [
+          0.496158428393342,
+          0.496158428393342
+        ]
+      },
+      {
+        "guide_id": "nt4",
+        "log2_fold_change": 1.4923014582516065,
+        "replicate_log2_changes": [
+          1.4923014582516065,
+          1.4923014582516065
+        ]
+      }
+    ],
+    "library_coverage": 1.0,
+    "multiple_testing": "benjamini-hochberg",
+    "normalization_factors": [
+      0.4631578947368421,
+      1.0736842105263158,
+      0.9263157894736842,
+      2.1473684210526316
+    ],
+    "pooled": true,
+    "qc": [
+      {
+        "detection_fraction": 1.0,
+        "failures": [],
+        "gini": 0.0,
+        "sample_id": "baseline-r1",
+        "total_reads": 1100,
+        "zero_fraction": 0.0
+      },
+      {
+        "detection_fraction": 1.0,
+        "failures": [],
+        "gini": 0.4385026737967914,
+        "sample_id": "selected-r1",
+        "total_reads": 2550,
+        "zero_fraction": 0.0
+      },
+      {
+        "detection_fraction": 1.0,
+        "failures": [],
+        "gini": 0.0,
+        "sample_id": "baseline-r2",
+        "total_reads": 2200,
+        "zero_fraction": 0.0
+      },
+      {
+        "detection_fraction": 1.0,
+        "failures": [],
+        "gini": 0.4385026737967914,
+        "sample_id": "selected-r2",
+        "total_reads": 5100,
+        "zero_fraction": 0.0
+      }
+    ],
+    "schema": "crispr-report-v1",
+    "schema_version": 1
+  },
+  "review": "unavailable",
+  "schema": "crispr-result-v1",
+  "schema_version": 1,
+  "stages": [
+    "01-freeze",
+    "02-count-qc",
+    "03-guide-changes",
+    "04-gene-summary",
+    "05-handoff"
+  ]
+}

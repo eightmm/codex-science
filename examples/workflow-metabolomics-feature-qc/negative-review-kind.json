@@ -1,0 +1,40 @@
+{
+  "evidence": [
+    {
+      "path": "review-kind-evidence.json",
+      "sha256": "f9c6efcf432d13354feaaba1ea947a2767ca8b4c3079eaf12cc2e6dcbad4beb8"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_table_read": true,
+  "frozen_rules": {
+    "path": "rules.json",
+    "sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8"
+  },
+  "frozen_rules_sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8",
+  "frozen_sheet_sha256": "576a8b5816e9a3931cfe393b37b8a9a60c999ba4673cbdc21397956fa87d8c3c",
+  "report": {
+    "path": "review-kind-report.json",
+    "sha256": "58eae36e37fddeaa03301445070b0142bc39f8561f5b52efd7aceb445171e1c2"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8"
+  },
+  "schema": "metab-pack-v1",
+  "sheet": {
+    "path": "sheet.json",
+    "sha256": "576a8b5816e9a3931cfe393b37b8a9a60c999ba4673cbdc21397956fa87d8c3c"
+  },
+  "stages": [
+    "01-freeze",
+    "02-table",
+    "03-features",
+    "04-samples",
+    "05-handoff"
+  ],
+  "table": {
+    "path": "table.json",
+    "sha256": "5300f4071c04318d53de32a1a906525287506e266c63baad7d21a65f0262d202"
+  }
+}

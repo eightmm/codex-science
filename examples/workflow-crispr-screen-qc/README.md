@@ -1,0 +1,11 @@
+# Synthetic pooled CRISPR fixtures
+
+Every input, result and negative example here is an MIT redistributable synthetic software fixture. None is a real screen, an essentiality observation, target evidence or a biological conclusion.
+
+Run `python3 scripts/validate_crispr_screen_pack.py examples/workflow-crispr-screen-qc/pack.json` from the repository root. This one-argument read-only CLI prints JSON; argument/input errors print JSON refusals on stderr with exit 2, and `--help` prints plain usage. No output option exists. Eight local schemas, stages, limits and claim rules are documented in `authored-skills/workflow-crispr-screen-qc/references/stages.md`.
+
+`pack.json` binds frozen rules, current rules, library, sample design, counts and the submitted `report.json` by path and SHA-256. `expected.json` is the complete expected validator result. `negative-cases.json` maps each seeded bundle to its distinct expected finding; negative artifacts are deliberately invalid and must never be registered as successful output.
+
+Eleven guides comprise three A guides, three B guides, one under-covered U guide and four non-targeting controls. Each has baseline counts 100/200 across two matched replicates. The first selected replicate has A counts 800/400/200, B and U counts 100, and controls 50/100/200/400; the second has exactly twice these counts. Totals are 1100/2550/2200/5100 in design order, median total 2375. Total-count normalization therefore gives identical normalized values across replicates. The non-targeting median centers the guide log2 changes. Null-draw ties use 1e-12 relative/absolute tolerance to retain mathematical equality despite roundoff. A's median is 1.4923014582516065 and exceeds every three-control subset's absolute median: p=1/(99+1)=0.01 and full-family BH q=0.02 over A and B. B has p=q=1 and is nonsignificant. U has only one eligible guide and stays unavailable with null effect, p, q and significance. Baseline Gini is zero; selected Gini is independently checked by pairwise count differences.
+
+Expected artifact regeneration requires deliberate input revision and review; do not overwrite frozen hashes to pass a refusal. No installation, network, remote or GPU activity is performed.

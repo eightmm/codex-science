@@ -1,0 +1,40 @@
+{
+  "evidence": [
+    {
+      "path": "evidence.json",
+      "sha256": "dd96082cc489271b36d3968ab860c9a0df5cdea1f4ccd64ce5a140b3256c4604"
+    }
+  ],
+  "fixture": "synthetic fixture",
+  "frozen_before_table_read": true,
+  "frozen_rules": {
+    "path": "rules.json",
+    "sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8"
+  },
+  "frozen_rules_sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8",
+  "frozen_sheet_sha256": "5830dbfa89a5fe5068899f279ac188f7f40780a4086c8cf4e9f4c8179b7e10d1",
+  "report": {
+    "path": "report.json",
+    "sha256": "352f613e5dfb4f24397d5a271400412e51a360fd2f327d84d49199783cdcd5a0"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "485df22f72b5cce434da0fd4b475fe70418f5f3f66ddd2e935c4a11276c286e8"
+  },
+  "schema": "metab-pack-v1",
+  "sheet": {
+    "path": "batch-confounding-sheet.json",
+    "sha256": "5830dbfa89a5fe5068899f279ac188f7f40780a4086c8cf4e9f4c8179b7e10d1"
+  },
+  "stages": [
+    "01-freeze",
+    "02-table",
+    "03-features",
+    "04-samples",
+    "05-handoff"
+  ],
+  "table": {
+    "path": "batch-confounding-table.json",
+    "sha256": "8ad033094d974a4bdeee3cec08540535e641ff6304bc5f1435b0bf0d6afb8cfc"
+  }
+}

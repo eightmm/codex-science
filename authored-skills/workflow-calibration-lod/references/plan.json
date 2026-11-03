@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze and hash synthetic assay rules before reading responses.",
+      "id": "01-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable positive ordered standards, blanks, units and unknown identities.",
+      "id": "02-identity-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve initial fit, frozen exclusions and refit; compute bounded LOD and LOQ.",
+      "id": "03-fit-limits",
+      "status": "pending"
+    },
+    {
+      "description": "Check full arithmetic evidence, counts, failed standards and non-extrapolated unknowns.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

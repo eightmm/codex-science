@@ -1,0 +1,67 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-calibration-lod/pack.json",
+    "examples/workflow-calibration-lod/expected.json",
+    "examples/workflow-calibration-lod/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "Synthetic fixtures establish arithmetic/software acceptance only, never physical or clinical validity, true sample concentrations or independent review.",
+    "Frozen hashes and timestamps cannot prove historical timing or source authenticity; independent source review remains mandatory.",
+    "Positive scientific statuses including replicated are refused for this single synthetic fixture; review stays unavailable.",
+    "Conservative English case-insensitive whole-word lexical gate with prefix families using \\w*: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Extra refusals cover truth, physical validity (space or hyphen), diagnos* and patient*. It is incomplete and refuses negations too.",
+    "Unavailable text additionally refuses supported, replicated, suggestive and significan*. Any unavailable kind/result citation requires unavailable status, including mixed support. Both evidence kind and result are checked for review, approv, comput, numer, agreement, truth, physical and clinic.",
+    "Weighted fits use normalized weights and centered weighted R-squared; residual standard error is unweighted. A frozen single-pass exclusion cannot establish biological validity."
+  ],
+  "output_schemas": [
+    "calibration-lod-pack-v1",
+    "calibration-lod-protocol-v1",
+    "calibration-lod-data-v1",
+    "calibration-lod-report-v1",
+    "calibration-lod-evidence-v1",
+    "calibration-lod-result-v1",
+    "calibration-lod-expected-fixture-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "unfrozen-exclusion",
+    "forced-zero",
+    "r-squared-only",
+    "upper-extrapolation",
+    "lower-extrapolation",
+    "loq-below-standard",
+    "too-few-blanks",
+    "changed-weights",
+    "unit-mismatch",
+    "nonpositive-weighted",
+    "clinical-cutoff",
+    "diagnostic-accuracy",
+    "regulatory-validity",
+    "patient-meaning",
+    "causal",
+    "physical-validity",
+    "computed-kind",
+    "computed-result",
+    "review-kind",
+    "review-result",
+    "post-response-freeze",
+    "empty-support",
+    "unavailable-positive",
+    "unavailable-evidence",
+    "outside-alias",
+    "replication",
+    "stage-order",
+    "duplicate-id",
+    "level-order",
+    "constant-response",
+    "constant-blanks"
+  ],
+  "skill": "workflow-calibration-lod",
+  "test_files": [
+    "tests/test_workflow_cal_pack.py"
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-crispr-screen-qc/pack.json",
+    "examples/workflow-crispr-screen-qc/expected.json",
+    "examples/workflow-crispr-screen-qc/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic arithmetic and refusal acceptance, never a real-screen or biological validation.",
+    "Hash identities do not establish historical freezing or actual source independence; independent review stays coordinator-owned and unavailable.",
+    "Only two matched conditions, total-count or median-of-ratios normalization and median-guide-log2 aggregation; no guide-specific efficiency, batch adjustment, copy-number correction or experimental power claim.",
+    "Control subsets require sufficient detected non-targeting guides; unavailable genes and failed QC remain explicit. BH includes every observed gene, never a selected hit subset.",
+    "Conservative English whole-word prefix families (case insensitive): caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also essential*, drug target, physical validity, biological validity and truth; unavailable text additionally refuses supported, replicated, suggestive and significan*. Includes negations and is incomplete for unlisted paraphrases and other languages.",
+    "Review approval and computed agreement cannot support positive claims; any unavailable citation requires unavailable status and this single synthetic study cannot establish replication.",
+    "Read-only descriptor-pinned artifacts, full ancestor-chain identities, 64 MiB per file, 256 MiB total raw bytes and 4,000,000 conservative preparse values; hardlinks share snapshots."
+  ],
+  "output_schemas": [
+    "crispr-pack-v1",
+    "crispr-rules-v1",
+    "crispr-library-v1",
+    "crispr-design-v1",
+    "crispr-counts-v1",
+    "crispr-report-v1",
+    "crispr-evidence-v1",
+    "crispr-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "unknown-guide",
+    "duplicate-guide",
+    "duplicate-library",
+    "negative-count",
+    "fractional-count",
+    "boolean-count",
+    "no-controls",
+    "few-controls",
+    "missing-control",
+    "post-normalization",
+    "post-aggregation",
+    "discordant-pooling",
+    "few-guides-negative",
+    "no-bh",
+    "missing-q",
+    "low-reads-summary",
+    "essentiality",
+    "drug-target",
+    "therapeutic",
+    "mechanism",
+    "efficacy",
+    "physical",
+    "empty-evidence",
+    "unavailable-positive-text",
+    "review-kind",
+    "review-result",
+    "computed-kind",
+    "computed-result",
+    "unavailable-citation",
+    "single-replication",
+    "external-alias",
+    "unfrozen",
+    "stage-order"
+  ],
+  "skill": "workflow-crispr-screen-qc",
+  "test_files": [
+    "tests/test_workflow_crispr_pack.py"
+  ]
+}

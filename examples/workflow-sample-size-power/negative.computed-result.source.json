@@ -1,0 +1,9 @@
+{
+  "fixture": true,
+  "kind": "observed",
+  "result": "numerical-agreement",
+  "schema": "sample-size-power-source-v1",
+  "schema_version": 1,
+  "study_id": "synthetic-prior-003",
+  "text": "Synthetic fixture evidence gate control."
+}

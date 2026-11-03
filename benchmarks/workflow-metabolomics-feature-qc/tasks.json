@@ -1,0 +1,40 @@
+{
+  "fixture": "synthetic fixture",
+  "pack": "workflow-metabolomics-feature-qc",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Only GOOD is retained; all five feature rows and twelve sample rows remain present.",
+        "GOOD blank ratio is 0.05, pooled-QC RSD before/after is 0.5/0, dilution R-squared is 1 and slope 10.",
+        "Missing values remain null, failed-batch features remain unavailable, named reason counts are exact.",
+        "S12 exceeds frozen distance 0.05 and remains flagged in the table; review stays unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 10,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-frozen-controls",
+      "input": "examples/workflow-metabolomics-feature-qc/pack.json",
+      "question": "Which synthetic LC-MS features meet frozen pooled-QC, blank, missingness and dilution controls?"
+    },
+    {
+      "acceptance_criteria": [
+        "All 27 negative fixtures raise their named ValueError and CLI JSON refusals with exit 2.",
+        "Each individual seeded test fails with its relevant refusal guard removed and passes after restoration.",
+        "Hostile file paths, strict JSON, dimension/aggregate budgets and ancestor swaps are refused without writes or hangs."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu": false,
+        "memory_mib": 256,
+        "network": false
+      },
+      "id": "synthetic-seeded-refusals",
+      "input": "examples/workflow-metabolomics-feature-qc/negative-cases.json",
+      "question": "Does each seeded defect fail with its stated code before any later gate?"
+    }
+  ]
+}

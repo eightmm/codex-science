@@ -1,0 +1,31 @@
+{
+  "fixture": true,
+  "samples": [
+    {
+      "condition": "baseline",
+      "id": "baseline-r1",
+      "replicate": "r1",
+      "timepoint": 0
+    },
+    {
+      "condition": "selected",
+      "id": "selected-r1",
+      "replicate": "r1",
+      "timepoint": 1
+    },
+    {
+      "condition": "baseline",
+      "id": "baseline-r2",
+      "replicate": "r2",
+      "timepoint": 0
+    },
+    {
+      "condition": "selected",
+      "id": "selected-r2",
+      "replicate": "r2",
+      "timepoint": 1
+    }
+  ],
+  "schema": "crispr-design-v1",
+  "schema_version": 1
+}
