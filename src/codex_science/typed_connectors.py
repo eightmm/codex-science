@@ -14,7 +14,7 @@ from codex_science.connectors import _graphql_data, _received_records
 VARIANT_RE = re.compile(r"^(?:chr)?([0-9XYM]+)[:\-](\d+)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
 GNOMAD_VARIANT_RE = re.compile(r"^(?:chr)?(1[0-9]|2[0-2]|[1-9]|X|Y|MT?)[:\-]([1-9][0-9]*)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
 GNOMAD_ECHO_RE = re.compile(r"^(?:chr)?([0-9XY]+|MT?)[:\-](\d+)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
-UNIPROT_RE = re.compile(r"^[A-NR-Z][0-9][A-Z0-9]{3}[0-9](?:-\d+)?$", re.I)
+UNIPROT_RE = re.compile(r"^(?:[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:-\d+)?$", re.I)
 
 
 def _validate(query: str, limit: int) -> tuple[str, int]:
@@ -36,7 +36,7 @@ def _quote(value: str) -> str:
     return urllib.parse.quote(value, safe="")
 
 
-def _allele_frequency(value: Any) -> str:
+def _allele_frequency(value: Any, field: str) -> str:
     if value is None or value == "":
         return ""
     try:
@@ -44,7 +44,9 @@ def _allele_frequency(value: Any) -> str:
     except OverflowError:
         finite = False
     if not finite:
-        raise ValueError("gnomAD upstream error: allele frequency must be a finite number")
+        raise ValueError(f"gnomAD upstream error: {field} allele frequency must be a finite number")
+    if not 0 <= value <= 1:
+        raise ValueError(f"gnomAD upstream error: {field} allele frequency must be between 0 and 1")
     return str(value)
 
 
@@ -71,14 +73,14 @@ def _response_items(payload: Any, fields: tuple[str, ...], *, allow_list: bool =
     raise ValueError(f"response must contain a result list: {', '.join(fields)}")
 
 
-def _text_list(value: Any) -> list[Any]:
+def _text_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
         return [value] if value else []
-    if isinstance(value, list):
+    if isinstance(value, list) and all(isinstance(member, str) for member in value):
         return value
-    raise ValueError("response openfda names and product types must be strings or lists")
+    raise ValueError("response openfda names and product types must be strings or lists of strings")
 
 
 class NCBIESearchConnector:
@@ -103,7 +105,14 @@ class DBSNPConnector(NCBIESearchConnector):
 
 class GEOConnector(NCBIESearchConnector):
     database = "gds"
-    record_url = "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={id}"
+    record_url = "https://www.ncbi.nlm.nih.gov/gds/{id}"
+
+    def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
+        records = super().search(query, limit=limit)
+        for record in records:
+            if re.fullmatch(r"G(?:SE|DS|PL|SM)[0-9]+", record["id"], re.I):
+                record["url"] = f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={_quote(record['id'])}"
+        return records
 
 
 class GnomADConnector:
@@ -133,11 +142,25 @@ class GnomADConnector:
             expected = ("M" if chromosome == "MT" else chromosome, int(position), reference.upper(), alternate.upper())
             if returned is None or ("M" if returned[1].upper() == "MT" else returned[1].upper(), int(returned[2]), returned[3].upper(), returned[4].upper()) != expected:
                 raise ValueError("gnomAD identity mismatch: response variant_id did not match normalized query")
+        else:
+            returned_chromosome = item.get("chrom")
+            returned_position = item.get("pos")
+            returned_reference = item.get("ref")
+            returned_alternate = item.get("alt")
+            returned_chromosome = re.sub(r"^chr", "", returned_chromosome, flags=re.I).upper() if isinstance(returned_chromosome, str) else None
+            # gnomAD reports the mitochondrial chromosome as M; MT is the same chromosome, as in the variant_id check.
+            if (returned_chromosome is None
+                    or ("M" if returned_chromosome == "MT" else returned_chromosome) != ("M" if chromosome == "MT" else chromosome)
+                    or isinstance(returned_position, bool) or not isinstance(returned_position, (int, str))
+                    or str(returned_position) != position
+                    or not isinstance(returned_reference, str) or returned_reference.upper() != reference.upper()
+                    or not isinstance(returned_alternate, str) or returned_alternate.upper() != alternate.upper()):
+                raise ValueError("gnomAD identity mismatch: response coordinates missing or did not match normalized query")
         exome, genome = item.get("exome"), item.get("genome")
         if not isinstance(exome, (dict, type(None))) or not isinstance(genome, (dict, type(None))):
             raise ValueError("gnomAD upstream error: response exome and genome must be objects or null")
         exome, genome = exome or {}, genome or {}
-        return [{"id": _record_id(item, "variant_id") or variant_id, "title": variant_id, "assembly": "GRCh38", "exome_af": _allele_frequency(exome.get("af")), "genome_af": _allele_frequency(genome.get("af")), "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
+        return [{"id": _record_id(item, "variant_id") or variant_id, "title": variant_id, "assembly": "GRCh38", "exome_af": _allele_frequency(exome.get("af"), "exome.af"), "genome_af": _allele_frequency(genome.get("af"), "genome.af"), "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
 
 
 def _encode_url(item: dict[str, Any]) -> str:

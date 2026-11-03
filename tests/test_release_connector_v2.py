@@ -627,19 +627,124 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         self.assertEqual("GRCh38", gnomad.search("1-100-A-G", limit=1)[0]["assembly"])
 
     def test_gnomad_preserves_zero_and_missing_frequencies(self) -> None:
-        for frequency in (0.0, 0, 0.1, None, ""):
+        for frequency in (0.0, 0, 0.1, 1, 1.0, None, ""):
             with self.subTest(frequency=frequency):
-                variant = {"exome": {"af": frequency}, "genome": {"af": frequency}}
+                variant = {"variant_id": "1-100-A-G", "exome": {"af": frequency}, "genome": {"af": frequency}}
                 connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
                 record = connector.search("1-100-A-G")[0]
                 expected = "" if frequency is None else str(frequency)
                 self.assertEqual(expected, record["exome_af"])
                 self.assertEqual(expected, record["genome_af"])
         for variant in ({}, {"exome": None, "genome": None}):
-            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": "1-100-A-G", **variant}}})
             record = connector.search("1-100-A-G")[0]
             self.assertEqual("", record["exome_af"])
             self.assertEqual("", record["genome_af"])
+        for field in ("exome", "genome"):
+            for frequency in (-0.1, 1.2, True, "0.1", [], {}):
+                with self.subTest(field=field, frequency=frequency):
+                    variant = {"variant_id": "1-100-A-G", field: {"af": frequency}}
+                    connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+                    response = self._query_typed_source_v2("gnomad", "1-100-A-G", connector)
+                    self.assertEqual(-32602, response.get("error", {}).get("code"), response)
+                    self.assertIn(f"{field}.af", response["error"]["message"])
+
+    def _query_typed_source_v2(self, source, query, connector):
+        server = CodexScienceMCP(self.root / "unused-inventory.json")
+        server.sources[source] = connector
+        return server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "science_query_source_v2", "arguments": {
+                "source": source, "operation": "search", "parameters": {"query": query}, "page_size": 10,
+            },
+        }})
+
+    def test_gnomad_requires_matching_coordinate_identity_via_mcp(self) -> None:
+        identity = {"chrom": "chr1", "pos": 100, "ref": "a", "alt": "g"}
+        invalid = [
+            {**identity, "chrom": "2", "pos": 200, "ref": "C", "alt": "T"},
+            *({**identity, field: value} for field, value in (
+                ("chrom", "2"), ("pos", 200), ("ref", "C"), ("alt", "T"),
+                ("chrom", "chr01"), ("chrom", ""), ("pos", 0), ("pos", "0100"),
+                ("pos", True), ("pos", 100.0), ("ref", []), ("alt", None),
+            )),
+            *({key: value for key, value in identity.items() if key != field} for field in identity),
+            {}, {"variant_id": None},
+        ]
+        for coordinates in invalid:
+            with self.subTest(coordinates=coordinates):
+                variant = {**coordinates, "exome": {"af": 0.25}}
+                connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+                response = self._query_typed_source_v2("gnomad", "1-100-A-G", connector)
+                self.assertEqual(-32602, response.get("error", {}).get("code"), response)
+                self.assertIn("gnomAD identity mismatch", response["error"]["message"])
+                self.assertNotIn("result", response)
+        for coordinates in (identity, {**identity, "pos": "100"}, {**identity, "variant_id": None}):
+            with self.subTest(coordinates=coordinates):
+                variant = {**coordinates, "exome": {"af": 0}}
+                connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+                response = self._query_typed_source_v2("gnomad", "chr1:100:a:g", connector)
+                self.assertNotIn("error", response)
+                payload = json.loads(response["result"]["content"][0]["text"])
+                self.assertEqual(("1-100-A-G", "0"), (payload["records"][0]["id"], payload["records"][0]["exome_af"]))
+                self.assertEqual("observed", payload["receipt"]["missingness"])
+        for query, chromosome in (("MT-100-A-G", "chrM"), ("M-100-A-G", "MT"), ("MT-100-A-G", "MT")):
+            variant = {**identity, "chrom": chromosome}
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+            with self.subTest(query=query, chromosome=chromosome):
+                self.assertEqual(1, len(connector.search(query)))
+        variant = {**identity, "chrom": "2"}
+        connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": variant}})
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            connector.search("MT-100-A-G")
+
+    def test_bindingdb_accepts_documented_uniprot_accessions_via_mcp(self) -> None:
+        fetch = mock.Mock(return_value={"affinities": []})
+        connector = BindingDBConnector(fetch_json=fetch)
+        for query in ("P04637", "Q9Y6K9", "O14920", "A0A024RBG1", "A1A345", "P04637-2", "q9y6k9"):
+            with self.subTest(query=query):
+                fetch.reset_mock()
+                response = self._query_typed_source_v2("bindingdb", query, connector)
+                self.assertNotIn("error", response)
+                fetch.assert_called_once()
+                self.assertEqual([query], urllib.parse.parse_qs(urllib.parse.urlsplit(fetch.call_args.args[0]).query)["uniprot"])
+        for query in ("", "0", "junk", "A12345", "P0463", "P04637extra", "A0A024RBG", "A0A0241BG1", "A0A024RBG12", "P04637/2"):
+            with self.subTest(query=query):
+                fetch.reset_mock()
+                response = self._query_typed_source_v2("bindingdb", query, connector)
+                self.assertEqual(-32602, response.get("error", {}).get("code"), response)
+                fetch.assert_not_called()
+
+    def test_openfda_refuses_non_string_text_list_members_via_mcp(self) -> None:
+        for field in ("brand_name", "generic_name", "product_type"):
+            for member in ({"bad": "not a name"}, False, 0, None, []):
+                for values in ([member], ["Valid", member]):
+                    with self.subTest(field=field, values=values):
+                        payload = {"results": [{"openfda": {"spl_id": ["fake-label"], field: values}}]}
+                        connector = OpenFDAConnector(fetch_json=lambda _: payload)
+                        response = self._query_typed_source_v2("openfda", "fake medicine", connector)
+                        self.assertEqual(-32602, response.get("error", {}).get("code"), response)
+                        self.assertIn("response openfda", response["error"]["message"])
+                        self.assertNotIn("result", response)
+        for value, expected in ((None, "fake-label"), ([], "fake-label"), ("", "fake-label"), ([""], ""), (["Brand"], "Brand"), ("Brand", "Brand")):
+            payload = {"results": [{"openfda": {"spl_id": ["fake-label"], "brand_name": value, "product_type": []}}]}
+            record = OpenFDAConnector(fetch_json=lambda _: payload).search("fake medicine")[0]
+            self.assertEqual((expected, ""), (record["title"], record["product_type"]))
+
+    def test_geo_uses_record_urls_for_uids_and_accessions_via_mcp(self) -> None:
+        identifiers = [200000001, "0", "GSE1", "GDS2", "GPL3", "GSM4", "gse5", "GSE", "GSE1/../x"]
+        connector = GEOConnector(fetch_json=lambda _: {"esearchresult": {"idlist": identifiers}})
+        response = self._query_typed_source_v2("geo", "fake study", connector)
+        self.assertNotIn("error", response)
+        records = json.loads(response["result"]["content"][0]["text"])["records"]
+        self.assertEqual([str(value) for value in identifiers], [record["id"] for record in records])
+        for record in records:
+            identifier = record["id"]
+            expected = ("https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=" if identifier in ("GSE1", "GDS2", "GPL3", "GSM4", "gse5")
+                        else "https://www.ncbi.nlm.nih.gov/gds/") + urllib.parse.quote(identifier, safe="")
+            self.assertEqual(expected, record["url"])
+        self.assertEqual([], GEOConnector(fetch_json=lambda _: {"esearchresult": {"idlist": []}}).search("fake study"))
+        with self.assertRaisesRegex(ValueError, "identifier"):
+            GEOConnector(fetch_json=lambda _: {"esearchresult": {"idlist": [""]}}).search("fake study")
 
     def test_gnomad_graphql_errors_are_never_negative_evidence(self) -> None:
         request = QueryRequest("gnomad", "search", {"query": "1-100-A-G"})
@@ -874,7 +979,7 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         for cls, payload in zip(classes, payloads):
             transport = mock.Mock(return_value=payload)
             connector = cls(fetch_json=transport)
-            query = "A12345" if cls is BindingDBConnector else "gene"
+            query = "P12345" if cls is BindingDBConnector else "gene"
             results = connector.search(query, limit=1)
             self.assertEqual(1, len(results), cls.__name__)
             self.assertTrue(results[0].get("id"), cls.__name__)
@@ -894,6 +999,8 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
         self.assertEqual("0.1", GnomADConnector(post_json=post).search("chr1:100:a:g")[0]["exome_af"])
         self.assertEqual("", GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": "1-1-A-G"}}}).search("1-1-A-G")[0]["genome_af"])
         self.assertEqual([], GnomADConnector(post_json=lambda *_: {"data": {"variant": None}}).search("1-1-A-G"))
+        with self.assertRaisesRegex(ValueError, "UniProt accession"):
+            BindingDBConnector(fetch_json=lambda _: {"affinities": []}).search("A12345")
 
     def test_simple_and_snapshot_connectors_skip_bad_records_and_match_case_insensitively(self) -> None:
         fetch = mock.Mock(return_value={"results": [None, {}, {"id": "7"}, {"id": "8", "title": "Named"}]})

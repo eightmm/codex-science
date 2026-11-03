@@ -91,13 +91,13 @@ class TypedPayloadTests(unittest.TestCase):
 
     def test_gnomad_refuses_mismatched_or_malformed_variant_identity(self):
         request = QueryRequest("gnomad", "search", {"query": "chr1:100:a:g"})
-        for returned in ("2-200-C-T", "1-101-A-G", "1-100-A-T", "invalid"):
+        for returned in ("2-200-C-T", "1-101-A-G", "1-100-A-T", "invalid", None):
             connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": returned, "exome": {"af": 0.1}}}})
             for call in (lambda: connector.search("chr1:100:a:g"), lambda: execute_connector(connector, request)):
                 with self.subTest(returned=returned), self.assertRaisesRegex(ValueError, "identity mismatch"):
                     call()
         for returned in ("1-100-A-G", "chr1:0100:a:g", None):
-            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": returned, "exome": {"af": 0}}}})
+            connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": returned, "chrom": "1", "pos": 100, "ref": "A", "alt": "G", "exome": {"af": 0}}}})
             result = execute_connector(connector, request)
             self.assertEqual(returned or "1-100-A-G", result.records[0]["id"])
             self.assertEqual("1-100-A-G", result.records[0]["title"])
@@ -105,7 +105,7 @@ class TypedPayloadTests(unittest.TestCase):
 
     def test_received_records_cannot_be_silently_discarded(self):
         for cls, source, container, field in self.cases:
-            query = "A12345" if cls is BindingDBConnector else "x"
+            query = "P12345" if cls is BindingDBConnector else "x"
             request = QueryRequest(source, "search", {"query": query}, page_size=1)
             connector = cls(fetch_json=lambda _: payload)
             for size in (2, 0, 1):
@@ -214,7 +214,7 @@ class TypedPayloadTests(unittest.TestCase):
                 self.assertEqual("bounded" if size > 1 else "normalized-only", result.receipt.completeness)
 
     def test_received_record_tracking_is_nested_and_restored_after_errors(self):
-        request = QueryRequest("bindingdb", "search", {"query": "A12345"}, page_size=1)
+        request = QueryRequest("bindingdb", "search", {"query": "P12345"}, page_size=1)
         inner = BindingDBConnector(fetch_json=lambda _: {"affinities": [{"monomerid": "one"}, {"monomerid": "two"}]})
 
         def fetch(_):
@@ -229,7 +229,7 @@ class TypedPayloadTests(unittest.TestCase):
         self.assertEqual(result.to_dict(), execute_connector(outer, request, retrieved_at=result.receipt.pages[0].retrieved_at).to_dict())
 
     def test_snapshot_query_id_must_match_reconstructed_request(self):
-        request = QueryRequest("bindingdb", "search", {"query": "A12345"})
+        request = QueryRequest("bindingdb", "search", {"query": "P12345"})
         for items in ([], [{"monomerid": "one"}]):
             snapshot = execute_connector(BindingDBConnector(fetch_json=lambda _: {"affinities": items}), request,
                                          include_snapshot=True).snapshot()
@@ -265,7 +265,7 @@ class TypedPayloadTests(unittest.TestCase):
 
     def test_malformed_shapes_cannot_create_negative_receipts(self):
         for cls, source, container, _ in self.cases:
-            query = "A12345" if cls is BindingDBConnector else "x"
+            query = "P12345" if cls is BindingDBConnector else "x"
             request = QueryRequest(source, "search", {"query": query})
             for payload in ({}, {"error": "backend unavailable"}, {container: None},
                             {container: {}}, {container: ""}, {container: 0},
@@ -278,7 +278,7 @@ class TypedPayloadTests(unittest.TestCase):
 
     def test_invalid_identifier_types_are_never_observations(self):
         for cls, source, container, field in self.cases:
-            query = "A12345" if cls is BindingDBConnector else "x"
+            query = "P12345" if cls is BindingDBConnector else "x"
             for value in (True, False, 0, 1, 1.5, "", "  ", [], {}):
                 payload = {container: [{field: value}]}
                 with self.subTest(source=source, value=value), self.assertRaisesRegex(ValueError, "identifier"):
@@ -311,7 +311,8 @@ class TypedPayloadTests(unittest.TestCase):
                 GnomADConnector(post_json=lambda *_: payload).search("1-100-A-G")
 
         connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": None}}})
-        self.assertEqual("1-100-A-G", connector.search("1-100-A-G")[0]["id"])
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            connector.search("1-100-A-G")
 
     def test_ncbi_integer_ids_match_esearch_parser_and_urls_are_escaped(self):
         for cls in (ClinVarConnector, DBSNPConnector, GEOConnector):
@@ -365,9 +366,13 @@ class TypedPayloadTests(unittest.TestCase):
                 GnomADConnector(post_json=lambda *_: self.fail("invalid query reached transport")).search(query)
         for query, expected in (("chrx:5:a:g", "X-5-A-G"), ("22-1-A-G", "22-1-A-G"), ("MT-1-A-G", "MT-1-A-G"), ("m-1-a-g", "M-1-A-G")):
             with self.subTest(query=query):
-                record = GnomADConnector(post_json=lambda *_: {"data": {"variant": {}}}).search(query)[0]
+                chromosome, position, reference, alternate = expected.split("-")
+                item = {"chrom": chromosome, "pos": int(position), "ref": reference, "alt": alternate}
+                record = GnomADConnector(post_json=lambda *_: {"data": {"variant": item}}).search(query)[0]
                 self.assertEqual((expected, expected), (record["id"], record["title"]))
                 self.assertIn(f"/variant/{expected}?", record["url"])
+                with self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    GnomADConnector(post_json=lambda *_: {"data": {"variant": {}}}).search(query)
 
     def test_gnomad_mt_and_m_echoes_are_the_same_chromosome(self):
         for query, echoed in (("MT-1-A-G", "MT-1-A-G"), ("MT-1-A-G", "M-1-A-G"), ("M-1-A-G", "MT-1-A-G"), ("chrMT:1:a:g", "chrM-1-A-G")):
@@ -390,14 +395,17 @@ class TypedPayloadTests(unittest.TestCase):
             self.assertEqual((expected,), result.receipt.returned_record_ids)
         for item in ({"variant_id": None}, {}):
             connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": item}})
+            with self.assertRaisesRegex(ValueError, "identity mismatch"):
+                connector.search("1-100-A-G")
+            item = {**item, "chrom": "1", "pos": 100, "ref": "A", "alt": "G"}
             self.assertEqual("1-100-A-G", connector.search("1-100-A-G")[0]["id"])
         for cls, _, container, field in self.cases:
-            query = "A12345" if cls is BindingDBConnector else "x"
+            query = "P12345" if cls is BindingDBConnector else "x"
             self.assertEqual([], cls(fetch_json=lambda _: {container: [{field: None}]}).search(query))
 
     def test_empty_error_fields_are_not_failures(self):
         for cls, source, container, field in self.cases:
-            query = "A12345" if cls is BindingDBConnector else "x"
+            query = "P12345" if cls is BindingDBConnector else "x"
             request = QueryRequest(source, "search", {"query": query})
             for value in (None, "", False, 0, [], {}):
                 payload = {container: [{field: "one"}], "error": value}
@@ -412,7 +420,7 @@ class TypedPayloadTests(unittest.TestCase):
                 with self.subTest(source=source, error=value), self.assertRaisesRegex(ValueError, "response"):
                     cls(fetch_json=lambda _: payload).search(query)
         for value in (None, "", False, 0, [], {}):
-            payload = {"data": {"variant": {"variant_id": None}}, "error": value}
+            payload = {"data": {"variant": {"variant_id": None, "chrom": "1", "pos": 100, "ref": "A", "alt": "G"}}, "error": value}
             with self.subTest(source="gnomad", value=value):
                 self.assertEqual("1-100-A-G", GnomADConnector(post_json=lambda *_: payload).search("1-100-A-G")[0]["id"])
 
