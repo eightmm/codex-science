@@ -1614,6 +1614,66 @@
       "status": "active"
     },
     {
+      "description": "Conduct a fixed-stage bulk expression differential analysis from an admitted dataset and declared design through QC, a frozen contrast, multiplicity-controlled testing, supplied gene-set enrichment, and independent review handoff. Use for bulk RNA expression association questions; not single-cell analysis, causal mechanisms, clinical inference, or automatic installation and execution of external tools.",
+      "executable_count": 0,
+      "instruction_line_count": 49,
+      "license": "MIT",
+      "name": "cx-workflow-bulk-expression-analysis",
+      "path": "authored-skills/workflow-bulk-expression-analysis",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Conduct a fixed six-stage preregistered experiment-design procedure for lab or computational studies, from question and independent-unit power planning through randomisation, frozen analysis, controls and independent review handoff. Audit a finished analysis against its frozen plan and label every deviation exploratory. Use before collection or for post-hoc audit; this pack does not run experiments or establish causal, physical or clinical validity.",
+      "executable_count": 0,
+      "instruction_line_count": 106,
+      "license": "MIT",
+      "name": "cx-workflow-experiment-design",
+      "path": "authored-skills/workflow-experiment-design",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Conduct CPU materials-model screening through fixed normalization, analytic control, convergence, uncertainty-aware ranking, and independent review stages. Use for supplied solid-state models and synthetic offline controls; the bundled tight-binding reference checks stage contracts, not materials-property accuracy.",
+      "executable_count": 0,
+      "instruction_line_count": 108,
+      "license": "MIT",
+      "name": "cx-workflow-solid-state-screening",
+      "path": "authored-skills/workflow-solid-state-screening",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Build an evidence-based target and indication assessment through six fixed stages, identity and dependency gates, an unreviewed go/no-go memo and independent review handoff. Use existing source skills with recorded evidence; do not use for patient treatment, structure prediction, molecule generation or compute execution.",
+      "executable_count": 0,
+      "instruction_line_count": 128,
+      "license": "MIT",
+      "name": "cx-workflow-target-assessment-dossier",
+      "path": "authored-skills/workflow-target-assessment-dossier",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Build an evidence-only public variant dossier through fixed normalization, public-source retrieval, dependency reconciliation, bounded claims and independent review handoff. Use for research dossiers with a declared genome build and allele; never use for patient diagnosis, clinical recommendations or unapproved private-data transfer.",
+      "executable_count": 0,
+      "instruction_line_count": 43,
+      "license": "MIT",
+      "name": "cx-workflow-variant-evidence-dossier",
+      "path": "authored-skills/workflow-variant-evidence-dossier",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Create or revise a traceable scientific manuscript and submission package from reviewed artifacts, a claim register, verified citations, or an existing draft. Use for research articles, methods papers, literature syntheses, journal revisions, cover letters, and point-by-point reviewer rebuttals; do not use to invent results, citations, authorship, ethics, funding, or other missing declarations.",
       "executable_count": 0,
       "instruction_line_count": 84,
@@ -3759,8 +3819,8 @@
     }
   ],
   "summary": {
-    "active": 175,
+    "active": 180,
     "inactive": 113,
-    "total": 288
+    "total": 293
   }
 }

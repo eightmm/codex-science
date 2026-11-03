@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Target Assessment Dossier"
+  short_description: "Audited scientific workflow for cx-workflow-target-assessment-do"
+  default_prompt: "Use $cx-workflow-target-assessment-dossier for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

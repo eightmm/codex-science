@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Experiment Design"
+  short_description: "Audited scientific workflow for cx-workflow-experiment-design"
+  default_prompt: "Use $cx-workflow-experiment-design for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
