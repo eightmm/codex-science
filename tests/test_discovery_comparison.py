@@ -325,6 +325,14 @@ class DiscoveryComparisonTests(unittest.TestCase):
         report = evaluate_comparison(contract, records, root)
         self.assertFalse(any(str(root.resolve()) in e["message"] for e in report["errors"]), report["errors"][:3])
         self.assertTrue(any(records[0]["result_ref"]["path"] in e["message"] for e in report["errors"] if e["code"] == "result_ref"))
+        # An unsearchable parent directory fails inside path confinement, before the file is opened.
+        result_file.chmod(0o644)
+        self.addCleanup(result_file.parent.chmod, 0o755)
+        result_file.parent.chmod(0)
+        report = evaluate_comparison(contract, records, root)
+        self.assertEqual("rejected", report["status"])
+        self.assertTrue(any(e["code"] == "result_ref" for e in report["errors"]), report["errors"][:3])
+        self.assertFalse(any(str(root.resolve()) in e["message"] for e in report["errors"]), report["errors"][:3])
 
     def _cli_fixture(self, ordinary_fails=False):
         root, contract, records = _fixture(); self.addCleanup(shutil.rmtree, root)

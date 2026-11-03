@@ -709,7 +709,7 @@ class PackageRunTests(unittest.TestCase):
 
     def test_non_regular_journal_refused_without_opening_or_writing(self) -> None:
         import os
-        for kind in ("fifo", "directory", "loop", "escape"):
+        for kind in ("fifo", "directory", "loop", "escape", "dangling"):
             if kind == "fifo" and not hasattr(os, "mkfifo"):
                 continue
             for args in (("exec", "--run-dir", "{}", "--", sys.executable, "-c", "pass"), ("refresh", "--run-dir", "{}"),
@@ -727,6 +727,8 @@ class PackageRunTests(unittest.TestCase):
                         outside = Path(directory) / "outside.jsonl"
                         outside.write_text("", encoding="utf-8")
                         journal.symlink_to(outside)
+                    elif kind == "dangling":
+                        journal.symlink_to(Path(directory) / "missing" / "x.jsonl")
                     else:
                         journal.mkdir()
                     before = sorted(p.name for p in run_dir.iterdir())
@@ -737,7 +739,8 @@ class PackageRunTests(unittest.TestCase):
                     )
                     self.assertEqual(result.returncode, 1, result.stderr)
                     self.assertIn("execution-log.jsonl", result.stderr)
-                    expected = {"loop": "cannot be inspected", "escape": "escapes the run directory"}.get(kind, "is not a regular file")
+                    expected = {"loop": "cannot be inspected", "escape": "escapes the run directory",
+                                "dangling": "is a dangling link"}.get(kind, "is not a regular file")
                     self.assertIn(expected, result.stderr)
                     self.assertNotIn(str(Path(directory).resolve()), result.stderr)
                     self.assertNotIn("Traceback", result.stderr)

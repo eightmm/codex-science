@@ -205,6 +205,9 @@ def _journal_file(run_dir: Path) -> Path | None:
         if log_file.is_symlink() and not log_file.resolve().is_relative_to(run_dir.resolve()):
             raise ValueError("execution-log.jsonl escapes the run directory")
     except FileNotFoundError:
+        # A dangling link would be refused only by the later write, after other files changed.
+        if os.path.islink(log_file):
+            raise ValueError("execution-log.jsonl is a dangling link") from None
         return None
     except (OSError, RuntimeError) as error:
         # strerror keeps the absolute path out of a message that may be pasted into reports.

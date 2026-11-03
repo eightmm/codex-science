@@ -18,10 +18,14 @@ MAX_CELLS = 100_000
 
 def _load_ref_json(root: Path, ref_path: str) -> dict[str, Any]:
     # Reports may be shared, so errors name the run-relative ref path, not the resolved absolute one.
-    path = _confined_file(root, ref_path)
+    path = None
     try:
+        # Confinement checks stat parents, which raises with the absolute path when one is unreadable.
+        path = _confined_file(root, ref_path)
         return load_json_object(path)
     except ValueError as error:
+        if path is None:
+            raise
         raise ValueError(str(error).replace(str(path), ref_path)) from error
     except OSError as error:
         raise OSError(f"cannot read {ref_path}: {error.strerror or type(error).__name__}") from error
@@ -63,8 +67,8 @@ def _checked_refs(value, field, root, hashes, max_bytes=None):
     """Like research_cycle._refs with a root, hashing each resolved file once per evaluation."""
     refs = _refs(value, field, None)
     for ref in refs:
-        path = _confined_file(root, ref["path"])
         try:
+            path = _confined_file(root, ref["path"])
             if max_bytes is not None and path.stat().st_size > max_bytes:
                 raise ValueError(f"{field} file exceeds {max_bytes} bytes: {ref['path']}")
             if path not in hashes: hashes[path] = _file_hash(path)
