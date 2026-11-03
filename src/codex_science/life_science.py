@@ -75,7 +75,11 @@ def _has_term(text: str, term: str) -> bool:
     """Hangul terms match inside words; ASCII terms match whole words with an optional plural."""
     if not term.isascii():
         return term in text
-    return re.search(rf"(?<![a-z0-9]){re.escape(term)}(?:e?s)?(?![a-z0-9])", text) is not None
+    suffix = r"(?:e?s)?"
+    stem = re.escape(term)
+    if len(term) > 1 and term.endswith("y") and term[-2] not in "aeiou":
+        stem, suffix = re.escape(term[:-1]), r"(?:y|ies)"
+    return re.search(rf"(?<![a-z0-9]){stem}{suffix}(?![a-z0-9])", text) is not None
 
 
 def plan_life_science_research(question: str) -> dict[str, Any]:

@@ -202,6 +202,23 @@ class MatchedBaselineTests(unittest.TestCase):
                 self.assertEqual(2, self.invoke(root / "bad-tasks", "--tasks", str(broken)))
                 self.assertFalse((root / "bad-tasks").exists())
 
+    def test_model_dash_prefix_repetition_cap_and_deep_tasks_refuse(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for index, options in enumerate((("--model=--yolo",), ("--model=-x",), ("--repetitions", "101"),
+                                             ("--repetitions", "3000"))):
+                with self.subTest(options=options):
+                    self.assertEqual(2, self.invoke(root / f"bad-{index}", *options))
+                    self.assertFalse((root / f"bad-{index}").exists())
+            self.assertEqual(0, self.invoke(root / "cap", "--repetitions", "100"))
+            deep = root / "deep.json"
+            deep.write_text("[" * 100000)
+            result = subprocess.run([sys.executable, str(SCRIPT), "--tasks", str(deep), "--out", str(root / "deep-out"),
+                                     "--model", "fixed-model-v1"], capture_output=True, text=True)
+            self.assertEqual(2, result.returncode)
+            self.assertTrue(result.stderr.startswith("matched baseline plan failed:"), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_no_process_network_or_frozen_changes(self):
         frozen = [ROOT / "scripts/run_literature_evaluation.py", ROOT / "scripts/report_literature_evaluation.py"]
         frozen.extend((ROOT / "src/codex_science").rglob("*.py"))

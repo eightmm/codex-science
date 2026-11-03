@@ -905,7 +905,8 @@ class ReleaseAndConnectorV2Tests(unittest.TestCase):
             EMDBConnector(fetch_json=fetch).search("a/b", limit=4),
         )
         self.assertIn("a%2Fb", fetch.call_args.args[0])
-        self.assertEqual([], IntActConnector(fetch_json=lambda _: {"results": "not-a-list"}).search("x"))
+        with self.assertRaises(ValueError):
+            IntActConnector(fetch_json=lambda _: {"results": "not-a-list"}).search("x")
 
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)

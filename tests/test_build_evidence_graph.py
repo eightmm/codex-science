@@ -459,6 +459,120 @@ class BuildEvidenceGraphTests(unittest.TestCase):
                 self.assertEqual(expected, support.get("independence_group"))
 
 
+    def _assert_refused_without_writing(self, expected, **kwargs):
+        output = self.root / "evidence_graph.json"
+        before = output.read_bytes()
+        with self.assertRaisesRegex(ValueError, expected):
+            build_evidence_graph(self.root, **kwargs)
+        self.assertEqual(before, output.read_bytes())
+
+    def test_extra_evidence_edges_into_claims_and_invalid_type_pairs_are_refused(self):
+        studies_path = self.root / "studies.json"
+        studies = json.loads(studies_path.read_text(encoding="utf-8"))
+        studies["studies"].append({**studies["studies"][0], "study_id": "study-example-2", "supports_claim_ids": []})
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        extra = self.root / "extra.json"
+        for source_type in ("cohort", "portal", "query", "dataset"):
+            for relation in ("supports", "contradicts"):
+                extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [{"id": "x", "type": source_type}],
+                    "edges": [{"source": "x", "target": "claim-method-effect", "relation": relation}]}), encoding="utf-8")
+                with self.subTest(source_type=source_type, relation=relation):
+                    self._assert_refused_without_writing(
+                        f"extra {relation} edge x -> claim-method-effect must be declared in studies.json", extra=extra)
+        extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [], "edges": [
+            {"source": "study-example-2", "target": "study-example-1", "relation": "supports"}]}), encoding="utf-8")
+        self._assert_refused_without_writing(
+            "extra supports edge study-example-2 -> study-example-1 has invalid types study->study", extra=extra)
+        extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": [], "edges": [
+            {"source": "study-example-2", "target": "study-example-1", "relation": "shares_cohort"}]}), encoding="utf-8")
+        build_evidence_graph(self.root, extra=extra)
+
+    def test_non_text_study_and_cohort_ids_are_refused(self):
+        studies_path = self.root / "studies.json"
+        original = studies_path.read_text(encoding="utf-8")
+        for field in ("study_id", "cohort_id"):
+            for value in ([] if field == "cohort_id" else [None]) + [["s"], {"id": "s"}, 1.5, True, False]:
+                studies = json.loads(original)
+                studies["studies"][0][field] = value
+                studies_path.write_text(json.dumps(studies), encoding="utf-8")
+                with self.subTest(field=field, value=value):
+                    self._assert_refused_without_writing(f"{field} must be text or a non-boolean integer")
+        studies = json.loads(original)
+        studies["studies"][0]["study_id"] = 5
+        studies_path.write_text(json.dumps(studies), encoding="utf-8")
+        build_evidence_graph(self.root)
+        self.assertIn("5", {node["id"] for node in json.loads((self.root / "evidence_graph.json").read_text())["nodes"]})
+
+    def test_null_manifest_provenance_lists_are_labelled(self):
+        manifest_path = self.root / "manifest.json"
+        original = manifest_path.read_text(encoding="utf-8")
+        for field in ("code", "executions", "superseded_executions"):
+            for value in (None, {}, "x"):
+                manifest = json.loads(original)
+                manifest[field] = value
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                with self.subTest(field=field, value=value):
+                    self._assert_refused_without_writing(f"manifest.json: cannot list registered artifacts to protect: {field} must be a list")
+        manifest = json.loads(original)
+        manifest["superseded_executions"] = []
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        build_evidence_graph(self.root)
+
+    def test_register_reads_are_bounded_strict_utf8_and_surrogate_free(self):
+        from unittest import mock
+        claims = self.root / "claims.json"
+        original = claims.read_text(encoding="utf-8")
+        for label, data, expected in (
+            ("utf-16", original.encode("utf-16"), "claims: claims.json is not valid UTF-8"),
+            ("bom", b"\xef\xbb\xbf" + original.encode("utf-8"), "claims: Unexpected UTF-8 BOM"),
+            ("nesting", b"[" * 100000 + b"]" * 100000, "claims: claims.json: JSON nesting is too deep"),
+            ("big int", b'{"schema_version": ' + b"9" * 5000 + b"}", r"claims: claims.json: integer literal is too long \(5000 characters\)"),
+            ("surrogate text", original.replace('"text": "The', '"text": "\\ud800The').encode("utf-8"),
+             "claims: claims.json contains a lone surrogate"),
+            ("surrogate key", original.replace('"falsifier"', '"\\udfff"').encode("utf-8"), "claims: claims.json contains a lone surrogate"),
+        ):
+            claims.write_bytes(data)
+            with self.subTest(label=label):
+                self._assert_refused_without_writing(expected)
+        claims.write_text(original.replace('"text": "The', '"text": "\\ud83d\\ude00 The'), encoding="utf-8")
+        build_evidence_graph(self.root)
+        largest = max((self.root / name).stat().st_size for name in ("studies.json", "manifest.json"))
+        claims.write_bytes(claims.read_bytes() + b" " * largest)
+        size = claims.stat().st_size
+        with mock.patch("codex_science.evidence_graph_build.MAX_INPUT_BYTES", size):
+            result = build_evidence_graph(self.root)
+        self.assertEqual(hashlib.sha256(claims.read_bytes()).hexdigest(), result["claims_sha256"])
+        with mock.patch("codex_science.evidence_graph_build.MAX_INPUT_BYTES", size - 1):
+            self._assert_refused_without_writing(f"claims: claims.json exceeds {size - 1} bytes")
+
+    def test_extra_echoes_are_bounded_and_repeated_extra_ids_are_refused(self):
+        extra = self.root / "extra.json"
+        def write(nodes, edges=()):
+            extra.write_text(json.dumps({"schema": "evidence-graph-extra-v1", "nodes": nodes, "edges": list(edges)}), encoding="utf-8")
+        for nodes in ([{"id": "cohort-example-a", "type": "cohort", "label": "A"}, {"id": "cohort-example-a", "type": "cohort", "label": "B"}],
+                      [{"id": "dataset-1", "type": "dataset"}, {"id": "dataset-1", "type": "dataset"}]):
+            write(nodes)
+            with self.subTest(node_id=nodes[0]["id"]):
+                self._assert_refused_without_writing(f"extra node id is declared more than once: {nodes[0]['id']}", extra=extra)
+        write([{"id": "x", "type": "t" * 200}])
+        with self.assertRaises(ValueError) as caught:
+            build_evidence_graph(self.root, extra=extra)
+        self.assertIn("t" * 200 + ";", str(caught.exception))
+        write([{"id": "x", "type": "bad\ntype"}])
+        with self.assertRaises(ValueError) as caught:
+            build_evidence_graph(self.root, extra=extra)
+        self.assertIn("'bad\\ntype'", str(caught.exception))
+        self.assertNotIn("bad\ntype", str(caught.exception))
+        for nodes, edges in (([{"id": "x", "type": "t" * 2_000_000}], []),
+                             ([], [{"source": "s" * 2_000_000, "target": "y", "relation": "supports"}]),
+                             ([], [{"source": "s", "target": "y", "relation": "r" * 2_000_000}])):
+            write(nodes, edges)
+            with self.assertRaises(ValueError) as caught:
+                build_evidence_graph(self.root, extra=extra)
+            self.assertLess(len(str(caught.exception)), 1000)
+            self.assertIn("(2000000 characters)", str(caught.exception))
+
+
     def _plan(self, graph, *extra, steps=_DEFAULT_STEPS):
         steps_path = self.root / "steps.json"
         if steps is _DEFAULT_STEPS:

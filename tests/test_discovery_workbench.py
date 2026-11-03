@@ -908,9 +908,17 @@ class DiscoveryWorkbenchTests(unittest.TestCase):
                 "artifact_sha256": artifact_hash,
             }) + "\n")
             manifest_before = manifest_path.read_bytes()
+            ledger_before = ledger.read_bytes()
+            # Events for unregistered IDs are ignored with a warning; the ledger stays untouched.
+            ignored = subprocess.run(cli + ["list"], capture_output=True, text=True)
+            self.assertEqual(0, ignored.returncode, ignored.stderr)
+            self.assertIn("unknown", ignored.stderr)
+            self.assertEqual(ledger_before, ledger.read_bytes())
+            ledger.write_text("{not json}\n")
+            manifest_before = manifest_path.read_bytes()
             rejected = add_fixture_annotation(cli)
             self.assertNotEqual(0, rejected.returncode)
-            self.assertIn("unknown annotation", rejected.stderr)
+            self.assertIn("invalid resolution event at line 1", rejected.stderr)
             self.assertEqual(manifest_before, manifest_path.read_bytes())
             self.assertEqual(sidecar_before, sidecar.read_bytes())
 

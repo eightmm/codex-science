@@ -108,6 +108,22 @@ class MethodLandscapeTests(unittest.TestCase):
         result = allocate_methods(value)
         self.assertEqual(min(value["budget"], len(result["clusters"])), result["distinct_topics_selected"])
 
+    def test_blank_ids_and_non_finite_numbers_are_refused_with_labels(self):
+        for blank in ("", "  "):
+            with self.subTest(blank=blank), self.assertRaisesRegex(ValueError, "each topic must have a non-empty string id"):
+                allocate_methods(payload(topics=[topic(blank)], papers=[paper("p", [blank])]))
+            with self.subTest(blank=blank), self.assertRaisesRegex(ValueError, "each paper must have a non-empty string paper_id"):
+                allocate_methods(payload(papers=[paper(blank, ["a"])]))
+        for value in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "paper a1 contains a non-finite number"):
+                allocate_methods(payload(papers=[{**paper("a1", ["a"]), "year": value}]))
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "topic a contains a non-finite number"):
+                allocate_methods(payload(topics=[{**topic("a"), "weight": [value]}, topic("b")]))
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "input contains a non-finite number"):
+                allocate_methods({**payload(), "note": {"score": value}})
+        result = allocate_methods(payload(papers=[{**paper("a1", ["a"]), "year": 2020.5}]))
+        self.assertEqual(["a1"], [item["paper_id"] for item in result["selected"]])
+
     def test_cli_writes_allocation(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, output = Path(tmp) / "in.json", Path(tmp) / "out.json"

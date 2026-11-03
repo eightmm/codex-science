@@ -24,6 +24,7 @@ from codex_science.collaboration import (  # noqa: E402
     fold_annotation_resolutions,
     load_resolution_events,
     validate_annotation,
+    validate_resolution_event,
 )
 from codex_science.collaboration import _resolve_json_pointer  # noqa: E402
 
@@ -60,6 +61,41 @@ def _load(run_dir: Path) -> tuple[Path, dict, dict]:
 
 def _dump(value: object) -> bytes:
     return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _registered_events(annotations: list[dict], events: list[dict], warn: bool = True,
+                       reject_id: str | None = None) -> list[dict]:
+    """Skip ledger events for removed sidecars; the append-only ledger file is never rewritten."""
+    known = {str(item["annotation_id"]) for item in annotations}
+    kept: list[dict] = []
+    dropped: set[str] = set()
+    for event in events:
+        validate_resolution_event(event)
+        annotation_id = str(event["annotation_id"])
+        if annotation_id in known:
+            kept.append(event)
+        else:
+            dropped.add(annotation_id)
+    if reject_id is not None and reject_id in dropped:
+        raise ValueError(
+            f"annotation ID {reject_id} still has resolution events in the ledger but is not registered; "
+            "nothing was changed; the ID cannot be reused, choose a new ID")
+    if dropped and warn:
+        print("warning: ignoring resolution events for unregistered annotation IDs: "
+              + ", ".join(sorted(dropped)), file=sys.stderr)
+    return kept
+
+
+def _check_line_range(value: str | None) -> None:
+    if value is None:
+        return
+    match = re.fullmatch(r"([0-9]+)(?:-([0-9]+))?", value)
+    if match:
+        start = int(match.group(1))
+        end = int(match.group(2) or start)
+        if 1 <= start <= end:
+            return
+    raise ValueError("--line-range must be N or START-END with 1 <= START <= END")
 
 
 def _validate_add_artifact(args: argparse.Namespace, root: Path, manifest: dict, sidecars: dict) -> str:
@@ -106,17 +142,18 @@ def _add_annotation(args: argparse.Namespace, registration: dict[str, str]) -> l
     preflight_hash = _validate_add_artifact(args, root, manifest, sidecars)
     _new_annotation(args, preflight_hash)
     annotations = list(sidecars.get("annotations", []))
-    events = load_resolution_events(root)
+    events = _registered_events(annotations, load_resolution_events(root), warn=False, reject_id=args.id)
     fold_annotation_resolutions(annotations, events, sidecars["artifact_hashes"])
 
     with annotation_resolution_lock(root) as root:
         root, manifest, sidecars = _load(root)
         artifact_hash = _validate_add_artifact(args, root, manifest, sidecars)
         annotations = list(sidecars.get("annotations", []))
-        events = load_resolution_events(root, lock_held=True)
+        events = _registered_events(annotations, load_resolution_events(root, lock_held=True),
+                                    reject_id=args.id)
         fold_annotation_resolutions(annotations, events, sidecars["artifact_hashes"])
         existing_paths = {str(item["path"]) for item in manifest["artifacts"]}
-        annotation_id_exists = any(item["annotation_id"] == args.id for item in annotations)
+        annotation_id_exists = any(str(item["annotation_id"]) == args.id for item in annotations)
 
         relative = f"annotations/{args.id}.json"
         target = root / relative
@@ -211,17 +248,18 @@ def main() -> int:
     registration: dict[str, str] = {}
     try:
         if args.command == "add":
+            _check_line_range(args.line_range)
             effective = _add_annotation(args, registration)
             print(f"warning: {manifest_notice}", file=sys.stderr)
         else:
             root, manifest, sidecars = _load(args.run_dir)
             annotations = list(sidecars.get("annotations", []))
         if args.command == "resolve":
-            annotation = next((item for item in annotations if item["annotation_id"] == args.id), None)
+            annotation = next((item for item in annotations if str(item["annotation_id"]) == args.id), None)
             if annotation is None:
                 raise ValueError(f"unknown annotation ID: {args.id}")
             with annotation_resolution_lock(root):
-                events = load_resolution_events(root, lock_held=True)
+                events = _registered_events(annotations, load_resolution_events(root, lock_held=True))
                 anchor_path = root / annotation["anchor"]["artifact_path"]
                 if (anchor_path.is_symlink() or not anchor_path.is_file()
                         or not anchor_path.resolve().is_relative_to(root)):
@@ -242,7 +280,7 @@ def main() -> int:
                 effective = fold_annotation_resolutions(annotations, [*events, event], sidecars["artifact_hashes"])
                 append_resolution_event(root, event, lock_held=True)
         if args.command == "list":
-            events = load_resolution_events(root)
+            events = _registered_events(annotations, load_resolution_events(root))
             effective = fold_annotation_resolutions(annotations, events, sidecars["artifact_hashes"])
         print(json.dumps(effective, indent=2, sort_keys=True))
         return 0

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections import defaultdict
 from typing import Any, Mapping
@@ -11,6 +12,18 @@ from typing import Any, Mapping
 def _canonical_sha256(value: Any) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _refuse_non_finite(value: Any, label: str) -> None:
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, float) and not math.isfinite(item):
+            raise ValueError(f"{label} contains a non-finite number: {item}")
+        if isinstance(item, Mapping):
+            stack.extend(item.values())
+        elif isinstance(item, (list, tuple)):
+            stack.extend(item)
 
 
 def allocate_methods(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -26,9 +39,10 @@ def allocate_methods(payload: Mapping[str, Any]) -> dict[str, Any]:
     topic_order: dict[str, int] = {}
     covered: dict[str, bool] = {}
     for i, topic in enumerate(topics):
-        if not isinstance(topic, Mapping) or not isinstance(topic.get("id"), str):
-            raise ValueError("each topic must have a string id")
+        if not isinstance(topic, Mapping) or not isinstance(topic.get("id"), str) or not topic["id"].strip():
+            raise ValueError("each topic must have a non-empty string id")
         identifier = topic["id"]
+        _refuse_non_finite(topic, f"topic {identifier}")
         if identifier in topic_order:
             raise ValueError(f"duplicate topic id: {identifier}")
         if type(topic.get("covered_by_baseline")) is not bool:
@@ -40,9 +54,10 @@ def allocate_methods(payload: Mapping[str, Any]) -> dict[str, Any]:
     clusters: dict[str, list[dict[str, Any]]] = defaultdict(list)
     screened_out: list[dict[str, str]] = []
     for paper in papers:
-        if not isinstance(paper, Mapping) or not isinstance(paper.get("paper_id"), str):
-            raise ValueError("each paper must have a string paper_id")
+        if not isinstance(paper, Mapping) or not isinstance(paper.get("paper_id"), str) or not paper["paper_id"].strip():
+            raise ValueError("each paper must have a non-empty string paper_id")
         paper_id = paper["paper_id"]
+        _refuse_non_finite(paper, f"paper {paper_id}")
         if paper_id in paper_ids:
             raise ValueError(f"duplicate paper id: {paper_id}")
         paper_ids.add(paper_id)
@@ -71,6 +86,7 @@ def allocate_methods(payload: Mapping[str, Any]) -> dict[str, Any]:
         else:
             clusters[primary].append(dict(paper))
 
+    _refuse_non_finite({key: value for key, value in payload.items() if key not in {"topics", "papers"}}, "input")
     ordered_topics = sorted(clusters, key=lambda item: (-len(clusters[item]), topic_order[item]))
     selected: list[dict[str, Any]] = []
     not_selected: list[dict[str, str]] = []

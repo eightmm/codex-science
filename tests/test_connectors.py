@@ -254,6 +254,8 @@ class TypedPayloadTests(unittest.TestCase):
     def test_nested_identifiers_and_ncbi_ids_are_checked_before_coercion(self):
         for value in (True, False, 0, 1, "", " ", None, [], {}):
             for cls in (ClinVarConnector, DBSNPConnector, GEOConnector):
+                if type(value) is int:
+                    continue
                 with self.subTest(source=cls.__name__, value=value), self.assertRaisesRegex(ValueError, "identifier"):
                     cls(fetch_json=lambda _: {"esearchresult": {"idlist": [value]}}).search("x")
             if value is not None:
@@ -274,6 +276,73 @@ class TypedPayloadTests(unittest.TestCase):
 
         connector = GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": None}}})
         self.assertEqual("1-100-A-G", connector.search("1-100-A-G")[0]["id"])
+
+    def test_ncbi_integer_ids_match_esearch_parser_and_urls_are_escaped(self):
+        for cls in (ClinVarConnector, DBSNPConnector, GEOConnector):
+            with self.subTest(source=cls.__name__):
+                records = cls(fetch_json=lambda _: {"esearchresult": {"idlist": [42, " 123 ", "1/../x"]}}).search("x")
+                self.assertEqual(["42", "123", "1/../x"], [record["id"] for record in records])
+                self.assertNotIn("/../", records[2]["url"])
+                self.assertIn("1%2F..%2Fx", records[2]["url"])
+
+    def test_legacy_simple_connectors_refuse_malformed_envelopes(self):
+        for cls in (EMDBConnector, ComplexPortalConnector, IntActConnector):
+            key = cls.result_keys[0]
+            for payload in ({"status": "error"}, {"response": {"docs": []}}, "text", 42, {key: "text"},
+                            {"status": "error", "message": "down"}, {"error": "down"}):
+                with self.subTest(source=cls.__name__, payload=payload), self.assertRaises(ValueError):
+                    cls(fetch_json=lambda _: payload).search("x")
+            self.assertEqual([], cls(fetch_json=lambda _: {key: []}).search("x"))
+            self.assertEqual([], cls(fetch_json=lambda _: []).search("x"))
+            self.assertEqual(["7"], [r["id"] for r in cls(fetch_json=lambda _: {key: [None, {}, "a", {cls.id_keys[0]: "7"}]}).search("x")])
+
+    def test_record_urls_do_not_trust_raw_upstream_strings(self):
+        base = "https://www.encodeproject.org"
+        for item, expected in (({"accession": "ENCSR1", "@id": "@evil.example/x"}, f"{base}/ENCSR1/"),
+                               ({"accession": "ENCSR1", "@id": 5}, f"{base}/ENCSR1/"),
+                               ({"accession": "ENCSR1", "@id": "//evil.example/x"}, f"{base}/ENCSR1/"),
+                               ({"accession": "ENCSR1", "@id": "/x\n?y"}, f"{base}/ENCSR1/"),
+                               ({"accession": "ENCSR1", "@id": "/x y/"}, f"{base}/ENCSR1/"),
+                               ({"accession": "ENCSR1", "@id": "/experiments/ENCSR1/"}, f"{base}/experiments/ENCSR1/")):
+            with self.subTest(item=item):
+                record = ENCODEConnector(fetch_json=lambda _: {"@graph": [item]}).search("x")[0]
+                self.assertEqual(expected, record["url"])
+        record = ENCODEConnector(fetch_json=lambda _: {"@graph": [{"@id": "@evil.example/x"}]}).search("x")[0]
+        self.assertTrue(record["url"].startswith(f"{base}/%40evil.example%2Fx"))
+        record = JASPARConnector(fetch_json=lambda _: {"results": [{"matrix_id": " ../MA1 "}]}).search("x")[0]
+        self.assertEqual(("../MA1", "https://jaspar.elixir.no/matrix/..%2FMA1"), (record["id"], record["url"]))
+        for url, expected in (("javascript:alert(1)", "https://unibind.uio.no/"), ("https://evil.example/", "https://unibind.uio.no/"),
+                              ("https://unibind.uio.no/x", "https://unibind.uio.no/x"), (None, "https://unibind.uio.no/")):
+            with self.subTest(url=url):
+                record = UniBindConnector(fetch_json=lambda _: {"results": [{"id": "d", "url": url}]}).search("x")[0]
+                self.assertEqual(expected, record["url"])
+
+    def test_gnomad_frequencies_must_be_finite_numbers(self):
+        for value in ({"bogus": 1}, True, False, "NaN", "0.1", float("nan"), float("inf"), [0.1], 10**400):
+            payload = {"data": {"variant": {"variant_id": "1-100-A-G", "exome": {"af": value}}}}
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "gnomAD upstream error"):
+                GnomADConnector(post_json=lambda *_: payload).search("1-100-A-G")
+
+    def test_gnomad_variant_grammar_matches_life_science_semantics(self):
+        for query in ("99-100-A-G", "XYM-100-A-G", "0-0-A-G", "1-100-A-A", "1-0100-A-G", "23-100-A-G", "1-0-A-G"):
+            with self.subTest(query=query), self.assertRaisesRegex(ValueError, "chr-pos-ref-alt"):
+                GnomADConnector(post_json=lambda *_: self.fail("invalid query reached transport")).search(query)
+        for query, expected in (("chrx:5:a:g", "X-5-A-G"), ("22-1-A-G", "22-1-A-G"), ("MT-1-A-G", "MT-1-A-G"), ("m-1-a-g", "M-1-A-G")):
+            with self.subTest(query=query):
+                record = GnomADConnector(post_json=lambda *_: {"data": {"variant": {}}}).search(query)[0]
+                self.assertEqual((expected, expected), (record["id"], record["title"]))
+                self.assertIn(f"/variant/{expected}?", record["url"])
+
+    def test_gnomad_mt_and_m_echoes_are_the_same_chromosome(self):
+        for query, echoed in (("MT-1-A-G", "MT-1-A-G"), ("MT-1-A-G", "M-1-A-G"), ("M-1-A-G", "MT-1-A-G"), ("chrMT:1:a:g", "chrM-1-A-G")):
+            payload = {"data": {"variant": {"variant_id": echoed}}}
+            with self.subTest(query=query, echoed=echoed):
+                record = GnomADConnector(post_json=lambda *_: payload).search(query)[0]
+                self.assertEqual(echoed, record["id"])
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": "MT-2-A-G"}}}).search("MT-1-A-G")
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            GnomADConnector(post_json=lambda *_: {"data": {"variant": {"variant_id": "X-1-A-G"}}}).search("MT-1-A-G")
 
     def test_null_identifiers_fall_back_without_accepting_invalid_values(self):
         for cls, source, payload, expected in (

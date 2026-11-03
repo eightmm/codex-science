@@ -719,6 +719,68 @@ class EvidenceSidecarTests(unittest.TestCase):
                 self.assertIn(expected, result.stderr)
                 self.assertNotIn("Traceback", result.stderr)
 
+    def test_snapshot_schema_version_must_be_integer_one(self) -> None:
+        valid = json.loads((self.example / "snapshot.current.json").read_text())
+        for version in (True, 1.0, "1", None):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(ValueError, "schema version"):
+                    validate_review_snapshot({**valid, "schema_version": version})
+
+    def test_diff_indexes_ids_by_stripped_key(self) -> None:
+        snapshot = {
+            "schema_version": 1, "protocol_id": "p", "evidence_cutoff": "c",
+            "question_framework": "PICO", "question": "Q", "queries": [], "claims": [],
+            "studies": [{"study_id": "study-1", "title": "T", "eligibility": "include"}],
+        }
+        padded = {**snapshot, "studies": [{"study_id": " study-1", "title": "T", "eligibility": "include"}]}
+        diff = diff_review_snapshots(snapshot, padded)
+        self.assertEqual({"added": [], "removed": [], "changed": [
+            {"id": "study-1", "before": snapshot["studies"][0], "after": padded["studies"][0]}]},
+            diff["studies"])
+
+    def test_study_key_ignores_null_and_bool_identifiers(self) -> None:
+        first = study_key({"persistent_id": None, "title": "One"})
+        second = study_key({"persistent_id": None, "title": "Two"})
+        self.assertTrue(first.startswith("fallback:"))
+        self.assertNotEqual(first, second)
+        self.assertEqual(first, study_key({"persistent_ids": [None, True, ""], "title": "One"}))
+        self.assertEqual("12345", study_key({"persistent_ids": [None, 12345]}))
+
+    def test_diff_cli_protects_inputs_and_labels_bad_json(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts" / "diff_literature_review.py"
+        previous = self.example / "snapshot.previous.json"
+        current = self.example / "snapshot.current.json"
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            first = root / "previous.json"
+            second = root / "current.json"
+            first.write_bytes(previous.read_bytes())
+            second.write_bytes(current.read_bytes())
+            link = root / "link.json"
+            link.symlink_to(first)
+            nested = root / "nested.json"
+            nested.write_text("[" * 200000, encoding="utf-8")
+            for output in (first, second, link):
+                with self.subTest(output=output.name):
+                    result = subprocess.run(
+                        [sys.executable, str(script), str(first), str(second), "--output", str(output)],
+                        capture_output=True, text=True, check=False)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("error:", result.stderr)
+                    self.assertEqual(previous.read_bytes(), first.read_bytes())
+                    self.assertEqual(current.read_bytes(), second.read_bytes())
+            result = subprocess.run([sys.executable, str(script), str(nested), str(second)],
+                                    capture_output=True, text=True, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("nested.json", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            out = root / "out" / "diff.json"
+            result = subprocess.run([sys.executable, str(script), str(first), str(second), "--output", str(out)],
+                                    capture_output=True, text=True, check=False)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(diff_review_snapshots(json.loads(first.read_text()), json.loads(second.read_text())),
+                             json.loads(out.read_text()))
+
 
     @staticmethod
     def _ledger_procedure():

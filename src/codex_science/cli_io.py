@@ -23,7 +23,10 @@ def load_json_object(path: Path, *, max_bytes: int = DEFAULT_MAX_JSON_BYTES) -> 
         raise ValueError(f"input JSON exceeds {max_bytes} bytes: {path}")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
+    except UnicodeDecodeError as error:
+        raise ValueError(f"input JSON is not valid UTF-8: {path}: {error.reason}") from error
+    except (json.JSONDecodeError, ValueError) as error:
+        # JSONDecodeError is a ValueError; the digit-limit error is a plain one.
         raise ValueError(f"invalid JSON in {path}: {error}") from error
     except RecursionError as error:
         raise ValueError(f"invalid JSON in {path}: excessive nesting") from error
@@ -178,6 +181,10 @@ def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
 
 def write_text_atomic(path: Path, rendered: str) -> None:
     """Write UTF-8 text through a same-directory atomic replacement."""
+    try:
+        rendered.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ValueError(f"cannot encode text as UTF-8 for {path}: {error}") from error
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)

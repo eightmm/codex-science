@@ -32,8 +32,10 @@ def _epilog() -> str:
           automatically created cohort node.
         edges: "source", "target" and "relation"; relation is one of:
           {relations}.
-          Both endpoints must exist as built-in or extra nodes. study->claim supports and
-          contradicts edges must be declared in studies.json instead.
+          Both endpoints must exist as built-in or extra nodes. The extra file cannot add
+          supports or contradicts edges: claim evidence must be declared in studies.json, and
+          those relations allow only claim targets.
+        Each input is strict UTF-8 JSON of at most 64 MiB; an extra node id appears at most once.
         The builder itself adds claim, study and cohort nodes and the study->claim and
         study->cohort edges. Problems are collected and reported together; nothing is
         written when any is found.

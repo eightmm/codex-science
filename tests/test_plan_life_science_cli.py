@@ -36,6 +36,22 @@ class PlanLifeScienceCliTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(plan_life_science_research(question), json.loads(result.stdout))
 
+    def test_unencodable_stdout_falls_back_to_ascii_json(self) -> None:
+        question = "Interpret rs\u0667\u0669\u0660 for diabetes"
+        env = {"PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8"}
+        for encoding in ("ascii", "utf-8"):
+            result = subprocess.run([sys.executable, str(CLI), question], capture_output=True, cwd=tempfile.gettempdir(), check=False,
+                                    env={**env, "PYTHONIOENCODING": encoding})
+            with self.subTest(encoding=encoding):
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertNotIn(b"Traceback", result.stderr)
+                self.assertEqual(plan_life_science_research(question), json.loads(result.stdout))
+        bad = subprocess.run([sys.executable, str(CLI), b"rs\xd9\xa7\xd9\xa9 \xff"], capture_output=True, cwd=tempfile.gettempdir(), check=False,
+                             env={**env, "PYTHONIOENCODING": "utf-8"})
+        self.assertEqual(0, bad.returncode, bad.stderr)
+        self.assertNotIn(b"Traceback", bad.stderr)
+        self.assertEqual("variant", json.loads(bad.stdout)["entities"][0]["kind"])
+
     def test_empty_question_exits_2_without_traceback(self) -> None:
         for args in ((), ("  ",), ("\u200b",), ("--question", "\u200b \ufeff")):
             result = run(*args)

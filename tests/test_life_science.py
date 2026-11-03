@@ -69,6 +69,14 @@ class LifeScienceResearchPlannerTests(unittest.TestCase):
             plan_life_science_research("rs123 cell expression in tissue variant")["lanes"],
         )
 
+    def test_terms_ending_in_y_match_their_ies_plural(self) -> None:
+        for question, lane in (("Public studies of TREM2", "public_dataset_discovery"),
+                               ("BRCA1 effects across ancestries", "human_genetics"),
+                               ("Novel therapies for glioma", "clinical_translational")):
+            with self.subTest(question=question):
+                self.assertIn(lane, plan_life_science_research(question)["lanes"])
+        self.assertNotIn("human_genetics", plan_life_science_research("ancestrys and ancestryx")["lanes"])
+
     def test_ascii_terms_match_whole_words_only(self) -> None:
         plan = plan_life_science_research(
             "Is there excellent evidence that BRCA1 is impatient about industrial infrastructure in the public domain?"

@@ -1,4 +1,5 @@
 import hashlib
+import shutil
 import json
 import os
 import subprocess
@@ -1362,6 +1363,101 @@ class AnnotationAnchorValidationTests(unittest.TestCase):
             records = [json.loads(sidecar.read_text())] * 2
             with self.assertRaisesRegex(ValueError, "duplicate annotation ID"):
                 stale_annotations(records, {})
+
+    def test_line_range_bounds_integer_ids_and_orphaned_resolution_events(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            before = (root / "manifest.json").read_bytes()
+            for value in ("20-10", "0", "0-5"):
+                with self.subTest(value=value):
+                    result = self.add(root, "--line-range", value)
+                    self.assertEqual(2, result.returncode)
+                    self.assertIn("--line-range", result.stderr)
+                    self.assertEqual(before, (root / "manifest.json").read_bytes())
+                    self.assertFalse((root / "annotations").exists())
+            for value in ("12", "12-20", "7-7"):
+                with self.subTest(accepted=value):
+                    self.assertEqual(0, self.add(root, "--line-range", value).returncode)
+                    (root / "manifest.json").write_bytes(before)
+                    shutil.rmtree(root / "annotations")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
+            self.rewrite_sidecar(root)
+            record = json.loads((root / "annotations/A1.json").read_text())
+            record["annotation_id"] = 5
+            (root / "annotations/A1.json").write_text(json.dumps(record))
+            manifest = json.loads((root / "manifest.json").read_text())
+            for entry in manifest["artifacts"]:
+                if entry["path"] == "annotations/A1.json":
+                    entry["sha256"] = hashlib.sha256((root / "annotations/A1.json").read_bytes()).hexdigest()
+            (root / "manifest.json").write_text(json.dumps(manifest))
+            duplicate = self.cli(root, "add", "--id", "5", "--author", "r", "--text", "t",
+                                 "--artifact", "result.json", "--json-pointer", "/answer")
+            self.assertEqual(2, duplicate.returncode)
+            self.assertIn("already", duplicate.stderr)
+            self.assertEqual(0, self.cli(root, "list").returncode)
+            resolved = self.cli(root, "resolve", "--id", "5", "--status", "resolved", "--resolver", "r")
+            self.assertEqual(0, resolved.returncode, resolved.stderr)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.add(root, "--json-pointer", "/answer").returncode)
+            resolved = self.cli(root, "resolve", "--id", "A1", "--status", "resolved", "--resolver", "r")
+            self.assertEqual(0, resolved.returncode, resolved.stderr)
+            ledger = root / "annotations/resolutions.jsonl"
+            ledger_bytes = ledger.read_bytes()
+            (root / "annotations/A1.json").unlink()
+            manifest = json.loads((root / "manifest.json").read_text())
+            manifest["artifacts"] = [e for e in manifest["artifacts"] if e["path"] != "annotations/A1.json"]
+            (root / "manifest.json").write_text(json.dumps(manifest))
+            listed = self.cli(root, "list")
+            self.assertEqual(0, listed.returncode, listed.stderr)
+            self.assertIn("A1", listed.stderr)
+            self.assertEqual([], json.loads(listed.stdout))
+            added = self.cli(root, "add", "--id", "A2", "--author", "r", "--text", "t",
+                             "--artifact", "result.json", "--json-pointer", "/answer")
+            self.assertEqual(0, added.returncode, added.stderr)
+            self.assertEqual(1, added.stderr.count("ignoring resolution events"))
+            self.assertEqual(ledger_bytes, ledger.read_bytes())
+
+    def test_removed_annotation_id_cannot_be_reused_and_malformed_events_fail_closed(self):
+        add_a1 = ("add", "--id", "A1", "--author", "r", "--text", "t", "--artifact", "result.json",
+                  "--json-pointer", "/answer")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.run_dir(temporary)
+            self.assertEqual(0, self.cli(root, *add_a1).returncode)
+            self.assertEqual(0, self.cli(root, "resolve", "--id", "A1", "--status", "resolved",
+                                         "--resolver", "r").returncode)
+            (root / "annotations/A1.json").unlink()
+            manifest = json.loads((root / "manifest.json").read_text())
+            manifest["artifacts"] = [e for e in manifest["artifacts"] if e["path"] != "annotations/A1.json"]
+            (root / "manifest.json").write_text(json.dumps(manifest))
+            snapshot = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            refused = self.cli(root, *add_a1)
+            self.assertEqual(2, refused.returncode)
+            self.assertIn("A1", refused.stderr)
+            self.assertIn("nothing was changed", refused.stderr)
+            self.assertIn("cannot be reused", refused.stderr)
+            self.assertEqual(snapshot, {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()})
+            listed = self.cli(root, "list")
+            self.assertEqual(0, listed.returncode, listed.stderr)
+            self.assertEqual([], json.loads(listed.stdout))
+            self.assertEqual(0, self.cli(root, "add", "--id", "A2", "--author", "r", "--text", "t",
+                                         "--artifact", "result.json", "--json-pointer", "/answer").returncode)
+            ledger = root / "annotations/resolutions.jsonl"
+            event = json.loads(ledger.read_text().splitlines()[0])
+            for change in ({"annotation_id": None}, {"annotation_id": 5}, {"annotation_id": " "}):
+                with self.subTest(change=change):
+                    broken = {**event, **change}
+                    ledger.write_text(json.dumps(broken) + "\n")
+                    result = self.cli(root, "list")
+                    self.assertEqual(2, result.returncode)
+                    self.assertIn("annotation_id is required", result.stderr)
+            del event["annotation_id"]
+            ledger.write_text(json.dumps(event) + "\n")
+            result = self.cli(root, "list")
+            self.assertEqual(2, result.returncode)
+            self.assertIn("annotation_id is required", result.stderr)
 
     def test_deeply_nested_json_reports_labelled_errors(self) -> None:
         deep = "[" * 200000 + "]" * 200000

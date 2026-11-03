@@ -138,6 +138,9 @@ def local_evidence() -> dict:
     }
 
 
+MAX_REPETITIONS = 100
+
+
 def plugin_assignments(values: list[str]) -> dict[str, str]:
     supplied = {}
     for value in values:
@@ -154,10 +157,14 @@ def plugin_assignments(values: list[str]) -> dict[str, str]:
 def build_plan(args: argparse.Namespace) -> dict:
     if args.repetitions < 3:
         raise ValueError("--repetitions must be at least 3")
+    if args.repetitions > MAX_REPETITIONS:
+        raise ValueError(f"--repetitions must be at most {MAX_REPETITIONS}")
     if not 1 <= args.timeout_seconds <= 1800:
         raise ValueError("--timeout-seconds must be between 1 and the frozen cap of 1800")
     if not args.model.strip() or any(c.isspace() for c in args.model):
         raise ValueError("--model requires one exact model/version identifier")
+    if args.model.startswith("-"):
+        raise ValueError("--model must not begin with '-'")
     if "rosalind" in args.model.lower():
         raise ValueError("GPT-Rosalind is excluded: approved institutions only")
     if not SELECTOR.fullmatch(args.plugin) or not args.plugin.startswith("codex-science@"):
@@ -310,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True, help="new output directory; parent must exist; never overwritten")
     parser.add_argument("--tasks", type=Path, default=Path("benchmarks/literature-review/tasks.json"))
     parser.add_argument("--model", required=True, help="same exact model/version for every condition; no implicit default")
-    parser.add_argument("--repetitions", type=int, default=3, help="at least 3 per condition/task")
+    parser.add_argument("--repetitions", type=int, default=3, help=f"3..{MAX_REPETITIONS} per condition/task")
     parser.add_argument("--seed", type=int, default=20261030, help="recorded shuffle seed")
     parser.add_argument("--timeout-seconds", type=int, default=1800, help="shared per-task cap, 1..1800 seconds")
     parser.add_argument("--plugin", default="codex-science@codex-science", help="condition C codex-science@MARKETPLACE")
@@ -333,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
             with (args.out / name).open("x", encoding="utf-8") as handle:
                 handle.write(content)
         print(summary, end="")
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, RecursionError) as error:
         print(f"matched baseline plan failed: {error}", file=sys.stderr)
         return 2
     return 0

@@ -57,24 +57,28 @@ def _fallback_study_key(study: dict[str, Any]) -> str:
     return "fallback:" + hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def _identifier_text(value: Any) -> str:
+    # None and bool must not stringify into the identifiers "none"/"true".
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return ""
+    return normalize_persistent_id(str(value))
+
+
 def study_key(study: dict[str, Any]) -> str:
     identifiers = study.get("persistent_ids", [])
     if isinstance(identifiers, list):
-        normalized = sorted(
-            normalized
-            for item in identifiers
-            if (normalized := normalize_persistent_id(str(item)))
-        )
+        normalized = sorted(text for item in identifiers if (text := _identifier_text(item)))
         if normalized:
             return normalized[0]
-    persistent_id = normalize_persistent_id(str(study.get("persistent_id", "")))
+    persistent_id = _identifier_text(study.get("persistent_id", ""))
     return persistent_id or _fallback_study_key(study)
 
 
 def validate_review_snapshot(snapshot: dict[str, Any]) -> None:
     if not isinstance(snapshot, dict):
         raise ValueError("Literature snapshot must be an object")
-    if snapshot.get("schema_version") != 1:
+    version = snapshot.get("schema_version")
+    if isinstance(version, bool) or not isinstance(version, int) or version != 1:
         raise ValueError("Unsupported literature snapshot schema version")
     _text(snapshot.get("protocol_id"), "literature snapshot protocol_id")
     _text(snapshot.get("evidence_cutoff"), "literature snapshot evidence_cutoff")
@@ -121,7 +125,7 @@ def validate_review_snapshot(snapshot: dict[str, Any]) -> None:
 
 
 def _index_by(items: list[dict[str, Any]], field: str) -> dict[str, dict[str, Any]]:
-    return {str(item[field]): item for item in items}
+    return {str(item[field]).strip(): item for item in items}
 
 
 def _changed_records(

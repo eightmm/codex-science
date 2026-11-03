@@ -10,8 +10,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from codex_science.artifacts import manifest_provenance_paths
-from codex_science.cli_io import write_json_atomic
-from codex_science.evidence import NODE_TYPES, RELATIONS, _support_source_path, _validate_claim_register, _validate_evidence_graph, _validate_study_table
+from codex_science.cli_io import DEFAULT_MAX_JSON_BYTES, write_json_atomic
+from codex_science.evidence import NODE_TYPES, RELATIONS, _bounded_repr, _support_source_path, _validate_claim_register, _validate_evidence_graph, _validate_study_table
+from codex_science.evidence_graph_v2 import RELATION_TYPES
 from codex_science.screening_pool import _relative_path, _safe_file
 
 
@@ -45,12 +46,57 @@ def _refuse_non_finite(value: str) -> float:
     return number
 
 
+MAX_INPUT_BYTES = DEFAULT_MAX_JSON_BYTES
+
+
+def _has_lone_surrogate(value: Any) -> bool:
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            try:
+                item.encode("utf-8")
+            except UnicodeEncodeError:
+                return True
+        elif isinstance(item, dict):
+            stack.extend(item)
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    return False
+
+
 def _read_json(path: Path) -> tuple[dict[str, Any], str]:
-    data = path.read_bytes()
-    payload = json.loads(data, parse_float=_refuse_non_finite, parse_constant=_refuse_non_finite)
+    """Parse strict UTF-8 JSON and hash the exact bytes that were parsed."""
+    with path.open("rb") as handle:
+        data = handle.read(MAX_INPUT_BYTES + 1)
+    if len(data) > MAX_INPUT_BYTES:
+        raise ValueError(f"{path.name} exceeds {MAX_INPUT_BYTES} bytes")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{path.name} is not valid UTF-8: {error}") from error
+
+    def parse_int(value: str) -> int:
+        try:
+            return int(value)
+        except ValueError as error:
+            raise ValueError(f"{path.name}: integer literal is too long ({len(value)} characters)") from error
+    try:
+        payload = json.loads(text, parse_float=_refuse_non_finite, parse_constant=_refuse_non_finite, parse_int=parse_int)
+    except RecursionError as error:
+        raise ValueError(f"{path.name}: JSON nesting is too deep") from error
     if not isinstance(payload, dict):
         raise ValueError(f"input JSON must be an object: {path.name}")
+    if _has_lone_surrogate(payload):
+        raise ValueError(f"{path.name} contains a lone surrogate code point in a string")
     return payload, hashlib.sha256(data).hexdigest()
+
+
+def _echo(value: Any, limit: int = 200) -> str:
+    """Render a user-supplied value for a problem message without echoing it whole."""
+    rendered = value if isinstance(value, str) and value.isprintable() else _bounded_repr(value)
+    return rendered if len(rendered) <= limit else f"{rendered[:limit]}… ({len(rendered)} characters)"
 
 
 def _suggest(value: Any, allowed: set[str]) -> str:
@@ -119,7 +165,7 @@ def build_evidence_graph(
         # The builder rebuilds the registered evidence graph; every other artifact stays intact.
         try:
             manifest, _ = _read_json(manifest_path)
-            for field in ("artifacts", "inputs"):
+            for field in ("artifacts", "inputs", "code", "executions", "superseded_executions"):
                 if not isinstance(manifest.get(field, []), list):
                     raise ValueError(f"{field} must be a list")
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
@@ -145,17 +191,25 @@ def build_evidence_graph(
     edges: list[dict[str, Any]] = []
     cohorts: dict[str, dict[str, Any]] = {}
     known_ids = set(claim_by_id) | set(study_by_id)
-    for study_id, study in study_by_id.items():
-        cohort = str(study.get("cohort_id") or "").strip()
+    raw_studies = study_payload.get("studies", []) if study_by_id else []
+    for index, ((study_id, study), raw_study) in enumerate(zip(study_by_id.items(), raw_studies)):
+        raw_id = raw_study.get("study_id")
+        if not isinstance(raw_id, (str, int)) or isinstance(raw_id, bool):
+            problems.append(f"study {index} study_id must be text or a non-boolean integer: {_echo(raw_id)}")
+        raw_cohort = study.get("cohort_id")
+        if raw_cohort is not None and (not isinstance(raw_cohort, (str, int)) or isinstance(raw_cohort, bool)):
+            problems.append(f"study {_echo(study_id)} cohort_id must be text or a non-boolean integer: {_echo(raw_cohort)}")
+            raw_cohort = None
+        cohort = str(raw_cohort or "").strip()
         if cohort:
             if cohort in known_ids:
-                problems.append(f"cohort_id {cohort} collides with a claim or study id")
+                problems.append(f"cohort_id {_echo(cohort)} collides with a claim or study id")
             cohorts.setdefault(cohort, {"id": cohort, "label": cohort, "type": "cohort"})
             edges.append({"source": study_id, "target": cohort, "relation": "depends_on"})
         for field, relation in (("supports_claim_ids", "supports"), ("contradicts_claim_ids", "contradicts")):
             for claim_id in study.get(field, []):
                 if claim_id not in claim_by_id:
-                    problems.append(f"study {study_id} references unknown claim id {claim_id}")
+                    problems.append(f"study {_echo(study_id)} references unknown claim id {_echo(claim_id)}")
                 if study.get("included") is False:
                     continue
                 edge = {"source": study_id, "target": claim_id, "relation": relation}
@@ -175,25 +229,30 @@ def build_evidence_graph(
             problems.append("extra edges must be a list")
             extra_edges = []
         by_id = {node["id"]: node for node in nodes}
+        extra_ids: set[str] = set()
         for i, node in enumerate(extra_nodes):
             if not isinstance(node, dict):
                 problems.append(f"extra node {i} must be an object")
                 continue
             node_id, node_type = node.get("id"), node.get("type")
             if not isinstance(node_type, str) or node_type not in NODE_TYPES:
-                problems.append(f"invalid extra node type {node_type!r}; allowed: {sorted(NODE_TYPES)}{_suggest(node_type, NODE_TYPES)}")
+                problems.append(f"invalid extra node type {_echo(node_type)}; allowed: {sorted(NODE_TYPES)}{_suggest(node_type, NODE_TYPES)}")
                 continue
             if node_type in {"claim", "study"}:
-                problems.append(f"extra node {node_id!r} cannot have type {node_type}; registers own claim and study nodes")
+                problems.append(f"extra node {_echo(node_id)} cannot have type {node_type}; registers own claim and study nodes")
                 continue
             if not isinstance(node_id, str) or not node_id.strip():
                 problems.append(f"extra node {i} id must be non-empty text")
                 continue
+            if node_id in extra_ids:
+                problems.append(f"extra node id is declared more than once: {_echo(node_id)}")
+                continue
+            extra_ids.add(node_id)
             if node_id in cohorts and node_type == "cohort":
                 cohorts[node_id].update(node)
                 continue
             if node_id in by_id:
-                problems.append(f"extra node id duplicates existing node: {node_id}")
+                problems.append(f"extra node id duplicates existing node: {_echo(node_id)}")
                 continue
             by_id[node_id] = node
             nodes.append(node)
@@ -203,17 +262,26 @@ def build_evidence_graph(
                 continue
             source, target, relation = edge.get("source"), edge.get("target"), edge.get("relation")
             if not isinstance(relation, str) or relation not in RELATIONS:
-                problems.append(f"invalid extra relation {relation!r}; allowed: {sorted(RELATIONS)}{_suggest(relation, RELATIONS)}")
+                problems.append(f"invalid extra relation {_echo(relation)}; allowed: {sorted(RELATIONS)}{_suggest(relation, RELATIONS)}")
                 continue
             if not isinstance(source, str) or not isinstance(target, str) or source not in by_id or target not in by_id:
-                problems.append(f"extra edge endpoint is missing: {source} -> {target}")
+                problems.append(f"extra edge endpoint is missing: {_echo(source)} -> {_echo(target)}")
                 continue
-            if relation in {"supports", "contradicts"} and by_id[source].get("type") == "claim":
-                problems.append(f"extra {relation} edge {source} -> {target} cannot use a claim as its source")
-                continue
-            if relation in {"supports", "contradicts"} and by_id[source].get("type") == "study" and by_id[target].get("type") == "claim":
-                problems.append(f"extra {relation} edge {source} -> {target} must be declared in studies.json")
-                continue
+            if relation in {"supports", "contradicts"}:
+                # Only claims.json and studies.json may create evidence for a claim.
+                source_type, target_type = by_id[source].get("type"), by_id[target].get("type")
+                label = f"extra {relation} edge {_echo(source)} -> {_echo(target)}"
+                if source_type == "claim":
+                    problems.append(f"{label} cannot use a claim as its source")
+                    continue
+                if target_type == "claim":
+                    problems.append(f"{label} must be declared in studies.json")
+                    continue
+                allowed_sources, allowed_targets = RELATION_TYPES[relation]
+                if source_type not in allowed_sources or target_type not in allowed_targets:
+                    problems.append(f"{label} has invalid types {_echo(source_type)}->{_echo(target_type)}; "
+                                    f"allowed: {sorted(allowed_sources)} -> {sorted(allowed_targets)}")
+                    continue
             edges.append(edge)
 
     if problems:

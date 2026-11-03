@@ -32,7 +32,12 @@ def main() -> None:
         plan = plan_life_science_research(question)
     except ValueError as exc:
         parser.error(str(exc))
-    print(json.dumps(plan, indent=2, ensure_ascii=False))
+    text = json.dumps(plan, indent=2, ensure_ascii=False)
+    try:
+        text.encode(sys.stdout.encoding or "utf-8")
+    except UnicodeEncodeError:
+        text = json.dumps(plan, indent=2, ensure_ascii=True)
+    print(text)
 
 
 if __name__ == "__main__":

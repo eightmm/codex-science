@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import urllib.parse
 from pathlib import Path
@@ -11,6 +12,8 @@ from codex_science.connectors import fetch_json, post_json, parse_esearch_ids
 from codex_science.connectors import _graphql_data, _received_records
 
 VARIANT_RE = re.compile(r"^(?:chr)?([0-9XYM]+)[:\-](\d+)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
+GNOMAD_VARIANT_RE = re.compile(r"^(?:chr)?(1[0-9]|2[0-2]|[1-9]|X|Y|MT?)[:\-]([1-9][0-9]*)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
+GNOMAD_ECHO_RE = re.compile(r"^(?:chr)?([0-9XY]+|MT?)[:\-](\d+)[:\-]([ACGT]+)[:\-]([ACGT]+)$", re.I)
 UNIPROT_RE = re.compile(r"^[A-NR-Z][0-9][A-Z0-9]{3}[0-9](?:-\d+)?$", re.I)
 
 
@@ -26,7 +29,23 @@ def _validate(query: str, limit: int) -> tuple[str, int]:
 def _identifier(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("response identifier must be a non-empty string")
-    return value
+    return value.strip()
+
+
+def _quote(value: str) -> str:
+    return urllib.parse.quote(value, safe="")
+
+
+def _allele_frequency(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    try:
+        finite = not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+    except OverflowError:
+        finite = False
+    if not finite:
+        raise ValueError("gnomAD upstream error: allele frequency must be a finite number")
+    return str(value)
 
 
 def _record_id(item: Any, *fields: str) -> str:
@@ -71,9 +90,8 @@ class NCBIESearchConnector:
         query, limit = _validate(query, limit)
         params = urllib.parse.urlencode({"db": self.database, "term": query, "retmode": "json", "retmax": limit})
         payload = self._fetch_json(f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}")
-        parse_esearch_ids(payload)
-        ids = [_identifier(value) for value in _received_records(payload["esearchresult"]["idlist"])[:limit]]
-        return [{"id": str(identifier), "title": "", "database": self.database, "url": self.record_url.format(id=identifier)} for identifier in _received_records(ids)[:limit]]
+        ids = [_identifier(value) for value in _received_records(parse_esearch_ids(payload))[:limit]]
+        return [{"id": identifier, "title": "", "database": self.database, "url": self.record_url.format(id=_quote(identifier))} for identifier in _received_records(ids)[:limit]]
 
 class ClinVarConnector(NCBIESearchConnector):
     database = "clinvar"
@@ -93,11 +111,12 @@ class GnomADConnector:
         self._post_json = post_json
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, _ = _validate(query, limit)
-        match = VARIANT_RE.fullmatch(query)
-        if match is None:
+        match = GNOMAD_VARIANT_RE.fullmatch(query)
+        if match is None or match[3].upper() == match[4].upper():
             raise ValueError("gnomAD query must be chr-pos-ref-alt on GRCh38")
         chromosome, position, reference, alternate = match.groups()
-        variant_id = f"{chromosome.upper()}-{position}-{reference.upper()}-{alternate.upper()}"
+        chromosome = chromosome.upper()
+        variant_id = f"{chromosome}-{position}-{reference.upper()}-{alternate.upper()}"
         graphql = "query Variant($variantId: String!, $datasetId: DatasetId!) { variant(variantId: $variantId, dataset: $datasetId) { variant_id chrom pos ref alt exome { ac an af } genome { ac an af } } }"
         payload = self._post_json("https://gnomad.broadinstitute.org/api", {"query": graphql, "variables": {"variantId": variant_id, "datasetId": "gnomad_r4"}})
         data = _graphql_data(payload, "gnomAD")
@@ -110,15 +129,22 @@ class GnomADConnector:
             raise ValueError("gnomAD upstream error: response variant must be an object or null")
         returned_id = _record_id(item, "variant_id")
         if returned_id:
-            returned = VARIANT_RE.fullmatch(returned_id)
-            expected = (chromosome.upper(), int(position), reference.upper(), alternate.upper())
-            if returned is None or (returned[1].upper(), int(returned[2]), returned[3].upper(), returned[4].upper()) != expected:
+            returned = GNOMAD_ECHO_RE.fullmatch(returned_id)
+            expected = ("M" if chromosome == "MT" else chromosome, int(position), reference.upper(), alternate.upper())
+            if returned is None or ("M" if returned[1].upper() == "MT" else returned[1].upper(), int(returned[2]), returned[3].upper(), returned[4].upper()) != expected:
                 raise ValueError("gnomAD identity mismatch: response variant_id did not match normalized query")
         exome, genome = item.get("exome"), item.get("genome")
         if not isinstance(exome, (dict, type(None))) or not isinstance(genome, (dict, type(None))):
             raise ValueError("gnomAD upstream error: response exome and genome must be objects or null")
         exome, genome = exome or {}, genome or {}
-        return [{"id": _record_id(item, "variant_id") or variant_id, "title": variant_id, "assembly": "GRCh38", "exome_af": str(exome["af"]) if exome.get("af") is not None else "", "genome_af": str(genome["af"]) if genome.get("af") is not None else "", "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
+        return [{"id": _record_id(item, "variant_id") or variant_id, "title": variant_id, "assembly": "GRCh38", "exome_af": _allele_frequency(exome.get("af")), "genome_af": _allele_frequency(genome.get("af")), "url": f"https://gnomad.broadinstitute.org/variant/{variant_id}?dataset=gnomad_r4"}]
+
+
+def _encode_url(item: dict[str, Any]) -> str:
+    path = item.get("@id")
+    if isinstance(path, str) and path.startswith("/") and not path.startswith("//") and "\\" not in path and path.isprintable() and " " not in path:
+        return f"https://www.encodeproject.org{path}"
+    return f"https://www.encodeproject.org/{_quote(_record_id(item, 'accession', '@id'))}/"
 
 
 class ENCODEConnector:
@@ -127,7 +153,7 @@ class ENCODEConnector:
         query, limit = _validate(query, limit)
         params = urllib.parse.urlencode({"searchTerm": query, "format": "json", "limit": limit, "frame": "object"})
         payload = self._fetch_json(f"https://www.encodeproject.org/search/?{params}")
-        return [{"id": _record_id(item, "accession", "@id"), "title": str(item.get("title") or item.get("description") or item.get("accession") or ""), "type": str((item.get("@type") or [""])[0] if isinstance(item.get("@type"), list) else item.get("@type") or ""), "url": f"https://www.encodeproject.org{item.get('@id', '')}"} for item in _received_records(_response_items(payload, ("@graph",)))[:limit] if _record_id(item, "accession", "@id")]
+        return [{"id": _record_id(item, "accession", "@id"), "title": str(item.get("title") or item.get("description") or item.get("accession") or ""), "type": str((item.get("@type") or [""])[0] if isinstance(item.get("@type"), list) else item.get("@type") or ""), "url": _encode_url(item)} for item in _received_records(_response_items(payload, ("@graph",)))[:limit] if _record_id(item, "accession", "@id")]
 
 
 class JASPARConnector:
@@ -135,7 +161,13 @@ class JASPARConnector:
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, limit = _validate(query, limit)
         payload = self._fetch_json(f"https://jaspar.elixir.no/api/v1/matrix/?{urllib.parse.urlencode({'search': query, 'page_size': limit})}")
-        return [{"id": _record_id(item, "matrix_id"), "title": str(item.get("name") or item.get("matrix_id") or ""), "collection": str(item.get("collection") or ""), "url": f"https://jaspar.elixir.no/matrix/{item.get('matrix_id', '')}"} for item in _received_records(_response_items(payload, ("results",)))[:limit] if _record_id(item, "matrix_id")]
+        return [{"id": _record_id(item, "matrix_id"), "title": str(item.get("name") or item.get("matrix_id") or ""), "collection": str(item.get("collection") or ""), "url": f"https://jaspar.elixir.no/matrix/{_quote(_record_id(item, 'matrix_id'))}"} for item in _received_records(_response_items(payload, ("results",)))[:limit] if _record_id(item, "matrix_id")]
+
+
+def _unibind_url(value: Any) -> str:
+    if isinstance(value, str) and value.startswith("https://unibind.uio.no/"):
+        return value
+    return "https://unibind.uio.no/"
 
 
 class UniBindConnector:
@@ -144,7 +176,7 @@ class UniBindConnector:
         query, limit = _validate(query, limit)
         payload = self._fetch_json(f"https://unibind.uio.no/api/datasets?{urllib.parse.urlencode({'search': query, 'limit': limit})}")
         items = _response_items(payload, ("results",), allow_list=True)
-        return [{"id": _record_id(item, "id", "dataset_id"), "title": str(item.get("tf_name") or item.get("name") or item.get("id") or ""), "species": str(item.get("species") or ""), "url": str(item.get("url") or "https://unibind.uio.no/")} for item in _received_records(items)[:limit] if _record_id(item, "id", "dataset_id")]
+        return [{"id": _record_id(item, "id", "dataset_id"), "title": str(item.get("tf_name") or item.get("name") or item.get("id") or ""), "species": str(item.get("species") or ""), "url": _unibind_url(item.get("url"))} for item in _received_records(items)[:limit] if _record_id(item, "id", "dataset_id")]
 
 
 class ArrayExpressConnector:
@@ -153,7 +185,7 @@ class ArrayExpressConnector:
         query, limit = _validate(query, limit)
         params = urllib.parse.urlencode({"query": f"{query} AND collection:arrayexpress", "pageSize": limit})
         payload = self._fetch_json(f"https://www.ebi.ac.uk/biostudies/api/v1/search?{params}")
-        return [{"id": _record_id(item, "accession"), "title": str(item.get("title") or item.get("accession") or ""), "repository": "ArrayExpress/BioStudies", "release_date": str(item.get("release_date") or ""), "url": f"https://www.ebi.ac.uk/biostudies/arrayexpress/studies/{item.get('accession', '')}"} for item in _received_records(_response_items(payload, ("hits",)))[:limit] if _record_id(item, "accession")]
+        return [{"id": _record_id(item, "accession"), "title": str(item.get("title") or item.get("accession") or ""), "repository": "ArrayExpress/BioStudies", "release_date": str(item.get("release_date") or ""), "url": f"https://www.ebi.ac.uk/biostudies/arrayexpress/studies/{_quote(_record_id(item, 'accession'))}"} for item in _received_records(_response_items(payload, ("hits",)))[:limit] if _record_id(item, "accession")]
 
 
 class MetaboLightsConnector:
@@ -162,7 +194,7 @@ class MetaboLightsConnector:
         query, limit = _validate(query, limit)
         payload = self._fetch_json(f"https://www.ebi.ac.uk/metabolights/ws/studies?{urllib.parse.urlencode({'search': query})}")
         items = _response_items(payload, ("content", "studies"))
-        return [{"id": _record_id(item, "studyIdentifier", "accession"), "title": str(item.get("title") or item.get("studyIdentifier") or ""), "release_date": str(item.get("releaseDate") or ""), "url": f"https://www.ebi.ac.uk/metabolights/{item.get('studyIdentifier') or item.get('accession') or ''}"} for item in _received_records(items)[:limit] if _record_id(item, "studyIdentifier", "accession")]
+        return [{"id": _record_id(item, "studyIdentifier", "accession"), "title": str(item.get("title") or item.get("studyIdentifier") or ""), "release_date": str(item.get("releaseDate") or ""), "url": f"https://www.ebi.ac.uk/metabolights/{_quote(_record_id(item, 'studyIdentifier', 'accession'))}"} for item in _received_records(items)[:limit] if _record_id(item, "studyIdentifier", "accession")]
 
 
 class OpenFDAConnector:
@@ -217,17 +249,7 @@ class SimpleSearchConnector:
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
         query, limit = _validate(query, limit)
         payload = self._fetch_json(self.endpoint.format(query=urllib.parse.quote(query, safe=""), limit=limit))
-        if isinstance(payload, dict) and (payload.get("error") or payload.get("errors")):
-            raise ValueError("source response contains an error")
-        items: Any = payload
-        if isinstance(payload, dict):
-            for key in self.result_keys:
-                if isinstance(payload.get(key), list):
-                    items = payload[key]
-                    break
-        if not isinstance(items, list):
-            # Preserve the legacy direct-search fallback; receipts validate the envelope.
-            return []
+        items = _response_items(payload, self.result_keys, allow_list=True)
         results = []
         for item in _received_records(items)[:limit]:
             if not isinstance(item, dict):
