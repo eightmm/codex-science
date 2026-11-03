@@ -534,6 +534,9 @@ def _claims(bundle, handoff, too_few, outputs):
                 _require(claim["text"] == record["text"], "MA_CLAIM", "claim must preserve literal source attribution")
                 _require(all(source.get(field) == record[field] for field in ("kind", "result", "text")),
                          "MA_CLAIM", "record must preserve source kind, result and text")
+            if claim["status"] == "replicated":
+                _require(len({records[ref][1]["study_id"] for ref in refs}) >= 2,
+                         "MA_REPLICATION", "replicated needs evidence from at least two independent studies")
     _require(set(links) == identifiers, "MA_CLAIM", "claim evidence mapping must match claim register")
 
 

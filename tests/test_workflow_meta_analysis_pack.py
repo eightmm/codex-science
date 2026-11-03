@@ -341,7 +341,37 @@ class MetaAnalysisPackTests(unittest.TestCase):
             self.write("evidence.json", evidence)
             self.write("source-A.json", source)
             self.rehash()
-            self.assertEqual("passed", pack.validate_meta_analysis_pack(self.bundle)["status"])
+            if status == "replicated":
+                with self.assertRaisesRegex(ValueError, "^MA_REPLICATION:"):
+                    pack.validate_meta_analysis_pack(self.bundle)
+            else:
+                self.assertEqual("passed", pack.validate_meta_analysis_pack(self.bundle)["status"])
+
+    def test_replicated_needs_two_independent_studies(self):
+        claims = self.read("claims.json")
+        evidence = self.read("evidence.json")
+        handoff = self.read("handoff.json")
+        text = claims["claims"][0]["text"]
+        source_b = self.read("source-B.json")
+        source_b["text"] = text
+        self.write("source-B.json", source_b)
+        record_b = copy.deepcopy(evidence["records"][0])
+        record_b.update(id="fixture-source-B", text=text, artifact={"path": "source-B.json", "sha256": "0" * 64})
+        evidence["records"].append(record_b)
+        claims["claims"][0]["status"] = "replicated"
+        self.write("evidence.json", evidence)
+        self.write("claims.json", claims)
+        identifier = claims["claims"][0]["id"]
+        for refs, expected in ((["fixture-source-A"], "MA_REPLICATION"), (["fixture-source-A", "fixture-source-A"], "MA_CLAIM"),
+                               (["fixture-source-A", "fixture-source-B"], None)):
+            handoff["claim_evidence"][identifier] = refs
+            self.write("handoff.json", handoff)
+            self.rehash()
+            if expected:
+                with self.subTest(refs=refs), self.assertRaisesRegex(ValueError, "^" + expected + ":"):
+                    pack.validate_meta_analysis_pack(self.bundle)
+            else:
+                self.assertEqual("passed", pack.validate_meta_analysis_pack(self.bundle)["status"])
 
     def test_missing_support_requires_unavailable(self):
         claims = self.read("claims.json")

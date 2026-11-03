@@ -23,5 +23,5 @@ before success. Tests deterministically swap symlinks, real directories and
 same-byte regular files at open time; these replacements are refused. The
 inclusive 64 MiB per-file cap and clean replay output are unchanged.
 A claim with any unavailable citation must be unavailable, including mixed
-observed/unavailable support for contradicted or inconclusive claims. Artifact
-changes after hashing are refused during the final consistency check.
+observed/unavailable support for contradicted or inconclusive claims. A replaced bundle
+root is refused during the final consistency check; each artifact is read once.

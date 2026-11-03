@@ -124,7 +124,8 @@ Every positive status (`supported`, `replicated`, `suggestive`) is checked even
 when its `permitted_inference` says descriptive. Both the cited record AND source
 are checked: kind or result containing `review`, `approv`, `comput`, `numerical`
 or `simulat` cannot support positive claims. Neither can unavailable evidence or
-failed controls. Claim kind alone cannot bypass the check. Review approval is
+failed controls. A `replicated` claim must cite evidence from at least two distinct
+study IDs (`MA_REPLICATION`). Claim kind alone cannot bypass the check. Review approval is
 never scientific truth; computed agreement is never physical or clinical validity.
 
 An empty claim evidence list requires status `unavailable`; every other status,

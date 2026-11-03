@@ -40,7 +40,7 @@ Evidence only; no diagnosis or clinical recommendation. Association is never cau
 
 Every claim citing an unavailable row must remain unavailable, even with other
 observed sources. Root ancestors are pinned without following links, all artifact
-reads use that descriptor, and root/artifact identities are rechecked before success.
+reads use that descriptor, and the pinned root identity is rechecked before success; each artifact is read once into one bounded buffer.
 
 Validation reads only regular files, including `dossier.json`, with the existing inclusive 64 MiB JSON cap. It hashes and parses the same artifact bytes and refuses duplicate JSON keys at every depth. Supported or replicated claims screen conservative English clinical wording. Claims with basis `clinical_assertion` must be descriptive and use the complete quote-only statement defined in [stage contracts](references/stages.md); source wording is never adopted as a clinical conclusion.
 
